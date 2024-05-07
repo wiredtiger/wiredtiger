@@ -14,10 +14,11 @@ btree that is contained in a single file. It is also different from an LSM
 (see @ref lsm) tree, which WiredTiger implements as multiple regular btrees,
 each in its own file.
 
-When in use, a tiered btree, like a regular btree, may have some recently used
-or modified data that resides in memory pages. This in-memory representation
-is the same between a tiered btree and a regular btree, it is only how data
-is stored on disk and in cloud objects that makes these btrees different.
+When in use, a tiered btree, like a regular btree, may have some
+recently used or modified data that resides in memory pages.
+This in-memory representation is the same between a tiered btree
+and a regular btree, it is only how data is stored on disk and in
+cloud objects that makes these btrees different.
 
 All writes (i.e., pages that are reconciled and written to storage by eviction
 or checkpoint) are written to a designated file, called the active file.

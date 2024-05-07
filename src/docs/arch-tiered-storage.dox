@@ -9,15 +9,15 @@ Tiered storage provides a way to split btrees into multiple parts,
 with some set of parts stored in cloud storage objects and another
 set of parts stored in local files.
 We often use the term \a object to refer to one of these written
-btree parts, whether it resides on the local disk or in the cloud.
+btree parts, whether the object resides on the local disk or in the cloud.
 The mechanism to create new objects is a WT_SESSION::checkpoint API call
 with the \c flush_tier configuration set.
 For brevity, we often call this a \c flush_tier call.
 
-When in use, a tiered btree, like a regular btree, may have some
+When in use, a tiered btree, like a non-tiered btree, may have some
 recently used or modified data that resides in memory pages.
 This in-memory representation is the same between a tiered btree
-and a regular btree, it is only how data is stored on disk and in
+and a non-tiered btree, it is only how data is stored on disk and in
 cloud objects that makes these btrees different.
 
 @section ts_objectid Object IDs
@@ -25,12 +25,12 @@ cloud objects that makes these btrees different.
 In response to a \c flush_tier call, WiredTiger creates a new object
 for each changed btree.  Each new object created gets a new \a
 objectid, incremented from the previous objectid used with that btree.
-The new object lives initially as a regular disk file, and the disk
+The new object lives initially as a regular local disk file, and the disk
 file name includes the name of the table and the objectid.  This makes
 it is easy to see from a directory listing which tables and which
 objects for that table are represented on disk. Once a new (\a N+1)
 object is created, all writes to the previous (\a N) object are
-completed and that \a N object becomes readonly, like all objects
+completed and that \a N object becomes read-only, like all objects
 before it.  At this point, the \a N object is queued to be copied to
 cloud storage.  After that copy takes place, the local copy of \a N is
 queued for removal, see @ref ts_block_local_file_removal.
@@ -38,11 +38,13 @@ queued for removal, see @ref ts_block_local_file_removal.
 @section ts_checkpoints Checkpoints 
 
 A normal, non-tiered table, although sometimes thought of as a
-"single" btree, can also be thought of as an active btree (a set of
-pages referencing each other, some in memory, some on disk), as well
+"single" btree, can also be thought of as an active or \a live btree, as well
 as zero or more checkpoints, that are fully represented in the single
-disk file. Each checkpoint has its own root page, and so is really its
-own btree.  A tiered table is the same, having an active btree and a
+disk file. Each checkpoint has its own root page, and so can be
+considered its own btree.  Each of these btrees is a set of
+pages referencing each other as a tree, some in memory, some on disk.
+A tiered table is the same,
+having an \a live btree and a
 set of checkpoint btrees. However, both the active btree and the
 checkpoints may span multiple files and/or cloud objects.
 
@@ -51,11 +53,8 @@ guaranteed to contain at least one checkpoint.  When we switch to a
 new (\a N+1) current object, a checkpoint in the previous (\a N) file
 is guaranteed, because a WT_SESSION::checkpoint call with a \c
 flush_tier option is required to switch.  A checkpoint in the \a N
-file refers to blocks in \a N as well as previous (\a N-1, \a N-2, ...)
+file refers to blocks in object \a N as well as previous (\a N-1, \a N-2, ...)
 objects.
-
-The mechanics for coordinating the separate objects is handled in the
-block manager and the metadata.
 
 @section ts_block_manager Block Manager
 
@@ -65,27 +64,20 @@ has references to subordinate leaf pages. Writing a page goes through
 the block manager, which has the job of locating a free position in
 the file. That position, along with the block size and a checksum of
 the content, is packaged up as an <em>address cookie</em> (a sequence
-of bytes) that is returned to the caller.  The "packaging" uses the
-WiredTiger \a pack format described in \c src/include/intpack_inline.h
-.  The caller to the block manager uses that returned cookie as a
-reference to the written page, it may be stored for example, in an
-internal page. Later, when the application wants to access that page
-and it is no longer cached in memory, the block manager is given
-the address cookie which it must decode to locate and read the block.
-Thus, the block manager "owns" the cookie and how it is packed and
-unpacked; code above the block manager view the cookie as an opaque
-set of bytes.
+of bytes) that is returned to the caller.
+Address cookies are further described in @ref block_what.
 
 @subsection ts_cookies Cookies in Tiered Storage
 
 For tiered storage, a reference to a written location needs to
 indicate an objectid. If the reference is from the same object, no
-explicit objectid is needed, and the (position, size, checksum) triple
-can be used.  Otherwise, a four-tuple (position, size, checksum,
-objectid) is used.  Because the byte size of the cookie is given,
+explicit objectid is needed, and the <tt>(position, size, checksum)</tt>
+triple can be used.  Otherwise, a four-tuple <tt>(position, size, checksum,
+objectid)</tt> is used.  Because the byte size of the cookie is given,
 and the objectid appears last, the code that interprets cookies
 can deduce which kind it is given.  If the decoder has seen three
 entries and it has reached the end of its data, then it has a triple.
+If the decoder still has more data, then it also contains an objectid.
 
 Object numbering starts at 1, so an objectid of 0 references the same
 object as the cookie's location.  Because of these properties, it's
@@ -94,25 +86,6 @@ straightforward to see that a file from a non-tiered btree could be
 contents.  Every reference in the non-tiered btree is a triple,
 meaning there is an implied a zero objectid. Thus each reference must
 be to the same object.
-
-In addition to address cookies, there are also checkpoint cookies.
-Checkpoint cookies fully describe everything needed to access a checkpoint
-on an individual btree.
-Like an address cookie, a checkpoint cookie is a set of bytes that can
-be unpacked into a set of values.  A checkpoint cookie is logically
-composed of 4 address cookies and two additional values:
-  - an address cookie for the root page
-  - an address cookie for the extent list with allocated entries
-  - an address cookie for the extent list with available entries
-  - an address cookie for the extent list with discarded entries
-  - the file size for the checkpoint
-  - the checkpoint size
-
-So for a non-tiered table, using triples for address cookies, there
-are 14 values in total.  And for a tiered table, using four-tuples for
-address cookies, there are 18 values.  The program in \c
-tools/wt_ckpt_decode.py can be used to unpack a set of bytes and show
-these values.
 
 @subsection ts_block_files Files in the Block Manager
 
@@ -157,7 +130,7 @@ read/write lock on the \c WT_BM to access, modify or grow the array of
 When the tiered server determines that a local file should be removed,
 we know first and foremost that there are no writers to the file. This
 is because local file removal can only be done on files that have
-become readonly. However, there may be active readers in the file.  At
+become read-only. However, there may be active readers in the file.  At
 the time we remove the file, we'd like to remove the corresponding \c
 WT_BLOCK entry from the \c handle_array, but we cannot do that until
 all readers have finished using the block handle.  When we want to
@@ -212,7 +185,7 @@ there were column groups or indices, there may be multiple btrees
 associated with the table, and listed in the metadata,
 but in this example there is just one.  The
 \c "file:" entry represents the btree stored on disk, as well as parts
-cached in memory.  The data structure implied by this entry is a \c
+<cached in memory.  The data structure implied by this entry is a \c
 WT_BTREE.
 
 In summary, the relationship between prefixes and data structures is as follows:
@@ -311,7 +284,7 @@ create a custom file system (returning a \c WT_FILE_SYSTEM) from a
 bucket name and credentials.  A file system created this way is stored
 in the \c WT_BUCKET_STORAGE.
 
-The file system can be used for various readonly operations, like
+The file system can be used for various read-only operations, like
 listing the bucket contents or opening a \c WT_FILE_HANDLE .  That, in
 turn, can be used to get the contents of a cloud object.  Note that \c
 WT_FILE_SYSTEM and \c WT_FILE_HANDLE are more generic WiredTiger
