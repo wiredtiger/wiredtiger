@@ -500,10 +500,10 @@ private:
 };
 
 /*
- * decode_charset_bytes --
- *     Decode one-byte code points. Throw an exception on error.
+ * decode_utf8 --
+ *     Decode a UTF-8 string into one-byte code points. Throw an exception on error.
  */
-std::string decode_charset_bytes(const std::string &str, const char *src_charset = "UTF-8");
+std::string decode_utf8(const std::string &str);
 
 /*
  * parse_uint64 --

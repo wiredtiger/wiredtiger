@@ -54,7 +54,7 @@ from_json(const json &j, debug_log_parser::col_put &out)
     j.at("recno").get_to(out.recno);
     j.at("value").get_to(value);
 
-    out.value = decode_charset_bytes(value);
+    out.value = decode_utf8(value);
 }
 
 /*
@@ -118,8 +118,8 @@ from_json(const json &j, debug_log_parser::row_put &out)
     j.at("key").get_to(key);
     j.at("value").get_to(value);
 
-    out.key = decode_charset_bytes(key);
-    out.value = decode_charset_bytes(value);
+    out.key = decode_utf8(key);
+    out.value = decode_utf8(value);
 }
 
 /*
@@ -134,7 +134,7 @@ from_json(const json &j, debug_log_parser::row_remove &out)
     j.at("fileid").get_to(out.fileid);
     j.at("key").get_to(key);
 
-    out.key = decode_charset_bytes(key);
+    out.key = decode_utf8(key);
 }
 
 /*
@@ -151,8 +151,8 @@ from_json(const json &j, debug_log_parser::row_truncate &out)
     j.at("start").get_to(start);
     j.at("stop").get_to(stop);
 
-    out.start = decode_charset_bytes(start);
-    out.stop = decode_charset_bytes(stop);
+    out.start = decode_utf8(start);
+    out.stop = decode_utf8(stop);
 }
 
 /*

@@ -285,14 +285,14 @@ shared_memory::~shared_memory()
 }
 
 /*
- * convert_charset --
- *     Perform a character set conversion. Throw an exception on error.
+ * decode_utf8 --
+ *     Decode a UTF-8 string into one-byte code points. Throw an exception on error.
  */
 std::string
-decode_charset_bytes(const std::string &str, const char *src_charset)
+decode_utf8(const std::string &str)
 {
     /* Initialize the conversion. */
-    iconv_t conv = iconv_open("WCHAR_T", src_charset);
+    iconv_t conv = iconv_open("WCHAR_T", "UTF-8");
     if (conv == (iconv_t)-1)
         throw std::runtime_error(
           "Cannot initialize charset conversion: " + std::string(wiredtiger_strerror(errno)));
@@ -300,18 +300,15 @@ decode_charset_bytes(const std::string &str, const char *src_charset)
 
     /* Copy the input buffer, since the conversion library needs a mutable buffer. */
     size_t src_size = str.size();
-    char *src = new char[src_size];
-    at_cleanup free_src([src] { delete[] src; });
-    memcpy(src, str.c_str(), src_size);
+    std::vector<char> src(str.begin(), str.end());
 
     /* Allocate the output buffer. */
     size_t dest_size = src_size + 4; /* Big enough because we're using 1-byte code points. */
-    wchar_t *dest = new wchar_t[dest_size];
-    at_cleanup free_dest([dest] { delete[] dest; });
+    std::vector<wchar_t> dest(dest_size, 0);
 
     /* Now do the actual conversion. */
-    char *p_src = src;
-    char *p_dest = (char *)dest;
+    char *p_src = src.data();
+    char *p_dest = (char *)dest.data();
     size_t src_bytes = src_size;
     size_t dest_bytes = dest_size * sizeof(wchar_t);
     size_t dest_bytes_start = dest_bytes;
@@ -327,8 +324,7 @@ decode_charset_bytes(const std::string &str, const char *src_charset)
     size_t decoded_size = (dest_bytes_start - dest_bytes) / sizeof(wchar_t);
 
     /* Extract the byte-long code points into an array. */
-    char *decoded = new char[decoded_size];
-    at_cleanup free_decoded([decoded] { delete[] decoded; });
+    std::vector<char> decoded(decoded_size, 0);
     for (size_t i = 0; i < decoded_size; i++) {
         if (dest[i] > 0xFF)
             throw std::runtime_error(
@@ -336,7 +332,7 @@ decode_charset_bytes(const std::string &str, const char *src_charset)
         decoded[i] = (char)dest[i];
     }
 
-    return std::string(decoded, decoded_size);
+    return std::string(decoded.data(), decoded_size);
 }
 
 /*
