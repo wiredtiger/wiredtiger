@@ -176,7 +176,7 @@ the data being flushed to disk. In the checkpoint scenario WiredTiger will also
 call \c bm->sync once all blocks have been written which will call the file
 system dependent flush function.
 
-* Checkpoint deletion and merging *
+<b>Checkpoint deletion and merging</b>
 
 As a checkpoint progresses it takes a snapshot of the three extent lists kept
 by the block manager, these extent lists are written out to disk as part of
@@ -224,13 +224,13 @@ We don't want to list each block individually in the extent lists, so instead of
 listing each block separately in the list, we use extents, which can describe a
 range in the file, that is, any number of contiguous blocks.
 
-* Checkpoint cookies *
+<b>Checkpoint cookies</b>
 
 After a checkpoint is written, the block manager creates a <em>checkpoint cookie</em>
-to describe it. Similar to an <em>address cookie</em>, the checkpoint cookie is
+to describe it. Similar to an <em>address cookie</em>, a checkpoint cookie is
 a sequence of bytes that is encoded and decoded by the block manager, and is
-opaque to other parts of the system. It is composed of four address cookies
-and two additional values:
+opaque to other parts of the system. A checkpoint cookie is composed of
+four address cookies and two additional values:
   - an address cookie for the root page
   - an address cookie for the extent list with allocated entries
   - an address cookie for the extent list with available entries
@@ -239,8 +239,9 @@ and two additional values:
   - the checkpoint size
 
 As described in @ref block_address_cookie, an address cookie used with a tiered storage
-has an additional value. As a result, the checkpoint cookie for a tiered btree will have some
-additional information as well.
+has an additional value (the \c object_id). As a result, the checkpoint cookie for a
+tiered btree will include additional \c object_id values that are not in other
+checkpoints.
 
 The program in \c tools/wt_ckpt_decode.py can be used to unpack a set of bytes representing
 a checkpoint cookie and show its values.

@@ -219,10 +219,10 @@ In particular the btree is found in the dhandle. To be precise,
 \c WT_TIERED->iface is the dhandle, and \c WT_TIERED->iface.handle is
 a pointer to a WT_BTREE.  The \c WT_TIERED structure is also ready to
 support union tables, see future work in @ref ts_future_sharing.
-The local tier part of union tables would in WT_TIERED->tiers[WT_TIERED_INDEX_LOCAL],
+The local tier part of union tables would in <tt>WT_TIERED->tiers[WT_TIERED_INDEX_LOCAL]</tt>,
 this is always NULL in the current system.  Note that \c WT_TIERED_INDEX_LOCAL is 0.
 The second part of the union table, and the part that we use is
-WT_TIERED->tiers[WT_TIERED_INDEX_SHARED]. (\c WT_TIERED_INDEX_SHARED is 0).
+<tt>WT_TIERED->tiers[WT_TIERED_INDEX_SHARED]</tt>. (\c WT_TIERED_INDEX_SHARED is 0).
 Stored here is a pointer to a \c WT_TIERED_TIERS struct,
 this aligns with the \c "tier:A" entry in the metadata.
 
