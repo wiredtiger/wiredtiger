@@ -70,11 +70,11 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
             WT_RET_MSG(session, EINVAL,
               "chunk cache I/O capacity value %" PRIu64 " below minimum %d", checkpoint,
               WT_THROTTLE_MIN);
-        if (total < chunkcache + checkpoint)
+        if (total > 0 && total < chunkcache + checkpoint)
             WT_RET_MSG(session, EINVAL,
               "chunk cache and checkpoint I/O capacity value %" PRIu64 " below total %" PRIu64,
               checkpoint, total);
-        if ((total - chunkcache - checkpoint) < WT_THROTTLE_MIN)
+        if (total > 0 && total - chunkcache - checkpoint < WT_THROTTLE_MIN)
             WT_RET_MSG(session, EINVAL,
               "chunk cache and checkpoint I/O capacity value %" PRIu64
               " leaves insufficient capacity for other subsystems (total %" PRIu64
@@ -108,7 +108,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (chunkcache != 0)
         cap->chunkcache = chunkcache;
     if (checkpoint != 0)
-        cap->ckpt = checkpoint;
+        cap->only_ckpt = cap->ckpt == 0 ? checkpoint : WT_MIN(checkpoint, cap->ckpt);
+
     return (0);
 }
 
@@ -354,6 +355,48 @@ __throttle_chunkcache(WT_SESSION_IMPL *session, WT_CAPACITY *cap, uint64_t bytes
 }
 
 /*
+ * __throttle_checkpoint --
+ *     Reserve a time to perform a checkpoint, and wait until then. The checkpoint is the only
+ *     subsystem with a separate IO throttle; ideally future subsystem-specific throttles could be
+ *     combined into this implementation.
+ */
+static void
+__throttle_checkpoint(WT_SESSION_IMPL *session, WT_CAPACITY *cap, uint64_t bytes)
+{
+    struct timespec now;
+    uint64_t capacity, now_ns, *reservation, res_value, sleep_us;
+
+    capacity = cap->only_ckpt;
+    reservation = &cap->reservation_ckpt;
+
+    WT_STAT_CONN_INCRV(session, capacity_bytes_ckpt, bytes);
+    WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
+
+    if (capacity == 0 || F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        return;
+
+    /* If we get sizes larger than this, later calculations may overflow. */
+    WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
+    WT_ASSERT(session, capacity != 0);
+
+    /* Get the current time in nanoseconds since the epoch. */
+    __wt_epoch(session, &now);
+    now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
+
+    /* Take a reservation for the subsystem. */
+    __capacity_reserve(reservation, bytes, capacity, now_ns, &res_value);
+
+    if (res_value > now_ns) {
+        sleep_us = (res_value - now_ns) / WT_THOUSAND;
+        WT_STAT_CONN_INCRV(session, capacity_time_ckpt, sleep_us);
+        if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US) {
+            /* Sleep handles large usec values. */
+            __wt_sleep(0, sleep_us);
+        }
+    }
+}
+
+/*
  * __wt_capacity_throttle --
  *     Reserve a time to perform a write operation for the subsystem, and wait until that time. The
  *     concept is that each write to a subsystem reserves a time slot to do its write, and
@@ -387,6 +430,11 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
         __throttle_chunkcache(session, cap, bytes);
         return;
     case WT_THROTTLE_CKPT:
+        if (cap->only_ckpt > 0) {
+            __throttle_checkpoint(session, cap, bytes);
+            return;
+        }
+
         capacity = cap->ckpt;
         reservation = &cap->reservation_ckpt;
         WT_STAT_CONN_INCRV(session, capacity_bytes_ckpt, bytes);
