@@ -16,7 +16,7 @@ For brevity, we often call this a \c flush_tier call.
 
 When in use, a tiered btree, like a regular btree, may have some
 recently used or modified data that resides in memory pages.
-This in memory representation is the same between a tiered btree
+This in-memory representation is the same between a tiered btree
 and a regular btree, it is only how data is stored on disk and in
 cloud objects that makes these btrees different.
 
