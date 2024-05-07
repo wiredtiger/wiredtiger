@@ -191,7 +191,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Assert if not writing anything to the history store.
         self.assertGreaterEqual(hs_writes, 0)
 
-        self.check_data(ds, "(step 1)", nkeys, nrows, timestamp_middle, commit_value)
+        self.check_data(ds, "(step 1)", nsessions * nkeys, nrows, timestamp_middle, commit_value)
 
         # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
@@ -212,13 +212,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         self.session.commit_transaction()
 
-        self.check_data(ds, "(step 2)", nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 2)", nsessions * nkeys, nrows, timestamp_later, commit_value)
 
         # Corrupt the table, call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
 
         # Finally, search for the keys inserted with commit timestamp
-        self.check_data(ds, "(step 3)", nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 3)", nsessions * nkeys, nrows, timestamp_later, commit_value)
 
         self.session.checkpoint()
 
@@ -229,7 +229,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
 
-        self.check_data(ds, "(step 4)", nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 4)", nsessions * nkeys, nrows, timestamp_later, commit_value)
 
         # After simulating a crash, corrupt the table, call salvage to recover data from the
         # corrupted table and call verify
