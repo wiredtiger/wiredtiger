@@ -126,6 +126,10 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     if (cache->eviction_updates_target < DBL_EPSILON)
         cache->eviction_updates_target = cache->eviction_dirty_target / 2;
 
+    /* Don't allow the updates target to be larger than the eviction target. */
+    if (cache->eviction_updates_target > cache->eviction_target)
+        cache->eviction_updates_target = cache->eviction_target;
+
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
     cache->eviction_updates_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
@@ -150,6 +154,9 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
           session, EINVAL, "eviction=(threads_min) cannot be greater than eviction=(threads_max)");
     conn->evict_threads_max = evict_threads_max;
     conn->evict_threads_min = evict_threads_min;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
+    conn->evict_sample_inmem = cval.val != 0;
 
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
@@ -294,7 +301,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
-    uint64_t inuse, intl, leaf;
+    uint64_t intl, inuse, leaf;
 
     conn = S2C(session);
     cache = conn->cache;

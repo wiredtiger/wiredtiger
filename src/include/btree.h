@@ -84,8 +84,8 @@ typedef enum {
 } WT_BTREE_CHECKSUM;
 
 typedef enum { /* Start position for eviction walk */
-    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_PREV,
+    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_RAND_NEXT,
     WT_EVICT_WALK_RAND_PREV
 } WT_EVICT_WALK_TYPE;
@@ -202,6 +202,8 @@ struct __wt_btree {
     wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
+    uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
+
     /*
      * The maximum bytes allowed to be used for the table on disk. This is currently only used for
      * the history store table.
@@ -242,6 +244,7 @@ struct __wt_btree {
      * code.
      */
     WT_REF *evict_ref;                         /* Eviction thread's location */
+    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */
     uint32_t evict_walk_target;                /* Eviction walk target */

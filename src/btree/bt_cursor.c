@@ -1108,7 +1108,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     bool append_key, key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
@@ -1327,7 +1327,7 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -1378,7 +1378,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     bool searched, valid;
 
     btree = CUR2BT(cbt);
@@ -1553,7 +1553,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     bool key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
@@ -1798,7 +1798,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t orig, new;
+    size_t new, orig;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -2043,7 +2043,7 @@ __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t records_truncated;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
 
     session = CUR2S(start);
     records_truncated = yield_count = sleep_usecs = 0;
@@ -2103,7 +2103,7 @@ __cursor_truncate_fix(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     const uint8_t *value;
 
     session = CUR2S(start);
@@ -2175,26 +2175,6 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
     WT_STAT_DSRC_INCR(session, cursor_truncate);
-
-    /*
-     * Allow performing truncate operation without a timestamp on non logged tables for non
-     * standalone builds (MongoDB). MongoDB does perform truncate operation only on a table that
-     * does not have historical versions to avoid the problem. Remove this standalone build specific
-     * code when MongoDB switches to perform truncate operation with timestamps.
-     */
-#ifdef WT_STANDALONE_BUILD
-    /*
-     * All historical versions must be removed when a key is updated with no timestamp, but that
-     * isn't possible in fast truncate operations. Disallow fast truncate in transactions configured
-     * to commit without a timestamp (excluding logged tables as timestamps cannot be relevant to
-     * them).
-     */
-    if (!F_ISSET(btree, WT_BTREE_LOGGED) && F_ISSET(session->txn, WT_TXN_TS_NOT_SET))
-        WT_RET_MSG(session, EINVAL,
-          "truncate operations may not yet be included in transactions that can commit without a "
-          "timestamp. If your use case encounters this error, please reach out to the WiredTiger "
-          "team");
-#endif
 
     WT_RET(__wt_txn_autocommit_check(session));
 
@@ -2275,11 +2255,11 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_cache --
- *     Discard buffers when caching a cursor.
+ * __wt_btcur_free_cached_memory --
+ *     Discard internal buffers held by this cursor.
  */
 void
-__wt_btcur_cache(WT_CURSOR_BTREE *cbt)
+__wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt)
 {
     WT_SESSION_IMPL *session;
 
@@ -2299,9 +2279,6 @@ int
 __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(cbt);
 
     /*
      * The in-memory split, history store table, and fast-truncate instantiation code creates
@@ -2312,12 +2289,10 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     if (!lowlevel)
         ret = __cursor_reset(cbt);
 
-    __wt_buf_free(session, &cbt->_row_key);
-    __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, &cbt->_modify_update.buf);
-    __wt_buf_free(session, &cbt->_upd_value.buf);
+    __wt_btcur_free_cached_memory(cbt);
+
 #ifdef HAVE_DIAGNOSTIC
-    __wt_buf_free(session, &cbt->_lastkey);
+    __wt_buf_free(CUR2S(cbt), &cbt->_lastkey);
 #endif
 
     return (ret);

@@ -134,7 +134,7 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
 static WT_INLINE void
 __block_off_srch_pair(WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **afterp)
 {
-    WT_EXT **head, **extp;
+    WT_EXT **extp, **head;
     int i;
 
     *beforep = *afterp = NULL;
@@ -171,7 +171,7 @@ static int
 __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
 {
     WT_EXT **astack[WT_SKIP_MAXDEPTH];
-    WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
+    WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
     u_int i;
 
     /*
@@ -248,6 +248,7 @@ WT_EXT *
 __wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
 {
     WT_EXT *after, *before;
+
     __block_off_srch_pair(el, off, &before, &after);
 
     /* Check if the search key is in the before extent. Otherwise return the after extent. */
@@ -265,7 +266,7 @@ __wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
 static bool
 __block_off_match(WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT *before, *after;
+    WT_EXT *after, *before;
 
     /* Search for before and after entries for the offset. */
     __block_off_srch_pair(el, off, &before, &after);
@@ -331,8 +332,8 @@ static int
 __block_off_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, WT_EXT **extp)
 {
-    WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
-    WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
+    WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
     u_int i;
 
     /* Find and remove the record from the by-offset skiplist. */
@@ -402,7 +403,7 @@ int
 __wt_block_off_remove_overlap(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT *before, *after, *ext;
+    WT_EXT *after, *before, *ext;
     wt_off_t a_off, a_size, b_off, b_size;
 
     WT_ASSERT(session, off != WT_BLOCK_INVALID_OFFSET);
@@ -414,13 +415,31 @@ __wt_block_off_remove_overlap(
     if (before != NULL && before->off + before->size > off) {
         WT_RET(__block_off_remove(session, block, el, before->off, &ext));
 
+        WT_ASSERT(session, ext->off + ext->size >= off + size);
+
         /* Calculate overlapping extents. */
         a_off = ext->off;
         a_size = off - ext->off;
         b_off = off + size;
         b_size = ext->size - (a_size + size);
+
+        if (a_size > 0) {
+            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
+              (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
+              (intmax_t)(a_off), (intmax_t)(a_off + a_size));
+        }
+
+        if (b_size > 0) {
+            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
+              (intmax_t)before->off, (intmax_t)before->off + (intmax_t)before->size,
+              (intmax_t)(b_off), (intmax_t)(b_off + b_size));
+        }
     } else if (after != NULL && off + size > after->off) {
         WT_RET(__block_off_remove(session, block, el, after->off, &ext));
+
+        WT_ASSERT(session, off == ext->off && off + size <= ext->off + ext->size);
 
         /*
          * Calculate overlapping extents. There's no initial overlap since the after extent
@@ -430,6 +449,13 @@ __wt_block_off_remove_overlap(
         a_size = 0;
         b_off = off + size;
         b_size = ext->size - (b_off - ext->off);
+
+        if (b_size > 0)
+            __wt_verbose_debug2(session, WT_VERB_BLOCK,
+              "%s: %" PRIdMAX "-%" PRIdMAX " range shrinks to %" PRIdMAX "-%" PRIdMAX, el->name,
+              (intmax_t)after->off, (intmax_t)after->off + (intmax_t)after->size, (intmax_t)(b_off),
+              (intmax_t)(b_off + b_size));
+
     } else
         return (WT_NOTFOUND);
 
@@ -437,13 +463,13 @@ __wt_block_off_remove_overlap(
      * If there are overlaps, insert the item; re-use the extent structure and save the allocation
      * (we know there's no need to merge).
      */
-    if (a_size != 0) {
+    if (a_size > 0) {
         ext->off = a_off;
         ext->size = a_size;
         WT_RET(__block_ext_insert(session, el, ext));
         ext = NULL;
     }
-    if (b_size != 0) {
+    if (b_size > 0) {
         if (ext == NULL)
             WT_RET(__block_off_insert(session, el, b_off, b_size));
         else {
@@ -501,9 +527,9 @@ __block_extend(
 int
 __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
 {
-    WT_EXT *ext, **estack[WT_SKIP_MAXDEPTH];
+    WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
     WT_EXTLIST *el;
-    WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
+    WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
 
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
@@ -752,38 +778,38 @@ __block_ext_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *ael, 
      * We can think of the overlap possibilities as 11 different cases:
      *
      *		AAAAAAAAAAAAAAAAAA
-     * #1		BBBBBBBBBBBBBBBBBB		ranges are the same
-     * #2	BBBBBBBBBBBBB				overlaps the beginning
-     * #3			BBBBBBBBBBBBBBBB	overlaps the end
-     * #4		BBBBB				B is a prefix of A
-     * #5			BBBBBB			B is middle of A
-     * #6			BBBBBBBBBB		B is a suffix of A
+     * #1	BBBBBBBBBBBBBBBBBB		ranges are the same
+     * #2  BBBBBBBBBBBBB			overlaps the beginning
+     * #3		BBBBBBBBBBBBBBBB	overlaps the end
+     * #4	BBBBB				B is a prefix of A
+     * #5		BBBBBB			B is middle of A
+     * #6		BBBBBBBBBB		B is a suffix of A
      *
      * and:
      *
      *		BBBBBBBBBBBBBBBBBB
-     * #7	AAAAAAAAAAAAA				same as #3
-     * #8			AAAAAAAAAAAAAAAA	same as #2
-     * #9		AAAAA				A is a prefix of B
-     * #10			AAAAAA			A is middle of B
-     * #11			AAAAAAAAAA		A is a suffix of B
+     * #7  AAAAAAAAAAAAA			same as #3
+     * #8		AAAAAAAAAAAAAAAA	same as #2
+     * #9	AAAAA				A is a prefix of B
+     * #10		AAAAAA			A is middle of B
+     * #11		AAAAAAAAAA		A is a suffix of B
      *
      *
      * By swapping the arguments so "A" is always the lower range, we can
      * eliminate cases #2, #8, #10 and #11, and only handle 7 cases:
      *
      *		AAAAAAAAAAAAAAAAAA
-     * #1		BBBBBBBBBBBBBBBBBB		ranges are the same
-     * #3			BBBBBBBBBBBBBBBB	overlaps the end
-     * #4		BBBBB				B is a prefix of A
-     * #5			BBBBBB			B is middle of A
-     * #6			BBBBBBBBBB		B is a suffix of A
+     * #1	BBBBBBBBBBBBBBBBBB		ranges are the same
+     * #3		BBBBBBBBBBBBBBBB	overlaps the end
+     * #4	BBBBB				B is a prefix of A
+     * #5		BBBBBB			B is middle of A
+     * #6		BBBBBBBBBB		B is a suffix of A
      *
      * and:
      *
      *		BBBBBBBBBBBBBBBBBB
-     * #7	AAAAAAAAAAAAA				same as #3
-     * #9		AAAAA				A is a prefix of B
+     * #7  AAAAAAAAAAAAA			same as #3
+     * #9	AAAAA				A is a prefix of B
      */
     a = *ap;
     b = *bp;
@@ -958,7 +984,7 @@ static int
 __block_append(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
     u_int i;
 
     WT_UNUSED(block);
@@ -1024,7 +1050,7 @@ static int
 __block_merge(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT *ext, *after, *before;
+    WT_EXT *after, *before, *ext;
 
     /*
      * Retrieve the records preceding/following the offset. If the records are contiguous with the
@@ -1297,7 +1323,7 @@ err:
 int
 __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
 {
-    WT_EXT *ext, **astack[WT_SKIP_MAXDEPTH];
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
     wt_off_t size;
 
     /*
@@ -1352,7 +1378,7 @@ void
 __wt_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el)
 {
     WT_EXT *ext, *next;
-    WT_SIZE *szp, *nszp;
+    WT_SIZE *nszp, *szp;
 
     __wt_free(session, el->name);
 

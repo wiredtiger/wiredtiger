@@ -158,9 +158,9 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         __wt_config_subinit(session, &objectconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
             /*
-             * XXX Only allow "file:" and "lsm:" for now: "file:" works because it's been converted
-             * to data handles, "lsm:" works because we can easily walk the list of open LSM
-             * objects, even though it hasn't been converted.
+             * Only allow "file:" and "lsm:" for now: "file:" works because it's been converted to
+             * data handles, "lsm:" works because we can easily walk the list of open LSM objects,
+             * even though it hasn't been converted.
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
                 WT_ERR_MSG(session, EINVAL,
@@ -310,7 +310,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
     size_t prefixlen;
     int64_t val;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
-    const char *desc, *endprefix, *valstr, *uri;
+    const char *desc, *endprefix, *uri, *valstr;
     bool first, groupfirst;
 
     conn = S2C(session);

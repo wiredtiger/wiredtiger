@@ -97,7 +97,6 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
-DeadStores
 Decrypt
 DeleteFileW
 Deterministically
@@ -389,6 +388,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+UBSAN
 UDF
 UID
 UIDs
@@ -657,7 +657,6 @@ dbar
 dbs
 dcalloc
 ddd
-deadcode
 decile
 deciles
 decl
