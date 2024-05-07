@@ -244,6 +244,7 @@ fail_file_read(
         ret = fail_fs_simulate_fail(fail_fh, session, read_ops, "read");
         goto err;
     }
+    fail_fs_unlock(&fail_fs->lock);
 
     /* Break reads larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
@@ -257,8 +258,10 @@ fail_file_read(
             break;
         }
     }
+    if (0) {
 err:
-    fail_fs_unlock(&fail_fs->lock);
+        fail_fs_unlock(&fail_fs->lock);
+    }
     return (ret);
 }
 
@@ -369,8 +372,10 @@ fail_file_write(
             break;
         }
     }
+    if (0) {
 err:
-    fail_fs_unlock(&fail_fs->lock);
+        fail_fs_unlock(&fail_fs->lock);
+    }
     return (ret);
 }
 
