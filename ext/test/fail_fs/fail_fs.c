@@ -359,6 +359,7 @@ fail_file_write(
         ret = fail_fs_simulate_fail(fail_fh, session, write_ops, "write");
         goto err;
     }
+    fail_fs_unlock(&fail_fs->lock);
 
     /* Break writes larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
