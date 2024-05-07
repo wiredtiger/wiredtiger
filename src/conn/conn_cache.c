@@ -59,7 +59,6 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
     temp_cache.eviction_target = (double)cval.val;
-    printf("%ld", cval.val);
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
     temp_cache.eviction_trigger = (double)cval.val;
