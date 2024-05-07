@@ -52,13 +52,14 @@ __cache_config_abs_to_pct(
  *     Validate trigger and target values of given configs
  */
 static int 
-validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create)
+__validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create)
 {
     WT_CONFIG_ITEM cval;
     WT_CACHE temp_cache;
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
     temp_cache.eviction_target = (double)cval.val;
+    printf("%ld", cval.val);
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
     temp_cache.eviction_trigger = (double)cval.val;
@@ -131,7 +132,7 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     conn = S2C(session);
     cache = conn->cache;
 
-    if (!validate_cache_config(session, cfg, false)){
+    if (!__validate_cache_config(session, cfg, false)){
         WT_RET_MSG(session, EINVAL, "Invalid config!");
     }
 
@@ -305,7 +306,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     cache->read_gen_oldest = WT_READGEN_START_VALUE;
     __wt_atomic_store64(&cache->read_gen, WT_READGEN_START_VALUE);
 
-    WT_RET(validate_cache_config(session, cfg, true));
+    WT_RET(__validate_cache_config(session, cfg, true));
 
     WT_RET(__wt_cond_auto_alloc(
       session, "cache eviction server", 10 * WT_THOUSAND, WT_MILLION, &cache->evict_cond));
@@ -462,3 +463,13 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
     __wt_free(session, conn->cache);
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+
+int 
+__ut_validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create)
+{
+    return (__validate_cache_config(session, cfg, create));
+}
+
+#endif
