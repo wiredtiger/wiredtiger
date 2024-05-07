@@ -241,10 +241,9 @@ fail_file_read(
 
     if (fail_fs->fail_enabled && fail_fs->allow_reads != 0 &&
       read_ops % fail_fs->allow_reads == 0) {
-        fail_fs_unlock(&fail_fs->lock);
-        return (fail_fs_simulate_fail(fail_fh, session, read_ops, "read"));
+        ret = fail_fs_simulate_fail(fail_fh, session, read_ops, "read");
+        goto err;
     }
-    fail_fs_unlock(&fail_fs->lock);
 
     /* Break reads larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
@@ -258,6 +257,8 @@ fail_file_read(
             break;
         }
     }
+err:
+    fail_fs_unlock(&fail_fs->lock);
     return (ret);
 }
 
@@ -352,10 +353,9 @@ fail_file_write(
 
     if (fail_fs->fail_enabled && fail_fs->allow_writes != 0 &&
       write_ops % fail_fs->allow_writes == 0) {
-        fail_fs_unlock(&fail_fs->lock);
-        return (fail_fs_simulate_fail(fail_fh, session, write_ops, "write"));
+        ret = fail_fs_simulate_fail(fail_fh, session, write_ops, "write");
+        goto err;
     }
-    fail_fs_unlock(&fail_fs->lock);
 
     /* Break writes larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
@@ -369,6 +369,8 @@ fail_file_write(
             break;
         }
     }
+err:
+    fail_fs_unlock(&fail_fs->lock);
     return (ret);
 }
 
