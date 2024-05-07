@@ -40,7 +40,7 @@ int __wt_fetch(struct __wt_futex *ftx, uint32_t *val);
  *  T2 : __wt_store(F, Y);
  *  T1 : __wt_wait(F, X, ALONGTIME) == 0 "spurious wakeup"
  *
- * At this point T1 will see this as a deliberate wakeup.
+ * Thread T1 will see this as an intentional wakeup.
  *
  * \retval -EINVAL Not a futex.
  */
