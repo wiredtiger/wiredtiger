@@ -1052,6 +1052,10 @@ connection_ops(WT_CONNECTION *conn)
     printf("The database home is %s\n", conn->get_home(conn));
     /*! [Get the database home directory] */
 
+    /*! [Get the wiredtiger's version] */
+    printf("The wiredtiger's version is %s\n", conn->get_version(conn));
+    /*! [Get the wiredtiger's version] */
+
     /*! [Check if the database is newly created] */
     if (conn->is_new(conn)) {
         /* First time initialization. */

@@ -2512,6 +2512,15 @@ struct __wt_connection {
     const char *__F(get_home)(WT_CONNECTION *connection);
 
     /*!
+     * The wiredtiger's version of the connection.
+     *
+     * @snippet ex_all.c Get the wiredtiger's version
+     *
+     * @param connection the connection handle
+     * @returns a pointer to a string naming wiredtiger's version
+     */
+    const char *__F(get_version)(WT_CONNECTION *connection);
+    /*!
      * Compile a configuration string to be used with an API.  The string returned by this
      * method can be used with the indicated API call as its configuration argument.
      * Precompiled strings should be used where configuration parsing has proved to be a
