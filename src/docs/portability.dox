@@ -27,12 +27,11 @@ architecture on this page does not make it unsupported.
 
 @subsection atomic-reads-writes Atomic reads and writes
 WiredTiger requires that pointers (void *) and variables that are 8, 16, 32 and 64 bits to be
-read/written to atomically. For example if 8-bits of a 32-bit memory location were written and
-then the rest of the 32-bits were written, and another thread of control was able to read the
-memory location after the first 8-bits were written and before the subsequent 24-bits were
-written, WiredTiger would read invalid states. If two threads of control attempt to write to the
-same location simultaneously, the result must be one of the two values, not some combination of the
-both.
+read/written to atomically.  For example if the first 8 bits of a 32 bit write took place and then
+separately the remaining 24 bits were written, another thread of control could read the memory
+location after the first 8 bits were written but before the subsequent 24 bits, seeing an invalid
+state. If two threads of control attempt to write to the same location simultaneously, the result
+must be one of the two values, not some combination of the both.
 
 @subsection aggregated-writes No Aggregated Writes of Adjacent Memory Locations
 To reduce memory requirements, WiredTiger may use a 32-bit type on 64-bit machines, which is OK
