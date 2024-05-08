@@ -124,4 +124,7 @@ arch_doc_pages = [
     ArchDocPage('arch-transaction',
         ['WT_TXN', 'WT_TXN_GLOBAL', 'WT_TXN_OP', 'WT_TXN_SHARED'],
         ['src/include/txn.h', 'src/include/txn_inline.h', 'src/txn/']),
+    ArchDocPage('arch-usage-patterns',
+        [],
+        []),
 ]
