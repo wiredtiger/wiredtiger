@@ -719,7 +719,7 @@ __curfile_reopen_int(WT_CURSOR *cursor)
      * cache.
      */
     ret = __wt_session_lock_dhandle(session, 0, &is_dead);
-    if (ret == 0 && !WT_DHANDLE_CAN_REOPEN(dhandle)) {
+    if (!is_dead && ret == 0 && !WT_DHANDLE_CAN_REOPEN(dhandle)) {
         WT_RET(__wt_session_release_dhandle(session));
         ret = __wt_set_return(session, EBUSY);
     }
