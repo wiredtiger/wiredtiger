@@ -9,6 +9,7 @@ AWS's
 ActiveState
 Adler's
 Atomicity
+Atomics
 BLOBs
 BLRrVv
 BLmRrSVv
@@ -104,10 +105,14 @@ Lameter
 LevelDB
 Levyx
 LibFuzzer
+LoadLoad
+LoadStore
 MERCHANTABILITY
 MSAN
+MSVC
 MVCC's
 Makefiles
+McKenney
 Mewhort
 MongoDB
 MongoDB's
@@ -139,7 +144,10 @@ SYSV
 Sanitizer
 Seward's
 SiH
+StoreLoad
+StoreStore
 TSC
+TSan
 TW
 TXID
 TXT
@@ -191,6 +199,7 @@ archiver
 arg
 args
 atomicity
+atomics
 autoconf
 autogen
 automake
@@ -601,6 +610,7 @@ recoverability
 recs
 rectype
 relinking
+reorderings
 req
 rerequests
 ret
@@ -613,6 +623,7 @@ rpc
 rts
 runnable
 runtime
+rw
 rwlock
 sHQ
 sHq
