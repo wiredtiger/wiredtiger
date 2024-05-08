@@ -164,7 +164,7 @@ of the documentation.
     - @ref arch-eviction
 
 - @subpage arch-toc-int-wt-dev
-    - @ref arch-usage-patterns
+    - @ref arch-concurrency
 
 - @subpage arch-toc-mem-disk
     - @ref arch-block
@@ -280,7 +280,7 @@ writing it to disk if it is dirty.
 
 /*! @page arch-toc-int-wt-dev Internal WiredTiger Development
 
-@subpage arch-usage-patterns
+@subpage arch-concurrency
 
 */
 

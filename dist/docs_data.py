@@ -44,6 +44,9 @@ arch_doc_pages = [
     ArchDocPage('arch-compact',
         ['WT_BLOCK'],
         ['src/block/block_compact.c', 'src/btree/bt_compact.c']),
+    ArchDocPage('arch-concurrency',
+        [],
+        []),
     ArchDocPage('arch-config-compile',
         ['WT_CONF'],
         ['src/include/conf.h',
@@ -124,7 +127,4 @@ arch_doc_pages = [
     ArchDocPage('arch-transaction',
         ['WT_TXN', 'WT_TXN_GLOBAL', 'WT_TXN_OP', 'WT_TXN_SHARED'],
         ['src/include/txn.h', 'src/include/txn_inline.h', 'src/txn/']),
-    ArchDocPage('arch-usage-patterns',
-        [],
-        []),
 ]
