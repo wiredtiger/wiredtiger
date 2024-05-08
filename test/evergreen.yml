@@ -5511,7 +5511,7 @@ buildvariants:
     - name: compile-production-disable-static
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
-    - name: format-stress-pull-request-test
+    - name: format-msan-test
     - name: make-check-test
       distros: ubuntu2004-large
     - name: csuite-long-running
