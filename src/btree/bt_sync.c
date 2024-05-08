@@ -44,7 +44,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
-    if (!WT_TXNID_LT(txn->snap_max, mod->first_dirty_txn))
+    if (!WT_TXNID_LT(txn->snapshot_data.snap_max, mod->first_dirty_txn))
         return (false);
 
     /*
