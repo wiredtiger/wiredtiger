@@ -3434,7 +3434,7 @@ tasks:
       - func: "format test script"
         vars:
           # run for 10 minutes.
-          format_test_script_args: -c ../../../test/format/CONFIG.mirror -t 10 rows=10000 ops=50000
+          format_test_script_args: -c ../../../test/format/CONFIG.msan -t 10 rows=10000 ops=50000
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
