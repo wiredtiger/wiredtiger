@@ -3426,7 +3426,7 @@ tasks:
         vars:
           config: ../../../test/format/CONFIG.mirror
           trace_args: -T all
-  
+
   - name: format-msan-test
     commands:
       - func: "get project"
