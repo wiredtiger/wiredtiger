@@ -2,8 +2,8 @@
 
 
 /*
- * Wrap the futex (address of 32-bit value) in a structure to signify
- * that the value should not be modified directly.
+ * Wrap the futex (combination of a 32-bit value and its address) in a
+ * structure to signify the value should not be modified directly.
  */
 struct __wt_futex {
   _Alignas(4) uint32_t 
@@ -33,9 +33,14 @@ int __wt_futex_fetch(struct __wt_futex *ftx, uint32_t *val);
  *
  * NOTE: If there ARE any threads waiting on the corresponding futex,
  * the use of this function may result in an inadvertent wakeup.
- * Example:
  *
- * Thread
+ * Example:
+ * ---------------------------
+ *  T1, T2 are threads.
+ *  X != Y
+ *
+ *  Interleaved progression.
+ *
  *  T1 : __wt_wait(F, X, ALONGTIME);
  *  T2 : __wt_store(F, Y);
  *  T1 : __wt_wait(F, X, ALONGTIME) == 0 "spurious wakeup"
