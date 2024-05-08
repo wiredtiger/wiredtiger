@@ -375,6 +375,9 @@ __throttle_checkpoint(WT_SESSION_IMPL *session, WT_CAPACITY *cap, uint64_t bytes
     if (capacity == 0 || F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return;
 
+    if (cap->total > 0)
+        __capacity_signal(session);
+
     /* If we get sizes larger than this, later calculations may overflow. */
     WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
     WT_ASSERT(session, capacity != 0);
