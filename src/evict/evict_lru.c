@@ -2144,6 +2144,10 @@ rand_next:
         }
 
         if (modified) {
+            /*
+             * If we are under cache pressure, allow evicting pages with newly committed updates to
+             * free space. Otherwise, avoid doing that as it may thrash the cache.
+             */
             if (F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
                 if (!__txn_visible_id(session, page->modify->update_txn))
                     continue;
