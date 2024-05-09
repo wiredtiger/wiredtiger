@@ -1951,6 +1951,13 @@ rand_next:
     btree->evict_ref = NULL;
 
     /*
+     * Get the snapshot for the eviction server when we want to evict dirty content. This snapshot
+     * is used to check for the visibility of the last modified transaction id on the page.
+     */
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES))
+        __wt_txn_bump_snapshot(session);
+
+    /*
      * !!! Take care terminating this loop.
      *
      * Don't make an extra call to __wt_tree_walk after we hit the end of a
@@ -2134,15 +2141,16 @@ rand_next:
         if (!__wt_page_evict_retry(session, page)) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
             continue;
-        } else if (modified &&
-          page->modify->update_txn >= __wt_atomic_loadv64(&conn->txn_global.last_running)) {
-            /*
-             * FIXME-WT-11805: The assumption that the eviction will fail if most recent update on
-             * the page from the transaction that is greater than the last running transaction has
-             * changed because now eviction also has it's own snapshot for visibility check.
-             */
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
-            continue;
+        }
+
+        if (modified) {
+            if (F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
+                if (!__txn_visible_id(session, page->modify->update_txn))
+                    continue;
+            } else if (page->modify->update_txn >= conn->txn_global.last_running) {
+                WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
+                continue;
+            }
         }
 
 fast:
@@ -2164,6 +2172,8 @@ fast:
         __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
           (void *)page, page->memory_footprint);
     }
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES))
+        __wt_txn_release_snapshot(session);
     WT_RET_NOTFOUND_OK(ret);
 
     *slotp += (u_int)(evict - start);
