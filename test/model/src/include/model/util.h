@@ -139,7 +139,8 @@ public:
      * wiredtiger_session_guard::wiredtiger_session_guard --
      *     Create a new instance of the guard.
      */
-    inline wiredtiger_session_guard(WT_SESSION *session) noexcept : _session(session){};
+    inline wiredtiger_session_guard(WT_SESSION *session) noexcept
+        : _session(session), _rollback_on_close(false){};
 
     /*
      * wiredtiger_session_guard::wiredtiger_session_guard --
@@ -153,8 +154,11 @@ public:
      */
     inline ~wiredtiger_session_guard()
     {
-        if (_session != nullptr)
-            (void)_session->close(_session, nullptr);
+        if (_session == nullptr)
+            return;
+        if (_rollback_on_close)
+            (void)_session->rollback_transaction(_session, nullptr);
+        (void)_session->close(_session, nullptr);
     }
 
     /*
@@ -163,8 +167,19 @@ public:
      */
     wiredtiger_session_guard &operator=(const wiredtiger_session_guard &) = delete;
 
+    /*
+     * wiredtiger_session_guard::rollback_on_close --
+     *     Roll back a transaction on close.
+     */
+    inline void
+    rollback_on_close()
+    {
+        _rollback_on_close = true;
+    }
+
 private:
     WT_SESSION *_session;
+    bool _rollback_on_close;
 };
 
 /*
@@ -592,6 +607,12 @@ wt_cursor_update(WT_CURSOR *cursor, const data_value &key, const data_value &val
     set_wt_cursor_value(cursor, value);
     return cursor->update(cursor);
 }
+
+/*
+ * wt_evict --
+ *     Evict a WiredTiger page with the given key.
+ */
+void wt_evict(WT_CONNECTION *conn, const char *uri, const data_value &key);
 
 /*
  * wt_list_tables --
