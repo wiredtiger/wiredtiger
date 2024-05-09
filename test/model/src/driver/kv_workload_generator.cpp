@@ -60,7 +60,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     checkpoint = 0.02;
     crash = 0.002;
-    evict = 0.1;
+    /* FIXME-WT-12972 Enable the eviction operator when it is safe to do so. Set to 0.1. */
+    evict = 0.0;
     restart = 0.002;
     rollback_to_stable = 0.005;
     set_oldest_timestamp = 0.1;
