@@ -76,11 +76,12 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     __wt_cache_stats_update(session);
     __wt_txn_stats_update(session);
 
-    WT_STAT_SET(session, stats, file_open, conn->open_file_count);
-    WT_STAT_SET(session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
-    WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
-    WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
-    WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
+    WT_STATP_CONN_SET(session, stats, file_open, conn->open_file_count);
+    WT_STATP_CONN_SET(
+      session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
 
 /*
@@ -157,9 +158,9 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         __wt_config_subinit(session, &objectconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
             /*
-             * XXX Only allow "file:" and "lsm:" for now: "file:" works because it's been converted
-             * to data handles, "lsm:" works because we can easily walk the list of open LSM
-             * objects, even though it hasn't been converted.
+             * Only allow "file:" and "lsm:" for now: "file:" works because it's been converted to
+             * data handles, "lsm:" works because we can easily walk the list of open LSM objects,
+             * even though it hasn't been converted.
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
                 WT_ERR_MSG(session, EINVAL,
