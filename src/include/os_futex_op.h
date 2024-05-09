@@ -20,13 +20,11 @@ typedef enum __wt_futex_wake {
  * -- __wt_futex_op_wake
  *
  */
-int __wt_futex_op_wake(
-  WT_SESSION_IMPL *session, WT_FUTEX_WORD *futex_word, enum __wt_futex_wake whom);
+int __wt_futex_op_wake(volatile WT_FUTEX_WORD *futex_word, enum __wt_futex_wake whom);
 
 /*
  * -- __wt_futex_op_wait
  *
  * The timeout is in microseconds and MUST be greater than zero.
  */
-int __wt_futex_op_wait(
-  WT_SESSION_IMPL *session, WT_FUTEX_WORD *futex_word, uint32_t expected, int64_t timeout_us);
+int __wt_futex_op_wait(volatile WT_FUTEX_WORD *futex_word, uint32_t expected, int64_t timeout_us);
