@@ -1458,9 +1458,7 @@ variables:
     tasks:
       - name: compile
       - name: make-check-test
-      # FIXME: WT-9575
-      # Using a special version of unit test for macOS to reduce the concurrency level.
-      - name: unit-test-macos
+      - name: unit-test
       - name: fops
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
@@ -2146,15 +2144,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test"
-
-  - name: unit-test-macos
-    tags: ["python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "python config check"
       - func: "unit test"
 
   - name: unit-test-zstd
