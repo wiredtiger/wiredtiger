@@ -156,6 +156,7 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
+Futex
 GBR
 GC
 GCP
@@ -793,6 +794,7 @@ fsyncs
 ftruncate
 func
 funcid
+futex
 fuzzer
 fuzzutil
 fvisibility
