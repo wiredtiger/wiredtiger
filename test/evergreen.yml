@@ -1443,6 +1443,17 @@ variables:
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
+  - &format-stress-test-repro
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+
   - &format-stress-sanitizer-ppc-test
     exec_timeout_secs: 25200
     commands:
@@ -3763,16 +3774,16 @@ tasks:
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120 -- -C "mmap=false,mmap_all=false"
 
-  - <<: *format-stress-test
+  - <<: *format-stress-test-repro
     name: format-stress-test-1
     tags: ["stress-test-1"]
-  - <<: *format-stress-test
+  - <<: *format-stress-test-repro
     name: format-stress-test-2
     tags: ["stress-test-2"]
-  - <<: *format-stress-test
+  - <<: *format-stress-test-repro
     name: format-stress-test-3
     tags: ["stress-test-3"]
-  - <<: *format-stress-test
+  - <<: *format-stress-test-repro
     name: format-stress-test-4
     tags: ["stress-test-4"]
   - <<: *format-stress-sanitizer-ppc-test
@@ -3826,7 +3837,72 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+
+  - name: format-stress-test-no-barrier-2
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+
+  - name: format-stress-test-no-barrier-3
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+
+  - name: format-stress-test-no-barrier-4
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+
+  - name: format-stress-test-no-barrier-5
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+
+  - name: format-stress-test-no-barrier-7
+    tags: ["stress-test-no-barrier"]
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
 
   - name: format-stress-sanitizer-test-no-barrier
     tags: ["stress-test-sanitizer"]
