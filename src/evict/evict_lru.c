@@ -2133,17 +2133,17 @@ rand_next:
         if (__wt_cache_aggressive(session))
             goto fast;
 
-        /*
-         * If the global transaction state hasn't changed since the last time we tried eviction,
-         * it's unlikely we can make progress. This heuristic avoids repeated attempts to evict the
-         * same page.
-         */
-        if (!__wt_page_evict_retry(session, page)) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
-            continue;
-        }
-
         if (modified) {
+            /*
+             * If the global transaction state hasn't changed since the last time we tried eviction,
+             * it's unlikely we can make progress. This heuristic avoids repeated attempts to evict
+             * the same page.
+             */
+            if (!__wt_page_evict_retry(session, page)) {
+                WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
+                continue;
+            }
+
             /*
              * If we are under cache pressure, allow evicting pages with newly committed updates to
              * free space. Otherwise, avoid doing that as it may thrash the cache.
