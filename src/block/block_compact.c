@@ -586,7 +586,7 @@ __compact_page_skip(
      * We must have reviewed at least some interesting number of pages for any estimates below to be
      * worthwhile.
      */
-    if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
+    if (!block->compact_estimated && block->compact_pages_reviewed >= 100) {
         __block_compact_estimate_remaining_work(session, block);
         /* If no potential work has been found, or we're in dry run mode, exit compaction. */
         if (block->compact_pages_rewritten_expected == 0 || session->compact->dryrun)
