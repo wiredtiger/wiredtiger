@@ -328,6 +328,15 @@ read:
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
               F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP);
+
+            if (wont_need) {
+                if (LF_ISSET(WT_READ_WONT_NEED))
+                    printf("WT_READ_WONT_NEED is set\n");
+                if (F_ISSET(session, WT_SESSION_READ_WONT_NEED))
+                    printf("WT_SESSION_READ_WONT_NEED is set\n");
+                if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP))
+                    printf("WT_CACHE_EVICT_NOKEEP is set\n");
+            }
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
