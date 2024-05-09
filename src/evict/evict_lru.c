@@ -1970,8 +1970,7 @@ rand_next:
          */
         give_up = !__wt_cache_aggressive(session) && !WT_IS_HS(btree->dhandle) &&
           pages_seen > min_pages &&
-          (pages_queued + pages_urgent_queued == 0 ||
-            (pages_seen / (pages_queued + pages_urgent_queued)) > (min_pages / target_pages));
+          (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
         if (give_up) {
             /*
              * Try a different walk start point next time if a walk gave up.
@@ -1995,7 +1994,7 @@ rand_next:
              * We differentiate the reasons we gave up on this walk and increment the stats
              * accordingly.
              */
-            if (pages_queued + pages_urgent_queued == 0) {
+            if (pages_queued == 0) {
                 WT_STAT_CONN_INCR(session, cache_eviction_walks_gave_up_no_targets);
                 WT_STAT_DATA_INCR(session, cache_eviction_walks_gave_up_no_targets);
             } else {
