@@ -320,7 +320,6 @@ wt_evict(WT_CONNECTION *conn, const char *uri, const data_value &key)
     ret = session->begin_transaction(session, "ignore_prepare=true");
     if (ret != 0)
         throw wiredtiger_exception("Transaction begin failed: ", ret);
-    session_guard.rollback_on_close();
 
     WT_CURSOR *cursor;
     ret = session->open_cursor(session, uri, nullptr, "debug=(release_evict)", &cursor);

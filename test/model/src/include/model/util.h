@@ -139,8 +139,7 @@ public:
      * wiredtiger_session_guard::wiredtiger_session_guard --
      *     Create a new instance of the guard.
      */
-    inline wiredtiger_session_guard(WT_SESSION *session) noexcept
-        : _session(session), _rollback_on_close(false){};
+    inline wiredtiger_session_guard(WT_SESSION *session) noexcept : _session(session){};
 
     /*
      * wiredtiger_session_guard::wiredtiger_session_guard --
@@ -156,8 +155,6 @@ public:
     {
         if (_session == nullptr)
             return;
-        if (_rollback_on_close)
-            (void)_session->rollback_transaction(_session, nullptr);
         (void)_session->close(_session, nullptr);
     }
 
@@ -167,19 +164,8 @@ public:
      */
     wiredtiger_session_guard &operator=(const wiredtiger_session_guard &) = delete;
 
-    /*
-     * wiredtiger_session_guard::rollback_on_close --
-     *     Roll back a transaction on close.
-     */
-    inline void
-    rollback_on_close()
-    {
-        _rollback_on_close = true;
-    }
-
 private:
     WT_SESSION *_session;
-    bool _rollback_on_close;
 };
 
 /*
