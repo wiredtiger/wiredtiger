@@ -189,10 +189,11 @@ def histogram(field, chkpt, chkpt_name):
     df_internal = pd.DataFrame(internal, columns=[field])
     df_leaf = pd.DataFrame(leaf, columns=[field])
 
-    stats_internal = df_internal.describe().loc[['mean', '50%', 'min', 'max']].transpose()
-    stats_internal.columns = ['Mean', 'Median', 'Min', 'Max']
-    stats_leaf = df_leaf.describe().loc[['mean', '50%', 'min', 'max']].transpose()
-    stats_leaf.columns = ['Mean', 'Median', 'Min', 'Max']
+    columns = ['mean', '50%', 'min', 'max']
+    stats_internal = df_internal.describe().loc[columns].transpose()
+    stats_internal.columns = columns
+    stats_leaf = df_leaf.describe().loc[columns].transpose()
+    stats_leaf.columns = columns
 
     stats = pd.DataFrame({
         'Internal': stats_internal.iloc[0],
