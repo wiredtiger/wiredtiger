@@ -37,9 +37,13 @@
  * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
  */
 
-#define NUM_RECORDS WT_MILLION
 #define CHECKPOINT_NUM 3
+#define CONN_BUF_SIZE 512
+#define CONN_CONFIG_BASE                                                                          \
+    "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_" \
+    "for_test=[%s]"
 #define HOME_BUF_SIZE 512
+#define NUM_RECORDS WT_MILLION
 #define STAT_BUF_SIZE 128
 
 /* Constants and variables declaration. */
@@ -47,8 +51,6 @@
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
  * better view on what is happening.
  */
-static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=QQQS";
 static const char table_config_col[] =
@@ -72,7 +74,6 @@ static void *thread_func_checkpoint(void *);
 static void populate(WT_SESSION *, const char *);
 static void remove_records(WT_SESSION *, const char *);
 static void get_file_stats(WT_SESSION *, const char *, uint64_t *, uint64_t *);
-static void set_timing_stress_checkpoint(WT_CONNECTION *);
 static bool check_db_size(WT_SESSION *, const char *);
 static void get_compact_progress(
   WT_SESSION *session, const char *, uint64_t *, uint64_t *, uint64_t *);
@@ -154,18 +155,13 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     WT_SESSION *session;
     pthread_t thread_checkpoint;
     uint64_t pages_reviewed, pages_rewritten, pages_skipped;
+    char conn_config[CONN_BUF_SIZE];
     bool size_check_res;
 
     testutil_recreate_dir(home);
+    testutil_snprintf(
+      conn_config, sizeof(conn_config), CONN_CONFIG_BASE, stress_test ? "checkpoint_slow" : "");
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
-
-    if (stress_test) {
-        /*
-         * Set WT_TIMING_STRESS_CHECKPOINT_SLOW flag for stress test. It adds 10 seconds sleep
-         * before each checkpoint.
-         */
-        set_timing_stress_checkpoint(conn);
-    }
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -399,19 +395,6 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
 
     testutil_check(cur_stat->close(cur_stat));
     cur_stat = NULL;
-}
-
-/*
- * set_timing_stress_checkpoint --
- *     TODO: Add a comment describing this function.
- */
-static void
-set_timing_stress_checkpoint(WT_CONNECTION *conn)
-{
-    WT_CONNECTION_IMPL *conn_impl;
-
-    conn_impl = (WT_CONNECTION_IMPL *)conn;
-    conn_impl->timing_stress_flags |= WT_TIMING_STRESS_CHECKPOINT_SLOW;
 }
 
 /*
