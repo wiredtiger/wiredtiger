@@ -20,47 +20,27 @@ it is known that they will be frequently accessed in a concurrent context.
 There are three types of locks in WiredTiger:
  - Condition Variables
  - Spin Locks
- - Read Write Locks
+ - Read Write (RW) Locks
 Each mechanism guarantees that once a thread relinquishes its lock and another thread obtains the
 same lock, all modifications made by the first thread will be visible to the thread now holding
 the lock.
 
-@subsection condition-vars Condition Variables
+There are two implementations of condition variables in WiredTiger respectively for POSIX and MSVC
+under the same interface. The specific implementation is determined at compile time based on the
+platform.
 
-Condition variables are used to force a thread to wait until a certain condition is fulfilled. A
-common usage pattern is as follows: a thread is waiting for a signal to wake up, and once the
-required condition is met, another thread will then send the signal to one of the waiting
-threads. There are two implementations of condition variables in WiredTiger respectively for
-POSIX and MSVC under the same interface. The specific implementation is determined at compile
-time based on the platform.
-
-@subsection spin-locks Spin Locks
-
-A spin lock forces any thread trying to obtain it to wait in a loop while repeatedly checking
-whether the lock is available. Only one thread is able to have the lock at any given time,
-effectively serializing the execution of the critical sections. There are three different
-implementations for spin locks in WiredTiger under the same interface:
+There are three different implementations for spin locks in WiredTiger under the same interface:
  - An implementation using GCC's builtin atomic operations.
  - An implementation using a POSIX based mutex.
  - An implementation for MSVC.
-The specific implementation is determined at compile time based on the platform and compile-time
-configurations.
-A spin lock is an exclusive lock that generally expects all reads and writes on shared memory
-locations under its protection to be performed under the lock. In WiredTiger this pattern
-occasionally is not upheld and we read variables written to within the lock without locking. Such
-instances are only permitted if reading inconsistent data is sufficient for the use case.
+Again specific implementation is determined at compile time based on the platform and compile-time
+configurations. WiredTiger has its own read-write lock implementation. It is based on atomic
+operations and condition variables.
 
-@subsection rw-locks Read Write locks
-A read-write lock allows concurrent shared access for read-only operations, whereas write
-operations require exclusive access. This means that multiple threads can read the data in
-parallel but an exclusive lock is needed for writing or modifying data. When a writer is writing
-data, all other writers and readers will be blocked until the writer is finished writing.
-WiredTiger has its own read-write lock implementation. It is based on atomic operations and
-condition variables.
-It is expected that all the reads and writes of a shared variable protected by a read-write lock
-will be performed under the lock. For the same reason as spinlocks, WiredTiger may allow usages
-that read the shared variables without taking the lock. Such instances are only permitted if
-reading inconsistent data is sufficient for the use case.
+@subsection lock-usage Lock usage
+A correctly used lock takes the lock for each access to the shared memory it guards. WiredTiger
+sometimes deviates from this model and reads variables outside the context of the relevant lock.
+Such instances are only permitted if reading inconsistent data is sufficient for the use case.
 
 @section atomics Atomics
 
@@ -69,15 +49,18 @@ to be atomic and prevent tearing. WiredTiger also relies on atomic RMW operation
 - Compare and Swap
 - Fetch add / sub
 - Add / sub fetch
+
 Currently WiredTiger is undergoing a transition where all shared memory variable access will be
-wrapped by an atomic function, this will enable TSan to run on the code base.
+wrapped by an atomic function, this will enable TSan to run on the code base. To facilitate this
+transition the atomic load and store macros have been added to WiredTiger, these macros placate
+TSan. To prevent them from introducing a performance regression they utilize relaxed consistency.
 
 @section memory-barriers Memory Barriers
 
-WiredTiger utilizes memory barriers in a number of places to ensure that CPU instruction
-reordering doesn't result in a concurrency bug. Specifically CPUs are allowed to reorder load and
-store instructions. If this occurs when two threads are reading or writing to the same shared
-memory locations it can result in those threads seeing what would otherwise be impossible values.
+WiredTiger utilizes memory barriers in a number of places to manage CPU instruction reordering.
+Specifically CPUs are allowed to reorder load and store instructions. If this occurs when two
+threads are reading or writing to the same shared memory locations it can result in those threads
+seeing what would otherwise be impossible values.
 
 WiredTiger defines barriers by describing which kind of reordering they prevent, for example a
 LoadLoad barrier prevents load instructions before the barrier from being reordered with load
