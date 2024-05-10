@@ -99,40 +99,40 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
 
     if (cache->eviction_dirty_target > cache->eviction_target) {
         cache->eviction_dirty_target = cache->eviction_target;
-        // __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction dirty target=%f is larger than eviction target=%f", 
-        //   cache->eviction_dirty_target, cache->eviction_target);
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction dirty target=%f is larger than eviction target=%f", 
+          cache->eviction_dirty_target, cache->eviction_target);
     }
 
     if (cache->eviction_checkpoint_target > 0 &&
       cache->eviction_checkpoint_target < cache->eviction_dirty_target) {
         cache->eviction_checkpoint_target = cache->eviction_dirty_target;
-        // __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config checkpoint target=%f is less than eviction dirty target=%f", 
-        //   cache->eviction_checkpoint_target, cache->eviction_dirty_target);
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config checkpoint target=%f is less than eviction dirty target=%f", 
+          cache->eviction_checkpoint_target, cache->eviction_dirty_target);
     }
 
     if (cache->eviction_dirty_trigger > cache->eviction_trigger) {
         cache->eviction_dirty_trigger = cache->eviction_trigger;
-        // __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction dirty trigger=%f is larger than eviction trigger=%f", 
-        //   cache->eviction_dirty_trigger, cache->eviction_trigger);
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction dirty trigger=%f is larger than eviction trigger=%f", 
+          cache->eviction_dirty_trigger, cache->eviction_trigger);
     }
 
     if (cache->eviction_updates_target < DBL_EPSILON) {
         cache->eviction_updates_target = cache->eviction_dirty_target / 2;
-        // __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction updates target=%f is less than DBL_EPSILON=%f", 
-        //   cache->eviction_updates_target, DBL_EPSILON);
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction updates target=%f is less than DBL_EPSILON=%f", 
+          cache->eviction_updates_target, DBL_EPSILON);
     }
 
     if (cache->eviction_updates_trigger < DBL_EPSILON) {
         cache->eviction_updates_trigger = cache->eviction_dirty_trigger / 2;
-        // __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction updates trigger=%f is less than DBL_EPSILON=%f", 
-        //   cache->eviction_updates_trigger, DBL_EPSILON);
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction updates trigger=%f is less than DBL_EPSILON=%f", 
+          cache->eviction_updates_trigger, DBL_EPSILON);
     }
 
     /* Don't allow the trigger to be larger than the overall trigger. */
     if (cache->eviction_updates_trigger > cache->eviction_trigger) {
         cache->eviction_updates_trigger = cache->eviction_trigger;
-        // __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction updates trigger=%f is larger than eviction trigger=%f", 
-        //   cache->eviction_updates_trigger, cache->eviction_trigger);
+        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, "config eviction updates trigger=%f is larger than eviction trigger=%f", 
+          cache->eviction_updates_trigger, cache->eviction_trigger);
     }
 
     return (0);

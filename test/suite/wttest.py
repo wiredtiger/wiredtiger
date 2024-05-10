@@ -546,6 +546,9 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         try:
             self.fdTearDown()
             if not (dueToRetry or self.ignoreTearDownLogs):
+                self.ignoreStdoutPatternIfExists("""config (?:eviction dirty target|checkpoint target|eviction dirty trigger|eviction updates target
+                                                 |eviction updates trigger)=(\d*\.?\d+) is (?:larger than|less than) (?:eviction target|eviction dirty 
+                                                 target|eviction trigger|DBL_EPSILON)=(\d*\.?\d+)""")
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:
