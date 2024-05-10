@@ -77,6 +77,9 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_ASSERT(session, session->id != 0);
     conn = S2C(session);
 
+    /* Mark the session as a prefetch thread session. */
+    F_SET(session, WT_SESSION_PREFETCH_THREAD);
+
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     if (F_ISSET(conn, WT_CONN_PREFETCH_RUN))
