@@ -40,6 +40,7 @@ import subprocess
 import json
 import sys
 import re
+import pandas as pd
 import matplotlib
 matplotlib.use('WebAgg')
 import matplotlib.pyplot as plt
@@ -170,59 +171,8 @@ def parse_output():
                 is_root_node = False
     return output
 
-
-def mean(array):
-    return round(sum(array) / len(array), 2)
-
-
-def median(array):
-    return array[len(array) // 2]
-
-
 def num_len(num):
     return len(str(num))
-
-
-def table(int_stats, leaf_stats):
-    string = """
-<style>
-table, th, td {
-  border:1px solid black;
-  font-family: Helvetica, Sans-Serif;
-}
-td, th {
-  padding: 10px;
-}
-</style>
-"""
-    string += """
-<table style="margin-left:4cm;border-collapse: collapse;">
-  <tr>
-    <th>Page type</th>
-    <th>Mean</th>
-    <th>Median</th>
-    <th>Min</th>
-    <th>Max</th>
-  </tr>
-  <tr>
-    <td>Internal</td>
-    <td>{}</td>
-    <td>{}</td>
-    <td>{}</td>
-    <td>{}</td>
-  </tr>
-  <tr>
-    <td>Leaf</td>
-    <td>{}</td>
-    <td>{}</td>
-    <td>{}</td>
-    <td>{}</td>
-  </tr>
-</table>
-    """.format(int_stats[0], int_stats[1], int_stats[2], int_stats[3], leaf_stats[0], 
-               leaf_stats[1], leaf_stats[2], leaf_stats[3])
-    return string
-
 
 def histogram(field, chkpt, chkpt_name):
     """
@@ -236,6 +186,21 @@ def histogram(field, chkpt, chkpt_name):
                 internal.append(metadata[field])
             elif "leaf" in metadata["page_type"]:
                 leaf.append(metadata[field])
+
+    # Using panda to calculate stats.
+    df_internal = pd.DataFrame(internal, columns=[field])
+    df_leaf = pd.DataFrame(leaf, columns=[field])
+
+    stats_internal = df_internal.describe().loc[['mean', '50%', 'min', 'max']].transpose()
+    stats_internal.columns = ['Mean', 'Median', 'Min', 'Max']
+    stats_leaf = df_leaf.describe().loc[['mean', '50%', 'min', 'max']].transpose()
+    stats_leaf.columns = ['Mean', 'Median', 'Min', 'Max']
+
+    stats = pd.DataFrame({
+        'Internal': stats_internal.iloc[0],
+        'Leaf': stats_leaf.iloc[0]
+    }).transpose()
+    stats = stats.round(2)
 
     # plot the histograms
     fig, ax = plt.subplots(2, figsize=(15, 10))
@@ -251,12 +216,11 @@ def histogram(field, chkpt, chkpt_name):
             subplot.set_xlabel(field + ' (bytes)')
         subplot.set_ylabel('Number of pages')
 
-    imgs = mpld3.fig_to_html(fig) 
     plt.close()
-    internal_stats = [mean(internal), median(internal), min(internal), max(internal)]
-    leaf_stats = [mean(leaf), median(leaf), min(leaf), max(leaf)]
-    imgs += table(internal_stats, leaf_stats)
-    return imgs
+
+    imgs = mpld3.fig_to_html(fig) 
+    table_stats_html = f"<div style='padding-left: 150px;'> <h2>{field}</h2> {stats.to_html()}</div>"
+    return imgs + table_stats_html
 
 
 def pie_chart(field, chkpt, chkpt_name):
