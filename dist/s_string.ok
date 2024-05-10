@@ -358,6 +358,7 @@ SetEndOfFile
 SetFilePointerEx
 Sevii
 SiH
+Signalling
 Skiplist
 SleepConditionVariableCS
 SmallVector

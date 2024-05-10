@@ -879,6 +879,10 @@ extern int __wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_
   uint32_t flags, WT_FSTREAM **fstrp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_fsync_background(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_futex_op_wait(WT_FUTEX_WORD *futexp, uint32_t expected, int64_t timeout_us,
+  uint32_t *wake_valp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_futex_op_wake(WT_FUTEX_WORD *futexp, WT_FUTEX_WAKE whom)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_getopt(const char *progname, int nargc, char *const *nargv, const char *ostr)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

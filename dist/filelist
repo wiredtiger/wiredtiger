@@ -144,6 +144,9 @@ src/os_common/os_fstream.c
 src/os_common/os_fstream_stdio.c
 src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
+# This is an interim fix ONLY. Will need to distinguish between Linux
+# and MacOS in the future.
+src/os_linux/os_futex_op.c       POSIX_HOST
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST

@@ -535,6 +535,7 @@ typedef uint64_t wt_timestamp_t;
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
+#include "os_futex_op.h"
 #include "reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"

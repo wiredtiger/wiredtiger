@@ -1,30 +1,24 @@
 #pragma once
-/*
- * Minimal portable Futex interface.
+/*-
+ * Copyright (c) 2024-present MongoDB, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
  */
 
 /*
- * Linux limits Futex words to 32 bits.
+ * Minimal portable Futex operations API.
+ */
+
+/*
+ * Futex words are limited 32 bits (Linux).
  */
 typedef uint32_t WT_FUTEX_WORD;
 
 /*
- * Quantity of waiting threads to wake.
+ * Number of waiting threads to wake.
  */
 typedef enum __wt_futex_wake {
-    WT_WAKE_ONE, /* Wake a single waiting thread. */
-    WT_WAKE_ALL  /* Wake all waiting threads. */
-} WT_WAKE;
-
-/*
- * -- __wt_futex_op_wake
- *
- */
-int __wt_futex_op_wake(volatile WT_FUTEX_WORD *futex_word, enum __wt_futex_wake whom);
-
-/*
- * -- __wt_futex_op_wait
- *
- * The timeout is in microseconds and MUST be greater than zero.
- */
-int __wt_futex_op_wait(volatile WT_FUTEX_WORD *futex_word, uint32_t expected, int64_t timeout_us);
+    WT_FUTEX_WAKE_ONE, /* Wake a single waiting thread. */
+    WT_FUTEX_WAKE_ALL  /* Wake all waiting threads. */
+} WT_FUTEX_WAKE;

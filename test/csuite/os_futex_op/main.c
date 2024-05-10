@@ -1,0 +1,243 @@
+#include "test_util.h"
+
+#include "wt_internal.h"
+
+#define TIME_MS(duration) (INT64_C(1000) * (duration))
+
+struct wakeup {
+    int ret;       /* Wait return code. */
+    int cap_errno; /* Value of errno on return from wait. */
+    uint32_t val;  /* Futex value on return from wait. */
+};
+
+struct waiter {
+    pthread_t tid;           /* Thread ID. */
+    WT_FUTEX_WORD *ftx_word; /* Signalling futex. */
+    uint32_t expected;       /* Expected value for
+                              * __wt_futex_op_wait(). */
+    int64_t timeout;         /* Timeout in microseconds. */
+    struct wakeup wakeup;    /* Context captured upon wakeup. */
+};
+
+struct waiters_outcomes {
+    int awoken;   /* Awoken. */
+    int spurious; /* Spuriously awoken: must be less
+                   * than or equal to awoken. */
+    int timedout; /* Timed out. */
+    int failed;   /* Wait error other than time out. */
+};
+
+#define WAITER_INIT(word, expect, tout)                                                    \
+    (struct waiter)                                                                        \
+    {                                                                                      \
+        .ftx_word = (word), .expected = (expect), .timeout = (tout), .wakeup = { 0, 0, 0 } \
+    }
+
+#define WAITER_TEST_ASSERT(waiter_, ret_, errno_, val_)           \
+    do {                                                          \
+        testutil_assert((waiter_)->wakeup.ret == (ret_));         \
+        testutil_assert((waiter_)->wakeup.cap_errno == (errno_)); \
+        testutil_assert((waiter_)->wakeup.val == (val_));         \
+    } while (0)
+
+/*
+ * _waiter_thread --
+ *
+ */
+static void *
+_waiter_thread(void *arg)
+{
+    struct waiter *wctx;
+    uint32_t val;
+    int ret;
+
+    wctx = arg;
+    do {
+        errno = 0;
+        val = wctx->expected;
+        ret = __wt_futex_op_wait(wctx->ftx_word, wctx->expected, wctx->timeout, &val);
+    } while (ret == -1 && (errno == EAGAIN || errno == EINTR));
+
+    wctx->wakeup.ret = ret;
+    wctx->wakeup.val = val;
+    wctx->wakeup.cap_errno = errno;
+    return NULL;
+}
+
+/*
+ * _waiters_start --
+ *
+ */
+static void
+_waiters_start(struct waiter *waiters, int waiter_count)
+{
+    int i;
+    for (i = 0; i < waiter_count; i++)
+        testutil_check(pthread_create(&waiters[i].tid, NULL, _waiter_thread, &waiters[i]));
+}
+
+/*
+ * _waiters_join --
+ *
+ */
+static void
+_waiters_join(struct waiter *waiters, int waiter_count)
+{
+    int i;
+    for (i = 0; i < waiter_count; i++)
+        testutil_check(pthread_join(waiters[i].tid, NULL));
+}
+
+/*
+ * _waiters_outcomes --
+ *
+ */
+static void
+_waiters_outcomes(struct waiter *waiters, int waiter_count, uint32_t futex_wake_val,
+  struct waiters_outcomes *outcomes)
+{
+    struct waiter *w;
+    int i;
+
+    memset(outcomes, 0, sizeof(*outcomes));
+    for (i = 0; i < waiter_count; i++) {
+        w = &waiters[i];
+        if (w->wakeup.ret == 0) {
+            outcomes->awoken++;
+            if (w->wakeup.val != futex_wake_val)
+                outcomes->spurious++;
+        } else if (w->wakeup.cap_errno == ETIMEDOUT)
+            outcomes->timedout++;
+        else
+            outcomes->failed++;
+    }
+}
+
+/*
+ * test_wake_up_single --
+ *
+ */
+static void
+test_wake_up_single(TEST_OPTS *opts)
+{
+    struct waiter waiter;
+    WT_FUTEX_WORD futex;
+
+    if (opts->verbose)
+        puts("futex test: test_wake_up_single");
+
+    futex = 0;
+    waiter = WAITER_INIT(&futex, futex, TIME_MS(200));
+    testutil_check(pthread_create(&waiter.tid, NULL, _waiter_thread, &waiter));
+    __wt_sleep(0, TIME_MS(100));
+    __wt_atomic_store32(&futex, 0x1f2e3c4d);
+    testutil_check(__wt_futex_op_wake(&futex, WT_FUTEX_WAKE_ONE));
+    testutil_check(pthread_join(waiter.tid, NULL));
+
+    WAITER_TEST_ASSERT(&waiter, 0, 0, futex);
+}
+
+/*
+ * test_time_out_single --
+ *
+ */
+static void
+test_time_out_single(TEST_OPTS *opts)
+{
+    struct waiter waiter;
+    WT_FUTEX_WORD futex;
+
+    if (opts->verbose)
+        puts("futex test: test_time_out_single");
+
+    futex = 0;
+    waiter = WAITER_INIT(&futex, futex, TIME_MS(200));
+    testutil_check(pthread_create(&waiter.tid, NULL, _waiter_thread, &waiter));
+    __wt_sleep(0, TIME_MS(100));
+    __wt_atomic_store32(&futex, 0x1f2e3c4d);
+    testutil_check(pthread_join(waiter.tid, NULL));
+
+    WAITER_TEST_ASSERT(&waiter, -1, ETIMEDOUT, 0);
+}
+
+/*
+ * test_spurious_wake_up_single --
+ *
+ */
+static void
+test_spurious_wake_up_single(TEST_OPTS *opts)
+{
+    struct waiter waiter;
+    WT_FUTEX_WORD futex;
+
+    if (opts->verbose)
+        puts("futex test: test_spurious_wake_up_single");
+
+    futex = 911;
+    waiter = WAITER_INIT(&futex, futex, TIME_MS(200));
+    testutil_check(pthread_create(&waiter.tid, NULL, _waiter_thread, &waiter));
+    __wt_sleep(0, TIME_MS(100));
+    testutil_check(__wt_futex_op_wake(&futex, WT_FUTEX_WAKE_ONE));
+    testutil_check(pthread_join(waiter.tid, NULL));
+
+    WAITER_TEST_ASSERT(&waiter, 0, 0, futex);
+}
+
+/*
+ * test_wake_up_only_one_of_two --
+ *
+ */
+static void
+test_wake_up_only_one_of_two(TEST_OPTS *opts)
+{
+    static const int WAITER_COUNT = 2;
+    static const int WAKEUP_VAL = 1;
+
+    struct waiters_outcomes outcomes;
+    struct waiter waiters[WAITER_COUNT];
+    WT_FUTEX_WORD futex;
+    int i;
+
+    if (opts->verbose)
+        puts("futex test: test_wake_up_only_one_of_two");
+
+    futex = 0;
+    for (i = 0; i < WAITER_COUNT; i++)
+        waiters[i] = WAITER_INIT(&futex, WAKEUP_VAL, TIME_MS(300));
+
+    _waiters_start(waiters, WAITER_COUNT);
+
+    __wt_sleep(0, TIME_MS(100));
+    __wt_atomic_store32(&futex, 1);
+    testutil_check(__wt_futex_op_wake(&futex, WT_FUTEX_WAKE_ONE));
+
+    _waiters_join(waiters, WAITER_COUNT);
+    _waiters_outcomes(waiters, WAITER_COUNT, futex, &outcomes);
+
+    testutil_assert(outcomes.awoken == 1);
+    testutil_assert(outcomes.spurious == 0);
+    testutil_assert(outcomes.timedout == 1);
+    testutil_assert(outcomes.failed == 0);
+}
+
+/*
+ * main --
+ *
+ */
+int
+main(int argc, char *argv[])
+{
+    TEST_OPTS *opts, _opts;
+
+    opts = &_opts;
+    memset(opts, 0, sizeof(*opts));
+    testutil_check(testutil_parse_opts(argc, argv, opts));
+
+    test_wake_up_single(opts);
+    test_time_out_single(opts);
+    test_spurious_wake_up_single(opts);
+    test_wake_up_only_one_of_two(opts);
+
+    testutil_cleanup(opts);
+    return (EXIT_SUCCESS);
+}
