@@ -185,7 +185,7 @@ def histogram(field, chkpt, chkpt_name):
             elif "leaf" in metadata["page_type"]:
                 leaf.append(metadata[field])
 
-    # Using panda to calculate stats.
+    # Using pandas to calculate stats.
     df_internal = pd.DataFrame(internal, columns=[field])
     df_leaf = pd.DataFrame(leaf, columns=[field])
 
