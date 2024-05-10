@@ -531,7 +531,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         for i in range(0, 5):
             self.check_value(cursors[i], values[i])
 
-        # Ensuring a checkpoint is performed can update the last running value internally in WT. This update is crucial for eviction to access 
+        # Ensuring a checkpoint is performed can update the last running value internally in WT. This update is crucial for eviction to access
         # the latest updates.
         self.session.checkpoint()
 
