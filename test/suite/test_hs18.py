@@ -63,13 +63,11 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     def evict_key(self, uri):
         # Evict the update using a debug cursor
-        self.session.begin_transaction()
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
         evict_cursor.set_key(self.create_key(1))
         self.assertEqual(evict_cursor.search(), 0)
         evict_cursor.reset()
         evict_cursor.close()
-        self.session.commit_transaction()
 
     def test_base_scenario(self):
         uri = 'table:test_base_scenario'
