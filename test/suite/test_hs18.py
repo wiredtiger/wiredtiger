@@ -531,6 +531,8 @@ class test_hs18(wttest.WiredTigerTestCase):
         for i in range(0, 5):
             self.check_value(cursors[i], values[i])
 
+        self.session.checkpoint()
+
         # Evict the update using a debug cursor
         cursor.reset()
         self.evict_key(uri)
