@@ -139,7 +139,6 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
     uint32_t i, session_flags;
 
     conn = S2C(session);
-    session_flags = 0;
     thread = NULL;
 
     __wt_verbose(session, WT_VERB_THREAD_GROUP,
@@ -181,13 +180,8 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
      */
     for (i = group->max; i < new_max; i++) {
         WT_ERR(__wt_calloc_one(session, &thread));
-
         /* Threads get their own session. */
-        if (LF_ISSET(WT_THREAD_CAN_WAIT))
-            session_flags |= WT_SESSION_CAN_WAIT;
-        if (LF_ISSET(WT_SESSION_PREFETCH_THREAD))
-            session_flags |= WT_SESSION_PREFETCH_THREAD;
-
+        session_flags = LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
         WT_ERR(__wt_open_internal_session(
           conn, group->name, false, session_flags, session->lock_flags, &thread->session));
         if (LF_ISSET(WT_THREAD_PANIC_FAIL))
