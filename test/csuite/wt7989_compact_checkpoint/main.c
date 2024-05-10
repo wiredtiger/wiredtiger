@@ -176,10 +176,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     populate(session, uri);
     testutil_check(session->checkpoint(session, NULL));
 
-    /*
-     * Remove 1/3 of data from the middle of the key range to let compact relocate blocks from the
-     * end of the file.
-     */
+    /* Remove 1/3 of data to let compact relocate blocks from the end of the file. */
     remove_records(session, uri);
 
     td.conn = conn;
@@ -353,10 +350,24 @@ remove_records(WT_SESSION *session, const char *uri)
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
-    /* Remove 1/3 of the records from the middle of the key range. */
-    for (i = NUM_RECORDS / 3; i < (NUM_RECORDS * 2) / 3; i++) {
-        cursor->set_key(cursor, i + 1);
-        testutil_check(cursor->remove(cursor));
+    /*
+     * We want to remove 1/3 of our data, but only from the first 80% of the file. That's roughly
+     * 40% of that first 80% of data that needs to be deleted. Delete 4 contiguous records in every
+     * group of 10 - that way the holes are distributed across the key space, with long enough runs
+     * to make it likely that compact will succeed in relocating data into them.
+     */
+    for (i = 1; i < (NUM_RECORDS * 4) / 5; i++) {
+        cursor->set_key(cursor, i);
+        switch (i % 10) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+            testutil_check(cursor->remove(cursor));
+            break;
+        default:
+            break;
+        }
     }
 
     testutil_check(cursor->close(cursor));
