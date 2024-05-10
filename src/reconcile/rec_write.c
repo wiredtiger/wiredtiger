@@ -2693,7 +2693,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    /* If there is no work to do __wt_hs_insert_updates() is not called and this returns 0. */
     return (ret);
 }
 
