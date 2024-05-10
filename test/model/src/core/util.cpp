@@ -291,6 +291,23 @@ shared_memory::~shared_memory()
 std::string
 decode_utf8(const std::string &str)
 {
+    /*
+     * The main use case for this function is to recover the exact byte sequence specified in a JSON
+     * document produced by "wt printlog -u", which uses the \u notation to encode non-printable
+     * bytes. For example, WiredTiger packs key 1 as byte 81 (hex), which results in the following
+     * line in the output of printlog:
+     *
+     *     "key": "\u0081"
+     *
+     * Our JSON parser encodes these Unicode characters using UTF-8, so reading this key results in
+     * a two-byte string C2 81. This function decodes this string back to 81, which the caller can
+     * then use in data_value::unpack to get the original integer 1.
+     *
+     * We do this in two steps:
+     *   1. Convert the UTF-8 string to a WCHAR_T array.
+     *   2. Convert the WCHAR_T array to a char array.
+     */
+
     /* Initialize the conversion. */
     iconv_t conv = iconv_open("WCHAR_T", "UTF-8");
     if (conv == (iconv_t)-1)
@@ -323,7 +340,7 @@ decode_utf8(const std::string &str)
     /* Figure out how many code points were actually decoded. */
     size_t decoded_size = (dest_bytes_start - dest_bytes) / sizeof(wchar_t);
 
-    /* Extract the byte-long code points into an array. */
+    /* Extract the byte-long code points from the WCHAR_T array into a char array. */
     std::vector<char> decoded(decoded_size, 0);
     for (size_t i = 0; i < decoded_size; i++) {
         if (dest[i] > 0xFF)
