@@ -187,10 +187,10 @@ err:
  * Check if a key matches the metadata. The public value is "metadata:", but also check for the
  * internal version of the URI.
  */
-#define WT_KEY_IS_METADATA(key)                                          \
-    ((key)->size > 0 &&                                                  \
-      (WT_STRING_MATCH(WT_METADATA_URI, (key)->data, (key)->size - 1) || \
-        WT_STRING_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1)))
+#define WT_KEY_IS_METADATA(key)                                              \
+    ((key)->size > 0 &&                                                      \
+      (WT_STRING_LIT_MATCH(WT_METADATA_URI, (key)->data, (key)->size - 1) || \
+        WT_STRING_LIT_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1)))
 
 /*
  * __curmetadata_metadata_search --
@@ -577,6 +577,7 @@ int
 __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
   const char *cfg[], WT_CURSOR **cursorp)
 {
+    WT_CONFIG_ITEM cval;
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
       __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
@@ -604,7 +605,6 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owne
     WT_CURSOR *cursor;
     WT_CURSOR_METADATA *mdc;
     WT_DECL_RET;
-    WT_CONFIG_ITEM cval;
 
     WT_RET(__wt_calloc_one(session, &mdc));
     cursor = (WT_CURSOR *)mdc;

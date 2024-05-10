@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Spin locks:
  *
@@ -202,7 +204,7 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     WT_DECL_RET;
 
-    t->session_id = WT_SESSION_ID_INVALID;
+    __wt_atomic_store32(&t->session_id, WT_SESSION_ID_INVALID);
     if ((ret = pthread_mutex_unlock(&t->lock)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "pthread_mutex_unlock: %s", t->name));
 }
@@ -300,7 +302,7 @@ static WT_INLINE bool
 __wt_spin_locked(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     WT_UNUSED(session);
-    return (t->session_id != WT_SESSION_ID_INVALID);
+    return (__wt_atomic_load32(&t->session_id) != WT_SESSION_ID_INVALID);
 }
 
 /*
@@ -310,7 +312,7 @@ __wt_spin_locked(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static WT_INLINE bool
 __wt_spin_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
-    return (t->session_id == WT_SPIN_SESSION_ID_SAFE(session));
+    return (__wt_atomic_load32(&t->session_id) == WT_SPIN_SESSION_ID_SAFE(session));
 }
 
 /*
@@ -372,11 +374,11 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
         stats = (int64_t **)S2C(session)->stats;
         session_stats = (int64_t *)&(session->stats);
-        stats[session->stat_bucket][t->stat_count_off]++;
+        stats[session->stat_conn_bucket][t->stat_count_off]++;
         if (F_ISSET(session, WT_SESSION_INTERNAL))
-            stats[session->stat_bucket][t->stat_int_usecs_off] += (int64_t)time_diff;
+            stats[session->stat_conn_bucket][t->stat_int_usecs_off] += (int64_t)time_diff;
         else {
-            stats[session->stat_bucket][t->stat_app_usecs_off] += (int64_t)time_diff;
+            stats[session->stat_conn_bucket][t->stat_app_usecs_off] += (int64_t)time_diff;
         }
 
         /*
@@ -401,7 +403,7 @@ __wt_spin_trylock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
     if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
         WT_RET(__wt_spin_trylock(session, t));
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_bucket][t->stat_count_off]++;
+        stats[session->stat_conn_bucket][t->stat_count_off]++;
         return (0);
     }
     return (__wt_spin_trylock(session, t));

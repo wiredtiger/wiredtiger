@@ -1,6 +1,7 @@
 aggregated_time_windows
 backup
 checkpoint
+checkpoint_cleanup
 compression
 config_api
 connection_api
@@ -11,9 +12,7 @@ eviction
 eviction_checkpoint_interaction
 flush_tier
 functional_correctness
-garbage_collection
 history_store
-huffman_encoding
 indexes
 isolation_levels
 log_files

@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * WT_DATA_HANDLE_CACHE --
  *	Per-session cache of handles to avoid synchronization when opening
@@ -244,7 +246,8 @@ struct __wt_session_impl {
     void *salvage_track;
 
     /* Sessions have an associated statistics bucket based on its ID. */
-    u_int stat_bucket;          /* Statistics bucket offset */
+    u_int stat_conn_bucket;     /* Statistics connection bucket offset */
+    u_int stat_dsrc_bucket;     /* Statistics data source bucket offset */
     uint64_t cache_max_wait_us; /* Maximum time an operation waits for space in cache */
 
 #ifdef HAVE_DIAGNOSTIC
@@ -336,7 +339,8 @@ struct __wt_session_impl {
 #define WT_GEN_HAS_SNAPSHOT 2 /* Snapshot generation */
 #define WT_GEN_HAZARD 3       /* Hazard pointer */
 #define WT_GEN_SPLIT 4        /* Page splits */
-#define WT_GENERATIONS 5      /* Total generation manager entries */
+#define WT_GEN_TXN_COMMIT 5   /* Commit generation */
+#define WT_GENERATIONS 6      /* Total generation manager entries */
     wt_shared volatile uint64_t generations[WT_GENERATIONS];
 
     /*

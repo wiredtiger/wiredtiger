@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_TRANSACTION_SNAPSHOT_H
-#define MODEL_KV_TRANSACTION_SNAPSHOT_H
+#pragma once
 
 #include <algorithm>
 #include <memory>
@@ -74,7 +73,7 @@ public:
      */
     inline kv_transaction_snapshot_by_exclusion(
       txn_id_t exclude_after, std::unordered_set<txn_id_t> &&exclude_ids)
-        : _exclude_after(exclude_after), _exclude_ids(exclude_ids)
+        : _exclude_after(exclude_after), _exclude_ids(std::move(exclude_ids))
     {
     }
 
@@ -128,4 +127,3 @@ private:
 using kv_transaction_snapshot_ptr = std::shared_ptr<kv_transaction_snapshot>;
 
 } /* namespace model */
-#endif

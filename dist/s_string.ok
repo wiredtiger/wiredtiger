@@ -9,7 +9,9 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
+AREALLSET
 ARG
 ARGS
 ASAN
@@ -34,7 +36,7 @@ BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
 BLKCACHE
-BLmRrSVv
+BLmpRrSVv
 BOOL
 BSR
 BTREE
@@ -95,7 +97,6 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
-DeadStores
 Decrypt
 DeleteFileW
 Deterministically
@@ -142,6 +143,7 @@ FORALL
 FOREACH
 FS
 FULLFSYNC
+FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -189,6 +191,7 @@ INTRINSICS
 INUSE
 INVL
 ISA
+ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
@@ -220,6 +223,7 @@ LazyFS's
 LeafGreen
 LibFuzzer
 LoadLoad
+LoadStore
 LockFile
 LogBackend
 LogSink
@@ -243,7 +247,6 @@ MapViewOfFile
 Marsaglia
 Marsaglia's
 Mellor
-Mewhort
 Mitzenmacher
 MongoDB
 MoveFileExW
@@ -308,7 +311,9 @@ Px
 QQQS
 QSQ
 Qsort
+RCPC
 RCS
+RCpc
 RDNOLOCK
 READONLY
 REALLOC
@@ -342,6 +347,7 @@ SMT
 SPINLOCK
 SSHH
 SSq
+STATP
 STR
 STRUCT
 SYSCALL
@@ -365,7 +371,6 @@ Su
 Subdirectory
 Subprocess
 TAILQ
-TCMalloc
 TESTUTIL
 TID
 TMP
@@ -373,7 +378,9 @@ TODO
 TORTIOUS
 TRET
 TRYLOCK
+TSAN
 TSO
+TSan
 TW
 TXN
 ThreadList
@@ -381,6 +388,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+UBSAN
 UDF
 UID
 UIDs
@@ -443,7 +451,6 @@ WiredTigerTmplog
 WithSeeds
 Wmissing
 WriteFile
-Wundef
 Wuninitialized
 Wunused
 XP
@@ -459,6 +466,7 @@ aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
+acqrel
 addl
 addr
 addrs
@@ -480,6 +488,7 @@ argv
 asdf
 assertfmt
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -499,12 +508,11 @@ bbuilddir
 bcr
 bd
 beginthreadex
-bigram
 binutils
 bitcnt
 bitfield
 bitfields
-bitpos
+bitflip
 bitstr
 bitstring
 bitwise
@@ -512,6 +520,7 @@ blk
 blkcache
 blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -572,6 +581,7 @@ ciphertext
 ckpt
 ckptfrag
 ckptlist
+cksum
 cloexec
 closedir
 clsm
@@ -586,6 +596,7 @@ comparator
 comparators
 comparep
 compat
+compilable
 cond
 conditionalize
 conf
@@ -600,7 +611,6 @@ cookiep
 copydoc
 countp
 cp
-cplusplus
 cpp
 cppsuite
 cpuid
@@ -629,7 +639,6 @@ cursoring
 cursorp
 curstartrecno
 curstat
-curstd
 curtable
 curversion
 cust
@@ -648,7 +657,6 @@ dbar
 dbs
 dcalloc
 ddd
-deadcode
 decile
 deciles
 decl
@@ -662,7 +670,6 @@ decrypts
 deflateEnd
 deflateInit
 del
-dequeue
 dequeued
 der
 dereference
@@ -712,8 +719,6 @@ encodings
 encryptor
 encryptors
 endian
-english
-enqueue
 enum
 env
 eof
@@ -742,9 +747,14 @@ fclose
 fcntl
 fd
 fdatasync
+fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -881,6 +891,7 @@ isb
 isdigit
 ish
 ishld
+ishst
 islocked
 ispo
 isprint
@@ -909,6 +920,9 @@ lazyfs
 lbrace
 lbracket
 ld
+ldapr
+ldaprb
+ldaprh
 le
 len
 lengthp
@@ -927,7 +941,9 @@ linux
 llll
 llu
 llvm
+loadbool
 loadtext
+loadvbool
 loc
 localTime
 localkey
@@ -1017,9 +1033,9 @@ nentries
 nentriesp
 newbar
 newfile
-newuri
 newv
 nextprev
+nf
 nfilename
 nhex
 nlohmann
@@ -1047,7 +1063,6 @@ nset
 nul
 nullptr
 num
-numSymbols
 numbare
 nvram
 offpage
@@ -1078,6 +1093,7 @@ packv
 pageref
 pagesize
 param
+params
 pareto
 parserp
 patchp
@@ -1141,6 +1157,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readgen
 readlock
 readonly
 readunlock
@@ -1165,13 +1182,13 @@ repositions
 requeue
 resizable
 ret
-retp
 revint
 rf
 risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
@@ -1233,6 +1250,11 @@ stderr
 stdin
 stdout
 stepp
+stlr
+stlrb
+stlrh
+storebool
+storevbool
 str
 strace
 strcat
@@ -1241,6 +1263,7 @@ strdup
 strerror
 strftime
 strlen
+strncmp
 strncpy
 strndup
 strnlen
@@ -1324,7 +1347,6 @@ umount
 unallocated
 unbare
 unbuffered
-uncompressing
 unconfigured
 uncustomized
 undef
@@ -1419,6 +1441,7 @@ xX
 xdeadbeef
 xff
 xfff
+xxd
 xxpermdi
 xxxx
 xxxxx

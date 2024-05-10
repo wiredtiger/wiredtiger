@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #ifdef HAVE_X86INTRIN_H
 #if !defined(_MSC_VER) && !defined(_lint)
 #include <x86intrin.h>
@@ -126,7 +128,7 @@ __wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, u
     cmpp = 0;
     recno_bound = 0;
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_bounds_comparisons);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_comparisons);
 
     if (upper) {
         WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));

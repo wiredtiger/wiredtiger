@@ -32,9 +32,6 @@ __btree_clear(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
 
-    /* Close the Huffman tree. */
-    __wt_btree_huffman_close(session);
-
     /* Terminate any associated collator. */
     if (btree->collator_owned && btree->collator->terminate != NULL)
         WT_TRET(btree->collator->terminate(btree->collator, &session->iface));
@@ -284,7 +281,7 @@ __wt_btree_config_encryptor(
     WT_RET(__wt_config_gets(session, cfg, "encryption.name", &cval));
     if (cval.len == 0)
         *kencryptorp = S2C(session)->kencryptor;
-    else if (WT_STRING_MATCH("none", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("none", cval))
         *kencryptorp = NULL;
     else {
         WT_RET(__wt_config_gets_none(session, cfg, "encryption.keyid", &keyid));
@@ -335,7 +332,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Validate file types and check the data format plan. */
     WT_RET(__wt_config_gets(session, cfg, "key_format", &cval));
     WT_RET(__wt_struct_confchk(session, &cval));
-    if (WT_STRING_MATCH("r", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("r", cval))
         btree->type = BTREE_COL_VAR;
     else
         btree->type = BTREE_ROW;
@@ -444,17 +441,18 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /* Checksums */
     WT_RET(__wt_config_gets(session, cfg, "checksum", &cval));
-    if (WT_STRING_MATCH("on", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("on", cval))
         btree->checksum = CKSUM_ON;
-    else if (WT_STRING_MATCH("off", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("off", cval))
         btree->checksum = CKSUM_OFF;
-    else if (WT_STRING_MATCH("uncompressed", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("uncompressed", cval))
         btree->checksum = CKSUM_UNCOMPRESSED;
     else
         btree->checksum = CKSUM_UNENCRYPTED;
 
-    /* Huffman encoding */
-    WT_RET(__wt_btree_huffman_open(session));
+    ret = __wt_config_gets(session, cfg, "huffman_value", &cval);
+    if (ret == 0 && cval.len != 0)
+        WT_RET_MSG(session, ENOTSUP, "Huffman encoding for values is no longer supported.");
 
     /*
      * Reconciliation configuration:
@@ -494,7 +492,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * and compression always gives us more than 4x).
      *	Don't do compression adjustment for fixed-size column store, the
      * leaf page sizes don't change. (We could adjust internal pages but not
-     * internal pages, but that seems an unlikely use case.)
+     * leaf pages, but that seems an unlikely use case.)
      */
     btree->intlpage_compadjust = false;
     btree->maxintlpage_precomp = btree->maxintlpage;
@@ -534,7 +532,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     btree->modified = false; /* Clean */
 
-    btree->syncing = WT_BTREE_SYNC_OFF;                           /* Not syncing */
+    __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_OFF);   /* Not syncing */
     btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT); /* Checkpoint generation */
 
     /*
@@ -856,6 +854,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_REF *next_walk;
+    uint64_t last_recno;
     uint32_t flags;
 
     btree = S2BT(session);
@@ -883,8 +882,21 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
         return (WT_NOTFOUND);
 
     page = next_walk->page;
-    btree->last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
-                                                        __col_fix_last_recno(next_walk);
+    last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
+                                                 __col_fix_last_recno(next_walk);
+
+    /*
+     * If the right-most page is deleted and globally visible, we skip reading the page from disk
+     * and instead instantiate an empty page in memory. It's possible that next_walk points to this
+     * empty page. When this happens, it has no entries and the last record number will be out of
+     * bounds, i.e. zero.
+     *
+     * In this context, the page also can't have an insert (or append) list, so it's safe to simply
+     * take the last ref's starting record number as the last record number of the tree.
+     */
+    if (last_recno == WT_RECNO_OOB)
+        last_recno = next_walk->key.recno;
+    btree->last_recno = last_recno;
 
     return (__wt_page_release(session, next_walk, 0));
 }

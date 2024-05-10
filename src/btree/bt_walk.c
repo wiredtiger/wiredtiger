@@ -16,7 +16,7 @@ static WT_INLINE void
 __ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
 {
     WT_PAGE_INDEX *pindex;
-    WT_REF **start, **stop, **p, **t;
+    WT_REF **p, **start, **stop, **t;
     uint64_t sleep_usecs, yield_count;
     uint32_t entries, slot;
 
@@ -319,7 +319,6 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
 
     /*
      * Tree walks are special: they look inside page structures that splits may want to free.
-     * Publish the tree is active during this window.
      */
     WT_ENTER_PAGE_INDEX(session);
 
@@ -434,7 +433,7 @@ descend:
             /*
              * If we see any child states other than deleted, the page isn't empty.
              */
-            current_state = ref->state;
+            current_state = WT_REF_GET_STATE(ref);
             if (current_state != WT_REF_DELETED && !LF_ISSET(WT_READ_TRUNCATE))
                 empty_internal = false;
 
@@ -586,7 +585,7 @@ __tree_walk_skip_count_callback(
     /*
      * Skip deleted pages visible to us.
      */
-    if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, visible_all))
+    if (WT_REF_GET_STATE(ref) == WT_REF_DELETED && __wt_delete_page_skip(session, ref, visible_all))
         *skipp = true;
     else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         --*skipleafcntp;

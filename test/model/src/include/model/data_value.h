@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_DATA_VALUE_H
-#define MODEL_DATA_VALUE_H
+#pragma once
 
 #include <ostream>
 #include <string>
@@ -145,6 +144,12 @@ public:
 extern const data_value NONE;
 
 /*
+ * ZERO --
+ *     The unsigned zero value.
+ */
+extern const data_value ZERO;
+
+/*
  * operator<< --
  *     Add human-readable output to the stream for a byte vector.
  */
@@ -181,4 +186,3 @@ void set_wt_cursor_key(WT_CURSOR *cursor, const data_value &value);
 void set_wt_cursor_value(WT_CURSOR *cursor, const data_value &value);
 
 } /* namespace model */
-#endif

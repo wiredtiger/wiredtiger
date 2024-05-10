@@ -26,9 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_KV_CHECKPOINT_H
-#define MODEL_KV_CHECKPOINT_H
+#pragma once
 
+#include <map>
 #include <memory>
 
 #include "model/core.h"
@@ -47,9 +47,11 @@ public:
      * kv_checkpoint::kv_checkpoint --
      *     Create a new instance of the checkpoint.
      */
-    inline kv_checkpoint(
-      const char *name, kv_transaction_snapshot_ptr snapshot, timestamp_t stable_timestamp) noexcept
-        : _name(name), _snapshot(snapshot), _stable_timestamp(stable_timestamp)
+    inline kv_checkpoint(const char *name, kv_transaction_snapshot_ptr snapshot,
+      timestamp_t oldest_timestamp, timestamp_t stable_timestamp,
+      std::map<std::string, uint64_t> &&highest_recnos) noexcept
+        : _name(name), _snapshot(std::move(snapshot)), _oldest_timestamp(oldest_timestamp),
+          _stable_timestamp(stable_timestamp), _highest_recnos(std::move(highest_recnos))
     {
     }
 
@@ -66,7 +68,17 @@ public:
     }
 
     /*
-     * kv_transaction::snapshot --
+     * kv_checkpoint::oldest_timestamp --
+     *     Get the checkpoint's oldest timestamp, if set.
+     */
+    inline timestamp_t
+    oldest_timestamp() const noexcept
+    {
+        return _oldest_timestamp;
+    }
+
+    /*
+     * kv_checkpoint::snapshot --
      *     Get the transaction snapshot.
      */
     inline kv_transaction_snapshot_ptr
@@ -76,7 +88,7 @@ public:
     }
 
     /*
-     * kv_transaction::stable_timestamp --
+     * kv_checkpoint::stable_timestamp --
      *     Get the checkpoint's stable timestamp, if set.
      */
     inline timestamp_t
@@ -85,9 +97,22 @@ public:
         return _stable_timestamp;
     }
 
+    /*
+     * kv_checkpoint::highest_recnos --
+     *     Get the highest recnos for each FLCS table. This returns a reference to the internal map
+     *     with lifetime tied to the lifetime of this object.
+     */
+    inline const std::map<std::string, uint64_t> &
+    highest_recnos() const noexcept
+    {
+        return _highest_recnos;
+    }
+
 private:
     kv_transaction_snapshot_ptr _snapshot;
-    timestamp_t _stable_timestamp;
+    timestamp_t _oldest_timestamp, _stable_timestamp;
+    std::map<std::string, uint64_t> _highest_recnos; /* Highest recno per FLCS table. */
+
     std::string _name;
 };
 
@@ -98,4 +123,3 @@ private:
 using kv_checkpoint_ptr = std::shared_ptr<kv_checkpoint>;
 
 } /* namespace model */
-#endif

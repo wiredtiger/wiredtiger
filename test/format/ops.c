@@ -241,7 +241,7 @@ rollback_to_stable(WT_SESSION *session)
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
      * debugging the race.
      */
-    timestamp_query("get=stable", &g.stable_timestamp);
+    testutil_check(timestamp_query("get=stable_timestamp", &g.stable_timestamp));
     trace_msg(session, "rollback-to-stable: stable timestamp %" PRIu64, g.stable_timestamp);
 
     /* Check the saved snap operations for consistency. */
@@ -483,7 +483,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     if (lastrun) {
         tinfo_teardown();
-        timestamp_teardown(session);
+        if (g.transaction_timestamps_config)
+            timestamp_teardown(session);
     }
 
     wt_wrap_close_session(session);
@@ -595,7 +596,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
      */
-    WT_PUBLISH(tinfo->commit_ts, ts);
+    WT_RELEASE_WRITE_WITH_BARRIER(tinfo->commit_ts, ts);
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);

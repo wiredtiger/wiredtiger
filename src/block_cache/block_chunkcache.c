@@ -543,8 +543,8 @@ __chunkcache_should_evict(WT_CHUNKCACHE_CHUNK *chunk)
 
     /*
      * Do not evict chunks that are in the process of being added to the cache. The acquire read,
-     * and matching publish, are required since populating the chunk itself isn't protected by the
-     * bucket lock. Ergo, we need to make sure that reads or writes to the valid field are not
+     * and matching release write, are required since populating the chunk itself isn't protected by
+     * the bucket lock. Ergo, we need to make sure that reads or writes to the valid field are not
      * reordered relative to reads or writes of other fields.
      */
     WT_ACQUIRE_READ_WITH_BARRIER(valid, chunk->valid);
@@ -755,7 +755,7 @@ __chunkcache_read_into_chunk(
      * this chunk to become valid. The current thread will mark the chunk as valid, and any waiters
      * will unblock and proceed reading it.
      */
-    WT_PUBLISH(new_chunk->valid, true);
+    WT_RELEASE_WRITE_WITH_BARRIER(new_chunk->valid, true);
 
     /* Push the chunk into the work queue so it can get written to the chunk cache metadata. */
     if (chunkcache->type == WT_CHUNKCACHE_FILE)
@@ -830,7 +830,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
-    size_t already_read, remains_to_read, readable_in_chunk, size_copied;
+    size_t already_read, readable_in_chunk, remains_to_read, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
     const char *object_name;
     bool chunk_cached, valid;
@@ -1165,7 +1165,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     newchunk->chunk_memory = chunkcache->memory + cache_offset;
 
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
-    WT_PUBLISH(newchunk->valid, true);
+    WT_RELEASE_WRITE_WITH_BARRIER(newchunk->valid, true);
 
     __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE,
       "new chunk instantiated from metadata during startup: %s(%u), offset=%" PRId64 ", size=%lu",
@@ -1229,11 +1229,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
           WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE, chunkcache->hashtable_size);
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.type", &cval));
-    if (cval.len == 0 || WT_STRING_MATCH("dram", cval.str, cval.len) ||
-      WT_STRING_MATCH("DRAM", cval.str, cval.len))
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("dram", cval) || WT_CONFIG_LIT_MATCH("DRAM", cval))
         chunkcache->type = WT_CHUNKCACHE_IN_VOLATILE_MEMORY;
-    else if (WT_STRING_MATCH("file", cval.str, cval.len) ||
-      WT_STRING_MATCH("FILE", cval.str, cval.len)) {
+    else if (WT_CONFIG_LIT_MATCH("file", cval) || WT_CONFIG_LIT_MATCH("FILE", cval)) {
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
         if (cval.len == 0)

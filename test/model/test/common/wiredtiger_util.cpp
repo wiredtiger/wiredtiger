@@ -86,13 +86,16 @@ wt_get_ext(WT_SESSION *session, const char *uri, const model::data_value &key,
         testutil_check(session->begin_transaction(session, nullptr));
     else {
         testutil_snprintf(cfg, sizeof(cfg), "read_timestamp=%" PRIx64, timestamp);
-        testutil_check(session->begin_transaction(session, cfg));
+        ret = session->begin_transaction(session, cfg);
+        if (ret == EINVAL)
+            return ret;
+        testutil_check(ret);
     }
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
 
     model::set_wt_cursor_key(cursor, key);
     ret = cursor->search(cursor);
-    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK && ret != WT_PREPARE_CONFLICT)
+    if (ret != WT_NOTFOUND && ret != WT_PREPARE_CONFLICT && ret != WT_ROLLBACK)
         testutil_check(ret);
     if (ret == 0)
         out = model::get_wt_cursor_value(cursor);
@@ -337,18 +340,18 @@ wt_txn_get(WT_SESSION *session, const char *uri, const model::data_value &key)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    const char *value;
-
-    value = nullptr;
+    model::data_value out;
 
     testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
     model::set_wt_cursor_key(cursor, key);
     testutil_check_error_ok(ret = cursor->search(cursor), WT_NOTFOUND);
     if (ret == 0)
-        testutil_check(cursor->get_value(cursor, &value));
+        out = model::get_wt_cursor_value(cursor);
+    else
+        out = model::NONE;
 
     testutil_check(cursor->close(cursor));
-    return ret == 0 ? model::data_value(value) : model::NONE;
+    return out;
 }
 
 /*
@@ -423,32 +426,33 @@ wt_ckpt_create(WT_SESSION *session, const char *ckpt_name)
 }
 
 /*
- * wt_get_stable_timestamp --
- *     Get the stable timestamp in WiredTiger.
+ * wt_get_timestamp --
+ *     Get the given timestamp in WiredTiger.
  */
 model::timestamp_t
-wt_get_stable_timestamp(WT_CONNECTION *conn)
+wt_get_timestamp(WT_CONNECTION *conn, const char *kind)
 {
-    char buf[64];
-    testutil_check(conn->query_timestamp(conn, buf, "get=stable_timestamp"));
+    char query[64], result[64];
+    testutil_snprintf(query, sizeof(query), "get=%s", kind);
+    testutil_check(conn->query_timestamp(conn, result, query));
 
-    std::istringstream ss(buf);
+    std::istringstream ss(result);
     model::timestamp_t t;
     ss >> std::hex >> t;
     return t;
 }
 
 /*
- * wt_set_stable_timestamp --
- *     Set the stable timestamp in WiredTiger.
+ * wt_set_timestamp --
+ *     Set the given timestamp in WiredTiger.
  */
-void
-wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+int
+wt_set_timestamp(WT_CONNECTION *conn, const char *kind, model::timestamp_t timestamp)
 {
     char buf[64];
 
-    testutil_snprintf(buf, sizeof(buf), "stable_timestamp=%" PRIx64, timestamp);
-    testutil_check(conn->set_timestamp(conn, buf));
+    testutil_snprintf(buf, sizeof(buf), "%s=%" PRIx64, kind, timestamp);
+    return conn->set_timestamp(conn, buf);
 }
 
 /*

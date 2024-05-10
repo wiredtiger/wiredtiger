@@ -46,7 +46,7 @@ void
 kv_table_item::add_update(std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist)
 {
     std::lock_guard lock_guard(_lock);
-    add_update_nolock(update, must_exist, must_not_exist);
+    add_update_nolock(std::move(update), must_exist, must_not_exist);
 }
 
 /*
@@ -184,9 +184,14 @@ kv_table_item::contains_any(const data_value &value, kv_transaction_snapshot_ptr
         i--;
     }
 
-    /* Now check all updates with the same commit timestamp. */
+    /*
+     * Now check all updates with the same commit timestamp. If the most recent update is not
+     * implicit (i.e., added explicitly by the user as opposed to being added automatically when
+     * filling in zeros in FLCS), then check only explicit updates.
+     */
     timestamp_t t = (*i)->commit_timestamp();
-    while ((*i)->commit_timestamp() == t) {
+    bool implicit = (*i)->implicit();
+    while ((*i)->commit_timestamp() == t && (implicit || !(*i)->implicit())) {
         const std::shared_ptr<kv_update> &u = *i;
 
         /* Found one! */
@@ -219,7 +224,7 @@ kv_table_item::exists() const
 bool
 kv_table_item::exists(kv_checkpoint_ptr checkpoint) const
 {
-    return get(checkpoint) != NONE;
+    return get(std::move(checkpoint)) != NONE;
 }
 
 /*

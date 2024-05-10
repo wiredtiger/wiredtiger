@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * __cell_check_value_validity --
  *     Check the value's validity window for sanity.
@@ -211,7 +213,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      * If passed fast-delete information, append the fast-delete information after the aggregated
      * timestamp information.
      */
-    if (page_del != NULL && __wt_process.fast_truncate_2022) {
+    if (page_del != NULL) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
@@ -330,6 +332,9 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&a, 0, &v));
         WT_RET(__wt_vunpack_uint(&a, 0, &alen)); /* Length */
+        /* Adjust the size of data cells without a validity window or run-length encoding. */
+        if (!validity && !rle)
+            alen += WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
@@ -359,6 +364,9 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&b, 0, &v));
         WT_RET(__wt_vunpack_uint(&b, 0, &blen)); /* Length */
+        /* Adjust the size of data cells without a validity window or run-length encoding. */
+        if (!validity && !rle)
+            blen += WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
@@ -1254,12 +1262,7 @@ static WT_INLINE int
 __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
   WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
-    WT_BTREE *btree;
     bool decoded;
-    void *huffman;
-
-    btree = S2BT(session);
-    huffman = NULL;
 
     /* Reference the cell's data, optionally decode it. */
     switch (unpack->type) {
@@ -1272,7 +1275,6 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
     case WT_CELL_VALUE:
         store->data = unpack->data;
         store->size = unpack->size;
-        huffman = btree->huffman_value;
         break;
     case WT_CELL_KEY_OVFL:
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
@@ -1284,19 +1286,16 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
          * Encourage checkpoint to race with reading the onpage value. If we have an overflow item,
          * it may be removed by checkpoint concurrently.
          */
-        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE);
+        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE, NULL);
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);
-        huffman = btree->huffman_value;
         break;
     default:
         return (__wt_illegal_value(session, unpack->type));
     }
 
-    return (huffman == NULL || store->size == 0 ?
-        0 :
-        __wt_huffman_decode(session, huffman, (const uint8_t *)store->data, store->size, store));
+    return (0);
 }
 
 /*

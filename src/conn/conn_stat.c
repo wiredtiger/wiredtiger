@@ -76,11 +76,12 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     __wt_cache_stats_update(session);
     __wt_txn_stats_update(session);
 
-    WT_STAT_SET(session, stats, file_open, conn->open_file_count);
-    WT_STAT_SET(session, stats, cursor_open_count, conn->open_cursor_count);
-    WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
-    WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
-    WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
+    WT_STATP_CONN_SET(session, stats, file_open, conn->open_file_count);
+    WT_STATP_CONN_SET(
+      session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
 
 /*
@@ -157,9 +158,9 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         __wt_config_subinit(session, &objectconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
             /*
-             * XXX Only allow "file:" and "lsm:" for now: "file:" works because it's been converted
-             * to data handles, "lsm:" works because we can easily walk the list of open LSM
-             * objects, even though it hasn't been converted.
+             * Only allow "file:" and "lsm:" for now: "file:" works because it's been converted to
+             * data handles, "lsm:" works because we can easily walk the list of open LSM objects,
+             * even though it hasn't been converted.
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
                 WT_ERR_MSG(session, EINVAL,
@@ -193,7 +194,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 #define WT_TIMESTAMP_JSON_DEFAULT "%Y-%m-%dT%H:%M:%S.000Z"
     WT_ERR(__wt_config_gets(session, cfg, "statistics_log.timestamp", &cval));
     if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON) &&
-      WT_STRING_MATCH(WT_TIMESTAMP_DEFAULT, cval.str, cval.len))
+      WT_CONFIG_LIT_MATCH(WT_TIMESTAMP_DEFAULT, cval))
         WT_ERR(__wt_strdup(session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
     else
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->stat_format));
@@ -309,7 +310,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
     size_t prefixlen;
     int64_t val;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
-    const char *desc, *endprefix, *valstr, *uri;
+    const char *desc, *endprefix, *uri, *valstr;
     bool first, groupfirst;
 
     conn = S2C(session);

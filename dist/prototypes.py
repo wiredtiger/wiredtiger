@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
 # Generate WiredTiger function prototypes.
-import fnmatch, re, os
+import fnmatch, re, os, sys
 from dist import compare_srcfile, format_srcfile, source_files
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast(source_files(), prefix="../")]:
+    sys.exit(0)
 
 def clean_function_name(filename, fn):
     ret = fn.strip()
@@ -62,6 +66,7 @@ def fn_prototypes(fns, tests, name):
 def output(fns, tests, f):
     tmp_file = '__tmp_prototypes' + str(os.getpid())
     tfile = open(tmp_file, 'w')
+    tfile.write("#pragma once\n\n")
     for e in sorted(list(set(fns))):
         tfile.write(e)
 

@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <sys/time.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -69,6 +70,58 @@ create_tmp_file(const char *dir, const char *prefix, const char *suffix)
 }
 
 /*
+ * current_time --
+ *     Get the current time in seconds.
+ */
+double
+current_time()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+
+    return tv.tv_sec + tv.tv_usec / 1.0e6;
+}
+
+/*
+ * parse_uint64_range --
+ *     Parse the string into a range of numbers (two numbers separated by '-'). Throw an exception
+ *     on error.
+ */
+std::pair<uint64_t, uint64_t>
+parse_uint64_range(const char *str)
+{
+    const char *end;
+    uint64_t first = parse_uint64(str, &end);
+
+    uint64_t second = first;
+    if (end[0] != '\0') {
+        if (end[0] != '-')
+            throw std::runtime_error("Not a range");
+        second = parse_uint64(end + 1);
+    }
+
+    if (first > second)
+        std::swap(first, second);
+    return std::make_pair(first, second);
+}
+
+/*
+ * trim --
+ *     Trim whitespace from a string.
+ */
+std::string
+trim(const std::string &str, const std::string &to_trim)
+{
+    size_t a = str.find_first_not_of(to_trim);
+    if (a == std::string::npos)
+        return "";
+    size_t b = str.find_last_not_of(to_trim);
+    if (b == std::string::npos || b < a)
+        b = str.length();
+    return str.substr(a, b - a + 1);
+}
+
+/*
  * verify_using_debug_log --
  *     Verify the database using the debug log. Try both the regular and the JSON version.
  */
@@ -89,6 +142,10 @@ verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing)
     for (auto &t : tables)
         testutil_assert(db_from_debug_log.table(t.c_str())->verify_noexcept(conn));
 
+    /* Verify database timestamps. */
+    testutil_assert(db_from_debug_log.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+    testutil_assert(db_from_debug_log.stable_timestamp() == wt_get_stable_timestamp(conn));
+
     /*
      * Print the debug log to JSON. Note that the debug log has not changed from above, because each
      * database can be opened by only one WiredTiger instance at a time.
@@ -102,12 +159,19 @@ verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing)
     for (auto &t : tables)
         testutil_assert(db_from_debug_log_json.table(t.c_str())->verify_noexcept(conn));
 
+    /* Verify again database timestamps. */
+    testutil_assert(db_from_debug_log_json.oldest_timestamp() == wt_get_oldest_timestamp(conn));
+    testutil_assert(db_from_debug_log_json.stable_timestamp() == wt_get_stable_timestamp(conn));
+
     /* Now try to get the verification to fail, just to make sure it's working. */
     if (test_failing)
         for (auto &t : tables) {
+            model::kv_table_ptr p = db_from_debug_log.table(t.c_str());
+            /* The following works only for tables with string keys. */
+            if (strcmp(p->key_format(), "S") != 0)
+                continue;
             model::data_value key("A key that does not exists");
             model::data_value value("A data value");
-            model::kv_table_ptr p = db_from_debug_log.table(t.c_str());
             p->insert(key, value, 100 * 1000);
             testutil_assert(!p->verify_noexcept(conn));
         }
@@ -127,14 +191,17 @@ verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::
 {
     /* Run the workload in the model. */
     model::kv_database database;
-    workload.run(database);
+    std::vector<int> ret_model = workload.run(database);
 
     /* When we load the workload from WiredTiger, that would be after running recovery. */
     database.restart();
 
     /* Run the workload in WiredTiger. */
     testutil_recreate_dir(home.c_str());
-    workload.run_in_wiredtiger(home.c_str(), env_config);
+    std::vector<int> ret_wt = workload.run_in_wiredtiger(home.c_str(), env_config);
+
+    /* Compare the return codes. */
+    testutil_assert(ret_model == ret_wt);
 
     /* Open the database that we just created. */
     WT_CONNECTION *conn;

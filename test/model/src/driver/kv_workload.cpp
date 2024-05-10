@@ -26,6 +26,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <string>
+#include <string_view>
+
 extern "C" {
 #include "wt_internal.h"
 }
@@ -37,26 +40,301 @@ extern "C" {
 
 namespace model {
 
+namespace operation {
+
 /*
- * kv_workload::run --
- *     Run the workload in the model.
+ * parse --
+ *     Parse an operation from a string. Throw an exception on error.
+ */
+any
+parse(const char *str)
+{
+    /* Get the operation name. */
+    size_t i = 0;
+    while (std::isalnum(str[i]) || str[i] == '_')
+        ++i;
+    std::string_view name(str, i);
+
+    const char *p = str + i;
+    while (std::isspace(*p))
+        ++p;
+    if (*(p++) != '(')
+        throw model_exception("Expected '('");
+
+    /* Get the arguments. */
+    std::vector<std::string> args;
+    std::string current;
+    bool done = false;
+    bool escaped = false;
+    bool had_quotes = false;
+    bool quotes = false;
+    while (*p != '\0') {
+        char c = *(p++);
+
+        if (escaped) {
+            current += c;
+            escaped = false;
+            continue;
+        }
+
+        if (quotes) {
+            if (c == '\"') {
+                quotes = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            current += c;
+            continue;
+        }
+
+        if (std::isspace(c))
+            continue;
+
+        if (c == '\"') {
+            quotes = true;
+            had_quotes = true;
+            continue;
+        }
+
+        if (c == ',' || c == ')') {
+            /* An empty string must have quotes if it is not the last argument. */
+            if (!current.empty() || had_quotes || c == ',')
+                args.push_back(current);
+            current = "";
+            had_quotes = false;
+            if (c == ')') {
+                done = true;
+                break;
+            }
+            continue;
+        }
+
+        current += c;
+    }
+
+    if (!done)
+        throw model_exception("Expected ')'");
+    while (std::isspace(*p))
+        ++p;
+    if (*(p++) != '\0')
+        throw model_exception("Extra characters at the end of the string.");
+
+#define CHECK_NUM_ARGS(expected)   \
+    if (args.size() != (expected)) \
+        throw model_exception("Expected " + std::to_string(expected) + " arguments");
+#define CHECK_NUM_ARGS_RANGE(min, max)                                              \
+    if (args.size() < min || args.size() > max)                                     \
+        throw model_exception("Expected between " + std::to_string(min) + " and " + \
+          std::to_string(max) + " arguments");
+
+    /* Now actually parse the operation. */
+    /* FIXME: We currently only support unsigned numbers for keys and values. */
+    if (name == "begin_transaction") {
+        CHECK_NUM_ARGS(1);
+        return begin_transaction(parse_uint64(args[0]));
+    }
+    if (name == "checkpoint") {
+        CHECK_NUM_ARGS_RANGE(0, 1);
+        return checkpoint(args.size() == 0 ? nullptr : args[0].c_str());
+    }
+    if (name == "commit_transaction") {
+        CHECK_NUM_ARGS_RANGE(1, 3);
+        return commit_transaction(parse_uint64(args[0]),
+          args.size() <= 1 ? k_timestamp_none : parse_uint64(args[1]),
+          args.size() <= 2 ? k_timestamp_none : parse_uint64(args[2]));
+    }
+    if (name == "crash") {
+        CHECK_NUM_ARGS(0);
+        return crash();
+    }
+    if (name == "create_table") {
+        CHECK_NUM_ARGS(4);
+        return create_table(
+          parse_uint64(args[0]), args[1].c_str(), args[2].c_str(), args[3].c_str());
+    }
+    if (name == "insert") {
+        CHECK_NUM_ARGS(4);
+        return insert(parse_uint64(args[0]), parse_uint64(args[1]),
+          data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
+    }
+    if (name == "prepare_transaction") {
+        CHECK_NUM_ARGS(2);
+        return prepare_transaction(parse_uint64(args[0]), parse_uint64(args[1]));
+    }
+    if (name == "remove") {
+        CHECK_NUM_ARGS(3);
+        return remove(
+          parse_uint64(args[0]), parse_uint64(args[1]), data_value(parse_uint64(args[2])));
+    }
+    if (name == "restart") {
+        CHECK_NUM_ARGS(0);
+        return restart();
+    }
+    if (name == "rollback_to_stable") {
+        CHECK_NUM_ARGS(0);
+        return rollback_to_stable();
+    }
+    if (name == "rollback_transaction") {
+        CHECK_NUM_ARGS(1);
+        return rollback_transaction(parse_uint64(args[0]));
+    }
+    if (name == "set_commit_timestamp") {
+        CHECK_NUM_ARGS(2);
+        return set_commit_timestamp(parse_uint64(args[0]), parse_uint64(args[1]));
+    }
+    if (name == "set_oldest_timestamp") {
+        CHECK_NUM_ARGS(1);
+        return set_oldest_timestamp(parse_uint64(args[0]));
+    }
+    if (name == "set_stable_timestamp") {
+        CHECK_NUM_ARGS(1);
+        return set_stable_timestamp(parse_uint64(args[0]));
+    }
+    if (name == "truncate") {
+        CHECK_NUM_ARGS(4);
+        return truncate(parse_uint64(args[0]), parse_uint64(args[1]),
+          data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
+    }
+
+#undef CHECK_NUM_ARGS
+#undef CHECK_NUM_ARGS_RANGE
+
+    throw model_exception(
+      "Cannot parse operation: Unknown operation \"" + std::string(name) + "\"");
+}
+
+} /* namespace operation */
+
+/*
+ * kv_workload_generator::assert_timestamps --
+ *     Assert that the timestamps are assigned correctly. Call this function one sequence at a time.
  */
 void
+kv_workload::assert_timestamps(const operation::any &op, timestamp_t &oldest, timestamp_t &stable)
+{
+    if (std::holds_alternative<operation::set_stable_timestamp>(op)) {
+        timestamp_t t = std::get<operation::set_stable_timestamp>(op).stable_timestamp;
+        if (t < stable) {
+            std::ostringstream err;
+            err << "The stable timestamp went backwards: " << stable << " -> " << t;
+            throw model_exception(err.str());
+        }
+        if (t < oldest && oldest != k_timestamp_none) {
+            std::ostringstream err;
+            err << "The stable timestamp must not be smaller than the oldest timestamp: " << t
+                << " < " << oldest;
+            throw model_exception(err.str());
+        }
+        stable = t;
+    }
+
+    if (std::holds_alternative<operation::set_oldest_timestamp>(op)) {
+        timestamp_t t = std::get<operation::set_oldest_timestamp>(op).oldest_timestamp;
+        if (t < oldest) {
+            std::ostringstream err;
+            err << "The oldest timestamp went backwards: " << oldest << " -> " << t;
+            throw model_exception(err.str());
+        }
+        if (t > stable && stable != k_timestamp_none) {
+            std::ostringstream err;
+            err << "The oldest timestamp must not be later than the stable timestamp: " << t
+                << " > " << stable;
+            throw model_exception(err.str());
+        }
+        oldest = t;
+    }
+
+    if (std::holds_alternative<operation::prepare_transaction>(op)) {
+        timestamp_t t = std::get<operation::prepare_transaction>(op).prepare_timestamp;
+        if (t < stable) {
+            std::ostringstream err;
+            err << "Prepare timestamp is before the stable timestamp: " << t << " < " << stable;
+            throw model_exception(err.str());
+        }
+    }
+
+    if (std::holds_alternative<operation::set_commit_timestamp>(op)) {
+        timestamp_t t = std::get<operation::set_commit_timestamp>(op).commit_timestamp;
+        if (t < stable) {
+            std::ostringstream err;
+            err << "Commit timestamp is before the stable timestamp: " << t << " < " << stable;
+            throw model_exception(err.str());
+        }
+    }
+
+    if (std::holds_alternative<operation::commit_transaction>(op)) {
+        timestamp_t t = std::get<operation::commit_transaction>(op).commit_timestamp;
+        if (t < stable) {
+            std::ostringstream err;
+            err << "Commit timestamp is before the stable timestamp: " << t << " < " << stable;
+            throw model_exception(err.str());
+        }
+        t = std::get<operation::commit_transaction>(op).durable_timestamp;
+        if (t < stable && t != k_timestamp_none) {
+            std::ostringstream err;
+            err << "Durable timestamp is before the stable timestamp: " << t << " < " << stable;
+            throw model_exception(err.str());
+        }
+    }
+}
+
+/*
+ * kv_workload::assert_timestamps --
+ *     Assert that all timestamps in the entire workload are assigned correctly. Throw an exception
+ *     on error.
+ */
+void
+kv_workload::assert_timestamps()
+{
+    timestamp_t ckpt_oldest = k_timestamp_none;
+    timestamp_t ckpt_stable = k_timestamp_none;
+    timestamp_t oldest = k_timestamp_none;
+    timestamp_t stable = k_timestamp_none;
+
+    for (size_t i = 0; i < _operations.size(); i++) {
+        const operation::any &op = _operations[i].operation;
+        assert_timestamps(op, oldest, stable);
+
+        if (std::holds_alternative<operation::checkpoint>(op) ||
+          std::holds_alternative<operation::restart>(op) ||
+          std::holds_alternative<operation::rollback_to_stable>(op)) {
+            ckpt_oldest = oldest;
+            ckpt_stable = stable;
+            if (ckpt_stable == k_timestamp_none)
+                ckpt_oldest = k_timestamp_none;
+        }
+        if (std::holds_alternative<operation::crash>(op) ||
+          std::holds_alternative<operation::restart>(op)) {
+            oldest = ckpt_oldest;
+            stable = ckpt_stable;
+        }
+    }
+}
+
+/*
+ * kv_workload::run --
+ *     Run the workload in the model. Return the return codes of the workload operations.
+ */
+std::vector<int>
 kv_workload::run(kv_database &database) const
 {
     kv_workload_runner runner{database};
-    runner.run(*this);
+    return runner.run(*this);
 }
 
 /*
  * kv_workload::run_in_wiredtiger --
- *     Run the workload in WiredTiger.
+ *     Run the workload in WiredTiger. Return the return codes of the workload operations.
  */
-void
-kv_workload::run_in_wiredtiger(const char *home, const char *connection_config) const
+std::vector<int>
+kv_workload::run_in_wiredtiger(
+  const char *home, const char *connection_config, const char *table_config) const
 {
-    kv_workload_runner_wt runner{home, connection_config};
-    runner.run(*this);
+    kv_workload_runner_wt runner{home, connection_config, table_config};
+    return runner.run(*this);
 }
 
 } /* namespace model */

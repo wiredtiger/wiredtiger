@@ -26,11 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_TEST_UTIL_H
-#define MODEL_TEST_UTIL_H
+#pragma once
 
 #include <string>
+#include <utility>
 #include "model/driver/kv_workload.h"
+#include "model/util.h"
 
 extern "C" {
 #include "test_util.h"
@@ -56,6 +57,36 @@ extern "C" {
 std::string create_tmp_file(const char *dir, const char *prefix, const char *suffix = nullptr);
 
 /*
+ * current_time --
+ *     Get the current time in seconds.
+ */
+double current_time();
+
+/*
+ * parse_uint64 --
+ *     Parse the string into a number. Throw an exception on error.
+ */
+inline uint64_t
+parse_uint64(const char *str, const char **end = nullptr)
+{
+    /* Convenience function, at least until we refactor these utilities. */
+    return model::parse_uint64(str, end);
+}
+
+/*
+ * parse_uint64_range --
+ *     Parse the string into a range of numbers (two numbers separated by '-'). Throw an exception
+ *     on error.
+ */
+std::pair<uint64_t, uint64_t> parse_uint64_range(const char *str);
+
+/*
+ * trim --
+ *     Trim whitespace from a string.
+ */
+std::string trim(const std::string &str, const std::string &to_trim = " \n\r\t");
+
+/*
  * verify_using_debug_log --
  *     Verify the database using the debug log. Try both the regular and the JSON version.
  */
@@ -67,5 +98,3 @@ void verify_using_debug_log(TEST_OPTS *opts, const char *home, bool test_failing
  */
 void verify_workload(const model::kv_workload &workload, TEST_OPTS *opts, const std::string &home,
   const char *env_config);
-
-#endif

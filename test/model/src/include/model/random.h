@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MODEL_RANDOM_H
-#define MODEL_RANDOM_H
+#pragma once
 
 #include <cstddef>
 #include "model/core.h"
@@ -52,6 +51,16 @@ public:
     random(uint64_t seed = 0) noexcept;
 
     /*
+     * random::next_seed --
+     *     Get the next seed starting from the given seed.
+     */
+    static uint64_t
+    next_seed(uint64_t seed)
+    {
+        return random(seed).next_uint64();
+    }
+
+    /*
      * random::next_double --
      *     Get the next double between 0 and 1.
      */
@@ -68,6 +77,12 @@ public:
      *     Get the next index from the list of the given length.
      */
     size_t next_index(size_t length);
+
+    /*
+     * random::next_uint64 --
+     *     Get the next integer.
+     */
+    uint64_t next_uint64() noexcept;
 
     /*
      * random::next_uint64 --
@@ -113,4 +128,3 @@ private:
 #define probability_default if (__r >= 0)
 
 } /* namespace model */
-#endif

@@ -9,6 +9,8 @@ fh="config.h"
 cat<<END_OF_HEADER_FILE_PREFIX>$fh
 /* DO NOT EDIT: automatically built by format/config.sh. */
 
+#pragma once
+
 #define C_TYPE_MATCH(cp, type)                                                                    \\
     (!F_ISSET(cp, (C_TYPE_FIX | C_TYPE_ROW | C_TYPE_VAR)) ||                                      \\
       ((type) == FIX && F_ISSET(cp, C_TYPE_FIX)) || ((type) == ROW && F_ISSET(cp, C_TYPE_ROW)) || \\
@@ -73,7 +75,7 @@ done<<END_OF_INPUT>$fc
 CONFIG configuration_list[] = {
 {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0}
 
-{"background_compact", "configure background compaction", C_BOOL, 10, 0, 0}
+{"background_compact", "configure background compaction", C_BOOL, 50, 0, 0}
 
 {"background_compact.free_space_target", "free space target for background compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
@@ -96,8 +98,6 @@ CONFIG configuration_list[] = {
 {"btree.compression", "data compression (off | lz4 | snappy | zlib | zstd)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"btree.dictionary", "configure dictionary compressed values", C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0}
-
-{"btree.huffman_value", "configure huffman encoded values", C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0}
 
 {"btree.internal_key_truncation", "truncate internal keys", C_BOOL | C_TABLE, 95, 0, 0}
 
