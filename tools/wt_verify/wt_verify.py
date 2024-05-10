@@ -171,8 +171,6 @@ def parse_output():
                 is_root_node = False
     return output
 
-def num_len(num):
-    return len(str(num))
 
 def histogram(field, chkpt, chkpt_name):
     """
