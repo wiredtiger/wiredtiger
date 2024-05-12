@@ -171,6 +171,19 @@ def parse_output():
                 is_root_node = False
     return output
 
+def parse_output2():
+    """
+    Parse the output file of dump_blocks
+    """
+    with open(WT_OUTPUT_FILE, "r") as f:
+        lines = f.readlines()
+    for line in lines:
+        print(line)
+        if "addr: " in line:
+            print(line)
+            sys.exit(1)
+    sys.exit(1)
+    return None
 
 def histogram(field, chkpt, chkpt_name):
     """
@@ -205,7 +218,7 @@ def histogram(field, chkpt, chkpt_name):
     fig, ax = plt.subplots(2, figsize=(15, 10))
     ax[0].hist(internal, bins=50, color=PLOT_COLORS[field]["internal"], label="internal")
     ax[1].hist(leaf, bins=50, color=PLOT_COLORS[field]["leaf"], label="leaf")
-    ax[0].set_title(chkpt_name + " - Internal and leaf page " + FIELD_TITLES[field], fontsize=TITLE_SIZE)
+    ax[0].set_title(f"{chkpt_name} - Internal and leaf pages ({FIELD_TITLES[field]})", fontsize=TITLE_SIZE)
 
     for subplot in ax:
         subplot.legend()
@@ -342,7 +355,7 @@ def main():
     parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
     parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
-    parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
+    parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='Option for the dump command.')
     parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output to stdout (default is off)')
     parser.add_argument('-v', '--visualize', choices=ALL_VISUALIZATION_CHOICES, nargs='*',
                         help='Type of visualization (multiple options allowed). If no options are provided, all available data is visualized.')
@@ -355,8 +368,13 @@ def main():
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    parsed_data = parse_output()
+    parsed_data = None
+    if "dump_pages" in command:
+        parsed_data = parse_output()
+    else:
+        parsed_data = parse_output2()
 
+    assert parsed_data
     if args.output_file:
         try:
             with open(args.output_file, 'w') as file:
