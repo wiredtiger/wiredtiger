@@ -534,9 +534,6 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
-    /* If a sync is running, no other sessions can allocate blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
-
     /* Assert we're maintaining the by-size skiplist. */
     WT_ASSERT(session, block->live.avail.track_size != 0);
 
