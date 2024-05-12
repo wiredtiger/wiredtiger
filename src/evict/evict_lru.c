@@ -2529,6 +2529,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             WT_ERR(ret);
         }
 
+        /* FIXME-WT-12905: Prefetch threads are not allowed to be pulled into eviction. */
+        if (F_ISSET(session, WT_SESSION_PREFETCH_THREAD))
+            break;
+
         /*
          * Check if we've exceeded our operation timeout, this would also get called from the
          * previous txn is blocking call, however it won't pickup transactions that have been
