@@ -661,9 +661,6 @@ __wt_block_off_free(
     if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE))
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
-    /* If a sync is running, no other sessions can free blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
-
     /* We can't reuse free space in an object. */
     if (objectid != block->objectid)
         return (0);
