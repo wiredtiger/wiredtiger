@@ -24,8 +24,7 @@ Execute `wt_verify.py` with necessary parameters:
 python3 wt_verify.py -d dump_pages -hd DB_DIR -f FILE_NAME -o OUTPUT.TXT -v
 ```
 
-- `-d dump_pages`: Specify dump pages option.
+- `-d [option]`: Specify dump pages option.
 - `-hd`: Set database directory.
 - `-f`: Specify the file name to process.
-- `-o`: Set output file name.
-- `-v`: Enable visualisation (optional).
+- `-h`: Print help and all the available options.
