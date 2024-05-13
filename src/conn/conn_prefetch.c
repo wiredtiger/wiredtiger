@@ -189,7 +189,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
      * guarantees the corresponding internal page cannot be evicted until prefetch has processed the
-     * leaf page. This flag is check when eviction reviews an internal page for active children.
+     * leaf page. This flag is checked when eviction reviews an internal page for active children.
      */
     F_SET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
