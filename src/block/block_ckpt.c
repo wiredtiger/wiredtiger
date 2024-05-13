@@ -253,6 +253,7 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
         __wt_blkcache_set_readonly(session);
         break;
     case WT_CKPT_NONE:
+        WT_RET(__wt_block_free_queue(session, block));
         block->ckpt_state = WT_CKPT_INPROGRESS;
         break;
     }
