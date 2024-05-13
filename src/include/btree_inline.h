@@ -1950,9 +1950,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * written and the previous version freed, that previous version might be referenced by an
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
-    if (modified && F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+    if (modified && (WT_IS_METADATA(session->dhandle) || F_ISSET(ref, WT_REF_FLAG_INTERNAL)) &&
       __wt_btree_syncing_by_other_session(session)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
         return (false);
     }
 
