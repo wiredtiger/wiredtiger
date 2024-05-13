@@ -1027,7 +1027,6 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
     __wt_spin_lock(session, &block->live_lock);
 done:
     block->ckpt_state = WT_CKPT_NONE;
-    WT_ERR(__wt_block_free_queue(session, block));
 err:
     __wt_spin_unlock(session, &block->live_lock);
 
