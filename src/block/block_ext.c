@@ -713,6 +713,7 @@ __wt_block_free_queue(WT_SESSION_IMPL *session, WT_BLOCK *block)
     {
         WT_RET(__wt_block_off_free(session, block, be->objectid, be->offset, be->size));
         TAILQ_REMOVE(&block->bfqh, be, q);
+        __wt_free(session, be);
     }
 
     return (0);
