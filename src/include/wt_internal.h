@@ -89,6 +89,8 @@ struct __wt_block_ckpt;
 typedef struct __wt_block_ckpt WT_BLOCK_CKPT;
 struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
+struct __wt_block_free_queue_entry;
+typedef struct __wt_block_free_queue_entry WT_BLOCK_FREE_QUEUE_ENTRY;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
 struct __wt_block_mods;

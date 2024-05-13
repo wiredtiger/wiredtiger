@@ -245,6 +245,17 @@ struct __wt_bm {
 };
 
 /*
+ * WT_BLOCK_FREE_QUEUE_ENTRY --
+ *	Queue entry for blocks to free.
+ */
+struct __wt_block_free_queue_entry {
+    uint32_t objectid;
+    wt_off_t offset;
+    wt_off_t size;
+    TAILQ_ENTRY(__wt_block_free_queue_entry) q; /* List of blocks queued for free. */
+};
+
+/*
  * WT_BLOCK --
  *	Block manager handle, references a single file.
  */
@@ -321,6 +332,9 @@ struct __wt_block {
 
     /* Multi-file support */
     wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
+
+    /* Queue of blocks to free */
+    TAILQ_HEAD(__wt_block_free_qh, __wt_block_free_queue_entry) bfqh;
 };
 
 /*

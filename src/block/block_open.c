@@ -130,6 +130,8 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* We shouldn't have any read requests in progress. */
     WT_ASSERT(session, block->read_count == 0);
 
+    WT_ASSERT(session, TAILQ_FIRST(&block->bfqh) == NULL);
+
     __wt_free(session, block->name);
 
     WT_TRET(__wt_close(session, &block->fh));
@@ -260,6 +262,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      */
     if (block->size == allocsize && F_ISSET(conn, WT_CONN_INCR_BACKUP))
         block->created_during_backup = true;
+
+    TAILQ_INIT(&block->bfqh);
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
