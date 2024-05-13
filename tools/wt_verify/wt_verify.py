@@ -153,7 +153,7 @@ def parse_chkpt_info(f):
     return [root_addr, line, chkpt_info]
 
 
-def parse_output():
+def parse_dump_pages():
     """
     Parse the output file of dump_pages
     """
@@ -171,19 +171,63 @@ def parse_output():
                 is_root_node = False
     return output
 
-def parse_output2():
+def parse_dump_blocks():
     """
     Parse the output file of dump_blocks
     """
+
     with open(WT_OUTPUT_FILE, "r") as f:
         lines = f.readlines()
+
+    is_root = False
+    root_blocks = None
+    my_dict = {}
+
+    # TODO - Expect the root to be at the start of the file instead of processing it in the loop.
+
     for line in lines:
-        print(line)
-        if "addr: " in line:
-            print(line)
-            sys.exit(1)
-    sys.exit(1)
-    return None
+        line = line.strip()
+
+        if line == "Root:":
+            is_root = True
+            assert not root_blocks, "Root blocks already found!"
+            continue
+
+        if is_root:
+            # We expect the next line to be the root address.
+            # > addr: [0: 4096-8192, 4096, 1421166157]
+            x = re.search(r"^> addr: \[\d+: (\d+)-(\d+), \d+, \d+]$", line)
+            assert x, f"The root address was expected in '{line}'"
+            addr_start = x.group(1)
+            addr_end = x.group(2)
+            print(f"Root address is {addr_start} to {addr_end}")
+            assert 'root' not in my_dict
+            my_dict['root'] = [int(addr_start), int(addr_end)]
+            is_root = False
+            continue
+
+	    # addr_leaf_no_ovfl: ... addr: [0: 1171456-1200128, 28672, 3808881546]
+        x = re.search(r"^([A-Za-z_]*):.*addr: \[\d+: (\d+)-(\d+), \d+, \d+]$", line)
+        if not x:
+            continue
+        
+        page_type = x.group(1)
+        addr_start = x.group(2)
+        addr_end = x.group(3)
+
+        if page_type not in my_dict:
+            my_dict[page_type] = []
+
+        print(f"Adding {addr_start} and {addr_end}")
+        my_dict[page_type] += [int(addr_start), int(addr_end)]
+
+    # Now we can sort.
+    # TODO - Sorting numbers as strings does not work as expected, example:
+    # 'addr_int': ['11153408-11157504', '11157504-11161600', '7716864-7720960', '7720960-7725056']
+    for key in my_dict:
+        my_dict[key].sort()
+
+    return my_dict
 
 def histogram(field, chkpt, chkpt_name):
     """
@@ -370,24 +414,33 @@ def main():
 
     parsed_data = None
     if "dump_pages" in command:
-        parsed_data = parse_output()
+        parsed_data = parse_dump_pages()
+    elif "dump_blocks" in command:
+        parsed_data = parse_dump_blocks()
     else:
-        parsed_data = parse_output2()
+        assert False, f"Unexpected command '{command}'"
 
     assert parsed_data
-    if args.output_file:
-        try:
-            with open(args.output_file, 'w') as file:
-                file.write(output_pretty(parsed_data))
-            print(f"Parsed output written to {args.output_file}")
-        except IOError as e:
-            print(f"Failed to write output to file: {e}", file=sys.stderr)
-            sys.exit(1)
+    print(parsed_data)
+    sys.exit(1)
 
-    if args.print_output:
-        print(output_pretty(parsed_data))
+    # TODO - Does not work with dump_blocks
+    if "dump_blocks" not in command:
+        pretty_output = None
+        if args.output_file:
+            try:
+                with open(args.output_file, 'w') as file:
+                    pretty_output = output_pretty(parsed_data)
+                    file.write(pretty_output)
+                print(f"Parsed output written to {args.output_file}")
+            except IOError as e:
+                print(f"Failed to write output to file: {e}", file=sys.stderr)
+                sys.exit(1)
 
-    if args.visualize is not None:
+        if args.print_output:
+            print(pretty_output if pretty_output else output_pretty(parsed_data))
+
+    if args.visualize:
         if not args.visualize:
             args.visualize = ALL_VISUALIZATION_CHOICES
         visualize(parsed_data, args.visualize)
