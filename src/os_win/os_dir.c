@@ -112,7 +112,7 @@ err:
     if (ret == 0)
         return (0);
 
-    WT_TRET(__wt_win_directory_list_free(file_system, wt_session, entries, count));
+    WT_TRET(__wti_win_directory_list_free(file_system, wt_session, entries, count));
 
     WT_RET_MSG(
       session, ret, "%s: directory-list, prefix \"%s\"", directory, prefix == NULL ? "" : prefix);
@@ -144,7 +144,7 @@ __wti_win_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_sess
 
 /*
  * __wti_win_directory_list_free --
- *     Free memory returned by __wt_win_directory_list, Windows version.
+ *     Free memory returned by __wti_win_directory_list, Windows version.
  */
 int
 __wti_win_directory_list_free(
