@@ -29,14 +29,14 @@
         pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                                  \
                                                                                     \
         /* Always call prepare. It will return whether a remap is needed or not. */ \
-        __wt_prepare_remap_resize_file(file_handle, wt_session, offset, &remap);    \
+        __wti_prepare_remap_resize_file(file_handle, wt_session, offset, &remap);   \
                                                                                     \
         WT_SYSCALL_RETRY(op, ret);                                                  \
         if (remap) {                                                                \
             if (ret == 0)                                                           \
-                __wt_remap_resize_file(file_handle, wt_session);                    \
+                __wti_remap_resize_file(file_handle, wt_session);                   \
             else {                                                                  \
-                __wt_release_without_remap(file_handle);                            \
+                __wti_release_without_remap(file_handle);                           \
                 WT_RET(ret);                                                        \
             }                                                                       \
         }                                                                           \
@@ -96,11 +96,11 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
 }
 
 /*
- * __wt_posix_file_extend --
+ * __wti_posix_file_extend --
  *     Extend the file.
  */
 int
-__wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
+__wti_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
     /*
      * The first file extension call: figure out what this system has.
