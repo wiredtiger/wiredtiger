@@ -176,70 +176,71 @@ def parse_dump_pages():
 def parse_dump_blocks():
     """
     Parse the output file of dump_blocks.
-    Create a dict with keys corresponding to each page type.
-    Each key has an associated list made of tuples (offset_start, size)
+    Return the max address seen and its size, a dict that contains page info for each
+    checkpoint.
     """
 
     with open(WT_OUTPUT_FILE, "r") as f:
         lines = f.readlines()
 
-    my_dict = {}
+    checkpoint_name = None
+    is_root = False
     max_addr = 0
     max_addr_size = 0
+    my_dict = {}
 
-    # The very first line is a separator.
-    line = lines[0]
-    assert line == SEPARATOR, f"Exptected separator in '{line}"
-
-    # The second line contains filename and checkpoint info
-    # (i.e file:test_hs01.wt, ckpt_name: WiredTigerCheckpoint.5)
-    line = lines[1].strip()
-    x = re.search(r"^(file:.*.wt), ckpt_name: (.*)", line)
-    assert x, f"Filename and checkpoint information expected in '{line}"
-    filename = x.group(1)
-    checkpoint_name = x.group(2)
-
-    # The third line is a separator indicating root information will follow.
-    line = lines[2].strip()
-    assert re.search(r"^Root:$", line)
-
-    # The fourth line contains the root information.
-    # (i.e > addr: [0: 4096-8192, 4096, 1421166157])
-    line = lines[3].strip()
-    x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
-    assert x, f"The root address was expected in '{line}'"
-    addr_start = x.group(1)
-    size = x.group(2)
-    my_dict['root'] = [(int(addr_start), int(size))]
-
-    # So far, the maximum offset we have seen in the root one.
-    max_addr = addr_start
-    max_addr_size = size
-
-    # The next lines are about internal/leaf pages.
-    for line in lines[4:]:
+    for line in lines:
         line = line.strip()
-        print(line)
-	    # <page_type>: ... addr: [0: 1171456-1200128, 28672, 3808881546]
-        x = re.search(r"^([A-Za-z_]*):.*addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
-        if not x:
+
+        # Check for root info.
+        # (i.e > addr: [0: 4096-8192, 4096, 1421166157])
+        if is_root:
+            x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
+            assert x, f"Root information expected in '{line}"
+
+            addr_start = int(x.group(1))
+            size = int(x.group(2))
+
+            # Save the max addr seen.
+            if addr_start > max_addr:
+                max_addr = addr_start
+                max_addr_size = size
+
+            my_dict[checkpoint_name]['root'] = [(addr_start, size)]
+            is_root = False
             continue
-        
-        page_type = x.group(1)
-        addr_start = x.group(2)
-        size = x.group(3)
 
-        if page_type not in my_dict:
-            my_dict[page_type] = []
+        # Check for a new checkpoint.
+        # (i.e file:test_hs01.wt, ckpt_name: WiredTigerCheckpoint.5)
+        if x := re.search(r"^file:.*.wt, ckpt_name: (.*)", line):
+            checkpoint_name = x.group(1)
+            my_dict[checkpoint_name] = {}
+            continue
 
-        my_dict[page_type] += [(int(addr_start), int(size))]
+        # Check for the root info.
+        if x := re.search(r"^Root:$", line):
+            is_root = True
+            continue
 
-        # Update the max seen so far.
-        if addr_start > max_addr:
-            max_addr = addr_start
-            max_addr_size = size
+        # Check for any other addr info.
+        # (i.e <page_type>: ... addr: [0: 1171456-1200128, 28672, 3808881546])
+        if x := re.search(r"^([A-Za-z_]*):.*addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line):
+            page_type = x.group(1)
+            addr_start = int(x.group(2))
+            size = int(x.group(3))
 
-    return filename, checkpoint_name, max_addr, max_addr_size, my_dict
+            # Save the max addr seen.
+            if addr_start > max_addr:
+                max_addr = addr_start
+                max_addr_size = size
+
+            if page_type not in my_dict[checkpoint_name]:
+                my_dict[checkpoint_name][page_type] = []
+
+            my_dict[checkpoint_name][page_type] += [(addr_start, size)]
+            continue
+
+    return max_addr, max_addr_size, my_dict
 
 def histogram(field, chkpt, chkpt_name):
     """
@@ -400,15 +401,15 @@ def construct_command(args):
     command += f" -h {args.home_dir} verify -t"
     if args.dump:
         command += f" -d {args.dump}"
-    if args.file_name:
-        command += f" \"{args.file_name}\""
+    if args.filename:
+        command += f" \"{args.filename}\""
     return command
 
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
     parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
-    parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
+    parser.add_argument('-f', '--filename', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
     parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
     parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='Option for the dump command.')
@@ -425,42 +426,56 @@ def main():
         sys.exit(1)
 
     parsed_data = None
+    max_addr = 0
+    max_addr_size = 0
+
     if "dump_pages" in command:
         parsed_data = parse_dump_pages()
     elif "dump_blocks" in command:
-        filename, checkpoint_name, max_addr, max_addr_size, parsed_data = parse_dump_blocks()
+        max_addr, max_addr_size, parsed_data = parse_dump_blocks()
     else:
         assert False, f"Unexpected command '{command}'"
 
     assert parsed_data
-    print(parsed_data)
 
-    # TODO - Does not work with dump_blocks
-    if "dump_blocks" not in command:
-        pretty_output = None
-        if args.output_file:
-            try:
-                with open(args.output_file, 'w') as file:
-                    pretty_output = output_pretty(parsed_data)
-                    file.write(pretty_output)
-                print(f"Parsed output written to {args.output_file}")
-            except IOError as e:
-                print(f"Failed to write output to file: {e}", file=sys.stderr)
-                sys.exit(1)
+    if args.output_file or args.print_output:
+        pretty_output = output_pretty(parsed_data)
 
-        if args.print_output:
-            print(pretty_output if pretty_output else output_pretty(parsed_data))
+    if args.output_file:
+        try:
+            with open(args.output_file, 'w') as file:
+                file.write(pretty_output)
+            print(f"Parsed output written to {args.output_file}")
+        except IOError as e:
+            print(f"Failed to write output to file: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    if args.print_output:
+        print(pretty_output)
 
     if "dump_blocks" in command:
-        fig, ax = plt.subplots(1, figsize=(15, 10))
         colors = ['blue', 'orange', 'green']
-        for index, key in enumerate(parsed_data):
-            ax.broken_barh(parsed_data[key], (index, 1), facecolors=f'tab:{colors[index]}', label=key)
-        plt.yticks(np.arange(0, len(parsed_data) + 1, 1))
-        plt.legend()
-        plt.title(f"{filename} - {checkpoint_name}")
-        plt.close()
-        imgs = mpld3.fig_to_html(fig)
+        imgs = ""
+        xlimit = max_addr + max_addr_size
+
+        for _, checkpoint in enumerate(parsed_data):
+
+            fig, ax = plt.subplots(1, figsize=(15, 10))
+
+            for index, key in enumerate(parsed_data[checkpoint]):
+                ax.broken_barh(parsed_data[checkpoint][key], (index, 1),
+                               facecolors=f'tab:{colors[index]}', label=key)
+
+            # Plot settings.
+            plt.yticks(np.arange(0, len(parsed_data[checkpoint]) + 1, 1))
+            plt.xlim(left=0,right=xlimit)
+            plt.legend()
+            plt.title(f"{args.filename} - {checkpoint}")
+            plt.close()
+
+            img = mpld3.fig_to_html(fig)
+            imgs += img
+
         serve(imgs)
     else:
         if not args.visualize:
