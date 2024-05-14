@@ -45,6 +45,8 @@ import matplotlib
 matplotlib.use('WebAgg')
 import matplotlib.pyplot as plt
 import mpld3
+import numpy as np
+
 from mpld3._server import serve
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
@@ -173,61 +175,71 @@ def parse_dump_pages():
 
 def parse_dump_blocks():
     """
-    Parse the output file of dump_blocks
+    Parse the output file of dump_blocks.
+    Create a dict with keys corresponding to each page type.
+    Each key has an associated list made of tuples (offset_start, size)
     """
 
     with open(WT_OUTPUT_FILE, "r") as f:
         lines = f.readlines()
 
-    is_root = False
-    root_blocks = None
     my_dict = {}
+    max_addr = 0
+    max_addr_size = 0
 
-    # TODO - Expect the root to be at the start of the file instead of processing it in the loop.
+    # The very first line is a separator.
+    line = lines[0]
+    assert line == SEPARATOR, f"Exptected separator in '{line}"
 
-    for line in lines:
+    # The second line contains filename and checkpoint info
+    # (i.e file:test_hs01.wt, ckpt_name: WiredTigerCheckpoint.5)
+    line = lines[1].strip()
+    x = re.search(r"^(file:.*.wt), ckpt_name: (.*)", line)
+    assert x, f"Filename and checkpoint information expected in '{line}"
+    filename = x.group(1)
+    checkpoint_name = x.group(2)
+
+    # The third line is a separator indicating root information will follow.
+    line = lines[2].strip()
+    assert re.search(r"^Root:$", line)
+
+    # The fourth line contains the root information.
+    # (i.e > addr: [0: 4096-8192, 4096, 1421166157])
+    line = lines[3].strip()
+    x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
+    assert x, f"The root address was expected in '{line}'"
+    addr_start = x.group(1)
+    size = x.group(2)
+    my_dict['root'] = [(int(addr_start), int(size))]
+
+    # So far, the maximum offset we have seen in the root one.
+    max_addr = addr_start
+    max_addr_size = size
+
+    # The next lines are about internal/leaf pages.
+    for line in lines[4:]:
         line = line.strip()
-
-        if line == "Root:":
-            is_root = True
-            assert not root_blocks, "Root blocks already found!"
-            continue
-
-        if is_root:
-            # We expect the next line to be the root address.
-            # > addr: [0: 4096-8192, 4096, 1421166157]
-            x = re.search(r"^> addr: \[\d+: (\d+)-(\d+), \d+, \d+]$", line)
-            assert x, f"The root address was expected in '{line}'"
-            addr_start = x.group(1)
-            addr_end = x.group(2)
-            print(f"Root address is {addr_start} to {addr_end}")
-            assert 'root' not in my_dict
-            my_dict['root'] = [int(addr_start), int(addr_end)]
-            is_root = False
-            continue
-
-	    # addr_leaf_no_ovfl: ... addr: [0: 1171456-1200128, 28672, 3808881546]
-        x = re.search(r"^([A-Za-z_]*):.*addr: \[\d+: (\d+)-(\d+), \d+, \d+]$", line)
+        print(line)
+	    # <page_type>: ... addr: [0: 1171456-1200128, 28672, 3808881546]
+        x = re.search(r"^([A-Za-z_]*):.*addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
         if not x:
             continue
         
         page_type = x.group(1)
         addr_start = x.group(2)
-        addr_end = x.group(3)
+        size = x.group(3)
 
         if page_type not in my_dict:
             my_dict[page_type] = []
 
-        print(f"Adding {addr_start} and {addr_end}")
-        my_dict[page_type] += [int(addr_start), int(addr_end)]
+        my_dict[page_type] += [(int(addr_start), int(size))]
 
-    # Now we can sort.
-    # TODO - Sorting numbers as strings does not work as expected, example:
-    # 'addr_int': ['11153408-11157504', '11157504-11161600', '7716864-7720960', '7720960-7725056']
-    for key in my_dict:
-        my_dict[key].sort()
+        # Update the max seen so far.
+        if addr_start > max_addr:
+            max_addr = addr_start
+            max_addr_size = size
 
-    return my_dict
+    return filename, checkpoint_name, max_addr, max_addr_size, my_dict
 
 def histogram(field, chkpt, chkpt_name):
     """
@@ -416,13 +428,12 @@ def main():
     if "dump_pages" in command:
         parsed_data = parse_dump_pages()
     elif "dump_blocks" in command:
-        parsed_data = parse_dump_blocks()
+        filename, checkpoint_name, max_addr, max_addr_size, parsed_data = parse_dump_blocks()
     else:
         assert False, f"Unexpected command '{command}'"
 
     assert parsed_data
     print(parsed_data)
-    sys.exit(1)
 
     # TODO - Does not work with dump_blocks
     if "dump_blocks" not in command:
@@ -440,7 +451,18 @@ def main():
         if args.print_output:
             print(pretty_output if pretty_output else output_pretty(parsed_data))
 
-    if args.visualize:
+    if "dump_blocks" in command:
+        fig, ax = plt.subplots(1, figsize=(15, 10))
+        colors = ['blue', 'orange', 'green']
+        for index, key in enumerate(parsed_data):
+            ax.broken_barh(parsed_data[key], (index, 1), facecolors=f'tab:{colors[index]}', label=key)
+        plt.yticks(np.arange(0, len(parsed_data) + 1, 1))
+        plt.legend()
+        plt.title(f"{filename} - {checkpoint_name}")
+        plt.close()
+        imgs = mpld3.fig_to_html(fig)
+        serve(imgs)
+    else:
         if not args.visualize:
             args.visualize = ALL_VISUALIZATION_CHOICES
         visualize(parsed_data, args.visualize)
