@@ -2140,7 +2140,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /* If we need to restore the page to memory, copy the disk image. */
-        if (multi->supd_restore && !__wt_btree_syncing_by_other_session(session))
+        if (multi->supd_restore)
             goto copy_image;
 
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");

@@ -187,16 +187,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_REF *parent;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, parent_locked, inmem_split, tree_dead;
+    bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
     clean_page = ebusy_only = false;
-    parent = NULL;
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -256,14 +254,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
         WT_STAT_CONN_INCR(session, cache_eviction_consider_prefetch);
 
-    if (F_ISSET(ref, WT_REF_FLAG_LEAF) && WT_PAGE_TRYLOCK(session, ref->home) == 0) {
-        parent = ref->home;
-        if (WT_PAGE_TRYLOCK(session, ref->home) != 0) {
-            ret = EBUSY;
-            goto err;
-        }
-        parent_locked = true;
-    }
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for
      * example, we find a page with active children), quit. Make this check for clean pages, too:
@@ -337,8 +327,6 @@ err:
     }
 
 done:
-    if (parent_locked)
-        WT_PAGE_UNLOCK(session, parent);
     if (ret == 0)
         FLD_SET(stats_flags, WT_EVICT_STATS_SUCCESS);
     __evict_stats_update(session, stats_flags);
