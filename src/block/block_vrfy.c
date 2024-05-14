@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 static int __verify_ckptfrag_add(WT_SESSION_IMPL *, WT_BLOCK *, wt_off_t, wt_off_t);
-static int __verify_ckptfrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);
 static int __verify_filefrag_add(
   WT_SESSION_IMPL *, WT_BLOCK *, const char *, wt_off_t, wt_off_t, bool);
 static int __verify_filefrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);
@@ -293,18 +292,11 @@ __wt_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *
  * __wt_verify_ckpt_unload --
  *     Verify work done when a checkpoint is unloaded.
  */
-int
+void
 __wt_verify_ckpt_unload(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_DECL_RET;
-
-    /* Confirm we verified every checkpoint block. */
-    ret = __verify_ckptfrag_chk(session, block);
-
     /* Discard the per-checkpoint fragment list. */
     __wt_free(session, block->fragckpt);
-
-    return (ret);
 }
 
 /*
@@ -474,49 +466,4 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
     __bit_nclr(block->fragckpt, frag, frag + (frags - 1));
 
     return (0);
-}
-
-/*
- * __verify_ckptfrag_chk --
- *     Verify we've checked all the fragments in the checkpoint.
- */
-static int
-__verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    uint64_t count, first, last;
-
-    /*
-     * The checkpoint fragment memory is only allocated as a checkpoint is successfully loaded;
-     * don't check if there's nothing there.
-     */
-    if (block->fragckpt == NULL)
-        return (0);
-
-    /*
-     * Check for checkpoint fragments we haven't verified -- every time we find a bit that's set,
-     * complain. We re-start the search each time after clearing the set bit(s) we found: it's
-     * simpler and this isn't supposed to happen a lot.
-     */
-    for (count = 0;; ++count) {
-        if (__bit_ffs(block->fragckpt, block->frags, &first) != 0)
-            break;
-        __bit_clear(block->fragckpt, first);
-        for (last = first + 1; last < block->frags; ++last) {
-            if (!__bit_test(block->fragckpt, last))
-                break;
-            __bit_clear(block->fragckpt, last);
-        }
-
-        if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
-            continue;
-
-        __wt_errx(session, "checkpoint range %" PRIuMAX "-%" PRIuMAX " never verified",
-          (uintmax_t)WT_FRAG_TO_OFF(block, first), (uintmax_t)WT_FRAG_TO_OFF(block, last));
-    }
-
-    if (count == 0)
-        return (0);
-
-    __wt_errx(session, "checkpoint ranges never verified: %" PRIu64, count);
-    return (block->verify_strict ? WT_ERROR : 0);
 }
