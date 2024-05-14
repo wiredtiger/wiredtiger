@@ -337,6 +337,17 @@ configure_chunkcache(char **p, size_t max)
 }
 
 /*
+ * configure_prefetch --
+ *     Configure prefetch cache settings for opening a connection.
+ */
+static void
+configure_prefetch(char **p, size_t max)
+{
+    if (GV(OPS_VERIFY))
+        CONFIG_APPEND(*p, ",prefetch=(available=true,default=false)");
+}
+
+/*
  * create_database --
  *     Create a WiredTiger database.
  */
