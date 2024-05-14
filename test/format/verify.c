@@ -44,7 +44,8 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, table->track_prefix, NULL, &session);
+    /* Enable prefetch for verify. */
+    wt_wrap_open_session(conn, &sap, table->track_prefix, "prefetch=(enabled=true)", &session);
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == EBUSY)
