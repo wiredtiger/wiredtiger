@@ -30,10 +30,88 @@ import argparse
 import concurrent.futures
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime
-from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel 
+from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
+
+
+def delete_runtime_coverage_files(build_dir_base: str, verbose: bool):
+    for root, dirs, files in os.walk(build_dir_base):
+        for filename in files:
+            if filename.endswith('.gcda'):
+                #print(f"{root}, {dirs}, {filename}")
+                file_path = os.path.join(root, filename)
+                if verbose:
+                    print(f"Deleting: {file_path}")
+                os.remove(file_path)
+                if verbose:
+                    print(f"Deleted: {file_path}")
+
+
+def run_coverage_task_list(task_list_info):
+    build_dir = task_list_info["build_dir"]
+    task_list = task_list_info["task_bucket"]
+    verbose = task_list_info['verbose']
+    list_start_time = datetime.now()
+    for index in range(len(task_list)):
+        task = task_list[index]
+        if verbose:
+            print("Running task {} in {}".format(task, build_dir))
+
+        start_time = datetime.now()
+        try:
+            delete_runtime_coverage_files(build_dir_base=build_dir, verbose=verbose)
+            os.chdir(build_dir)
+            split_command = task.split()
+            subprocess.run(split_command, check=True)
+            copy_dest_dir = f"{build_dir}_{index}"
+            if (verbose):
+                print(f"Copying directory {build_dir} to {copy_dest_dir}")
+            shutil.copytree(src=build_dir, dst=copy_dest_dir)
+
+            task_info = {"task": task}
+            task_info_as_json_object = json.dumps(task_info, indent=2)
+            task_info_file_path = os.path.join(copy_dest_dir, "task_info.json")
+            with open(task_info_file_path, "w") as output_file:
+                output_file.write(task_info_as_json_object)
+
+        except subprocess.CalledProcessError as exception:
+            print(f'Command {exception.cmd} failed with error {exception.returncode}')
+        end_time = datetime.now()
+        diff = end_time - start_time
+
+        if verbose:
+            print("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+
+    list_end_time = datetime.now()
+    diff = list_end_time - list_start_time
+
+    return_value = "Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds())
+
+    if verbose:
+        print(return_value)
+
+    return return_value
+
+
+# Execute each list of tasks in parallel
+def run_coverage_task_lists_in_parallel(label, task_bucket_info):
+    parallel = len(task_bucket_info)
+    verbose = task_bucket_info[0]['verbose']
+    task_start_time = datetime.now()
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+        for e in executor.map(run_coverage_task_list, task_bucket_info):
+             if verbose:
+                print(e)
+
+    task_end_time = datetime.now()
+    task_diff = task_end_time - task_start_time
+
+    if verbose:
+        print("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
 
 
 def main():
@@ -53,8 +131,8 @@ def main():
     setup = args.setup
 
     if verbose:
-        print('Code Coverage')
-        print('=============')
+        print('Per-Test Code Coverage')
+        print('======================')
         print('Configuration:')
         print('  Config file                      {}'.format(config_path))
         print('  Base name for build directories: {}'.format(build_dir_base))
@@ -113,7 +191,7 @@ def main():
         print("task_bucket_info: {}".format(task_bucket_info))
 
     # Perform task operations in parallel across the build directories
-    run_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
+    run_coverage_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
 
 
 if __name__ == '__main__':
