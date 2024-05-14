@@ -1107,9 +1107,9 @@ __wti_posix_prepare_remap_resize_file(
     sleep_usec = 10;
     yield_count = 0;
 
+    WT_ASSERT(session, remap != NULL);
     /* If there is no mapped region or it is already the right size, there is nothing to do. */
-    if (remap != NULL)
-        *remap = false;
+    *remap = false;
     if (pfh->mmap_buf == NULL || pfh->mmap_size == len)
         return;
 
@@ -1124,8 +1124,7 @@ wait:
     if (__wt_atomic_casv32(&pfh->mmap_resizing, 0, 1) == false)
         goto wait;
 
-    if (remap != NULL)
-        *remap = true;
+    *remap = true;
     /*
      * Wait for any sessions using the region for I/O to finish. Now that we have set the resizing
      * flag, new sessions will not use the region, defaulting to system calls instead.
