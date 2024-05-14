@@ -340,7 +340,7 @@ done:
 err:
     /* Inform the underlying block manager we're done. */
     if (bm_start)
-        WT_TRET(bm->verify_end(bm, session));
+        bm->verify_end(bm, session);
 
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)

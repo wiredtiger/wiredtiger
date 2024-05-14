@@ -11,13 +11,11 @@
 static int __verify_ckptfrag_add(WT_SESSION_IMPL *, WT_BLOCK *, wt_off_t, wt_off_t);
 static int __verify_filefrag_add(
   WT_SESSION_IMPL *, WT_BLOCK *, const char *, wt_off_t, wt_off_t, bool);
-static int __verify_filefrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);
 static int __verify_last_avail(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __verify_set_file_size(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 
 /* The bit list ignores the first block: convert to/from a frag/offset. */
 #define WT_wt_off_TO_FRAG(block, off) ((off) / (block)->allocsize - 1)
-#define WT_FRAG_TO_OFF(block, frag) (((wt_off_t)((frag) + 1)) * (block)->allocsize)
 
 /*
  * __wt_block_verify_start --
@@ -173,14 +171,9 @@ err:
  * __wt_block_verify_end --
  *     End file verification.
  */
-int
+void
 __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_DECL_RET;
-
-    /* Confirm we verified every file block. */
-    ret = __verify_filefrag_chk(session, block);
-
     block->verify = false;
     block->verify_strict = false;
     block->verify_size = 0;
@@ -192,8 +185,6 @@ __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->frags = 0;
     __wt_free(session, block->fragfile);
     __wt_free(session, block->fragckpt);
-
-    return (ret);
 }
 
 /*
@@ -370,61 +361,6 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
     __bit_nset(block->fragfile, frag, frag + (frags - 1));
 
     return (0);
-}
-
-/*
- * __verify_filefrag_chk --
- *     Verify we've checked all the fragments in the file.
- */
-static int
-__verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    uint64_t count, first, last;
-
-    /* If there's nothing to verify, it was a fast run. */
-    if (block->frags == 0)
-        return (0);
-
-    /*
-     * It's OK if we have not verified blocks at the end of the file: that happens if the file is
-     * truncated during a checkpoint or load or was extended after writing a checkpoint. We should
-     * never see unverified blocks anywhere else, though.
-     *
-     * I'm deliberately testing for a last fragment of 0, it makes no sense there would be no
-     * fragments verified, complain if the first fragment in the file wasn't verified.
-     */
-    for (last = block->frags - 1; last != 0; --last) {
-        if (__bit_test(block->fragfile, last))
-            break;
-        __bit_set(block->fragfile, last);
-    }
-
-    /*
-     * Check for any other file fragments we haven't verified -- every time we find a bit that's
-     * clear, complain. We re-start the search each time after setting the clear bit(s) we found:
-     * it's simpler and this isn't supposed to happen a lot.
-     */
-    for (count = 0;; ++count) {
-        if (__bit_ffc(block->fragfile, block->frags, &first) != 0)
-            break;
-        __bit_set(block->fragfile, first);
-        for (last = first + 1; last < block->frags; ++last) {
-            if (__bit_test(block->fragfile, last))
-                break;
-            __bit_set(block->fragfile, last);
-        }
-
-        if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
-            continue;
-
-        __wt_errx(session, "file range %" PRIuMAX "-%" PRIuMAX " never verified",
-          (uintmax_t)WT_FRAG_TO_OFF(block, first), (uintmax_t)WT_FRAG_TO_OFF(block, last));
-    }
-    if (count == 0)
-        return (0);
-
-    __wt_errx(session, "file ranges never verified: %" PRIu64, count);
-    return (block->verify_strict ? WT_ERROR : 0);
 }
 
 /*
