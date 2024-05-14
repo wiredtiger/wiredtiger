@@ -2440,6 +2440,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     WT_RET(__wt_ovfl_track_wrapup(session, page));
 
+    __wt_spin_lock(session, &mod->rec_result_lock);
+
     /*
      * This page may have previously been reconciled, and that information is now about to be
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
@@ -2484,6 +2486,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_free(session, mod->mod_disk_image);
         break;
     default:
+        __wt_spin_unlock(session, &mod->rec_result_lock);
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
@@ -2584,6 +2587,8 @@ split:
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         break;
     }
+
+    __wt_spin_unlock(session, &mod->rec_result_lock);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this

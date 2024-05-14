@@ -22,6 +22,7 @@ __wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /* Initialize the spinlock for the page. */
     WT_ERR(__wt_spin_init(session, &modify->page_lock, "btree page"));
+    WT_ERR(__wt_spin_init(session, &modify->rec_result_lock, "page rec result"));
 
     /*
      * Multiple threads of control may be searching and deciding to modify a page. If our modify

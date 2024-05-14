@@ -294,7 +294,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
     const void *p;
+    uint8_t rec_result;
 
+    rec_result = WT_PM_REC_EMPTY;
     btree = S2BT(session);
     child = NULL;
     WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
@@ -354,6 +356,14 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         addr = ref->addr;
         child = ref->page;
 
+        if (cms.state == WT_CHILD_MODIFIED && F_ISSET(r, WT_REC_CHECKPOINT)) {
+            __wt_spin_lock(session, &child->modify->rec_result_lock);
+            rec_result = child->modify->rec_result;
+            __wt_spin_unlock(session, &child->modify->rec_result_lock);
+        } else if (cms.state == WT_CHILD_MODIFIED) {
+            rec_result = child->modify->rec_result;
+        }
+
         switch (cms.state) {
         case WT_CHILD_IGNORE:
             /*
@@ -366,7 +376,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             /*
              * Modified child. Empty pages are merged into the parent and discarded.
              */
-            switch (child->modify->rec_result) {
+            switch (rec_result) {
             case WT_PM_REC_EMPTY:
                 WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
