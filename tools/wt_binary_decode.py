@@ -33,6 +33,8 @@
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
 import binascii, codecs, io, os, string, sys, traceback
+from dataclasses import dataclass
+import typing
 
 # Optional dependency: crc32c
 have_crc32c = False
@@ -59,6 +61,80 @@ class PageHeader:
 # A container for fields in the WT_BLOCK_HEADER
 class BlockHeader:
     pass
+
+# A container for page stats
+@dataclass
+class PageStats:
+    # constants
+    csv_order: typing.ClassVar[list[str]] = [
+        "num_keys",
+    ]
+
+    # attributes
+    num_keys: int = 0
+    keys_sz: int = 0
+    num_start_ts: int = 0
+    start_ts_sz: int = 0
+    num_stop_ts: int = 0
+    stop_ts_sz: int = 0
+    num_start_txn: int = 0
+    start_txn_sz: int = 0
+    num_stop_txn: int = 0
+    stop_txn_sz: int = 0
+
+    @property
+    def num_ts(self) -> int:
+        return self.num_start_ts + self.num_stop_ts
+    
+    @property
+    def ts_sz(self) -> int:
+        return self.start_ts_sz + self.stop_ts_sz
+    
+    @property
+    def num_txn(self) -> int:
+        return self.num_start_txn + self.num_stop_txn
+    
+    @property
+    def txn_sz(self) -> int:
+        return self.start_txn_sz + self.stop_txn_sz
+    
+    @staticmethod
+    def csv_cols() -> list[str]:
+        return [
+            'num keys',
+            'keys size',
+            'num start ts',
+            'start ts size',
+            'num stop ts',
+            'stop ts size',
+            'num ts',
+            'ts size',
+            'num start txn',
+            'start txn size',
+            'num stop txn',
+            'stop txn size',
+            'num txn',
+            'txn size'
+        ]
+
+    def to_csv_cols(self) -> list[int]:
+        return [
+            self.num_keys,
+            self.keys_sz,
+            self.num_start_ts,
+            self.start_ts_sz,
+            self.num_stop_ts,
+            self.stop_ts_sz,
+            self.num_ts,
+            self.ts_sz,
+            self.num_start_txn,
+            self.start_txn_sz,
+            self.num_stop_txn,
+            self.stop_txn_sz,
+            self.num_txn,
+            self.txn_sz,
+        ]
+        
 
 ################################################################
 # Borrowed from intpacking.py, with small adjustments.
@@ -258,6 +334,7 @@ class Printer(object):
 
     def end_cell(self):
         self.in_cell = False
+        self.cellpfx = ''
 
     # This is the 'print' function, used as p.rint()
     def rint(self, s):
@@ -318,6 +395,11 @@ def unpack_uint64(b):
     arr = file_as_array(b)
     val, arr = unpack_int(arr)
     return val
+
+def discard_unpacked_uint64(b):
+    s = b.tell()
+    unpack_uint64(b)
+    return b.tell() - s;
 
 # Print the bytes, which may be keys or values.
 def raw_bytes(b):
@@ -431,7 +513,7 @@ def file_header_decode(p, b):
         return
     p.rint('')
 
-def print_timestamps(p, b, extra):
+def print_timestamps(p, b, extra, pagestats):
     # from cell.h
     WT_CELL_PREPARE = 0x01
     WT_CELL_TS_DURABLE_START = 0x02
@@ -440,22 +522,34 @@ def print_timestamps(p, b, extra):
     WT_CELL_TS_STOP = 0x10
     WT_CELL_TXN_START = 0x20
     WT_CELL_TXN_STOP = 0x40
-        
+    
     if extra != 0:
         p.rint('cell has timestamps:')
         if extra & WT_CELL_PREPARE != 0:
             p.rint(' prepared')
         if extra & WT_CELL_TS_DURABLE_START != 0:
+            pagestats.start_ts_sz += discard_unpacked_uint64(b)
+            pagestats.num_start_ts += 1
             p.rint(' durable start ts: ' + ts(unpack_uint64(b)))
         if extra & WT_CELL_TS_DURABLE_STOP != 0:
+            pagestats.stop_ts_sz += discard_unpacked_uint64(b)
+            pagestats.num_stop_ts += 1
             p.rint(' durable stop ts: ' + ts(unpack_uint64(b)))
         if extra & WT_CELL_TS_START != 0:
+            pagestats.start_ts_sz += discard_unpacked_uint64(b)
+            pagestats.num_start_ts += 1
             p.rint(' start ts: ' + ts(unpack_uint64(b)))
         if extra & WT_CELL_TS_STOP != 0:
+            pagestats.stop_ts_sz += discard_unpacked_uint64(b)
+            pagestats.num_stop_ts += 1
             p.rint(' stop ts: ' + ts(unpack_uint64(b)))
         if extra & WT_CELL_TXN_START != 0:
+            pagestats.start_txn_sz += discard_unpacked_uint64(b)
+            pagestats.num_start_txn += 1
             p.rint(' start txn: ' + txn(unpack_uint64(b)))
         if extra & WT_CELL_TXN_STOP != 0:
+            pagestats.stop_txn_sz += discard_unpacked_uint64(b)
+            pagestats.num_stop_txn += 1
             p.rint(' stop txn: ' + txn(unpack_uint64(b)))
         if extra & 0x80:
             p.rint(' *** JUNK in extra descriptor: ' + hex(extra))
@@ -507,7 +601,7 @@ def block_decode(p, b, opts):
     pagehead = PageHeader()
     pagehead.recno = uint64(b_page)
     pagehead.writegen = uint64(b_page)
-    pagehead.memsize= uint32(b_page)
+    pagehead.memsize = uint32(b_page)
     pagehead.ncells = uint32(b_page)
     pagehead.type = uint8(b_page)
     pagehead.flags = uint8(b_page)
@@ -550,6 +644,8 @@ def block_decode(p, b, opts):
     p.rint('  disk_size: ' + str(blockhead.disk_size))
     p.rint('  checksum: ' + hex(blockhead.checksum))
     p.rint('  block flags: ' + hex(blockhead.flags))
+
+    pagestats = PageStats()
 
     # Verify the checksum
     if have_crc32c:
@@ -618,7 +714,7 @@ def block_decode(p, b, opts):
         p.rint('? unimplemented decode for page type WT_PAGE_COLUMN_VARIABLE')
         p.rint(binary_to_pretty_string(payload_data))
     elif pagehead.type == WT_PAGE_ROW_INT or pagehead.type == WT_PAGE_ROW_LEAF:
-        row_decode(p, b_page, pagehead, blockhead)
+        row_decode(p, b_page, pagehead, blockhead, pagestats)
     elif pagehead.type == WT_PAGE_OVFL:
         # Use b_page.read() so that we can also print the raw bytes in the split mode
         p.rint(raw_bytes(b_page.read(len(payload_data))))
@@ -626,7 +722,10 @@ def block_decode(p, b, opts):
         p.rint('? unimplemented decode for page type {}'.format(pagehead.type))
         p.rint(binary_to_pretty_string(payload_data))
 
-def row_decode(p, b, pagehead, blockhead):
+    outfile_stats_end(opts, pagehead, blockhead, pagestats)
+
+# Hacking this up so we count timestamps and txns
+def row_decode(p, b, pagehead, blockhead, pagestats):
     # cell.h
     # Maximum of 71 bytes:
     #  1: cell descriptor byte
@@ -664,7 +763,7 @@ def row_decode(p, b, pagehead, blockhead):
                     extra = b.read(1)[0]
                     p.rint(desc_str + f'extra: 0x{extra:x}')
                     desc_str = ''
-                    print_timestamps(p, b, extra)
+                    print_timestamps(p, b, extra, pagestats)
 
                 if desc & 0x4 != 0:
                     # Bit 3 marks an 8B packed, uint64_t value following the cell description byte.
@@ -692,22 +791,30 @@ def row_decode(p, b, pagehead, blockhead):
                     l = long_length(p, b)
                     s = 'key {} bytes'.format(l)
                     x = b.read(l)
+                    pagestats.num_keys += 1
+                    pagestats.keys_sz += l
                 elif celltype == 'WT_CELL_ADDR_LEAF_NO':
                     l = long_length(p, b)
                     s = 'addr (leaf no-overflow) {} bytes'.format(l)
                     x = b.read(l)
+                    pagestats.num_keys += 1
+                    pagestats.keys_sz += l
                 elif celltype == 'WT_CELL_KEY_PFX':
                     #TODO: not right...
                     prefix = uint8(b)
                     l = long_length(p, b)
                     s = 'key prefix={} {} bytes'.format(hex(prefix), l)
                     x = b.read(l)
+                    pagestats.num_keys += 1
+                    pagestats.keys_sz += l
                 elif celltype == 'WT_CELL_KEY_OVFL':
                     #TODO: support RLE
                     #TODO: decode the address cookie
                     l = unpack_uint64(b)
                     s = 'overflow key {} bytes'.format(l)
                     x = b.read(l)
+                    pagestats.num_keys += 1
+                    pagestats.keys_sz += l
                 elif celltype == 'WT_CELL_VALUE_OVFL':
                     #TODO: support SECOND DESC and RLE
                     #TODO: decode the address cookie
@@ -722,21 +829,64 @@ def row_decode(p, b, pagehead, blockhead):
                 pfx_compress_byte = b.read(1)[0]
                 s = 'short key prefix={} {} bytes'.format(hex(pfx_compress_byte), l)
                 x = b.read(l)
+                pagestats.num_keys += 1
+                pagestats.keys_sz += l
             else: # short is 1 or 3
                 l = (desc & 0xfc) >> 2
                 if short == 1:
                     s = 'short key {} bytes'.format(l)
+                    pagestats.num_keys += 1
+                    pagestats.keys_sz += l
                 else:
                     s = 'short val {} bytes'.format(l)
                 x = b.read(l)
 
-            if s != '?':
-                p.rint(f'{desc_str}{s}:')
-                p.rint(raw_bytes(x))
-            else:
-                dumpraw(p, b, cellpos)
+            #if s != '?':
+            #    p.rint(f'{desc_str}{s}:')
+            #    p.rint(raw_bytes(x))
+            #else:
+            #    dumpraw(p, b, cellpos)
         finally:
             p.end_cell()
+
+def outfile_header(opts):
+    if opts.output != None:
+        fields = [
+            "block id",
+            
+            # page head
+            "writegen",
+            "memsize",
+            "ncells",
+            "page type",
+            
+            # block head
+            "disk size",
+
+            # page stats
+            *PageStats.csv_cols(),
+        ]
+        opts.output.write(",".join(fields))
+
+def outfile_stats_start(opts, blockid):
+    if opts.output != None:
+        opts.output.write("\n" + blockid + ",")
+
+def outfile_stats_end(opts, pagehead, blockhead, pagestats):
+    if opts.output != None:
+        line = [
+            # page head
+            pagehead.writegen,
+            pagehead.ncells,
+            pagetype_string(pagehead.type),
+
+            # block header
+            blockhead.disk_size,
+
+            # page_stats
+            *pagestats.to_csv_cols(),
+        ]
+        opts.output.write(",".join(str(x) for x in line))
 
 def wtdecode_file_object(b, opts, nbytes):
     p = Printer(b, opts.split)
@@ -747,14 +897,18 @@ def wtdecode_file_object(b, opts, nbytes):
     else:
         startblock = opts.offset
 
+    outfile_header(opts)
+
     while (nbytes == 0 or startblock < nbytes) and (opts.pages == 0 or pagecount < opts.pages):
-        print('Decode at ' + d_and_h(startblock))
+        d_h = d_and_h(startblock)
+        outfile_stats_start(opts, d_h)
+        print('Decode at ' + d_h)
         b.seek(startblock)
         try:
             block_decode(p, b, opts)
         except BrokenPipeError:
             break
-        except:
+        except Exception:
             p.rint(f'ERROR decoding block at {d_and_h(startblock)}')
             if opts.debug:
                 traceback.print_exception(*sys.exc_info())
@@ -814,6 +968,7 @@ parser.add_argument('-o', '--offset', help="seek offset before decoding", type=i
 parser.add_argument('-p', '--pages', help="number of pages to decode", type=int, default=0)
 parser.add_argument('-s', '--split', help="split output to also show raw bytes", action='store_true')
 parser.add_argument('-V', '--version', help="print version number of this program", action='store_true')
+parser.add_argument("-c", "--csv", action='store', type=argparse.FileType('w'), dest='output', help="Directs the output to a name of your choice")
 parser.add_argument('filename', help="file name or '-' for stdin")
 opts = parser.parse_args()
 
