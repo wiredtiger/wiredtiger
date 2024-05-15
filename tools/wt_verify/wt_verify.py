@@ -512,8 +512,10 @@ def main():
     else:
         assert False, f"Unexpected command '{command}'"
 
-    # We should have dats by now.
-    assert parsed_data
+    # If we don't have data, nothing to do.
+    if not parsed_data:
+        print("No data has been generated!")
+        return
 
     if args.output_file or args.print_output:
         pretty_output = output_pretty(parsed_data)
