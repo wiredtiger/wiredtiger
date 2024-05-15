@@ -446,6 +446,7 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+bool enable_prefetch(void);
 void fclose_and_clear(FILE **);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);

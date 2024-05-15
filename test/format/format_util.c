@@ -424,3 +424,14 @@ wt_wrap_close_session(WT_SESSION *session)
 
     testutil_check(session->close(session, NULL));
 }
+
+/*
+ * enable_prefetch --
+ *     Return true if prefetch should be enabled for that session.
+ */
+bool
+enable_prefetch(void)
+{
+    /* Enable prefetch 20% of the time. */
+    return (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1);
+}
