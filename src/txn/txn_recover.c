@@ -738,7 +738,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
     /* Update the base write gen and most recent checkpoint based on this file's configuration. */
-    if ((ret = __wt_metadata_update_connection(r->session, config)) != 0)
+    if ((ret = __wt_meta_update_connection(r->session, config)) != 0)
         WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
     return (0);
 }
