@@ -177,8 +177,9 @@ def parse_dump_pages():
 def parse_dump_blocks():
     """
     Parse the output file of dump_blocks.
-    Return the max address seen and its size, a dict that contains page info for each
-    checkpoint.
+    Return a dictionary that has checkpoint names as keys. Each checkpoint has a set of keys that
+    corresonds to each page type. Each page type has a list of tuples (offset, size) sorted by
+    offset.
     """
 
     with open(WT_OUTPUT_FILE, "r") as f:
@@ -186,9 +187,7 @@ def parse_dump_blocks():
 
     checkpoint_name = None
     is_root = False
-    max_addr = 0
-    max_addr_size = 0
-    my_dict = {}
+    data = {}
 
     for line in lines:
         line = line.strip()
@@ -202,12 +201,7 @@ def parse_dump_blocks():
             addr_start = int(x.group(1))
             size = int(x.group(2))
 
-            # Save the max addr seen.
-            if addr_start > max_addr:
-                max_addr = addr_start
-                max_addr_size = size
-
-            my_dict[checkpoint_name]['root'] = [(addr_start, size)]
+            data[checkpoint_name]['root'] = [(addr_start, size)]
             is_root = False
             continue
 
@@ -215,7 +209,7 @@ def parse_dump_blocks():
         # (i.e file:test_hs01.wt, ckpt_name: WiredTigerCheckpoint.5)
         if x := re.search(r"^file:.*.wt, ckpt_name: (.*)", line):
             checkpoint_name = x.group(1)
-            my_dict[checkpoint_name] = {}
+            data[checkpoint_name] = {}
             continue
 
         # Check for the root info.
@@ -230,18 +224,18 @@ def parse_dump_blocks():
             addr_start = int(x.group(2))
             size = int(x.group(3))
 
-            # Save the max addr seen.
-            if addr_start > max_addr:
-                max_addr = addr_start
-                max_addr_size = size
+            if page_type not in data[checkpoint_name]:
+                data[checkpoint_name][page_type] = []
 
-            if page_type not in my_dict[checkpoint_name]:
-                my_dict[checkpoint_name][page_type] = []
-
-            my_dict[checkpoint_name][page_type] += [(addr_start, size)]
+            data[checkpoint_name][page_type] += [(addr_start, size)]
             continue
 
-    return max_addr, max_addr_size, my_dict
+    # Sort by offset.
+    for checkpoint in data:
+        for page_type in data[checkpoint]:
+            data[checkpoint][page_type].sort(key=itemgetter(0))
+
+    return data
 
 def histogram(field, chkpt, chkpt_name):
     """
@@ -314,6 +308,86 @@ def pie_chart(field, chkpt, chkpt_name):
     plt.close()
     return imgs
 
+def generate_broken_barh(filename, data, bar_width=1):
+    """
+    data: dictionary that contains information related to different checkpoints.
+    """
+    imgs = ""
+    bar_width = 1
+    colors = ['blue', 'orange', 'green']
+    for _, checkpoint in enumerate(data):
+
+        fig, ax = plt.subplots(1, figsize=(15, 10))
+        max_addr = 0
+        max_addr_size = 0
+
+        for i, key in enumerate(data[checkpoint]):
+            ax.broken_barh(data[checkpoint][key], (i, bar_width),
+                           facecolors=f'tab:{colors[i]}', label=key)
+
+            # Save the max offset seen for the plot.
+            if data[checkpoint][key][-1][0] > max_addr:
+                max_addr = data[checkpoint][key][-1][0]
+                max_addr_size = data[checkpoint][key][-1][1]
+
+        # Plot settings.
+        plt.yticks(np.arange(0, len(data[checkpoint]) + 1, 1))
+        xlimit = max_addr + max_addr_size
+        plt.xlim(left=0,right=xlimit)
+        plt.legend()
+        plt.title(f"{filename} - {checkpoint}")
+        plt.close()
+
+        img = mpld3.fig_to_html(fig)
+        imgs += img
+    return imgs
+
+def generate_vertical_bar(data):
+    """
+    data: dictionary that contains information related to different checkpoints.
+    """
+    imgs = ""
+    for _, checkpoint in enumerate(data):
+        all_addr = []
+
+        # Concatenate the lists for each page type:
+        for _, key in enumerate(data[checkpoint]):
+            all_addr += data[checkpoint][key]
+
+        # Sort them by the addr_start which is the first element:
+        all_addr.sort(key=itemgetter(0))
+
+        # Now count all the gaps:
+        buckets = {}
+        for i, current_tupe in enumerate(all_addr):
+            if i > 0:
+                prev_tupe = all_addr[i - 1 if i > 0 else 0]
+                prev_tupe_end = prev_tupe[0] + prev_tupe[1]
+                gap = current_tupe[0] - prev_tupe_end
+                assert gap >= 0, f"Data is not sorted correctly"
+                if gap == 0:
+                    continue
+                if gap in buckets:
+                    buckets[gap] += 1
+                else:
+                    buckets[gap] = 1
+            else:
+                # Nothing to do if the first block is written at offset 0.
+                gap = current_tupe[0]
+                if gap > 0:
+                    buckets[gap] = 1
+
+        # Sort buckets by size.
+        buckets = dict(sorted(buckets.items()))
+
+        fig, ax = plt.subplots(1, figsize=(15, 10))
+        # TODO - show bucket size on the x axis.
+        ax.bar(range(len(buckets)), list(buckets.values()))
+        plt.close()
+
+        img = mpld3.fig_to_html(fig)
+        imgs += img
+    return imgs
 
 def visualize_chkpt(tree_data, field):
     """
@@ -433,7 +507,7 @@ def main():
     if "dump_pages" in command:
         parsed_data = parse_dump_pages()
     elif "dump_blocks" in command:
-        max_addr, max_addr_size, parsed_data = parse_dump_blocks()
+        parsed_data = parse_dump_blocks()
     else:
         assert False, f"Unexpected command '{command}'"
 
@@ -456,70 +530,8 @@ def main():
         print(pretty_output)
 
     if "dump_blocks" in command:
-        bar_width = 1
-        colors = ['blue', 'orange', 'green']
-        imgs = ""
-        xlimit = max_addr + max_addr_size
-
-        # Generate the broken horizontal bars.
-        for _, checkpoint in enumerate(parsed_data):
-
-            fig, ax = plt.subplots(1, figsize=(15, 10))
-
-            for index, key in enumerate(parsed_data[checkpoint]):
-                ax.broken_barh(parsed_data[checkpoint][key], (index, bar_width),
-                               facecolors=f'tab:{colors[index]}', label=key)
-
-            # Plot settings.
-            plt.yticks(np.arange(0, len(parsed_data[checkpoint]) + 1, 1))
-            plt.xlim(left=0,right=xlimit)
-            plt.legend()
-            plt.title(f"{args.filename} - {checkpoint}")
-            plt.close()
-
-            img = mpld3.fig_to_html(fig)
-            imgs += img
-
-        # Generate the histograms.
-        # We have a list of tuples (addr_start, size) for each page type.
-        # Concatenate them, sort them, and find the missing gaps.
-        for _, checkpoint in enumerate(parsed_data):
-            all_addr = []
-            # Concatenate all lists:
-            for _, key in enumerate(parsed_data[checkpoint]):
-                all_addr += parsed_data[checkpoint][key]
-            # Sort them by the addr_start:
-            all_addr.sort(key=itemgetter(0))
-            # Now find each gap:
-            buckets = {}
-            gaps = []
-            for i, current_tupe in enumerate(all_addr):
-                print(f"{current_tupe=}")
-                if i > 0:
-                    prev_tupe = all_addr[i - 1 if i > 0 else 0]
-                    prev_tupe_end = prev_tupe[0] + prev_tupe[1]
-                    gap = current_tupe[0] - prev_tupe_end
-                    assert gap >= 0, f"Data is not sorted correctly"
-                    if gap == 0:
-                        continue
-                    gaps.append(gap)
-                    if gap in buckets:
-                        buckets[gap] += 1
-                    else:
-                        buckets[gap] = 1
-                else:
-                    # Nothing to do if the first block is written at offset 0.
-                    gap = current_tupe[0]
-                    if gap > 0:
-                        buckets[gap] = 1
-                        gaps.append(gap)
-            buckets = dict(sorted(buckets.items()))
-            print(buckets)
-            print(gaps)
-            fig, ax = plt.subplots(1, figsize=(15, 10))
-            ax.bar(range(len(buckets)), list(buckets.values()))
-            img = mpld3.fig_to_html(fig)
-            imgs += img
+        imgs = generate_broken_barh(args.filename, parsed_data)
+        imgs += generate_vertical_bar(parsed_data)
 
         serve(imgs)
     else:
