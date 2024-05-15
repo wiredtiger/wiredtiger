@@ -338,12 +338,12 @@ configure_chunkcache(char **p, size_t max)
 
 /*
  * configure_prefetch --
- *     Configure prefetch cache settings for opening a connection.
+ *     Configure prefetch settings for opening a connection.
  */
 static void
 configure_prefetch(char **p, size_t max)
 {
-    if (GV(OPS_VERIFY))
+    if (GV(PREFETCH))
         CONFIG_APPEND(*p, ",prefetch=(available=true,default=false)");
 }
 
