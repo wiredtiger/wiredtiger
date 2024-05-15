@@ -338,14 +338,14 @@ def construct_command(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
-    parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
-    parser.add_argument('-f', '--filename', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
-    parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
-    parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
     parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
+    parser.add_argument('-f', '--filename', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
+    parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
+    parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
     parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output to stdout (default is off)')
     parser.add_argument('-v', '--visualize', choices=ALL_VISUALIZATION_CHOICES, nargs='*',
                         help='Type of visualization (multiple options allowed). If no options are provided, all available data is visualized.')
+    parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
 
     args = parser.parse_args()
     command = construct_command(args)
