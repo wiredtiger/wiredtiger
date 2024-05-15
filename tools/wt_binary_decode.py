@@ -318,9 +318,10 @@ class BinFile(object):
 # in decoding before the regular decoding output appears.
 # Those 'input bytes' are shown shifted to the right.
 class Printer(object):
-    def __init__(self, binfile, issplit):
+    def __init__(self, binfile, issplit, verbose = False):
         self.binfile = binfile
         self.issplit = issplit
+        self.verbose = verbose
         self.cellpfx = ''
         self.in_cell = False
 
@@ -368,6 +369,10 @@ class Printer(object):
         if pfx == '' and self.in_cell:
             pfx = '  '
         print(pfx + s)
+
+    def rint_v(self, s):
+        if self.verbose:
+            self.rint(s)
 
 # 'b' as an argument below indicates a binary file or io.BytesIO type
 def uint8(b):
@@ -482,7 +487,7 @@ def dumpraw(p, b, pos):
     per_line = 16
     s = binary_to_pretty_string(b.read(256), per_line=per_line, line_prefix='')
     for line in s.splitlines():
-        p.rint(hex(pos + i) + ':  ' + line)
+        p.rint_v(hex(pos + i) + ':  ' + line)
         i += per_line
     b.seek(savepos)
 
@@ -512,7 +517,7 @@ def file_header_decode(p, b):
         return
     p.rint('')
 
-def print_timestamps(p, b, extra, pagestats):
+def process_timestamps(p, b, extra, pagestats):
     # from cell.h
     WT_CELL_PREPARE = 0x01
     WT_CELL_TS_DURABLE_START = 0x02
@@ -521,45 +526,43 @@ def print_timestamps(p, b, extra, pagestats):
     WT_CELL_TS_STOP = 0x10
     WT_CELL_TXN_START = 0x20
     WT_CELL_TXN_STOP = 0x40
-
-    ANY_TS_OR_TXN = WT_CELL_TS_DURABLE_START | WT_CELL_TS_DURABLE_STOP | WT_CELL_TS_START | WT_CELL_TS_STOP | WT_CELL_TXN_START | WT_CELL_TXN_STOP
     
     if extra != 0:
-        p.rint('cell has timestamps:')
+        p.rint_v('cell has timestamps:')
         if extra & WT_CELL_PREPARE != 0:
-            p.rint(' prepared')
+            p.rint_v(' prepared')
         if extra & WT_CELL_TS_DURABLE_START != 0:
             t, sz = unpack_uint64_with_sz(b)
             pagestats.start_ts_sz += sz
             pagestats.num_start_ts += 1
-            p.rint(' durable start ts: ' + ts(t))
+            p.rint_v(' durable start ts: ' + ts(t))
         if extra & WT_CELL_TS_DURABLE_STOP != 0:
             t, sz = unpack_uint64_with_sz(b)
             pagestats.stop_ts_sz += sz
             pagestats.num_stop_ts += 1
-            p.rint(' durable stop ts: ' + ts(t))
+            p.rint_v(' durable stop ts: ' + ts(t))
         if extra & WT_CELL_TS_START != 0:
             t, sz = unpack_uint64_with_sz(b)
             pagestats.start_ts_sz += sz
             pagestats.num_start_ts += 1
-            p.rint(' start ts: ' + ts(t))
+            p.rint_v(' start ts: ' + ts(t))
         if extra & WT_CELL_TS_STOP != 0:
             t, sz = unpack_uint64_with_sz(b)
             pagestats.stop_ts_sz += sz
             pagestats.num_stop_ts += 1
-            p.rint(' stop ts: ' + ts(t))
+            p.rint_v(' stop ts: ' + ts(t))
         if extra & WT_CELL_TXN_START != 0:
             t, sz = unpack_uint64_with_sz(b)
             pagestats.start_txn_sz += sz
             pagestats.num_start_txn += 1
-            p.rint(' start txn: ' + txn(t))
+            p.rint_v(' start txn: ' + txn(t))
         if extra & WT_CELL_TXN_STOP != 0:
             t, sz = unpack_uint64_with_sz(b)
             pagestats.stop_txn_sz += sz
             pagestats.num_stop_txn += 1
-            p.rint(' stop txn: ' + txn(t))
+            p.rint_v(' stop txn: ' + txn(t))
         if extra & 0x80:
-            p.rint(' *** JUNK in extra descriptor: ' + hex(extra))
+            p.rint_v(' *** JUNK in extra descriptor: ' + hex(extra))
 
 def celltype_string(b):
     # from cell.h
@@ -602,7 +605,7 @@ def block_decode(p, b, opts):
     page_data = bytearray(b.read(40))
     b.saved_bytes()
     b_page = BinFile(io.BytesIO(page_data))
-    p = Printer(b_page, opts.split)
+    p = Printer(b_page, opts.split, opts.verbose)
 
     # WT_PAGE_HEADER in btmem.h (28 bytes)
     pagehead = PageHeader()
@@ -676,7 +679,7 @@ def block_decode(p, b, opts):
             return
 
     # Skip the rest if we don't want to display the data
-    if opts.no_data:
+    if opts.skip_data:
         b.seek(disk_pos + blockhead.disk_size)
         return
 
@@ -710,25 +713,25 @@ def block_decode(p, b, opts):
     page_data.extend(payload_data)
     b_page = BinFile(io.BytesIO(page_data))
     b_page.seek(header_length)
-    p = Printer(b_page, opts.split)
+    p = Printer(b_page, opts.split, opts.verbose)
 
     # Parse the block contents
     if pagehead.type == WT_PAGE_INVALID:
         pass    # a blank page: TODO maybe should check that it's all zeros?
     elif pagehead.type == WT_PAGE_BLOCK_MANAGER:
-        p.rint('? unimplemented decode for page type WT_PAGE_BLOCK_MANAGER')
-        p.rint(binary_to_pretty_string(payload_data))
+        p.rint_v('? unimplemented decode for page type WT_PAGE_BLOCK_MANAGER')
+        p.rint_v(binary_to_pretty_string(payload_data))
     elif pagehead.type == WT_PAGE_COL_VAR:
-        p.rint('? unimplemented decode for page type WT_PAGE_COLUMN_VARIABLE')
-        p.rint(binary_to_pretty_string(payload_data))
+        p.rint_v('? unimplemented decode for page type WT_PAGE_COLUMN_VARIABLE')
+        p.rint_v(binary_to_pretty_string(payload_data))
     elif pagehead.type == WT_PAGE_ROW_INT or pagehead.type == WT_PAGE_ROW_LEAF:
         row_decode(p, b_page, pagehead, blockhead, pagestats)
     elif pagehead.type == WT_PAGE_OVFL:
         # Use b_page.read() so that we can also print the raw bytes in the split mode
-        p.rint(raw_bytes(b_page.read(len(payload_data))))
+        p.rint_v(raw_bytes(b_page.read(len(payload_data))))
     else:
-        p.rint('? unimplemented decode for page type {}'.format(pagehead.type))
-        p.rint(binary_to_pretty_string(payload_data))
+        p.rint_v('? unimplemented decode for page type {}'.format(pagehead.type))
+        p.rint_v(binary_to_pretty_string(payload_data))
 
     outfile_stats_end(opts, pagehead, blockhead, pagestats)
 
@@ -746,7 +749,7 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
     for cellnum in range(0, pagehead.ncells):
         cellpos = b.tell()
         if cellpos >= pagehead.memsize:
-            p.rint('** OVERFLOW memsize **')
+            p.rint_v('** OVERFLOW memsize **')
             return
         p.begin_cell(cellnum)
 
@@ -769,15 +772,15 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
                     # prepared, and not yet committed transaction. The next 6 bits describe a validity
                     # and durability window of timestamp/transaction IDs.  The top bit is currently unused.
                     extra = b.read(1)[0]
-                    p.rint(desc_str + f'extra: 0x{extra:x}')
+                    p.rint_v(desc_str + f'extra: 0x{extra:x}')
                     desc_str = ''
-                    print_timestamps(p, b, extra, pagestats)
+                    process_timestamps(p, b, extra, pagestats)
 
                 if desc & 0x4 != 0:
                     # Bit 3 marks an 8B packed, uint64_t value following the cell description byte.
                     # (A run-length counter or a record number for variable-length column store.)
                     runlength = unpack_uint64(b)
-                    p.rint(desc_str + f'runlength/addr: {d_and_h(runlength)}')
+                    p.rint_v(desc_str + f'runlength/addr: {d_and_h(runlength)}')
                     desc_str = ''
 
                 # Bits 5-8 are cell "types".
@@ -849,10 +852,12 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
                     s = 'short val {} bytes'.format(l)
                 x = b.read(l)
 
-            #if s != '?':
-            #    p.rint(f'{desc_str}{s}:')
-            #    p.rint(raw_bytes(x))
-            #else:
+            # Comment this out if you need it
+            # There is likely a bug in here
+            # if s != '?':
+            #    p.rint_v(f'{desc_str}{s}:')
+            #    p.rint_v(raw_bytes(x))
+            # else:
             #    dumpraw(p, b, cellpos)
         finally:
             p.end_cell()
@@ -897,7 +902,7 @@ def outfile_stats_end(opts, pagehead, blockhead, pagestats):
         opts.output.write(",".join(str(x) for x in line))
 
 def wtdecode_file_object(b, opts, nbytes):
-    p = Printer(b, opts.split)
+    p = Printer(b, opts.split, opts.verbose)
     pagecount = 0
     if opts.offset == 0 and not opts.fragment:
         file_header_decode(p, b)
@@ -971,7 +976,8 @@ parser.add_argument('-b', '--bytes', help="show bytes alongside decoding", actio
 parser.add_argument('-D', '--debug', help="debug this tool", action='store_true')
 parser.add_argument('-d', '--dumpin', help="input is hex dump (may be embedded in log messages)", action='store_true')
 parser.add_argument('-f', '--fragment', help="input file is a fragment, does not have a WT file header", action='store_true')
-parser.add_argument('-n', '--no-data', help="do not print data, just the headers", action='store_true')
+parser.add_argument('-v', '--verbose', help="print things about data, not just the headers", action='store_true')
+parser.add_argument('--skip-data', help="do not read/process data", action='store_true')
 parser.add_argument('-o', '--offset', help="seek offset before decoding", type=int, default=0)
 parser.add_argument('-p', '--pages', help="number of pages to decode", type=int, default=0)
 parser.add_argument('-s', '--split', help="split output to also show raw bytes", action='store_true')
