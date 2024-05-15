@@ -35,6 +35,7 @@
 # Fixed Length Column Store (FLCS) is not supported.
 
 import argparse
+from operator import itemgetter
 import os
 import subprocess
 import json
@@ -152,6 +153,69 @@ def parse_chkpt_info(f):
     line = f.readline()
     return [root_addr, line, chkpt_info]
 
+
+def parse_dump_blocks():
+    """
+    Parse the output file of dump_blocks.
+    Return a dictionary that has checkpoint names as keys. Each checkpoint has a set of keys that
+    corresonds to each page type. Each page type has a list of tuples (offset, size) sorted by
+    offset.
+    """
+
+    with open(WT_OUTPUT_FILE, "r") as f:
+        lines = f.readlines()
+
+    checkpoint_name = None
+    is_root = False
+    data = {}
+
+    for line in lines:
+        line = line.strip()
+
+        # Check for root info.
+        # (i.e > addr: [0: 4096-8192, 4096, 1421166157])
+        if is_root:
+            x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
+            assert x, f"Root information expected in '{line}"
+
+            addr_start = int(x.group(1))
+            size = int(x.group(2))
+
+            data[checkpoint_name]['root'] = [(addr_start, size)]
+            is_root = False
+            continue
+
+        # Check for a new checkpoint.
+        # (i.e file:test_hs01.wt, ckpt_name: WiredTigerCheckpoint.5)
+        if x := re.search(r"^file:.*.wt, ckpt_name: (.*)", line):
+            checkpoint_name = x.group(1)
+            data[checkpoint_name] = {}
+            continue
+
+        # Check for the root info.
+        if x := re.search(r"^Root:$", line):
+            is_root = True
+            continue
+
+        # Check for any other addr info.
+        # (i.e <page_type>: ... addr: [0: 1171456-1200128, 28672, 3808881546])
+        if x := re.search(r"^([A-Za-z_]*):.*addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line):
+            page_type = x.group(1)
+            addr_start = int(x.group(2))
+            size = int(x.group(3))
+
+            if page_type not in data[checkpoint_name]:
+                data[checkpoint_name][page_type] = []
+
+            data[checkpoint_name][page_type] += [(addr_start, size)]
+            continue
+
+    # Sort by offset.
+    for checkpoint in data:
+        for page_type in data[checkpoint]:
+            data[checkpoint][page_type].sort(key=itemgetter(0))
+
+    return data
 
 def parse_dump_pages():
     """
@@ -360,7 +424,7 @@ def main():
     if "dump_pages" in command:
         parsed_data = parse_dump_pages()
     elif "dump_blocks" in command:
-        pass
+        parsed_data = parse_dump_blocks()
     else:
         assert False, f"Unexpected command '{command}'"
 
