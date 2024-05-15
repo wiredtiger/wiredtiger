@@ -353,8 +353,10 @@ __wt_rec_child_modify(
              * it will have an address; if we didn't find the split page in the first step, it won't
              * have an address and we ignore it, it's not part of the checkpoint.
              */
-            if (ref->addr == NULL)
+            if (ref->addr == NULL) {
+                WT_ASSERT(session, ref->page->entries == 0);
                 cmsp->state = WT_CHILD_IGNORE;
+            }
             goto done;
 
         case WT_REF_SPLIT:
