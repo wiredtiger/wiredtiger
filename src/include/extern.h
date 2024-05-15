@@ -20,8 +20,6 @@ extern bool __wt_config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_evict_thread_chk(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_fsync_background_chk(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
@@ -781,10 +779,6 @@ extern int __wt_evict_destroy(WT_SESSION_IMPL *session)
 extern int __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ext_config_get(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
   WT_CONFIG_ARG *cfg_arg, const char *key, WT_CONFIG_ITEM *cval)
@@ -1906,7 +1900,6 @@ extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
-extern void __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
 extern void __wt_evict_server_wake(WT_SESSION_IMPL *session);
@@ -2033,6 +2026,7 @@ extern void __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY ca
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
 extern void __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
+extern void __wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wti_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot);
 extern void __wti_log_slot_join(
   WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot);
