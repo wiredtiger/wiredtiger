@@ -335,14 +335,14 @@ def generate_broken_barh(filename, data, bar_width=1):
         xlimit = max_addr + max_addr_size
         plt.xlim(left=0,right=xlimit)
         plt.legend()
-        plt.title(f"{filename} - {checkpoint}")
+        plt.title(f"Data location for {filename} - {checkpoint}")
         plt.close()
 
         img = mpld3.fig_to_html(fig)
         imgs += img
     return imgs
 
-def generate_vertical_bar(data):
+def generate_vertical_bar(filename, data):
     """
     data: dictionary that contains information related to different checkpoints.
     """
@@ -381,8 +381,11 @@ def generate_vertical_bar(data):
         buckets = dict(sorted(buckets.items()))
 
         fig, ax = plt.subplots(1, figsize=(15, 10))
-        # TODO - show bucket size on the x axis.
-        ax.bar(range(len(buckets)), list(buckets.values()))
+        keys_str = [str(x) for x in buckets.keys()]
+        ax.bar(keys_str, list(buckets.values()))
+        ax.set_xticklabels(keys_str)
+        ax.set_xticks(range(len(buckets)))
+        plt.title(f"Gaps for {filename} - {checkpoint}")
         plt.close()
 
         img = mpld3.fig_to_html(fig)
@@ -501,8 +504,6 @@ def main():
         sys.exit(1)
 
     parsed_data = None
-    max_addr = 0
-    max_addr_size = 0
 
     if "dump_pages" in command:
         parsed_data = parse_dump_pages()
@@ -531,7 +532,7 @@ def main():
 
     if "dump_blocks" in command:
         imgs = generate_broken_barh(args.filename, parsed_data)
-        imgs += generate_vertical_bar(parsed_data)
+        imgs += generate_vertical_bar(args.filename, parsed_data)
 
         serve(imgs)
     else:
