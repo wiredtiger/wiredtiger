@@ -21,7 +21,7 @@ pip install -r requirements.txt
 Execute `wt_verify.py` with necessary parameters:
 
 ```bash
-python3 wt_verify.py -d dump_pages -hd DB_DIR -f FILE_NAME -o OUTPUT.TXT -v
+python3 wt_verify.py -d dump_pages -hd DB_DIR -f FILENAME -o OUTPUT.TXT -v
 ```
 
 - `-d dump_pages`: Specify dump pages option.

@@ -331,15 +331,15 @@ def construct_command(args):
     command += f" -h {args.home_dir} verify -t"
     if args.dump:
         command += f" -d {args.dump}"
-    if args.file_name:
-        command += f" \"{args.file_name}\""
+    if args.filename:
+        command += f" \"{args.filename}\""
     return command
 
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
     parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
-    parser.add_argument('-f', '--file_name', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
+    parser.add_argument('-f', '--filename', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
     parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
     parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
