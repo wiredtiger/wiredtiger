@@ -65,12 +65,6 @@ class BlockHeader:
 # A container for page stats
 @dataclass
 class PageStats:
-    # constants
-    csv_order: typing.ClassVar[list[str]] = [
-        "num_keys",
-    ]
-
-    # attributes
     num_keys: int = 0
     keys_sz: int = 0
     num_start_ts: int = 0
