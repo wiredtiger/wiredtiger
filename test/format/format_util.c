@@ -427,7 +427,7 @@ wt_wrap_close_session(WT_SESSION *session)
 
 /*
  * enable_prefetch --
- *     Return true if prefetch should be enabled for that session.
+ *     Return true if prefetch should be enabled for a session.
  */
 bool
 enable_prefetch(void)

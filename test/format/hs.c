@@ -63,7 +63,7 @@ hs_cursor(void *arg)
      */
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(
-      conn, &sap, NULL, enable_prefetch() ? "prefetch=(enabled=true)" : NULL, &session);
+      conn, &sap, NULL, enable_prefetch() ? PREFETCH_SESSION_CFG_ON : NULL, &session);
 
     memset(&hs_key, 0, sizeof(hs_key));
     memset(&hs_value, 0, sizeof(hs_value));

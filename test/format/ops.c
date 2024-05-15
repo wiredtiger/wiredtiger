@@ -1635,7 +1635,7 @@ wts_read_scan(TABLE *table, void *args)
     /* Open a session and cursor pair. */
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(
-      conn, &sap, NULL, enable_prefetch() ? "prefetch=(enabled=true)" : NULL, &session);
+      conn, &sap, NULL, enable_prefetch() ? PREFETCH_SESSION_CFG_ON : NULL, &session);
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */

@@ -90,6 +90,9 @@
 #define STR(s) #s
 #define XSTR(s) STR(s)
 
+/* Session configuration to enable prefetch. */
+#define PREFETCH_SESSION_CFG_ON "prefetch=(enabled=true)"
+
 #include "config.h"
 extern CONFIG configuration_list[];
 
