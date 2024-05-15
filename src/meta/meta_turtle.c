@@ -609,7 +609,7 @@ err:
 }
 
 /*
- * __wit_turtle_read --
+ * __wti_turtle_read --
  *     Read the turtle file.
  */
 int
