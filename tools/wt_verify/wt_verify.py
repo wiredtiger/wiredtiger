@@ -272,6 +272,57 @@ def generate_broken_barh(filename, data, bar_width=1):
     return imgs
 
 
+def generate_vertical_bar(filename, data):
+    """
+    data: dictionary that contains information related to different checkpoints.
+    """
+    imgs = ""
+    for _, checkpoint in enumerate(data):
+        all_addr = []
+
+        # Concatenate the lists for each page type:
+        for _, key in enumerate(data[checkpoint]):
+            all_addr += data[checkpoint][key]
+
+        # Sort them by the addr_start which is the first element:
+        all_addr.sort(key=itemgetter(0))
+
+        # Now count all the gaps:
+        buckets = {}
+        for i, current_tupe in enumerate(all_addr):
+            if i > 0:
+                prev_tupe = all_addr[i - 1]
+                prev_tupe_end = prev_tupe[0] + prev_tupe[1]
+                gap = current_tupe[0] - prev_tupe_end
+                assert gap >= 0, f"Data is not sorted correctly"
+                if gap == 0:
+                    continue
+                if gap in buckets:
+                    buckets[gap] += 1
+                else:
+                    buckets[gap] = 1
+            else:
+                # Nothing to do if the first block is written at offset 0.
+                gap = current_tupe[0]
+                if gap > 0:
+                    buckets[gap] = 1
+
+        # Sort buckets by size.
+        buckets = dict(sorted(buckets.items()))
+
+        fig, ax = plt.subplots(1, figsize=(15, 10))
+        keys_str = [str(x) for x in buckets.keys()]
+        ax.bar(keys_str, list(buckets.values()))
+        ax.set_xticklabels(keys_str)
+        ax.set_xticks(range(len(buckets)))
+        plt.title(f"Gaps for {filename} - {checkpoint}")
+        plt.close()
+
+        img = mpld3.fig_to_html(fig)
+        imgs += img
+    return imgs
+
+
 def histogram(field, chkpt, chkpt_name):
     """
     Rendering histogram in HTML for the specified field for leaf and internal pages 
@@ -486,6 +537,7 @@ def main():
 
     if "dump_blocks" in command:
         imgs = generate_broken_barh(args.filename, parsed_data)
+        imgs += generate_vertical_bar(args.filename, parsed_data)
         serve(imgs)
     else:
         if not args.visualize:
