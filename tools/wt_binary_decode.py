@@ -70,6 +70,14 @@ class BlockHeader:
 class PageStats:
     num_keys: int = 0
     keys_sz: int = 0
+
+    # prepared updates (not reported currently)
+    num_d_start_ts: int = 0
+    d_start_ts_sz: int = 0
+    num_d_stop_ts: int = 0
+    d_stop_ts_sz: int = 0
+
+    # durable history
     num_start_ts: int = 0
     start_ts_sz: int = 0
     num_stop_ts: int = 0
@@ -533,13 +541,13 @@ def process_timestamps(p, b, extra, pagestats):
             p.rint_v(' prepared')
         if extra & WT_CELL_TS_DURABLE_START != 0:
             t, sz = unpack_uint64_with_sz(b)
-            pagestats.start_ts_sz += sz
-            pagestats.num_start_ts += 1
+            pagestats.d_start_ts_sz += sz
+            pagestats.num_d_start_ts += 1
             p.rint_v(' durable start ts: ' + ts(t))
         if extra & WT_CELL_TS_DURABLE_STOP != 0:
             t, sz = unpack_uint64_with_sz(b)
-            pagestats.stop_ts_sz += sz
-            pagestats.num_stop_ts += 1
+            pagestats.d_stop_ts_sz += sz
+            pagestats.num_d_stop_ts += 1
             p.rint_v(' durable stop ts: ' + ts(t))
         if extra & WT_CELL_TS_START != 0:
             t, sz = unpack_uint64_with_sz(b)
