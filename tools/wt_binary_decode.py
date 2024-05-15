@@ -89,11 +89,11 @@ class PageStats:
 
     @property
     def num_ts(self) -> int:
-        return self.num_start_ts + self.num_stop_ts
+        return self.num_d_start_ts + self.num_d_stop_ts + self.num_start_ts + self.num_stop_ts
     
     @property
     def ts_sz(self) -> int:
-        return self.start_ts_sz + self.stop_ts_sz
+        return self.d_start_ts_sz + self.d_stop_ts_sz + self.start_ts_sz + self.stop_ts_sz
     
     @property
     def num_txn(self) -> int:
@@ -108,6 +108,10 @@ class PageStats:
         return [
             'num keys',
             'keys size',
+            'num durable start ts',
+            'durable start ts size',
+            'num durable stop ts',
+            'durable stop ts size',
             'num start ts',
             'start ts size',
             'num stop ts',
@@ -126,6 +130,10 @@ class PageStats:
         return [
             self.num_keys,
             self.keys_sz,
+            self.num_d_start_ts,
+            self.d_start_ts_sz,
+            self.num_d_stop_ts,
+            self.d_stop_ts_sz,
             self.num_start_ts,
             self.start_ts_sz,
             self.num_stop_ts,
