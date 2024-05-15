@@ -237,7 +237,6 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     __wt_free(session, page->modify->inst_updates);
     __wt_free(session, page->modify->stop_ta);
     __wt_spin_destroy(session, &page->modify->page_lock);
-    __wt_spin_destroy(session, &page->modify->rec_result_lock);
 
     __wt_free(session, page->modify);
 }
