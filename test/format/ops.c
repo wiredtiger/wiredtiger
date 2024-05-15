@@ -1046,6 +1046,7 @@ rollback_retry:
                 intxn = false;
             }
 
+            /* TODO: Enable prefetch here? */
             ops_session_open(tinfo);
             session = tinfo->session;
 
