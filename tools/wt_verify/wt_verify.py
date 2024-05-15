@@ -41,6 +41,7 @@ import subprocess
 import json
 import sys
 import re
+import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use('WebAgg')
@@ -234,6 +235,41 @@ def parse_dump_pages():
                 line = parse_node(f, line, output, chkpt_info, root_addr, is_root_node)
                 is_root_node = False
     return output
+
+
+def generate_broken_barh(filename, data, bar_width=1):
+    """
+    data: dictionary that contains information related to different checkpoints.
+    """
+    imgs = ""
+    bar_width = 1
+    colors = ['blue', 'orange', 'green']
+    for _, checkpoint in enumerate(data):
+
+        fig, ax = plt.subplots(1, figsize=(15, 10))
+        max_addr = 0
+        max_addr_size = 0
+
+        for i, key in enumerate(data[checkpoint]):
+            ax.broken_barh(data[checkpoint][key], (i, bar_width),
+                           facecolors=f'tab:{colors[i]}', label=key)
+
+            # Save the max offset seen for the plot.
+            if data[checkpoint][key][-1][0] > max_addr:
+                max_addr = data[checkpoint][key][-1][0]
+                max_addr_size = data[checkpoint][key][-1][1]
+
+        # Plot settings.
+        plt.yticks(np.arange(0, len(data[checkpoint]) + 1, 1))
+        xlimit = max_addr + max_addr_size
+        plt.xlim(left=0,right=xlimit)
+        plt.legend()
+        plt.title(f"Data location for {filename} - {checkpoint}")
+        plt.close()
+
+        img = mpld3.fig_to_html(fig)
+        imgs += img
+    return imgs
 
 
 def histogram(field, chkpt, chkpt_name):
@@ -449,7 +485,8 @@ def main():
         print(pretty_output)
 
     if "dump_blocks" in command:
-        pass
+        imgs = generate_broken_barh(args.filename, parsed_data)
+        serve(imgs)
     else:
         if not args.visualize:
             args.visualize = ALL_VISUALIZATION_CHOICES
