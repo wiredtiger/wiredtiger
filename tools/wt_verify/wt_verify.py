@@ -35,6 +35,7 @@
 # Fixed Length Column Store (FLCS) is not supported.
 
 import argparse
+from operator import itemgetter
 import os
 import subprocess
 import json
@@ -436,6 +437,7 @@ def main():
     else:
         assert False, f"Unexpected command '{command}'"
 
+    # We should have dats by now.
     assert parsed_data
 
     if args.output_file or args.print_output:
@@ -454,16 +456,18 @@ def main():
         print(pretty_output)
 
     if "dump_blocks" in command:
+        bar_width = 1
         colors = ['blue', 'orange', 'green']
         imgs = ""
         xlimit = max_addr + max_addr_size
 
+        # Generate the broken horizontal bars.
         for _, checkpoint in enumerate(parsed_data):
 
             fig, ax = plt.subplots(1, figsize=(15, 10))
 
             for index, key in enumerate(parsed_data[checkpoint]):
-                ax.broken_barh(parsed_data[checkpoint][key], (index, 1),
+                ax.broken_barh(parsed_data[checkpoint][key], (index, bar_width),
                                facecolors=f'tab:{colors[index]}', label=key)
 
             # Plot settings.
@@ -473,6 +477,47 @@ def main():
             plt.title(f"{args.filename} - {checkpoint}")
             plt.close()
 
+            img = mpld3.fig_to_html(fig)
+            imgs += img
+
+        # Generate the histograms.
+        # We have a list of tuples (addr_start, size) for each page type.
+        # Concatenate them, sort them, and find the missing gaps.
+        for _, checkpoint in enumerate(parsed_data):
+            all_addr = []
+            # Concatenate all lists:
+            for _, key in enumerate(parsed_data[checkpoint]):
+                all_addr += parsed_data[checkpoint][key]
+            # Sort them by the addr_start:
+            all_addr.sort(key=itemgetter(0))
+            # Now find each gap:
+            buckets = {}
+            gaps = []
+            for i, current_tupe in enumerate(all_addr):
+                print(f"{current_tupe=}")
+                if i > 0:
+                    prev_tupe = all_addr[i - 1 if i > 0 else 0]
+                    prev_tupe_end = prev_tupe[0] + prev_tupe[1]
+                    gap = current_tupe[0] - prev_tupe_end
+                    assert gap >= 0, f"Data is not sorted correctly"
+                    if gap == 0:
+                        continue
+                    gaps.append(gap)
+                    if gap in buckets:
+                        buckets[gap] += 1
+                    else:
+                        buckets[gap] = 1
+                else:
+                    # Nothing to do if the first block is written at offset 0.
+                    gap = current_tupe[0]
+                    if gap > 0:
+                        buckets[gap] = 1
+                        gaps.append(gap)
+            buckets = dict(sorted(buckets.items()))
+            print(buckets)
+            print(gaps)
+            fig, ax = plt.subplots(1, figsize=(15, 10))
+            ax.bar(range(len(buckets)), list(buckets.values()))
             img = mpld3.fig_to_html(fig)
             imgs += img
 
