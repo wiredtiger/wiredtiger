@@ -338,7 +338,7 @@ def construct_command(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
-    parser.add_argument('-d', '--dump', required=True, choices=['dump_pages'], help='Option to specify dump_pages configuration.')
+    parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='Option to specify dump_pages configuration.')
     parser.add_argument('-f', '--filename', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
     parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
@@ -355,21 +355,38 @@ def main():
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    parsed_data = parse_dump_pages()
+    parsed_data = None
+
+    if "dump_pages" in command:
+        parsed_data = parse_dump_pages()
+    elif "dump_blocks" in command:
+        pass
+    else:
+        assert False, f"Unexpected command '{command}'"
+
+    # If we don't have data, nothing to do.
+    if not parsed_data:
+        print("No data has been generated!")
+        return
+
+    if args.output_file or args.print_output:
+        pretty_output = output_pretty(parsed_data)
 
     if args.output_file:
         try:
             with open(args.output_file, 'w') as file:
-                file.write(output_pretty(parsed_data))
+                file.write(pretty_output)
             print(f"Parsed output written to {args.output_file}")
         except IOError as e:
             print(f"Failed to write output to file: {e}", file=sys.stderr)
             sys.exit(1)
 
     if args.print_output:
-        print(output_pretty(parsed_data))
+        print(pretty_output)
 
-    if args.visualize is not None:
+    if "dump_blocks" in command:
+        pass
+    else:
         if not args.visualize:
             args.visualize = ALL_VISUALIZATION_CHOICES
         visualize(parsed_data, args.visualize)
