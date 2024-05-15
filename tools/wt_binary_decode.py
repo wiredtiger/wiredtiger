@@ -59,8 +59,11 @@ class PageHeader:
     pass
 
 # A container for fields in the WT_BLOCK_HEADER
+@dataclass
 class BlockHeader:
-    pass
+    disk_size: int
+    checksum: int
+    flags: int
 
 # A container for page stats
 @dataclass
@@ -390,10 +393,12 @@ def unpack_uint64(b):
     val, arr = unpack_int(arr)
     return val
 
-def discard_unpacked_uint64(b):
-    s = b.tell()
-    unpack_uint64(b)
-    return b.tell() - s;
+def unpack_uint64_with_sz(b):
+    start = b.tell()
+    arr = file_as_array(b)
+    val, arr = unpack_int(arr)
+    sz = b.tell() - start
+    return (val, sz)
 
 # Print the bytes, which may be keys or values.
 def raw_bytes(b):
@@ -516,35 +521,43 @@ def print_timestamps(p, b, extra, pagestats):
     WT_CELL_TS_STOP = 0x10
     WT_CELL_TXN_START = 0x20
     WT_CELL_TXN_STOP = 0x40
+
+    ANY_TS_OR_TXN = WT_CELL_TS_DURABLE_START | WT_CELL_TS_DURABLE_STOP | WT_CELL_TS_START | WT_CELL_TS_STOP | WT_CELL_TXN_START | WT_CELL_TXN_STOP
     
     if extra != 0:
         p.rint('cell has timestamps:')
         if extra & WT_CELL_PREPARE != 0:
             p.rint(' prepared')
         if extra & WT_CELL_TS_DURABLE_START != 0:
-            pagestats.start_ts_sz += discard_unpacked_uint64(b)
+            t, sz = unpack_uint64_with_sz(b)
+            pagestats.start_ts_sz += sz
             pagestats.num_start_ts += 1
-            p.rint(' durable start ts: ' + ts(unpack_uint64(b)))
+            p.rint(' durable start ts: ' + ts(t))
         if extra & WT_CELL_TS_DURABLE_STOP != 0:
-            pagestats.stop_ts_sz += discard_unpacked_uint64(b)
+            t, sz = unpack_uint64_with_sz(b)
+            pagestats.stop_ts_sz += sz
             pagestats.num_stop_ts += 1
-            p.rint(' durable stop ts: ' + ts(unpack_uint64(b)))
+            p.rint(' durable stop ts: ' + ts(t))
         if extra & WT_CELL_TS_START != 0:
-            pagestats.start_ts_sz += discard_unpacked_uint64(b)
+            t, sz = unpack_uint64_with_sz(b)
+            pagestats.start_ts_sz += sz
             pagestats.num_start_ts += 1
-            p.rint(' start ts: ' + ts(unpack_uint64(b)))
+            p.rint(' start ts: ' + ts(t))
         if extra & WT_CELL_TS_STOP != 0:
-            pagestats.stop_ts_sz += discard_unpacked_uint64(b)
+            t, sz = unpack_uint64_with_sz(b)
+            pagestats.stop_ts_sz += sz
             pagestats.num_stop_ts += 1
-            p.rint(' stop ts: ' + ts(unpack_uint64(b)))
+            p.rint(' stop ts: ' + ts(t))
         if extra & WT_CELL_TXN_START != 0:
-            pagestats.start_txn_sz += discard_unpacked_uint64(b)
+            t, sz = unpack_uint64_with_sz(b)
+            pagestats.start_txn_sz += sz
             pagestats.num_start_txn += 1
-            p.rint(' start txn: ' + txn(unpack_uint64(b)))
+            p.rint(' start txn: ' + txn(t))
         if extra & WT_CELL_TXN_STOP != 0:
-            pagestats.stop_txn_sz += discard_unpacked_uint64(b)
+            t, sz = unpack_uint64_with_sz(b)
+            pagestats.stop_txn_sz += sz
             pagestats.num_stop_txn += 1
-            p.rint(' stop txn: ' + txn(unpack_uint64(b)))
+            p.rint(' stop txn: ' + txn(t))
         if extra & 0x80:
             p.rint(' *** JUNK in extra descriptor: ' + hex(extra))
 
@@ -619,10 +632,11 @@ def block_decode(p, b, opts):
     p.rint('  version: ' + str(pagehead.version))
 
     # WT_BLOCK_HEADER in block.h (12 bytes)
-    blockhead = BlockHeader()
-    blockhead.disk_size = uint32(b_page)
-    blockhead.checksum = uint32(b_page)
-    blockhead.flags = uint8(b_page)
+    blockhead = BlockHeader(
+        disk_size=uint32(b_page),
+        checksum=uint32(b_page),
+        flags = uint8(b_page),
+    )
     if uint8(b_page) != 0 or uint8(b_page) != 0 or uint8(b_page) != 0:
         p.rint('garbage in unused bytes')
         return
