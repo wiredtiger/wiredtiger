@@ -153,7 +153,7 @@ def parse_chkpt_info(f):
     return [root_addr, line, chkpt_info]
 
 
-def parse_output():
+def parse_dump_pages():
     """
     Parse the output file of dump_pages
     """
@@ -355,7 +355,7 @@ def main():
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    parsed_data = parse_output()
+    parsed_data = parse_dump_pages()
 
     if args.output_file:
         try:
