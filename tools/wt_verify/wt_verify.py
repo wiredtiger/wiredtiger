@@ -237,7 +237,7 @@ def parse_dump_pages():
     return output
 
 
-def generate_broken_barh(filename, data, bar_width=1):
+def show_page_distribution(filename, data, bar_width=1):
     """
     data: dictionary that contains information related to different checkpoints.
     """
@@ -271,7 +271,7 @@ def generate_broken_barh(filename, data, bar_width=1):
         imgs += img
     return imgs
 
-def generate_hist(filename, data, bins=100):
+def show_block_distribution(filename, data, bins=100):
     """
     data: dictionary that contains information related to different checkpoints.
     """
@@ -296,7 +296,7 @@ def generate_hist(filename, data, bins=100):
     return imgs
 
 
-def generate_vertical_bar(filename, data, max_gap_size=0):
+def show_free_block_distribution(filename, data, max_gap_size=0):
     """
     data: dictionary that contains information related to different checkpoints.
     max_gap_size: display free blocks up to the specified size in bytes
@@ -564,9 +564,9 @@ def main():
         print(pretty_output)
 
     if "dump_blocks" in command:
-        imgs = generate_broken_barh(args.filename, parsed_data)
-        imgs += generate_hist(args.filename, parsed_data)
-        imgs += generate_vertical_bar(args.filename, parsed_data)
+        imgs = show_page_distribution(args.filename, parsed_data)
+        imgs += show_block_distribution(args.filename, parsed_data)
+        imgs += show_free_block_distribution(args.filename, parsed_data)
         serve(imgs)
     else:
         if not args.visualize:
