@@ -53,6 +53,7 @@ __wt_block_salvage_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* Salvage performs a checkpoint but doesn't start or resolve it. */
     WT_ASSERT(session, block->ckpt_state == WT_CKPT_NONE);
     block->ckpt_state = WT_CKPT_SALVAGE;
+    WT_RET(__wt_block_free_queue(session, block));
 
     return (0);
 }
