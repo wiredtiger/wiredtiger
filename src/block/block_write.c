@@ -237,6 +237,11 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
         WT_RET_MSG(session, EINVAL, "direct I/O check: write buffer incorrectly allocated");
     }
 
+    /*
+     * Acquire a lock, if we don't already hold one. Allocate space for the write, and optionally
+     * extend the file (note the block-extend function may release the lock). Release any locally
+     * acquired lock.
+     */
     local_locked = false;
     if (!caller_locked) {
         __wt_spin_lock(session, &block->live_lock);
@@ -247,8 +252,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
      */
     if (block->final_ckpt != NULL)
         WT_RET(__wt_block_checkpoint_final(session, block, buf, &file_sizep));
-    if (local_locked)
-        __wt_spin_unlock(session, &block->live_lock);
 
     /*
      * Align the size to an allocation unit.
@@ -270,16 +273,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /* Pre-allocate some number of extension structures. */
     WT_RET(__wt_block_ext_prealloc(session, 5));
 
-    /*
-     * Acquire a lock, if we don't already hold one. Allocate space for the write, and optionally
-     * extend the file (note the block-extend function may release the lock). Release any locally
-     * acquired lock.
-     */
-    local_locked = false;
-    if (!caller_locked) {
-        __wt_spin_lock(session, &block->live_lock);
-        local_locked = true;
-    }
     ret = __wt_block_alloc(session, block, &offset, (wt_off_t)align_size);
     if (ret == 0)
         ret = __block_extend(session, block, fh, offset, align_size, &local_locked);
