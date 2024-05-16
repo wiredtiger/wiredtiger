@@ -795,7 +795,8 @@ use_syscall:
     if (pfh->mmap_buf != NULL && !pfh->mmap_resizing && pfh->mmap_size < offset + (wt_off_t)len)
         /* If we are actively extending the file, don't remap it on every write. */
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
-            __wti_prepare_remap_resize_file(file_handle, wt_session, offset + (wt_off_t)len, &remap);
+            __wti_prepare_remap_resize_file(
+              file_handle, wt_session, offset + (wt_off_t)len, &remap);
             if (remap)
                 __wti_remap_resize_file(file_handle, wt_session);
             WT_STAT_CONN_INCRV(session, block_remap_file_write, 1);
