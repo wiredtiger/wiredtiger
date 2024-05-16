@@ -220,6 +220,10 @@ __wt_rec_child_modify(
             WT_ASSERT(session, ref->addr != NULL);
             /* DISK pages do not have fast-truncate info. */
             WT_ASSERT(session, ref->page_del == NULL);
+            if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+                break;
+            cmsp->ref_locked = true;
+            cmsp->old_ref_state = WT_REF_DISK;
             goto done;
 
         case WT_REF_DELETED:
@@ -369,7 +373,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              *
-             * We should never be here during checkpoint, dirty page eviction is shutout during
+             * We should never be here during checkpoint, internal page split is shutout during
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */
