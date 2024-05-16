@@ -296,9 +296,10 @@ def generate_hist(filename, data, bins=100):
     return imgs
 
 
-def generate_vertical_bar(filename, data):
+def generate_vertical_bar(filename, data, max_gap_size=0):
     """
     data: dictionary that contains information related to different checkpoints.
+    max_gap_size: display free blocks up to the specified size in bytes
     """
     imgs = ""
     for checkpoint in data:
@@ -320,6 +321,9 @@ def generate_vertical_bar(filename, data):
                 gap = current_tupe[0] - prev_tupe_end
                 assert gap >= 0, f"Data is not sorted correctly"
                 if gap == 0:
+                    continue
+                # If the size of the free block is large enough, we may not have interest in it.
+                if max_gap_size and gap > max_gap_size:
                     continue
                 if gap in buckets:
                     buckets[gap] += 1
