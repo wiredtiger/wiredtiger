@@ -315,7 +315,7 @@ def generate_vertical_bar(filename, data):
         ax.bar(keys_str, list(buckets.values()))
         ax.set_xticklabels(keys_str)
         ax.set_xticks(range(len(buckets)))
-        plt.title(f"Gaps for {filename} - {checkpoint}")
+        plt.title(f"Free blocks for {filename} - {checkpoint}")
         plt.close()
 
         img = mpld3.fig_to_html(fig)
