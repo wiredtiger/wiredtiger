@@ -214,11 +214,11 @@ def get_int(b, size):
 def unpack_int(b):
     marker = _ord(b[0])
     if marker < NEG_MULTI_MARKER or marker >= 0xf0:
-        raise Exception('Not a packed integer')
+        raise ValueError('Not a packed integer')
     elif marker < NEG_2BYTE_MARKER:
         sz = 8 - getbits(marker, 4)
         if sz < 0:
-            raise Exception('Not a valid packed integer')
+            raise ValueError('Not a valid packed integer')
         part1 = (-1 << (sz << 3))
         part2 = get_int(b[1:], sz)
         part3 = b[sz+1:]
@@ -868,13 +868,16 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
                     s = 'short val {} bytes'.format(l)
                 x = b.read(l)
 
-            # Comment this out if you need it
-            # There is likely a bug in here
-            # if s != '?':
-            #    p.rint_v(f'{desc_str}{s}:')
-            #    p.rint_v(raw_bytes(x))
-            # else:
-            #    dumpraw(p, b, cellpos)
+            try:
+                if s != '?':
+                    p.rint_v(f'{desc_str}{s}:')
+                    p.rint_v(raw_bytes(x))
+                else:
+                    dumpraw(p, b, cellpos)
+            except (IndexError, ValueError):
+                # FIXME-WT-13000 theres a bug in raw_bytes
+                pass
+
         finally:
             p.end_cell()
 
