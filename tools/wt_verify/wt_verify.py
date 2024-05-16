@@ -244,7 +244,7 @@ def generate_broken_barh(filename, data, bar_width=1):
     imgs = ""
     bar_width = 1
     colors = ['blue', 'orange', 'green']
-    for _, checkpoint in enumerate(data):
+    for checkpoint in data:
 
         fig, ax = plt.subplots(1, figsize=(15, 10))
         max_addr = 0
@@ -277,12 +277,12 @@ def generate_vertical_bar(filename, data):
     data: dictionary that contains information related to different checkpoints.
     """
     imgs = ""
-    for _, checkpoint in enumerate(data):
+    for checkpoint in data:
         all_addr = []
 
         # Concatenate the lists for each page type:
-        for _, key in enumerate(data[checkpoint]):
-            all_addr += data[checkpoint][key]
+        for page_type in data[checkpoint]:
+            all_addr += data[checkpoint][page_type]
 
         # Sort them by the addr_start which is the first element:
         all_addr.sort(key=itemgetter(0))
