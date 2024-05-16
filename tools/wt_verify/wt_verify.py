@@ -263,6 +263,8 @@ def show_page_distribution(filename, data, bar_width=1):
         plt.yticks(np.arange(0, len(data[checkpoint]) + 1, 1))
         xlimit = max_addr + max_addr_size
         plt.xlim(left=0,right=xlimit)
+        plt.xlabel("Offset")
+        plt.ylabel("Page type")
         plt.legend()
         plt.title(f"Distribution of each page type for {filename} - {checkpoint}")
         plt.close()
@@ -289,6 +291,8 @@ def show_block_distribution(filename, data, bins=100):
         fig, ax = plt.subplots(1, figsize=(15, 10))
         ax.hist(all_addr, bins=bins)
         plt.title(f"Distribution of blocks for {filename} - {checkpoint}")
+        plt.xlabel(f"Offset (bins={bins})")
+        plt.ylabel("Frequency")
         plt.close()
 
         img = mpld3.fig_to_html(fig)
@@ -343,6 +347,8 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
         ax.bar(keys_str, list(buckets.values()))
         ax.set_xticklabels(keys_str)
         ax.set_xticks(range(len(buckets)))
+        plt.xlabel("Bucket size (B)")
+        plt.ylabel("Number of blocks")
         plt.title(f"Free blocks for {filename} - {checkpoint}")
         plt.close()
 
