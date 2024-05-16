@@ -354,7 +354,7 @@ __wt_rec_child_modify(
              * have an address and we ignore it, it's not part of the checkpoint.
              */
             if (ref->addr == NULL) {
-                WT_ASSERT(session, ref->page->entries == 0);
+                WT_ASSERT_ALWAYS(session, ref->page->entries == 0, "ignore pages we should write");
                 cmsp->state = WT_CHILD_IGNORE;
             }
             goto done;
