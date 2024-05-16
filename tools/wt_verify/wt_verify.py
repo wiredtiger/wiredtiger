@@ -243,7 +243,7 @@ def generate_broken_barh(filename, data, bar_width=1):
     """
     imgs = ""
     bar_width = 1
-    colors = ['blue', 'orange', 'green']
+    colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     for checkpoint in data:
 
         fig, ax = plt.subplots(1, figsize=(15, 10))
@@ -264,7 +264,7 @@ def generate_broken_barh(filename, data, bar_width=1):
         xlimit = max_addr + max_addr_size
         plt.xlim(left=0,right=xlimit)
         plt.legend()
-        plt.title(f"Data location for {filename} - {checkpoint}")
+        plt.title(f"Distribution of each page type for {filename} - {checkpoint}")
         plt.close()
 
         img = mpld3.fig_to_html(fig)
@@ -288,7 +288,7 @@ def generate_hist(filename, data, bins=100):
 
         fig, ax = plt.subplots(1, figsize=(15, 10))
         ax.hist(all_addr, bins=bins)
-        plt.title(f"Location of blocks for {filename} - {checkpoint}")
+        plt.title(f"Distribution of blocks for {filename} - {checkpoint}")
         plt.close()
 
         img = mpld3.fig_to_html(fig)
