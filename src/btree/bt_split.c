@@ -56,7 +56,7 @@ static void
 __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_BTREE *btree;
-    WT_ITEM *next, _next, *last, _last, *tmp;
+    WT_ITEM *last, _last, *next, _next, *tmp;
     WT_REF *ref;
     uint64_t recno;
     uint32_t slot;
@@ -398,8 +398,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     WT_SPLIT_ERROR_PHASE complete;
     size_t child_incr, root_decr, root_incr, size;
     uint64_t split_gen;
-    uint32_t children, chunk, i, j, remain;
-    uint32_t slots;
+    uint32_t children, chunk, i, j, remain, slots;
     void *p;
 
     btree = S2BT(session);
@@ -556,8 +555,8 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     __wt_cache_page_inmem_incr(session, root, root_incr);
     __wt_cache_page_inmem_decr(session, root, root_decr);
 
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_deepen);
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_internal);
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_deepen);
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_internal);
 
     __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 err:
@@ -648,9 +647,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_SPLIT_ERROR_PHASE complete;
     size_t parent_decr, size;
     uint64_t split_gen;
-    uint32_t deleted_entries, parent_entries, result_entries;
-    uint32_t *deleted_refs;
-    uint32_t hint, i, j;
+    uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
     bool empty_parent;
 
     btree = S2BT(session);
@@ -904,8 +901,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     WT_SPLIT_ERROR_PHASE complete;
     size_t child_incr, page_decr, page_incr, parent_incr, size;
     uint64_t split_gen;
-    uint32_t children, chunk, i, j, remain;
-    uint32_t slots;
+    uint32_t children, chunk, i, j, remain, slots;
     void *p;
 
     /* Mark the page dirty. */
@@ -1092,7 +1088,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     __wt_cache_page_inmem_incr(session, page, page_incr);
     __wt_cache_page_inmem_decr(session, page, page_decr);
 
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_internal);
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_internal);
 
     __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 err:
@@ -1380,7 +1376,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *prev_onpage, *upd, *tmp;
+    WT_UPDATE *prev_onpage, *tmp, *upd;
     uint64_t orig_read_gen, recno;
     uint32_t i, slot;
     bool prepare;
@@ -1610,7 +1606,7 @@ static void
 __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT_REF *ref)
 {
     WT_SAVE_UPD *supd;
-    WT_UPDATE *upd, *tmp;
+    WT_UPDATE *tmp, *upd;
     uint32_t i, slot;
 
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -1981,7 +1977,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * Split into the parent.
      */
     if ((ret = __split_parent(session, ref, split_ref, 2, parent_incr, false, true)) == 0) {
-        WT_STAT_CONN_DATA_INCR(session, cache_inmem_split);
+        WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         return (0);
     }
 
@@ -2118,7 +2114,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * Split into the parent; if we're closing the file, we hold it exclusively.
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_split_leaf);
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
 
     /*
      * The split succeeded, we can no longer fail.

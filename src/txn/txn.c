@@ -205,7 +205,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
-    uint64_t current_id, id, prev_oldest_id, pinned_id, snapshot_gen;
+    uint64_t current_id, id, pinned_id, prev_oldest_id, snapshot_gen;
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
@@ -1180,6 +1180,7 @@ __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE 
     WT_DECL_RET;
     WT_UPDATE *tombstone;
     size_t not_used;
+
     tombstone = NULL;
     btree = S2BT(session);
 
@@ -1249,7 +1250,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     /* Sleep for 100ms in the prepared resolution path if configured. */
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREPARE_RESOLUTION_2))
-        __wt_sleep(0, 100000);
+        __wt_sleep(0, 100 * WT_THOUSAND);
     WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
 }
 
@@ -1270,10 +1271,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_TXN *txn;
     WT_UPDATE *first_committed_upd, *upd, *upd_followed_tombstone;
     WT_UPDATE *head_upd;
-
-    uint8_t *p, resolve_case, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
+    uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p, resolve_case;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool tw_found, has_hs_record;
+    bool has_hs_record, tw_found;
 
     hs_cursor = NULL;
     txn = session->txn;
@@ -1896,9 +1896,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
 
-        /* If we used the cursor to resolve prepared updates, the key now has been freed. */
+        /* If we used the cursor to resolve prepared updates, free and clear the key. */
         if (cursor != NULL)
-            WT_CLEAR(cursor->key);
+            __wt_buf_free(session, &cursor->key);
     }
 
     if (cursor != NULL) {
@@ -2080,7 +2080,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_TXN *txn;
     WT_TXN_OP *op;
-    WT_UPDATE *upd, *tmp;
+    WT_UPDATE *tmp, *upd;
     u_int i, prepared_updates, prepared_updates_key_repeated;
 
     txn = session->txn;
@@ -2294,9 +2294,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
         __wt_txn_op_free(session, op);
-        /* If we used the cursor to resolve prepared updates, the key now has been freed. */
+        /* If we used the cursor to resolve prepared updates, free and clear the key. */
         if (cursor != NULL)
-            WT_CLEAR(cursor->key);
+            __wt_buf_free(session, &cursor->key);
     }
     txn->mod_count = 0;
 #ifdef HAVE_DIAGNOSTIC
@@ -2482,7 +2482,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     stats = conn->stats;
     checkpoint_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id);
 
-    WT_STAT_SET(session, stats, txn_pinned_range,
+    WT_STATP_CONN_SET(session, stats, txn_pinned_range,
       __wt_atomic_loadv64(&txn_global->current) - __wt_atomic_loadv64(&txn_global->oldest_id));
 
     checkpoint_timestamp = txn_global->checkpoint_timestamp;
@@ -2490,44 +2490,45 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     pinned_timestamp = txn_global->pinned_timestamp;
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
         pinned_timestamp = checkpoint_timestamp;
-    WT_STAT_SET(session, stats, txn_pinned_timestamp, durable_timestamp - pinned_timestamp);
-    WT_STAT_SET(
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp, durable_timestamp - pinned_timestamp);
+    WT_STATP_CONN_SET(
       session, stats, txn_pinned_timestamp_checkpoint, durable_timestamp - checkpoint_timestamp);
-    WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_oldest,
       durable_timestamp - txn_global->oldest_timestamp);
 
     __wt_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
     if (oldest_active_read_timestamp == 0) {
-        WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, 0);
-        WT_STAT_SET(session, stats, txn_pinned_timestamp_reader, 0);
+        WT_STATP_CONN_SET(session, stats, txn_timestamp_oldest_active_read, 0);
+        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader, 0);
     } else {
-        WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
-        WT_STAT_SET(session, stats, txn_pinned_timestamp_reader,
+        WT_STATP_CONN_SET(
+          session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
+        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader,
           durable_timestamp - oldest_active_read_timestamp);
     }
 
-    WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
+    WT_STATP_CONN_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ?
         0 :
         __wt_atomic_loadv64(&txn_global->current) - checkpoint_pinned);
 
-    WT_STAT_SET(session, stats, checkpoint_scrub_max, conn->ckpt_scrub_max);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt_scrub_max);
     if (conn->ckpt_scrub_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, checkpoint_scrub_min, conn->ckpt_scrub_min);
-    WT_STAT_SET(session, stats, checkpoint_scrub_recent, conn->ckpt_scrub_recent);
-    WT_STAT_SET(session, stats, checkpoint_scrub_total, conn->ckpt_scrub_total);
+        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt_scrub_min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt_scrub_recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt_scrub_total);
 
-    WT_STAT_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
     if (conn->ckpt_prep_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
-    WT_STAT_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
-    WT_STAT_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
+        WT_STATP_CONN_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
 
-    WT_STAT_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
     if (conn->ckpt_time_min != UINT64_MAX)
-        WT_STAT_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
-    WT_STAT_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
-    WT_STAT_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
+        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
 }
 
 /*

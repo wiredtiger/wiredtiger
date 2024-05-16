@@ -84,7 +84,7 @@ __btcur_bounds_search_near_reposition(
          * original search near key. The reverse holds true for the lower bound.
          */
         *reposition_exactp = upper ? -1 : 1;
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_near_repositioned_cursor);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_search_near_repositioned_cursor);
     }
     return (0);
 }
@@ -603,7 +603,7 @@ static void
 __cursor_restart(WT_SESSION_IMPL *session, uint64_t *yield_count, uint64_t *sleep_usecs)
 {
     __wt_spin_backoff(yield_count, sleep_usecs);
-    WT_STAT_CONN_DATA_INCR(session, cursor_restart);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_restart);
 }
 
 /*
@@ -619,7 +619,7 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_reset);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_reset);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     /* Initialize the update value as we are not pointing to any value. */
@@ -748,7 +748,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
       (__wt_page_evict_soon_check(session, cbt->ref, NULL) ||
         __cursor_reposition_timing_stress(session))) {
 
-        WT_STAT_CONN_DATA_INCR(session, cursor_reposition);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_reposition);
         WT_ERR(__wt_cursor_localkey(cursor));
         WT_ERR(__cursor_reset(cbt));
         WT_WITHOUT_EVICT_REPOSITION(ret = __wt_btcur_search(cbt));
@@ -757,7 +757,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
 
 err:
     if (ret != 0) {
-        WT_STAT_CONN_DATA_INCR(session, cursor_reposition_failed);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_reposition_failed);
         /*
          * If we got a WT_ROLLBACK it is because there is a lot of cache pressure and the
          * transaction is being killed - don't panic in that case.
@@ -789,7 +789,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     session = CUR2S(cbt);
     valid = false;
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_search);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_search);
 
     WT_RET(__wt_txn_search_check(session));
     __cursor_state_save(cursor, &state);
@@ -811,7 +811,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     WT_ERR(__btcur_bounds_contains_key(
       session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds) {
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_search_early_exit);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_search_early_exit);
         WT_ERR(WT_NOTFOUND);
     }
 
@@ -994,7 +994,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     session = CUR2S(cbt);
     valid = false;
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_search_near);
 
     WT_RET(__wt_txn_search_check(session));
     __cursor_state_save(cursor, &state);
@@ -1108,7 +1108,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     bool append_key, key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
@@ -1117,8 +1117,8 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_insert);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_insert_bytes, insert_bytes);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_insert);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_insert_bytes, insert_bytes);
 
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
@@ -1327,7 +1327,7 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -1378,7 +1378,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     bool searched, valid;
 
     btree = CUR2BT(cbt);
@@ -1387,8 +1387,8 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
     yield_count = sleep_usecs = 0;
     searched = false;
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_remove);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_remove);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
@@ -1553,7 +1553,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     bool key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
@@ -1798,7 +1798,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t orig, new;
+    size_t new, orig;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -1841,7 +1841,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     new = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
 
-    WT_STAT_CONN_DATA_INCRV(
+    WT_STAT_CONN_DSRC_INCRV(
       session, cursor_update_bytes_changed, new > orig ? new - orig : orig - new);
 
     /*
@@ -1889,7 +1889,7 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_reserve);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_reserve);
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
@@ -1915,8 +1915,8 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_update);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_update_bytes, cursor->key.size + cursor->value.size);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_update);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_update_bytes, cursor->key.size + cursor->value.size);
 
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
@@ -2043,7 +2043,7 @@ __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t records_truncated;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
 
     session = CUR2S(start);
     records_truncated = yield_count = sleep_usecs = 0;
@@ -2103,7 +2103,7 @@ __cursor_truncate_fix(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count, sleep_usecs;
+    uint64_t sleep_usecs, yield_count;
     const uint8_t *value;
 
     session = CUR2S(start);
@@ -2174,7 +2174,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
-    WT_STAT_DATA_INCR(session, cursor_truncate);
+    WT_STAT_DSRC_INCR(session, cursor_truncate);
 
     WT_RET(__wt_txn_autocommit_check(session));
 
@@ -2255,11 +2255,11 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_cache --
- *     Discard buffers when caching a cursor.
+ * __wt_btcur_free_cached_memory --
+ *     Discard internal buffers held by this cursor.
  */
 void
-__wt_btcur_cache(WT_CURSOR_BTREE *cbt)
+__wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt)
 {
     WT_SESSION_IMPL *session;
 
@@ -2279,9 +2279,6 @@ int
 __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(cbt);
 
     /*
      * The in-memory split, history store table, and fast-truncate instantiation code creates
@@ -2292,12 +2289,10 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     if (!lowlevel)
         ret = __cursor_reset(cbt);
 
-    __wt_buf_free(session, &cbt->_row_key);
-    __wt_buf_free(session, &cbt->_tmp);
-    __wt_buf_free(session, &cbt->_modify_update.buf);
-    __wt_buf_free(session, &cbt->_upd_value.buf);
+    __wt_btcur_free_cached_memory(cbt);
+
 #ifdef HAVE_DIAGNOSTIC
-    __wt_buf_free(session, &cbt->_lastkey);
+    __wt_buf_free(CUR2S(cbt), &cbt->_lastkey);
 #endif
 
     return (ret);
@@ -2324,9 +2319,9 @@ __wt_btcur_bounds_position(
     bound = next ? &cursor->lower_bound : &cursor->upper_bound;
 
     if (next)
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_next_unpositioned);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_next_unpositioned);
     else
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_unpositioned);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_prev_unpositioned);
 
     WT_ASSERT(session, WT_DATA_IN_ITEM(bound));
     __wt_cursor_set_raw_key(cursor, bound);

@@ -114,12 +114,14 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
     }
 
     /* Compare the return codes. */
-    size_t min_ret_length = std::min(ret_model.size(), ret_wt.size());
-    for (size_t i = 0; i < min_ret_length; i++)
-        if (ret_model[i] != ret_wt[i])
-            throw std::runtime_error("Return codes differ for operation " + std::to_string(i + 1) +
-              ": WiredTiger returned " + std::to_string(ret_wt[i]) + ", but " +
-              std::to_string(ret_model[i]) + " was expected.");
+    size_t min_ret_length = std::min(std::min(ret_model.size(), ret_wt.size()), workload->size());
+    for (size_t i = 0; i < min_ret_length; i++) {
+        if (ret_model[i] == ret_wt[i])
+            continue;
+        throw std::runtime_error("Return codes differ for operation " + std::to_string(i + 1) +
+          ": WiredTiger returned " + std::to_string(ret_wt[i]) + ", but " +
+          std::to_string(ret_model[i]) + " was expected.");
+    }
     if (ret_model.size() != ret_wt.size())
         throw std::runtime_error("WiredTiger executed " + std::to_string(ret_wt.size()) +
           " operations, but " + std::to_string(ret_model.size()) + " was expected.");
@@ -175,7 +177,12 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(min_sequences, uint64);
         UPDATE_SPEC(max_sequences, uint64);
         UPDATE_SPEC(max_concurrent_transactions, uint64);
+
+        UPDATE_SPEC(max_recno, uint64);
         UPDATE_SPEC(max_value_uint64, uint64);
+
+        UPDATE_SPEC(column_fix, float);
+        UPDATE_SPEC(column_var, float);
 
         UPDATE_SPEC(use_set_commit_timestamp, float);
 
@@ -383,12 +390,28 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
                 *w << op;
         }
 
+        /*
+         * Validate that we didn't just produce a malformed workload.
+         *
+         * The workload construction algorithm above already guarantees that the transactions are
+         * included or removed in their entirety and that the workload creates all of its tables, so
+         * we don't need to check for undefined transaction or table IDs.
+         */
+        bool skip = false;
+        if (!w->verify_timestamps())
+            skip = true;
+
         /* Clean up the previous database directory, if it exists. */
-        testutil_remove(home.c_str());
+        if (!skip)
+            testutil_remove(home.c_str());
 
         /* Try the reduced workload. */
         try {
-            run_and_verify(w, home, conn_config, table_config);
+            if (!skip)
+                run_and_verify(w, home, conn_config, table_config);
+            else
+                std::cout << "Counterexample reduction: Skip running a malformed workload"
+                          << std::endl;
 
             /* There was no error, so try removing only just the halves. */
             if (range.first + 1 < range.second) {
@@ -460,7 +483,7 @@ main(int argc, char *argv[])
 {
     model::kv_workload_generator_spec spec;
 
-    uint64_t base_seed = (uint64_t)time(NULL);
+    uint64_t base_seed = model::random::next_seed(__wt_rdtsc() ^ time(NULL));
     std::string home = "WT_TEST";
     uint64_t min_iterations = 1;
     uint64_t min_runtime_s = 0;
@@ -593,10 +616,13 @@ main(int argc, char *argv[])
                 return EXIT_FAILURE;
             }
         }
-    else
+    else {
         /* Run the test, potentially many times. */
+        uint64_t next_seed = base_seed;
         for (uint64_t iteration = 1;; iteration++) {
-            uint64_t seed = base_seed + iteration - 1;
+            uint64_t seed = next_seed;
+            next_seed = model::random::next_seed(next_seed);
+
             std::cout << "Iteration " << iteration << ", seed 0x" << std::hex << seed << std::dec
                       << std::endl;
 
@@ -638,6 +664,7 @@ main(int argc, char *argv[])
             if (total_time >= min_runtime_s && iteration >= min_iterations)
                 break;
         }
+    }
 
     /* Clean up the database directory. */
     if (!preserve)

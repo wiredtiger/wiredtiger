@@ -109,11 +109,16 @@ public:
      * kv_transaction::set_oldest_timestamp --
      *     Set the database's oldest timestamp, if set.
      */
-    inline void
+    inline int
     set_oldest_timestamp(timestamp_t timestamp) noexcept
     {
         std::lock_guard lock_guard(_timestamps_lock);
-        _oldest_timestamp = std::max(_oldest_timestamp, timestamp);
+        if (timestamp < _oldest_timestamp)
+            return EINVAL;
+        if (_stable_timestamp != k_timestamp_none && timestamp > _stable_timestamp)
+            return EINVAL;
+        _oldest_timestamp = timestamp;
+        return 0;
     }
 
     /*
@@ -130,12 +135,16 @@ public:
      * kv_transaction::set_stable_timestamp --
      *     Set the database's stable timestamp, if set.
      */
-    /* FIXME-WT-12412: Return an error if the provided timestamp is older than the current one. */
-    inline void
+    inline int
     set_stable_timestamp(timestamp_t timestamp) noexcept
     {
         std::lock_guard lock_guard(_timestamps_lock);
-        _stable_timestamp = std::max(_stable_timestamp, timestamp);
+        if (timestamp < _stable_timestamp)
+            return EINVAL;
+        if (_oldest_timestamp != k_timestamp_none && timestamp < _oldest_timestamp)
+            return EINVAL;
+        _stable_timestamp = timestamp;
+        return 0;
     }
 
     /*
@@ -168,10 +177,7 @@ public:
     table(const std::string &name)
     {
         std::lock_guard lock_guard(_tables_lock);
-        auto i = _tables.find(name);
-        if (i == _tables.end())
-            throw model_exception("No such table: " + name);
-        return i->second;
+        return table_nolock(name);
     }
 
     /*
@@ -245,6 +251,20 @@ public:
     }
 
 protected:
+    /*
+     * kv_database::table_nolock --
+     *     Get the table without acquiring a lock. Throw an exception if it does not exist.
+     */
+    inline kv_table_ptr
+    table_nolock(const std::string &name)
+    {
+        /* Requires the table lock to be acquired. */
+        auto i = _tables.find(name);
+        if (i == _tables.end())
+            throw model_exception("No such table: " + name);
+        return i->second;
+    }
+
     /*
      * kv_database::txn_snapshot --
      *     Create a transaction snapshot. Do not lock, because the caller already has a lock.

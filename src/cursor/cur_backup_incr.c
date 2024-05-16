@@ -125,7 +125,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     wt_off_t size;
-    uint64_t start_bitoff, total_len, raw;
+    uint64_t raw, start_bitoff, total_len;
     const char *file;
     bool found;
 
@@ -207,10 +207,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                 WT_STAT_CONN_INCR(session, backup_blocks);
                 if (F_ISSET(cb, WT_CURBACKUP_COMPRESSED))
                     WT_WITH_DHANDLE(session, btree->dhandle,
-                      WT_STAT_CONN_DATA_INCR(session, backup_blocks_compressed));
+                      WT_STAT_CONN_DSRC_INCR(session, backup_blocks_compressed));
                 else
                     WT_WITH_DHANDLE(session, btree->dhandle,
-                      WT_STAT_CONN_DATA_INCR(session, backup_blocks_uncompressed));
+                      WT_STAT_CONN_DSRC_INCR(session, backup_blocks_uncompressed));
                 /*
                  * Care must be taken to leave the bit_offset field set to the next offset bit so
                  * that the next call is set to the correct offset.
@@ -224,10 +224,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                         WT_STAT_CONN_INCR(session, backup_blocks);
                         if (F_ISSET(cb, WT_CURBACKUP_COMPRESSED))
                             WT_WITH_DHANDLE(session, btree->dhandle,
-                              WT_STAT_CONN_DATA_INCR(session, backup_blocks_compressed));
+                              WT_STAT_CONN_DSRC_INCR(session, backup_blocks_compressed));
                         else
                             WT_WITH_DHANDLE(session, btree->dhandle,
-                              WT_STAT_CONN_DATA_INCR(session, backup_blocks_uncompressed));
+                              WT_STAT_CONN_DSRC_INCR(session, backup_blocks_uncompressed));
                     }
                 }
                 break;

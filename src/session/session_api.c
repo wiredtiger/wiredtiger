@@ -83,7 +83,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
      * We determine the number of buckets to visit based on how this function is called. When
      * big_sweep is true and enough time has passed, walk through at least a quarter of the buckets,
      * and as long as there is progress finding enough cursors to close, continue on, up to the
-     * entire set of buckets.
+     * entire set of buckets. With the current settings, and assuming regular calls to the session
+     * reset API, we'll visit every cached cursor about once every two minutes, or sooner.
      *
      * When big_sweep is false, we start with a small set of buckets to look at and quit when we
      * stop making progress or when we reach the maximum configured. This way, we amortize the work
@@ -114,10 +115,20 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session, bool big_sweep)
         position = (position + 1) & (conn->hash_size - 1);
         TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp)
         {
-            /*
-             * First check to see if the cursor could be reopened and should be swept.
-             */
             ++nexamined;
+
+            /*
+             * When a cursor is cached, we retain various memory buffers. Thus, frequently used
+             * cursors will get reopened from cached state with those memory buffers intact, and
+             * thereby benefit from memory reuse. However, we don't want to retain this memory for
+             * too long, especially for infrequently used cached cursors. So regardless of whether
+             * we sweep this cursor, release any memory held by it now.
+             */
+            __wt_cursor_free_cached_memory(cursor);
+
+            /*
+             * Check to see if the cursor could be reopened and should be swept.
+             */
             t_ret = cursor->reopen(cursor, true);
             if (t_ret != 0) {
                 WT_TRET_NOTFOUND_OK(t_ret);
@@ -1234,20 +1245,21 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
         if (lock_wait)
             WT_WITH_CHECKPOINT_LOCK(session,
               WT_WITH_SCHEMA_LOCK(session,
-                WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, uri, cfg))));
+                WT_WITH_TABLE_WRITE_LOCK(
+                  session, ret = __wt_schema_drop(session, uri, cfg, true))));
         else
             WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
               WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
                 WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
-                  session, ret, ret = __wt_schema_drop(session, uri, cfg))));
+                  session, ret, ret = __wt_schema_drop(session, uri, cfg, true))));
     } else {
         if (lock_wait)
             WT_WITH_SCHEMA_LOCK(session,
-              WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, uri, cfg)));
+              WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, uri, cfg, true)));
         else
             WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
               WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
-                session, ret, ret = __wt_schema_drop(session, uri, cfg)));
+                session, ret, ret = __wt_schema_drop(session, uri, cfg, true)));
     }
 
 err:
@@ -2652,10 +2664,14 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * Cache the offset of this session's statistics bucket. It's important we pass the correct
      * session to the hash define here or we'll calculate the stat bucket with the wrong session id.
      */
-    session_ret->stat_bucket = WT_STATS_SLOT_ID(session_ret);
+    session_ret->stat_conn_bucket = WT_STATS_CONN_SLOT_ID(session_ret);
+    session_ret->stat_dsrc_bucket = WT_STATS_DSRC_SLOT_ID(session_ret);
 
     /* Safety check to make sure we're doing the right thing. */
-    WT_ASSERT(session, session_ret->stat_bucket == session_ret->id % WT_COUNTER_SLOTS);
+    WT_ASSERT(
+      session, session_ret->stat_conn_bucket == session_ret->id % WT_STAT_CONN_COUNTER_SLOTS);
+    WT_ASSERT(
+      session, session_ret->stat_dsrc_bucket == session_ret->id % WT_STAT_DSRC_COUNTER_SLOTS);
 
     /* Allocate the buffer for operation tracking */
     if (F_ISSET(conn, WT_CONN_OPTRACK)) {

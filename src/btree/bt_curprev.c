@@ -350,7 +350,7 @@ restart_read:
          */
         if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
           WT_NOTFOUND)
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_prev_early_exit);
         WT_RET(ret);
 
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
@@ -432,7 +432,7 @@ restart_read:
          */
         if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
           WT_NOTFOUND)
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_prev_early_exit);
         WT_RET(ret);
 
         /* Find the matching WT_COL slot. */
@@ -639,7 +639,7 @@ restart_read_insert:
              */
             if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
               WT_NOTFOUND)
-                WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+                WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_prev_early_exit);
             WT_RET(ret);
 
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
@@ -696,7 +696,7 @@ restart_read_page:
          */
         if ((ret = __wt_btcur_bounds_early_exit(session, cbt, false, key_out_of_boundsp)) ==
           WT_NOTFOUND)
-            WT_STAT_CONN_DATA_INCR(session, cursor_bounds_prev_early_exit);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_prev_early_exit);
         WT_RET(ret);
 
         /*
@@ -734,9 +734,10 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_PAGE *page;
     WT_PAGE_WALK_SKIP_STATS walk_skip_stats;
     WT_SESSION_IMPL *session;
-    size_t total_skipped, skipped;
+    size_t skipped, total_skipped;
+    uint64_t time_start;
     uint32_t flags;
-    bool key_out_of_bounds, newpage, need_walk, repositioned, restart;
+    bool key_out_of_bounds, need_walk, newpage, repositioned, restart;
 #ifdef HAVE_DIAGNOSTIC
     bool inclusive_set;
     WT_NOT_READ(inclusive_set, false);
@@ -748,8 +749,9 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     total_skipped = 0;
     walk_skip_stats.total_del_pages_skipped = 0;
     walk_skip_stats.total_inmem_del_pages_skipped = 0;
+    WT_NOT_READ(time_start, 0);
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_prev);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_prev);
 
     /* tree walk flags */
     flags = WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
@@ -769,6 +771,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
      */
     if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER) && !WT_CURSOR_IS_POSITIONED(cbt)) {
         repositioned = true;
+        time_start = __wt_clock(session);
         WT_ERR(__wt_btcur_bounds_position(session, cbt, false, &need_walk));
         if (!need_walk) {
             __wt_value_return(cbt, cbt->upd_value);
@@ -896,18 +899,27 @@ done:
 err:
     if (total_skipped != 0) {
         if (total_skipped < 100)
-            WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_prev_skip_lt_100);
         else
-            WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_ge_100);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_prev_skip_ge_100);
     }
 
-    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_prev_skip_total, total_skipped);
     if (walk_skip_stats.total_del_pages_skipped != 0)
-        WT_STAT_CONN_DATA_INCRV(
+        WT_STAT_CONN_DSRC_INCRV(
           session, cursor_tree_walk_del_page_skip, walk_skip_stats.total_del_pages_skipped);
     if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
-        WT_STAT_CONN_DATA_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
           walk_skip_stats.total_inmem_del_pages_skipped);
+
+    /*
+     * If we positioned the cursor using bounds, which is similar to a search, update the read
+     * latency histogram.
+     *
+     * This includes the traversal if need_walk is true.
+     */
+    if (repositioned)
+        __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(__wt_clock(session), time_start));
 
     switch (ret) {
     case 0:

@@ -126,6 +126,10 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     if (cache->eviction_updates_target < DBL_EPSILON)
         cache->eviction_updates_target = cache->eviction_dirty_target / 2;
 
+    /* Don't allow the updates target to be larger than the eviction target. */
+    if (cache->eviction_updates_target > cache->eviction_target)
+        cache->eviction_updates_target = cache->eviction_target;
+
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
     cache->eviction_updates_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
@@ -150,6 +154,9 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
           session, EINVAL, "eviction=(threads_min) cannot be greater than eviction=(threads_max)");
     conn->evict_threads_max = evict_threads_max;
     conn->evict_threads_min = evict_threads_min;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
+    conn->evict_sample_inmem = cval.val != 0;
 
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
@@ -294,7 +301,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
-    uint64_t inuse, intl, leaf;
+    uint64_t intl, inuse, leaf;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -308,36 +315,36 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
      */
     leaf = inuse > intl ? inuse - intl : 0;
 
-    WT_STAT_SET(session, stats, cache_bytes_max, conn->cache_size);
-    WT_STAT_SET(session, stats, cache_bytes_inuse, inuse);
-    WT_STAT_SET(session, stats, cache_overhead, cache->overhead_pct);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_max, conn->cache_size);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_inuse, inuse);
+    WT_STATP_CONN_SET(session, stats, cache_overhead, cache->overhead_pct);
 
-    WT_STAT_SET(session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
-    WT_STAT_SET(session, stats, cache_bytes_dirty_total,
+    WT_STATP_CONN_SET(session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
+    WT_STATP_CONN_SET(session, stats, cache_bytes_dirty_total,
       __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_dirty_total)));
-    WT_STAT_SET(session, stats, cache_bytes_hs,
+    WT_STATP_CONN_SET(session, stats, cache_bytes_hs,
       __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_hs)));
-    WT_STAT_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
-    WT_STAT_SET(session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
-    WT_STAT_SET(session, stats, cache_bytes_internal, intl);
-    WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
-    WT_STAT_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
-    WT_STAT_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
+    WT_STATP_CONN_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
+    WT_STATP_CONN_SET(session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
+    WT_STATP_CONN_SET(session, stats, cache_bytes_internal, intl);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_leaf, leaf);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
+    WT_STATP_CONN_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
 
-    WT_STAT_SET(session, stats, cache_eviction_maximum_page_size, cache->evict_max_page_size);
-    WT_STAT_SET(session, stats, cache_eviction_maximum_milliseconds, cache->evict_max_ms);
-    WT_STAT_SET(
+    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_page_size, cache->evict_max_page_size);
+    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_milliseconds, cache->evict_max_ms);
+    WT_STATP_CONN_SET(
       session, stats, cache_reentry_hs_eviction_milliseconds, cache->reentry_hs_eviction_ms);
-    WT_STAT_SET(
+    WT_STATP_CONN_SET(
       session, stats, cache_pages_dirty, cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
-    WT_STAT_SET(session, stats, cache_eviction_state, __wt_atomic_load32(&cache->flags));
-    WT_STAT_SET(session, stats, cache_eviction_aggressive_set, cache->evict_aggressive_score);
-    WT_STAT_SET(session, stats, cache_eviction_empty_score, cache->evict_empty_score);
+    WT_STATP_CONN_SET(session, stats, cache_eviction_state, __wt_atomic_load32(&cache->flags));
+    WT_STATP_CONN_SET(session, stats, cache_eviction_aggressive_set, cache->evict_aggressive_score);
+    WT_STATP_CONN_SET(session, stats, cache_eviction_empty_score, cache->evict_empty_score);
 
-    WT_STAT_SET(session, stats, cache_eviction_active_workers,
+    WT_STATP_CONN_SET(session, stats, cache_eviction_active_workers,
       __wt_atomic_load32(&conn->evict_threads.current_threads));
-    WT_STAT_SET(
+    WT_STATP_CONN_SET(
       session, stats, cache_eviction_stable_state_workers, cache->evict_tune_workers_best);
 
     /*
@@ -345,14 +352,14 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
      * reading without locking.
      */
     if (__wt_atomic_loadbool(&conn->evict_server_running))
-        WT_STAT_SET(
+        WT_STATP_CONN_SET(
           session, stats, cache_eviction_walks_active, cache->walk_session->hazards.num_active);
 
-    WT_STAT_SET(
+    WT_STATP_CONN_SET(
       session, stats, rec_maximum_hs_wrapup_milliseconds, conn->rec_maximum_hs_wrapup_milliseconds);
-    WT_STAT_SET(session, stats, rec_maximum_image_build_milliseconds,
+    WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
       conn->rec_maximum_image_build_milliseconds);
-    WT_STAT_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
 }
 
 /*
