@@ -642,7 +642,7 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 
     WT_RET(__wt_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    if (block->ckpt_state == WT_CKPT_INPROGRESS) {
+    if (block->ckpt_state != WT_CKPT_NONE) {
         if (__wt_atomic_load_pointer(&S2BT(session)->sync_session) != session) {
             ret = __wt_calloc_one(session, &be);
             if (ret != 0) {
