@@ -69,6 +69,15 @@
     (s)->name = __oldname;  \
     --(s)->api_call_counter
 
+
+#define CONCAT(a, b) a##b
+#define CONCAT2(a, b) CONCAT(a, b)
+
+/* C macros are gnarly... */
+#define API_CALL_COUNT(s, struct_name, func_name) \
+    if (FLD_ISSET(S2C((s))->debug_flags, WT_CONN_DEBUG_API_CALL_COUNT)) \
+        (void)__wt_atomic_add64(&S2C((s))->api_call_tracker->call_counts[CONCAT2(WT_API_,CONCAT2(struct_name,CONCAT2(_,func_name)))], 1);
+
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, struct_name, func_name, dh)                 \
     WT_TRACK_OP_DECL;                                                   \
@@ -77,6 +86,7 @@
      * No code before this line, otherwise error handling won't be      \
      * correct.                                                         \
      */                                                                 \
+    API_CALL_COUNT(s, struct_name, func_name);                          \
     WT_ERR(WT_SESSION_CHECK_PANIC(s));                                  \
     WT_SINGLE_THREAD_CHECK_START(s);                                    \
     WT_TRACK_OP_INIT(s);                                                \

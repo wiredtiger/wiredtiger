@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 # test_hs12.py
 # Verify we can correctly append modifies to the end of string values
 class test_hs12(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
+    conn_config = 'cache_size=2MB,eviction=(threads_max=1),debug_mode=(api_call_count=true)'
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer-row', dict(key_format='i')),
