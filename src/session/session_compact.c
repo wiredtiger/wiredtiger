@@ -265,22 +265,6 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
 }
 
 /*
- * __compact_checkpoint --
- *     This function waits and triggers a checkpoint.
- */
-static int
-__compact_checkpoint(WT_SESSION_IMPL *session)
-{
-    const char *checkpoint_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL, NULL};
-
-    /* Checkpoints may take a lot of time, check if compaction has been interrupted. */
-    WT_RET(__wt_session_compact_check_interrupted(session));
-
-    WT_STAT_CONN_INCR(session, checkpoints_compact);
-    return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
-}
-
-/*
  * __compact_worker --
  *     Function to alternate between checkpoints and compaction calls.
  */
@@ -290,6 +274,7 @@ __compact_worker(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     u_int i, loop;
     bool another_pass, background_compaction;
+    uint64_t ckpt_gen, cur_ckpt_gen;
 
     background_compaction = session == S2C(session)->background_compact.session;
 
@@ -301,19 +286,14 @@ __compact_worker(WT_SESSION_IMPL *session)
         session->op_handle[i]->compact_skip = false;
 
     /*
-     * Perform an initial checkpoint unless this is background compaction. See this file's leading
-     * comment for details.
-     */
-    if (!background_compaction)
-        WT_ERR(__compact_checkpoint(session));
-
-    /*
      * We compact 10% of a file on each pass (but the overall size of the file is decreasing each
      * time, so we're not compacting 10% of the original file each time). Try 100 times (which is
      * clearly more than we need); quit if we make no progress.
      */
     for (loop = 0; loop < 100; ++loop) {
         WT_STAT_CONN_SET(session, session_table_compact_passes, loop);
+
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
         /* Step through the list of files being compacted. */
         for (another_pass = false, i = 0; i < session->op_handle_next; ++i) {
@@ -381,13 +361,21 @@ __compact_worker(WT_SESSION_IMPL *session)
             break;
 
         /*
-         * Perform two checkpoints. Mark the trees impacted by compaction to ensure the last
-         * checkpoint processes them (see this file's leading comment for details).
+         * Wait for two checkpoints to occur. Mark the trees impacted by compaction to ensure the
+         * last checkpoint processes them (see this file's leading comment for details).
          */
-        WT_ERR(__compact_checkpoint(session));
-        for (i = 0; i < session->op_handle_next; ++i)
-            WT_WITH_DHANDLE(session, session->op_handle[i], __wt_tree_modify_set(session));
-        WT_ERR(__compact_checkpoint(session));
+        while ((cur_ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT)) - ckpt_gen < 2) {
+            __wt_verbose_info(session, WT_VERB_COMPACT,
+              "Compact waiting for checkpoint to rewrite blocks. ckpt_gen at start: %" PRIu64
+              ", ckpt_gen now: %" PRIu64,
+              ckpt_gen, cur_ckpt_gen);
+
+            if (cur_ckpt_gen - ckpt_gen == 1) {
+                for (i = 0; i < session->op_handle_next; ++i)
+                    WT_WITH_DHANDLE(session, session->op_handle[i], __wt_tree_modify_set(session));
+            }
+            __wt_sleep(1, 0);
+        }
     }
 
 err:
