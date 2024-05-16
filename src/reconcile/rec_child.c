@@ -200,6 +200,8 @@ __wt_rec_child_modify(
 
     /* Default to using the original child address. */
     cmsp->state = WT_CHILD_ORIGINAL;
+    cmsp->ref_locked = false;
+    cmsp->old_ref_state = WT_REF_LOCKED;
 
     /*
      * This function is called when walking an internal page to decide how to handle child pages
@@ -230,8 +232,8 @@ __wt_rec_child_modify(
              */
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
-            ret = __rec_child_deleted(session, r, ref, cmsp);
-            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            cmsp->ref_locked = true;
+            cmsp->old_ref_state = WT_REF_DELETED;
             goto done;
 
         case WT_REF_LOCKED:

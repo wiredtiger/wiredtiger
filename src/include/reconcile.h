@@ -335,17 +335,21 @@ typedef struct {
  *	Macros to clean up during internal-page reconciliation, releasing the hazard pointer we're
  * holding on a child page.
  */
-#define WT_CHILD_RELEASE(session, hazard, ref)                          \
+#define WT_CHILD_RELEASE(session, locked, old_ref_state, hazard, ref)   \
     do {                                                                \
+        if (locked) {                                                   \
+            (locked) = false;                                           \
+            WT_REF_SET_STATE((ref), (old_ref_state));                   \
+        }                                                               \
         if (hazard) {                                                   \
             (hazard) = false;                                           \
             WT_TRET(__wt_page_release(session, ref, WT_READ_NO_EVICT)); \
         }                                                               \
     } while (0)
-#define WT_CHILD_RELEASE_ERR(session, hazard, ref) \
-    do {                                           \
-        WT_CHILD_RELEASE(session, hazard, ref);    \
-        WT_ERR(ret);                               \
+#define WT_CHILD_RELEASE_ERR(session, locked, old_ref_state, hazard, ref) \
+    do {                                                                  \
+        WT_CHILD_RELEASE(session, locked, old_ref_state, hazard, ref);    \
+        WT_ERR(ret);                                                      \
     } while (0)
 
 /*
@@ -364,6 +368,8 @@ typedef struct {
     WT_PAGE_DELETED del; /* WT_CHILD_PROXY state fast-truncate information */
 
     bool hazard; /* If currently holding a child hazard pointer */
+    bool ref_locked;
+    uint8_t old_ref_state;
 } WT_CHILD_MODIFY_STATE;
 
 /*
