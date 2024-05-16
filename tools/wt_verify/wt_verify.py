@@ -271,6 +271,30 @@ def generate_broken_barh(filename, data, bar_width=1):
         imgs += img
     return imgs
 
+def generate_hist(filename, data, bins=100):
+    """
+    data: dictionary that contains information related to different checkpoints.
+    """
+    imgs = ""
+    for checkpoint in data:
+        all_addr = []
+
+        # Concatenate the lists for each page type:
+        for page_type in data[checkpoint]:
+            all_addr += data[checkpoint][page_type]
+
+        # Create a list of offsets.
+        all_addr = list(map(itemgetter(0), all_addr))
+
+        fig, ax = plt.subplots(1, figsize=(15, 10))
+        ax.hist(all_addr, bins=bins)
+        plt.title(f"Location of blocks for {filename} - {checkpoint}")
+        plt.close()
+
+        img = mpld3.fig_to_html(fig)
+        imgs += img
+    return imgs
+
 
 def generate_vertical_bar(filename, data):
     """
@@ -537,6 +561,7 @@ def main():
 
     if "dump_blocks" in command:
         imgs = generate_broken_barh(args.filename, parsed_data)
+        imgs += generate_hist(args.filename, parsed_data)
         imgs += generate_vertical_bar(args.filename, parsed_data)
         serve(imgs)
     else:
