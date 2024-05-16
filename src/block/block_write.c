@@ -237,11 +237,13 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
         WT_RET_MSG(session, EINVAL, "direct I/O check: write buffer incorrectly allocated");
     }
 
+    __wt_spin_lock(session, &block->live_lock);
     /*
      * File checkpoint/recovery magic: done before sizing the buffer as it may grow the buffer.
      */
     if (block->final_ckpt != NULL)
         WT_RET(__wt_block_checkpoint_final(session, block, buf, &file_sizep));
+    __wt_spin_unlock(session, &block->live_lock);
 
     /*
      * Align the size to an allocation unit.
