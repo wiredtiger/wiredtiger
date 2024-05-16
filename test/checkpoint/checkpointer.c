@@ -333,12 +333,10 @@ real_checkpointer(THREAD_DATA *td)
         if (!g.opts.running)
             goto done;
 
-        printf("verify checkpoint\n");
         /* Verify the checkpoint we just wrote. */
         if ((ret = verify_consistency(session, WT_TS_NONE, true)) != 0)
             return (log_print_err("verify_consistency (checkpoint)", ret, 1));
 
-        printf("verify timestamps\n");
         /* Verify the content of the database at the verify timestamp. */
         if (g.use_timestamps && (ret = verify_consistency(session, verify_ts, false)) != 0)
             return (log_print_err("verify_consistency (timestamps)", ret, 1));
@@ -546,7 +544,6 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
                 (void)diagnose_key_error(cursors[reference_table], g.cookies[reference_table].type,
                   reference_table, cursors[i], g.cookies[i].type, i);
                 (void)log_print_err("verify_consistency - mismatching data", EFAULT, 1);
-                testutil_check(ret);
                 goto err;
             }
         }
