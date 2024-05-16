@@ -655,7 +655,7 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
             TAILQ_INSERT_TAIL(&block->bfqh, be, q);
         } else
             WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
-    } else if (block->ckpt_state == WT_SALVAGE)
+    } else if (block->ckpt_state == WT_CKPT_SALVAGE)
         WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
     else {
         WT_TRET(__wt_block_free_queue(session, block));
