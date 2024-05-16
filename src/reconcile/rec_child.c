@@ -234,6 +234,7 @@ __wt_rec_child_modify(
                 break;
             cmsp->ref_locked = true;
             cmsp->old_ref_state = WT_REF_DELETED;
+            ret = __rec_child_deleted(session, r, ref, cmsp);
             goto done;
 
         case WT_REF_LOCKED:
