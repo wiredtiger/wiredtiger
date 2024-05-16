@@ -292,13 +292,6 @@ __wt_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list
     name = NULL;
 
     /*
-     * Temporarily remove the check to see we actually corrupt data. Fake session check to avoid the
-     * compiler whinging about dead code.
-     */
-    if (session != NULL)
-        return (0);
-
-    /*
      * Don't check during the salvage read phase, we might be reading an already freed overflow
      * page.
      */
