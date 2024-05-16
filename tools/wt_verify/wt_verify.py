@@ -254,7 +254,7 @@ def generate_broken_barh(filename, data, bar_width=1):
             ax.broken_barh(data[checkpoint][key], (i, bar_width),
                            facecolors=f'tab:{colors[i]}', label=key)
 
-            # Save the max offset seen for the plot.
+            # Save the max offset seen for the plot assuming the offsets are sorted.
             if data[checkpoint][key][-1][0] > max_addr:
                 max_addr = data[checkpoint][key][-1][0]
                 max_addr_size = data[checkpoint][key][-1][1]
