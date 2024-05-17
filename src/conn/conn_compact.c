@@ -390,9 +390,9 @@ __background_compact_list_cleanup(
     uint64_t cur_time, i;
     bool cleanup;
 
+    cleanup = false;
     conn = S2C(session);
     cur_time = __wt_clock(session);
-    cleanup = false;
 
     if (cleanup_type == BACKGROUND_COMPACT_CLEANUP_EXIT ||
       cleanup_type == BACKGROUND_COMPACT_CLEANUP_OFF)
