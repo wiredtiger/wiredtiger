@@ -388,21 +388,21 @@ __background_compact_list_cleanup(
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t cur_time, i;
-    bool cleanup;
+    bool cleanup_stat;
 
-    cleanup = false;
+    cleanup_stat = false;
     conn = S2C(session);
     cur_time = __wt_clock(session);
 
     if (cleanup_type == BACKGROUND_COMPACT_CLEANUP_EXIT ||
       cleanup_type == BACKGROUND_COMPACT_CLEANUP_OFF)
-        cleanup = true;
+        cleanup_stat = true;
 
     for (i = 0; i < conn->hash_size; i++) {
         TAILQ_FOREACH_SAFE(
           compact_stat, &conn->background_compact.stat_hash[i], hashq, temp_compact_stat)
         {
-            if (cleanup ||
+            if (cleanup_stat ||
               WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
                 conn->background_compact.max_file_idle_time)
                 __background_compact_list_remove(session, compact_stat, i);
