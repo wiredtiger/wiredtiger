@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
+#include <fstream>
 
 #include "src/common/logger.h"
 #include "src/main/test.h"
@@ -45,6 +46,8 @@
 #include "operations_test.cpp"
 #include "reverse_split.cpp"
 #include "test_template.cpp"
+#include "session_microbenchmarks.cpp"
+#include "cursor_microbenchmarks.cpp"
 
 extern "C" {
 #include "test_util.h"
@@ -161,6 +164,10 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         reverse_split(args).run();
     else if (test_name == "test_template")
         test_template(args).run();
+    else if (test_name == "session_microbenchmarks")
+        session_microbenchmarks(args).run();
+    else if (test_name == "cursor_microbenchmarks")
+        cursor_microbenchmarks(args).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -184,10 +191,11 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, home, test_name,
       wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"background_compact", "bounded_cursor_perf",
-      "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
-      "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
-      "hs_cleanup", "operations_test", "reverse_split", "test_template"};
+    const std::vector<std::string> all_tests = {"session_microbenchmarks", "cursor_microbenchmarks",
+      "background_compact", "bounded_cursor_perf", "bounded_cursor_prefix_indices",
+      "bounded_cursor_prefix_search_near", "bounded_cursor_prefix_stat", "bounded_cursor_stress",
+      "burst_inserts", "cache_resize", "hs_cleanup", "operations_test", "reverse_split",
+      "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);

@@ -26,36 +26,43 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <cstdint>
-
 #include "execution_timer.h"
 
 #include "src/component/metrics_writer.h"
 
 namespace test_harness {
+execution_timer::execution_timer(
+  const std::string id, const std::string &test_name, const bool measure_time)
+    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0),
+      _measure_time(measure_time)
+{
+    memset(&_pe, 0, sizeof(_pe));
+    _pe.type = PERF_TYPE_HARDWARE;
+    _pe.size = sizeof(_pe);
+    _pe.config = PERF_COUNT_HW_INSTRUCTIONS;
+    _pe.disabled = 1;
+    _pe.exclude_kernel = 1;
+    _pe.exclude_hv = 1;
+}
+
 execution_timer::execution_timer(const std::string id, const std::string &test_name)
-    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0)
+    : execution_timer(id, test_name, true)
 {
 }
 
 void
 execution_timer::append_stats()
 {
-    uint64_t avg = (uint64_t)_total_time_taken / _it_count;
-    std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
+    uint64_t avg;
+    std::string stat;
+    if (_measure_time) {
+        avg = (uint64_t)_total_time_taken / _it_count;
+        stat = "{\"name\":\"" + _id + "_ticks\",\"value\":" + std::to_string(avg) + "}";
+        metrics_writer::instance().add_stat(stat);
+    }
+    avg = (uint64_t)_total_instruction_count / _it_count;
+    stat = "{\"name\":\"" + _id + "_instructions\",\"value\":" + std::to_string(avg) + "}";
     metrics_writer::instance().add_stat(stat);
-}
-
-template <typename T>
-auto
-execution_timer::track(T lambda)
-{
-    auto _start_time = std::chrono::steady_clock::now();
-    int ret = lambda();
-    auto _end_time = std::chrono::steady_clock::now();
-    _total_time_taken += (_end_time - _start_time).count();
-    _it_count += 1;
-    return ret;
 }
 
 execution_timer::~execution_timer()

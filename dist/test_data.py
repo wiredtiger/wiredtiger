@@ -244,6 +244,11 @@ test_config = [
         The duration that the test run will last''', min=0, max=1000000),
     Config('enable_logging', 'false', r'''
         Enables write ahead logs''', type='boolean'),
+    Config('in_memory', 'false', r'''
+        Enables WiredTige's in memory mode.''', type='boolean'),
+    Config('sweep_interval', 10, r'''
+        The frequency that the sweep server will sweep at, defaults to the same as the WiredTiger
+        default.'''),
     Config('reverse_collator', 'false', r'''
         Configure the database files to use the reverse collator.''', type='boolean'),
     Config('statistics_config', '', r'''
@@ -285,4 +290,6 @@ methods = {
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
     'test_template' : Method(test_config),
+    'session_microbenchmarks' : Method(test_config),
+    'cursor_microbenchmarks' : Method(test_config),
 }
