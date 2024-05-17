@@ -339,7 +339,7 @@ configure_chunkcache(char **p, size_t max)
 /*
  * configure_prefetch --
  *     Configure prefetch settings for opening a connection. When enabled, this allows sessions to
- * use the prefetch feature.
+ *     use the prefetch feature.
  */
 static void
 configure_prefetch(char **p, size_t max)

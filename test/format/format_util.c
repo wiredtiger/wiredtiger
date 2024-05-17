@@ -428,7 +428,7 @@ wt_wrap_close_session(WT_SESSION *session)
 /*
  * enable_session_prefetch --
  *     Return true if prefetch should be enabled for a session. Note that prefetch needs to be
- * enabled at the connection level before being available for a session.
+ *     enabled at the connection level before being available for a session.
  */
 bool
 enable_session_prefetch(void)
