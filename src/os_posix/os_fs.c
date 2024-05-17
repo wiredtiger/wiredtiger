@@ -117,17 +117,19 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     int fd, tret;
-    char *dir;
+    char *dir, *dpos;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_setstr(session, tmp, path));
 
     /*
-     * This layer should never see a path that doesn't include a trailing path separator, this code
-     * asserts that fact.
+     * This layer should never see a path that doesn't include a path separator, this code asserts
+     * that fact, and truncates the non directory part of the path so dir ends with /
      */
     dir = tmp->mem;
-    WT_ASSERT_ALWAYS(session, dir[strlen(dir) - 1] == '/', "Dir path missing trailing '/'");
+    dpos = strrchr(dir, '/');
+    WT_ASSERT_ALWAYS(session, dpos != NULL, "Path doesn't include a directory: %s", dir);
+    dpos[1] = '\0';
 
     fd = 0; /* -Wconditional-uninitialized */
     WT_SYSCALL_RETRY(((fd = open(dir, O_RDONLY | O_CLOEXEC, 0444)) == -1 ? -1 : 0), ret);
