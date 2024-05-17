@@ -124,9 +124,11 @@ def run_coverage_task_lists_in_parallel(label, task_bucket_info):
 
 
 def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
-    print(f"run_gcovr({build_dir_base}, {gcovr_dir})")
+    print(f"Starting run_gcovr({build_dir_base}, {gcovr_dir})")
     dir_name = os.path.dirname(build_dir_base)
-    for file_name in os.listdir(dir_name):
+    filenames_in_dir = os.listdir(dir_name)
+    filenames_in_dir.sort()
+    for file_name in filenames_in_dir:
         if file_name.startswith('build_') and file_name.endswith("copy"):
             build_copy_name = file_name
             build_copy_path = os.path.join(dir_name, build_copy_name)
@@ -139,6 +141,10 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             gcovr_command = f"gcovr {build_copy_name} -f src -j 4 --html-self-contained --html-details {coverage_output_dir}/2_coverage_report.html --json-summary-pretty --json-summary {coverage_output_dir}/1_coverage_report_summary.json --json {coverage_output_dir}/full_coverage_report.json"
             split_command = gcovr_command.split()
             subprocess.run(split_command, check=True)
+            if verbose:
+                print(f'Completed a run of gcovr on {build_copy_name}')
+    print(f"Ending run_gcovr({build_dir_base}, {gcovr_dir})")
+
 
 
 def read_json(json_file_path: str) -> dict:
@@ -148,10 +154,13 @@ def read_json(json_file_path: str) -> dict:
 
 
 def collate_coverage_data(gcovr_dir: str, verbose: bool):
+    filenames_in_dir = os.listdir(gcovr_dir)
+    filenames_in_dir.sort()
     if verbose:
-        print(f"collate_coverage_data({gcovr_dir})")
+        print(f"Starting collate_coverage_data({gcovr_dir})")
+        print(f"filenames_in_dir {filenames_in_dir}")
     collated_coverage_data = {}
-    for file_name in os.listdir(gcovr_dir):
+    for file_name in filenames_in_dir:
         if file_name.startswith('build_') and file_name.endswith("copy"):
             build_coverage_name = file_name
             build_coverage_path = os.path.join(gcovr_dir, build_coverage_name)
@@ -168,6 +177,8 @@ def collate_coverage_data(gcovr_dir: str, verbose: bool):
                         "full_coverage": coverage_info
                          }
             collated_coverage_data[task] = dict_entry
+    if verbose:
+        print(f"Ending collate_coverage_data({gcovr_dir})")
     return collated_coverage_data
 
 
@@ -260,12 +271,16 @@ def main():
 
     # Run gcovr if required
     if gcovr_dir:
-        #run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir, verbose=verbose)
-        collected_coverage_data = collate_coverage_data(gcovr_dir=gcovr_dir, verbose=verbose)
-        report_as_json_object = json.dumps(collected_coverage_data, indent=2)
-        report_path = os.path.join(gcovr_dir, "per_task_coverage_report.json")
-        with open(report_path, "w") as output_file:
-            output_file.write(report_as_json_object)
+        run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir, verbose=verbose)
+        # collected_coverage_data = collate_coverage_data(gcovr_dir=gcovr_dir, verbose=verbose)
+        # if verbose:
+        #     print('About to dump results to json')
+        # report_as_json_object = json.dumps(collected_coverage_data, indent=0)
+        # if verbose:
+        #     print('Dumped results to json')
+        # report_path = os.path.join(gcovr_dir, "per_task_coverage_report.json")
+        # with open(report_path, "w") as output_file:
+        #     output_file.write(report_as_json_object)
 
 
 if __name__ == '__main__':
