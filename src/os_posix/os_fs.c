@@ -127,7 +127,7 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
      * asserts that fact.
      */
     dir = tmp->mem;
-    strrchr(dir, '/')[1] = '\0';
+    WT_ASSERT_ALWAYS(session, dir[strlen(dir) - 1] == '/', "Dir path missing trailing '/'");
 
     fd = 0; /* -Wconditional-uninitialized */
     WT_SYSCALL_RETRY(((fd = open(dir, O_RDONLY | O_CLOEXEC, 0444)) == -1 ? -1 : 0), ret);
