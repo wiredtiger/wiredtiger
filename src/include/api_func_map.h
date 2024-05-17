@@ -76,4 +76,4 @@
 #define WT_API_WT_CONNECTION_get_storage_source 73
 #define WT_API_WT_CONNECTION_get_extension_api 74
 #define WT_API_COUNT 75
-extern const char* WT_API_NAMES[];
+extern const char *__WT_API_NAMES[];

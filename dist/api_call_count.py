@@ -4,7 +4,7 @@ import os, re, sys, textwrap
 def get_name(type, func):
     return "\"" + type + "::"   + func + "\""
 
-api_name_lookup = ["const char *WT_API_NAMES[] = {"]
+api_name_lookup = ["const char *__WT_API_NAMES[] = {"]
 api_name_line_count = 0
 
 # Cursed code that outputs the string array in the correctly formatted fashion.
@@ -60,7 +60,7 @@ with open('../src/include/api_func_map.h', "w") as api_func_h:
                     append_api_name(get_name('WT_CURSOR', 'insert_check'), False)
                     func_count += 1
     api_func_h.write("#define WT_API_COUNT " + str(func_count) + "\n")
-    api_func_h.write('extern const char* WT_API_NAMES[];\n')
+    api_func_h.write('extern const char* __WT_API_NAMES[];\n')
 
 api_name_lookup[api_name_line_count] += "};\n"
 with open('../src/config/api_func_map.c', 'w') as api_func_c:

@@ -1178,9 +1178,10 @@ __conn_dump_api_call_counts(WT_CONNECTION_IMPL *conn)
 
     /* Iterate over and dump the api call counts. */
     for (int i = 0; i < WT_API_COUNT; i++) {
-        WT_ERR(__wt_snprintf(buf, sizeof(buf), "%s=%lu\n", WT_API_NAMES[i], conn->api_call_tracker->call_counts[i]));
+        WT_ERR(__wt_snprintf(
+          buf, sizeof(buf), "%s=%lu\n", __WT_API_NAMES[i], conn->api_call_tracker->call_counts[i]));
         WT_ERR(__wt_write(conn->default_session, fh, offset, strlen(buf), buf));
-        offset +=  (wt_off_t)strlen(buf);
+        offset += (wt_off_t)strlen(buf);
     }
 
 err:
@@ -1296,7 +1297,7 @@ err:
     }
 
     /* If configured to dump API call counts do so now. */
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_API_CALL_COUNT))
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT))
         __conn_dump_api_call_counts(conn);
 
     /*
@@ -2170,11 +2171,11 @@ __debug_mode_api_call_count_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.api_call_count", &cval));
     if (cval.val) {
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_API_CALL_COUNT);
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT);
         /* Allocate the API call count tracker. */
         WT_RET(__wt_calloc_one(session, &conn->api_call_tracker));
-    } else {
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_API_CALL_COUNT);
+    } else if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT)) {
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT);
         /* Free the API call count tracker. */
         __wt_free(session, conn->api_call_tracker);
     }

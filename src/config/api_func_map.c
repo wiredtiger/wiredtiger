@@ -1,4 +1,4 @@
-const char *WT_API_NAMES[] = {"WT_CURSOR::get_key", "WT_CURSOR::get_value",
+const char *__WT_API_NAMES[] = {"WT_CURSOR::get_key", "WT_CURSOR::get_value",
   "WT_CURSOR::get_raw_key_value", "WT_CURSOR::set_key", "WT_CURSOR::set_value",
   "WT_CURSOR::compare", "WT_CURSOR::equals", "WT_CURSOR::next", "WT_CURSOR::prev",
   "WT_CURSOR::reset", "WT_CURSOR::search", "WT_CURSOR::search_near", "WT_CURSOR::insert",
