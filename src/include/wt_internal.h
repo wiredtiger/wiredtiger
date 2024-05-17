@@ -69,6 +69,8 @@ struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
 struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
+struct __wt_api_call_tracker;
+typedef struct __wt_api_call_tracker WT_API_CALL_TRACKER;
 struct __wt_background_compact;
 typedef struct __wt_background_compact WT_BACKGROUND_COMPACT;
 struct __wt_background_compact_exclude;
@@ -510,6 +512,7 @@ typedef uint64_t wt_timestamp_t;
 #include "thread_group.h" /* required by rollback_to_stable.h */
 
 #include "api.h"
+#include "api_func_map.h"
 #include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"

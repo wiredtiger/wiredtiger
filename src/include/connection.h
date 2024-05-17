@@ -315,6 +315,10 @@ typedef TAILQ_HEAD(__wt_backuphash, __wt_backup_target) WT_BACKUPHASH;
 
 extern const WT_NAME_FLAG __wt_stress_types[];
 
+struct __wt_api_call_tracker {
+    wt_shared uint64_t call_counts[WT_API_COUNT];
+};
+
 /*
  * Access the array of all sessions. This field uses the Slotted Array pattern to managed shared
  * accesses, if you are looking to walk all sessions please consider using the existing session walk
@@ -731,19 +735,23 @@ struct __wt_connection_impl {
     wt_shared uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
+    /* Used to count api calls when configured to. */
+    WT_API_CALL_TRACKER *api_call_tracker;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x001u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x002u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x004u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x008u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x010u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x020u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x040u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x080u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x100u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x200u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x400u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x800u
+#define WT_CONN_DEBUG_API_ENTRY_COUNT 0x0001u
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x0002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0008u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0010u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0020u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0040u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0080u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0100u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0200u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x0400u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x0800u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x1000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 
