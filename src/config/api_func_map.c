@@ -1,3 +1,5 @@
+#include "api_func_map.h"
+
 const char *__WT_API_NAMES[] = {"WT_CURSOR::get_key", "WT_CURSOR::get_value",
   "WT_CURSOR::get_raw_key_value", "WT_CURSOR::set_key", "WT_CURSOR::set_value",
   "WT_CURSOR::compare", "WT_CURSOR::equals", "WT_CURSOR::next", "WT_CURSOR::prev",
