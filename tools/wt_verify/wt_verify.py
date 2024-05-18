@@ -334,9 +334,8 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
     checkpoints.
     max_gap_size: display free blocks up to the specified size in bytes
     """
-    imgs = ""
+    all_addr = []
     for checkpoint in data:
-        all_addr = []
 
         # Concatenate the lists for each page type:
         for page_type in data[checkpoint]:
@@ -345,45 +344,47 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
         # Sort them by the addr_start which is the first element:
         all_addr.sort(key=itemgetter(0))
 
-        # Now count all the gaps:
-        buckets = {}
-        for i, current_tuple in enumerate(all_addr):
-            if i > 0:
-                prev_tupe = all_addr[i - 1]
-                prev_tupe_end = prev_tupe[0] + prev_tupe[1]
-                gap = current_tuple[0] - prev_tupe_end
-                assert gap >= 0, f"Data is not sorted correctly"
-                if gap == 0:
-                    continue
-                # If the size of the free block is large enough, we may not have interest in it.
-                if max_gap_size and gap > max_gap_size:
-                    continue
-                if gap in buckets:
-                    buckets[gap] += 1
-                else:
-                    buckets[gap] = 1
+    # Now count all the gaps:
+    buckets = {}
+    for i, current_tuple in enumerate(all_addr):
+        if i > 0:
+            prev_tupe = all_addr[i - 1]
+            prev_tupe_end = prev_tupe[0] + prev_tupe[1]
+            gap = current_tuple[0] - prev_tupe_end
+            assert gap >= 0, f"Data is not sorted correctly"
+            if gap == 0:
+                continue
+            # If the size of the free block is large enough, we may not have interest in it.
+            if max_gap_size and gap > max_gap_size:
+                continue
+            if gap in buckets:
+                buckets[gap] += 1
             else:
-                # Nothing to do if the first block is written at offset 0.
-                gap = current_tuple[0]
-                if gap > 0:
-                    buckets[gap] = 1
+                buckets[gap] = 1
+        else:
+            gap = current_tuple[0]
+            # Nothing to do if the first block is written at offset 0.
+            if gap > 0:
+                buckets[gap] = 1
 
-        # Sort buckets by size.
-        buckets = dict(sorted(buckets.items()))
+    # Sort buckets by size.
+    buckets = dict(sorted(buckets.items()))
 
-        fig, ax = plt.subplots(1, figsize=(15, 10))
-        keys_str = [str(x) for x in buckets.keys()]
-        ax.bar(keys_str, list(buckets.values()))
-        ax.set_xticklabels(keys_str)
-        ax.set_xticks(range(len(buckets)))
-        plt.xlabel("Bucket size (B)")
-        plt.ylabel("Number of blocks")
-        plt.title(f"Free blocks for {filename} - {checkpoint}")
-        plt.close()
+    # Plot settings.
+    fig, ax = plt.subplots(1, figsize=(15, 10))
+    keys_str = [str(x) for x in buckets.keys()]
+    ax.bar(keys_str, list(buckets.values()))
+    ax.set_xticklabels(keys_str)
+    ax.set_xticks(range(len(buckets)))
+    plt.xlabel("Bucket size (B)")
+    plt.ylabel("Number of blocks")
+    plt.title(f"Free blocks for {filename}")
+    plt.close()
 
-        img = mpld3.fig_to_html(fig)
-        imgs += img
-    return imgs
+    # Generate the image.
+    img = mpld3.fig_to_html(fig)
+
+    return img
 
 
 def histogram(field, chkpt, chkpt_name):
