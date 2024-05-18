@@ -205,6 +205,12 @@ def parse_dump_blocks():
             addr_start = int(x.group(2))
             size = int(x.group(3))
 
+            # If a cell type has an address, get its type.
+            if page_type == 'cell_type':
+                x = re.search(r"^cell_type: (\w+).*", line)
+                assert x, f"Cell type not found in {line}"
+                page_type = x.group(1)
+
             if page_type not in data[checkpoint_name]:
                 data[checkpoint_name][page_type] = []
 
