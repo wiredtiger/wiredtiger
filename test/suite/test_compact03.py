@@ -31,12 +31,11 @@
 #   end of file.
 #
 
-import wttest
-from wiredtiger import stat
+from compact_util import compact_util
 from wtscenario import make_scenarios
 
 # Test compact behaviour with overflow values.
-class test_compact03(wttest.WiredTigerTestCase):
+class test_compact03(compact_util):
 
     uri='table:test_compact03'
 
@@ -79,28 +78,6 @@ class test_compact03(wttest.WiredTigerTestCase):
     expectedTableSize = 20 # Mbytes
     nOverflowRecords = 5000
 
-    # Return stats that track the progress of compaction.
-    def getCompactProgressStats(self):
-        cstat = self.session.open_cursor(
-            'statistics:' + self.uri, None, 'statistics=(all)')
-        statDict = {}
-        statDict["pages_reviewed"] = cstat[stat.dsrc.btree_compact_pages_reviewed][2]
-        statDict["pages_skipped"] = cstat[stat.dsrc.btree_compact_pages_skipped][2]
-        statDict["pages_rewritten"] = cstat[stat.dsrc.btree_compact_pages_rewritten][2]
-        cstat.close()
-        return statDict
-
-    # Return the size of the file
-    def getSize(self):
-        # To allow this to work on systems without ftruncate,
-        # get the portion of the file allocated, via 'statistics=(all)',
-        # not the physical file size, via 'statistics=(size)'.
-        cstat = self.session.open_cursor(
-            'statistics:' + self.uri, None, 'statistics=(all)')
-        sz = cstat[stat.dsrc.block_size][2]
-        cstat.close()
-        return sz
-
     # Create a table, add keys with both big and small values.
     def test_compact03(self):
         # FIXME-WT-11399: check the other assertions that are skipped when the tiered hook is
@@ -119,7 +96,7 @@ class test_compact03(wttest.WiredTigerTestCase):
 
         # 2. Checkpoint and get stats on the table to confirm the size.
         self.session.checkpoint()
-        sizeWithoutOverflow = self.getSize()
+        sizeWithoutOverflow = self.get_size(self.uri)
         self.pr('After populate ' + str(sizeWithoutOverflow // mb) + 'MB')
         if not self.runningHook('tiered'):
             self.assertGreater(sizeWithoutOverflow, self.expectedTableSize * mb)
@@ -132,7 +109,7 @@ class test_compact03(wttest.WiredTigerTestCase):
 
         # 4. Perform checkpoint to ensure overflow values are written to the disk.
         self.session.checkpoint()
-        sizeWithOverflow = self.getSize()
+        sizeWithOverflow = self.get_size(self.uri)
         self.pr('After inserting overflow values ' + str(sizeWithoutOverflow // mb) + 'MB')
         if not self.runningHook('tiered'):
             self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
@@ -160,13 +137,13 @@ class test_compact03(wttest.WiredTigerTestCase):
         #        rewritten and therefore the file size will mostly remain the same. Give a leeway
         #        of 10%.
         self.session.compact(self.uri)
-        sizeAfterCompact = self.getSize()
+        sizeAfterCompact = self.get_size(self.uri)
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
         if not self.runningHook('tiered'):
             self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
 
             # Verify that we did indeed rewrote some pages but that didn't help with the file size.
-            statDict = self.getCompactProgressStats()
+            statDict = self.get_compact_progress_stats(self.uri)
             self.assertGreater(statDict["pages_reviewed"],0)
             self.assertGreater(statDict["pages_rewritten"],0)
             self.assertEqual(statDict["pages_rewritten"] + statDict["pages_skipped"],
@@ -187,7 +164,7 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.compact(self.uri)
 
         # Test that the file size doesn't increase.
-        sizeAfterNewInserts = self.getSize()
+        sizeAfterNewInserts = self.get_size(self.uri)
         self.pr('After Inserting bunch of values ' + str(sizeAfterNewInserts // mb) + 'MB')
         if not self.runningHook('tiered'):
             self.assertEqual(sizeAfterCompact, sizeAfterNewInserts)
