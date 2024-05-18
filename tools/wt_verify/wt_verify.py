@@ -372,9 +372,10 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
 
     # Plot settings.
     fig, ax = plt.subplots(1, figsize=(15, 10))
-    keys_str = [str(x) for x in buckets.keys()]
-    ax.bar(keys_str, list(buckets.values()))
-    ax.set_xticklabels(keys_str)
+    labels = [str(x) for x in buckets.keys()]
+    ax.bar(labels, list(buckets.values()))
+    # The rotation does not work as expected.
+    ax.set_xticklabels(labels, rotation=45)
     ax.set_xticks(range(len(buckets)))
     plt.xlabel("Bucket size (B)")
     plt.ylabel("Number of blocks")
