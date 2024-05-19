@@ -539,12 +539,12 @@ __background_compact_server(void *arg)
 
         /* The server has been signalled to change state. */
         if (conn->background_compact.signalled) {
+
             /* If configured to run once, start from the beginning. */
-            if (conn->background_compact.run_once) {
-                WT_ASSERT(session, running);
+            if (running && conn->background_compact.run_once)
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
-            }
+
             conn->background_compact.signalled = false;
             WT_STAT_CONN_SET(session, background_compact_running, running);
         }
@@ -720,7 +720,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const char *cfg[3] = {NULL, NULL, NULL}, *stripped_config;
-    bool running, enable;
+    bool enable, running;
 
     conn = S2C(session);
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_compact);

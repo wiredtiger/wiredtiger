@@ -38,7 +38,7 @@ __wt_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     F_SET(conn, WT_CONN_PREFETCH_RUN);
 
-    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL | WT_SESSION_PREFETCH_THREAD;
+    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &conn->prefetch_threads, "prefetch-server",
       WT_PREFETCH_THREAD_COUNT, WT_PREFETCH_THREAD_COUNT, session_flags, __wt_prefetch_thread_chk,
       __wt_prefetch_thread_run, NULL));
@@ -77,6 +77,9 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_ASSERT(session, session->id != 0);
     conn = S2C(session);
 
+    /* Mark the session as a prefetch thread session. */
+    F_SET(session, WT_SESSION_PREFETCH_THREAD);
+
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     if (F_ISSET(conn, WT_CONN_PREFETCH_RUN))
@@ -96,6 +99,20 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         --conn->prefetch_queue_count;
 
         /*
+         * If the cache is getting close to its eviction clean trigger, don't attempt to pre-fetch
+         * the current ref as we may hang if the cache becomes full and we need to wait until space
+         * in the cache clears up. Repeat this process until either eviction has evicted enough
+         * eligible pages (allowing pre-fetch to read into the cache), or we iterate through and
+         * remove all the refs from the pre-fetch queue and pre-fetch becomes a no-op.
+         */
+        if (__wt_eviction_clean_pressure(session)) {
+            F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
+            __wt_spin_unlock(session, &conn->prefetch_lock);
+            __wt_free(session, pe);
+            continue;
+        }
+
+        /*
          * We increment this while in the prefetch lock as the thread reading from the queue expects
          * that behavior.
          */
@@ -103,7 +120,6 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
-        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         /*
@@ -118,6 +134,11 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL)
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
 
+        /*
+         * It is now safe to clear the flag. The prefetch worker is done interacting with the ref
+         * and the associated internal page can be safely evicted from now on.
+         */
+        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         WT_ERR(ret);
 
@@ -142,6 +163,14 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 
     conn = S2C(session);
 
+    /*
+     * Pre-fetch shouldn't wait until the cache is already full before it stops adding new refs to
+     * the queue. It should take a more conservative approach and stop as soon as it detects that we
+     * are close to hitting the eviction clean trigger.
+     */
+    if (__wt_eviction_clean_pressure(session))
+        return (EBUSY);
+
     WT_RET(__wt_calloc_one(session, &pe));
     pe->ref = ref;
     pe->first_home = ref->home;
@@ -154,6 +183,11 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(EBUSY);
     }
 
+    /*
+     * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
+     * guarantees the corresponding internal page cannot be evicted until prefetch has processed the
+     * leaf page. This flag is checked when eviction reviews an internal page for active children.
+     */
     F_SET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
     ++conn->prefetch_queue_count;

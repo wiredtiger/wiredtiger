@@ -102,7 +102,7 @@ __wt_cursor_bound_reset(WT_CURSOR *cursor)
 
     /* Clear bounds if they are set. */
     if (WT_CURSOR_BOUNDS_SET(cursor)) {
-        WT_STAT_CONN_DATA_INCR(session, cursor_bounds_reset);
+        WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_reset);
         /* Clear upper bound, and free the buffer. */
         F_CLR(cursor, WT_CURSTD_BOUND_UPPER | WT_CURSTD_BOUND_UPPER_INCLUSIVE);
         __wt_buf_free(session, &cursor->upper_bound);
@@ -451,6 +451,39 @@ __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
     if (!WT_READING_CHECKPOINT(session))
         __wt_txn_cursor_op(session);
     return (0);
+}
+
+/*
+ * __wt_cursor_free_cached_memory --
+ *     If a cached cursor is still holding memory, free it now.
+ */
+static WT_INLINE void
+__wt_cursor_free_cached_memory(WT_CURSOR *cursor)
+{
+    WT_SESSION_IMPL *session;
+
+    if (F_ISSET(cursor, WT_CURSTD_CACHED_WITH_MEM)) {
+        session = CUR2S(cursor);
+
+        /* Don't keep buffers allocated for cached cursors. */
+        __wt_buf_free(session, &cursor->key);
+        __wt_buf_free(session, &cursor->value);
+
+        /* Discard the underlying WT_CURSOR_BTREE buffers. */
+        __wt_btcur_free_cached_memory((WT_CURSOR_BTREE *)cursor);
+
+        F_CLR(cursor, WT_CURSTD_CACHED_WITH_MEM);
+    }
+}
+
+/*
+ * __wt_cursor_has_cached_memory --
+ *     Return true if a cursor is holding memory in either key or value.
+ */
+static WT_INLINE bool
+__wt_cursor_has_cached_memory(WT_CURSOR *cursor)
+{
+    return (cursor->key.mem != NULL || cursor->value.mem != NULL);
 }
 
 /*

@@ -282,8 +282,8 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         tune_checksum for more information.''',
         choices=['on', 'off', 'uncompressed', 'unencrypted']),
     Config('dictionary', '0', r'''
-        the maximum number of unique values remembered in the Btree row-store leaf page value
-        dictionary; see @ref file_formats_compression for more information''',
+        the maximum number of unique values remembered in the row-store/variable-length column-store
+        leaf page value dictionary; see @ref file_formats_compression for more information''',
         min='0'),
     Config('encryption', '', r'''
         configure an encryptor for file blocks. When a table is created, its encryptor is not
@@ -648,6 +648,10 @@ connection_runtime_config = [
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
                 min=1, max=20),
+            Config('evict_sample_inmem', 'true', r'''
+                If no in-memory ref is found on the root page, attempt to locate a random 
+                in-memory page by examining all entries on the root page.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -932,6 +936,9 @@ log_configuration_common = [
     Config('prealloc', 'true', r'''
         pre-allocate log files''',
         type='boolean'),
+    Config('prealloc_init_count', '1', r'''
+        initial number of pre-allocated log files''',
+        min='1', max='500'),
     Config('remove', 'true', r'''
         automatically remove unneeded log files''',
         type='boolean'),
@@ -985,9 +992,8 @@ statistics_log_configuration_common = [
     Config('on_close', 'false', r'''log statistics on database close''',
         type='boolean'),
     Config('sources', '', r'''
-        if non-empty, include statistics for the list of data source URIs, if they are open at the
-        time of the statistics logging. The list may include URIs matching a single data source
-        ("table:mytable"), or a URI matching all data sources of a particular type ("table:")''',
+        if non-empty, include statistics for the list of "file:" and "lsm:" data source URIs,
+        if they are open at the time of the statistics logging.''',
         type='list'),
     Config('timestamp', '"%b %d %H:%M:%S"', r'''
         a timestamp prepended to each log record. May contain \c strftime conversion specifications.

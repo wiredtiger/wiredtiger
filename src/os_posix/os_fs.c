@@ -634,7 +634,7 @@ __posix_file_write_mmap(
     static int remap_opportunities;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    bool mmap_success;
+    bool mmap_success, remap;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -685,8 +685,9 @@ use_syscall:
     if (pfh->mmap_buf != NULL && !pfh->mmap_resizing && pfh->mmap_size < offset + (wt_off_t)len)
         /* If we are actively extending the file, don't remap it on every write. */
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
-            __wt_prepare_remap_resize_file(file_handle, wt_session, offset + (wt_off_t)len, NULL);
-            __wt_remap_resize_file(file_handle, wt_session);
+            __wt_prepare_remap_resize_file(file_handle, wt_session, offset + (wt_off_t)len, &remap);
+            if (remap)
+                __wt_remap_resize_file(file_handle, wt_session);
             WT_STAT_CONN_INCRV(session, block_remap_file_write, 1);
         }
     return (0);
@@ -1052,9 +1053,9 @@ __wt_prepare_remap_resize_file(
     sleep_usec = 10;
     yield_count = 0;
 
+    WT_ASSERT(session, remap != NULL);
     /* If there is no mapped region or it is already the right size, there is nothing to do. */
-    if (remap != NULL)
-        *remap = false;
+    *remap = false;
     if (pfh->mmap_buf == NULL || pfh->mmap_size == len)
         return;
 
@@ -1069,8 +1070,7 @@ wait:
     if (__wt_atomic_casv32(&pfh->mmap_resizing, 0, 1) == false)
         goto wait;
 
-    if (remap != NULL)
-        *remap = true;
+    *remap = true;
     /*
      * Wait for any sessions using the region for I/O to finish. Now that we have set the resizing
      * flag, new sessions will not use the region, defaulting to system calls instead.

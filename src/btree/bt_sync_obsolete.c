@@ -93,7 +93,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
-        WT_STAT_CONN_DATA_INCR(session, checkpoint_cleanup_pages_evict);
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
     }
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -118,7 +118,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
-        WT_STAT_CONN_DATA_INCR(session, checkpoint_cleanup_pages_removed);
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
     } else
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
@@ -174,7 +174,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
-        WT_STAT_CONN_DATA_INCR(session, checkpoint_cleanup_pages_removed);
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
         return (0);
     }
 
@@ -288,7 +288,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
         WT_RET(__sync_obsolete_cleanup_one(session, ref));
     }
 
-    WT_STAT_CONN_DATA_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
+    WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
 
     return (0);
 }
@@ -372,7 +372,7 @@ __checkpoint_cleanup_page_skip(
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED)))) {
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
-        WT_STAT_CONN_DATA_INCR(session, checkpoint_cleanup_pages_walk_skipped);
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped);
         *skipp = true;
     }
     return (0);
@@ -405,9 +405,12 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
-    if (ret != 0)
-        WT_RET_MSG(session, ret, "%s: unable to open handle%s", (char *)uri->data,
+    if (ret != 0) {
+        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP, "%s: unable to open handle%s",
+          (char *)uri->data,
           ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
+        return (ret);
+    }
 
     btree = S2BT(session);
     /* There is nothing to do on an empty tree. */
@@ -449,12 +452,14 @@ static bool
 __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
     WT_CONFIG ckptconf;
-    WT_CONFIG_ITEM cval, value, key;
+    WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
     wt_timestamp_t newest_stop_durable_ts;
+    size_t addr_size;
     bool logged;
 
     newest_stop_durable_ts = WT_TS_NONE;
+    addr_size = 0;
     logged = false;
 
     /* Checkpoint cleanup cannot remove obsolete pages from tiered tables. */
@@ -469,23 +474,30 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
-    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+    while ((ret = __wt_config_next(&ckptconf, &key, &cval)) == 0) {
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_subgets(session, &cval, "addr", &value);
+        if (ret == 0)
+            addr_size = value.len;
+        WT_RET_NOTFOUND_OK(ret);
     }
+    WT_RET_NOTFOUND_OK(ret);
 
     /*
      * The checkpoint cleanup eligibility is decided based on the following:
-     * 1. The file has a durable stop timestamp.
-     * 2. Logged table. The logged tables do not support timestamps, so we need
+     * 1. Not an empty or newly created table.
+     * 2. The table has a durable stop timestamp.
+     * 3. Logged table. The logged tables do not support timestamps, so we need
      *    to check for obsolete pages in them.
-     * 3. History store table. This table contains the historical versions that
+     * 4. History store table. This table contains the historical versions that
      *    are needed to be removed regularly. This condition is required when
      *    timestamps are not in use, otherwise, the first condition will be satisfied.
      */
-    if (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0)
+    if ((addr_size != 0) &&
+      (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
         return (true);
 
     return (false);

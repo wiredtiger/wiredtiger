@@ -345,6 +345,7 @@ SMT
 SPINLOCK
 SSHH
 SSq
+STATP
 STR
 STRUCT
 SYSCALL
@@ -385,6 +386,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+UBSAN
 UDF
 UID
 UIDs
