@@ -220,6 +220,12 @@ __wt_rec_child_modify(
             WT_ASSERT(session, ref->addr != NULL);
             /* DISK pages do not have fast-truncate info. */
             WT_ASSERT(session, ref->page_del == NULL);
+            if (F_ISSET(r, WT_REC_EVICT))
+                goto done;
+
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+                goto done;
+
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
                 break;
             cmsp->ref_locked = true;
