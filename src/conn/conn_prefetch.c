@@ -85,13 +85,6 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     if (F_ISSET(conn, WT_CONN_PREFETCH_RUN))
         __wt_cond_wait(session, conn->prefetch_threads.wait_cond, 10 * WT_THOUSAND, NULL);
 
-    /*
-     * Configure the timeout for the pre-fetch worker thread. This is one of the precautionary
-     * measures we have in place to prevent the application from hanging if the pre-fetch thread
-     * happens to be pulled into eviction.
-     */
-    WT_ERR(__wt_txn_config_operation_timeout(session, NULL, true));
-
     while (!TAILQ_EMPTY(&conn->pfqh)) {
         __wt_spin_lock(session, &conn->prefetch_lock);
         pe = TAILQ_FIRST(&conn->pfqh);
@@ -127,7 +120,6 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
-        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         /*
@@ -142,6 +134,11 @@ __wt_prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL)
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
 
+        /*
+         * It is now safe to clear the flag. The prefetch worker is done interacting with the ref
+         * and the associated internal page can be safely evicted from now on.
+         */
+        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
         WT_ERR(ret);
 
@@ -186,6 +183,11 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(EBUSY);
     }
 
+    /*
+     * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
+     * guarantees the corresponding internal page cannot be evicted until prefetch has processed the
+     * leaf page. This flag is checked when eviction reviews an internal page for active children.
+     */
     F_SET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
     ++conn->prefetch_queue_count;
