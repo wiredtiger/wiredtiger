@@ -56,7 +56,6 @@ class test_compact05(compact_util):
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4
-    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     # Create the table in a way that it creates a mostly empty file.
     def test_compact05(self):
@@ -67,7 +66,7 @@ class test_compact05(compact_util):
 
         # Create the table and populate it with a lot of data.
         self.session.create(self.table_uri, self.create_params)
-        self.populate(self.table_uri, 0, self.table_numkv, value_size=self.value_size)
+        self.populate(self.table_uri, 0, self.table_numkv)
         self.session.checkpoint()
 
         # Now let's delete a lot of data ranges. Create enough space so that compact runs in more

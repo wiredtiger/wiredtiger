@@ -41,7 +41,6 @@ class test_compact10(backup_base, compact_util):
 
     num_tables = 5
     table_numkv = 100 * 1000
-    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     # This function generates the required data for the test by performing the following:
     # - Create N tables and populate them,
@@ -54,7 +53,7 @@ class test_compact10(backup_base, compact_util):
             uri = self.uri_prefix + f'_{i}'
             uris.append(uri)
             self.session.create(uri, self.create_params)
-            compact_util.populate(self, uri, 0, self.table_numkv, value_size=self.value_size)
+            compact_util.populate(self, uri, 0, self.table_numkv)
 
         # Write to disk.
         self.session.checkpoint()

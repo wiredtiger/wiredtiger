@@ -42,7 +42,6 @@ class test_compact11(backup_base, compact_util):
 
     num_tables = 5
     table_numkv = 100 * 1000
-    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     def compare_bitmap(self, orig, new):
         # Compare the bitmaps from the metadata. Once a bit is set, it should never
@@ -85,7 +84,7 @@ class test_compact11(backup_base, compact_util):
 
         # Populate the first half of each table.
         for uri in uris:
-            compact_util.populate(self, uri, 0, self.table_numkv // 2, value_size=self.value_size)
+            compact_util.populate(self, uri, 0, self.table_numkv // 2)
 
         # Write to disk.
         self.session.checkpoint()
@@ -99,7 +98,7 @@ class test_compact11(backup_base, compact_util):
 
         # Insert the latter 50% in each table.
         for uri in uris:
-            compact_util.populate(self, uri, self.table_numkv // 2, self.table_numkv, value_size=self.value_size)
+            compact_util.populate(self, uri, self.table_numkv // 2, self.table_numkv)
 
         # Write to disk.
         self.session.checkpoint()

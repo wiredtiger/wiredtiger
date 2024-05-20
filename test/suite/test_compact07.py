@@ -51,7 +51,6 @@ class test_compact07(compact_util):
 
     table_numkv = 100 * 1000
     n_tables = 2
-    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     def get_bg_compaction_files_tracked(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -74,7 +73,7 @@ class test_compact07(compact_util):
         # Create and populate a table.
         uri_small = self.uri_prefix + '_small'
         self.session.create(uri_small, self.create_params)
-        self.populate(uri_small, 0, self.table_numkv, value_size=self.value_size)
+        self.populate(uri_small, 0, self.table_numkv)
 
         # Write to disk.
         self.session.checkpoint()
@@ -92,7 +91,7 @@ class test_compact07(compact_util):
             uri = self.uri_prefix + f'_{i}'
             uris.append(uri)
             self.session.create(uri, self.create_params)
-            self.populate(uri, 0, self.table_numkv, value_size=self.value_size)
+            self.populate(uri, 0, self.table_numkv)
 
         # Write to disk.
         self.session.checkpoint()

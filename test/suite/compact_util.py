@@ -90,11 +90,10 @@ class compact_util(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def populate(self, uri, start_key, num_keys, value=None, value_size=None):
+    def populate(self, uri, start_key, num_keys, value=None, value_size=1024):
         c = self.session.open_cursor(uri, None)
         for k in range(start_key, num_keys):
             if not value:
-                assert value_size is not None
                 c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
             else:
                 c[k] = value
