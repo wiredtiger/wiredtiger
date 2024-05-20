@@ -1987,10 +1987,11 @@ rand_next:
     btree->evict_ref = NULL;
 
     /*
-     * Get the snapshot for the eviction server when we want to evict dirty content. This snapshot
-     * is used to check for the visibility of the last modified transaction id on the page.
+     * Get the snapshot for the eviction server when we want to evict dirty content under cache
+     * pressure. This snapshot is used to check for the visibility of the last modified transaction
+     * id on the page.
      */
-    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES))
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD))
         __wt_txn_bump_snapshot(session);
 
     /*
