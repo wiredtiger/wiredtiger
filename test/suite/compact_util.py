@@ -109,3 +109,12 @@ class compact_util(wttest.WiredTigerTestCase):
         self.session.compact(None, 'background=false')
         while self.get_bg_compaction_running():
             time.sleep(0.1)
+
+    def truncate(self, uri, start_key, end_key):
+        lo_cursor = self.session.open_cursor(uri)
+        hi_cursor = self.session.open_cursor(uri)
+        lo_cursor.set_key(start_key)
+        hi_cursor.set_key(end_key)
+        self.assertEqual(self.session.truncate(None, lo_cursor, hi_cursor, None), 0)
+        lo_cursor.close()
+        hi_cursor.close()

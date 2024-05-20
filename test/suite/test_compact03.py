@@ -45,8 +45,8 @@ class test_compact03(compact_util):
     ]
 
     useTruncate = [
-        ('no_truncate', dict(truncate=False)),
-        ('truncate', dict(truncate=True))
+        ('no_truncate', dict(do_truncate=False)),
+        ('truncate', dict(do_truncate=True))
     ]
     scenarios = make_scenarios(fileConfig, useTruncate)
 
@@ -112,14 +112,8 @@ class test_compact03(compact_util):
             self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
 
         # 5. Delete middle ~90% of the normal values in the table.
-        if self.truncate:
-            c1 = self.session.open_cursor(self.uri, None)
-            c2 = self.session.open_cursor(self.uri, None)
-            c1.set_key((self.nrecords // 100) * 5)
-            c2.set_key((self.nrecords // 100) * 95)
-            self.assertEqual(self.session.truncate(None, c1, c2, None), 0)
-            c1.close()
-            c2.close()
+        if self.do_truncate:
+            self.truncate(self.uri, (self.nrecords // 100) * 5, (self.nrecords // 100) * 95)
         else:
             c = self.session.open_cursor(self.uri, None)
             for i in range((self.nrecords // 100) * 5, (self.nrecords // 100) * 95):

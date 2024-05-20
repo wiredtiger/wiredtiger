@@ -55,15 +55,6 @@ class test_compact12(compact_util):
         stat_cursor.close()
         return pages
 
-    def truncate(self, uri, key1, key2):
-        lo_cursor = self.session.open_cursor(uri)
-        hi_cursor = self.session.open_cursor(uri)
-        lo_cursor.set_key(key1)
-        hi_cursor.set_key(key2)
-        self.session.truncate(None, lo_cursor, hi_cursor, None)
-        lo_cursor.close()
-        hi_cursor.close()
-
     def populate(self, uri, num_keys):
         c = self.session.open_cursor(uri, None)
         for k in range(num_keys // 10 * 9):
