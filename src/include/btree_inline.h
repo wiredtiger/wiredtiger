@@ -729,6 +729,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Check if this is the largest transaction ID to update the page. */
     if (WT_TXNID_LT(page->modify->update_txn, session->txn->id))
         page->modify->update_txn = session->txn->id;
+
+    // WT_LRU_UPDATE(page, lru_dirty);
 }
 
 /*
@@ -767,6 +769,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
      */
     if (!S2C(session)->modified)
         S2C(session)->modified = true;
+
 }
 
 /*
@@ -799,6 +802,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
         __wt_atomic_store32(&page->modify->page_state, WT_PAGE_CLEAN);
         page->modify->flags = 0;
         __wt_cache_dirty_decr(session, page);
+        // WT_LRU_REMOVE_AND_CLEAR(page, lru_dirty);
     }
 }
 

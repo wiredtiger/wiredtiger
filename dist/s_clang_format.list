@@ -10,6 +10,7 @@ src/include/extern.h
 src/include/extern_posix.h
 src/include/extern_win.h
 src/include/queue.h
+src/include/queue_locked.h
 src/include/stat.h
 src/include/wt_internal.h
 src/log/log_auto.c

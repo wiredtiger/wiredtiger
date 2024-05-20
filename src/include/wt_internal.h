@@ -504,6 +504,8 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
+// #include "queue_locked.h" /* requires "mutex.h" and "gcc.h" */
+
 #include "stat.h"         /* required by dhandle.h */
 #include "dhandle.h"      /* required by btree.h */
 #include "timestamp.h"    /* required by reconcile.h */

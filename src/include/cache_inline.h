@@ -44,8 +44,11 @@ __wt_cache_read_gen_incr(WT_SESSION_IMPL *session)
  *     Update the page's read generation.
  */
 static WT_INLINE void
-__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_PAGE *page;
+
+    page = ref->page;
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
         return;
@@ -62,6 +65,8 @@ __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * avoid some number of updates immediately after each update we have to make.
      */
     __wt_atomic_store64(&page->read_gen, __wt_cache_read_gen(session) + WT_READGEN_STEP);
+
+    WT_LRU_UPDATE(ref, lru_all);
 }
 
 /*
@@ -105,6 +110,8 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_UNUSED(session);
 
     __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_OLDEST);
+
+    // WT_LRU_UPDATE(ref, lru_evict_soon);
 }
 
 /*

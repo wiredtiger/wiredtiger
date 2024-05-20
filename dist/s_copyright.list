@@ -36,6 +36,7 @@ skip    src/include/extern_posix.h
 skip    src/include/extern_win.h
 skip    src/include/flags.h
 skip    src/include/queue.h
+skip    src/include/queue_locked.h
 skip    src/log/log_auto.c
 skip    src/support/stat.c
 skip    test/evergreen/evg_cfg.py

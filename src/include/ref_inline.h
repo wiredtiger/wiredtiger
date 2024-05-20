@@ -51,13 +51,20 @@ __wt_ref_is_root(WT_REF *ref)
  *     Set a ref's state. Accessed from the WT_REF_SET_STATE macro.
  */
 static WT_INLINE void
-__ref_set_state(WT_REF *ref, uint8_t state)
+__ref_set_state(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t state)
 {
+    bool lru;
+
+    WT_LRU_TRACEF("__ref_set_state + ", "state = %u", state);
+    lru = state == WT_REF_MEM;
+    if (!lru) { WT_CACHE_LRU_REMOVE_FROM_ALL(ref); }
     WT_RELEASE_WRITE_WITH_BARRIER(ref->__state, state);
+    if (lru) { WT_LRU_UPDATE(ref, lru_all); }
+    WT_LRU_TRACEF("__ref_set_state - ", "state = %u", state);
 }
 
 #ifndef HAVE_REF_TRACK
-#define WT_REF_SET_STATE(ref, s) __ref_set_state((ref), (s))
+#define WT_REF_SET_STATE(ref, s) __ref_set_state(session, (ref), (s))
 #else
 /*
  * __ref_track_state --
@@ -81,7 +88,7 @@ __ref_track_state(
 #define WT_REF_SET_STATE(ref, s)                                           \
     do {                                                                   \
         __ref_track_state(session, ref, s, __PRETTY_FUNCTION__, __LINE__); \
-        __ref_set_state((ref), (s));                                       \
+        __ref_set_state(session, (ref), (s));                              \
     } while (0)
 #endif
 
@@ -113,6 +120,21 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_
     WT_UNUSED(line);
 
     cas_result = __wt_atomic_casv8(&ref->__state, old_state, new_state);
+
+    if (old_state != new_state && cas_result == new_state) {
+        bool old_lru, new_lru;
+        WT_LRU_TRACEF("__ref_cas_state + ", "%u -> %u", old_state, new_state);
+        old_lru = old_state == WT_REF_MEM;
+        new_lru = new_state == WT_REF_MEM;
+        if (old_lru != new_lru) {
+            if (!new_lru) {
+                WT_CACHE_LRU_REMOVE_FROM_ALL(ref);
+            } else {
+                WT_LRU_UPDATE(ref, lru_all);
+            }
+        }
+        WT_LRU_TRACEF("__ref_cas_state - ", "%u -> %u", old_state, new_state);
+    }
 
 #ifdef HAVE_REF_TRACK
     /*

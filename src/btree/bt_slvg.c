@@ -200,7 +200,8 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 
         btree->ckpt = ckptbase;
         ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
-        root->page = NULL;
+        // root->page = NULL;
+        WT_LRU_REF_PAGE_CLEAR(root, lru_all);
         btree->ckpt = NULL;
         WT_ERR(ret);
     }
@@ -1221,7 +1222,8 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         ref = *refp++;
         ref->home = page;
-        ref->page = NULL;
+        // ref->page = NULL;
+        WT_LRU_REF_PAGE_CLEAR(ref, lru_all);
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
@@ -1827,7 +1829,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         ref = *refp++;
         ref->home = page;
-        ref->page = NULL;
+        // ref->page = NULL;
+        WT_LRU_REF_PAGE_CLEAR(ref, lru_all);
 
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);

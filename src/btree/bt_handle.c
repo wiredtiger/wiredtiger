@@ -605,6 +605,7 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
     memset(root_ref, 0, sizeof(*root_ref));
 
     root_ref->page = root;
+    // WT_LRU_REF_PAGE_SET(root_ref, page, lru_all);  // we never want to evict root! it's on the stack
     F_SET(root_ref, WT_REF_FLAG_INTERNAL);
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 

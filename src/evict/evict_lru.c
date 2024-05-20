@@ -202,6 +202,8 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ASSERT(session, __wt_ref_is_root(ref) || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
+    WT_CACHE_LRU_REMOVE_FROM_ALL(ref);
+
     /* Fast path: if the page isn't in the queue, don't bother searching. */
     if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
         return;
@@ -2439,7 +2441,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
      * that point, eviction has already unlocked the page and some other thread may have evicted it
      * by the time we look at it.
      */
-    __wt_cache_read_gen_bump(session, ref->page);
+    __wt_cache_read_gen_bump(session, ref);
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
 

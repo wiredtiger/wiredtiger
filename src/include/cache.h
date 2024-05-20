@@ -12,6 +12,7 @@
  * Helper: in order to read without any calls to eviction, we have to ignore the cache size and
  * disable splits.
  */
+#include "hardware.h"
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
 /*
@@ -173,6 +174,275 @@ struct __wt_cache {
     WT_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
     WT_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
     uint32_t evict_slots;                /* LRU list eviction slots */
+
+#define WT_LRU_TRACE(STR) \
+    do { \
+        char ___thread_str[50]; \
+        WT_UNUSED(__wt_thread_str(___thread_str, sizeof(___thread_str))); \
+        ___thread_str[sizeof(___thread_str)-1] = 0; \
+        printf("    %s %s %s %s %s:%d\n", ___thread_str, session->name, STR, __FUNCTION__, __FILE__, __LINE__); fflush(stdout); \
+    } while (0)
+#define WT_LRU_TRACEF(STR, FMT, ...) \
+    do { \
+        char _thread_str[50]; \
+        WT_UNUSED(__wt_thread_str(_thread_str, sizeof(_thread_str))); \
+        _thread_str[sizeof(_thread_str)-1] = 0; \
+        printf("    %s %s %s %s %s:%d " FMT "\n", _thread_str, session->name, STR, __FUNCTION__, __FILE__, __LINE__, __VA_ARGS__); fflush(stdout); \
+    } while (0)
+
+#define __WT_MACRO_CONCAT(a, b) a##b
+// #define __WT_ATOMIC_SUFFIX(a, b) __WT_MACRO_CONCAT(a, b)
+
+#ifdef __cplusplus
+#define WT_LRU_TRACEEF(STR, elm, field)
+#else
+
+#define WT_LRU_TRACEEF(STR, elm, field) \
+    WT_LRU_TRACE(STR " (pre)"); \
+    printf(" ...1: %p", (void*)elm); fflush(stdout); \
+    printf(" ...2: %p", (void*)S2C(session)->cache->field.tqh_first); fflush(stdout); \
+    printf(" ...3: %p", (void*)S2C(session)->cache->field.tqh_last); fflush(stdout); \
+    printf(" ...4: %p", !S2C(session)->cache->field.tqh_last ? NULL : (void*)*S2C(session)->cache->field.tqh_last); fflush(stdout); \
+    printf(" ...5: %p", !S2C(session)->cache->field.tqh_last || !*S2C(session)->cache->field.tqh_last ? NULL : (void*)TAILQ_LAST(&S2C(session)->cache->field, __lru_##field)); fflush(stdout); \
+    printf(" ...6: %p", (void*)(elm)->field.tqe_next); fflush(stdout); \
+    printf(" ...7: %p", (void*)(elm)->field.tqe_prev); fflush(stdout); \
+    printf(" ...8: %p", !(elm)->field.tqe_prev ? NULL : (void*)*(elm)->field.tqe_prev); fflush(stdout); \
+    printf(" ...9: %p", !(elm)->field.tqe_prev || !*(elm)->field.tqe_prev ? NULL : (void*)TAILQ_PREV(elm, __lru_##field, field)); fflush(stdout); \
+    printf(" ...10: %s\n", __wt_ref_is_root(elm) ? "is_root" : "is_not_root"); fflush(stdout); \
+    WT_LRU_TRACEF(STR, "ref=%p CACHE %s %p %p %p(%p) ELEMENT %p %p %p(%p)", (void*)elm, #field, \
+        (void*)S2C(session)->cache->field.tqh_first, (void*)S2C(session)->cache->field.tqh_last, \
+            !S2C(session)->cache->field.tqh_last ? NULL : (void*)*S2C(session)->cache->field.tqh_last, !S2C(session)->cache->field.tqh_last || !*S2C(session)->cache->field.tqh_last ? NULL : (void*)TAILQ_LAST(&S2C(session)->cache->field, __lru_##field), \
+        (void*)(elm)->field.tqe_next, (void*)(elm)->field.tqe_prev, \
+            !(elm)->field.tqe_prev ? NULL : (void*)*(elm)->field.tqe_prev, !(elm)->field.tqe_prev || !*(elm)->field.tqe_prev ? NULL : (void*)TAILQ_PREV(elm, __lru_##field, field))
+#endif
+
+// #define WT_CACHE_LOCK_TYPE uint32_t
+// #define WT_CACHE_LOCK_ATOMIC_SUFFIX 32
+#define WT_CACHE_LOCK_TYPE WT_SPINLOCK
+
+#define __GUARD1 0xA1A2A3A4A5A6A7A8
+#define __GUARD2 0xB1B2B3B4B5B6B7B8
+#define __GUARD3 0xC1C2C3C4C5C6C7C8
+#define __GUARD1_CLEAR 0x5152535455565758
+#define __GUARD2_CLEAR 0x6162636465666768
+#define __GUARD3_CLEAR 0x7172737475767778
+#define INIT_GUARD(elm, field) \
+    do { \
+        WT_LRU_TRACEEF("INIT_GUARD", elm, field); \
+        elm->field##__guard1 = __GUARD1; \
+        elm->field##__guard2 = __GUARD2; \
+        elm->field##__guard3 = __GUARD3; \
+    } while (0)
+#define CLEAR_GUARD(elm, field) \
+    do { \
+        WT_LRU_TRACEEF("CLEAR_GUARD", elm, field); \
+        elm->field##__guard1 = __GUARD1_CLEAR; \
+        elm->field##__guard2 = __GUARD2_CLEAR; \
+        elm->field##__guard3 = __GUARD3_CLEAR; \
+    } while (0)
+#define CHECK_GUARD(str, elm, field) \
+    do { \
+        WT_ASSERT_ALWAYS(session, (bool)#str && elm != NULL, #str " : " #elm " is NULL"); \
+        WT_ASSERT_ALWAYS(session, (bool)#str && (S2C(session)->cache->field.tqh_last != NULL || (S2C(session)->cache->field.tqh_last == NULL && S2C(session)->cache->field.tqh_first == NULL)), #str " : " #elm " cache.tqh_last is NULL"); \
+        WT_ASSERT_ALWAYS(session, (bool)#str && ((elm)->field.tqe_prev != NULL || ((elm)->field.tqe_prev == NULL && (elm)->field.tqe_next == NULL)), #str " : " #elm ".tqe_prev is NULL"); \
+        /* Don't check root page (__wt_root_ref_init) */ \
+        /*if (!__wt_ref_is_root(elm)) {*/ \
+            if (elm->field##__guard1 == 0 && elm->field##__guard2 == 0 && elm->field##__guard3 == 0) { \
+                INIT_GUARD(elm, field); \
+            } else { \
+                WT_ASSERT_ALWAYS(session, (bool)#str && elm->field##__guard1 == __GUARD1, #str " : guard1 is bad"); \
+                WT_ASSERT_ALWAYS(session, (bool)#str && elm->field##__guard2 == __GUARD2, #str " : guard2 is bad"); \
+                WT_ASSERT_ALWAYS(session, (bool)#str && elm->field##__guard3 == __GUARD3, #str " : guard3 is bad"); \
+            } \
+            WT_LRU_TRACEEF(#str " - CHECK_GUARD", elm, field); \
+            /* MEM CHK */ \
+        /*}*/ \
+    } while (0)
+
+            // do { \
+            //     struct xxx { \
+            //         uint64_t guard1,guard11; \
+            //         uint64_t size; \
+            //         uint64_t guard2; \
+            //     } *pre = (struct xxx *)((char *)elm - sizeof(struct xxx)); \
+            //     WT_ASSERT_ALWAYS(session, pre->guard1 == 0xa0a1a2a3a4a5a6a7, "memory guard1=0x%" PRIu64 "x", pre->guard1); \
+            //     WT_ASSERT_ALWAYS(session, pre->guard11 == 0xa0a1a2a3a4a5a6a7, "memory guard11=0x%" PRIu64 "x", pre->guard11); \
+            //     WT_ASSERT_ALWAYS(session, pre->guard2 == 0xa8a9aaabacadaeaf, "memory guard1=0x%" PRIu64 "x", pre->guard2); \
+            //     WT_ASSERT_ALWAYS(session, pre->size == sizeof(WT_REF), "memory size=%" PRIu64 "d", pre->size); \
+            // } while (0); \
+            //
+
+#define WT_LRU_HEAD(field) \
+    WT_CACHE_LOCK_TYPE field##_lock; \
+    TAILQ_HEAD(__lru_##field, __wt_ref) field
+
+    WT_LRU_HEAD(lru_all);
+    // WT_LRU_HEAD(lru_dirty);
+    // WT_LRU_HEAD(lru_updated);
+    // WT_LRU_HEAD(lru_forced_eviction);
+    // WT_LRU_HEAD(lru_evict_soon);
+
+#define __WT_LRU_UPDATE_MAX_FREQUENCY_NS   10000000000
+
+#define WT_CACHE_LRU_INIT(field) \
+    do { \
+        TAILQ_INIT(&S2C(session)->cache->field); \
+        /* S2C(session)->cache->field##_lock = 0; */ \
+        WT_RET(__wt_spin_init(session, &S2C(session)->cache->field##_lock, "LRU queue lock: " # field)); \
+    } while (0)
+#define WT_CACHE_LRU_DESTROY(field) \
+    do { \
+        __wt_spin_destroy(session, &S2C(session)->cache->field##_lock); \
+    } while (0)
+#define WT_CACHE_LRU_INIT_ALL() \
+    do { \
+        WT_CACHE_LRU_INIT(lru_all); \
+        /* WT_CACHE_LRU_INIT(lru_dirty); */ \
+        /* WT_CACHE_LRU_INIT(lru_updated); */ \
+        /* WT_CACHE_LRU_INIT(lru_forced_eviction); */ \
+        /* WT_CACHE_LRU_INIT(lru_evict_soon); */ \
+    } while (0)
+#define WT_CACHE_LRU_DESTROY_ALL() \
+    do { \
+        WT_CACHE_LRU_DESTROY(lru_all); \
+        /* WT_CACHE_LRU_DESTROY(lru_dirty); */ \
+        /* WT_CACHE_LRU_DESTROY(lru_updated); */ \
+        /* WT_CACHE_LRU_DESTROY(lru_forced_eviction); */ \
+        /* WT_CACHE_LRU_DESTROY(lru_evict_soon); */ \
+    } while (0)
+#define WT_CACHE_LRU_REMOVE_FROM_ALL(ref) \
+    do { \
+        WT_LRU_REMOVE_AND_CLEAR(ref, lru_all); \
+        /* WT_LRU_REMOVE_AND_CLEAR(ref, lru_dirty); */ \
+        /* WT_LRU_REMOVE_AND_CLEAR(ref, lru_updated); */ \
+        /* WT_LRU_REMOVE_AND_CLEAR(ref, lru_forced_eviction); */ \
+        /* WT_LRU_REMOVE_AND_CLEAR(ref, lru_evict_soon); */ \
+    } while (0)
+
+// #define __WT_LRU_LOCK(field) while (__WT_ATOMIC_SUFFIX(__wt_atomic_cas, WT_CACHE_LOCK_ATOMIC_SUFFIX)(&S2C(session)->cache->field##_lock, 0, 1) != 0) /*__wt_yield()*/
+// #define __WT_LRU_UNLOCK(field) __WT_ATOMIC_SUFFIX(__wt_atomic_store, WT_CACHE_LOCK_ATOMIC_SUFFIX)(&S2C(session)->cache->field##_lock, 0)
+#define __WT_LRU_LOCK(field) __wt_spin_lock(session, &S2C(session)->cache->field##_lock); printf("LOCK %s %s %s %s:%d\n", session->name, #field, __FUNCTION__, __FILE__, __LINE__); fflush(stdout)
+#define __WT_LRU_UNLOCK(field) __wt_spin_unlock(session, &S2C(session)->cache->field##_lock); printf("UNLOCK %s %s %s %s:%d\n", session->name, #field, __FUNCTION__, __FILE__, __LINE__); fflush(stdout)
+
+// #define WT_LRU_IS_IN_LIST(elm, field) ((elm)->field##_t == 0)
+#define WT_LRU_IS_IN_LIST(elm, field) ((elm)->field.tqe_next != NULL || (elm)->field.tqe_prev != NULL)
+#define WT_LRU_REMOVE_AND_CLEAR_NOLOCK(elm, field) \
+    do { \
+        TAILQ_REMOVE(&S2C(session)->cache->field, elm, field); \
+        (elm)->field.tqe_next = NULL; \
+        (elm)->field.tqe_prev = NULL; /* barrier */ \
+        __wt_atomic_store64(&(elm)->field##_t, 0); \
+    } while (0)
+#define WT_LRU_REMOVE_AND_CLEAR(elm, field) \
+    if (!__wt_ref_is_root(elm)) { \
+        __WT_LRU_LOCK(field); \
+        CHECK_GUARD(WT_LRU_REMOVE_AND_CLEAR2, elm, field); \
+        WT_LRU_TRACEEF("WT_LRU_REMOVE_AND_CLEAR +", elm, field); \
+        WT_ASSERT(session, (elm->field.tqe_prev == NULL && elm->field.tqe_next ==  NULL) || (elm->field.tqe_prev != NULL)); \
+        WT_ASSERT(session, S2C(session)->cache->field.tqh_last != NULL); \
+        CHECK_GUARD(WT_LRU_REMOVE_AND_CLEAR3, elm, field); \
+        /* WT_ACQUIRE_BARRIER(); */ \
+        if (WT_LRU_IS_IN_LIST(elm, field)) \
+            WT_LRU_REMOVE_AND_CLEAR_NOLOCK(elm, field); \
+        CHECK_GUARD(WT_LRU_REMOVE_AND_CLEAR4, elm, field); \
+        /* WT_RELEASE_BARRIER(); */ \
+        WT_LRU_TRACEEF("WT_LRU_REMOVE_AND_CLEAR -", elm, field); \
+        __WT_LRU_UNLOCK(field); \
+    } else {}
+// #define WT_LRU_REMOVE(elm, field) \
+//     do { \
+//         __WT_LRU_LOCK(field); \
+//         /* WT_ACQUIRE_BARRIER(); */ \
+//         if (WT_LRU_IS_IN_LIST(elm, field)) \
+//             TAILQ_REMOVE(&S2C(session)->cache->field, elm, field); \
+//         __wt_atomic_store64(&elm->field##_t, 0); \
+//         /* WT_RELEASE_BARRIER(); */ \
+//         __WT_LRU_UNLOCK(field); \
+//     } while (0)
+/* (re-)insert the page into the queue */
+// #define WT_LRU_UPDATE(elm, field)
+#define WT_LRU_UPDATE(elm, field) \
+    if (!__wt_ref_is_root(elm)) { \
+        uint64_t t, page_t; \
+        char thread_str[50]; \
+        WT_READ_ONCE(page_t, elm->field##_t); \
+        t = __wt_clock(session); \
+        if ((int64_t)(t - page_t) >= __WT_LRU_UPDATE_MAX_FREQUENCY_NS) { \
+            /* __wt_atomic_store64(&elm->field##_t, t); */ \
+            WT_UNUSED(__wt_thread_str(thread_str, sizeof(thread_str))); \
+            thread_str[sizeof(thread_str)-1] = 0; \
+            printf("+   %s %s %p %s %s:%d\n", thread_str, session->name, (void*)ref, __FUNCTION__, __FILE__, __LINE__); fflush(stdout); \
+            printf("+ E %s %p %p\n", thread_str, (void*)(elm)->field.tqe_next, (void*)(elm)->field.tqe_prev); fflush(stdout); \
+            __WT_LRU_LOCK(field); \
+            WT_LRU_TRACEEF("WT_LRU_UPDATE +", elm, field); \
+            CHECK_GUARD(WT_LRU_UPDATE3, elm, field); \
+            printf("1   %s %d\n", thread_str, (int)(t - page_t)); fflush(stdout); \
+            printf("+ E %s %p %p %p\n", thread_str, (void*)(elm)->field.tqe_next, (void*)(elm)->field.tqe_prev, !(elm)->field.tqe_prev ? NULL : (void*)*(elm)->field.tqe_prev); fflush(stdout); \
+            WT_ASSERT(session, (elm->field.tqe_prev == NULL && elm->field.tqe_next ==  NULL) || (elm->field.tqe_prev != NULL)); \
+            WT_ASSERT(session, S2C(session)->cache->field.tqh_last != NULL); \
+            /* WT_ACQUIRE_BARRIER(); */ \
+            elm->field##_t = t; \
+            printf("2 C %s %p %p %p\n", thread_str, \
+                (void*)S2C(session)->cache->field.tqh_first, (void*)S2C(session)->cache->field.tqh_last, !S2C(session)->cache->field.tqh_last ? NULL : (void*)*S2C(session)->cache->field.tqh_last); fflush(stdout); \
+            printf("2 E %s %p %p %p\n", thread_str, (void*)(elm)->field.tqe_next, (void*)(elm)->field.tqe_prev, !(elm)->field.tqe_prev ? NULL : (void*)*(elm)->field.tqe_prev); fflush(stdout); \
+            if ((elm)->field.tqe_next != NULL || (elm)->field.tqe_prev == NULL) { \
+                printf("3   %s\n", thread_str); fflush(stdout); \
+                CHECK_GUARD(WT_LRU_UPDATE3, elm, field); \
+                if (WT_LRU_IS_IN_LIST(elm, field)) { \
+                    TAILQ_REMOVE(&S2C(session)->cache->field, elm, field); \
+                    printf("4   %s\n", thread_str); fflush(stdout); \
+                } \
+                (elm)->field.tqe_next = NULL; \
+                (elm)->field.tqe_prev = NULL; \
+                CHECK_GUARD(WT_LRU_UPDATE4, elm, field); \
+                (elm)->field.tqe_next = (WT_REF*)0x12345678; \
+                (elm)->field.tqe_prev = (WT_REF**)0x87654321; \
+                printf("5   %s\n", thread_str); fflush(stdout); \
+                TAILQ_INSERT_TAIL(&S2C(session)->cache->field, elm, field); \
+                /*TAILQ_INSERT_HEAD(&S2C(session)->cache->field, elm, field);*/ \
+            } \
+            /* WT_RELEASE_BARRIER(); */ \
+            CHECK_GUARD(WT_LRU_UPDATE5, elm, field); \
+            printf("6 E %s %p %p %p\n", thread_str, (void*)(elm)->field.tqe_next, (void*)(elm)->field.tqe_prev, !(elm)->field.tqe_prev ? NULL : (void*)*(elm)->field.tqe_prev); fflush(stdout); \
+            printf("6 C %s %p %p %p\n", thread_str, \
+                (void*)S2C(session)->cache->field.tqh_first, (void*)S2C(session)->cache->field.tqh_last, !S2C(session)->cache->field.tqh_last ? NULL : (void*)*S2C(session)->cache->field.tqh_last); fflush(stdout); \
+            WT_LRU_TRACEEF("WT_LRU_UPDATE -", elm, field); \
+            __WT_LRU_UNLOCK(field); \
+            printf("-   %s\n", thread_str); fflush(stdout); \
+        } \
+        CHECK_GUARD(WT_LRU_UPDATE6, elm, field); \
+    } else {}
+#define WT_LRU_POP(p_elm, field) \
+    do { \
+        if (__wt_atomic_load_pointer(S2C(session)->cache->field->tqh_first)) { \
+            __WT_LRU_LOCK(field); \
+            /* WT_ACQUIRE_BARRIER(); */ \
+            /* TODO use loop to find a suitable page: in_mem, existing ->page, etc */ \
+            WT_LRU_TRACEEF("WT_LRU_POP +", elm, field); \
+            WT_ASSERT(session, S2C(session)->cache->field.tqh_last != NULL); \
+            p_elm = TAILQ_FIRST(&S2C(session)->cache->field); \
+            WT_LRU_REMOVE_AND_CLEAR_NOLOCK(p_elm, field); \
+            __wt_atomic_store64(&page->field##_t, 0); \
+            /* WT_RELEASE_BARRIER(); */ \
+            WT_LRU_TRACEEF("WT_LRU_POP -", elm, field); \
+            __WT_LRU_UNLOCK(field); \
+        } else { \
+            p_elm = NULL; \
+        } \
+    } while (0)
+
+#define WT_LRU_REF_PAGE_SET(ref, pg, field) \
+    do { \
+        CHECK_GUARD(WT_LRU_REF_PAGE_SET, ref, field); \
+        (ref)->page = pg; \
+        WT_LRU_UPDATE(ref, lru_all); \
+    } while (0);
+#define WT_LRU_REF_PAGE_CLEAR(ref, field) \
+    do { \
+        CHECK_GUARD(WT_LRU_REF_PAGE_CLEAR, ref, field); \
+        (ref)->page = NULL; \
+        WT_CACHE_LRU_REMOVE_FROM_ALL(ref); \
+    } while (0);
 
 #define WT_EVICT_PRESSURE_THRESHOLD 0.95
 #define WT_EVICT_SCORE_BUMP 10
