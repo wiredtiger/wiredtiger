@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+/* Fake extra comment 1 */
+
 #include "wt_internal.h"
 
 #define WT_BLOCK_COOKIE_FILEID 0x01 /* The following bytes are an object ID. */
