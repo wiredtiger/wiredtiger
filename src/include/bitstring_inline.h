@@ -151,37 +151,6 @@ __bit_nset(uint8_t *bitf, uint64_t start, uint64_t stop)
 }
 
 /*
- * __bit_ffc --
- *	Find first clear bit in name, return 0 on success, -1 on no bit clear.
- */
-static WT_INLINE int
-__bit_ffc(const uint8_t *bitf, uint64_t nbits, uint64_t *retp)
-{
-	uint64_t byte, stopbyte, value;
-	uint8_t lb;
-
-	if (nbits == 0)
-		return (-1);
-
-	for (byte = 0, stopbyte = __bit_byte(nbits - 1);; ++byte) {
-		if (bitf[byte] != 0xff) {
-			value = byte << 3;
-			for (lb = bitf[byte]; lb & 0x01; ++value, lb >>= 1)
-				;
-			break;
-		}
-		if (byte == stopbyte)
-			return (-1);
-	}
-
-	if (value >= nbits)
-		return (-1);
-
-	*retp = value;
-	return (0);
-}
-
-/*
  * __bit_ffs --
  *	Find first set bit in name, return 0 on success, -1 on no bit set.
  */

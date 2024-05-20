@@ -212,7 +212,7 @@ struct __wt_bm {
     int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
-    int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
+    void (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
     int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
@@ -242,6 +242,17 @@ struct __wt_bm {
      * There's only a single block manager handle that can be written, all others are checkpoints.
      */
     bool is_live; /* The live system */
+};
+
+/*
+ * WT_BLOCK_FREE_QUEUE_ENTRY --
+ *	Queue entry for blocks to free.
+ */
+struct __wt_block_free_queue_entry {
+    uint32_t objectid;
+    wt_off_t offset;
+    wt_off_t size;
+    TAILQ_ENTRY(__wt_block_free_queue_entry) q; /* List of blocks queued for free. */
 };
 
 /*
@@ -321,6 +332,9 @@ struct __wt_block {
 
     /* Multi-file support */
     wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
+
+    /* Queue of blocks to free */
+    TAILQ_HEAD(__wt_block_free_qh, __wt_block_free_queue_entry) bfqh;
 };
 
 /*

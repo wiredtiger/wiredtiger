@@ -489,6 +489,15 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
+            if (mod->mod_multi[0].addr.addr != NULL) {
+                WT_RET(__wt_calloc_one(session, &addr));
+                WT_TIME_AGGREGATE_COPY(&addr->ta, &mod->mod_multi[0].addr.ta);
+                WT_RET(__wt_memdup(
+                  session, mod->mod_multi[0].addr.addr, mod->mod_multi[0].addr.size, &addr->addr));
+                addr->size = mod->mod_multi[0].addr.size;
+                addr->type = mod->mod_multi[0].addr.type;
+                ref->addr = addr;
+            }
             WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));

@@ -200,6 +200,8 @@ __wt_rec_child_modify(
 
     /* Default to using the original child address. */
     cmsp->state = WT_CHILD_ORIGINAL;
+    cmsp->ref_locked = false;
+    cmsp->old_ref_state = WT_REF_LOCKED;
 
     /*
      * This function is called when walking an internal page to decide how to handle child pages
@@ -218,6 +220,16 @@ __wt_rec_child_modify(
             WT_ASSERT(session, ref->addr != NULL);
             /* DISK pages do not have fast-truncate info. */
             WT_ASSERT(session, ref->page_del == NULL);
+            if (F_ISSET(r, WT_REC_EVICT))
+                goto done;
+
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+                goto done;
+
+            if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+                break;
+            cmsp->ref_locked = true;
+            cmsp->old_ref_state = WT_REF_DISK;
             goto done;
 
         case WT_REF_DELETED:
@@ -230,8 +242,9 @@ __wt_rec_child_modify(
              */
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
+            cmsp->ref_locked = true;
+            cmsp->old_ref_state = WT_REF_DELETED;
             ret = __rec_child_deleted(session, r, ref, cmsp);
-            WT_REF_SET_STATE(ref, WT_REF_DELETED);
             goto done;
 
         case WT_REF_LOCKED:
@@ -353,8 +366,10 @@ __wt_rec_child_modify(
              * it will have an address; if we didn't find the split page in the first step, it won't
              * have an address and we ignore it, it's not part of the checkpoint.
              */
-            if (ref->addr == NULL)
+            if (ref->addr == NULL) {
+                WT_ASSERT_ALWAYS(session, ref->page->entries == 0, "ignore pages we should write");
                 cmsp->state = WT_CHILD_IGNORE;
+            }
             goto done;
 
         case WT_REF_SPLIT:
@@ -364,7 +379,7 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              *
-             * We should never be here during checkpoint, dirty page eviction is shutout during
+             * We should never be here during checkpoint, internal page split is shutout during
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */

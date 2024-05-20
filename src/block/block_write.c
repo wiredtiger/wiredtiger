@@ -237,11 +237,25 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
         WT_RET_MSG(session, EINVAL, "direct I/O check: write buffer incorrectly allocated");
     }
 
+    local_locked = false;
+    if (!caller_locked) {
+        __wt_spin_lock(session, &block->live_lock);
+        local_locked = true;
+    }
     /*
      * File checkpoint/recovery magic: done before sizing the buffer as it may grow the buffer.
      */
-    if (block->final_ckpt != NULL)
-        WT_RET(__wt_block_checkpoint_final(session, block, buf, &file_sizep));
+    if (block->final_ckpt != NULL) {
+        ret = __wt_block_checkpoint_final(session, block, buf, &file_sizep);
+        if (ret != 0) {
+            if (local_locked)
+                __wt_spin_unlock(session, &block->live_lock);
+        }
+    }
+    if (local_locked) {
+        __wt_spin_unlock(session, &block->live_lock);
+        local_locked = false;
+    }
 
     /*
      * Align the size to an allocation unit.
@@ -268,7 +282,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
      * extend the file (note the block-extend function may release the lock). Release any locally
      * acquired lock.
      */
-    local_locked = false;
     if (!caller_locked) {
         __wt_spin_lock(session, &block->live_lock);
         local_locked = true;
@@ -276,16 +289,20 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     ret = __wt_block_alloc(session, block, &offset, (wt_off_t)align_size);
     if (ret == 0)
         ret = __block_extend(session, block, fh, offset, align_size, &local_locked);
-    if (local_locked)
-        __wt_spin_unlock(session, &block->live_lock);
-    WT_RET(ret);
-
+    if (ret != 0) {
+        if (local_locked)
+            __wt_spin_unlock(session, &block->live_lock);
+        return (ret);
+    }
     /*
      * The file has finished changing size. If this is the final write in a checkpoint, update the
      * checkpoint's information inline.
      */
     if (block->final_ckpt != NULL)
-        WT_RET(__wt_vpack_uint(&file_sizep, 0, (uint64_t)block->size));
+        ret = __wt_vpack_uint(&file_sizep, 0, (uint64_t)block->size);
+    if (local_locked)
+        __wt_spin_unlock(session, &block->live_lock);
+    WT_RET(ret);
 
     /* Zero out any unused bytes at the end of the buffer. */
     memset((uint8_t *)buf->mem + buf->size, 0, align_size - buf->size);

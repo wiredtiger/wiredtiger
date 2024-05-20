@@ -534,9 +534,6 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
-    /* If a sync is running, no other sessions can allocate blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
-
     /* Assert we're maintaining the by-size skiplist. */
     WT_ASSERT(session, block->live.avail.track_size != 0);
 
@@ -612,6 +609,7 @@ append:
 int
 __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size)
 {
+    WT_BLOCK_FREE_QUEUE_ENTRY *be;
     WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
@@ -644,7 +642,25 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 
     WT_RET(__wt_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
+    if (block->ckpt_state == WT_CKPT_INPROGRESS || block->ckpt_state == WT_CKPT_PANIC_ON_FAILURE) {
+        if (__wt_atomic_load_pointer(&S2BT(session)->sync_session) != session) {
+            ret = __wt_calloc_one(session, &be);
+            if (ret != 0) {
+                __wt_spin_unlock(session, &block->live_lock);
+                return (ret);
+            }
+            be->objectid = objectid;
+            be->offset = offset;
+            be->size = (wt_off_t)size;
+            TAILQ_INSERT_TAIL(&block->bfqh, be, q);
+        } else
+            WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
+    } else if (block->ckpt_state == WT_CKPT_SALVAGE)
+        WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
+    else {
+        WT_TRET(__wt_block_free_queue(session, block));
+        WT_TRET(__wt_block_off_free(session, block, objectid, offset, (wt_off_t)size));
+    }
 
     __wt_spin_unlock(session, &block->live_lock);
     return (ret);
@@ -663,9 +679,6 @@ __wt_block_off_free(
     /* The live lock must be locked, except for when we are running salvage. */
     if (!F_ISSET(S2BT(session), WT_BTREE_SALVAGE))
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
-
-    /* If a sync is running, no other sessions can free blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
     /* We can't reuse free space in an object. */
     if (objectid != block->objectid)
@@ -686,6 +699,26 @@ __wt_block_off_free(
     else if (ret == WT_NOTFOUND)
         ret = __block_merge(session, block, &block->live.discard, offset, size);
     return (ret);
+}
+
+/*
+ * __wt_block_free_queue --
+ *     Free all the blocks in the block queue and clear the queue. This function assumes we have
+ *     already taken the checkpoint live lock.
+ */
+int
+__wt_block_free_queue(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_BLOCK_FREE_QUEUE_ENTRY *be, *be_tmp;
+
+    TAILQ_FOREACH_SAFE(be, &block->bfqh, q, be_tmp)
+    {
+        WT_RET(__wt_block_off_free(session, block, be->objectid, be->offset, be->size));
+        TAILQ_REMOVE(&block->bfqh, be, q);
+        __wt_free(session, be);
+    }
+
+    return (0);
 }
 
 #ifdef HAVE_DIAGNOSTIC

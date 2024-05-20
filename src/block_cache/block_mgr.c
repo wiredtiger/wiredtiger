@@ -820,10 +820,10 @@ __bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_
  * __bm_verify_end --
  *     End a block manager verify.
  */
-static int
+static void
 __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_verify_end(session, bm->block));
+    __wt_block_verify_end(session, bm->block);
 }
 
 /*
