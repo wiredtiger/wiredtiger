@@ -19,7 +19,8 @@ extern int __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct 
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_once(void (*init_routine)(void)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_os_posix(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_os_posix(WT_SESSION_IMPL *session, WT_FILE_SYSTEM **fsp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
   const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

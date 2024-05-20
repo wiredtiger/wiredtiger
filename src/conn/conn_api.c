@@ -2797,6 +2797,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_DECL_ITEM(i2);
     WT_DECL_ITEM(i3);
     WT_DECL_RET;
+    WT_FILE_SYSTEM *fs;
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session, *verify_session;
@@ -2812,6 +2813,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     *connectionp = NULL;
 
     conn = NULL;
+    fs = NULL;
     session = verify_session = NULL;
     merge_cfg = NULL;
     try_salvage = false;
@@ -2900,12 +2902,24 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (conn->file_system == NULL) {
         if (F_ISSET(conn, WT_CONN_IN_MEMORY))
             WT_ERR(__wt_os_inmemory(session));
-        else
+        else {
 #if defined(_MSC_VER)
             WT_ERR(__wt_os_win(session));
 #else
-            WT_ERR(__wt_os_posix(session));
+            //WT_ERR(__wt_os_posix(session, &conn->file_system));
+
+            // XXX Move the connection directory into the layer itself... this is bad.
+            WT_ERR(__wt_os_union_fs(session));
+            WT_ERR(__wt_os_posix(session, &fs));
+            WT_ERR(((WT_UNION_FS *)conn->file_system)
+                     ->add_layer(conn->file_system, (WT_SESSION *)session, fs, conn->home));
+            WT_ERR(__wt_os_posix(session, &fs));
+            WT_ERR(((WT_UNION_FS *)conn->file_system)
+                     ->add_layer(conn->file_system, (WT_SESSION *)session, fs, "TOP"));
+            __wt_free(session, conn->home);
+            WT_ERR(__wt_strdup(session, ".", &conn->home));
 #endif
+        }
     }
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 

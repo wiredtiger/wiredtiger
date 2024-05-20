@@ -27,6 +27,7 @@
  */
 
 #include "wt_internal.h"
+#include <unistd.h>
 
 /*
  * __posix_sync --
@@ -202,6 +203,8 @@ __posix_fs_remove(
      * using unlink may be marginally safer.
      */
     WT_SYSCALL(unlink(name), ret);
+    if (strcmp(name, "WT_HOME/WiredTiger.lock.deleted") == 0 && ret != 0)
+        abort();
     if (ret != 0)
         WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
 
@@ -953,7 +956,7 @@ __posix_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
  *     Initialize a POSIX configuration.
  */
 int
-__wt_os_posix(WT_SESSION_IMPL *session)
+__wt_os_posix(WT_SESSION_IMPL *session, WT_FILE_SYSTEM **fsp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_FILE_SYSTEM *file_system;
@@ -973,8 +976,8 @@ __wt_os_posix(WT_SESSION_IMPL *session)
     file_system->fs_size = __posix_fs_size;
     file_system->terminate = __posix_terminate;
 
-    /* Switch it into place. */
-    conn->file_system = file_system;
+    /* Return the file system. */
+    *fsp = file_system;
 
     return (0);
 }

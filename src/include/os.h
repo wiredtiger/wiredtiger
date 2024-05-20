@@ -189,3 +189,64 @@ struct __wt_fstream {
     int (*fstr_getline)(WT_SESSION_IMPL *, WT_FSTREAM *, WT_ITEM *);
     int (*fstr_printf)(WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
 };
+
+/*
+ * __wt_file_handle_union_fs_layer --
+ *     A file handle in a union file system - one layer.
+ */
+struct __wt_file_handle_union_fs_layer {
+    WT_FILE_HANDLE *fh;
+
+    WT_UNION_FS_LAYER *layer;
+    bool complete;
+    size_t index;
+
+    bool *chunks;
+    size_t chunks_alloc; // XXX Not needed?
+    size_t num_chunks;
+    size_t size;
+};
+
+/*
+ * __wt_file_handle_union_fs --
+ *     A file handle in a union file system.
+ */
+struct __wt_file_handle_union_fs {
+    WT_FILE_HANDLE iface;
+
+    WT_FILE_HANDLE_UNION_FS_LAYER **layers; /* 0 is the most recent layer. */
+    size_t num_layers;
+
+    WT_FS_OPEN_FILE_TYPE file_type;
+    bool readonly;
+};
+
+/*
+ * __wt_union_fs_layer --
+ *     A layer in a union file system.
+ */
+struct __wt_union_fs_layer {
+    WT_FILE_SYSTEM *file_system;
+
+    char *home;
+    size_t index;
+};
+
+/*
+ * __wt_union_fs --
+ *     A union file system in the user space, which consists of one or more actual FS layers.
+ */
+struct __wt_union_fs {
+    WT_FILE_SYSTEM iface;
+
+    WT_UNION_FS_LAYER **layers; /* 0 is the oldest layer (unlike in the file handle). */
+    size_t max_layers;
+    size_t num_layers;
+
+    size_t chunk_size;
+
+    int (*add_layer)(WT_FILE_SYSTEM *, WT_SESSION *, WT_FILE_SYSTEM *, const char *);
+};
+
+extern int __wt_os_union_fs(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
