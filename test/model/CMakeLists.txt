@@ -43,6 +43,8 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
+find_package(Iconv REQUIRED)
+target_link_libraries(wiredtiger_model Iconv::Iconv)
 target_link_libraries(wiredtiger_model wt::wiredtiger)
 
 # Build the tests and the tools.
