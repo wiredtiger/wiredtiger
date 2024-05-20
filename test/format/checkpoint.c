@@ -160,7 +160,7 @@ checkpoint(void *arg)
         /* Verify the checkpoints. */
         wts_verify_mirrors(conn, ckpt_vrfy_name, NULL);
 
-        secs = mmrand(&g.extra_rnd, 5, 40);
+        secs = mmrand(&g.extra_rnd, 5, 15);
     }
 
     wt_wrap_open_session(conn, &sap, NULL, &session);

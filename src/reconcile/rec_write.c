@@ -2434,6 +2434,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     if (F_ISSET(r, WT_REC_HS)) {
         session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
         ret = __rec_hs_wrapup(session, r);
+        if (ret != 0)
+            WT_ASSERT(session, false);
         session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
         WT_RET(ret);
     }
@@ -2444,7 +2446,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * some action to resolve the list of allocated/free/whatever blocks that are associated with
      * the checkpoint).
      */
-    WT_RET(__wt_ovfl_track_wrapup(session, page));
+    ret = __wt_ovfl_track_wrapup(session, page);
+    if (ret != 0)
+        WT_ASSERT(session, false);
 
     /*
      * This page may have previously been reconciled, and that information is now about to be
@@ -2464,7 +2468,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (__wt_ref_is_root(ref))
             break;
 
-        WT_RET(__wt_ref_block_free(session, ref));
+        ret = __wt_ref_block_free(session, ref);
+        if (ret != 0)
+            WT_ASSERT(session, false);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2472,7 +2478,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                                /*
                                 * Discard the multiple replacement blocks.
                                 */
-        WT_RET(__rec_split_discard(session, page));
+        ret = __rec_split_discard(session, page);
+        if (ret != 0)
+            WT_ASSERT(session, false);
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
                             /*
@@ -2481,9 +2489,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
                              */
-        if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(session, mod->mod_replace.addr, mod->mod_replace.size));
-
+        if (!__wt_ref_is_root(ref)) {
+            ret = __wt_btree_block_free(session, mod->mod_replace.addr, mod->mod_replace.size);
+            if (ret != 0)
+                WT_ASSERT(session, false);
+        }
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.addr);
         mod->mod_replace.size = 0;
@@ -2698,7 +2708,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session, r, multi));
+            ret = __wt_hs_insert_updates(session, r, multi);
+            __wt_sleep(0, 100);
+            if (ret != 0)
+                WT_ASSERT(session, false);
             if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
