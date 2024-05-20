@@ -176,13 +176,13 @@ functions:
         dir=$(pwd)
         cd wiredtiger
         mongo_repo=https://github.com/mongodb/mongo
-        branch=$(git branch --contains | grep -e "mongodb")
+        branch=$(git branch --contains | grep -e "mongodb" -e "develop")
         if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
           mongo_branch=master
         fi
-        cd dir
+        cd $dir
         git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
@@ -4056,8 +4056,8 @@ tasks:
         params:
           exec_timeout_secs: 86400
           timeout_secs: 86400
-      - func: "fetch mongo repo"
       - func: "get project"
+      - func: "fetch mongo repo"
       - func: "get engflow creds"
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
