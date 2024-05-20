@@ -15,6 +15,7 @@
 int
 __wt_connection_init(WT_CONNECTION_IMPL *conn)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = conn->default_session;
@@ -90,6 +91,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     conn->ckpt_time_min = UINT64_MAX;
     conn->ckpt_scrub_min = UINT64_MAX;
 
+err:
     return (0);
 }
 

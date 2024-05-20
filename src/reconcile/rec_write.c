@@ -77,7 +77,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      *    In-memory splits: reconciliation of an internal page cannot handle
      * a child page splitting during the reconciliation.
      */
-    WT_PAGE_LOCK(session, page);
+    WT_WITH_BTREE_PAGE_LOCK(session, page);
     page_locked = true;
 
     /*
@@ -99,7 +99,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
 err:
     if (page_locked)
-        WT_PAGE_UNLOCK(session, page);
+        WT_WITH_BTREE_PAGE_UNLOCK(session, page);
     if (!no_reconcile_set)
         F_CLR(session, WT_SESSION_NO_RECONCILE);
 
@@ -161,7 +161,7 @@ __reconcile_post_wrapup(
 
     /* Release the reconciliation lock. */
     *page_lockedp = false;
-    WT_PAGE_UNLOCK(session, page);
+    WT_WITH_BTREE_PAGE_UNLOCK(session, page);
 
     /* Update statistics. */
     WT_STAT_CONN_INCR(session, rec_pages);
