@@ -85,7 +85,7 @@ class test_compact11(backup_base, compact_util):
 
         # Populate the first half of each table.
         for uri in uris:
-            compact_util.populate(self, uri, 0, self.table_numkv // 2, self.value_size)
+            compact_util.populate(self, uri, 0, self.table_numkv // 2, value_size=self.value_size)
 
         # Write to disk.
         self.session.checkpoint()
@@ -99,7 +99,7 @@ class test_compact11(backup_base, compact_util):
 
         # Insert the latter 50% in each table.
         for uri in uris:
-            compact_util.populate(self, uri, self.table_numkv // 2, self.table_numkv, self.value_size)
+            compact_util.populate(self, uri, self.table_numkv // 2, self.table_numkv, value_size=self.value_size)
 
         # Write to disk.
         self.session.checkpoint()

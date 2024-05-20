@@ -64,7 +64,7 @@ class test_compact09(compact_util):
             uri = self.uri_prefix + f'_{i}'
             uris.append(uri)
             self.session.create(uri, self.create_params)
-            self.populate(uri, 0, self.table_numkv, self.value_size)
+            self.populate(uri, 0, self.table_numkv, value_size=self.value_size)
 
         # Write to disk.
         self.session.checkpoint()

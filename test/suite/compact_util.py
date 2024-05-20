@@ -90,10 +90,14 @@ class compact_util(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def populate(self, uri, start_key, num_keys, value_size):
+    def populate(self, uri, start_key, num_keys, value=None, value_size=None):
         c = self.session.open_cursor(uri, None)
         for k in range(start_key, num_keys):
-            c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
+            if not value:
+                assert value_size is not None
+                c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
+            else:
+                c[k] = value
         c.close()
 
     def turn_on_bg_compact(self, config = ''):

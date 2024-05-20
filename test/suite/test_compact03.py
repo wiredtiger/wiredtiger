@@ -89,10 +89,7 @@ class test_compact03(compact_util):
         # 1. Create a table with relatively small page size.
         params = 'key_format=i,value_format=S,' + self.fileConfig
         self.session.create(self.uri, params)
-        c = self.session.open_cursor(self.uri, None)
-        for i in range(self.nrecords):
-            c[i] = self.normalValue
-        c.close()
+        self.populate(self.uri, 0, self.nrecords, value=self.normalValue)
 
         # 2. Checkpoint and get stats on the table to confirm the size.
         self.session.checkpoint()

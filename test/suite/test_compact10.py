@@ -54,7 +54,7 @@ class test_compact10(backup_base, compact_util):
             uri = self.uri_prefix + f'_{i}'
             uris.append(uri)
             self.session.create(uri, self.create_params)
-            compact_util.populate(self, uri, 0, self.table_numkv, self.value_size)
+            compact_util.populate(self, uri, 0, self.table_numkv, value_size=self.value_size)
 
         # Write to disk.
         self.session.checkpoint()
