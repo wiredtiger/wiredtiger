@@ -325,9 +325,14 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
 
     /* Wrap up the page reconciliation. Panic on failure. */
-    WT_ERR(__rec_write_wrapup(session, r, page));
+    ret = __rec_write_wrapup(session, r, page);
+    if (ret != 0)
+        WT_ASSERT(session, false);
+
     __rec_write_page_status(session, r);
-    WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
+    __reconcile_post_wrapup(session, r, page, flags, page_lockedp);
+    if (ret != 0)
+        WT_ASSERT(session, false);
 
     /*
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
