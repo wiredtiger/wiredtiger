@@ -407,11 +407,13 @@ read:
                 ++force_attempts;
                 ret = __wt_page_release_evict(session, ref, 0);
                 /*
-                 * If forced eviction succeeded, don't retry. If it failed, stall.
+                 * If forced eviction succeeded or if it failed because other session doing
+                 * checkpoint, don't retry. Else if it failed, stall.
                  */
-                if (ret == 0)
+                if (ret == 0 || __wt_btree_syncing_by_other_session(session)) {
+                    WT_NOT_READ(ret, 0);
                     evict_skip = true;
-                else if (ret == EBUSY) {
+                } else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     /*
                      * Don't back off if the session is configured not to do reconciliation, that
