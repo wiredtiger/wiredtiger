@@ -123,8 +123,8 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
     WT_ERR(__wt_buf_setstr(session, tmp, path));
 
     /*
-     * This layer should never see a path that doesn't include a path separator, this code asserts
-     * that fact, and truncates the non directory part of the path so dir ends with /
+     * This layer should never see a path that doesn't include a path separator. This code asserts
+     * that fact, and truncates the non-directory part of the path so dir ends with a '/'.
      */
     dir = tmp->mem;
     dpos = strrchr(dir, '/');
