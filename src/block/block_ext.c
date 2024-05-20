@@ -33,12 +33,12 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
  *     Return the last element in the list, along with a stack for appending.
  */
 static WT_INLINE WT_EXT *
-__block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
+__block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack)
 {
     WT_EXT **extp, **head, *last;
     int i;
 
-    if (!need_traverse)
+    if (el->last != NULL)
         return (el->last);
 
     last = NULL; /* The list may be empty */
@@ -972,7 +972,7 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
         b->bytes = tmp.bytes;
         a->entries = b->entries;
         b->entries = tmp.entries;
-        a->last= b->last;
+        a->last = b->last;
         b->last = tmp.last;
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
             a->off[i] = b->off[i];
@@ -1013,7 +1013,7 @@ __block_append(
     if ((ext = el->last) != NULL && ext->off + ext->size == off)
         ext->size += size;
     else {
-        ext = __block_off_srch_last(el, astack, true);
+        ext = __block_off_srch_last(el, astack);
         if (ext != NULL && ext->off + ext->size == off)
             ext->size += size;
         else {
@@ -1342,7 +1342,7 @@ __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIS
      * Check if the last available extent is at the end of the file, and if so, truncate the file
      * and discard the extent.
      */
-    if ((ext = __block_off_srch_last(el, astack, false)) == NULL)
+    if ((ext = __block_off_srch_last(el, astack)) == NULL)
         return (0);
     WT_ASSERT(session, ext->off + ext->size <= block->size);
     if (ext->off + ext->size < block->size)
@@ -1480,9 +1480,9 @@ __ut_block_off_remove(
 }
 
 WT_EXT *
-__ut_block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack, bool need_traverse)
+__ut_block_off_srch_last(WT_EXTLIST *el, WT_EXT ***stack)
 {
-    return (__block_off_srch_last(el, stack, need_traverse));
+    return (__block_off_srch_last(el, stack));
 }
 
 void
