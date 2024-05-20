@@ -30,11 +30,11 @@
 #   Test the accuracy of compact work estimation.
 #
 
-import wttest
 from wiredtiger import stat
+from compact_util import compact_util
 
 # Test the accuracy of compact work estimation.
-class test_compact04(wttest.WiredTigerTestCase):
+class test_compact04(compact_util):
 
     # Keep debug messages on by default. This is useful for diagnosing spurious test failures.
     conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
@@ -61,10 +61,7 @@ class test_compact04(wttest.WiredTigerTestCase):
 
             # Create the table and populate it with a lot of data
             self.session.create(table_uri, self.create_params)
-            c = self.session.open_cursor(table_uri, None)
-            for k in range(self.table_numkv):
-                c[k] = ('%07d' % k) + '_' + 'abcd' * ((self.value_size // 4) - 2)
-            c.close()
+            self.populate(table_uri, 0, self.table_numkv, value_size=self.value_size)
             self.session.checkpoint()
 
             # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
