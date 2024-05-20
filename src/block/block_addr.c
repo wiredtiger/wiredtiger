@@ -7,6 +7,7 @@
  */
 
 /* Fake extra comment 1 */
+/* Fake extra comment 2 */
 
 #include "wt_internal.h"
 
