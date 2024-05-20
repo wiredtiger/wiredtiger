@@ -267,7 +267,7 @@ def main():
         print("task_bucket_info: {}".format(task_bucket_info))
 
     # Perform task operations in parallel across the build directories
-    #run_coverage_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
+    run_coverage_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
 
     # Run gcovr if required
     if gcovr_dir:
