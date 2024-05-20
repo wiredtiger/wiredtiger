@@ -549,10 +549,10 @@ __wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *v
     next = visible_all_upd->next;
 
     /*
-     * No need to use a compare and swap because we have obtained a page lock at the start of the
-     * function. The page lock protects freeing the updates concurrently by other threads. Whereas
-     * the reader threads use transaction visibility to avoid traversing obsolete updates beyond the
-     * globally visible update.
+     * No need to use a compare and swap because we have obtained a page lock. The page lock
+     * protects freeing the updates concurrently by other threads. Whereas the reader threads use
+     * transaction visibility to avoid traversing obsolete updates beyond the globally visible
+     * update.
      */
     visible_all_upd->next = NULL;
 
