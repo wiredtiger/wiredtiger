@@ -1777,6 +1777,42 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __evict_skip_dirty_candidate --
+ *     Check if eviction should skip the dirty page.
+ */
+static WT_INLINE bool
+__evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    /*
+     * If the global transaction state hasn't changed since the last time we tried eviction, it's
+     * unlikely we can make progress. This heuristic avoids repeated attempts to evict the same
+     * page.
+     */
+    if (!__wt_page_evict_retry(session, page)) {
+        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
+        return (true);
+    }
+
+    /*
+     * If we are under cache pressure, allow evicting pages with newly committed updates to free
+     * space. Otherwise, avoid doing that as it may thrash the cache.
+     */
+    if (F_ISSET(conn->cache, WT_CACHE_EVICT_HARD)) {
+        if (!__txn_visible_id(session, page->modify->update_txn))
+            return (true);
+    } else if (page->modify->update_txn >= conn->txn_global.last_running) {
+        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
+        return (true);
+    }
+
+    return (false);
+}
+
+/*
  * __evict_walk_tree --
  *     Get a few page eviction candidates from a single underlying file.
  */
@@ -2133,29 +2169,8 @@ rand_next:
         if (__wt_cache_aggressive(session))
             goto fast;
 
-        if (modified) {
-            /*
-             * If the global transaction state hasn't changed since the last time we tried eviction,
-             * it's unlikely we can make progress. This heuristic avoids repeated attempts to evict
-             * the same page.
-             */
-            if (!__wt_page_evict_retry(session, page)) {
-                WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
-                continue;
-            }
-
-            /*
-             * If we are under cache pressure, allow evicting pages with newly committed updates to
-             * free space. Otherwise, avoid doing that as it may thrash the cache.
-             */
-            if (F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
-                if (!__txn_visible_id(session, page->modify->update_txn))
-                    continue;
-            } else if (page->modify->update_txn >= conn->txn_global.last_running) {
-                WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
-                continue;
-            }
-        }
+        if (modified && __evict_skip_dirty_candidate(session, page))
+            continue;
 
 fast:
         /* If the page can't be evicted, give up. */
