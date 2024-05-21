@@ -94,7 +94,7 @@ class compact_util(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(uri, None)
         for k in range(start_key, num_keys):
             if not value:
-                c[k] = ('%07d' % k) + '_' + 'abcd' * ((value_size // 4) - 2)
+                c[k] = ('%07d' % k) + '_' + 'a' * (value_size - 2)
             else:
                 c[k] = value
         c.close()
