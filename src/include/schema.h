@@ -167,7 +167,6 @@ struct __wt_import_list {
 
 #define WT_WITH_BTREE_PAGE_LOCK_NOWAIT(session, ret, page)                  \
     do {                                                                    \
-        (ret) = 0;                                                          \
         ret = __wt_spin_trylock_track(session, &(page)->modify->page_lock); \
     } while (0)
 
