@@ -588,7 +588,7 @@ __compact_page_skip(
      */
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
-        /* If no potential work has been found, or we're in dry run mode, exit compaction. */
+        /* If we're in dry run mode, exit compaction. */
         if (session->compact->dryrun)
             ret = ECANCELED;
     }
