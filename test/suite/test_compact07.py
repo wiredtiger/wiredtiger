@@ -96,7 +96,7 @@ class test_compact07(compact_util):
         # Write to disk.
         self.session.checkpoint()
 
-        # Delete the first 90%.
+        # Delete the first 90% of each file.
         for uri in uris:
             self.delete_range(uri, 90 * self.table_numkv // 100)
 

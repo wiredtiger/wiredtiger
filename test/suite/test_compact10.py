@@ -58,7 +58,7 @@ class test_compact10(backup_base, compact_util):
         # Write to disk.
         self.session.checkpoint()
 
-        # Delete 50% of the file.
+        # Delete 50% of each file.
         for uri in uris:
             self.delete_range(uri, 50 * self.table_numkv // 100)
 
