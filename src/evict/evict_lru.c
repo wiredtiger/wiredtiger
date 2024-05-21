@@ -1801,7 +1801,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * If we are under cache pressure, allow evicting pages with newly committed updates to free
      * space. Otherwise, avoid doing that as it may thrash the cache.
      */
-    if (F_ISSET(conn->cache, WT_CACHE_EVICT_HARD)) {
+    if (F_ISSET(conn->cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD)) {
         if (!__txn_visible_id(session, page->modify->update_txn))
             return (true);
     } else if (page->modify->update_txn >= conn->txn_global.last_running) {
