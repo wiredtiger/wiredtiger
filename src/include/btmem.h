@@ -1103,7 +1103,7 @@ struct __wt_ref {
      *
      * For more details on these functions see ref_inline.h.
      */
-    wt_shared volatile uint8_t __state;
+    WT_FUTEX_WORD __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1257,9 +1257,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 

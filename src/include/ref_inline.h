@@ -53,7 +53,10 @@ __wt_ref_is_root(WT_REF *ref)
 static WT_INLINE void
 __ref_set_state(WT_REF *ref, uint8_t state)
 {
+    int ret;
     WT_RELEASE_WRITE_WITH_BARRIER(ref->__state, state);
+    ret = __wt_futex_op_wake(&ref->__state, WT_FUTEX_WAKE_ALL);
+    WT_UNUSED(ret);
 }
 
 #ifndef HAVE_REF_TRACK
@@ -92,7 +95,7 @@ __ref_track_state(
 static WT_INLINE uint8_t
 __ref_get_state(WT_REF *ref)
 {
-    return (__wt_atomic_loadv8(&ref->__state));
+    return (__wt_atomic_loadv32(&ref->__state));
 }
 
 #define WT_REF_GET_STATE(ref) __ref_get_state((ref))
@@ -106,13 +109,18 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_
   const char *func, int line)
 {
     bool cas_result;
+    int ret;
 
     /* Parameters that are used in a macro for diagnostic builds */
     WT_UNUSED(session);
     WT_UNUSED(func);
     WT_UNUSED(line);
 
-    cas_result = __wt_atomic_casv8(&ref->__state, old_state, new_state);
+    cas_result = __wt_atomic_casv32(&ref->__state, old_state, new_state);
+    if (cas_result) {
+        ret = __wt_futex_op_wake(&ref->__state, WT_FUTEX_WAKE_ALL);
+        WT_UNUSED(ret);
+    }
 
 #ifdef HAVE_REF_TRACK
     /*

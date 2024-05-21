@@ -267,7 +267,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_PAGE *page;
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
-    uint8_t current_state;
+    uint32_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
@@ -372,7 +372,7 @@ read:
 #endif
             if (busy) {
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
-                break;
+                continue;
             }
 
             /*
@@ -493,18 +493,8 @@ skip_evict:
             return (__wt_illegal_value(session, current_state));
         }
 
-        /*
-         * We failed to get the page -- yield before retrying, and if we've yielded enough times,
-         * start sleeping so we don't burn CPU to no purpose.
-         */
-        if (yield_cnt < WT_THOUSAND) {
-            if (!stalled) {
-                ++yield_cnt;
-                __wt_yield();
-                continue;
-            }
-            yield_cnt = WT_THOUSAND;
-        }
+        if (WT_REF_GET_STATE(ref) != current_state)
+            continue;
 
         /*
          * If stalling and this thread is allowed to do eviction work, check if the cache needs help
@@ -516,6 +506,13 @@ skip_evict:
             if (cache_work)
                 continue;
         }
+
+        /* WT-11836-FIXME timeout here */
+        ret = __wt_futex_op_wait(&ref->__state, current_state, 100 /* microseconds*/, &current_state);
+        if (ret != 0)
+            __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "bt_read current_state=%u  futex=%d  errno=%d",
+                current_state, ret, errno);
+
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
