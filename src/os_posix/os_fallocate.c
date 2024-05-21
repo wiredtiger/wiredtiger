@@ -20,27 +20,27 @@
  */
 #if defined(HAVE_FALLOCATE) || (defined(__linux__) && defined(SYS_fallocate)) || \
   defined(HAVE_POSIX_FALLOCATE)
-#define WT_CALL_FUNCTION(op)                                                             \
-    do {                                                                                 \
-        WT_DECL_RET;                                                                     \
-        WT_FILE_HANDLE_POSIX *pfh;                                                       \
-        bool remap;                                                                      \
-                                                                                         \
-        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                                       \
-                                                                                         \
-        /* Always call prepare. It will return whether a remap is needed or not. */      \
-        __wti__posix_prepare_remap_resize_file(file_handle, wt_session, offset, &remap); \
-                                                                                         \
-        WT_SYSCALL_RETRY(op, ret);                                                       \
-        if (remap) {                                                                     \
-            if (ret == 0)                                                                \
-                __wti__posix_remap_resize_file(file_handle, wt_session);                 \
-            else {                                                                       \
-                __wti__posix_release_without_remap(file_handle);                         \
-                WT_RET(ret);                                                             \
-            }                                                                            \
-        }                                                                                \
-        return (ret);                                                                    \
+#define WT_CALL_FUNCTION(op)                                                            \
+    do {                                                                                \
+        WT_DECL_RET;                                                                    \
+        WT_FILE_HANDLE_POSIX *pfh;                                                      \
+        bool remap;                                                                     \
+                                                                                        \
+        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                                      \
+                                                                                        \
+        /* Always call prepare. It will return whether a remap is needed or not. */     \
+        __wti_posix_prepare_remap_resize_file(file_handle, wt_session, offset, &remap); \
+                                                                                        \
+        WT_SYSCALL_RETRY(op, ret);                                                      \
+        if (remap) {                                                                    \
+            if (ret == 0)                                                               \
+                __wti_posix_remap_resize_file(file_handle, wt_session);                 \
+            else {                                                                      \
+                __wti_posix_release_without_remap(file_handle);                         \
+                WT_RET(ret);                                                            \
+            }                                                                           \
+        }                                                                               \
+        return (ret);                                                                   \
     } while (0)
 #endif
 
