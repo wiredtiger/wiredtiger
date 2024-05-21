@@ -348,9 +348,9 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
     buckets = {}
     for i, current_tuple in enumerate(all_addr):
         if i > 0:
-            prev_tupe = all_addr[i - 1]
-            prev_tupe_end = prev_tupe[0] + prev_tupe[1]
-            gap = current_tuple[0] - prev_tupe_end
+            prev_tuple = all_addr[i - 1]
+            prev_tuple_end = prev_tuple[0] + prev_tuple[1]
+            gap = current_tuple[0] - prev_tuple_end
             assert gap >= 0, f"Data is not sorted correctly"
             if gap == 0:
                 continue
