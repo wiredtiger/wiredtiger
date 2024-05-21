@@ -92,7 +92,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     conn->ckpt_scrub_min = UINT64_MAX;
 
 err:
-    return (0);
+    return (ret);
 }
 
 /*
