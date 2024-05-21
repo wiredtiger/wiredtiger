@@ -51,8 +51,7 @@ __wt_rts_check(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
 
     /*
-     * Help the user comply with the requirement there be no concurrent user operations. It is okay
-     * to have a transaction in the prepared state.
+     * Help the user to comply with the requirement that there are no concurrent user operations.
      *
      * WT_TXN structures are allocated and freed as sessions are activated and closed. Lock the
      * session open/close to ensure we don't race. This call is a rarely used RTS-only function,
