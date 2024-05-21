@@ -1164,6 +1164,31 @@ err:
     API_END_RET(session, ret);
 }
 
+static int
+__conn_dump_api_call_counts(WT_CONNECTION_IMPL *conn)
+{
+    WT_DECL_RET;
+    WT_FH *fh;
+    wt_off_t offset;
+    char buf[256];
+
+    offset = 0;
+    WT_RET(__wt_open(conn->default_session, "debug_api_call_counts.txt",
+      WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_CREATE, &fh));
+
+    /* Iterate over and dump the api call counts. */
+    for (int i = 0; i < WT_API_COUNT; i++) {
+        WT_ERR(__wt_snprintf(
+          buf, sizeof(buf), "%s=%lu\n", __WT_API_NAMES[i], conn->api_call_tracker->call_counts[i]));
+        WT_ERR(__wt_write(conn->default_session, fh, offset, strlen(buf), buf));
+        offset += (wt_off_t)strlen(buf);
+    }
+
+err:
+    WT_TRET(__wt_close(conn->default_session, &fh));
+    return (ret);
+}
+
 /*
  * __conn_close --
  *     WT_CONNECTION->close method.
@@ -1270,6 +1295,10 @@ err:
         __wt_err(session, ret, "failure during close, disabling further writes");
         F_SET(conn, WT_CONN_PANIC);
     }
+
+    /* If configured to dump API call counts do so now. */
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT))
+        __conn_dump_api_call_counts(conn);
 
     /*
      * Now that the final checkpoint is complete, the shutdown process should not allocate a
@@ -2129,6 +2158,31 @@ err:
 }
 
 /*
+ * __debug_mode_api_call_count_config --
+ *     Set the debug configurations for api call counts.
+ */
+static int
+__debug_mode_api_call_count_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.api_call_count", &cval));
+    if (cval.val) {
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT);
+        /* Allocate the API call count tracker. */
+        WT_RET(__wt_calloc_one(session, &conn->api_call_tracker));
+    } else if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT)) {
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_API_ENTRY_COUNT);
+        /* Free the API call count tracker. */
+        __wt_free(session, conn->api_call_tracker);
+    }
+    return (0);
+}
+
+/*
  * __debug_mode_background_compact_config --
  *     Set the debug configurations for the background compact server.
  */
@@ -2175,6 +2229,7 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
+    WT_RET(__debug_mode_api_call_count_config(session, cfg));
     WT_RET(__debug_mode_log_retention_config(session, cfg));
     WT_RET(__debug_mode_background_compact_config(session, cfg));
 

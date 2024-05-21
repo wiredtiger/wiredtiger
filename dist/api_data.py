@@ -566,6 +566,9 @@ connection_runtime_config = [
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
+        Config('api_call_count', 'false', r'''
+            On close dump the number of API calls made into WiredTiger''',
+            type='boolean'),
         Config('background_compact', 'false', r'''
                if true, background compact aggressively removes compact statistics for a file and
                decreases the max amount of time a file can be skipped for.''',

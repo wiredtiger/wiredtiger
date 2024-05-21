@@ -63,6 +63,7 @@ src/checksum/zseries/crc32le-vx.sx              ZSERIES_HOST
 src/conf/conf_bind.c
 src/conf/conf_compile.c
 src/conf/conf_get.c
+src/config/api_func_map.c
 src/config/config.c
 src/config/config_api.c
 src/config/config_check.c
