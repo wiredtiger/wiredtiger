@@ -2192,7 +2192,7 @@ fast:
         __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
           (void *)page, page->memory_footprint);
     }
-    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES))
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD))
         __wt_txn_release_snapshot(session);
     WT_RET_NOTFOUND_OK(ret);
 
