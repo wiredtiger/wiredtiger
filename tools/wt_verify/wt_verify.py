@@ -319,7 +319,7 @@ def show_block_distribution_hist(filename, data, bins=100):
     ax.hist(all_addr, bins=bins)
     plt.title(f"Distribution of blocks for {filename}")
     plt.xlabel(f"Offset (bins={bins})")
-    plt.ylabel("Frequency")
+    plt.ylabel("Frequency (blocks)")
     plt.close()
 
     # Generate the image.
