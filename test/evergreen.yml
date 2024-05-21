@@ -336,16 +336,6 @@ functions:
           $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
           echo "Completed CMake"
         fi
-  "python config check":
-    command: shell.exec
-    type: setup
-    params:
-      working_dir: "wiredtiger/cmake_build"
-      shell: bash
-      script: |
-        set -o errexit
-        # Confirm that the Python binary matches the version of that configured by CMake.
-        ${python_binary|python3} ../test/evergreen/python_version_check.py -v -c ./CMakeCache.txt -s ${python_config_search_string}
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
     params:
@@ -1458,9 +1448,7 @@ variables:
     tasks:
       - name: compile
       - name: make-check-test
-      # FIXME: WT-9575
-      # Using a special version of unit test for macOS to reduce the concurrency level.
-      - name: unit-test-macos
+      - name: unit-test
       - name: fops
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
@@ -2146,15 +2134,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test"
-
-  - name: unit-test-macos
-    tags: ["python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "python config check"
       - func: "unit test"
 
   - name: unit-test-zstd
