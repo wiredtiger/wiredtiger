@@ -681,14 +681,14 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
       pfh->mmap_size);
 
     /* Always call prepare. It will return whether a remap is needed or not. */
-    __wti_prepare_remap_resize_file(file_handle, wt_session, len, &remap);
+    __wti_posix_prepare_remap_resize_file(file_handle, wt_session, len, &remap);
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (remap) {
         if (ret == 0)
-            __wti_remap_resize_file(file_handle, wt_session);
+            __wti_posix_remap_resize_file(file_handle, wt_session);
         else {
-            __wti_release_without_remap(file_handle);
+            __wti_posix_release_without_remap(file_handle);
             WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
         }
     }
@@ -797,10 +797,10 @@ use_syscall:
     if (pfh->mmap_buf != NULL && !pfh->mmap_resizing && pfh->mmap_size < offset + (wt_off_t)len)
         /* If we are actively extending the file, don't remap it on every write. */
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
-            __wti_prepare_remap_resize_file(
+            __wti_posix_prepare_remap_resize_file(
               file_handle, wt_session, offset + (wt_off_t)len, &remap);
             if (remap)
-                __wti_remap_resize_file(file_handle, wt_session);
+                __wti_posix_remap_resize_file(file_handle, wt_session);
             WT_STAT_CONN_INCRV(session, block_remap_file_write, 1);
         }
     return (0);
@@ -1092,12 +1092,12 @@ __wt_os_posix(WT_SESSION_IMPL *session)
  */
 
 /*
- * __wti_prepare_remap_resize_file --
+ * __wti_posix_prepare_remap_resize_file --
  *     Wait until all sessions using the mapped region for I/O are done, so it is safe to remap the
  *     file when it changes size.
  */
 void
-__wti_prepare_remap_resize_file(
+__wti_posix_prepare_remap_resize_file(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len, bool *remap)
 {
     WT_FILE_HANDLE_POSIX *pfh;
@@ -1137,13 +1137,13 @@ wait:
 }
 
 /*
- * __wti_release_without_remap --
+ * __wti_posix_release_without_remap --
  *     Signal that we are releasing the mapped buffer we wanted to resize, but do not actually remap
  *     the file. If we set the resizing flag earlier, but the operation that tried to resize the
  *     file did not succeed, we will simply reset the flag without resizing.
  */
 void
-__wti_release_without_remap(WT_FILE_HANDLE *file_handle)
+__wti_posix_release_without_remap(WT_FILE_HANDLE *file_handle)
 {
 
     WT_FILE_HANDLE_POSIX *pfh;
@@ -1157,11 +1157,11 @@ __wti_release_without_remap(WT_FILE_HANDLE *file_handle)
 }
 
 /*
- * __wti_remap_resize_file --
+ * __wti_posix_remap_resize_file --
  *     After the file size has changed, unmap the file. Then remap it with the new size.
  */
 void
-__wti_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__wti_posix_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;

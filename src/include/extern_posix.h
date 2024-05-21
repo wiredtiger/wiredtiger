@@ -63,10 +63,10 @@ extern void __wt_stream_set_no_buffer(FILE *fp) WT_GCC_FUNC_DECL_ATTRIBUTE((visi
 extern void __wt_thread_id(uintmax_t *id) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_yield(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_yield_no_barrier(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wti_prepare_remap_resize_file(
+extern void __wti_posix_prepare_remap_resize_file(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len, bool *remap);
-extern void __wti_release_without_remap(WT_FILE_HANDLE *file_handle);
-extern void __wti_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+extern void __wti_posix_release_without_remap(WT_FILE_HANDLE *file_handle);
+extern void __wti_posix_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 
 #ifdef HAVE_UNITTEST
 
