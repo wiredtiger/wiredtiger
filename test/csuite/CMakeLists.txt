@@ -32,6 +32,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_os_futex_op
+    SOURCES os_futex_op/main.c
+    DIR_NAME os_futex_op
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_random
     SOURCES random/main.c
     DIR_NAME random

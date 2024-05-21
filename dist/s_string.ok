@@ -157,6 +157,7 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
+Futex
 GBR
 GC
 GCP
@@ -359,6 +360,7 @@ SetEndOfFile
 SetFilePointerEx
 Sevii
 SiH
+Signalling
 Skiplist
 SleepConditionVariableCS
 SmallVector
@@ -797,6 +799,7 @@ fsyncs
 ftruncate
 func
 funcid
+futex
 fuzzer
 fuzzutil
 fvisibility
