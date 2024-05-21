@@ -173,16 +173,18 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        dir=$(pwd)
-        cd wiredtiger
+        pushd wiredtiger
         mongo_repo=https://github.com/mongodb/mongo
+        # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
+        # the case of patch builds, it is possible that the developer has a branch name that doesn't
+        # adhere to naming rules, therefore derive the base branch name from git.
         branch=$(git branch --contains | grep -e "mongodb" -e "develop")
         if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
           mongo_branch=master
         fi
-        cd $dir
+        popd
         git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
