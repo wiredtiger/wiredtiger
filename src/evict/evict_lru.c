@@ -1784,8 +1784,10 @@ static WT_INLINE bool
 __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_TXN *txn;
 
     conn = S2C(session);
+    txn = session->txn;
 
     /*
      * If the global transaction state hasn't changed since the last time we tried eviction, it's
@@ -1801,7 +1803,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * If we are under cache pressure, allow evicting pages with newly committed updates to free
      * space. Otherwise, avoid doing that as it may thrash the cache.
      */
-    if (F_ISSET(conn->cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD)) {
+    if (F_ISSET(conn->cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD) &&
+      F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
         if (!__txn_visible_id(session, page->modify->update_txn))
             return (true);
     } else if (page->modify->update_txn >= conn->txn_global.last_running) {
@@ -1826,6 +1829,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_EVICT_ENTRY *end, *evict, *start;
     WT_PAGE *last_parent, *page;
     WT_REF *ref;
+    WT_TXN *txn;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
@@ -1838,6 +1842,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     last_parent = NULL;
     restarts = 0;
     give_up = urgent_queued = false;
+    txn = session->txn;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
 
@@ -2192,7 +2197,7 @@ fast:
         __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
           (void *)page, page->memory_footprint);
     }
-    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD))
+    if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
     WT_RET_NOTFOUND_OK(ret);
 
