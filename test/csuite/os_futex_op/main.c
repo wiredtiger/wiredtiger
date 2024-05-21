@@ -27,12 +27,6 @@ struct waiters_outcomes {
     int failed;   /* Wait error other than time out. */
 };
 
-#define WAITER_INIT(word, expect, tout)                                                    \
-    (struct waiter)                                                                        \
-    {                                                                                      \
-        .ftx_word = (word), .expected = (expect), .timeout = (tout), .wakeup = { 0, 0, 0 } \
-    }
-
 #define WAITER_TEST_ASSERT(waiter_, ret_, errno_, val_)           \
     do {                                                          \
         testutil_assert((waiter_)->wakeup.ret == (ret_));         \
@@ -45,6 +39,19 @@ struct waiters_outcomes {
     if (opts->verbose) \
         printf("futex test: %s\n", __func__); \
     } while (0)
+
+/*
+ * _waiter_init --
+ *      Initialize waiter thread.
+ */
+static void
+_waiter_init(struct waiter *w, WT_FUTEX_WORD *ftx, uint32_t expected, int64_t timeout)
+{
+    memset(w, 0, sizeof(*w));
+    w->ftx_word = ftx;
+    w->expected = expected;
+    w->timeout = timeout;
+}
 
 /*
  * _waiter_thread --
@@ -120,6 +127,27 @@ _collect_waiter_outcomes(struct waiter *waiters, int waiter_count, uint32_t fute
 }
 
 /*
+ * _check_outcomes --
+ *      Spurious wakeups are passed through in this API, so outcome validation must account for valid variations.
+ */
+static void
+_check_outcomes(const struct waiters_outcomes *outcomes, int max_awoken, int max_timedout)
+{
+    int outcome_total, expected_total;
+
+    /* This may change if a unaligned futex address test is added. */
+    testutil_assert(outcomes->failed == 0);
+
+    testutil_assert(outcomes->awoken <= max_awoken);
+    testutil_assert(outcomes->timedout <= max_timedout);
+    testutil_assert(outcomes->spurious <= (max_awoken + max_timedout));
+
+    outcome_total = outcomes->awoken + outcomes->timedout + outcomes->spurious;
+    expected_total = max_awoken + max_timedout;
+    testutil_assert(outcome_total == expected_total);
+}
+
+/*
  * _test_wake_up_single --
  *     Wake all threads, with only a single thread waiting on the futex.
  */
@@ -132,7 +160,7 @@ _test_wake_up_single(TEST_OPTS *opts)
     VERBOSE_ANNOUNCE(opts);
 
     futex = 0;
-    waiter = WAITER_INIT(&futex, futex, TIME_MS(200));
+    _waiter_init(&waiter, &futex, futex, TIME_MS(200));
     testutil_check(pthread_create(&waiter.tid, NULL, _waiter_thread, &waiter));
     __wt_sleep(0, TIME_MS(100));
     __wt_atomic_store32(&futex, 0x1f2e3c4d);
@@ -155,7 +183,7 @@ _test_time_out_single(TEST_OPTS *opts)
     VERBOSE_ANNOUNCE(opts);
 
     futex = 0;
-    waiter = WAITER_INIT(&futex, futex, TIME_MS(200));
+    _waiter_init(&waiter, &futex, futex, TIME_MS(200));
     testutil_check(pthread_create(&waiter.tid, NULL, _waiter_thread, &waiter));
     __wt_sleep(0, TIME_MS(100));
     __wt_atomic_store32(&futex, 0x1f2e3c4d);
@@ -177,7 +205,7 @@ _test_spurious_wake_up_single(TEST_OPTS *opts)
     VERBOSE_ANNOUNCE(opts);
 
     futex = 911;
-    waiter = WAITER_INIT(&futex, futex, TIME_MS(200));
+    _waiter_init(&waiter, &futex, futex, TIME_MS(200));
     testutil_check(pthread_create(&waiter.tid, NULL, _waiter_thread, &waiter));
     __wt_sleep(0, TIME_MS(100));
     testutil_check(__wt_futex_op_wake(&futex, WT_FUTEX_WAKE_ONE));
@@ -205,21 +233,19 @@ _test_wake_one_of_two(TEST_OPTS *opts)
 
     futex = 0;
     for (i = 0; i < WAITER_COUNT; i++)
-        waiters[i] = WAITER_INIT(&futex, WAKEUP_VAL, TIME_MS(300));
+        _waiter_init(&waiters[i], &futex, futex, TIME_MS(500));
 
     _waiters_start(waiters, WAITER_COUNT);
 
     __wt_sleep(0, TIME_MS(100));
-    __wt_atomic_store32(&futex, 1);
+    __wt_atomic_store32(&futex, WAKEUP_VAL);
     testutil_check(__wt_futex_op_wake(&futex, WT_FUTEX_WAKE_ONE));
 
     _waiters_join(waiters, WAITER_COUNT);
     _collect_waiter_outcomes(waiters, WAITER_COUNT, futex, &outcomes);
 
-    testutil_assert(outcomes.awoken == 1);
-    testutil_assert(outcomes.spurious == 0);
-    testutil_assert(outcomes.timedout == 1);
-    testutil_assert(outcomes.failed == 0);
+    /* Ideally: 1 wake, 1 timeout. */
+    _check_outcomes(&outcomes, 1, 1);
 }
 
 /*
@@ -241,21 +267,18 @@ _test_wake_two_of_two(TEST_OPTS *opts)
 
     futex = 0;
     for (i = 0; i < WAITER_COUNT; i++)
-        waiters[i] = WAITER_INIT(&futex, WAKEUP_VAL, TIME_MS(300));
+        _waiter_init(&waiters[i], &futex, futex, TIME_MS(500));
 
     _waiters_start(waiters, WAITER_COUNT);
 
     __wt_sleep(0, TIME_MS(100));
-    __wt_atomic_store32(&futex, 1);
+    __wt_atomic_store32(&futex, WAKEUP_VAL);
     testutil_check(__wt_futex_op_wake(&futex, WT_FUTEX_WAKE_ALL));
 
     _waiters_join(waiters, WAITER_COUNT);
     _collect_waiter_outcomes(waiters, WAITER_COUNT, futex, &outcomes);
 
-    testutil_assert(outcomes.awoken == 2);
-    testutil_assert(outcomes.spurious == 0);
-    testutil_assert(outcomes.timedout == 0);
-    testutil_assert(outcomes.failed == 0);
+    _check_outcomes(&outcomes, 2, 0);
 }
 
 /*
