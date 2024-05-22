@@ -157,20 +157,20 @@ struct __wt_import_list {
       session, ret, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
 
 /*
- * WT_WITH_BTREE_PAGE_LOCK, WT_WITH_BTREE_PAGE_LOCK_NOWAIT --
- *	Acquire the btree page lock, perform an operation, drop the lock.
+ * WT_PAGE_LOCK, WT_PAGE_TRYLOCK --
+ *	Acquire the page lock
  */
-#define WT_WITH_BTREE_PAGE_LOCK(session, page)                     \
+#define WT_PAGE_LOCK(session, page)                                \
     do {                                                           \
         __wt_spin_lock_track(session, &(page)->modify->page_lock); \
     } while (0)
 
-#define WT_WITH_BTREE_PAGE_LOCK_NOWAIT(session, ret, page)                  \
+#define WT_PAGE_TRYLOCK(session, ret, page)                                 \
     do {                                                                    \
         ret = __wt_spin_trylock_track(session, &(page)->modify->page_lock); \
     } while (0)
 
-#define WT_WITH_BTREE_PAGE_UNLOCK(session, page)                 \
+#define WT_PAGE_UNLOCK(session, page)                            \
     do {                                                         \
         __wt_spin_unlock((session), &(page)->modify->page_lock); \
     } while (0)

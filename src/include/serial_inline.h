@@ -162,10 +162,10 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
      * function.
      */
     if (!exclusive)
-        WT_WITH_BTREE_PAGE_LOCK(session, page);
+        WT_PAGE_LOCK(session, page);
     ret = __col_append_serial_func(session, ins_head, ins_stack, new_ins, recnop, skipdepth);
     if (!exclusive)
-        WT_WITH_BTREE_PAGE_UNLOCK(session, page);
+        WT_PAGE_UNLOCK(session, page);
 
     if (ret != 0) {
         /* Free unused memory on error. */
@@ -213,10 +213,10 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
         ret = __insert_simple_func(session, ins_stack, new_ins, skipdepth);
     else {
         if (!exclusive)
-            WT_WITH_BTREE_PAGE_LOCK(session, page);
+            WT_PAGE_LOCK(session, page);
         ret = __insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth);
         if (!exclusive)
-            WT_WITH_BTREE_PAGE_UNLOCK(session, page);
+            WT_PAGE_UNLOCK(session, page);
     }
 
     if (ret != 0) {

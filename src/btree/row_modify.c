@@ -353,7 +353,7 @@ __wt_update_obsolete_check(
 
     WT_ASSERT(session, page->modify != NULL);
     /* If we can't lock it, don't scan, that's okay. */
-    WT_WITH_BTREE_PAGE_LOCK_NOWAIT(session, ret, page);
+    WT_PAGE_TRYLOCK(session, ret, page);
     if (ret != 0)
         return;
 
@@ -444,5 +444,5 @@ __wt_update_obsolete_check(
         }
     }
 
-    WT_WITH_BTREE_PAGE_UNLOCK(session, page);
+    WT_PAGE_UNLOCK(session, page);
 }

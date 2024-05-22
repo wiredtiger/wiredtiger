@@ -315,7 +315,7 @@ __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***locke
     for (i = 0; locked[i] != NULL; ++i) {
         if (split_gen != 0 && WT_PAGE_IS_INTERNAL(locked[i]))
             locked[i]->pg_intl_split_gen = split_gen;
-        WT_WITH_BTREE_PAGE_UNLOCK(session, locked[i]);
+        WT_PAGE_UNLOCK(session, locked[i]);
     }
     __wt_free(session, locked);
 }
@@ -362,7 +362,7 @@ __split_ref_prepare(
         WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));
         locked[cnt++] = child;
 
-        WT_WITH_BTREE_PAGE_LOCK(session, child);
+        WT_PAGE_LOCK(session, child);
 
         /* Switch the WT_REF's to their new page. */
         j = 0;
@@ -1193,13 +1193,13 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         WT_RET(__wt_page_modify_init(session, parent));
 
         if (trylock) {
-            WT_WITH_BTREE_PAGE_LOCK_NOWAIT(session, ret, parent);
+            WT_PAGE_TRYLOCK(session, ret, parent);
             WT_RET(ret);
         } else
-            WT_WITH_BTREE_PAGE_LOCK(session, parent);
+            WT_PAGE_LOCK(session, parent);
         if (parent == ref->home)
             break;
-        WT_WITH_BTREE_PAGE_UNLOCK(session, parent);
+        WT_PAGE_UNLOCK(session, parent);
     }
 
     /*
@@ -1222,7 +1222,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
 static void
 __split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent)
 {
-    WT_WITH_BTREE_PAGE_UNLOCK(session, parent);
+    WT_PAGE_UNLOCK(session, parent);
 }
 
 /*
