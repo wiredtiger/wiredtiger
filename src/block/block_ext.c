@@ -549,7 +549,11 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
 
     /*
      * Allocation is either first-fit (lowest offset), or best-fit (best size). If it's first-fit,
-     * walk the offset list linearly until we find an entry that will work.
+     * walk the offset list linearly until we find an entry that will work. Always use first-fit
+     * when incremental backup is active so that we minimize the portions of the file that change.
+     * We check the backup flag rather than call __wt_block_configure_first_fit because we want a
+     * global switch to the allocation dynamically for all tables only when incremental backup is
+     * active on the connection rather than on a per-block basis.
      *
      * If it's best-fit by size, search the by-size skiplist for the size and take the first entry
      * on the by-size offset list. This means we prefer best-fit over lower offset, but within a
@@ -559,7 +563,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
      */
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
-    if (block->allocfirst) {
+    if (block->allocfirst || F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
         if (!__block_first_srch(block->live.avail.off, size, estack))
             goto append;
         ext = *estack[0];
