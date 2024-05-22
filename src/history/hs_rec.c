@@ -238,6 +238,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_ERR(cursor->insert(cursor));
 
 err:
+    if (ret == EBUSY)
+        WT_ASSERT(session, false);
     if (!hs_read_all_flag)
         F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
 #ifdef HAVE_DIAGNOSTIC
@@ -791,12 +793,18 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
         ret = 0;
         goto done;
     } else {
+        if (ret == EBUSY)
+            WT_ASSERT(session, false);
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
         ++hs_counter;
     }
 
-    WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
-      true, error_on_ts_ordering, &hs_counter, NULL));
+    ret = __hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
+      true, error_on_ts_ordering, &hs_counter, NULL);
+    if (ret == EBUSY)
+        WT_ASSERT(session, false);
+    else
+        WT_ERR(ret);
 
 done:
 err:
