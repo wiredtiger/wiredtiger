@@ -2982,6 +2982,34 @@ tasks:
       - func: "code coverage publish main page"
       - func: "code coverage publish report"
 
+  - name: coverage-report-per-test
+    # This task will measure code coverage across a range of tests, including, but not limited to,
+    # the Catch2-based unit tests. The tests are run in parallel, and data is captured seperately per test.
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            test/evergreen/find_cmake.sh
+
+            # Create directories for 8 builds and the output data
+            mkdir build_0 build_1 build_2 build_3 build_4 build_5 build_6 build_7
+            mkdir -p coverage_data
+            mkdir -p coverage_report
+
+            # Record the start time, in seconds
+            date +%s > time.txt
+
+            ${python_binary|python3} test/evergreen/code_coverage/per_test_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_config.json -b $(pwd)/build_ -j ${num_jobs} -g $(pwd)/coverage_data -s
+            
+            # Record the end time, in seconds
+            date +%s >> time.txt
+      - func: "code coverage publish report"
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
     tags: ["pull_request_code_statistics"]
