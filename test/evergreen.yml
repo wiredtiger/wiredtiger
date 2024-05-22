@@ -2038,18 +2038,18 @@ tasks:
           test_name: bounded_cursor_perf
 
   - name: cppsuite-cursor-microbenchmarks-default-perf
-      depends_on:
+    depends_on:
       - name: compile
     tags: ["cppsuite-perf-test"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
-          test_config_filename: configs/session_microbenchmarks_default.txt
+          test_config_filename: configs/cursor_microbenchmarks_default.txt
           test_name: cursor_microbenchmarks
 
   - name: cppsuite-session-microbenchmarks-default-perf
-      depends_on:
+    depends_on:
       - name: compile
     tags: ["cppsuite-perf-test"]
     commands:
