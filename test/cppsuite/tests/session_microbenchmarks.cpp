@@ -40,8 +40,8 @@ make_insert(thread_worker *tc, const std::string &id)
     std::string cursor_uri = tc->db.get_collection(0).name;
 
     auto cursor = tc->session.open_scoped_cursor(cursor_uri);
-    cursor->set_key(cursor.get(), "key" + id);
-    cursor->set_value(cursor.get(), "value1" + id);
+    cursor->set_key(cursor.get(), std::string("key" + id).c_str());
+    cursor->set_value(cursor.get(), std::string("value1" + id).c_str());
     testutil_assert(cursor->insert(cursor.get()) == 0);
 }
 

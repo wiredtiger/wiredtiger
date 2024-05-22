@@ -83,7 +83,9 @@ public:
         _total_instruction_count += count;
 
         if (_measure_time)
-            _total_time_taken += std::chrono::duration_cast<std::chrono::nanoseconds>((std::chrono::steady_clock::now() - start_time)).count();
+            _total_time_taken += std::chrono::duration_cast<std::chrono::nanoseconds>(
+              (std::chrono::steady_clock::now() - start_time))
+                                   .count();
         _it_count += 1;
 
         if (fd > 0) {
