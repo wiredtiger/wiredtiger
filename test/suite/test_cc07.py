@@ -28,22 +28,11 @@
 
 from test_cc01 import test_cc_base
 from wiredtiger import stat
-from wtdataset import SimpleDataSet, simple_key, simple_value
-from wtscenario import make_scenarios
 
-# test_cc06.py
-# Verify checkpoint cleanup ignores the empty or newly created files.
-
-class test_cc06(test_cc_base):
-    conn_config = 'cache_size=50MB,statistics=(all)'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
-    scenarios = make_scenarios(format_values)
+# test_cc07.py
+# Verify checkpoint cleanup removes the obsolete time window from the pages.
+class test_cc07(test_cc_base):
+    conn_config = 'statistics=(all),statistics_log=(json,wait=0,on_close=true)'
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -51,25 +40,33 @@ class test_cc06(test_cc_base):
         stat_cursor.close()
         return val
 
+    def populate(self, uri, start_key, num_keys, value_size=1024):
+        c = self.session.open_cursor(uri, None)
+        for k in range(start_key, num_keys):
+            self.session.begin_transaction()
+            c[k] = 'k' * value_size
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k + 1))
+        c.close()
+
     def test_cc(self):
-        uri = "table:cc06"
+        create_params = 'key_format=i,value_format=S'
+        nrows = 10000
+        uri = 'table:cc07'
+        value_size = 1024
 
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)'+self.extraconfig)
-        ds.populate()
+        self.session.create(uri, create_params)
 
-        # Set the oldest and stable timestamps to 10.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
-            ',stable_timestamp=' + self.timestamp_str(10))
+        for i in range(10):
+            # Append some data.
+            self.populate(uri, nrows * (i), nrows * (i + 1))
 
-        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
-        # Check statistics.
-        self.assertEqual(self.get_stat(stat.conn.cc_pages_visited), 0)
-
-        # Reopen the database.
-        self.reopen_conn()
+            # Checkpoint with cleanup.
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows * (i + 1)))
+            self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+        self.wait_for_cc_to_run()
+
         # Check statistics.
-        self.assertEqual(self.get_stat(stat.conn.cc_pages_visited), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_obsolete_timewindow), 0)

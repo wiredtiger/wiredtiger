@@ -84,8 +84,8 @@ class test_cc_base(wttest.WiredTigerTestCase):
     def check_cc_stats(self):
         self.wait_for_cc_to_run()
         c = self.session.open_cursor( 'statistics:')
-        self.assertGreaterEqual(c[stat.conn.checkpoint_cleanup_pages_visited][2], 0)
-        self.assertGreaterEqual(c[stat.conn.checkpoint_cleanup_pages_removed][2], 0)
+        self.assertGreaterEqual(c[stat.conn.cc_pages_visited][2], 0)
+        self.assertGreaterEqual(c[stat.conn.cc_pages_removed][2], 0)
         c.close()
 
 # Test that checkpoint cleans the obsolete history store pages.

@@ -76,7 +76,7 @@ class test_cc03(test_cc_base):
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100) +
@@ -118,8 +118,8 @@ class test_cc03(test_cc_base):
         # Checkpoint to ensure that the history store is populated and added for eviction.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_evict), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)

@@ -198,7 +198,7 @@ __time_aggregate_validate_parent(
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (ta->oldest_start_ts < parent->oldest_start_ts)
+    if (ta->oldest_start_ts != WT_TS_NONE && ta->oldest_start_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has an oldest start time before its parent's; time aggregate %s, "
           "parent %s",
@@ -334,13 +334,6 @@ __wt_time_aggregate_validate(
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-    if (ta->newest_stop_durable_ts != WT_TS_NONE &&
-      ta->newest_stop_durable_ts < ta->oldest_start_ts)
-        WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest stop durable time before its oldest start time; time "
-          "aggregate %s",
-          __wt_time_aggregate_to_string(ta, time_string[0]));
-
     /*
      * Optionally validate the time window against a parent's time window.
      *
@@ -406,7 +399,7 @@ __time_value_validate_parent(
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (tw->start_ts < parent->oldest_start_ts)
+    if (tw->start_ts != WT_TS_NONE && tw->start_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time before its parent's oldest start time; time window "
           "%s, parent %s",

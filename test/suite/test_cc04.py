@@ -61,27 +61,27 @@ class test_cc04(test_cc_base):
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 30)
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue2, ds, nrows, 40)
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 50)
         self.large_updates(uri, bigvalue2, ds, nrows, 60)
@@ -89,15 +89,15 @@ class test_cc04(test_cc_base):
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 70)
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.cc_pages_visited), 0)

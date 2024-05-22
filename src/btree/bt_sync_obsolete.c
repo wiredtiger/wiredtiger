@@ -8,21 +8,25 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
+#define WT_CC_FILE_INTERVAL 1 /* 1 second */
+#define WT_CC_MAX_PAGES_PER_BTREE 500
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
- * __sync_obsolete_inmem_evict --
+ * __sync_obsolete_inmem_evict_or_mark_dirty --
  *     Check whether the inmem ref is obsolete according to the newest stop time point and mark it
- *     for urgent eviction.
+ *     for urgent eviction or having an obsolete time window according to the newest durable time
+ *     point and mark it dirty for reconciliation to remove the obsolete time window information.
  */
 static int
-__sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_inmem_evict_or_mark_dirty(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *num_cc_pagesp)
 {
     WT_ADDR_COPY addr;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
+    wt_timestamp_t newest_ts, pinned_ts;
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
     const char *tag;
@@ -48,40 +52,41 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
     mod = ref->page->modify;
     if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
         tag = "reconciled empty";
-
         obsolete = true;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi-block";
 
-        /* Calculate the max stop time point by traversing all multi addresses. */
+        /* Calculate the max time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &multi->addr.ta);
+            WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &multi->addr.ta);
             if (multi->addr.type == WT_ADDR_LEAF)
                 ovfl_items = true;
         }
         do_visibility_check = true;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replacement block";
-
-        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &mod->mod_replace.ta);
+        WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &mod->mod_replace.ta);
         if (mod->mod_replace.type == WT_ADDR_LEAF)
             ovfl_items = true;
         do_visibility_check = true;
     } else if (__wt_ref_addr_copy(session, ref, &addr)) {
         tag = "WT_REF address";
-
-        WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
+        WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &addr.ta);
         if (addr.type == WT_ADDR_LEAF)
             ovfl_items = true;
         do_visibility_check = true;
     } else
         tag = "unexpected page state";
 
-    if (do_visibility_check)
+    if (do_visibility_check && WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
         obsolete = __wt_txn_visible_all(
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
     if (obsolete) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p in-memory page with %s obsolete has a stop time aggregate %s", (void *)ref, tag,
+          __wt_time_aggregate_to_string(&newest_ta, time_string));
+
         /*
          * Dirty the obsolete page with overflow items to let the page reconciliation remove all the
          * overflow items.
@@ -93,12 +98,31 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_evict);
+        (*num_cc_pagesp)++;
+    } else if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta)) {
+        __wt_txn_pinned_timestamp(session, &pinned_ts);
+        newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
+        if (pinned_ts != WT_TS_NONE && newest_ts != WT_TS_NONE && newest_ts <= pinned_ts) {
+            /*
+             * Dirty the page with an obsolete time window to let the page reconciliation remove all
+             * the obsolete time window information.
+             */
+            __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
+              __wt_time_aggregate_to_string(&newest_ta, time_string));
+
+            if (__wt_atomic_load64(&ref->page->read_gen) == WT_READGEN_WONT_NEED)
+                WT_RET(__wt_page_dirty_and_evict_soon(session, ref));
+            else {
+                WT_RET(__wt_page_modify_init(session, ref->page));
+                __wt_page_modify_set(session, ref->page);
+            }
+            WT_STAT_CONN_DSRC_INCR(session, cc_pages_obsolete_timewindow);
+            (*num_cc_pagesp)++;
+        }
     }
 
-    __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-      "%p in-memory page obsolete check: %s %s obsolete, stop time aggregate %s", (void *)ref, tag,
-      obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
     return (0);
 }
 
@@ -108,7 +132,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
  *     its parent page dirty to remove it.
  */
 static int
-__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *num_cc_pagesp)
 {
     WT_PAGE_DELETED *page_del;
 
@@ -118,7 +142,8 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_removed);
+        (*num_cc_pagesp)++;
     } else
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
@@ -132,7 +157,8 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
  *     its parent page dirty by changing the ref status as deleted.
  */
 static int
-__sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_deleted)
+__sync_obsolete_disk_cleanup(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_deleted, uint32_t *num_cc_pagesp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -174,7 +200,8 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_removed);
+        (*num_cc_pagesp)++;
         return (0);
     }
 
@@ -190,13 +217,13 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
  *     between operations.
  */
 static int
-__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *num_cc_pagesp)
 {
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
-    bool busy, ref_deleted;
+    bool ref_deleted;
 
-    busy = ref_deleted = false;
+    ref_deleted = false;
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
@@ -228,29 +255,14 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         new_state = previous_state;
         if (previous_state == WT_REF_DELETED)
-            ret = __sync_obsolete_deleted_cleanup(session, ref);
+            ret = __sync_obsolete_deleted_cleanup(session, ref, num_cc_pagesp);
         else if (previous_state == WT_REF_DISK) {
-            ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
+            ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted, num_cc_pagesp);
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
         }
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
-    } else if (ref_state == WT_REF_MEM) {
-        /*
-         * Reviewing in-memory pages requires looking at page reconciliation results and we must
-         * ensure we don't race with page reconciliation as it's writing the page modify
-         * information. There are two ways we call reconciliation: checkpoints and eviction. We are
-         * the checkpoint thread so that's not a problem, acquire a hazard pointer to prevent page
-         * eviction. If the page is in transition or switches state (we've already released our
-         * lock), just walk away, we'll deal with it next time.
-         */
-        WT_RET(__wt_hazard_set(session, ref, &busy));
-        if (!busy) {
-            ret = __sync_obsolete_inmem_evict(session, ref);
-            WT_TRET(__wt_hazard_clear(session, ref));
-            WT_RET(ret);
-        }
     } else
         /*
          * There is nothing to do for pages that aren't in one of the states we already checked, for
@@ -268,7 +280,8 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
  *     deleted.
  */
 static int
-__checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+__checkpoint_cleanup_obsolete_cleanup(
+  WT_SESSION_IMPL *session, WT_REF *parent, uint32_t *num_cc_pagesp)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -285,10 +298,10 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        WT_RET(__sync_obsolete_cleanup_one(session, ref));
+        WT_RET(__sync_obsolete_cleanup_one(session, ref, num_cc_pagesp));
     }
 
-    WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
+    WT_STAT_CONN_DSRC_INCRV(session, cc_pages_visited, pindex->entries);
 
     return (0);
 }
@@ -312,6 +325,7 @@ __checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    wt_timestamp_t newest_ts, pinned_ts;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -351,6 +365,21 @@ __checkpoint_cleanup_page_skip(
         return (0);
 
     /*
+     * If an obsolete data or time window exists on the page, read it into the cache. Read it only
+     * when not all entries on the page are not removed. The pages will all the removed entries are
+     * handled in a different code flow without reading them into the cache.
+     */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    newest_ts = WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts);
+    if (pinned_ts != WT_TS_NONE && newest_ts != WT_TS_NONE &&
+      !WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && newest_ts <= pinned_ts) {
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p: obsolete time window page read into the cache", (void *)ref);
+        WT_STAT_CONN_DSRC_INCR(session, cc_obsolete_timewindow_pages_read);
+        return (0);
+    }
+
+    /*
      * The checkpoint cleanup fast deletes the obsolete leaf page by marking it as deleted
      * in the internal page. To achieve this,
      *
@@ -388,10 +417,11 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_REF *ref;
-    uint32_t flags;
+    uint32_t flags, num_cc_pages;
 
     ref = NULL;
-    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
+    num_cc_pages = 0;
 
     /*
      * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
@@ -428,12 +458,18 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
-        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-            WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            WT_WITH_PAGE_INDEX(
+              session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref, &num_cc_pages));
+        } else {
+            WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+            ret = __sync_obsolete_inmem_evict_or_mark_dirty(session, ref, &num_cc_pages);
+            WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+        }
         WT_ERR(ret);
 
-        /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        /* Check if we're quitting or reached the maximum number of pages per btree. */
+        if (num_cc_pages >= WT_CC_MAX_PAGES_PER_BTREE || !__checkpoint_cleanup_run_chk(session))
             break;
     }
 
@@ -454,11 +490,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_stop_durable_ts;
+    wt_timestamp_t newest_stop_durable_ts, oldest_start_ts, pinned_ts;
     size_t addr_size;
     bool logged;
 
-    newest_stop_durable_ts = WT_TS_NONE;
+    newest_stop_durable_ts = oldest_start_ts = WT_TS_NONE;
     addr_size = 0;
     logged = false;
 
@@ -479,6 +515,10 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_subgets(session, &cval, "oldest_start_ts", &value);
+        if (ret == 0)
+            oldest_start_ts = WT_MAX(oldest_start_ts, (wt_timestamp_t)value.val);
+        WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "addr", &value);
         if (ret == 0)
             addr_size = value.len;
@@ -498,6 +538,14 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      */
     if ((addr_size != 0) &&
       (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
+        return (true);
+
+    /*
+     * The checkpoint has some obsolete time windows that are no longer required to exist in the
+     * btree. Remove the obsolete time windows to reduce the checkpoint size.
+     */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    if (pinned_ts != WT_TS_NONE && oldest_start_ts != WT_TS_NONE && oldest_start_ts <= pinned_ts)
         return (true);
 
     return (false);
@@ -585,8 +633,8 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
          * Wait here for some time before proceeding with another table to minimize the impact of
          * checkpoint cleanup on the regular workload.
          */
-        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __checkpoint_cleanup_run_chk);
+        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond, WT_CC_FILE_INTERVAL * WT_MILLION,
+          __checkpoint_cleanup_run_chk);
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
