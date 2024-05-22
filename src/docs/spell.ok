@@ -128,6 +128,7 @@ PRELOAD
 PROFDATA
 Powershell
 README
+REFs
 RLE
 RNG
 RedHat
@@ -463,6 +464,7 @@ libsodium
 libtool
 libwiredtiger
 lifecycle
+lifecycles
 llvm
 lmin
 ln
