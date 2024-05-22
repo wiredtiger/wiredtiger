@@ -57,7 +57,7 @@ execution_timer::append_stats()
     std::string stat;
     if (_measure_time) {
         avg = (uint64_t)_total_time_taken / _it_count;
-        stat = "{\"name\":\"" + _id + "_ticks\",\"value\":" + std::to_string(avg) + "}";
+        stat = "{\"name\":\"" + _id + "_nanoseconds\",\"value\":" + std::to_string(avg) + "}";
         metrics_writer::instance().add_stat(stat);
     }
     avg = (uint64_t)_total_instruction_count / _it_count;
