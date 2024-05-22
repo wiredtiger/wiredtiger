@@ -48,7 +48,7 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, ret, insert, btree);
-    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_insert_bulk);
 
     /*
      * If the "append" flag was configured, the application doesn't have to supply a key, else
@@ -97,7 +97,7 @@ __curbulk_insert_fix_bitmap(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, ret, insert, btree);
-    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkvalue(cursor));
 
@@ -129,7 +129,7 @@ __curbulk_insert_var(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, ret, insert, btree);
-    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_insert_bulk);
 
     /*
      * If the "append" flag was configured, the application doesn't have to supply a key, else
@@ -234,7 +234,7 @@ __curbulk_insert_row(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, ret, insert, btree);
-    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -279,7 +279,7 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, ret, insert, btree);
-    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -291,11 +291,11 @@ err:
 }
 
 /*
- * __wt_curbulk_init --
+ * __wti_curbulk_init --
  *     Initialize a bulk cursor.
  */
 int
-__wt_curbulk_init(
+__wti_curbulk_init(
   WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap, bool skip_sort_check)
 {
     WT_CURSOR *cursor;
@@ -343,11 +343,11 @@ __wt_curbulk_init(
 }
 
 /*
- * __wt_curbulk_close --
+ * __wti_curbulk_close --
  *     Close a bulk cursor.
  */
 int
-__wt_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+__wti_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
     WT_DECL_RET;
 

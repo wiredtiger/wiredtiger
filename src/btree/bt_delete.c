@@ -99,11 +99,11 @@
  */
 
 /*
- * __wt_delete_page --
+ * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
 int
-__wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+__wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -203,7 +203,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         WT_ERR(__wt_txn_modify_page_delete(session, ref));
 
     *skipp = true;
-    WT_STAT_CONN_DATA_INCR(session, rec_page_delete_fast);
+    WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -372,11 +372,11 @@ __wt_delete_redo_window_cleanup(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_delete_page_skip --
+ * __wti_delete_page_skip --
  *     If iterating a cursor, skip deleted pages that are either visible to us or globally visible.
  */
 bool
-__wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+__wti_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
     bool discard, skip;
 
@@ -591,7 +591,7 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
     /* Walk the page entries, giving each one a tombstone. */
     WT_ROW_FOREACH (page, rip, i) {
         /* Retrieve the stop time point from the page's row. */
-        __wt_read_row_time_window(session, page, rip, &tw);
+        __wti_read_row_time_window(session, page, rip, &tw);
 
         WT_RET(__instantiate_tombstone(session, page_del, update_list, countp, &tw, &upd, &size));
         if (upd != NULL) {
@@ -616,11 +616,11 @@ err:
 }
 
 /*
- * __wt_delete_page_instantiate --
+ * __wti_delete_page_instantiate --
  *     Instantiate an entirely deleted row-store leaf page.
  */
 int
-__wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -653,11 +653,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Empty pages should get skipped before reaching this point. */
     WT_ASSERT(session, page->entries > 0);
 
-    WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
+    WT_STAT_CONN_DSRC_INCR(session, cache_read_deleted);
 
     /* Track the prepared, fast-truncate pages we've had to instantiate. */
     if (page_del != NULL && page_del->prepare_state != WT_PREPARE_INIT)
-        WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_deleted_prepared);
 
     /*
      * Give the page a modify structure. We need it to remember that the page has been instantiated.

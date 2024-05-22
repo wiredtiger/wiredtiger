@@ -11,11 +11,11 @@
 static int __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[]);
 
 /*
- * __wt_cursor_noop --
+ * __wti_cursor_noop --
  *     Cursor noop.
  */
 int
-__wt_cursor_noop(WT_CURSOR *cursor)
+__wti_cursor_noop(WT_CURSOR *cursor)
 {
     WT_UNUSED(cursor);
 
@@ -49,21 +49,21 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_cursor_get_value_notsup --
+ * __wti_cursor_get_value_notsup --
  *     WT_CURSOR.get_value not-supported.
  */
 int
-__wt_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
+__wti_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
 {
     return (__wt_cursor_notsup(cursor));
 }
 
 /*
- * __wt_cursor_get_raw_key_value_notsup --
+ * __wti_cursor_get_raw_key_value_notsup --
  *     WT_CURSOR.get_raw_key_value not-supported.
  */
 int
-__wt_cursor_get_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
+__wti_cursor_get_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
 {
     WT_UNUSED(key);
     WT_UNUSED(value);
@@ -71,21 +71,21 @@ __wt_cursor_get_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *v
 }
 
 /*
- * __wt_cursor_set_key_notsup --
+ * __wti_cursor_set_key_notsup --
  *     WT_CURSOR.set_key not-supported.
  */
 void
-__wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...)
+__wti_cursor_set_key_notsup(WT_CURSOR *cursor, ...)
 {
     WT_IGNORE_RET(__wt_cursor_notsup(cursor));
 }
 
 /*
- * __wt_cursor_set_value_notsup --
+ * __wti_cursor_set_value_notsup --
  *     WT_CURSOR.set_value not-supported.
  */
 void
-__wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...)
+__wti_cursor_set_value_notsup(WT_CURSOR *cursor, ...)
 {
     WT_IGNORE_RET(__wt_cursor_notsup(cursor));
 }
@@ -95,7 +95,7 @@ __wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...)
  *     WT_CURSOR.set_raw_key_value not-supported.
  */
 void
-__wt_cursor_set_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
+__wti_cursor_set_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value)
 {
     WT_UNUSED(key);
     WT_UNUSED(value);
@@ -103,11 +103,11 @@ __wt_cursor_set_raw_key_value_notsup(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *v
 }
 
 /*
- * __wt_cursor_compare_notsup --
+ * __wti_cursor_compare_notsup --
  *     Unsupported cursor comparison.
  */
 int
-__wt_cursor_compare_notsup(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
+__wti_cursor_compare_notsup(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 {
     WT_UNUSED(b);
     WT_UNUSED(cmpp);
@@ -116,11 +116,11 @@ __wt_cursor_compare_notsup(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 }
 
 /*
- * __wt_cursor_equals_notsup --
+ * __wti_cursor_equals_notsup --
  *     Unsupported cursor equality.
  */
 int
-__wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
+__wti_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 {
     WT_UNUSED(other);
     WT_UNUSED(equalp);
@@ -143,11 +143,11 @@ __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
  */
 
 /*
- * __wt_cursor_modify_notsup --
+ * __wti_cursor_modify_notsup --
  *     Unsupported cursor modify.
  */
 int
-__wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__wti_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_UNUSED(entries);
     WT_UNUSED(nentries);
@@ -176,11 +176,11 @@ __wt_cursor_modify_value_format_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, in
 }
 
 /*
- * __wt_cursor_search_near_notsup --
+ * __wti_cursor_search_near_notsup --
  *     Unsupported cursor search-near.
  */
 int
-__wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
+__wti_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
 {
     WT_UNUSED(exact);
 
@@ -225,16 +225,16 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
      * future to change these configurations.
      */
     cursor->bound = __wt_cursor_config_notsup;
-    cursor->compare = __wt_cursor_compare_notsup;
+    cursor->compare = __wti_cursor_compare_notsup;
     cursor->insert = __wt_cursor_notsup;
-    cursor->modify = __wt_cursor_modify_notsup;
+    cursor->modify = __wti_cursor_modify_notsup;
     cursor->next = __wt_cursor_notsup;
     cursor->prev = __wt_cursor_notsup;
     cursor->remove = __wt_cursor_notsup;
     cursor->reserve = __wt_cursor_notsup;
-    cursor->reset = __wt_cursor_noop;
+    cursor->reset = __wti_cursor_noop;
     cursor->search = __wt_cursor_notsup;
-    cursor->search_near = __wt_cursor_search_near_notsup;
+    cursor->search_near = __wti_cursor_search_near_notsup;
     cursor->update = __wt_cursor_notsup;
 }
 
@@ -296,7 +296,7 @@ __wt_cursor_get_key(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
+    ret = __wti_cursor_get_keyv(cursor, cursor->flags, ap);
     va_end(ap);
     return (ret);
 }
@@ -312,7 +312,7 @@ __wt_cursor_set_key(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    if ((ret = __wt_cursor_set_keyv(cursor, cursor->flags, ap)) != 0)
+    if ((ret = __wti_cursor_set_keyv(cursor, cursor->flags, ap)) != 0)
         WT_IGNORE_RET(__wt_panic(CUR2S(cursor), ret, "failed to set key"));
     va_end(ap);
 }
@@ -390,11 +390,11 @@ __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value)
 }
 
 /*
- * __wt_cursor_get_keyv --
+ * __wti_cursor_get_keyv --
  *     WT_CURSOR->get_key worker function.
  */
 int
-__wt_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
+__wti_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *key;
@@ -441,11 +441,11 @@ err:
 }
 
 /*
- * __wt_cursor_set_keyv --
+ * __wti_cursor_set_keyv --
  *     WT_CURSOR->set_key default implementation.
  */
 int
-__wt_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
+__wti_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *buf, *item, tmp;
@@ -539,17 +539,17 @@ __wt_cursor_get_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    ret = __wt_cursor_get_valuev(cursor, ap);
+    ret = __wti_cursor_get_valuev(cursor, ap);
     va_end(ap);
     return (ret);
 }
 
 /*
- * __wt_cursor_get_valuev --
+ * __wti_cursor_get_valuev --
  *     WT_CURSOR->get_value worker implementation.
  */
 int
-__wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
+__wti_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *value;
@@ -630,7 +630,7 @@ __wt_cursor_set_value(WT_CURSOR *cursor, ...)
     va_list ap;
 
     va_start(ap, cursor);
-    WT_IGNORE_RET(__wt_cursor_set_valuev(cursor, cursor->value_format, ap));
+    WT_IGNORE_RET(__wti_cursor_set_valuev(cursor, cursor->value_format, ap));
     va_end(ap);
 }
 
@@ -690,11 +690,11 @@ err:
 }
 
 /*
- * __wt_cursor_set_valuev --
+ * __wti_cursor_set_valuev --
  *     WT_CURSOR->set_value worker implementation.
  */
 int
-__wt_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
+__wti_cursor_set_valuev(WT_CURSOR *cursor, const char *fmt, va_list ap)
 {
     WT_DECL_RET;
     WT_ITEM *buf, *item, tmp;
@@ -764,11 +764,11 @@ err:
 }
 
 /*
- * __wt_cursor_cache --
+ * __wti_cursor_cache --
  *     Add this cursor to the cache.
  */
 int
-__wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
+__wti_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -818,7 +818,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
     (void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
-    WT_STAT_DATA_DECR(session, cursor_open_count);
+    WT_STAT_DSRC_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
 
     /* Document the flags cleared, and set by this function */
@@ -829,26 +829,26 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 }
 
 /*
- * __wt_cursor_reopen --
+ * __wti_cursor_reopen --
  *     Reopen this cursor from the cached state.
  */
 void
-__wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
+__wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 {
     WT_SESSION_IMPL *session;
     uint64_t bucket;
 
     session = CUR2S(cursor);
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
+    WT_ASSERT(session, dhandle != NULL);
 
-    if (dhandle != NULL) {
-        session->dhandle = dhandle;
-        __wt_cursor_dhandle_incr_use(session);
-        WT_DHANDLE_RELEASE(dhandle);
-    }
+    session->dhandle = dhandle;
+    __wt_cursor_dhandle_incr_use(session);
+    WT_DHANDLE_RELEASE(dhandle);
+
     (void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_DECR_ATOMIC(session, cursor_cached_count);
-    WT_STAT_DATA_INCR(session, cursor_open_count);
+    WT_STAT_DSRC_INCR(session, cursor_open_count);
 
     bucket = cursor->uri_hash & (S2C(session)->hash_size - 1);
     TAILQ_REMOVE(&session->cursor_cache[bucket], cursor, q);
@@ -857,11 +857,11 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 }
 
 /*
- * __wt_cursor_cache_release --
+ * __wti_cursor_cache_release --
  *     Put the cursor into a cached state, called during cursor close operations.
  */
 int
-__wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *released)
+__wti_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *released)
 {
     WT_DECL_RET;
 
@@ -887,7 +887,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
      * caching fails, we'll decrement the statistics after reopening the cursor (and getting the
      * data handle back).
      */
-    WT_STAT_CONN_DATA_INCR(session, cursor_cache);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_cache);
     WT_ERR(cursor->cache(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
     *released = true;
@@ -901,7 +901,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
 err:
         WT_TRET(cursor->reopen(cursor, false));
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
-        WT_STAT_CONN_DATA_DECR(session, cursor_cache);
+        WT_STAT_CONN_DSRC_DECR(session, cursor_cache);
     }
 
     return (ret);
@@ -1063,7 +1063,7 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
          * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
          * dump cursor.
          */
-        WT_RET(__wt_curdump_create(cursor, owner, &cdump));
+        WT_RET(__wti_curdump_create(cursor, owner, &cdump));
         *ownerp = cdump;
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
     } else
@@ -1185,7 +1185,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
         TAILQ_REMOVE(&session->cursors, cursor, q);
 
         (void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
-        WT_STAT_DATA_DECR(session, cursor_open_count);
+        WT_STAT_DSRC_DECR(session, cursor_open_count);
     }
     __wt_buf_free(session, &cursor->key);
     __wt_buf_free(session, &cursor->value);
@@ -1333,11 +1333,11 @@ err:
 }
 
 /*
- * __wt_cursor_largest_key --
+ * __wti_cursor_largest_key --
  *     WT_CURSOR->largest_key default implementation..
  */
 int
-__wt_cursor_largest_key(WT_CURSOR *cursor)
+__wti_cursor_largest_key(WT_CURSOR *cursor)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
@@ -1380,11 +1380,11 @@ err:
 }
 
 /*
- * __wt_cursor_bound --
+ * __wti_cursor_bound --
  *     WT_CURSOR->bound default implementation.
  */
 int
-__wt_cursor_bound(WT_CURSOR *cursor, const char *config)
+__wti_cursor_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR_BTREE *cbt;
@@ -1617,7 +1617,7 @@ __wt_cursor_init(
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
-        cursor->modify = __wt_cursor_modify_notsup;
+        cursor->modify = __wti_cursor_modify_notsup;
         cursor->remove = __wt_cursor_notsup;
         cursor->reserve = __wt_cursor_notsup;
         cursor->update = __wt_cursor_notsup;
@@ -1649,7 +1649,7 @@ __wt_cursor_init(
     /* WT_CURSTD_OPEN */
     F_SET(cursor, WT_CURSTD_OPEN);
     (void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
-    WT_STAT_DATA_INCR(session, cursor_open_count);
+    WT_STAT_DSRC_INCR(session, cursor_open_count);
 
     *cursorp = (cdump != NULL) ? cdump : cursor;
     return (0);

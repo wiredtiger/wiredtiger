@@ -113,7 +113,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))
-        __wt_ref_addr_safe_free(session, addr->addr, addr->size);
+        __wti_ref_addr_safe_free(session, addr->addr, addr->size);
     else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
@@ -321,7 +321,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     bm = S2BT(session)->bm;
     ref = NULL;
 
-    WT_STAT_DATA_INCR(session, session_compact);
+    WT_STAT_DSRC_INCR(session, session_compact);
 
     /*
      * Check if compaction might be useful (the API layer will quit trying to compact the data
@@ -330,7 +330,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_RET(bm->compact_skip(bm, session, &skip));
     if (skip) {
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
-        WT_STAT_DATA_INCR(session, btree_compact_skipped);
+        WT_STAT_DSRC_INCR(session, btree_compact_skipped);
 
         /*
          * Print the "skipping compaction" message only if this is the first time we are working on

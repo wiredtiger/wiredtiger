@@ -276,7 +276,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
         return;
 
     WT_RELEASE_WRITE_WITH_BARRIER(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-    WT_STAT_DATA_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
+    WT_STAT_DSRC_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
 }
 
 /*
@@ -1318,7 +1318,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * to reset these transaction ids present on the pages when reading them.
      */
     if (F_ISSET(conn, WT_CONN_RECOVERING))
-        WT_ERR(__wt_metadata_correct_base_write_gen(session));
+        WT_ERR(__wt_meta_correct_base_write_gen(session));
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -2152,7 +2152,7 @@ __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *
             stop_ts = ckpt->ta.newest_stop_durable_ts;
         }
         if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn, stop_ts)) {
-            WT_STAT_CONN_DATA_INCR(session, checkpoint_obsolete_applied);
+            WT_STAT_CONN_DSRC_INCR(session, checkpoint_obsolete_applied);
             return (true);
         }
     }

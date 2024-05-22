@@ -223,9 +223,12 @@ static int
 __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_UPDATE_SELECT *upd_select)
 {
-    WT_UPDATE *delete_tombstone, *delete_upd;
+    WT_UPDATE *delete_tombstone, *delete_upd, *visible_all_upd;
+    bool delete_hs_upd_found;
 
     delete_tombstone = NULL;
+    visible_all_upd = NULL;
+    delete_hs_upd_found = false;
 
     for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd;
          delete_upd != NULL; delete_upd = delete_upd->next) {
@@ -237,6 +240,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
               F_ISSET(delete_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
               "Attempting to remove an update from the history store in WiredTiger, but the "
               "update was missing.");
+            delete_hs_upd_found = true;
             if (delete_upd->type == WT_UPDATE_TOMBSTONE)
                 delete_tombstone = delete_upd;
             else {
@@ -245,10 +249,26 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
                 break;
             }
         }
+
+        /*
+         * Track the first self-contained value that is globally visible, excluding the on-page
+         * tombstone. If we free the updates before the tombstone, due to the tombstone being
+         * globally visible concurrently with the update chain processing, this might be allowed to
+         * access the freed updates further in the reconciliation code.
+         */
+        if (FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
+          !F_ISSET(r, WT_REC_EVICT) && delete_upd != upd_select->tombstone &&
+          visible_all_upd == NULL && __wt_txn_upd_visible_all(session, delete_upd) &&
+          WT_UPDATE_DATA_VALUE(delete_upd))
+            visible_all_upd = delete_upd;
     }
 
     WT_ASSERT_ALWAYS(session, delete_tombstone == NULL || delete_upd != NULL,
       "If we delete a tombstone from the history store, we must also delete the update.");
+
+    /* Free obsolete updates if exist. */
+    if (!delete_hs_upd_found && visible_all_upd != NULL && visible_all_upd->next != NULL)
+        __wt_free_obsolete_updates(session, r->page, visible_all_upd);
 
     return (0);
 }
@@ -386,7 +406,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 
     /* Cannot delete the update from history store when checkpoint is running. */
     if (r->delete_hs_upd_next > 0) {
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
         return (EBUSY);
     }
 
@@ -398,7 +418,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT_ALWAYS(
           session, select_tw->stop_ts == WT_TS_NONE, "No stop timestamp found for selected update");
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_2);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_2);
         return (EBUSY);
     }
 
@@ -430,7 +450,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (prev_upd->start_ts < upd->start_ts) {
             WT_ASSERT_ALWAYS(
               session, prev_upd->start_ts == WT_TS_NONE, "Previous update missing start timestamp");
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
             return (EBUSY);
         }
 
@@ -474,7 +494,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
             WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
             return (EBUSY);
         }
     }
@@ -790,11 +810,11 @@ __rec_fill_tw_from_upd_select(
 }
 
 /*
- * __wt_rec_upd_select --
+ * __wti_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
 int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
@@ -925,7 +945,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (__timestamp_no_ts_fix(session, &upd_select->tw) && F_ISSET(r, WT_REC_HS) &&
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
         WT_ASSERT(session, false);
         return (EBUSY);
     }

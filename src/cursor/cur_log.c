@@ -216,7 +216,7 @@ __curlog_next(WT_CURSOR *cursor)
     }
     WT_ASSERT(session, cl->logrec->data != NULL);
     WT_ERR(__curlog_kv(session, cursor));
-    WT_STAT_CONN_DATA_INCR(session, cursor_next);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 
 err:
     API_END_RET(session, ret);
@@ -253,7 +253,7 @@ __curlog_search(WT_CURSOR *cursor)
         ret = WT_NOTFOUND;
     WT_ERR(ret);
     WT_ERR(__curlog_kv(session, cursor));
-    WT_STAT_CONN_DATA_INCR(session, cursor_search);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_search);
 
 err:
     F_SET(cursor, raw);
@@ -337,9 +337,9 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
       __wt_cursor_notsup,                             /* prev */
       __curlog_reset,                                 /* reset */
       __curlog_search,                                /* search */
-      __wt_cursor_search_near_notsup,                 /* search-near */
+      __wti_cursor_search_near_notsup,                /* search-near */
       __wt_cursor_notsup,                             /* insert */
-      __wt_cursor_modify_notsup,                      /* modify */
+      __wti_cursor_modify_notsup,                     /* modify */
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
