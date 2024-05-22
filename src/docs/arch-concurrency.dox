@@ -46,14 +46,15 @@ Such instances are only permitted if reading inconsistent data is sufficient for
 
 Shared object, including the page index, WT_REFs, etc. have their lifecycles managed using
 the WiredTiger generations system. In general when a reader thread accesses an object, that could be
-concurrently freed, it takes a "generation". After taking that generation it accesses the object.
-A generation is a monotonically increasing integer which can be thought of timepoint at which the
-reader accessed a version of the object.
+concurrently freed, it enters a "generation". After entering that generation it accesses the object.
+A generation is a monotonically increasing integer which denotes times at which a given object must
+exist.
 
 Writer threads are then able to replace that object but cannot free it until the reader thread has
 left or released the generation. Instead the writer thread adds the object to a "stash" and it marks
 the stashed object with the generation indicating the point at which it was added to the stash. Once
-all reader in the system do not have a corresponding generation which is older than or eqlAi
+all reader in the system do not have a corresponding generation which is older than or equal to the
+stashed object's generation it can be freed.
 
 @section atomics Atomics
 
