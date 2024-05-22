@@ -1120,8 +1120,6 @@ __cell_redo_page_del_cleanup(
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
         return;
 
-    WT_ASSERT(session, false);
-
     __cell_page_del_window_cleanup(session, page_del, NULL);
 }
 
