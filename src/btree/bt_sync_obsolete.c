@@ -294,6 +294,77 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 }
 
 /*
+ * __sync_obsolete_inmem_mark_dirty --
+ *     Check whether the inmem ref is having obsolete time window according to the oldest start time
+ *     point and mark it dirty for reconciliation to remove the obsolete time window information.
+ */
+static int
+__sync_obsolete_inmem_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR_COPY addr;
+    WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod;
+    WT_TIME_AGGREGATE newest_ta;
+    wt_timestamp_t pinned_ts;
+    uint32_t i;
+    char time_string[WT_TIME_STRING_SIZE];
+    const char *tag;
+
+    /*
+     * Skip the modified pages as their reconciliation results are not valid any more. Check for the
+     * page modification only after acquiring the hazard pointer to protect against the page being
+     * freed in parallel.
+     */
+    WT_ASSERT(session, ref->page != NULL);
+    if (__wt_page_is_modified(ref->page))
+        return (0);
+
+    /*
+     * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
+     * across correctly. That is we need the stop timestamp/transaction IDs to start as none,
+     * otherwise we'd never mark anything as obsolete.
+     */
+    WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
+
+    mod = ref->page->modify;
+    if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY)
+        tag = "reconciled empty";
+    else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+        tag = "reconciled multi-block";
+
+        /* Calculate the min oldest start time point by traversing all multi addresses. */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+            WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &multi->addr.ta);
+    } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
+        tag = "reconciled replacement block";
+        WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &mod->mod_replace.ta);
+    } else if (__wt_ref_addr_copy(session, ref, &addr)) {
+        tag = "WT_REF address";
+        WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &addr.ta);
+    } else
+        tag = "unexpected page state";
+
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    if (newest_ta.oldest_start_ts != WT_TS_NONE && pinned_ts != WT_TS_NONE &&
+      newest_ta.oldest_start_ts < pinned_ts) {
+        /*
+         * Dirty the page with an obsolete time window to let the page reconciliation remove all the
+         * obsolete time window information.
+         */
+        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
+          __wt_time_aggregate_to_string(&newest_ta, time_string));
+
+        WT_RET(__wt_page_modify_init(session, ref->page));
+        __wt_page_modify_set(session, ref->page);
+
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_timewindow);
+    }
+
+    return (0);
+}
+
+/*
  * __checkpoint_cleanup_run_chk --
  *     Check to decide if the checkpoint cleanup should continue running.
  */
@@ -312,6 +383,7 @@ __checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    wt_timestamp_t pinned_ts;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -348,6 +420,12 @@ __checkpoint_cleanup_page_skip(
      * not have an on-disk address.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr))
+        return (0);
+
+    /* If an obsolete time window exists on the page, read it into the cache. */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    if (pinned_ts != WT_TS_NONE && addr.ta.oldest_start_ts != WT_TS_NONE &&
+      addr.ta.oldest_start_ts <= pinned_ts)
         return (0);
 
     /*
@@ -428,9 +506,11 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
-        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
-        WT_ERR(ret);
+            WT_ERR(ret);
+        } else
+            WT_ERR(__sync_obsolete_inmem_mark_dirty(session, ref));
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
@@ -454,11 +534,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_stop_durable_ts;
+    wt_timestamp_t newest_stop_durable_ts, oldest_start_ts, pinned_ts;
     size_t addr_size;
     bool logged;
 
-    newest_stop_durable_ts = WT_TS_NONE;
+    newest_stop_durable_ts = oldest_start_ts = WT_TS_NONE;
     addr_size = 0;
     logged = false;
 
@@ -479,6 +559,10 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_subgets(session, &cval, "oldest_start_ts", &value);
+        if (ret == 0)
+            oldest_start_ts = WT_MAX(oldest_start_ts, (wt_timestamp_t)value.val);
+        WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "addr", &value);
         if (ret == 0)
             addr_size = value.len;
@@ -498,6 +582,14 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      */
     if ((addr_size != 0) &&
       (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
+        return (true);
+
+    /*
+     * The checkpoint has some obsolete time windows that are no longer required to exist in the
+     * btree. Remove the obsolete time windows to reduce the checkpoint size.
+     */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    if (pinned_ts != WT_TS_NONE && oldest_start_ts != WT_TS_NONE && oldest_start_ts <= pinned_ts)
         return (true);
 
     return (false);
