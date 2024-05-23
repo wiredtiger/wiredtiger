@@ -485,7 +485,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
              */
             WT_ERR(cursor->get_value(cursor, &value));
             WT_ERR(__wt_config_getones(session, value, "id", &id));
-            WT_ERR(__background_compact_should_skip(session, key, id.val, &skip))
+            WT_ERR(__background_compact_should_skip(session, key, id.val, &skip));
             if (!skip)
                 break;
         }
