@@ -248,7 +248,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
          * freeing the page memory or otherwise touching the reference because eviction paths assume
          * a non-NULL reference on the queue is pointing at valid memory.
          */
-        __wt_evict_list_clear_page(session, ref);
+        __wti_evict_list_clear_page(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -546,8 +546,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     bool busy, visible;
 
     busy = false;
-    /* Pre-fetch queue flags on a ref need to be checked while holding the pre-fetch lock. */
-    __wt_spin_lock(session, &S2C(session)->prefetch_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -575,7 +573,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             break;
     }
     WT_INTL_FOREACH_END;
-    __wt_spin_unlock(session, &S2C(session)->prefetch_lock);
+
     if (busy)
         return (__wt_set_return(session, EBUSY));
 
