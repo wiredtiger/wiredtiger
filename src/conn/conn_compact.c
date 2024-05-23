@@ -239,13 +239,28 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    wt_off_t file_size;
     uint64_t cur_time;
+    const char *filename;
 
     conn = S2C(session);
 
     /* Check if the file is excluded. */
     if (__background_compact_exclude(session, uri)) {
         WT_STAT_CONN_INCR(session, background_compact_exclude);
+        return (false);
+    }
+
+    /* Fast path to check the file size. Ignore small files. */
+    filename = uri;
+    WT_PREFIX_SKIP(filename, "file:");
+    ret = __wt_block_manager_named_size(session, filename, &file_size);
+    if (ret == 0 && file_size <= WT_MEGABYTE) {
+        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.", filename,
+          (uintmax_t)file_size);
+
         return (false);
     }
 
