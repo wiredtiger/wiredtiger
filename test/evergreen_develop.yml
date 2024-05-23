@@ -77,6 +77,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: coverage-report-per-test
       distros: ubuntu2004-arm64-large
+      activate: false # Launch only manually for now
     - name: coverage-report-catch2
     - name: cyclomatic-complexity
     - name: code-change-report

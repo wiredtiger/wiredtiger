@@ -3008,7 +3008,7 @@ tasks:
             # Setup the Python environment
             virtualenv -p python3 venv
             source venv/bin/activate
-            pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
+            pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0 pygit2==1.10.1 requests
 
             ######################################################
             # Obtain the complexity metrics for the 'current' code
@@ -3042,7 +3042,22 @@ tasks:
             # Record the end time, in seconds
             date +%s >> time.txt
             
-            tar -czvf coverage_report/coverage_data.tar.gz coverage_data
+            # Clean up build directory copies before creating the diff
+            rm -Rf build*copy*
+            
+            if [ ${is_patch|false} = true ]; then
+              echo "This is a patch build, so generate a diff and a report"
+              # Obtain the diff for the changes in this patch, excluding newly added 0-length files.
+              python3 test/evergreen/code_change_report/git_diff_tool.py -g . -d coverage_report/diff.txt -v
+              # Generate an HTML friendly version of the diff for
+              sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
+              # Logging for debugging
+              ls -l coverage_report
+              cat coverage_report/diff.txt
+              ${python_binary|python3} test/evergreen/code_change_report/per_test_code_coverage_report.py -v -c coverage_data -d coverage_report/diff.txt -m coverage_report/metrixpp.csv
+            fi
+            
+            tar -czf coverage_report/coverage_data.tar.gz coverage_data
             
             echo "Disk usage and free space for the current drive (post-test):"
             df -h .

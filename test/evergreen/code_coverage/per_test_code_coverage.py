@@ -139,11 +139,11 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             os.mkdir(coverage_output_dir)
             shutil.copy(src=task_info_path, dst=coverage_output_dir)
             gcovr = "gcovr"
-            gcov = "/opt/mongodbtoolchain/v4/bin/gcov"
+            # gcov = "/opt/mongodbtoolchain/v4/bin/gcov"
             gcovr_command = f"{gcovr} {build_copy_name} -f src -j 4 --html-self-contained --html-details {coverage_output_dir}/2_coverage_report.html --json-summary-pretty --json-summary {coverage_output_dir}/1_coverage_report_summary.json --json {coverage_output_dir}/full_coverage_report.json"
             split_command = gcovr_command.split()
             env = os.environ.copy()
-            env['GCOV'] = gcov
+            # env['GCOV'] = gcov
             if verbose:
                 print(f'env: {env}')
                 print(f'gcovr_command: {gcovr_command}')
