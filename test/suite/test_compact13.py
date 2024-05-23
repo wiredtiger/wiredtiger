@@ -42,12 +42,6 @@ class test_compact13(compact_util):
     table_numkv = 100 * 1000
     n_tables = 2
 
-    def get_bg_compaction_files_skipped(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        skipped = stat_cursor[stat.conn.background_compact_skipped][2]
-        stat_cursor.close()
-        return skipped
-
     # Test background compaction stats are reset when after being disabled.
     def test_compact13(self):
         # FIXME-WT-11399

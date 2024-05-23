@@ -36,12 +36,6 @@ from wiredtiger import stat
 class test_compact06(compact_util):
     configuration_items = ['exclude=["table:a.wt"]', 'free_space_target=10MB', 'timeout=60']
 
-    def get_bg_compaction_files_skipped(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        skipped = stat_cursor[stat.conn.background_compact_skipped][2]
-        stat_cursor.close()
-        return skipped
-
     def test_background_compact_api(self):
         # FIXME-WT-11399
         if self.runningHook('tiered'):

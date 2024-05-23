@@ -38,12 +38,6 @@ class test_compact14(compact_util):
 
     table_numkv = 1
 
-    def get_bg_compaction_files_skipped(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        skipped = stat_cursor[stat.conn.background_compact_skipped][2]
-        stat_cursor.close()
-        return skipped
-
     def test_compact14(self):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
