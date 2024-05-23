@@ -45,7 +45,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     while (!TAILQ_EMPTY(&conn->pfqh)) {
         /* Encourage races */
-        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREFETCH_RUN))
+        if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_PREFETCH_RUN))
             __wt_sleep(0, 5000);
 
         __wt_spin_lock(session, &conn->prefetch_lock);
