@@ -1157,7 +1157,6 @@ err:
 static int
 __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PAGE **parentp)
 {
-    WT_DECL_RET;
     WT_PAGE *parent;
 
     *parentp = NULL;
@@ -1193,8 +1192,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         WT_RET(__wt_page_modify_init(session, parent));
 
         if (trylock) {
-            WT_PAGE_TRYLOCK(session, ret, parent);
-            WT_RET(ret);
+            WT_RET(WT_PAGE_TRYLOCK(session, parent));
         } else
             WT_PAGE_LOCK(session, parent);
         if (parent == ref->home)

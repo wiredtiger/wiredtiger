@@ -340,7 +340,6 @@ void
 __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
 {
-    WT_DECL_RET;
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
@@ -353,10 +352,8 @@ __wt_update_obsolete_check(
 
     WT_ASSERT(session, page->modify != NULL);
     /* If we can't lock it, don't scan, that's okay. */
-    WT_PAGE_TRYLOCK(session, ret, page);
-    if (ret != 0)
+    if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
-
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
      * because this routine is called from inside a serialization function, the caller has

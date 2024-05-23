@@ -157,25 +157,6 @@ struct __wt_import_list {
       session, ret, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
 
 /*
- * WT_PAGE_LOCK, WT_PAGE_TRYLOCK --
- *	Acquire the page lock
- */
-#define WT_PAGE_LOCK(session, page)                                \
-    do {                                                           \
-        __wt_spin_lock_track(session, &(page)->modify->page_lock); \
-    } while (0)
-
-#define WT_PAGE_TRYLOCK(session, ret, page)                                 \
-    do {                                                                    \
-        ret = __wt_spin_trylock_track(session, &(page)->modify->page_lock); \
-    } while (0)
-
-#define WT_PAGE_UNLOCK(session, page)                            \
-    do {                                                         \
-        __wt_spin_unlock((session), &(page)->modify->page_lock); \
-    } while (0)
-
-/*
  * WT_WITH_HANDLE_LIST_READ_LOCK --
  *	Acquire the data handle list lock in shared mode, perform an operation,
  *	drop the lock. The handle list lock is a read-write lock so the
