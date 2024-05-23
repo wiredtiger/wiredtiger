@@ -24,7 +24,7 @@ All writes (i.e., pages that are reconciled and written to storage by eviction
 or checkpoint) are written to a designated file, called the active file.
 All other files and objects that are part of the tiered table are read-only.
 Each object or file is given an object number, which appears as part of its
-name on disk, cloud and in metadata.
+name on disk, in cloud storage and in metadata.
 
 When a tiered btree is created, there is a single file associated with it,
 it is given object number 1. This is the active file, and it only resides

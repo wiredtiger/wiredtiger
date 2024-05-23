@@ -292,7 +292,8 @@ The cloud storage source extension which manage the flushing of the data files t
 
 @subpage arch-tiered-storage
 
-Tiered storage allows B-Trees to be split into multiple parts, more recently updated parts on local disk and less recent parts in cloud storage.
+Tiered storage allows B-Trees to be stored into multiple places, more
+recently updated blocks on local disk and less recently updated blocks in cloud storage.
 
 */
 

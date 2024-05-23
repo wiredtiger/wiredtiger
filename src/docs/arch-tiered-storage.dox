@@ -5,8 +5,8 @@ library, and is not yet ready for production workloads.
 
 @section ts_intro Introduction and Definitions
 
-Tiered storage allows B-Trees to be split into multiple parts, more
-recently updated parts on local disk and less recent parts in cloud storage.
+Tiered storage allows B-Trees to be stored into multiple places, more
+recently updated blocks on local disk and less recently updated blocks in cloud storage.
 The term \a object refers to one of these written
 btree parts, whether the object resides on the local disk, as an
 <em>object file</em>, or in the cloud, as a <em>cloud object</em>.
@@ -47,7 +47,7 @@ queued for removal, see @ref ts_block_local_file_removal.
 @section ts_checkpoints Checkpoints 
 
 A normal, non-tiered table, although sometimes thought of as a
-"single" btree, can also be thought of as an active or \a live btree, as well
+single btree, can also be thought of as an active or \a live btree, as well
 as zero or more checkpoints, that are fully represented in the single
 disk object file. Each checkpoint has its own root page, and so can be
 considered its own btree.  Each of these btrees is a set of
@@ -89,9 +89,9 @@ entries and it has reached the end of its data, then it has a triple.
 If the decoder still has more data, then it also contains an objectid.
 
 Object numbering starts at 1, so an objectid of 0 references the same
-object as the cookie's location.  Because of these properties, it's
-straightforward to see that a file from a non-tiered btree could be
-"upgraded" to the first object of a tiered btree without changing its
+object as the cookie's location.  Because of these properties,
+a file from a non-tiered btree can be upgraded
+to the first object of a tiered btree without changing its
 contents.  Every reference in the non-tiered btree is a triple,
 meaning there is an implied a zero objectid. Thus each reference must
 be to the same object.
@@ -429,8 +429,8 @@ WiredTiger track references to all pages in either a checkpoint or a
 object file (and persist that information as well), and notice when all
 references to an object have reached zero. This may require enhancements
 to extent lists in the block manager.  An asynchronous approach
-could work mostly separately from WiredTiger (in another process), and
-examine object files, visiting internal pages and tracing the
+could work mostly separately from WiredTiger (in another process possibly
+on a different node), and examine object files, visiting internal pages and tracing the
 references to all objects.  As such, it can notice when an object file
 has no references.  Either approach allows the identification and removal
 of unused objects, and maybe also objects that are lightly filled.  These
