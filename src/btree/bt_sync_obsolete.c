@@ -513,8 +513,12 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
             WT_ERR(ret);
-        } else
-            WT_ERR(__sync_obsolete_inmem_mark_dirty(session, ref));
+        } else {
+            WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+            ret = __sync_obsolete_inmem_mark_dirty(session, ref);
+            WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+            WT_ERR(ret);
+        }
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
