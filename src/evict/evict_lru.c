@@ -1808,7 +1808,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
       F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
         if (!__txn_visible_id(session, page->modify->update_txn))
             return (true);
-    } else if (page->modify->update_txn >= conn->txn_global.last_running) {
+    } else if (page->modify->update_txn >= __wt_atomic_loadv64(&conn->txn_global.last_running)) {
         WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
         return (true);
     }
