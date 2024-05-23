@@ -256,13 +256,8 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     filename = uri;
     WT_PREFIX_SKIP(filename, "file:");
     ret = __wt_block_manager_named_size(session, filename, &file_size);
-    if (ret == 0 && file_size <= WT_MEGABYTE) {
-        __wt_verbose_debug1(session, WT_VERB_COMPACT,
-          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.", filename,
-          (uintmax_t)file_size);
-
+    if (ret == 0 && file_size <= WT_MEGABYTE)
         return (false);
-    }
 
     /* If we haven't seen this file before we should try and compact it. */
     compact_stat = __background_compact_get_stat(session, uri, id);
