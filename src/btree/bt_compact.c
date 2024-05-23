@@ -329,7 +329,6 @@ __wt_compact(WT_SESSION_IMPL *session)
      */
     WT_RET(bm->compact_skip(bm, session, &skip));
     if (skip) {
-        session->compact->skip = true;
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
         WT_STAT_DSRC_INCR(session, btree_compact_skipped);
 
