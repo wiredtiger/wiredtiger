@@ -66,9 +66,9 @@ class test_cc02(test_cc_base):
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
         c = self.session.open_cursor('statistics:')
-        self.assertEqual(c[stat.conn.checkpoint_cleanup_pages_evict][2], 0)
-        self.assertEqual(c[stat.conn.checkpoint_cleanup_pages_removed][2], 0)
-        self.assertGreater(c[stat.conn.checkpoint_cleanup_pages_visited][2], 0)
+        self.assertEqual(c[stat.conn.cc_pages_evict][2], 0)
+        self.assertEqual(c[stat.conn.cc_pages_removed][2], 0)
+        self.assertGreater(c[stat.conn.cc_pages_visited][2], 0)
         c.close()
 
         # Pin oldest and stable to timestamp 100.

@@ -93,7 +93,7 @@ __sync_obsolete_inmem_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_evict);
     }
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
@@ -118,7 +118,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_removed);
     } else
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
@@ -174,7 +174,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_removed);
         return (0);
     }
 
@@ -288,7 +288,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
         WT_RET(__sync_obsolete_cleanup_one(session, ref));
     }
 
-    WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
+    WT_STAT_CONN_DSRC_INCRV(session, cc_pages_visited, pindex->entries);
 
     return (0);
 }
@@ -358,7 +358,7 @@ __sync_obsolete_inmem_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_modify_init(session, ref->page));
         __wt_page_modify_set(session, ref->page);
 
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_timewindow);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_obsolete_timewindow);
     }
 
     return (0);
@@ -425,8 +425,12 @@ __checkpoint_cleanup_page_skip(
     /* If an obsolete time window exists on the page, read it into the cache. */
     __wt_txn_pinned_timestamp(session, &pinned_ts);
     if (pinned_ts != WT_TS_NONE && addr.ta.oldest_start_ts != WT_TS_NONE &&
-      addr.ta.oldest_start_ts <= pinned_ts)
+      addr.ta.oldest_start_ts <= pinned_ts) {
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p: obsolete time window page read into the cache", (void *)ref);
+        WT_STAT_CONN_DSRC_INCR(session, cc_obsolete_timewindow_pages_read);
         return (0);
+    }
 
     /*
      * The checkpoint cleanup fast deletes the obsolete leaf page by marking it as deleted

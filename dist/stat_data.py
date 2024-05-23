@@ -1060,10 +1060,11 @@ conn_dsrc_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_obsolete_timewindow', 'pages dirtied to remove obsolete time window during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
-    CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
+    CheckpointStat('cc_obsolete_timewindow_pages_read', 'obsolete time window pages read into the cache during checkpoint cleanup tree walk'),
+    CheckpointStat('cc_pages_evict', 'pages added for eviction during checkpoint cleanup'),
+    CheckpointStat('cc_pages_obsolete_timewindow', 'pages dirtied to remove obsolete time window during checkpoint cleanup'),
+    CheckpointStat('cc_pages_removed', 'pages removed during checkpoint cleanup'),
+    CheckpointStat('cc_pages_visited', 'pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
     CheckpointStat('checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
     CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),

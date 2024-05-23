@@ -65,11 +65,11 @@ class test_cc06(test_cc_base):
 
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         # Check statistics.
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_visited), 0)
 
         # Reopen the database.
         self.reopen_conn()
 
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         # Check statistics.
-        self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertEqual(self.get_stat(stat.conn.cc_pages_visited), 0)
