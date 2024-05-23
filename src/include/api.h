@@ -97,8 +97,13 @@
         bool __set_err = true;                                                              \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
-        if ((config) != NULL)                                                               \
-    WT_ERR(__wt_config_check((s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0))
+        if (cfg[1] != NULL) {                                                               \
+            if (cfg[1][0] == '\0')                                                          \
+                cfg[1] = NULL;                                                              \
+            else                                                                            \
+                WT_ERR(__wt_config_check(                                                   \
+                  (s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0));          \
+        }
 
 #define API_END(s, ret)                                                                    \
     if ((s) != NULL) {                                                                     \
