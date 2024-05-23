@@ -222,7 +222,7 @@ static void
 _test_wake_one_of_two(TEST_OPTS *opts)
 {
     static const int WAITER_COUNT = 2;
-    static const int WAKEUP_VAL = 1;
+    static const uint32_t WAKEUP_VAL = 1;
 
     struct waiters_outcomes outcomes;
     struct waiter waiters[WAITER_COUNT];
@@ -256,7 +256,7 @@ static void
 _test_wake_two_of_two(TEST_OPTS *opts)
 {
     static const int WAITER_COUNT = 2;
-    static const int WAKEUP_VAL = 1;
+    static const uint32_t WAKEUP_VAL = 1;
 
     struct waiters_outcomes outcomes;
     struct waiter waiters[WAITER_COUNT];
