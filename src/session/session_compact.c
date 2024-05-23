@@ -162,10 +162,26 @@ static int
 __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_DECL_RET;
+    wt_off_t file_size;
+    const char *filename;
 
     WT_UNUSED(cfg);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    /* Fast path to check the file size without locking the dhandle. Ignore small files. */
+    filename = session->dhandle->name;
+    WT_PREFIX_SKIP(filename, "file:");
+    WT_RET(__wt_block_manager_named_size(session, filename, &file_size));
+    if (file_size <= WT_MEGABYTE) {
+        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.", filename,
+          (uintmax_t)file_size);
+
+        WT_STAT_CONN_INCR(session, session_table_compact_skipped);
+        WT_STAT_DSRC_INCR(session, btree_compact_skipped);
+        return (EBUSY);
+    }
 
     WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
 
