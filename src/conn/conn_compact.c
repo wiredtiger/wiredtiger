@@ -256,8 +256,10 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
     filename = uri;
     WT_PREFIX_SKIP(filename, "file:");
     ret = __wt_block_manager_named_size(session, filename, &file_size);
-    if (ret == 0 && file_size <= WT_MEGABYTE)
+    if (ret == 0 && file_size <= WT_MEGABYTE) {
+        WT_STAT_CONN_INCR(session, background_compact_skipped);
         return (false);
+    }
 
     /* If we haven't seen this file before we should try and compact it. */
     compact_stat = __background_compact_get_stat(session, uri, id);
