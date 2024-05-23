@@ -1569,7 +1569,8 @@ retry:
         /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
-        if (btree->evict_walk_period != 0 && btree->evict_walk_skips++ < btree->evict_walk_period) {
+        if (__wt_atomic_load32(&btree->evict_walk_period) != 0 &&
+          btree->evict_walk_skips++ < __wt_atomic_load32(&btree->evict_walk_period)) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_not_useful_before);
             continue;
         }
@@ -2167,7 +2168,8 @@ rand_next:
                 WT_STAT_CONN_INCR(session, cache_eviction_server_skip_intl_page_with_active_child);
                 continue;
             }
-            if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session))
+            if (__wt_atomic_load32(&btree->evict_walk_period) == 0 &&
+              !__wt_cache_aggressive(session))
                 continue;
         }
 
@@ -2211,16 +2213,18 @@ fast:
      * If we couldn't find the number of pages we were looking for, skip the tree next time.
      */
     if (pages_queued < target_pages / 2 && !urgent_queued)
-        btree->evict_walk_period = WT_MIN(WT_MAX(1, 2 * btree->evict_walk_period), 100);
+        __wt_atomic_store32(&btree->evict_walk_period,
+          WT_MIN(WT_MAX(1, 2 * __wt_atomic_load32(&btree->evict_walk_period)), 100));
     else if (pages_queued == target_pages) {
-        btree->evict_walk_period = 0;
+        __wt_atomic_store32(&btree->evict_walk_period, 0);
         /*
          * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
          */
         if (__wt_btree_bytes_evictable(session) == 0)
             FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
-    } else if (btree->evict_walk_period > 0)
-        btree->evict_walk_period /= 2;
+    } else if (__wt_atomic_load32(&btree->evict_walk_period) > 0)
+        __wt_atomic_store32(
+          &btree->evict_walk_period, __wt_atomic_load32(&btree->evict_walk_period) / 2);
 
     /*
      * Give up the walk occasionally.
