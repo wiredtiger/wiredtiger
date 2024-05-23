@@ -1920,9 +1920,10 @@ __wti_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
      * Checkpoints can be configured based on amount of log written. Add in this log record to the
      * sum and if needed, signal the checkpoint condition. The logging subsystem manages the
      * accumulated field. There is a bit of layering violation here checking the connection ckpt
-     * field and using its condition.
+     * field and using its condition. Don't signal on close because the checkpoint server is
+     * shutdown before logging.
      */
-    if (WT_CKPT_LOGSIZE(conn)) {
+    if (WT_CKPT_LOGSIZE(conn) && !F_ISSET(conn, WT_CONN_CLOSING)) {
         log->log_written += (wt_off_t)release_bytes;
         __wt_checkpoint_signal(session, log->log_written);
     }
