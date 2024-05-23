@@ -71,7 +71,7 @@ class compact_util(wttest.WiredTigerTestCase):
 
     def get_pages_rewritten(self, uri):
         return self.get_stat(stat.dsrc.btree_compact_pages_rewritten, uri)
-    
+
     def get_bg_compaction_files_skipped(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         skipped = stat_cursor[stat.conn.background_compact_skipped][2]
