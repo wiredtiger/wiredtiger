@@ -564,8 +564,8 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_ERR(ret);
 
     if (session->compact->skip) {
-        __wt_verbose_info(session, WT_VERB_COMPACT,
-            "%s: there is no useful work to do - skipping compaction", uri);
+        __wt_verbose_info(
+          session, WT_VERB_COMPACT, "%s: there is no useful work to do - skipping compaction", uri);
 
         goto skip;
     }
