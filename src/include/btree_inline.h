@@ -327,7 +327,7 @@ __wt_cache_decr_check_size(WT_SESSION_IMPL *session, size_t *vp, size_t v, const
      * It's a bug if this accounting underflowed but allow the application to proceed - the
      * consequence is we use more cache than configured.
      */
-    *vp = 0;
+    __wt_atomic_storesize(vp, 0);
     __wt_errx(session, "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
 
 #ifdef HAVE_DIAGNOSTIC
@@ -342,7 +342,9 @@ __wt_cache_decr_check_size(WT_SESSION_IMPL *session, size_t *vp, size_t v, const
 static WT_INLINE void
 __wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
 {
-    uint64_t orig = *vp;
+    uint64_t orig;
+
+    orig = __wt_atomic_load64(vp);
 
     if (v == 0 || __wt_atomic_sub64(vp, v) < WT_EXABYTE)
         return;
@@ -351,7 +353,7 @@ __wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v,
      * It's a bug if this accounting underflowed but allow the application to proceed - the
      * consequence is we use more cache than configured.
      */
-    *vp = 0;
+    __wt_atomic_store64(vp, 0);
     __wt_errx(
       session, "%s was %" PRIu64 ", went negative with decrement of %" PRIu64, fld, orig, v);
 
