@@ -564,13 +564,14 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_ERR(ret);
 
     if (session->compact->skip)
-        goto err;
+        goto skip;
 
     if (session->compact->lsm_count != 0)
         WT_ERR(__wt_schema_worker(session, uri, NULL, __wt_lsm_compact, cfg, 0));
     if (session->compact->file_count != 0)
         WT_ERR(__compact_worker(session));
 
+skip:
 err:
     session->compact = NULL;
 
