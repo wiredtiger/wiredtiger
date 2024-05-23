@@ -74,7 +74,7 @@
  * it will write out a data format that is not readable by those versions. These version numbers
  * provide such mechanism.
  */
-#define WT_MIN_STARTUP_VERSION ((WT_VERSION){11, 2, 0}) /* Minimum version we can start on. */
+#define WT_MIN_STARTUP_VERSION ((WT_VERSION){3, 2, 0}) /* Minimum version we can start on. */
 
 /*
  * WT_WITH_TURTLE_LOCK --
