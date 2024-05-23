@@ -46,7 +46,7 @@ class test_compact14(compact_util):
         stat_cursor.close()
         return skipped
 
-    def test_compact13(self):
+    def test_compact14(self):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
