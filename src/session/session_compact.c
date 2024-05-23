@@ -174,13 +174,14 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
     WT_PREFIX_SKIP(filename, "file:");
     WT_RET(__wt_block_manager_named_size(session, filename, &file_size));
     if (file_size <= WT_MEGABYTE) {
+        session->compact->skip = true;
         __wt_verbose_debug1(session, WT_VERB_COMPACT,
           "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.", filename,
           (uintmax_t)file_size);
 
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
         WT_STAT_DSRC_INCR(session, btree_compact_skipped);
-        return (EBUSY);
+        return (0);
     }
 
     WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
@@ -561,6 +562,9 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
         ret = __wt_schema_worker(
           session, uri, __compact_handle_append, __compact_uri_analyze, cfg, 0)));
     WT_ERR(ret);
+
+    if (session->compact->skip)
+        goto err;
 
     if (session->compact->lsm_count != 0)
         WT_ERR(__wt_schema_worker(session, uri, NULL, __wt_lsm_compact, cfg, 0));
