@@ -146,8 +146,9 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             env['GCOV'] = gcov
             if verbose:
                 print(f'env: {env}')
+                print(f'gcovr_command: {gcovr_command}')
             try:
-                completed_process = subprocess.run(split_command, check=True, env=env, shell=True)
+                completed_process = subprocess.run(split_command, env=env, check=True)
                 output = completed_process.stdout
                 print(f'Command returned {output}')
             except subprocess.CalledProcessError as exception:
