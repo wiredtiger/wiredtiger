@@ -10,7 +10,8 @@
 
 #define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
     (!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) && \
-      __wt_atomic_loadi32(&(dhandle)->session_inuse) == 0 && (dhandle)->references == 0)
+      __wt_atomic_loadi32(&(dhandle)->session_inuse) == 0 &&      \
+      __wt_atomic_load32(&(dhandle)->references) == 0)
 
 /*
  * __sweep_mark --
