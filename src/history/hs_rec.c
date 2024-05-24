@@ -546,8 +546,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          */
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
             WT_ERR(
-              __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
-
+              __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));  
             WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate);
 
             /* Reset the update without a timestamp if it is the last update in the chain. */
@@ -775,7 +774,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    bool hs_read_all_flag;
+    bool hs_read_all_flag, non_ts_updates;
 
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
@@ -795,14 +794,137 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
         ++hs_counter;
     }
 
-    WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
-      true, error_on_ts_ordering, &hs_counter, NULL));
+    // Get the hs cursor position 
+    WT_ERR(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, non_ts_updates, error_on_ts_ordering, NULL));
 
+    // Check if we are in non-timestamped updates (only want a counter)
+    if (non_ts_updates){
+        // counter only function 
+    } else {
+        WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
+        true, error_on_ts_ordering, &hs_counter, NULL));
+        }
 done:
 err:
     if (!hs_read_all_flag)
         F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
     return (ret);
+}
+
+
+static int
+__hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts, bool non_ts_updates, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw)
+{
+    WT_CURSOR *hs_insert_cursor;
+    WT_CURSOR_BTREE *hs_cbt;
+    WT_DECL_RET;
+    WT_ITEM hs_key;
+    WT_TIME_WINDOW *twp;
+    wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter, hs_upd_type, oldest_id;
+    uint32_t hs_btree_id;
+#ifdef HAVE_DIAGNOSTIC
+    int cmp;
+#endif
+    hs_insert_cursor = NULL;
+    hs_cbt = __wt_curhs_get_cbt(hs_cursor);
+    WT_CLEAR(hs_key);
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(key);
+#endif
+
+    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        /* Ignore records that are obsolete. */
+        __wt_hs_upd_time_window(hs_cursor, &twp);
+        oldest_id = __wt_txn_oldest_id(session);
+        if (__wt_txn_tw_stop_visible_all(session, twp))
+            continue;
+
+        /*
+         * The below example illustrates a case that the data store and the history
+         * store may contain the same value. In this case, skip inserting the same
+         * value to the history store again.
+         *
+         * Suppose there is one table table1 and the below operations are performed.
+         *
+         * 1. Insert a=1 in table1 at timestamp 10
+         * 2. Delete a from table1 at timestamp 20
+         * 3. Set stable timestamp = 20, oldest timestamp=1
+         * 4. Checkpoint table1
+         * 5. Insert a=2 in table1 at timestamp 30
+         * 6. Evict a=2 from table1 and move the content to history store.
+         * 7. Checkpoint is still running and before it finishes checkpointing the history store the
+         * above steps 5 and 6 will happen.
+         *
+         * After all this operations the checkpoint content will be
+         * Data store --
+         * table1 --> a=1 at start_ts=10, stop_ts=20
+         *
+         * History store --
+         * table1 --> a=1 at start_ts=10, stop_ts=20
+         *
+         * WiredTiger takes a backup of the checkpoint and use this backup to restore.
+         * Note: In table1 of both data store and history store has the same content.
+         *
+         * Now the backup is used to restore.
+         *
+         * 1. Insert a=3 in table1
+         * 2. Checkpoint started, eviction started and sees the same content in data store and
+         * history store while reconciling.
+         *
+         * The start timestamp and transaction ids are checked to ensure for the global
+         * visibility because globally visible timestamps and transaction ids may be cleared to 0.
+         * The time window of the inserting record and the history store record are
+         * compared to make sure that the same record are not being inserted again.
+         */
+
+        if (upd_tw != NULL &&
+          (__wt_txn_tw_start_visible_all(session, upd_tw) &&
+                __wt_txn_tw_start_visible_all(session, twp) ?
+              WT_TIME_WINDOWS_STOP_EQUAL(upd_tw, twp) :
+              WT_TIME_WINDOWS_EQUAL(upd_tw, twp)))
+            continue;
+
+        /* We shouldn't have crossed the btree and user key search space. */
+        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+        WT_ASSERT(session, hs_btree_id == btree_id);
+#ifdef HAVE_DIAGNOSTIC
+        WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
+        WT_ASSERT(session, cmp == 0);
+#endif
+        /*
+         * We have found a key with a timestamp larger than or equal to the specified timestamp.
+         * Always use the start timestamp retrieved from the key instead of the start timestamp from
+         * the cell. The cell's start timestamp can be cleared during reconciliation if it is
+         * globally visible.
+         */
+        if (hs_start_ts >= ts || twp->stop_ts >= ts){
+            if (hs_start_ts == 0 && twp->stop_ts == 0 && ts == 0)
+                non_ts_updates = false; 
+            break;
+        }
+    }
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+
+    /*
+     * If we find a key with a timestamp larger than or equal to the specified timestamp then the
+     * specified timestamp must be mixed mode.
+     */
+    WT_ASSERT_ALWAYS(
+      session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
+    /*
+     * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
+     * cannot modify the history store to fix the update's timestamps as it may make the history
+     * store checkpoint inconsistent.
+     */
+    if (error_on_ts_ordering && non_ts_updates) {
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
+        WT_RET(EBUSY);
+    }
+
 }
 
 /*
@@ -824,7 +946,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_TIME_WINDOW hs_insert_tw, *twp;
     wt_timestamp_t hs_durable_start_ts, hs_durable_stop_ts, hs_start_ts;
     uint64_t cache_hs_order_lose_durable_timestamp, cache_hs_order_reinsert, cache_hs_order_remove;
-    uint64_t hs_counter, hs_upd_type;
+    uint64_t hs_counter, hs_upd_type, oldest_id;
     uint32_t hs_btree_id;
 #ifdef HAVE_DIAGNOSTIC
     int cmp;
@@ -836,7 +958,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
     cache_hs_order_lose_durable_timestamp = cache_hs_order_reinsert = cache_hs_order_remove = 0;
-
+    oldest_id = 0;
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
@@ -850,6 +972,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
         __wt_hs_upd_time_window(hs_cursor, &twp);
+        oldest_id = __wt_txn_oldest_id(session);
         if (__wt_txn_tw_stop_visible_all(session, twp))
             continue;
 
@@ -911,8 +1034,12 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * the cell. The cell's start timestamp can be cleared during reconciliation if it is
          * globally visible.
          */
-        if (hs_start_ts >= ts || twp->stop_ts >= ts)
+        if (hs_start_ts >= ts || twp->stop_ts >= ts){
+            if (hs_start_ts == 0 && twp->stop_ts == 0 && ts == 0)
+                reinsert = false; 
+                // Test code assert here
             break;
+        }
     }
     if (ret == WT_NOTFOUND)
         return (0);
@@ -929,9 +1056,11 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * cannot modify the history store to fix the update's timestamps as it may make the history
      * store checkpoint inconsistent.
      */
-    if (error_on_ts_ordering) {
+    if (error_on_ts_ordering && reinsert) {
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
+        // Testing code assert here
+        WT_ASSERT_ALWAYS(session, false, "%lu", oldest_id);
         goto err;
     }
 
