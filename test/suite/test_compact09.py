@@ -75,8 +75,8 @@ class test_compact09(compact_util):
         # Write to disk.
         self.session.checkpoint()
 
-        # Enable background compaction and exclude the two tables. We want background compaction to
-        # run once to be able to track the stats easily.
+        # Enable background compaction and exclude the two tables. Use run once to be able to
+        # track the stats easily.
         exclude_list = f'["{self.uri_prefix}_0.wt", "{self.uri_prefix}_1.wt"]'
         config = f'free_space_target=1MB,exclude={exclude_list},run_once=true'
         self.turn_on_bg_compact(config)
