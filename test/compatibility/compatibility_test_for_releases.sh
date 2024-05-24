@@ -726,7 +726,7 @@ patch_version_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongod
 
 # This array is used to configure the release branches we'd like to run test checkpoint
 # upgrade/downgrade test.
-test_checkpoint_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-4.4)
+test_checkpoint_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-4.4)
 
 # This array is used to configure the release branches we'd like to run upgrade to latest test.
 upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
