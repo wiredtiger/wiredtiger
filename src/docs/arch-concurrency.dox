@@ -6,14 +6,13 @@ page describes what those mechanisms are and the intended usage of them in the c
 
 @section volatile Volatile
 
-A controversial tool in the C toolkit. WiredTiger utilizes volatile for one reason, managing
-compiler optimization. Leveraging the definitions from "Is Parallel Programming Hard, And, If So,
-What Can You Do About It?", Paul E. McKenney, WiredTiger utilizes volatile to prevent the
-following type of compiler optimizations: Load fusing, store fusing, invented loads, invented
-stores and code reordering. WiredTiger defines the following macros WT_READ_ONCE and
-WT_WRITE_ONCE, these macros, if used correctly, prevent the described forms of compiler
-optimization. Additionally some variables in WiredTiger are defined with the volatile keyword if
-it is known that they will be frequently accessed in a concurrent context.
+WiredTiger utilizes volatile for one reason, managing compiler optimization. Leveraging the
+definitions from "Is Parallel Programming Hard, And, If So, What Can You Do About It?", Paul E.
+McKenney, WiredTiger utilizes volatile to prevent the following type of compiler optimizations: Load
+fusing, store fusing, invented loads, invented stores and code reordering. WiredTiger defines the
+following macros WT_READ_ONCE and WT_WRITE_ONCE, these macros, if used correctly, prevent the
+described forms of compiler optimization. Additionally some variables in WiredTiger are defined with
+the volatile keyword if it is known that they will be frequently accessed in a concurrent context.
 
 @section locking Locking
 

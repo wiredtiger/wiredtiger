@@ -51,8 +51,4 @@ achieved through address alignment: we know of no architectures with cache lines
 multiple of 4 bytes in size, therefore, aligned 4-byte accesses will always be in a single cache
 line.
 
-@subsection cache-coherency Cache coherency
-WiredTiger depends on running on a coherent cache, it cannot run on hardware that doesn't
-implement a typical cache coherence protocol.
-
 */
