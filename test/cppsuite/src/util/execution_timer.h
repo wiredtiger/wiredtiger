@@ -67,7 +67,7 @@ public:
           -1, // cpu: any CPU
           -1, // groupd_fd: group with only 1 member
           0); // flags
-        testutil_assert("Failed to open performance fd");
+        testutil_assert(fd != -1);
         ioctl(fd, PERF_EVENT_IOC_RESET, 0);
         ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
 
@@ -78,6 +78,8 @@ public:
         int ret = lambda();
 
         long long count;
+
+        ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
         ssize_t bytes_read = read(fd, &count, sizeof(count));
         testutil_assert(bytes_read == sizeof(count));
         _total_instruction_count += count;

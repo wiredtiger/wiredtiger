@@ -626,6 +626,7 @@ functions:
       script: |
         set -o verbose
         ${PREPARE_TEST_ENV}
+        sudo sysctl -w kernel.perf_event_paranoid=1
         ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
         exit_code=$?
         echo "$exit_code" > cppsuite_exit_code
