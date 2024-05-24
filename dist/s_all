@@ -180,6 +180,9 @@ fi
 status ""  # Clear any remaining status.
 wait       # Call "wait" in any case even if the jobs are done to clear their state.
 
+# Execute Ruff at the very end once all the Python files have been generated.
+run "ruff.py"
+
 # Collect errors and compute the exit status.
 
 [[ -s "${t_pfx}_errfound" ]] && errfound=1
