@@ -33,7 +33,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime
-from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel 
+from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
 
 
 def main():
