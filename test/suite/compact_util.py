@@ -44,9 +44,6 @@ class compact_util(wttest.WiredTigerTestCase):
     def get_bg_compaction_running(self):
         return self.get_stat(stat.conn.background_compact_running)
 
-    def get_bg_compaction_success(self):
-        return self.get_stat(stat.conn.background_compact_success)
-
     def get_bytes_recovered(self):
         return self.get_stat(stat.conn.background_compact_bytes_recovered)
 
