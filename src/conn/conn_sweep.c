@@ -284,7 +284,7 @@ __sweep_check_session_callback(
     WT_UNUSED(exit_walkp);
 
     last = array_session->last_cursor_big_sweep;
-    last_sweep = array_session->last_sweep;
+    last_sweep = __wt_atomic_load64(&array_session->last_sweep);
 
     /*
      * Get the earlier of the two timestamps, as they refer to sweeps of two different data
