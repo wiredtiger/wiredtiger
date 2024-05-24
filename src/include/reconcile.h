@@ -293,6 +293,7 @@ struct __wt_reconcile {
 
     bool cache_write_hs;                /* Used the history store table */
     bool cache_write_restore_invisible; /* Used update/restoration because of invisible update */
+    bool cache_discard_update_chain;    /* Reconciliation discard at least one update chain */
 
     uint8_t tested_ref_state; /* Debugging information */
 
