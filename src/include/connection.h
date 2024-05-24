@@ -431,7 +431,7 @@ struct __wt_connection_impl {
     /* Locked: handles in each bucket */
     uint64_t *dh_bucket_count;
     uint64_t dhandle_count;                  /* Locked: handles in the queue */
-    u_int open_btree_count;                  /* Locked: open writable btree count */
+    wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
     wt_shared uint32_t open_cursor_count;    /* Atomic: open cursor handle count */

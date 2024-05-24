@@ -129,7 +129,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         /*
          * Ignore open files once the btree file count is below the minimum number of handles.
          */
-        if (conn->open_btree_count < conn->sweep_handles_min)
+        if (__wt_atomic_load32(&conn->open_btree_count) < conn->sweep_handles_min)
             break;
 
         if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
@@ -405,7 +405,8 @@ __sweep_server(void *arg)
          * Close handles if we have reached the configured limit. If sweep_idle_time is 0, handles
          * never become idle.
          */
-        if (conn->sweep_idle_time != 0 && conn->open_btree_count >= conn->sweep_handles_min)
+        if (conn->sweep_idle_time != 0 &&
+          __wt_atomic_load32(&conn->open_btree_count) >= conn->sweep_handles_min)
             WT_ERR(__sweep_expire(session, now));
 
         WT_ERR(__sweep_discard_trees(session, &dead_handles));

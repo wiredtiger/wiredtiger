@@ -448,7 +448,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
     if (!marked_dead) {
         F_CLR(dhandle, WT_DHANDLE_OPEN);
         if (dhandle->checkpoint == NULL)
-            --conn->open_btree_count;
+            __wt_atomic_sub32(&conn->open_btree_count, 1);
     }
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
@@ -598,7 +598,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * better to ignore them.
      */
     if (dhandle->checkpoint == NULL)
-        ++S2C(session)->open_btree_count;
+        __wt_atomic_add32(&S2C(session)->open_btree_count, 1);
 
     if (0) {
 err:
