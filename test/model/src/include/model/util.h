@@ -500,10 +500,16 @@ private:
 };
 
 /*
+ * decode_utf8 --
+ *     Decode a UTF-8 string into one-byte code points. Throw an exception on error.
+ */
+std::string decode_utf8(const std::string &str);
+
+/*
  * parse_uint64 --
  *     Parse the string into a number. Throw an exception on error.
  */
-uint64_t parse_uint64(const char *str, char **end = nullptr);
+uint64_t parse_uint64(const char *str, const char **end = nullptr);
 
 /*
  * parse_uint64 --

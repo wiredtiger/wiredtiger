@@ -27,17 +27,20 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_ROLLBACK
+from wiredtiger import stat, WiredTigerError
 
 # test_scrub_eviction_prepare.py
 #
 # Test to do the following steps.
-# 1. Prepare an update with one key
-# 2. Force evict
-# 3. Read the page back in memory
-# 4. Checkpoint
-# 5. Repeat steps 3,4 and validate that the page read back into memory should
-#    not be reconciled everytime.
+# 1. Prepare an update with one key (key-2)
+# 2. Commit an update with another key(key-1)
+# 3, Make sure both the keys are on the same page.
+# 4. Set the key to full update and evict the page with release_evict
+# 5. Read the page back in memory
+# 6. Checkpoint
+# 7. Repeat steps 5,6 and validate that the page read back into memory should
+#    not be reconciled everytime with the help of btree stat.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - fails on tiered")
 class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
 
     def conn_config(self):
@@ -52,10 +55,8 @@ class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
 
     def read_key(self, uri):
         cur2 = self.session.open_cursor(uri)
-        cur2.set_key(1)
-        self.assertRaisesException(WiredTigerError,
-            lambda: cur2.search(),
-            exceptionString='/conflict with a prepared update/')
+        cur2.set_key(2)
+        self.assertEqual(cur2.search(), 0)
         cur2.close()
 
     def test_scrub_eviction_prepare(self):
@@ -64,32 +65,43 @@ class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
         # Create a table.
         self.session.create(uri, 'key_format=i,value_format=S')
         session2 = self.conn.open_session()
+        session3 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
 
+        # Insert a key 2 and commit the transaction.
         session2.begin_transaction()
-        cursor2[1] = '10'
-        session2.prepare_transaction('prepare_timestamp=10')
+        cursor2[2] = '20'
+        session2.commit_transaction()
 
-        # Evict the page txn1 containing modifications from both txn1 and txn2.
+        # Insert a key 1 and prepare the transaction.
+        session3.begin_transaction()
+        cursor2[1] = '10'
+        session3.prepare_transaction('prepare_timestamp=10')
+
+        # Set the key to 2(to avoid prepare conflict if the key is set to 1) in the evict
+        # cursor and evict the page which has both the keys 1 and 2.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        evict_cursor.set_key(1)
-        self.assertRaisesException(WiredTigerError,
-            lambda: evict_cursor.search(),
-            exceptionString='/conflict with a prepared update/')
+        evict_cursor.set_key(2)
+        self.assertEqual(evict_cursor.search(), 0)
         self.assertEqual(evict_cursor.reset(), 0)
         evict_cursor.close()
 
         self.session.checkpoint()
         self.assertEqual(1, self.get_stats(uri))
 
+        # Read the key 2 to avoid prepared conflict, this will bring back the page
+        # that has both the keys 1 & 2 into the memory.
         self.read_key(uri)
         self.session.checkpoint()
-
         # The page with prepared update should not be reconciled again.
         self.assertEqual(1, self.get_stats(uri))
 
+        # Read the key 2 to avoid prepared conflict, this will bring back the page
+        # that has both the keys 1 & 2 into the memory.
         self.read_key(uri)
         self.session.checkpoint()
-
         # The page with prepared update should not be reconciled again.
         self.assertEqual(1, self.get_stats(uri))
+
+if __name__ == '__main__':
+    wttest.run()

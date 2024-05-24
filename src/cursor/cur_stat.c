@@ -618,21 +618,22 @@ int
 __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, const char *cfg[],
   WT_CURSOR **cursorp)
 {
+    WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR_STATIC_INIT(iface, __curstat_get_key, /* get-key */
       __curstat_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,         /* get-raw-key-value */
+      __wti_cursor_get_raw_key_value_notsup,        /* get-raw-key-value */
       __curstat_set_key,                            /* set-key */
       __curstat_set_value,                          /* set-value */
-      __wt_cursor_compare_notsup,                   /* compare */
-      __wt_cursor_equals_notsup,                    /* equals */
+      __wti_cursor_compare_notsup,                  /* compare */
+      __wti_cursor_equals_notsup,                   /* equals */
       __curstat_next,                               /* next */
       __curstat_prev,                               /* prev */
       __curstat_reset,                              /* reset */
       __curstat_search,                             /* search */
-      __wt_cursor_search_near_notsup,               /* search-near */
+      __wti_cursor_search_near_notsup,              /* search-near */
       __wt_cursor_notsup,                           /* insert */
-      __wt_cursor_modify_notsup,                    /* modify */
+      __wti_cursor_modify_notsup,                   /* modify */
       __wt_cursor_notsup,                           /* update */
       __wt_cursor_notsup,                           /* remove */
       __wt_cursor_notsup,                           /* reserve */
@@ -643,7 +644,6 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
       __wt_cursor_reopen_notsup,                    /* reopen */
       __wt_cursor_checkpoint_id,                    /* checkpoint ID */
       __curstat_close);                             /* close */
-    WT_CONFIG_ITEM cval, sval;
     WT_CURSOR *cursor;
     WT_CURSOR_STAT *cst;
     WT_DECL_RET;

@@ -246,7 +246,8 @@ struct __wt_session_impl {
     void *salvage_track;
 
     /* Sessions have an associated statistics bucket based on its ID. */
-    u_int stat_bucket;          /* Statistics bucket offset */
+    u_int stat_conn_bucket;     /* Statistics connection bucket offset */
+    u_int stat_dsrc_bucket;     /* Statistics data source bucket offset */
     uint64_t cache_max_wait_us; /* Maximum time an operation waits for space in cache */
 
 #ifdef HAVE_DIAGNOSTIC
@@ -282,7 +283,7 @@ struct __wt_session_impl {
 
 /*
  * Note: The WT_SESSION_PREFETCH_THREAD flag is set for prefetch server threads whereas the
- * WT_SESSION_PREFETCH_THREAD flag is set when prefetch has been enabled on the session.
+ * WT_SESSION_PREFETCH_ENABLED flag is set when prefetch has been enabled on the session.
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

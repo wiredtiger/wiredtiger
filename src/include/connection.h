@@ -46,8 +46,9 @@ struct __wt_process {
 extern WT_PROCESS __wt_process;
 
 typedef enum __wt_background_compact_cleanup_stat_type {
-    BACKGROUND_CLEANUP_ALL_STAT,
-    BACKGROUND_CLEANUP_STALE_STAT
+    BACKGROUND_COMPACT_CLEANUP_EXIT,      /* Cleanup when the thread exits */
+    BACKGROUND_COMPACT_CLEANUP_OFF,       /* Cleanup when the thread is disabled */
+    BACKGROUND_COMPACT_CLEANUP_STALE_STAT /* Cleanup stale stats only */
 } WT_BACKGROUND_COMPACT_CLEANUP_STAT_TYPE;
 
 /*
@@ -423,8 +424,9 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
-    WT_BLKCACHE blkcache;     /* Block cache */
-    WT_CHUNKCACHE chunkcache; /* Chunk cache */
+    WT_BLKCACHE blkcache;             /* Block cache */
+    WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
+    WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
     /* Locked: handles in each bucket */
     uint64_t *dh_bucket_count;
@@ -547,7 +549,7 @@ struct __wt_connection_impl {
     uint64_t
       rec_maximum_image_build_milliseconds; /* Maximum milliseconds building disk image took. */
     uint64_t rec_maximum_milliseconds;      /* Maximum milliseconds reconciliation took. */
-    WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
+    WT_CONNECTION_STATS *stats[WT_STAT_CONN_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
 
     WT_CAPACITY capacity;              /* Capacity structure */
@@ -569,6 +571,7 @@ struct __wt_connection_impl {
     WT_THREAD_GROUP evict_threads;
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
+    bool evict_sample_inmem;
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
@@ -647,6 +650,7 @@ struct __wt_connection_impl {
     uint32_t log_force_write_wait;         /* Log force write wait configuration */
     const char *log_path;                  /* Logging path format */
     uint32_t log_prealloc;                 /* Log file pre-allocation */
+    uint32_t log_prealloc_init_count;      /* initial number of pre-allocated log files */
     uint16_t log_req_max;                  /* Max required log version */
     uint16_t log_req_min;                  /* Min required log version */
     wt_shared uint32_t txn_logsync;        /* Log sync configuration */
@@ -745,6 +749,11 @@ struct __wt_connection_impl {
     uint16_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_HEURISTIC_OBSOLETE_CHECK 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t heuristic_controls;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull
 #define WT_DIAGNOSTIC_CHECKPOINT_VALIDATE 0x002ull
 #define WT_DIAGNOSTIC_CURSOR_CHECK 0x004ull
@@ -820,13 +829,14 @@ struct __wt_connection_impl {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_SERVER_CAPACITY 0x001u
 #define WT_CONN_SERVER_CHECKPOINT 0x002u
-#define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x004u
-#define WT_CONN_SERVER_COMPACT 0x008u
-#define WT_CONN_SERVER_LOG 0x010u
-#define WT_CONN_SERVER_LSM 0x020u
-#define WT_CONN_SERVER_STATISTICS 0x040u
-#define WT_CONN_SERVER_SWEEP 0x080u
-#define WT_CONN_SERVER_TIERED 0x100u
+#define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x004u
+#define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x008u
+#define WT_CONN_SERVER_COMPACT 0x010u
+#define WT_CONN_SERVER_LOG 0x020u
+#define WT_CONN_SERVER_LSM 0x040u
+#define WT_CONN_SERVER_STATISTICS 0x080u
+#define WT_CONN_SERVER_SWEEP 0x100u
+#define WT_CONN_SERVER_TIERED 0x200u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

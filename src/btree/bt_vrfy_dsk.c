@@ -69,7 +69,7 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
   size_t size, WT_ADDR *addr, uint32_t verify_flags)
 {
     uint8_t flags;
-    const uint8_t *p, *end;
+    const uint8_t *end, *p;
 
     /* Initialize the verify information. */
     WT_VERIFY_INFO vi;
@@ -816,7 +816,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
     WT_DECL_RET;
     uint64_t recno_offset;
     uint32_t cell_num, datalen, i;
-    const uint8_t *bitstring, *p, *end;
+    const uint8_t *bitstring, *end, *p;
 
     btree = S2BT(vi->session);
     unpack = &_unpack;
@@ -834,7 +834,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
           vi->session, "last byte of data on page at %s contains trailing garbage", vi->tag);
 
     /* Unpack the auxiliary header. This function is expected to be paranoid enough to use here. */
-    ret = __wt_col_fix_read_auxheader(vi->session, vi->dsk, &auxhdr);
+    ret = __wti_col_fix_read_auxheader(vi->session, vi->dsk, &auxhdr);
     if (ret != 0)
         WT_RET_VRFY_RETVAL(vi->session, ret, "auxiliary header on page %s invalid", vi->tag);
 
@@ -900,7 +900,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
                 WT_RET_VRFY(vi->session,
                   "in %s page at %s, cell %" PRIu32 " should be a WT_CELL_KEY but is %s",
                   __wt_page_type_string(vi->dsk->type), vi->tag, cell_num - 1,
-                  __wt_cell_type_string(unpack->type));
+                  __wti_cell_type_string(unpack->type));
             /* Unpack the key and make sure it's in range. It's a recno offset. */
             p = unpack->data;
             /* Note that unpack->size does not reach past the end of the page. */
@@ -918,7 +918,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
                 WT_RET_VRFY(vi->session,
                   "in %s page at %s, cell %" PRIu32 " should be a WT_CELL_VALUE but is %s",
                   __wt_page_type_string(vi->dsk->type), vi->tag, cell_num - 1,
-                  __wt_cell_type_string(unpack->type));
+                  __wti_cell_type_string(unpack->type));
             if (unpack->size != 0)
                 WT_RET_VRFY(vi->session,
                   "in %s page at %s, cell %" PRIu32 " should be empty but has size %" PRIu32,
@@ -1078,7 +1078,7 @@ __verify_dsk_chunk(WT_VERIFY_INFO *vi)
 {
     WT_BTREE *btree;
     uint32_t datalen;
-    uint8_t *p, *end;
+    uint8_t *end, *p;
 
     btree = S2BT(vi->session);
     end = (uint8_t *)vi->dsk + vi->dsk->mem_size;
@@ -1125,11 +1125,11 @@ __err_cell_corrupt_or_eof(int retval, WT_VERIFY_INFO *vi)
 }
 
 /*
- * __wt_cell_type_check --
+ * __wti_cell_type_check --
  *     Check the cell type against the page type.
  */
 bool
-__wt_cell_type_check(uint8_t cell_type, uint8_t dsk_type)
+__wti_cell_type_check(uint8_t cell_type, uint8_t dsk_type)
 {
     switch (cell_type) {
     case WT_CELL_ADDR_DEL:
@@ -1184,11 +1184,11 @@ __wt_cell_type_check(uint8_t cell_type, uint8_t dsk_type)
 static int
 __err_cell_type(uint8_t cell_type, WT_VERIFY_INFO *vi)
 {
-    if (!__wt_cell_type_check(cell_type, vi->dsk->type))
+    if (!__wti_cell_type_check(cell_type, vi->dsk->type))
         WT_RET_VRFY(vi->session,
           "illegal cell and page type combination: cell %" PRIu32
           " on page at %s is a %s cell on a %s page",
-          vi->cell_num, vi->tag, __wt_cell_type_string(cell_type),
+          vi->cell_num, vi->tag, __wti_cell_type_string(cell_type),
           __wt_page_type_string(vi->dsk->type));
     return (0);
 }

@@ -32,7 +32,7 @@ get_prev_version()
     # from the end of the list. That is, get a list of releases in numeric order, then pick out
     # the last release (argument "1"), the next-to-last release (argument "2") and so on. Assumes
     # WiredTiger releases are tagged with just numbers and decimal points.
-    echo "$(git tag | egrep '^[0-9][0-9.]*$' | sort -g | tail -$1 | head -1)"
+    echo "$(git tag | grep -E '^[0-9][0-9.]*$' | sort -g | tail -$1 | head -1)"
 }
 
 #############################################################
@@ -169,8 +169,10 @@ create_configs()
     echo "leak_memory=1" >> $file_name              # Faster runs
     echo "logging=1" >> $file_name                  # Test log compatibility
     echo "logging_compression=snappy" >> $file_name # We only built with snappy, force the choice
+    echo "prefetch=0" >> $file_name                 # WT-12978 - Not supported by older releases
     echo "rows=1000000" >> $file_name
     echo "salvage=0" >> $file_name                  # Faster runs
+    echo "statistics_log.sources=off" >> $file_name # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
     echo "stress.checkpoint=0" >> $file_name        # Faster runs
     echo "timer=4" >> $file_name
     echo "verify=1" >> $file_name

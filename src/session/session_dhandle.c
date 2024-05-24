@@ -9,6 +9,57 @@
 #include "wt_internal.h"
 
 /*
+ * __session_dhandle_readlock --
+ *     Acquire read lock for the session's current dhandle.
+ */
+static void
+__session_dhandle_readlock(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, session->dhandle != NULL);
+    __wt_readlock(session, &session->dhandle->rwlock);
+}
+
+/*
+ * __session_dhandle_readunlock --
+ *     Release read lock for the session's current dhandle.
+ */
+static void
+__session_dhandle_readunlock(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, session->dhandle != NULL);
+    __wt_readunlock(session, &session->dhandle->rwlock);
+}
+
+/*
+ * __wt_session_dhandle_writeunlock --
+ *     Release write lock for the session's current dhandle.
+ */
+void
+__wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, session->dhandle != NULL);
+    WT_ASSERT(session, FLD_ISSET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
+    FLD_CLR(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
+    __wt_writeunlock(session, &session->dhandle->rwlock);
+}
+
+/*
+ * __wt_session_dhandle_try_writelock --
+ *     Try to acquire write lock for the session's current dhandle.
+ */
+int
+__wt_session_dhandle_try_writelock(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    WT_ASSERT(session, session->dhandle != NULL);
+    if ((ret = __wt_try_writelock(session, &session->dhandle->rwlock)) == 0)
+        FLD_SET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
+
+    return (ret);
+}
+
+/*
  * __session_add_dhandle --
  *     Add a handle to the session's cache.
  */
@@ -161,17 +212,17 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
          * thread has it locked for real.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OPEN) && (!want_exclusive || lock_busy)) {
-            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readlock(session));
+            WT_WITH_DHANDLE(session, dhandle, __session_dhandle_readlock(session));
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
                 *is_deadp = true;
-                WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
+                WT_WITH_DHANDLE(session, dhandle, __session_dhandle_readunlock(session));
                 return (0);
             }
 
             is_open = F_ISSET(dhandle, WT_DHANDLE_OPEN);
             if (is_open && !want_exclusive)
                 return (0);
-            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
+            WT_WITH_DHANDLE(session, dhandle, __session_dhandle_readunlock(session));
         } else
             is_open = false;
 
@@ -218,11 +269,11 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
 }
 
 /*
- * __wt_session_release_dhandle --
+ * __wt_session_release_dhandle_v2 --
  *     Unlock a data handle.
  */
 int
-__wt_session_release_dhandle(WT_SESSION_IMPL *session)
+__wt_session_release_dhandle_v2(WT_SESSION_IMPL *session, bool check_visibility)
 {
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
@@ -258,12 +309,14 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
          * Acquire the schema lock while closing out the handles. This avoids racing with a
          * checkpoint while it gathers a set of handles.
          */
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_conn_dhandle_close(session, false, false));
+        WT_WITH_SCHEMA_LOCK(
+          session, ret = __wt_conn_dhandle_close(session, false, false, check_visibility));
     } else if ((btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) ||
       F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
         WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
 
-        ret = __wt_conn_dhandle_close(session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL));
+        ret = __wt_conn_dhandle_close(
+          session, false, F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL), check_visibility);
         F_CLR(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL);
     }
 
@@ -278,11 +331,21 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
             WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
         } else
-            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_readunlock(session));
+            WT_WITH_DHANDLE(session, dhandle, __session_dhandle_readunlock(session));
     }
 
     session->dhandle = NULL;
     return (ret);
+}
+
+/*
+ * __wt_session_release_dhandle --
+ *     Unlock a data handle.
+ */
+int
+__wt_session_release_dhandle(WT_SESSION_IMPL *session)
+{
+    return (__wt_session_release_dhandle_v2(session, false));
 }
 
 /*
@@ -375,7 +438,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     uint64_t stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
-    bool ckpt_running, is_hs, is_unnamed_ckpt, is_reserved_name, must_resolve;
+    bool ckpt_running, is_hs, is_reserved_name, is_unnamed_ckpt, must_resolve;
 
     ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
     WT_NOT_READ(ckpt_gen, 0);
@@ -816,57 +879,6 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
         WT_DHANDLE_RELEASE(session->dhandle);
         session->dhandle = NULL;
     }
-
-    return (ret);
-}
-
-/*
- * __wt_session_dhandle_readlock --
- *     Acquire read lock for the session's current dhandle.
- */
-void
-__wt_session_dhandle_readlock(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT(session, session->dhandle != NULL);
-    __wt_readlock(session, &session->dhandle->rwlock);
-}
-
-/*
- * __wt_session_dhandle_readunlock --
- *     Release read lock for the session's current dhandle.
- */
-void
-__wt_session_dhandle_readunlock(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT(session, session->dhandle != NULL);
-    __wt_readunlock(session, &session->dhandle->rwlock);
-}
-
-/*
- * __wt_session_dhandle_writeunlock --
- *     Release write lock for the session's current dhandle.
- */
-void
-__wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT(session, session->dhandle != NULL);
-    WT_ASSERT(session, FLD_ISSET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
-    FLD_CLR(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
-    __wt_writeunlock(session, &session->dhandle->rwlock);
-}
-
-/*
- * __wt_session_dhandle_try_writelock --
- *     Try to acquire write lock for the session's current dhandle.
- */
-int
-__wt_session_dhandle_try_writelock(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    WT_ASSERT(session, session->dhandle != NULL);
-    if ((ret = __wt_try_writelock(session, &session->dhandle->rwlock)) == 0)
-        FLD_SET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
 
     return (ret);
 }

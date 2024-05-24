@@ -202,6 +202,8 @@ struct __wt_btree {
     wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
+    uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
+
     /*
      * The maximum bytes allowed to be used for the table on disk. This is currently only used for
      * the history store table.
@@ -216,7 +218,7 @@ struct __wt_btree {
 #define WT_BTREE_CLEAN_CKPT(session, btree, val)                          \
     do {                                                                  \
         (btree)->clean_ckpt_timer = (val);                                \
-        WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
+        WT_STAT_DSRC_SET((session), btree_clean_checkpoint_timer, (val)); \
     } while (0)
 /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
 #define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
