@@ -995,6 +995,7 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
             F_CLR(cursor, WT_CURSTD_CACHEABLE);
         }
     }
+    *cdumpp = cdump;
 
     /* Readonly? */
     WT_RET(__cursors_must_be_readonly(session, cfg, readonlyp));
@@ -1002,8 +1003,6 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
     /* WT_CURSTD_CACHEABLE */
     if (*readonlyp) /* We do not cache read-only cursors. */
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
-
-    *cdumpp = cdump;
 
     return (0);
 }

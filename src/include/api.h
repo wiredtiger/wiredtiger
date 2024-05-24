@@ -97,8 +97,14 @@
         bool __set_err = true;                                                              \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
-        if (cfg[1] != NULL) {                                                               \
-            if (cfg[1][0] == '\0')                                                          \
+        /*                                                                                  \
+         * Optimize configuration checking. If the configuration string                     \
+         * passed into the API is empty, use NULL instead, it saves a                       \
+         * little on every configuration lookup. The API caller's configuration             \
+         * string is stored in array position 1.                                            \
+         */                                                                                 \
+        if (config != NULL) {                                                               \
+            if (((const char *)config)[0] == '\0')                                          \
                 cfg[1] = NULL;                                                              \
             else                                                                            \
                 WT_ERR(__wt_config_check(                                                   \
