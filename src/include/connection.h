@@ -86,7 +86,7 @@ struct __wt_background_compact_exclude {
  *	Structure dedicated to the background compaction server
  */
 struct __wt_background_compact {
-    bool running;             /* Compaction supposed to run */
+    wt_shared bool running;   /* Compaction supposed to run */
     bool run_once;            /* Background compaction is executed once */
     bool signalled;           /* Compact signalled */
     bool tid_set;             /* Thread set */
