@@ -82,7 +82,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
         return (WT_READGEN_OLDEST);
 
     /* Any large page in memory is likewise a good choice. */
-    if (page->memory_footprint > btree->splitmempage)
+    if (__wt_atomic_loadsize(&page->memory_footprint) > btree->splitmempage)
         return (WT_READGEN_OLDEST);
 
     /*
@@ -1692,7 +1692,8 @@ __evict_push_candidate(
     /* Adjust for size when doing dirty eviction. */
     if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) && evict->score != WT_READGEN_OLDEST &&
       evict->score != UINT64_MAX && !__wt_page_is_modified(ref->page))
-        evict->score += WT_MEGABYTE - WT_MIN(WT_MEGABYTE, ref->page->memory_footprint);
+        evict->score +=
+          WT_MEGABYTE - WT_MIN(WT_MEGABYTE, __wt_atomic_loadsize(&ref->page->memory_footprint));
 
     return (true);
 }
@@ -2110,7 +2111,7 @@ rand_next:
         /* Pages being forcibly evicted go on the urgent queue. */
         if (modified &&
           (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST ||
-            page->memory_footprint >= btree->splitmempage)) {
+            __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
@@ -2199,7 +2200,7 @@ fast:
             internal_pages_queued++;
 
         __wt_verbose(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
-          (void *)page, page->memory_footprint);
+          (void *)page, __wt_atomic_loadsize(&page->memory_footprint));
     }
     if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
@@ -2243,7 +2244,7 @@ fast:
      */
     if (ref != NULL) {
         if (__wt_ref_is_root(ref) || evict == start || give_up ||
-          ref->page->memory_footprint >= btree->splitmempage) {
+          __wt_atomic_loadsize(&ref->page->memory_footprint) >= btree->splitmempage) {
             if (restarts == 0)
                 WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
             WT_RET(__wt_page_release(cache->walk_session, ref, walk_flags));
@@ -2793,7 +2794,7 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
              WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT | WT_READ_VISIBLE_ALL) == 0 &&
       next_walk != NULL) {
         page = next_walk->page;
-        size = page->memory_footprint;
+        size = __wt_atomic_loadsize(&page->memory_footprint);
 
         if (F_ISSET(next_walk, WT_REF_FLAG_INTERNAL)) {
             ++intl_pages;
