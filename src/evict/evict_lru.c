@@ -2268,13 +2268,13 @@ fast:
  */
 static int
 __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_REF **refp,
-  uint8_t *previous_statep)
+  wt_ref_state_t *previous_statep)
 {
     WT_CACHE *cache;
     WT_EVICT_ENTRY *evict;
     WT_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
+    wt_ref_state_t previous_state;
     uint32_t candidates;
-    uint8_t previous_state;
     bool is_app, server_only, urgent_ok;
 
     *btreep = NULL;
@@ -2438,9 +2438,9 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     WT_DECL_RET;
     WT_REF *ref;
     WT_TRACK_OP_DECL;
+    wt_ref_state_t previous_state;
     uint64_t time_start, time_stop;
     uint32_t flags;
-    uint8_t previous_state;
 
     WT_TRACK_OP_INIT(session);
 

@@ -1718,11 +1718,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
+    wt_ref_state_t previous_state;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;
 #endif
-    uint8_t previous_state;
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
 
