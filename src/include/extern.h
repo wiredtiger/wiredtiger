@@ -478,7 +478,7 @@ extern int __wt_cursor_bounds_restore(WT_SESSION_IMPL *session, WT_CURSOR *curso
 extern int __wt_cursor_bounds_save(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
   WT_CURSOR_BOUNDS_STATE *bounds_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_value,
-  WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
+  WT_CURSOR *to_dup, const char **cfg, WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_cached(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_config_notsup(WT_CURSOR *cursor, const char *config)
