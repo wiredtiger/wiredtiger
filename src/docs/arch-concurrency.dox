@@ -20,21 +20,6 @@ There are three types of locks in WiredTiger:
  - Condition Variables
  - Spin Locks
  - Read Write (RW) Locks
-Each mechanism guarantees that once a thread relinquishes its lock and another thread obtains the
-same lock, all modifications made by the first thread will be visible to the thread now holding
-the lock.
-
-There are two implementations of condition variables in WiredTiger respectively for POSIX and MSVC
-under the same interface. The specific implementation is determined at compile time based on the
-platform.
-
-There are three different implementations for spin locks in WiredTiger under the same interface:
- - An implementation using GCC's builtin atomic operations.
- - An implementation using a POSIX based mutex.
- - An implementation for MSVC.
-Again specific implementation is determined at compile time based on the platform and compile-time
-configurations. WiredTiger has its own read-write lock implementation. It is based on atomic
-operations and condition variables.
 
 @subsection lock-usage Lock usage
 A correctly used lock takes the lock for each access to the shared memory it guards. WiredTiger
