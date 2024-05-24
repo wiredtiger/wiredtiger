@@ -41,8 +41,8 @@ stashed object's generation it can be freed.
 
 @section atomics Atomics
 
-As previously mentioned WiredTiger already expects loads and stores to specific sizes of points
-to be atomic and prevent tearing. WiredTiger also relies on atomic RMW operations, these include:
+As mentioned in @ref portability WiredTiger expects loads and stores of specific sizes to be atomic
+and prevent tearing. WiredTiger also relies on atomic RMW operations, these include:
 - Compare and Swap
 - Fetch add / sub
 - Add / sub fetch
