@@ -474,6 +474,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 
     return report
 
+
 def build_pr_comment(code_change_info: dict) -> str | None:
     # Do nothing if the PR has no relevant changes.
     if int(code_change_info['summary_info']['num_lines']) == 0:
@@ -544,6 +545,7 @@ def build_pr_comment(code_change_info: dict) -> str | None:
 
     return message
 
+
 def post_pr_comment(fq_repo, pr_id, token, body):
     url = f"https://api.github.com/repos/{fq_repo}/issues/{pr_id}/comments"
     magic_string = "<!-- STICKY_COMMENT:CODE_QUALITY -->"
@@ -578,6 +580,7 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     else:
         resp = requests.post(url, json=data, headers=headers)
     resp.raise_for_status()
+
 
 def main():
     parser = argparse.ArgumentParser()

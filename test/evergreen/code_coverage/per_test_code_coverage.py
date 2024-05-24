@@ -37,6 +37,7 @@ from datetime import datetime
 from pathlib import Path
 from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
 
+
 class PushWorkingDirectory:
     def __init__(self, new_working_directory: str) -> None:
         self.original_working_directory = os.getcwd()
@@ -46,11 +47,12 @@ class PushWorkingDirectory:
     def pop(self):
         os.chdir(self.original_working_directory)
 
+
+# Clean up the run-time code coverage files ready to run another test
 def delete_runtime_coverage_files(build_dir_base: str, verbose: bool):
     for root, dirs, files in os.walk(build_dir_base):
         for filename in files:
             if filename.endswith('.gcda'):
-                #print(f"{root}, {dirs}, {filename}")
                 file_path = os.path.join(root, filename)
                 if verbose:
                     print(f"Deleting: {file_path}")
@@ -59,6 +61,8 @@ def delete_runtime_coverage_files(build_dir_base: str, verbose: bool):
                     print(f"Deleted: {file_path}")
 
 
+# Run a series of tests with code coverage, copying the results and cleaning up
+# after each test is complete.
 def run_coverage_task_list(task_list_info):
     build_dir = task_list_info["build_dir"]
     task_list = task_list_info["task_bucket"]
@@ -105,24 +109,7 @@ def run_coverage_task_list(task_list_info):
     return return_value
 
 
-# Execute each list of tasks in parallel
-def run_coverage_task_lists_in_parallel(label, task_bucket_info):
-    parallel = len(task_bucket_info)
-    verbose = task_bucket_info[0]['verbose']
-    task_start_time = datetime.now()
-
-    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
-        for e in executor.map(run_coverage_task_list, task_bucket_info):
-             if verbose:
-                print(e)
-
-    task_end_time = datetime.now()
-    task_diff = task_end_time - task_start_time
-
-    if verbose:
-        print("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
-
-
+# Run gcovr on each copy of a build directory that contains run-time coverage data
 def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
     print(f"Starting run_gcovr({build_dir_base}, {gcovr_dir})")
     dir_name = os.path.dirname(build_dir_base)
@@ -135,15 +122,17 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             task_info_path = os.path.join(build_copy_path, "task_info.json")
             coverage_output_dir = os.path.join(gcovr_dir, build_copy_name)
             if verbose:
-                print(f"build_copy_name = {build_copy_name}, build_copy_path = {build_copy_path}, task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
+                print(
+                    f"build_copy_name = {build_copy_name}, build_copy_path = {build_copy_path}, "
+                    f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
             os.mkdir(coverage_output_dir)
             shutil.copy(src=task_info_path, dst=coverage_output_dir)
-            gcovr = "gcovr"
-            # gcov = "/opt/mongodbtoolchain/v4/bin/gcov"
-            gcovr_command = f"{gcovr} {build_copy_name} -f src -j 4 --html-self-contained --html-details {coverage_output_dir}/2_coverage_report.html --json-summary-pretty --json-summary {coverage_output_dir}/1_coverage_report_summary.json --json {coverage_output_dir}/full_coverage_report.json"
+            gcovr_command = (f"gcovr {build_copy_name} -f src -j 4 --html-self-contained --html-details "
+                             f"{coverage_output_dir}/2_coverage_report.html --json-summary-pretty "
+                             f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json"
+                             f"--json {coverage_output_dir}/full_coverage_report.json")
             split_command = gcovr_command.split()
             env = os.environ.copy()
-            # env['GCOV'] = gcov
             if verbose:
                 print(f'env: {env}')
                 print(f'gcovr_command: {gcovr_command}')
@@ -156,42 +145,6 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             if verbose:
                 print(f'Completed a run of gcovr on {build_copy_name}')
     print(f"Ending run_gcovr({build_dir_base}, {gcovr_dir})")
-
-
-
-def read_json(json_file_path: str) -> dict:
-    with open(json_file_path) as json_file:
-        info = json.load(json_file)
-        return info
-
-
-def collate_coverage_data(gcovr_dir: str, verbose: bool):
-    filenames_in_dir = os.listdir(gcovr_dir)
-    filenames_in_dir.sort()
-    if verbose:
-        print(f"Starting collate_coverage_data({gcovr_dir})")
-        print(f"filenames_in_dir {filenames_in_dir}")
-    collated_coverage_data = {}
-    for file_name in filenames_in_dir:
-        if file_name.startswith('build_') and file_name.endswith("copy"):
-            build_coverage_name = file_name
-            build_coverage_path = os.path.join(gcovr_dir, build_coverage_name)
-            task_info_path = os.path.join(build_coverage_path, "task_info.json")
-            full_coverage_path = os.path.join(build_coverage_path, "full_coverage_report.json")
-            if verbose:
-                print(f"task_info_path = {task_info_path}, full_coverage_path = {full_coverage_path}")
-            task_info = read_json(json_file_path=task_info_path)
-            coverage_info = read_json(json_file_path=full_coverage_path)
-            task = task_info["task"]
-            dict_entry = {
-                        "task": task,
-                        "build_coverage_name": build_coverage_name,
-                        "full_coverage": coverage_info
-                         }
-            collated_coverage_data[task] = dict_entry
-    if verbose:
-        print(f"Ending collate_coverage_data({gcovr_dir})")
-    return collated_coverage_data
 
 
 def main():
@@ -284,15 +237,6 @@ def main():
     # Run gcovr if required
     if gcovr_dir:
         run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir, verbose=verbose)
-        # collected_coverage_data = collate_coverage_data(gcovr_dir=gcovr_dir, verbose=verbose)
-        # if verbose:
-        #     print('About to dump results to json')
-        # report_as_json_object = json.dumps(collected_coverage_data, indent=0)
-        # if verbose:
-        #     print('Dumped results to json')
-        # report_path = os.path.join(gcovr_dir, "per_task_coverage_report.json")
-        # with open(report_path, "w") as output_file:
-        #     output_file.write(report_as_json_object)
 
 
 if __name__ == '__main__':

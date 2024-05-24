@@ -28,11 +28,9 @@
 #
 
 import argparse
-import csv
 import json
 from pygit2 import discover_repository, Repository, Diff
 from pygit2 import GIT_SORT_NONE
-from change_info import ChangeInfo
 from code_change_helpers import is_useful_line, diff_to_change_list, read_complexity_data, preprocess_complexity_data
 
 

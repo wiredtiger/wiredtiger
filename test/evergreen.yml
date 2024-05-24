@@ -3005,31 +3005,18 @@ tasks:
             python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../coverage_report/metrixpp.csv
             cd ..
 
-            # Record the start time, in seconds
-            date +%s > time.txt
-            
-            which gcov
-            gcov --version
-            gcov --help
-
-            which gcovr
-            gcovr --version
-            gcovr --help
-
-            which /opt/mongodbtoolchain/v4/bin/gcov
-            /opt/mongodbtoolchain/v4/bin/gcov --version
-            /opt/mongodbtoolchain/v4/bin/gcov --help
-
             ${python_binary|python3} test/evergreen/code_coverage/per_test_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_config.json -b $(pwd)/build_ -j ${num_jobs} -g $(pwd)/coverage_data -s
             
-            # Record the end time, in seconds
-            date +%s >> time.txt
-            
-            # Clean up build directory copies before creating the diff
+            echo "Disk usage and free space for the current drive (after completing coverage tests):"
+            df -h          
+         
+            # Clean up the build directory copies before creating the diff.
+            # This avoids the risk of having lots of copied 0 length files around which can, when excluded from 
+            # the results, then generate a gcovr command line that is too long to be executed.
             rm -Rf build*copy*
             
             if [ ${is_patch|false} = true ]; then
-              echo "This is a patch build, so generate a diff and a report"
+              echo "This is a patch build, so generate a diff and a report on reached functions"
               # Obtain the diff for the changes in this patch, excluding newly added 0-length files.
               python3 test/evergreen/code_change_report/git_diff_tool.py -g . -d coverage_report/diff.txt -v
               # Generate an HTML friendly version of the diff for

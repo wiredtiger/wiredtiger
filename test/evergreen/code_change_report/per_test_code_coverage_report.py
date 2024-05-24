@@ -29,17 +29,19 @@
 import argparse
 import json
 import os
-
-from code_change_helpers import diff_to_change_list, read_complexity_data, preprocess_complexity_data
 from pygit2 import Diff
+from code_change_helpers import diff_to_change_list, read_complexity_data, preprocess_complexity_data
 
 
+# Read a json file into a dict
 def read_json(json_file_path: str) -> dict:
     with open(json_file_path) as json_file:
         info = json.load(json_file)
         return info
 
 
+# Collate the code coverage data from a directory full of build directory copies
+# into a dict. Be careful with memory usage as the resulting dict may be large.
 def collate_coverage_data(gcovr_dir: str, verbose: bool) -> dict:
     filenames_in_dir = os.listdir(gcovr_dir)
     filenames_in_dir.sort()
@@ -69,6 +71,7 @@ def collate_coverage_data(gcovr_dir: str, verbose: bool) -> dict:
     return collated_coverage_data
 
 
+# Get source code location information about each function from code complexity data
 def get_function_info(file_path: str,
                       line_number: int,
                       preprocessed_complexity_data: dict):
@@ -91,6 +94,8 @@ def get_function_info(file_path: str,
     return function_info
 
 
+# Collate the code changes with the code location info from the complexity report to identify the changed functions
+# and their locations.
 def create_report_info(change_list: dict,
                        preprocessed_complexity_data: dict) -> dict:
     changed_function_info = dict()
@@ -145,6 +150,7 @@ def create_report_info(change_list: dict,
     return report
 
 
+# Report on which tests reach a particular changed function
 def get_function_coverage(coverage_data: dict, changed_function: str, file_name: str, start_line: int, end_line: int,
                           verbose: bool):
     for test in coverage_data:
@@ -162,6 +168,7 @@ def get_function_coverage(coverage_data: dict, changed_function: str, file_name:
                     print(f"        Reached by test: {test}")
 
 
+# Generate a report to stdout listing changed functions and which tests reach those functions
 def generate_report(coverage_data: dict, change_list: dict, preprocessed_complexity_data: dict, verbose: bool):
     if verbose:
         print("Generating report...")
