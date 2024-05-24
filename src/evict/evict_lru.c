@@ -447,8 +447,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     }
 
     /* Track if work was done. */
-    *did_work = cache->eviction_progress != cache->last_eviction_progress;
-    cache->last_eviction_progress = cache->eviction_progress;
+    *did_work = __wt_atomic_loadv64(&cache->eviction_progress) != cache->last_eviction_progress;
+    cache->last_eviction_progress = __wt_atomic_loadv64(&cache->eviction_progress);
 
     /* Eviction is stuck, check if we have made progress. */
     if (*did_work) {
@@ -725,7 +725,7 @@ __evict_pass(WT_SESSION_IMPL *session)
     time_prev = 0; /* [-Wconditional-uninitialized] */
 
     /* Track whether pages are being evicted and progress is made. */
-    eviction_progress = cache->eviction_progress;
+    eviction_progress = __wt_atomic_loadv64(&cache->eviction_progress);
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
 
     /* Evict pages from the cache. */
@@ -793,7 +793,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * If there is still no progress after 2s, we will treat the cache as stuck and start
          * rolling back transactions and writing updates to the history store table.
          */
-        if (eviction_progress == cache->eviction_progress) {
+        if (eviction_progress == __wt_atomic_loadv64(&cache->eviction_progress)) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
                 if (__wt_atomic_load32(&cache->evict_aggressive_score) < WT_EVICT_SCORE_MAX)
                     (void)__wt_atomic_addv32(&cache->evict_aggressive_score, 1);
@@ -831,7 +831,7 @@ __evict_pass(WT_SESSION_IMPL *session)
         if (__wt_atomic_load32(&cache->evict_aggressive_score) > 0)
             (void)__wt_atomic_subv32(&cache->evict_aggressive_score, 1);
         loop = 0;
-        eviction_progress = cache->eviction_progress;
+        eviction_progress = __wt_atomic_loadv64(&cache->eviction_progress);
     }
     return (0);
 }
@@ -1087,7 +1087,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * Measure the evicted progress so far. Eviction rate correlates to performance, so this is our
      * metric of success.
      */
-    eviction_progress = cache->eviction_progress;
+    eviction_progress = __wt_atomic_loadv64(&cache->eviction_progress);
 
     /*
      * If we have recorded the number of pages evicted at the end of the previous measurement
@@ -2558,7 +2558,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
      * namely, the busy return and empty eviction queue. We do not need the calling functions to
      * have to deal with internal eviction return codes.
      */
-    for (initial_progress = cache->eviction_progress;; ret = 0) {
+    for (initial_progress = __wt_atomic_loadv64(&cache->eviction_progress);; ret = 0) {
         /*
          * If eviction is stuck, check if this thread is likely causing problems and should be
          * rolled back. Ignore if in recovery, those transactions can't be rolled back.
@@ -2607,7 +2607,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
 
         /* See if eviction is still needed. */
         if (!__wt_eviction_needed(session, busy, readonly, &pct_full) ||
-          (pct_full < 100.0 && (cache->eviction_progress > initial_progress + max_progress)))
+          (pct_full < 100.0 &&
+            (__wt_atomic_loadv64(&cache->eviction_progress) > initial_progress + max_progress)))
             break;
 
         /* Evict a page. */
