@@ -140,7 +140,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
          */
-        if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(
               session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session)));
         else
@@ -242,7 +242,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
         if (!WT_DHANDLE_CAN_DISCARD(dhandle))
             continue;
 
-        if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(session,
               WT_WITH_HANDLE_LIST_WRITE_LOCK(
                 session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_remove_one(session))));
