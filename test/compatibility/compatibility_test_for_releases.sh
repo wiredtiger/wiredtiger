@@ -679,6 +679,7 @@ older=false
 newer=false
 wt_standalone=false
 patch_version=false
+upgrade_to_latest=false
 
 # Map branch names to Github branches, tags, or commit hashes
 # First define the standard values for each build branch
@@ -726,6 +727,9 @@ patch_version_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongod
 # This array is used to configure the release branches we'd like to run test checkpoint
 # upgrade/downgrade test.
 test_checkpoint_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-4.4)
+
+# This array is used to configure the release branches we'd like to run upgrade to latest test.
+upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
 
 declare -A scopes
 scopes[import]="import files from previous versions"
