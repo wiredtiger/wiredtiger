@@ -188,7 +188,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * have to visit them anyway.
              */
             page = walk->page;
-            if (__wt_page_is_modified(page) && WT_TXNID_LT(page->modify->update_txn, oldest_id)) {
+            if (__wt_page_is_modified(page) &&
+              WT_TXNID_LT(__wt_atomic_load64(&page->modify->update_txn), oldest_id)) {
                 if (txn->isolation == WT_ISO_READ_COMMITTED)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += page->memory_footprint;

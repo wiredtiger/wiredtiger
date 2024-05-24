@@ -91,7 +91,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (page->modify != NULL && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) &&
       !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN))
-        read_gen = page->modify->update_txn;
+        read_gen = __wt_atomic_load64(&page->modify->update_txn);
     else
         read_gen = __wt_atomic_load64(&page->read_gen);
 
@@ -1807,9 +1807,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      */
     if (F_ISSET(conn->cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD) &&
       F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
-        if (!__txn_visible_id(session, page->modify->update_txn))
+        if (!__txn_visible_id(session, __wt_atomic_load64(&page->modify->update_txn)))
             return (true);
-    } else if (page->modify->update_txn >= __wt_atomic_loadv64(&conn->txn_global.last_running)) {
+    } else if (__wt_atomic_load64(&page->modify->update_txn) >=
+      __wt_atomic_loadv64(&conn->txn_global.last_running)) {
         WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
         return (true);
     }
