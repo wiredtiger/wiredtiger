@@ -35,9 +35,9 @@ exist.
 
 Writer threads are then able to replace that object but cannot free it until the reader thread has
 left or released the generation. Instead the writer thread adds the object to a "stash" and it marks
-the stashed object with the generation indicating the point at which it was added to the stash. Once
-all reader in the system do not have a corresponding generation which is older than or equal to the
-stashed object's generation it can be freed.
+the stashed object with the generation indicating the point at which it was added to the stash. When
+no reader in the system holds a generation which is older than or equal to the stashed object's
+generation it can be freed.
 
 @section atomics Atomics
 
