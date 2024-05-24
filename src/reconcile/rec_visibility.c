@@ -983,7 +983,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
 
     /* Track whether we need to do update restore eviction. */
     if (supd_restore)
-        r->cache_write_restore_uncommitted = true;
+        r->cache_write_restore_invisible = true;
 
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.

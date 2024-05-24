@@ -291,9 +291,8 @@ struct __wt_reconcile {
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
-    bool cache_write_hs; /* Used the history store table */
-    bool
-      cache_write_restore_uncommitted; /* Used update/restoration because of uncommitted update */
+    bool cache_write_hs;                /* Used the history store table */
+    bool cache_write_restore_invisible; /* Used update/restoration because of invisible update */
 
     uint8_t tested_ref_state; /* Debugging information */
 
