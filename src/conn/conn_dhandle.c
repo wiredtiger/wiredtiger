@@ -1047,7 +1047,8 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
             WT_RET(__wt_msg(session, "Checkpoint: %s", dhandle->checkpoint));
         WT_RET(__wt_msg(
           session, "  Handle session and tiered work references: %" PRIu32, dhandle->references));
-        WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32, dhandle->session_inuse));
+        WT_RET(__wt_msg(session, "  Sessions using handle: %" PRId32,
+          __wt_atomic_loadi32(&dhandle->session_inuse)));
         WT_RET(__wt_msg(session, "  Exclusive references to handle: %" PRIu32, dhandle->excl_ref));
         if (dhandle->excl_ref != 0)
             WT_RET(
