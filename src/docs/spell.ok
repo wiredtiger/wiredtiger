@@ -185,6 +185,7 @@ abc
 abstime
 acSstu
 ack'ed
+acq
 addr
 ajn
 alloc
@@ -387,6 +388,7 @@ fs
 fsanitize
 fsync
 ftruncate
+ful
 func
 fuzzer
 fuzzers
@@ -611,6 +613,7 @@ recnum
 recoverability
 recs
 rectype
+rel
 relinking
 reorderings
 req

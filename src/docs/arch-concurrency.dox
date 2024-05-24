@@ -63,28 +63,55 @@ WiredTiger defines barriers by describing which kind of reordering they prevent,
 LoadLoad barrier prevents load instructions before the barrier from being reordered with load
 instructions after the barrier. Using this definition we can define 4 types of reorderings,
 LoadLoad, StoreStore, LoadStore and StoreLoad. To simplify the barrier semantics further
-WiredTiger defines acquire and release barriers, firstly we have the WT_ACQUIRE_READ_WITH_BARRIER
-macro which prevents LoadLoad and LoadStore reorderings. Next we have the
-WT_RELEASE_WRITE_WITH_BARRIER macro which prevents StoreStore and LoadStore reorderings, these
-barriers should be used as pairs. If one location requires an acquire barrier then there must be
-another location that requires a release barrier. Two more barrier constructs are defined in
-WiredTiger. WT_FULL_BARRIER which prevents all 4 kinds of described reorderings and
-WT_COMPILER_BARRIER which is a basic compiler barrier preventing compiler optimization from
-occurring across it, the compiler barrier does not impact CPU reordering.
+WiredTiger defines acquire and release barriers.
 
-Previously WiredTiger defined a WT_PUBLISH macro which prevented StoreStore reordering, this
+@subsection acq-bar Acquire barrier
+
+The acquire barrier prevents LoadLoad and LoadStore reorderings. It is accessible through two macros
+firstly the \c WT_ACQUIRE_BARRIER, this macro is just the barrier and nothing else. Most usages of
+the barrier are concerned with a single variable being reordered with many. This gives us the
+\c WT_ACQUIRE_READ_WITH_BARRIER which does a load from memory into a local variable before the
+barrier.
+
+@subsection rel-bar Release barrier
+
+The release barrier prevents StoreStore and LoadStore reorderings. Like the acquire barrier it is
+accessible through two macros. The \c WT_RELEASE_BARRIER, this like the matching acquire barrier
+macro is just the barrier. The \c WT_RELEASE_WRITE_WITH_BARRIER macro issues a barrier before a
+single store to memory. These barriers should be used as pairs. If one location requires an acquire
+barrier then there must be another location that requires a release barrier.
+
+Previously WiredTiger defined a \c WT_PUBLISH macro which prevented StoreStore reordering, this
 macro has since been removed however the term publish still exists in the code base. The term
 publish is used to refer to writing a value to a shared memory location. It doesn't define any
 memory ordering semantics.
 
+@subsection ful-bar Full barrier
+
+The full barrier prevents all 4 described types of reorderings and is accessible via the
+\c WT_FULL_BARRIER macro.
+
+@subsection com-bar Compiler barrier
+
+The compiler barrier prevents compiler optimization and reordering across the compiler barrier. This
+barrier is accessed via the \c WT_COMPILER_BARRIER. It does not impact CPU reordering. Additionally
+all memory barriers described are also compiler barriers.
+
 @section marked-access Marked Access
 Barriers are a heavy hammer for situations that only need to prevent reordering of instructions
-on one side of a load or store. To reduce the amount of reorderings prevented, and to access an
-ARM specific optimization WiredTiger defines two marked access macros. These are loads and stores
-that prevent reordering from one direction across that load or store. Firstly there is the
-WT_ACQUIRE_READ, this prevents loads and stores following the load from being reordered across
-it. Then we have the WT_RELEASE_WRITE macro which prevents loads and stores prior to the store
-from being reordered across it. As with the acquire and release barriers these marked access
-macros should be paired together to function correctly.
+on one side of a load or store. To reduce the amount of reorderings prevented WiredTiger defines two
+marked access macros. These are loads and stores that prevent reordering from one direction across
+that load or store.
+
+@subsection acq-marked Acquire
+
+\c WT_ACQUIRE_READ, this macro prevents loads and stores following the load from being reordered
+across it.
+
+@subsection rel-marked Release
+
+\c The WT_RELEASE_WRITE macro prevents loads and stores prior to the store from being reordered
+across it. As with the acquire and release barriers these marked access macros should be paired
+together to function correctly.
 
 */
