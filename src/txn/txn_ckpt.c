@@ -1156,7 +1156,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
-    cache->evict_max_page_size = 0;
+    __wt_atomic_store64(&cache->evict_max_page_size, 0);
     __wt_atomic_store64(&cache->evict_max_ms, 0);
     cache->reentry_hs_eviction_ms = 0;
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
