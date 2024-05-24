@@ -10,7 +10,7 @@ WiredTiger utilizes volatile for one reason, managing compiler optimization. Lev
 definitions from "Is Parallel Programming Hard, And, If So, What Can You Do About It?", Paul E.
 McKenney, WiredTiger utilizes volatile to prevent the following type of compiler optimizations: Load
 fusing, store fusing, invented loads, invented stores and code reordering. WiredTiger defines the
-following macros WT_READ_ONCE and WT_WRITE_ONCE which, if used correctly, prevent the pescribed
+following macros WT_READ_ONCE and WT_WRITE_ONCE which, if used correctly, prevent the prescribed
 forms of compiler optimization. Additionally some variables in WiredTiger are defined with the
 volatile keyword if it is known that they will be frequently accessed in a concurrent context.
 
@@ -54,10 +54,10 @@ TSan. To prevent them from introducing a performance regression they utilize rel
 
 @section memory-barriers Memory Barriers
 
-WiredTiger utilizes memory barriers in a number of places to manage CPU instruction reordering.
-Specifically CPUs are allowed to reorder load and store instructions. If this occurs when two
-threads are reading or writing to the same shared memory locations it can result in those threads
-seeing what would otherwise be incorrect state.
+WiredTiger utilizes memory barriers in a number of places to manage CPU instruction reordering and
+compiler reordering. Specifically CPUs are allowed to reorder load and store instructions. If this
+occurs when two threads are reading or writing to the same shared memory locations it can result in
+those threads seeing what would otherwise be incorrect state.
 
 WiredTiger defines barriers by describing which kind of reordering they prevent, for example a
 LoadLoad barrier prevents load instructions before the barrier from being reordered with load
@@ -73,9 +73,9 @@ WT_COMPILER_BARRIER which is a basic compiler barrier preventing compiler optimi
 occurring across it, the compiler barrier does not impact CPU reordering.
 
 Previously WiredTiger defined a WT_PUBLISH macro which prevented StoreStore reordering, this
-macro has since been removed however the term publish still exists in the code base. This is
-used to refer to writing a value to a shared memory location. It doesn't define any memory
-ordering semantics.
+macro has since been removed however the term publish still exists in the code base. The term
+publish is used to refer to writing a value to a shared memory location. It doesn't define any
+memory ordering semantics.
 
 @section marked-access Marked Access
 Barriers are a heavy hammer for situations that only need to prevent reordering of instructions

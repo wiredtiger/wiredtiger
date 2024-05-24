@@ -28,7 +28,7 @@
 
 /*
  * For details on the hardware requirements of WiredTiger see the portability documentation. For
- * details on concurrency primitive usage in WiredTiger see the archictecture guide page "WiredTiger
+ * details on concurrency primitive usage in WiredTiger see the architecture guide page "WiredTiger
  * concurrency management".
  */
 
