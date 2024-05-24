@@ -981,10 +981,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
     if (upd_select->tombstone != NULL)
         F_SET(upd_select->tombstone, WT_UPDATE_DS);
 
-    /*
-     * Set statistics for update restore evictions. Update restore eviction debug mode forces update
-     * restores to both committed or uncommitted changes.
-     */
+    /* Track whether we need to do update restore eviction. */
     if (supd_restore)
         r->cache_write_restore_uncommitted = true;
 
