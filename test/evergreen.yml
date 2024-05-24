@@ -1452,7 +1452,7 @@ variables:
           <<: *configure_flags_with_builtins
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - &format-stress-sanitizer-ppc-test
     exec_timeout_secs: 25200
@@ -3837,7 +3837,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - name: format-stress-test-no-barrier-2
     tags: ["stress-test-no-barrier"]
@@ -3850,7 +3850,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - name: format-stress-test-no-barrier-3
     tags: ["stress-test-no-barrier"]
@@ -3863,7 +3863,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - name: format-stress-test-no-barrier-4
     tags: ["stress-test-no-barrier"]
@@ -3876,7 +3876,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - name: format-stress-test-no-barrier-5
     tags: ["stress-test-no-barrier"]
@@ -3889,7 +3889,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - name: format-stress-test-no-barrier-7
     tags: ["stress-test-no-barrier"]
@@ -3902,7 +3902,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -c ../../../CONFIG.fail -t 360 -F
 
   - name: format-stress-sanitizer-test-no-barrier
     tags: ["stress-test-sanitizer"]
