@@ -1820,6 +1820,10 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor update value size change",
   "cursor: cursors reused from cache",
   "cursor: open cursor count",
+  "data-handle: B-tree connection data handles currently active",
+  "data-handle: Table connection data handles currently active",
+  "data-handle: Tiered connection data handles currently active",
+  "data-handle: Tiered_Tree connection data handles currently active",
   "data-handle: connection data handle size",
   "data-handle: connection data handles currently active",
   "data-handle: connection sweep candidate became referenced",
@@ -2569,6 +2573,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_update_bytes_changed = 0;
     stats->cursor_reopen = 0;
     /* not clearing cursor_open_count */
+    /* not clearing dh_conn_handle_btree_count */
+    /* not clearing dh_conn_handle_table_count */
+    /* not clearing dh_conn_handle_tiered_count */
+    /* not clearing dh_conn_handle_tiered_tree_count */
     /* not clearing dh_conn_handle_size */
     /* not clearing dh_conn_handle_count */
     stats->dh_sweep_ref = 0;
@@ -3375,6 +3383,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_update_bytes_changed += WT_STAT_CONN_READ(from, cursor_update_bytes_changed);
     to->cursor_reopen += WT_STAT_CONN_READ(from, cursor_reopen);
     to->cursor_open_count += WT_STAT_CONN_READ(from, cursor_open_count);
+    to->dh_conn_handle_btree_count += WT_STAT_CONN_READ(from, dh_conn_handle_btree_count);
+    to->dh_conn_handle_table_count += WT_STAT_CONN_READ(from, dh_conn_handle_table_count);
+    to->dh_conn_handle_tiered_count += WT_STAT_CONN_READ(from, dh_conn_handle_tiered_count);
+    to->dh_conn_handle_tiered_tree_count +=
+      WT_STAT_CONN_READ(from, dh_conn_handle_tiered_tree_count);
     to->dh_conn_handle_size += WT_STAT_CONN_READ(from, dh_conn_handle_size);
     to->dh_conn_handle_count += WT_STAT_CONN_READ(from, dh_conn_handle_count);
     to->dh_sweep_ref += WT_STAT_CONN_READ(from, dh_sweep_ref);
