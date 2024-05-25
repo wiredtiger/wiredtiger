@@ -5489,7 +5489,6 @@ buildvariants:
     extra_args: -LE "cppsuite|long_running"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
-    - name: clang-analyzer
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
@@ -5516,7 +5515,6 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: clang-analyzer
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
