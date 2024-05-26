@@ -109,6 +109,24 @@ def run_coverage_task_list(task_list_info):
     return return_value
 
 
+# Execute each list of code coverage tasks in parallel
+def run_coverage_task_lists_in_parallel(label, task_bucket_info):
+    parallel = len(task_bucket_info)
+    verbose = task_bucket_info[0]['verbose']
+    task_start_time = datetime.now()
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+        for e in executor.map(run_coverage_task_list, task_bucket_info):
+             if verbose:
+                print(e)
+
+    task_end_time = datetime.now()
+    task_diff = task_end_time - task_start_time
+
+    if verbose:
+        print("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
+
+
 # Run gcovr on each copy of a build directory that contains run-time coverage data
 def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
     print(f"Starting run_gcovr({build_dir_base}, {gcovr_dir})")
@@ -129,7 +147,7 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             shutil.copy(src=task_info_path, dst=coverage_output_dir)
             gcovr_command = (f"gcovr {build_copy_name} -f src -j 4 --html-self-contained --html-details "
                              f"{coverage_output_dir}/2_coverage_report.html --json-summary-pretty "
-                             f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json"
+                             f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json "
                              f"--json {coverage_output_dir}/full_coverage_report.json")
             split_command = gcovr_command.split()
             env = os.environ.copy()
@@ -231,8 +249,8 @@ def main():
     if verbose:
         print("task_bucket_info: {}".format(task_bucket_info))
 
-    # Perform task operations in parallel across the build directories
-    run_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
+    # Perform code coverage task operations in parallel across the build directories
+    run_coverage_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
 
     # Run gcovr if required
     if gcovr_dir:
