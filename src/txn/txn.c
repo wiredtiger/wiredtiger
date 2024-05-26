@@ -1714,11 +1714,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_REF_STATE_TYPE previous_state;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
-    wt_ref_state_t previous_state;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;

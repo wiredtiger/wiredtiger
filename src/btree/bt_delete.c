@@ -107,7 +107,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
-    wt_ref_state_t previous_state;
+    WT_REF_STATE_TYPE previous_state;
 
     *skipp = false;
 
@@ -224,8 +224,8 @@ err:
 int
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_REF_STATE_TYPE current_state;
     WT_UPDATE **updp;
-    wt_ref_state_t current_state;
     uint64_t sleep_usecs, yield_count;
     bool locked;
 
