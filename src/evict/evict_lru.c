@@ -1448,6 +1448,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
+    uint32_t evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool dhandle_locked, incr;
@@ -1569,8 +1570,8 @@ retry:
         /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
-        if (__wt_atomic_load32(&btree->evict_walk_period) != 0 &&
-          btree->evict_walk_skips++ < __wt_atomic_load32(&btree->evict_walk_period)) {
+        evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
+        if (evict_walk_period != 0 && btree->evict_walk_skips++ < evict_walk_period) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_not_useful_before);
             continue;
         }
@@ -1833,7 +1834,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_TXN *txn;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
-    uint32_t read_flags, remaining_slots, target_pages, walk_flags;
+    uint32_t evict_walk_period, read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
     bool give_up, modified, urgent_queued, want_page;
 
@@ -2212,9 +2213,10 @@ fast:
     /*
      * If we couldn't find the number of pages we were looking for, skip the tree next time.
      */
+    evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
     if (pages_queued < target_pages / 2 && !urgent_queued)
-        __wt_atomic_store32(&btree->evict_walk_period,
-          WT_MIN(WT_MAX(1, 2 * __wt_atomic_load32(&btree->evict_walk_period)), 100));
+        __wt_atomic_store32(
+          &btree->evict_walk_period, WT_MIN(WT_MAX(1, 2 * evict_walk_period), 100));
     else if (pages_queued == target_pages) {
         __wt_atomic_store32(&btree->evict_walk_period, 0);
         /*
@@ -2222,9 +2224,8 @@ fast:
          */
         if (__wt_btree_bytes_evictable(session) == 0)
             FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
-    } else if (__wt_atomic_load32(&btree->evict_walk_period) > 0)
-        __wt_atomic_store32(
-          &btree->evict_walk_period, __wt_atomic_load32(&btree->evict_walk_period) / 2);
+    } else if (evict_walk_period > 0)
+        __wt_atomic_store32(&btree->evict_walk_period, evict_walk_period / 2);
 
     /*
      * Give up the walk occasionally.
