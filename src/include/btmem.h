@@ -808,8 +808,7 @@ struct __wt_page_walk_skip_stats {
 /*
  * Type used by WT_REF::state and valid values.
  *
- * Declared well before __wt_ref struct as the type used in
- * other structures in this header.
+ * Declared well before __wt_ref struct as the type used in other structures in this header.
  */
 typedef uint8_t wt_ref_state_t;
 
