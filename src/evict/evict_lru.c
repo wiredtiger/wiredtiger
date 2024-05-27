@@ -74,25 +74,25 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Any page set to the oldest generation should be discarded. */
     if (WT_READGEN_EVICT_SOON(page->read_gen)) {
-        printf("evict score WT_READGEN_EVICT_SOON --> WT_READGEN_OLDEST\n");
+      //        printf("evict score WT_READGEN_EVICT_SOON --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
     }
 
     /* Any page from a dead tree is a great choice. */
     if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD)) {
-        printf("evict score DHANDLE_DEAD --> WT_READGEN_OLDEST\n");
+      // printf("evict score DHANDLE_DEAD --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
     }
 
     /* Any empty page (leaf or internal), is a good choice. */
     if (__wt_page_is_empty(page)) {
-        printf("evict score page_is_empty --> WT_READGEN_OLDEST\n");
+      //printf("evict score page_is_empty --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
     }
 
     /* Any large page in memory is likewise a good choice. */
     if (page->memory_footprint > btree->splitmempage) {
-        printf("evict score memory_footprint --> WT_READGEN_OLDEST\n");
+      //printf("evict score memory_footprint --> WT_READGEN_OLDEST\n");
         return (WT_READGEN_OLDEST);
     }
 
@@ -103,16 +103,16 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     if (page->modify != NULL && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) &&
         !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN)) {
         read_gen = page->modify->update_txn;
-        printf("evict score page->modify->update_txn %lu\n", read_gen);
+        //printf("evict score page->modify->update_txn %lu\n", read_gen);
     }
     else {
         read_gen = page->read_gen;
-        printf("evict score page->read_gen %lu\n", read_gen);
-        printf("btree->splitmempage =  %lu\n", btree->splitmempage);
+        //printf("evict score page->read_gen %lu\n", read_gen);
+        //printf("btree->splitmempage =  %lu\n", btree->splitmempage);
     }
 
     read_gen += btree->evict_priority;
-    printf("btree->evict_priority = %lu, read_gen = %lu\n", btree->evict_priority, read_gen);
+    //printf("btree->evict_priority = %lu, read_gen = %lu\n", btree->evict_priority, read_gen);
 
 #define WT_EVICT_INTL_SKEW WT_THOUSAND
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -1271,7 +1271,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 
     entries = queue->evict_entries;
 
-#if 1
+#if 0
     if (session->dhandle == NULL && saved_dhandle == NULL)
         printf("CAN'T PRINT QUEUE\n");
     else if (session->dhandle == NULL && saved_dhandle != NULL) {
@@ -1303,7 +1303,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         __wt_qsort(queue->evict_queue, entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp);
     }
 
-#if 1
+#if 0
     if (session->dhandle == NULL && saved_dhandle == NULL)
         printf("CAN'T PRINT QUEUE\n");
     else if (session->dhandle == NULL && saved_dhandle != NULL) {
@@ -1503,8 +1503,8 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     start_slot = slot = queue->evict_entries;
     max_entries = WT_MIN(slot + WT_EVICT_WALK_INCR, cache->evict_slots);
 
-    printf("max_entries = %u, slot = %u, WT_EVICT_WALK_INCR = %d, cache->evict_slots = %u\n",
-           max_entries, slot, WT_EVICT_WALK_INCR, cache->evict_slots);
+    //printf("max_entries = %u, slot = %u, WT_EVICT_WALK_INCR = %d, cache->evict_slots = %u\n",
+    //       max_entries, slot, WT_EVICT_WALK_INCR, cache->evict_slots);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -1515,9 +1515,9 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
         cache->pages_dirty_leaf);
     max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
 
-    printf("Reset max_entries to %u, total_candidates = %u, __wt_cache_pages_inuse(cache) = %lu\n",
-           max_entries, total_candidates, (uint64_t)__wt_cache_pages_inuse(cache));
-    printf("pages_inmem = %lu, pages_evicted = %lu\n", cache->pages_inmem, cache->pages_evicted);
+    //printf("Reset max_entries to %u, total_candidates = %u, __wt_cache_pages_inuse(cache) = %lu\n",
+    //       max_entries, total_candidates, (uint64_t)__wt_cache_pages_inuse(cache));
+    //printf("pages_inmem = %lu, pages_evicted = %lu\n", cache->pages_inmem, cache->pages_evicted);
 
 retry:
     loop_count = 0;
@@ -1757,8 +1757,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         cache_inuse = __wt_cache_bytes_inuse(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_clean = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
-        printf("In F_ISSET(cache, WT_CACHE_EVICT_CLEAN). target_pages_clean = %u\n",
-               target_pages_clean);
+        //printf("In F_ISSET(cache, WT_CACHE_EVICT_CLEAN). target_pages_clean = %u\n",
+        //       target_pages_clean);
     }
 
     if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY)) {
@@ -1766,8 +1766,8 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_dirty = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
-        printf("In F_ISSET(cache, WT_CACHE_EVICT_DIRTY). target_pages_dirty = %u\n",
-               target_pages_dirty);
+        //printf("In F_ISSET(cache, WT_CACHE_EVICT_DIRTY). target_pages_dirty = %u\n",
+        //       target_pages_dirty);
     }
 
     if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES)) {
@@ -1775,14 +1775,14 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         cache_inuse = __wt_cache_bytes_updates(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_updates = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
-        printf("In F_ISSET(cache, WT_CACHE_EVICT_UPDATES). target_pages_updates = %u\n",
-               target_pages_updates);
+        //printf("In F_ISSET(cache, WT_CACHE_EVICT_UPDATES). target_pages_updates = %u\n",
+        //       target_pages_updates);
     }
 
     target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
     target_pages = WT_MAX(target_pages, target_pages_updates);
 
-    printf("Target pages 1 = %u\n", target_pages);
+    //printf("Target pages 1 = %u\n", target_pages);
     /*
      * Walk trees with a small fraction of the cache in case there are so many trees that none of
      * them use enough of the cache to be allocated slots. Only skip a tree if it has no bytes of
@@ -1930,18 +1930,18 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
-        printf("WT_EVICT_WALK_NEXT\n");
+      //printf("WT_EVICT_WALK_NEXT\n");
         break;
     case WT_EVICT_WALK_PREV:
         FLD_SET(walk_flags, WT_READ_PREV);
-        printf("WT_EVICT_WALK_PREV\n");
+	// printf("WT_EVICT_WALK_PREV\n");
         break;
     case WT_EVICT_WALK_RAND_PREV:
-        printf("WT_EVICT_WALK_RAND_PREV\n");
+      // printf("WT_EVICT_WALK_RAND_PREV\n");
         FLD_SET(walk_flags, WT_READ_PREV);
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
-        printf("WT_EVICT_WALK_RAND_NEXT\n");
+      //printf("WT_EVICT_WALK_RAND_NEXT\n");
         read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
           WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
         if (btree->evict_ref == NULL) {
@@ -2238,7 +2238,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     WT_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
     uint32_t candidates;
     uint8_t previous_state;
-    bool is_app, server_only, session_was_null, urgent_ok;
+    bool is_app, server_only, urgent_ok;
 
     *btreep = NULL;
     /*
@@ -2371,10 +2371,10 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         *refp = evict->ref;
         *previous_statep = previous_state;
 
-        printf("Evict candidate's score is %lu. Queue %p, position %u\n", evict->score,
-               (void*)queue, (uint32_t)(queue->evict_current - queue->evict_queue) - 1);
+        //printf("Evict candidate's score is %lu. Queue %p, position %u\n", evict->score,
+        //       (void*)queue, (uint32_t)(queue->evict_current - queue->evict_queue) - 1);
 
-#if 1
+#if 0
         /*
          * Eviction server would have a NULL dhandle, which will make us crash while cracking
          * the cookie for printing the block address of a page, as some functions called there
