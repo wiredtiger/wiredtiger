@@ -346,10 +346,7 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
         __asm__ volatile("membar #StoreLoad" ::: "memory"); \
     } while (0)
 
-/*
- * On UltraSparc machines, TSO is used, and so there is no need for membar. READ_BARRIER =
- * #LoadLoad, and WRITE_BARRIER = #StoreStore are noop.
- */
+/* On UltraSparc machines, TSO is used, and so there is no need for membar. */
 #define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
 #define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
@@ -374,9 +371,7 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
  * https://five-embeddev.com/riscv-isa-manual/latest/memory.html#sec:mm:fence
  *
  * On RISC-V, the fence instruction takes explicit flags that indicate the predecessor and successor
- * sets. Based on the file comment description of WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER, those
- * barriers only synchronize read/read and write/write respectively. The predecessor and successor
- * sets here are selected to match that description.
+ * sets.
  */
 #define WT_FULL_BARRIER()                              \
     do {                                               \
