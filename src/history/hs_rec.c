@@ -14,6 +14,9 @@ static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs
 static int
 __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t ts, bool non_ts_updates, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw);
+static int
+__hs_counter(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, uint64_t *counter);
 /*
  * __hs_verbose_cache_stats --
  *     Display a verbose message once per checkpoint with details about the cache state when
@@ -821,8 +824,9 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
     WT_ERR(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, non_ts_updates, error_on_ts_ordering, NULL));
 
     // Check if we are in non-timestamped updates (only want a counter)
+    // Check for non-ts update + not reinsert 
     if (non_ts_updates){
-        // counter only function 
+        WT_ERR(__hs_counter(session, hs_cursor, btree_id, key, &hs_counter));
     } else {
         WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
         true, error_on_ts_ordering, &hs_counter, NULL));
@@ -942,9 +946,43 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
         return (EBUSY);
     }
-
     return (ret);
 }
+
+// COUNTER ONLY FUNCTION 
+static int
+__hs_counter(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, uint64_t *counter)
+{
+    WT_DECL_RET;
+    WT_ITEM hs_key, hs_value;
+    wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter;
+    uint32_t hs_btree_id;
+#ifdef HAVE_DIAGNOSTIC
+    int cmp;
+#endif
+    WT_CLEAR(hs_key);
+    WT_CLEAR(hs_value);
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(key);
+#endif
+
+    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        /* We shouldn't have crossed the btree and user key search space. */
+        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+        WT_ASSERT(session, hs_btree_id == btree_id);
+#ifdef HAVE_DIAGNOSTIC
+        WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
+        WT_ASSERT(session, cmp == 0);
+#endif
+        ++(*counter);
+    }
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+    return (ret);
+}
+
 
 /*
  * __hs_delete_reinsert_from_pos --
@@ -965,7 +1003,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_TIME_WINDOW hs_insert_tw, *twp;
     wt_timestamp_t hs_durable_start_ts, hs_durable_stop_ts, hs_start_ts;
     uint64_t cache_hs_order_lose_durable_timestamp, cache_hs_order_reinsert, cache_hs_order_remove;
-    uint64_t hs_counter, hs_upd_type, oldest_id;
+    uint64_t hs_counter, hs_upd_type;
     uint32_t hs_btree_id;
 #ifdef HAVE_DIAGNOSTIC
     int cmp;
@@ -977,7 +1015,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
     cache_hs_order_lose_durable_timestamp = cache_hs_order_reinsert = cache_hs_order_remove = 0;
-    oldest_id = 0;
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
@@ -991,7 +1028,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* Ignore records that are obsolete. */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        oldest_id = __wt_txn_oldest_id(session);
         if (__wt_txn_tw_stop_visible_all(session, twp))
             continue;
 
@@ -1055,8 +1091,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          */
         if (hs_start_ts >= ts || twp->stop_ts >= ts){
             if (hs_start_ts == 0 && twp->stop_ts == 0 && ts == 0)
-                reinsert = false; 
-                // Test code assert here
             break;
         }
     }
@@ -1078,8 +1112,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     if (error_on_ts_ordering && reinsert) {
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
-        // Testing code assert here
-        WT_ASSERT_ALWAYS(session, false, "%lu", oldest_id);
         goto err;
     }
 
