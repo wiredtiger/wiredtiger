@@ -20,9 +20,7 @@ def run(cmd):
             print(output)
             return False
     except subprocess.CalledProcessError as cpe:
-        print(
-            "The command [%s] failed:\n%s" % (" ".join(cmd), cpe.output.decode("utf-8"))
-        )
+        print("The command [%s] failed:\n%s" % (" ".join(cmd), cpe.output.decode("utf-8")))
         return False
 
 
@@ -35,10 +33,13 @@ if not which("ruff"):
             if m := re.search(r'required-version = "==(\d.\d.\d)"', line.strip()):
                 ruff_version = m.group(1)
                 break
-    print(
-        f"Ruff is not installed! Please execute `pip install ruff=={ruff_version}` to install it."
-    )
-    print(f"For more information: {doc_link}")
+    print("Ruff is not installed!")
+    print("\nCreate a virtual environment if you haven't yet:")
+    print(f"virtualenv -p python3 {current_dir.parent}/venv")
+    print(f"source {current_dir.parent}/venv/bin/activate")
+    print("\nInstall Ruff:")
+    print(f"python3 -m pip install ruff=={ruff_version}")
+    print(f"\nFor more information: {doc_link}")
     exit(1)
 
 cmd = ["ruff", "check", "--fix", "../.", ".", "--config", ruff_config]
