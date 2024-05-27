@@ -23,10 +23,11 @@ def run(cmd):
 if not which("ruff"):
     doc_link = "https://docs.astral.sh/ruff/installation/"
     print("Ruff is not installed! Please execute `pip install ruff` to install it.")
-    print(f"Fore more information: {doc_link}")
+    print(f"For more information: {doc_link}")
     exit(1)
 
-cmd = ["ruff", "check", "--fix", "../.", "."]
+ruff_config = f"{current_dir}/ruff.toml"
+cmd = ["ruff", "check", "--fix", "../.", ".", "--config", ruff_config]
 
 if not run(cmd):
     sys.exit(1)
