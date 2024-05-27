@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
+import pathlib
 import subprocess
 import sys
 
+# Always use this scripts folder as the working directory.
+current_dir = pathlib.Path(__file__).parent.resolve()
+
 def run(cmd):
     try:
-        output = subprocess.check_output(cmd).decode().strip()
+        output = subprocess.check_output(cmd, cwd=current_dir).decode().strip()
         if output == "All checks passed!":
             return True
         else:
