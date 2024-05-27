@@ -247,7 +247,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_DECL_RET;
     WT_PAGE_INDEX *pindex;
     WT_REF *couple, *ref, *ref_orig;
-    WT_REF_STATE_TYPE current_state;
+    WT_REF_STATE current_state;
     uint64_t restart_sleep, restart_yield;
     uint32_t slot;
     bool empty_internal, prev, skip;

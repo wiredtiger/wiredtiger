@@ -2294,7 +2294,7 @@ __wt_btcur_skip_page(
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
-    WT_REF_STATE_TYPE previous_state;
+    WT_REF_STATE previous_state;
     WT_TIME_AGGREGATE *ta;
     bool clean_page;
 

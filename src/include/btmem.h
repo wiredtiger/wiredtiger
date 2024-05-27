@@ -808,9 +808,9 @@ struct __wt_page_walk_skip_stats {
 /*
  * Type used by WT_REF::state and valid values.
  *
- * Declared well before __wt_ref struct as the type used in other structures in this header.
+ * Declared well before __wt_ref struct as the type is used in other structures in this header.
  */
-typedef uint8_t WT_REF_STATE_TYPE;
+typedef uint8_t WT_REF_STATE;
 
 #define WT_REF_DISK 0    /* Page is on disk */
 #define WT_REF_DELETED 1 /* Page is on disk, but deleted */
@@ -1026,7 +1026,7 @@ struct __wt_page_deleted {
      * The previous state of the WT_REF; if the fast-truncate transaction is rolled back without the
      * page first being instantiated, this is the state to which the WT_REF returns.
      */
-    WT_REF_STATE_TYPE previous_ref_state;
+    WT_REF_STATE previous_ref_state;
 
     /*
      * If the fast-truncate transaction has committed. If we're forced to instantiate the page, and
@@ -1109,7 +1109,7 @@ struct __wt_ref {
      *
      * For more details on these functions see ref_inline.h.
      */
-    wt_shared volatile WT_REF_STATE_TYPE __state;
+    wt_shared volatile WT_REF_STATE __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,

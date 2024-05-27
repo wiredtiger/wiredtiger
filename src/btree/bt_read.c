@@ -95,7 +95,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
-    WT_REF_STATE_TYPE previous_state;
+    WT_REF_STATE previous_state;
     uint32_t page_flags;
     bool prepare;
 
@@ -265,7 +265,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_REF_STATE_TYPE current_state;
+    WT_REF_STATE current_state;
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
