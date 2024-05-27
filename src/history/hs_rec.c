@@ -226,14 +226,18 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     if (ret == 0) {
         WT_ASSERT(session, tw->start_ts + 1 > WT_TS_NONE);
         // Get the hs cursor position 
-        WT_ERR(__hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1, error_on_ts_ordering, NULL, &non_ts_updates));
+        WT_ERR_NOTFOUND_OK(__hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1, error_on_ts_ordering, NULL, &non_ts_updates), true);
 
-        // Check if we are in non-timestamped updates (only want a counter)
-        if (non_ts_updates){
-            __hs_counter(session, cursor, btree->id, key, &counter);
+        if (ret == 0){
+            // Check if we are in non-timestamped updates (only want a counter)
+            if (non_ts_updates){
+                __hs_counter(session, cursor, btree->id, key, &counter);
+            } else {
+                WT_ERR(__hs_delete_reinsert_from_pos_improved(session, cursor, btree->id, key, tw->start_ts + 1,
+                    true, false, error_on_ts_ordering, &counter, tw));
+            }
         } else {
-            WT_ERR(__hs_delete_reinsert_from_pos_improved(session, cursor, btree->id, key, tw->start_ts + 1,
-                true, false, error_on_ts_ordering, &counter, tw));
+            ret = 0;
         }
     }
 #ifdef HAVE_DIAGNOSTIC
@@ -818,12 +822,13 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
         ++hs_counter;
     }
     // Get the hs cursor position 
-    WT_ERR(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, error_on_ts_ordering, NULL, &non_ts_updates));
-
+    WT_ERR_NOTFOUND_OK(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, error_on_ts_ordering, NULL, &non_ts_updates), true);
     // Check for non-ts update + not reinsert 
-    if (!(non_ts_updates && reinsert)){
+    if (!(non_ts_updates) && ret == 0){
         WT_ERR(__hs_delete_reinsert_from_pos_improved(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
         true, error_on_ts_ordering, &hs_counter, NULL));
+    } else {
+        ret = 0;
     }
 done:
 err:
@@ -847,6 +852,7 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
 #endif
     WT_CLEAR(hs_key);
     WT_UNUSED(btree_id);
+    WT_UNUSED(error_on_ts_ordering);
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
@@ -921,8 +927,6 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
             break;
         }
     }
-    if (ret == WT_NOTFOUND)
-        return (0);
     WT_RET(ret);
 
     /*
@@ -931,15 +935,6 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
      */
     WT_ASSERT_ALWAYS(
       session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
-    /*
-     * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
-     * cannot modify the history store to fix the update's timestamps as it may make the history
-     * store checkpoint inconsistent.
-     */
-    if (error_on_ts_ordering && non_ts_updates) {
-        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
-        return (EBUSY);
-    }
     return (ret);
 }
 
@@ -1016,6 +1011,17 @@ __hs_delete_reinsert_from_pos_improved(WT_SESSION_IMPL *session, WT_CURSOR *hs_c
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
+
+    /*
+     * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
+     * cannot modify the history store to fix the update's timestamps as it may make the history
+     * store checkpoint inconsistent.
+     */
+    if (error_on_ts_ordering) {
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
+        WT_ASSERT(session, false);
+    }
+
     /*
      * The goal of this function is to move no timestamp content to maintain ordering in the
      * history store. We do this by removing content with higher timestamps and reinserting it
