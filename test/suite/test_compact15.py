@@ -26,39 +26,31 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import wiredtiger
 import wttest
-from wiredtiger import stat
-from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
-# test_eviction01.py
-'''
-This test inserts (then rolls back) a large number of updates per key in the update chain to a 
-point where only aborted updates are present in the chain. We then test whether these chains, 
-filled with aborted updates, get evicted successfully.
-'''
-class test_eviction01(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=1GB'
-    nrows = 100
-    iterations = 500
+# test_compact15.py
+# This test checks that foreground compaction requires a URI.
+class test_compact15(wttest.WiredTigerTestCase):
+    uri = 'table:test_compact15'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
+    uris = [
+        ('valid_uri', dict(valid_uri=True)),
+        ('invalid_uri', dict(valid_uri=False))
+    ]
+    scenarios = make_scenarios(uris)
 
-    def test_eviction(self):
-        uri = "table:test_eviction01"
-        ds = SimpleDataSet(self, uri, self.nrows, key_format='S', value_format='u')
-        ds.populate()
+    def test_compact15(self):
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
 
-        cursor = self.session.open_cursor(uri)
-        for _ in range(1, self.iterations):
-            self.session.begin_transaction()
-            for i in range(1, self.nrows):
-                cursor[ds.key(i)] = b"aaaaa" * 100
-            self.session.rollback_transaction()
-        cursor.close()
+        self.session.create(self.uri)
 
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty), 0)
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_blocked_no_progress), 0)
+        if self.valid_uri:
+            self.session.compact(self.uri, None)
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, None),
+                '/Compaction requires a URI/')

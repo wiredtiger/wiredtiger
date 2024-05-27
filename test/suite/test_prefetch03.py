@@ -26,39 +26,25 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
-from wiredtiger import stat
-from wtdataset import SimpleDataSet
+import wiredtiger, wttest
+from wtscenario import make_scenarios
 
-# test_eviction01.py
-'''
-This test inserts (then rolls back) a large number of updates per key in the update chain to a 
-point where only aborted updates are present in the chain. We then test whether these chains, 
-filled with aborted updates, get evicted successfully.
-'''
-class test_eviction01(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=1GB'
-    nrows = 100
-    iterations = 500
+# test_prefetch03.py
+# Verify prefetch for in-memory databases is not allowed.
+class test_prefetch03(wttest.WiredTigerTestCase):
+    uri = 'file:test_prefetch03'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
+    config_options = [
+        ('default', dict(conn_cfg='prefetch=(available=true,default=true)')),
+        ('inmem', dict(conn_cfg='in_memory=true,prefetch=(available=true,default=true)')),
+    ]
 
-    def test_eviction(self):
-        uri = "table:test_eviction01"
-        ds = SimpleDataSet(self, uri, self.nrows, key_format='S', value_format='u')
-        ds.populate()
+    scenarios = make_scenarios(config_options)
 
-        cursor = self.session.open_cursor(uri)
-        for _ in range(1, self.iterations):
-            self.session.begin_transaction()
-            for i in range(1, self.nrows):
-                cursor[ds.key(i)] = b"aaaaa" * 100
-            self.session.rollback_transaction()
-        cursor.close()
-
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty), 0)
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_blocked_no_progress), 0)
+    def test_prefetch03(self):
+        if 'in_memory=true' not in self.conn_cfg:
+            self.reopen_conn(".", self.conn_cfg)
+        else:
+            with self.expectedStderrPattern('prefetch configuration is incompatible with in-memory configuration'):
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: self.reopen_conn(".", self.conn_cfg))
