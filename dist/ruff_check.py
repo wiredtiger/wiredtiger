@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import pathlib
+from shutil import which
 import subprocess
 import sys
 
@@ -18,6 +19,11 @@ def run(cmd):
     except subprocess.CalledProcessError as cpe:
         print("The command [%s] failed:\n%s" % (' '.join(cmd), cpe.output.decode('utf-8')))
         return False
+
+if which("ruff") is None:
+    # FIXME - TO CHECK. This works on my machine (TM)
+    print("ruff is not installed! Please `python -m pip install ruff`")
+    exit(1)
 
 cmd = ["ruff", "check", "--fix", "../.", "."]
 
