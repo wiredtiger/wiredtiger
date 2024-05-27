@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 import pathlib
+import re
 from shutil import which
 import subprocess
 import sys
 
 # Always use this scripts folder as the working directory.
 current_dir = pathlib.Path(__file__).parent.resolve()
+ruff_config = f"{current_dir}/ruff.toml"
 
 def run(cmd):
     try:
@@ -22,11 +24,17 @@ def run(cmd):
 
 if not which("ruff"):
     doc_link = "https://docs.astral.sh/ruff/installation/"
-    print("Ruff is not installed! Please execute `pip install ruff` to install it.")
+    lines = []
+    ruff_version = None
+    with open(ruff_config) as file:
+        for line in file:
+            if m := re.search(r'required-version = "==(\d.\d.\d)"', line.strip()):
+                ruff_version = m.group(1)
+                break
+    print(f"Ruff is not installed! Please execute `pip install ruff=={ruff_version}` to install it.")
     print(f"For more information: {doc_link}")
     exit(1)
 
-ruff_config = f"{current_dir}/ruff.toml"
 cmd = ["ruff", "check", "--fix", "../.", ".", "--config", ruff_config]
 
 if not run(cmd):
