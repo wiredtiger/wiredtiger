@@ -15,8 +15,8 @@ race:__log_wrlsn_server
 
 # CONNECTION_API_CALL contains a data race, it allows concurrent access to the default session. This
 # means that APIs that call that macro, e.g. __conn_open_session will trip TSan. If other connection
-# API calls trip TSan for the same reason then add them here. Though it unusual for connection APIs
-# to be called concurrently.
+# API calls trip TSan for the same reason then add them here. Though it is unusual for connection
+# APIs to be called concurrently.
 race:__conn_open_session
 
 # __tiered_queue_peek_empty is intentionally unsafe to avoid taking the tiered lock when it's not needed.
