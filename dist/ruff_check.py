@@ -10,6 +10,7 @@ import sys
 current_dir = pathlib.Path(__file__).parent.resolve()
 ruff_config = f"{current_dir}/ruff.toml"
 
+
 def run(cmd):
     try:
         output = subprocess.check_output(cmd, cwd=current_dir).decode().strip()
@@ -19,8 +20,11 @@ def run(cmd):
             print(output)
             return False
     except subprocess.CalledProcessError as cpe:
-        print("The command [%s] failed:\n%s" % (' '.join(cmd), cpe.output.decode('utf-8')))
+        print(
+            "The command [%s] failed:\n%s" % (" ".join(cmd), cpe.output.decode("utf-8"))
+        )
         return False
+
 
 if not which("ruff"):
     doc_link = "https://docs.astral.sh/ruff/installation/"
@@ -31,7 +35,9 @@ if not which("ruff"):
             if m := re.search(r'required-version = "==(\d.\d.\d)"', line.strip()):
                 ruff_version = m.group(1)
                 break
-    print(f"Ruff is not installed! Please execute `pip install ruff=={ruff_version}` to install it.")
+    print(
+        f"Ruff is not installed! Please execute `pip install ruff=={ruff_version}` to install it."
+    )
     print(f"For more information: {doc_link}")
     exit(1)
 
