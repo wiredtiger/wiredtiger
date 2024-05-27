@@ -403,14 +403,8 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
-#define WT_ACQUIRE_BARRIER()                     \
-    do {                                         \
-        __asm__ volatile("dbar 0" ::: "memory"); \
-    } while (0)
-#define WT_RELEASE_BARRIER()                     \
-    do {                                         \
-        __asm__ volatile("dbar 0" ::: "memory"); \
-    } while (0)
+#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 #else
-#error "No release barrier implementation for this hardware"
+#error "No barrier implementation for this hardware"
 #endif
