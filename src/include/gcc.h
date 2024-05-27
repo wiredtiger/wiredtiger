@@ -356,14 +356,8 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
  * On UltraSparc machines, TSO is used, and so there is no need for membar. READ_BARRIER =
  * #LoadLoad, and WRITE_BARRIER = #StoreStore are noop.
  */
-#define WT_ACQUIRE_BARRIER()               \
-    do {                                   \
-        __asm__ volatile("" ::: "memory"); \
-    } while (0)
-#define WT_RELEASE_BARRIER()               \
-    do {                                   \
-        __asm__ volatile("" ::: "memory"); \
-    } while (0)
+#define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
+#define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
 #elif defined(__riscv) && (__riscv_xlen == 64)
 
@@ -394,13 +388,13 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
     do {                                               \
         __asm__ volatile("fence rw, rw" ::: "memory"); \
     } while (0)
-#define WT_ACQUIRE_BARRIER()                         \
-    do {                                             \
-        __asm__ volatile("fence r, r" ::: "memory"); \
+#define WT_ACQUIRE_BARRIER()                          \
+    do {                                              \
+        __asm__ volatile("fence r, rw" ::: "memory"); \
     } while (0)
-#define WT_RELEASE_BARRIER()                         \
-    do {                                             \
-        __asm__ volatile("fence w, w" ::: "memory"); \
+#define WT_RELEASE_BARRIER()                          \
+    do {                                              \
+        __asm__ volatile("fence rw, w" ::: "memory"); \
     } while (0)
 
 #elif defined(__loongarch64)
