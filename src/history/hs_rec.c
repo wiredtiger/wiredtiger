@@ -10,16 +10,16 @@
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
-  bool error_on_ts_ordering, uint64_t *hs_counter, WT_TIME_WINDOW *upd_tw);
+  bool error_on_ts_ordering, uint64_t *hs_counter, WT_TIME_WINDOW *upd_tw)__attribute__ ((__unused__));
 static int __hs_delete_reinsert_from_pos_improved(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
   bool error_on_ts_ordering, uint64_t *hs_counter, WT_TIME_WINDOW *upd_tw);
 static int
 __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool non_ts_updates, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw);
+  const WT_ITEM *key, wt_timestamp_t ts, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw, bool *non_ts_updates);
 static int
 __hs_counter(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, uint64_t *counter)__attribute__ ((__unused__));
+  const WT_ITEM *key, uint64_t *counter);
 
 /*
  * __hs_verbose_cache_stats --
@@ -87,10 +87,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     uint64_t upd_type_full_diag;
     uint32_t hs_btree_id;
     int cmp;
-    bool hs_read_all_flag;
+    bool hs_read_all_flag, non_ts_updates;
 
     counter = hs_counter = 0;
-    // non_ts_updates = false;
+    non_ts_updates = false;
 
     /* Verify that the timestamps are in increasing order. */
     WT_ASSERT(session, tw->stop_ts >= tw->start_ts && tw->durable_stop_ts >= tw->durable_start_ts);
@@ -224,17 +224,17 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     }
 
     if (ret == 0) {
-        // WT_ASSERT(session, tw->start_ts + 1 > WT_TS_NONE);
-        // // Get the hs cursor position 
-        // WT_ERR(__hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1, non_ts_updates, error_on_ts_ordering, NULL));
+        WT_ASSERT(session, tw->start_ts + 1 > WT_TS_NONE);
+        // Get the hs cursor position 
+        WT_ERR(__hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1, error_on_ts_ordering, NULL, &non_ts_updates));
 
-        // // Check if we are in non-timestamped updates (only want a counter)
-        // if (non_ts_updates){
-        //     // counter only function 
-        // } else {
-        WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-            true, false, error_on_ts_ordering, &counter, tw));
-        // }
+        // Check if we are in non-timestamped updates (only want a counter)
+        if (non_ts_updates){
+            __hs_counter(session, cursor, btree->id, key, &counter);
+        } else {
+            WT_ERR(__hs_delete_reinsert_from_pos_improved(session, cursor, btree->id, key, tw->start_ts + 1,
+                true, false, error_on_ts_ordering, &counter, tw));
+        }
     }
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -817,17 +817,9 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
         ++hs_counter;
     }
-
-    ret = __hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
-      true, error_on_ts_ordering, &hs_counter, NULL);
-    if (ret == EBUSY)
-        WT_ASSERT(session, false);
-    else
-        WT_ERR(ret);
     // Get the hs cursor position 
-    WT_ERR(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, non_ts_updates, error_on_ts_ordering, NULL));
+    WT_ERR(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, error_on_ts_ordering, NULL, &non_ts_updates));
 
-    // Check if we are in non-timestamped updates (only want a counter)
     // Check for non-ts update + not reinsert 
     if (!(non_ts_updates && reinsert)){
         WT_ERR(__hs_delete_reinsert_from_pos_improved(session, hs_cursor, btree_id, key, WT_TS_NONE, reinsert,
@@ -842,7 +834,7 @@ err:
 
 static int
 __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool non_ts_updates, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw)
+  const WT_ITEM *key, wt_timestamp_t ts, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw, bool *non_ts_updates)
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
@@ -854,6 +846,7 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
     int cmp;
 #endif
     WT_CLEAR(hs_key);
+    WT_UNUSED(btree_id);
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
@@ -924,7 +917,7 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
          */
         if (hs_start_ts >= ts || twp->stop_ts >= ts){
             if (hs_start_ts == 0 && twp->stop_ts == 0 && ts == 0)
-                non_ts_updates = false; 
+                *non_ts_updates = true; 
             break;
         }
     }
@@ -965,6 +958,7 @@ __hs_counter(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
 #endif
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
+    WT_UNUSED(btree_id);
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
