@@ -255,16 +255,6 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 #define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
 #define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
-#elif defined(i386) || defined(__i386__)
-#define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
-#define WT_FULL_BARRIER()                                         \
-    do {                                                          \
-        __asm__ volatile("lock; addl $0, 0(%%esp)" ::: "memory"); \
-    } while (0)
-#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
-
 #elif defined(__mips64el__) || defined(__mips__) || defined(__mips64__) || defined(__mips64)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
 #define WT_FULL_BARRIER()                                                                  \
