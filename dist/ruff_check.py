@@ -20,9 +20,10 @@ def run(cmd):
         print("The command [%s] failed:\n%s" % (' '.join(cmd), cpe.output.decode('utf-8')))
         return False
 
-if which("ruff") is None:
-    # FIXME - TO CHECK. This works on my machine (TM)
-    print("ruff is not installed! Please `python -m pip install ruff`")
+if not which("ruff"):
+    doc_link = "https://docs.astral.sh/ruff/installation/"
+    print("Ruff is not installed! Please execute `pip install ruff` to install it.")
+    print(f"Fore more information: {doc_link}")
     exit(1)
 
 cmd = ["ruff", "check", "--fix", "../.", "."]
