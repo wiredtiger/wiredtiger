@@ -261,14 +261,8 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
     } while (0)
-#define WT_ACQUIRE_BARRIER()                                                               \
-    do {                                                                                   \
-        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
-    } while (0)
-#define WT_RELEASE_BARRIER()                                                               \
-    do {                                                                                   \
-        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
-    } while (0)
+#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__PPC64__) || defined(PPC64)
 /* ori 0,0,0 is the PPC64 noop instruction */
