@@ -872,7 +872,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
         WT_ASSERT_ALWAYS(session, upd == NULL,
           "__wt_rec_upd_select has selected an update when none are present on the update chain");
         if (first_upd != NULL)
-            r->cache_discard_update_chain = true;
+            r->cache_upd_chain_all_aborted = true;
         return (0);
     }
 
@@ -971,10 +971,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
         WT_RET(__rec_update_save(
           session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
-        if (!supd_restore)
-            r->cache_discard_update_chain = true;
-    } else
-        r->cache_discard_update_chain = true;
+    }
 
     /*
      * Mark the selected update (and potentially the tombstone preceding it) as being destined for
