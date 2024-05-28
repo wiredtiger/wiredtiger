@@ -355,9 +355,12 @@ __sync_obsolete_inmem_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
           "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 
-        WT_RET(__wt_page_modify_init(session, ref->page));
-        __wt_page_modify_set(session, ref->page);
-
+        if (__wt_atomic_load64(&ref->page->read_gen) == WT_READGEN_WONT_NEED)
+            WT_RET(__wt_page_dirty_and_evict_soon(session, ref));
+        else {
+            WT_RET(__wt_page_modify_init(session, ref->page));
+            __wt_page_modify_set(session, ref->page);
+        }
         WT_STAT_CONN_DSRC_INCR(session, cc_pages_obsolete_timewindow);
     }
 
@@ -473,7 +476,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     uint32_t flags;
 
     ref = NULL;
-    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
 
     /*
      * To reduce the impact of checkpoint cleanup on the running database, it operates only on the

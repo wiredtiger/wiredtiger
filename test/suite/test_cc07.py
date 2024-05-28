@@ -5,6 +5,7 @@ from test_cc01 import test_cc_base
 
 # test_cc07.py
 class test_cc07(test_cc_base):
+    conn_config = 'statistics=(all),statistics_log=(json,wait=0,on_close=true)'
 
     def populate(self, uri, start_key, num_keys, value_size=1024):
         c = self.session.open_cursor(uri, None)
