@@ -345,8 +345,8 @@ __sync_obsolete_inmem_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         tag = "unexpected page state";
 
     __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (newest_ta.oldest_start_ts != WT_TS_NONE && pinned_ts != WT_TS_NONE &&
-      newest_ta.oldest_start_ts < pinned_ts) {
+    if (pinned_ts != WT_TS_NONE && newest_ta.newest_start_durable_ts != WT_TS_NONE &&
+      newest_ta.newest_start_durable_ts <= pinned_ts) {
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
          * obsolete time window information.
@@ -424,8 +424,8 @@ __checkpoint_cleanup_page_skip(
 
     /* If an obsolete time window exists on the page, read it into the cache. */
     __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (pinned_ts != WT_TS_NONE && addr.ta.oldest_start_ts != WT_TS_NONE &&
-      addr.ta.oldest_start_ts <= pinned_ts) {
+    if (pinned_ts != WT_TS_NONE && addr.ta.newest_start_durable_ts != WT_TS_NONE &&
+      addr.ta.newest_start_durable_ts <= pinned_ts) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: obsolete time window page read into the cache", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, cc_obsolete_timewindow_pages_read);
