@@ -26,33 +26,31 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from wiredtiger import stat
-from compact_util import compact_util
+import wiredtiger
+import wttest
+from wtscenario import make_scenarios
 
-# test_compact14.py
-# This test checks that background compaction skips small files.
-class test_compact14(compact_util):
-    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
-    conn_config = 'cache_size=100MB,statistics=(all)'
+# test_compact15.py
+# This test checks that foreground compaction requires a URI.
+class test_compact15(wttest.WiredTigerTestCase):
+    uri = 'table:test_compact15'
 
-    table_numkv = 1
+    uris = [
+        ('valid_uri', dict(valid_uri=True)),
+        ('invalid_uri', dict(valid_uri=False))
+    ]
+    scenarios = make_scenarios(uris)
 
-    def test_compact14(self):
+    def test_compact15(self):
+        # FIXME-WT-11399
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
-        # Create an table and populate small amount of data.
-        uri = "table:test_compact14"
-        self.session.create(uri, self.create_params)
-        self.populate(uri, 0, self.table_numkv)
+        self.session.create(self.uri)
 
-        # Write to disk.
-        self.session.checkpoint()
-
-        # Enable background compaction.
-        bg_compact_config = 'background=true,free_space_target=1MB'
-        self.turn_on_bg_compact(bg_compact_config)
-
-        while self.get_bg_compaction_files_skipped() == 0:
-            time.sleep(0.1)
+        if self.valid_uri:
+            self.session.compact(self.uri, None)
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, None),
+                '/Compaction requires a URI/')
