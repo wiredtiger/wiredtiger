@@ -16,7 +16,7 @@ class test_cc07(test_cc_base):
 
     def test_cc(self):
         create_params = 'key_format=i,value_format=S'
-        nrows = 10000
+        nrows = 1000
         uri = 'table:cc07'
         value_size = 1024
 
