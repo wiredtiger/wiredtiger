@@ -26,33 +26,39 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
+import wttest
 from wiredtiger import stat
-from compact_util import compact_util
+from wtdataset import SimpleDataSet
 
-# test_compact14.py
-# This test checks that background compaction skips small files.
-class test_compact14(compact_util):
-    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
-    conn_config = 'cache_size=100MB,statistics=(all)'
+# test_eviction01.py
+'''
+This test inserts (then rolls back) a large number of updates per key in the update chain to a
+point where only aborted updates are present in the chain. We then test whether these chains,
+filled with aborted updates, get evicted successfully.
+'''
+class test_eviction01(wttest.WiredTigerTestCase):
+    conn_config = 'cache_size=1GB'
+    nrows = 100
+    iterations = 500
 
-    table_numkv = 1
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
-    def test_compact14(self):
-        if self.runningHook('tiered'):
-            self.skipTest("this test does not yet work with tiered storage")
+    def test_eviction(self):
+        uri = "table:test_eviction01"
+        ds = SimpleDataSet(self, uri, self.nrows, key_format='S', value_format='u')
+        ds.populate()
 
-        # Create an table and populate small amount of data.
-        uri = "table:test_compact14"
-        self.session.create(uri, self.create_params)
-        self.populate(uri, 0, self.table_numkv)
+        cursor = self.session.open_cursor(uri)
+        for _ in range(1, self.iterations):
+            self.session.begin_transaction()
+            for i in range(1, self.nrows):
+                cursor[ds.key(i)] = b"aaaaa" * 100
+            self.session.rollback_transaction()
+        cursor.close()
 
-        # Write to disk.
-        self.session.checkpoint()
-
-        # Enable background compaction.
-        bg_compact_config = 'background=true,free_space_target=1MB'
-        self.turn_on_bg_compact(bg_compact_config)
-
-        while self.get_bg_compaction_files_skipped() == 0:
-            time.sleep(0.1)
+        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty), 0)
+        self.assertEqual(self.get_stat(stat.conn.cache_eviction_blocked_no_progress), 0)
