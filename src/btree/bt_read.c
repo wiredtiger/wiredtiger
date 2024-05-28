@@ -95,8 +95,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
+    WT_REF_STATE previous_state;
     uint32_t page_flags;
-    uint8_t previous_state;
     bool prepare;
 
     /*
@@ -138,7 +138,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
         WT_ASSERT(session, ref->page_del == NULL);
-        WT_ERR(__wt_btree_new_leaf_page(session, ref));
+        WT_ERR(__wti_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
 
@@ -172,7 +172,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_overwrite_and_free(session, ref->page_del);
 
         if (ref->page_del == NULL) {
-            WT_ERR(__wt_btree_new_leaf_page(session, ref));
+            WT_ERR(__wti_btree_new_leaf_page(session, ref));
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
             goto skip_read;
@@ -196,10 +196,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
+    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
     if (prepare)
-        WT_ERR(__wt_page_inmem_prepare(session, ref));
+        WT_ERR(__wti_page_inmem_prepare(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
@@ -223,7 +223,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
         } else
-            WT_ERR(__wt_delete_page_instantiate(session, ref));
+            WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
 
 skip_read:
@@ -265,9 +265,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_REF_STATE current_state;
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
-    uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
@@ -302,7 +302,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
-              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
+              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:

@@ -790,11 +790,11 @@ __rec_fill_tw_from_upd_select(
 }
 
 /*
- * __wt_rec_upd_select --
+ * __wti_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
 int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
@@ -851,6 +851,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (first_txn_upd == NULL) {
         WT_ASSERT_ALWAYS(session, upd == NULL,
           "__wt_rec_upd_select has selected an update when none are present on the update chain");
+        if (first_upd != NULL)
+            r->cache_upd_chain_all_aborted = true;
         return (0);
     }
 
@@ -961,12 +963,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (upd_select->tombstone != NULL)
         F_SET(upd_select->tombstone, WT_UPDATE_DS);
 
-    /*
-     * Set statistics for update restore evictions. Update restore eviction debug mode forces update
-     * restores to both committed or uncommitted changes.
-     */
-    if (supd_restore || F_ISSET(r, WT_REC_SCRUB))
-        r->cache_write_restore = true;
+    /* Track whether we need to do update restore eviction. */
+    if (supd_restore)
+        r->cache_write_restore_invisible = true;
 
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.

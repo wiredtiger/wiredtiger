@@ -1980,14 +1980,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
-    /*
-     * FIXME-WT-12127 Allow pages on the pre-fetch queue to be considered for eviction once a
-     * satisfactory workaround has been found for ensuring certain eviction flows don't invalidate
-     * refs on the pre-fetch queue.
-     */
-    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
-        return (false);
-
     return (true);
 }
 
@@ -2302,8 +2294,8 @@ __wt_btcur_skip_page(
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
+    WT_REF_STATE previous_state;
     WT_TIME_AGGREGATE *ta;
-    uint8_t previous_state;
     bool clean_page;
 
     WT_UNUSED(context);

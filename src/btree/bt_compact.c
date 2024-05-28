@@ -113,7 +113,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))
-        __wt_ref_addr_safe_free(session, addr->addr, addr->size);
+        __wti_ref_addr_safe_free(session, addr->addr, addr->size);
     else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
@@ -162,8 +162,8 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ADDR_COPY copy;
     WT_BM *bm;
     WT_DECL_RET;
+    WT_REF_STATE previous_state;
     size_t addr_size;
-    uint8_t previous_state;
 
     *skipp = true; /* Default skip. */
 

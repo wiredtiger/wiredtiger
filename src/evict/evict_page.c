@@ -18,7 +18,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
  *     Release exclusive access to a page.
  */
 static WT_INLINE void
-__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
+__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state)
 {
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL);
 
@@ -54,8 +54,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_REF_STATE previous_state;
     uint32_t evict_flags;
-    uint8_t previous_state;
     bool locked;
 
     btree = S2BT(session);
@@ -182,7 +182,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  *     Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -248,7 +248,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
          * freeing the page memory or otherwise touching the reference because eviction paths assume
          * a non-NULL reference on the queue is pointing at valid memory.
          */
-        __wt_evict_list_clear_page(session, ref);
+        __wti_evict_list_clear_page(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -546,8 +546,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     bool busy, visible;
 
     busy = false;
-    /* Pre-fetch queue flags on a ref need to be checked while holding the pre-fetch lock. */
-    __wt_spin_lock(session, &S2C(session)->prefetch_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -575,7 +573,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             break;
     }
     WT_INTL_FOREACH_END;
-    __wt_spin_unlock(session, &S2C(session)->prefetch_lock);
+
     if (busy)
         return (__wt_set_return(session, EBUSY));
 

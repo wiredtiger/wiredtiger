@@ -386,13 +386,14 @@ atou32(const char *tag, const char *s, int match)
  *     Open a WiredTiger session.
  */
 void
-wt_wrap_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SESSION **sessionp)
+wt_wrap_open_session(
+  WT_CONNECTION *conn, SAP *sap, const char *track, const char *cfg, WT_SESSION **sessionp)
 {
     WT_SESSION *session;
 
     *sessionp = NULL;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(conn->open_session(conn, NULL, cfg, &session));
 
     if (g.trace_conn != NULL && sap->trace == NULL)
         testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &sap->trace));
@@ -422,4 +423,16 @@ wt_wrap_close_session(WT_SESSION *session)
     }
 
     testutil_check(session->close(session, NULL));
+}
+
+/*
+ * enable_session_prefetch --
+ *     Return true if prefetch should be enabled for a session. Note that prefetch needs to be
+ *     enabled at the connection level before being available for a session.
+ */
+bool
+enable_session_prefetch(void)
+{
+    /* Enable prefetch 20% of the time. */
+    return (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1);
 }
