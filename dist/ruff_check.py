@@ -30,7 +30,8 @@ if not which("ruff"):
     ruff_version = None
     with open(ruff_config) as file:
         for line in file:
-            if m := re.search(r'required-version = "==(\d.\d.\d)"', line.strip()):
+            m = re.search(r'required-version = "==(\d.\d.\d)"', line.strip())
+            if m:
                 ruff_version = m.group(1)
                 break
     print("Ruff is not installed!")
