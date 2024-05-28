@@ -16,7 +16,7 @@ class test_cc07(test_cc_base):
 
     def test_cc(self):
         create_params = 'key_format=i,value_format=S'
-        nrows = 1000
+        nrows = 10000
         uri = 'table:cc07'
         value_size = 1024
 
@@ -28,7 +28,7 @@ class test_cc07(test_cc_base):
 
             # Checkpoint with cleanup.
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows * (i + 1)))
-            self.session.checkpoint()
+            self.session.checkpoint("debug=(checkpoint_cleanup=true)")
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
