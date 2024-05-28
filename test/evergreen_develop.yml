@@ -51,6 +51,8 @@ buildvariants:
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTestsARM64
+  tasks:
+    - ".cppsuite-perf-test-arm"
 
 - name: documentation-update
   display_name: "~ Documentation update"

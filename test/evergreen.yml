@@ -2041,7 +2041,8 @@ tasks:
   - name: cppsuite-cursor-microbenchmarks-default-perf
     depends_on:
       - name: compile
-    tags: ["cppsuite-perf-test"]
+    # This and the later test only run on ARM as the required harsware counter is missing on x86.
+    tags: ["cppsuite-perf-test-arm"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
@@ -2052,7 +2053,7 @@ tasks:
   - name: cppsuite-session-microbenchmarks-default-perf
     depends_on:
       - name: compile
-    tags: ["cppsuite-perf-test"]
+    tags: ["cppsuite-perf-test-arm"]
     commands:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
