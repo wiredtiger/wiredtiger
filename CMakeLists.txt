@@ -24,7 +24,7 @@ if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
     # in that case map the architecture to x86.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|AMD64|)$")
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
         set(WT_ARCH "x86")
     elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
         set(WT_ARCH "aarch64")
