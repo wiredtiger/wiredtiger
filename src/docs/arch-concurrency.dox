@@ -1,8 +1,9 @@
 /*! @arch_page arch-concurrency WiredTiger concurrency management
 
-WiredTiger is a multi-threaded application and needs to manage concurrent access to shared memory
-locations. Many mechanisms are defined in WiredTiger to safely access shared memory locations. This
-page describes what those mechanisms are and the intended usage of them in the code base.
+WiredTiger is a multi-threaded application and needs to manage concurrent access to memory
+locations. Many mechanisms are defined in WiredTiger to allow for safe concurrent access to memory
+locations. This page describes what those mechanisms are and the intended usage of them in the code
+base.
 
 @section volatile Volatile
 
