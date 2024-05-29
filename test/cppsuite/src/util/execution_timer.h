@@ -47,8 +47,8 @@ namespace test_harness {
  */
 class execution_timer {
 public:
-    execution_timer(const std::string id, const std::string &test_name);
-    execution_timer(const std::string id, const std::string &test_name, const bool measure_time);
+    execution_timer(const std::string &id, const std::string &test_name);
+    execution_timer(const std::string &id, const std::string &test_name, const bool measure_time);
     virtual ~execution_timer();
 
     /* Calculates the average time and appends the stat to the perf file. */

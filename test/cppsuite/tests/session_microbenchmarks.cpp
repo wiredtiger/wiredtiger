@@ -57,12 +57,6 @@ public:
     }
 
     void
-    checkpoint_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "checkpoint_operation: not done as this is a performance test");
-    }
-
-    void
     custom_operation(thread_worker *tc) override final
     {
         /* Assert there is only one collection. */

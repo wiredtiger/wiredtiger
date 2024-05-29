@@ -26,15 +26,17 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "execution_timer.h"
+#include <cstdint>
+#include <iostream>
 
+#include "execution_timer.h"
 #include "src/component/metrics_writer.h"
 
 namespace test_harness {
 execution_timer::execution_timer(
-  const std::string id, const std::string &test_name, const bool measure_time)
+  const std::string &id, const std::string &test_name, const bool measure_time)
     : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0),
-      _measure_time(measure_time)
+      _total_instruction_count(0), _measure_time(measure_time)
 {
     memset(&_pe, 0, sizeof(_pe));
     _pe.type = PERF_TYPE_HARDWARE;
@@ -45,7 +47,7 @@ execution_timer::execution_timer(
     _pe.exclude_hv = 1;
 }
 
-execution_timer::execution_timer(const std::string id, const std::string &test_name)
+execution_timer::execution_timer(const std::string &id, const std::string &test_name)
     : execution_timer(id, test_name, true)
 {
 }

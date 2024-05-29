@@ -19,6 +19,10 @@ workload_manager=
         op_rate=10s,
         thread_count=1
     ),
+    checkpoint_config=
+    (
+        thread_count=0
+    )
 ),
 operation_tracker=
 (

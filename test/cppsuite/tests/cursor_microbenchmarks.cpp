@@ -33,10 +33,6 @@
 
 namespace test_harness {
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
- */
-/*
  * This test aims to measure the number of instructions cursor API calls take. The test has measures
  * in place to prevent background threads from taking resources:
  *  - We set the sweep server interval to be greater than the test duration. This means it never
@@ -44,10 +40,10 @@ namespace test_harness {
  *  - Logging, and the log manager thread are disabled per the connection open configuration.
  *  - Prefetch, off by default
  *  - Background compact, disabled by in_memory.
- *  - capacity server, disabled by in_memory.
- *  - checkpoint server, disabled by in_memory.
- *  - Eviction
- *  - checkpoint cleanup, disabled by in_memory.
+ *  - Capacity server, disabled by in_memory.
+ *  - Checkpoint server, disabled by in_memory.
+ *  - Eviction, still runs but ideally we don't cross any threshold to trigger it.
+ *  - Checkpoint cleanup, disabled by in_memory.
  *
  * Additionally to avoid I/O the connection is set to in_memory.
  */
@@ -56,12 +52,6 @@ public:
     cursor_microbenchmarks(const test_args &args) : test(args)
     {
         init_operation_tracker();
-    }
-
-    void
-    checkpoint_operation(thread_worker *) override final
-    {
-        logger::log_msg(LOG_WARN, "Skipping checkpoint as this a performance test.");
     }
 
     void

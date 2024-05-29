@@ -18,6 +18,10 @@ workload_manager=
         key_size=4,
         op_rate=1s
     ),
+    checkpoint_config=
+    (
+        thread_count=0
+    )
 ),
 operation_tracker=
 (
