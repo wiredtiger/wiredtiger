@@ -103,17 +103,18 @@ all memory barriers described are also compiler barriers.
 Barriers are a heavy hammer for situations that only need to prevent reordering of instructions
 on one side of a load or store. To reduce the amount of reorderings prevented WiredTiger defines two
 marked access macros. These are loads and stores that prevent reordering from one direction across
-that load or store.
+that load or store. The macro then achieve the intended semantics of \c WT_ACQUIRE_READ_WITH_BARRIER
+and \c WT_RELEASE_WRITE_WITH_BARRIER without added side effects.
 
 @subsection acq-marked Acquire
 
 \c WT_ACQUIRE_READ, this macro prevents loads and stores following the load from being reordered
-across it.
+with it. Ensuring they happen after the marked load.
 
 @subsection rel-marked Release
 
 \c The WT_RELEASE_WRITE macro prevents loads and stores prior to the store from being reordered
-across it. As with the acquire and release barriers these marked access macros should be paired
-together to function correctly.
+with it. Ensuring the store happens-after the given loads and stores. As with the acquire and
+release barriers these marked access macros should be paired together to function correctly.
 
 */
