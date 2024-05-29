@@ -47,16 +47,15 @@ queued for removal, see @ref ts_block_local_file_removal.
 
 @section ts_checkpoints Checkpoints
 
-A normal, non-tiered table, although sometimes thought of as a
-single btree, can also be thought of as an active or \a live btree, as well
-as zero or more checkpoints, that are fully represented in the single
-disk object file. Each checkpoint has its own root page, and so can be
+A normal, non-tiered table, can be thought of as an active or \a live btree, with
+zero or more checkpoints that are fully represented in the single
+disk object file. Each checkpoint has its own root page, and can be
 considered its own btree.  Each of these btrees is a set of
 pages referencing each other as a tree, some in memory, some on disk.
 A tiered table is the same,
-having an \a live btree and a
-set of checkpoint btrees. However, both the active btree and the
-checkpoints may span multiple object files and/or cloud objects.
+having a \a live btree and a
+set of checkpoint btrees. However, both the live btree and the
+checkpoints may have pages that span multiple object files and/or cloud objects.
 
 For tiered storage, each object, other than the current file object, is
 guaranteed to contain at least one checkpoint.  When there is a switch to a
@@ -138,7 +137,7 @@ read/write lock on the \c WT_BM is used to access, modify or grow the array of
 
 @subsection ts_block_local_file_removal Local File Removal
 
-When the tiered server determines that a local object file should be removed,
+When the tiered server determines that a local object file should be removed
 there are no writers to the file. This
 is because local object file removal can only be done on files that have
 become read-only. However, there may be active readers in the object file.  At
@@ -148,7 +147,7 @@ all readers have finished using the block handle.  The mechanism
 to remove a local object file has several parts.
 
 When a cloud copy of an object is completed, the block manager
-is told, via \c BM::switch_object_end , what object id (and below)
+is told, via \c BM::switch_object_end , that object id \a N (and therefore all ids less than \a N)
 can be removed. Then, when a block handle (\c WT_BLOCK) qualifies as removable
 and its reader reference count goes to zero, the block handle can be removed
 from the \c handle_array. This is triggered by calling a
@@ -184,43 +183,10 @@ to do \c FLUSH operations in parallel.
 
 @section ts_metadata Metadata and Associated Data Structures
 
-@subsection ts_metadata_non Non-tiered Tables
-
-When non-tiered table \c A is created (without named column groups),
-there are three entries in the metadata file, having these keys:
-- \c "table:A"
-- \c "colgroup:A"
-- \c "file:A.wt"
-
-For brevity, just the keys are shown; the values in the metadata
-btree are configuration strings that would show information about
-key/value format and other creation options, checkpoints associated with the table, etc.
-
-The \c "table:A" represents the table interface that the API caller
-uses, and the associated data structure in memory for the table is \c WT_TABLE.  If
-there were column groups or indices, there may be multiple btrees
-associated with the table, and listed in the metadata,
-but in this example there is just one.
-
-Every table has one or more \c "colgroup:" entries. The column group entry's metadata
-references the \c "file:" entry that stores the btree, in this case it would
-reference \c "file:A.wt". Column groups do not have an explicit data structure
-associated with them, but their associated btrees are referenced via an array
-in the \c WT_TABLE.
-
-The \c "file:" entry represents the btree stored on disk, as well as parts
-cached in memory.  The data structure implied by this entry is a \c
-WT_BTREE.
-
-In summary, the relationship between prefixes and data structures is as follows:
-
-URI prefix    | struct type    | has dhandle?  | notes
-------------- | -------------- | ------------- | --------------------------------------
-\c table:     | WT_TABLE       | yes           | the dhandle is cast to (WT_TABLE *)
-\c file:      | WT_BTREE       | yes           | dhandle->handle is a (WT_BTREE *)
-\c colgroup:  |                | no            | stored in an array in the WT_TABLE
-
-@subsection ts_metadata_tiered Tiered Tables
+The WiredTiger metadata file persists important information about URIs known in the system.
+See @ref metadata_example for a discussion on the relationship between
+metadata entries and internal data structures for a simple non-tiered table \c A.
+That example is continued below for tiered tables.
 
 For a tiered table \c A that has gone through a few flush_tiers, the following
 entries should appear in the metadata table:
@@ -424,7 +390,7 @@ pages having those keys in an older object are no longer needed.
 After all pages in an object are no longer needed, an object can be
 removed.  The trick is in knowing when this can happen.
 
-It is expected that future solutions will work either synchronously or
+A future garbage collection solution could work well either synchronously or
 asynchronously.  A synchronous approach would probably have
 WiredTiger track references to all pages in either a checkpoint or a
 object file (and persist that information as well), and notice when all
