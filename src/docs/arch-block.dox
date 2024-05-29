@@ -235,12 +235,12 @@ four address cookies and two additional values:
   - an address cookie for the extent list with allocated entries
   - an address cookie for the extent list with available entries
   - an address cookie for the extent list with discarded entries
-  - the file size for the checkpoint
-  - the checkpoint size
+  - the file size for the checkpoint, the first byte position past the end of the checkpoint data
+  - the checkpoint size, a byte size of all written checkpoint data
 
 As described in @ref block_address_cookie, an address cookie used with a tiered storage
 has an additional value (the \c object_id). As a result, the checkpoint cookie for a
-tiered btree will include additional \c object_id values that are not in other
+tiered btree will include four additional \c object_id values that are not in other
 checkpoints.
 
 The program in \c tools/wt_ckpt_decode.py can be used to unpack a set of bytes representing

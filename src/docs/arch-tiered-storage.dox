@@ -12,7 +12,7 @@ btree parts, whether the object resides on the local disk, as an
 <em>object file</em>, or in the cloud, as a <em>cloud object</em>.
 The mechanism to create new objects is a WT_SESSION::checkpoint API call
 with the \c flush_tier configuration set.
-For brevity, is often called a \c flush_tier call.
+For brevity, it is called a \c flush_tier call.
 
 When in use, a tiered btree, like a non-tiered btree, may have some
 recently used or modified data that resides in memory pages.
@@ -24,9 +24,10 @@ Tiered storage is configured and enabled on the connection
 via ::wiredtiger_open configuration options
 (e.g. <code>tiered_storage=(name="s3_store",bucket="...")</code> ).
 Once enabled on the connection, the configuration applies to all tables created.
-The configuration can be overridden on individual tables can be changed with
+The configuration can be overridden on individual tables with
 configuration options for WT_SESSION::create .
-This allows the caller to specify a different storage provider or bucket name or
+The related WT_SESSION::create configuration options allow the caller to
+specify a different storage provider or bucket name or
 to have the table opt out of tiered storage.
 
 @section ts_objectid Object IDs
@@ -41,10 +42,10 @@ objects for that table are represented on disk. Once a new (\a N+1)
 object is created, all writes to the previous (\a N) object are
 completed and that \a N object becomes read-only, like all objects
 before it.  At this point, the \a N object is queued to be copied to
-cloud storage.  After that copy takes place, the local copy of \a N is
+cloud storage.  After that copy successfully completes, the local copy of \a N is
 queued for removal, see @ref ts_block_local_file_removal.
 
-@section ts_checkpoints Checkpoints 
+@section ts_checkpoints Checkpoints
 
 A normal, non-tiered table, although sometimes thought of as a
 single btree, can also be thought of as an active or \a live btree, as well

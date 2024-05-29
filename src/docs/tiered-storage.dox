@@ -71,12 +71,26 @@ changes to an application are minor:
     \c flush_tier need not be specified on every checkpoint call; typically the cadence of \c flush_tier is much less than
     the cadence of ordinary checkpoints.
 
+At the moment, the internal checkpoint server, that is started via the \c checkpoint configuration option to ::wiredtiger_open,
+does not have the ability to enable \c flush_tier.  That means that applications that rely on the internal checkpoint server
+must add their own checkpoint calls, usually in a separate thread, in order to accomplish a flush_tier checkpoint.
+
 @section example Example with timeline
 
-The figure below provides a high level overview of flush_tier, showing the state of a single tiered table over time. The green arrows at the top of the figure indicate write requests. These come from eviction, except during checkpoint processing. At T0, we start with two objects in object storage, Object 1, and Object 2, and File 3 as the writable active file. At T1, we start a flush checkpoint. At T2, that checkpoint completes, and WiredTiger switches the writable active file from File 3 to File 4. At this point there should be no outstanding writes to File 3 because the checkpoint has completed and eviction to the table is disabled. All future writes will go to File 4. So we can queue the copy of File 3 to object storage. The copy completes at T3. At any later time (T4) WiredTiger can remove File 3 from the local file system.
+The figure below provides a high level overview of flush_tier, showing the
+state of a single tiered table over time. The green arrows at the top of the
+figure indicate write requests. These come from eviction, except during
+checkpoint processing. At T0, we start with two objects in object storage,
+Object 1, and Object 2, and File 3 as the writable active file. At T1, we start
+a flush checkpoint. At T2, that checkpoint completes, and WiredTiger switches
+the writable active file from File 3 to File 4. At this point there should be
+no outstanding writes to File 3 because the checkpoint has completed and
+eviction to the table is disabled. All future writes will go to File 4. So we
+can queue the copy of File 3 to object storage. The copy completes at T3. At
+any later time (T4) WiredTiger can remove File 3 from the local file system.
 
 \image html flush_tier_timeline.png
 
-Figure 1: Flush tier operation.  
+Figure 1: Flush tier operation.
 
 */
