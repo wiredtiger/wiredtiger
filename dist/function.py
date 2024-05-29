@@ -264,12 +264,20 @@ def function_scoping():
             continue
 
         # Find all uses. Check the use of "wti" functions.
+        in_block_comment = False
         for line in file_lines:
-            # Skip block comments. Assume a line starts with /*, *, or //. There may be a few
-            # false positives, but it's probably going to be okay.
+            # Skip block and line comments.
             s = line.strip()
-            if s.startswith('/*') or s.startswith('*') or s.startswith('//'):
+            if s.startswith('//') or (s.startswith('/*') and s.endswith('*/')):
                 continue
+            if s == '/*':
+                in_block_comment = True
+                continue
+            if in_block_comment:
+                if s.endswith('*/'):
+                    in_block_comment = False
+                continue
+
             for m in func_use_re.finditer(line):
                 fn_name = m.group(1)
                 if not fn_name.startswith('__wt_') and not fn_name.startswith('__wti_'):
