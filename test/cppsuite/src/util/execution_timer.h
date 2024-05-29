@@ -71,7 +71,7 @@ public:
         ioctl(fd, PERF_EVENT_IOC_RESET, 0);
         ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
 
-        std::chrono::_V2::steady_clock::time_point start_time;
+        std::chrono::steady_clock::time_point start_time;
         if (_measure_time)
             start_time = std::chrono::steady_clock::now();
 
