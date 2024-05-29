@@ -46,8 +46,8 @@ make_insert(thread_worker *tc, const std::string &id)
 }
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overridden and customized.
+ * Benchmark various frequently called session APIs. See the comment in cursor_microbenchmarks for
+ * further details.
  */
 class session_microbenchmarks : public test {
 public:
