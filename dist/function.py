@@ -198,29 +198,34 @@ class FunctionDefinition:
         self.used_outside_of_file = False
         self.used_outside_of_module = False
 
-# Complain if a "wti" function is used outside of its intended scope, or if a "wt" function is used
-# only within its module.
+# Complain if a "__wti" function is used outside of its intended scope, or if a "__wt" function is
+# used only within its module.
 def function_scoping():
     skip_re = re.compile(r'DO NOT EDIT: automatically built')
     func_def_re = re.compile(r'\n\w[\w \*]+\n(\w+)', re.DOTALL)
     func_use_re = re.compile(r'[^\n](\w+)', re.DOTALL)
     failed = False
 
-    # Infer the module name.
+    # Infer the module name from the file path.
     def infer_module(path):
         parts = path.split('/')
         if len(parts) < 3 or parts[0] != '..':
             print(f'{path}: Unexpected path')
             sys.exit(1)
+
+        # If the path is in src, the module is the subdirectory under src; otherwise it is the
+        # top-level directory, such as "test."
         if parts[1] == 'src':
             module = parts[2]
         else:
             module = parts[1]
+
+        # Make "os_posix" and "os_win" one module because they declare the same "__wt" functions.
         if module == 'os_posix' or module == 'os_win':
             return 'os_posix/os_win'
         return module
 
-    # Find all "wt" and "wti" function definitions.
+    # Find all "__wt" and "__wti" function definitions.
     fn_defs = dict()
     for source_file in source_files():
         if not source_file.startswith('../src/'):
@@ -232,7 +237,7 @@ def function_scoping():
         if skip_re.search(file_contents):
             continue
 
-        # Find all definitions.
+        # Now actually find all definitions.
         for m in func_def_re.finditer(file_contents):
             fn_name = m.group(1)
             if not fn_name.startswith('__wt_') and not fn_name.startswith('__wti_'):
@@ -243,7 +248,7 @@ def function_scoping():
                 sys.exit(1)
             fn_defs[fn_name] = FunctionDefinition(fn_name, module, source_file)
 
-    # Find and check all "wt" and "wti" function uses.
+    # Find and check all "__wt" and "__wti" function uses.
     files = []
     files.extend(all_c_files())
     files.extend(all_cpp_files())
@@ -263,9 +268,10 @@ def function_scoping():
         if skip:
             continue
 
-        # Find all uses. Check the use of "wti" functions.
+        # Find all uses. Check the use of "__wti" functions.
         in_block_comment = False
         for line in file_lines:
+
             # Skip block and line comments.
             s = line.strip()
             if s.startswith('//') or (s.startswith('/*') and s.endswith('*/')):
@@ -278,6 +284,7 @@ def function_scoping():
                     in_block_comment = False
                 continue
 
+            # Find all function uses in each line.
             for m in func_use_re.finditer(line):
                 fn_name = m.group(1)
                 if not fn_name.startswith('__wt_') and not fn_name.startswith('__wti_'):
@@ -285,20 +292,26 @@ def function_scoping():
                 # Undefined functions are either macros or test functions; just skip them.
                 if fn_name not in fn_defs:
                     continue
+
+                # Remember whether the function was used outside of its module and of its file.
                 fn = fn_defs[fn_name]
                 if module != fn.module:
                     fn.used_outside_of_module = True
                 if source_file != fn.source:
                     fn.used_outside_of_file = True
+
+                # Check whether a "__wti" function is used outside of its module.
                 if fn_name.startswith('__wti_') and module != fn.module:
                     print(f'{source_file}: {fn_name} is used outside of its module ' +
                           f'"{fn.module}"')
                     failed = True
 
-    # Load the ignore list for function usage.
+    # Load the list of functions that are not allowed to be used anywhere.
     ignore = set(l.strip() for l in open('s_funcs.list', 'r').readlines())
 
-    # Check the use of "wt" functions.
+    # Check whether any "__wt" functions are used only within the same module (and could be thus
+    # turned into "__wti" functions). Functions in "include" are implicitly used in more than one
+    # module.
     for fn_name, d in fn_defs.items():
         if not fn_name.startswith('__wt_'):
             continue
@@ -310,7 +323,8 @@ def function_scoping():
             print(f'{d.source}: {fn_name} is NOT used outside of its module "{d.module}"')
             failed = True
 
-    # Additional check for the use of "wti" functions.
+    # Check whether any "__wti" functions are used only within the same file. Skip functions in
+    # "include", because they are implicitly used in more than one file.
     for fn_name, d in fn_defs.items():
         if not fn_name.startswith('__wti_'):
             continue
