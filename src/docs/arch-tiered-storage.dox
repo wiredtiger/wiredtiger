@@ -22,7 +22,7 @@ cloud objects that makes these btrees different.
 
 Tiered storage is configured and enabled on the connection
 via ::wiredtiger_open configuration options
-(e.g. <code>tiered_storage=(name="s3_store"),bucket="..."</code> ).
+(e.g. <code>tiered_storage=(name="s3_store",bucket="...")</code> ).
 Once enabled on the connection, the configuration applies to all tables created.
 The configuration can be overridden on individual tables can be changed with
 configuration options for WT_SESSION::create .
@@ -153,10 +153,10 @@ and its reader reference count goes to zero, the block handle can be removed
 from the \c handle_array. This is triggered by calling a
 sweep function.
 
-There is a potential for a race with the reference count: when the count
-becomes zero and can be removed, a new reader thread can enter the
+There is a potential for a race involving the read reference count: when the count
+becomes zero indicating the block can be removed, a new reader thread can enter the
 system and start using the block as it is being removed.  To resolve
-the race, the new reader thread takes a read lock on the block manager's
+the race, the reader thread takes a read lock on the block manager's
 lock while it increments the read reference count.  When the sweep
 runs, it holds a write lock on the block manager's lock.
 
@@ -186,7 +186,7 @@ to do \c FLUSH operations in parallel.
 @subsection ts_metadata_non Non-tiered Tables
 
 When non-tiered table \c A is created (without named column groups),
-there are two entries in the metadata file, having these keys:
+there are three entries in the metadata file, having these keys:
 - \c "table:A"
 - \c "colgroup:A"
 - \c "file:A.wt"
@@ -204,7 +204,7 @@ but in this example there is just one.
 Every table has one or more \c "colgroup:" entries. The column group entry's metadata
 references the \c "file:" entry that stores the btree, in this case it would
 reference \c "file:A.wt". Column groups do not have an explicit data structure
-associated with them, but their associated btrees are referenced via a list
+associated with them, but their associated btrees are referenced via an array
 in the \c WT_TABLE.
 
 The \c "file:" entry represents the btree stored on disk, as well as parts
@@ -233,10 +233,10 @@ entries should appear in the metadata table:
 - \c "tier:A"
 - \c "tiered:A"
 
-The \c "table:A" entry, like before, is the "top-level" URI that is used for
+The \c "table:A" entry, like before, is the top-level URI that is used for
 API calls.  As before, it maps to a \c WT_TABLE, and the table has the
-\c WT_TABLE->is_tiered_shared flag set.  The column group entry \c "colgroup:A" holds
-a reference to the metadata for the btree.  In the non-tiered case, this appeared
+\c WT_TABLE->is_tiered_shared flag set.  The column group entry \c "colgroup:A" has
+in its metadata a reference to the URI for the btree.  In the non-tiered case, this appeared
 as \c source="file:A.wt". In this, the tiered case, the reference is
 \c source="tiered:A", which relates to a \c WT_TIERED struct.
 
@@ -272,7 +272,7 @@ points to the open \c WT_BTREE.
 
 The \c "object:" entries do not have separate in-memory data structures
 (there is a \c WT_TIERED_OBJECT defined in \c tiered.h, but it is not used).
-And while \c "table:", \c "file:" and "tiered:" all have data handles
+And while \c "table:", \c "file:" and \c "tiered:" all have data handles
 using those URIs, there are no separate data handles for each object.
 This is probably a good thing, as scaling the number of data handles
 system-wide has been challenging.
@@ -423,7 +423,7 @@ pages having those keys in an older object are no longer needed.
 After all pages in an object are no longer needed, an object can be
 removed.  The trick is in knowing when this can happen.
 
-It is expected that future solutions to work either synchronously or
+It is expected that future solutions will work either synchronously or
 asynchronously.  A synchronous approach would probably have
 WiredTiger track references to all pages in either a checkpoint or a
 object file (and persist that information as well), and notice when all
@@ -433,8 +433,8 @@ could work mostly separately from WiredTiger (in another process possibly
 on a different node), and examine object files, visiting internal pages and tracing the
 references to all objects.  As such, it can notice when an object file
 has no references.  Either approach allows the identification and removal
-of unused objects, and maybe also objects that are lightly filled.  These
-objects could be made redundant by rewriting their useful content
+of unused objects, and maybe also identification of objects that are
+lightly filled.  These objects could be made redundant by rewriting their useful content
 directly into the active btree.
 
 */
