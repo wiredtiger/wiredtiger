@@ -239,6 +239,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     wt_off_t file_size;
     uint64_t cur_time;
     const char *filename;
@@ -252,10 +253,19 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
         return (0);
     }
 
-    /* Fast path to check the file size. Ignore small files. */
+    /* Fast path to check the file size, ignore small files. */
     filename = uri;
     WT_PREFIX_SKIP(filename, "file:");
-    WT_RET(__wt_block_manager_named_size(session, filename, &file_size));
+    ret = __wt_block_manager_named_size(session, filename, &file_size);
+
+    /* It is possible that the file no longer exists. */
+    if (ret == ENOENT) {
+        *skipp = true;
+        return (0);
+    }
+
+    WT_RET(ret);
+
     if (file_size <= WT_MEGABYTE) {
         WT_STAT_CONN_INCR(session, background_compact_skipped);
         *skipp = true;
