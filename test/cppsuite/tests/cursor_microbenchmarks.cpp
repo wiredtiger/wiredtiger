@@ -76,7 +76,7 @@ public:
         auto key_count = coll.get_key_count();
         tc->session->begin_transaction(tc->session.get(), NULL);
 
-        /* Benchmark cursor->search. */
+        /* Benchmark cursor->search. Loop 1000 times to reduce noise. */
         std::string key;
         int ret;
         for (int i = 0; i < 1000; i++) {
