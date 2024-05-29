@@ -47,11 +47,6 @@ and prevent tearing. WiredTiger also relies on atomic RMW operations, these incl
 - Fetch add / sub
 - Add / sub fetch
 
-Currently WiredTiger is undergoing a transition where all shared memory variable access will be
-wrapped by an atomic function, this will enable TSan to run on the code base. To facilitate this
-transition the atomic load and store macros have been added to WiredTiger, these macros placate
-TSan. To prevent them from introducing a performance regression they utilize relaxed consistency.
-
 @section memory-barriers Memory Barriers
 
 WiredTiger utilizes memory barriers in a number of places to manage CPU instruction reordering and
