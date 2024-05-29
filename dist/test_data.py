@@ -246,9 +246,6 @@ test_config = [
         Enables write ahead logs''', type='boolean'),
     Config('in_memory', 'false', r'''
         Enables WiredTiger's in memory mode.''', type='boolean'),
-    Config('sweep_interval', 10, r'''
-        The frequency that the sweep server will sweep at, defaults to the same as the WiredTiger
-        default.'''),
     Config('reverse_collator', 'false', r'''
         Configure the database files to use the reverse collator.''', type='boolean'),
     Config('statistics_config', '', r'''
@@ -261,6 +258,9 @@ test_config = [
             Configuration enabling or disabling statistics logging in the form of json logging.''',
             type='boolean')
         ]),
+    Config('sweep_interval', 10, r'''
+        The frequency that the sweep server will sweep at, defaults to the same as the WiredTiger
+        default.'''),
     Config('validate', 'true', r'''
         Enables the validation stage.''', type='boolean'),
 ]
