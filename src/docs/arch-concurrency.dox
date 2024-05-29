@@ -63,26 +63,32 @@ WiredTiger defines acquire and release barriers.
 
 @subsection acq-bar Acquire barrier
 
-The acquire barrier prevents LoadLoad and LoadStore reorderings. It is accessible through two macros
-firstly the \c WT_ACQUIRE_BARRIER, this macro is just the barrier and nothing else. Most usages of
-the barrier are concerned with a single variable being reordered with many. This gives us the
-\c WT_ACQUIRE_READ_WITH_BARRIER which does a load from memory into a local variable before the
-barrier.
+The acquire barrier prevents LoadLoad and LoadStore reorderings. It is accessible through two
+macros.
+
+Firstly \c WT_ACQUIRE_BARRIER which is a standalone barrier. This barrier enforces an ordering
+between all reads prior to the barrier, and all reads or writes following the barrier. Oftentimes
+this barrier is used to provide ordering between a single prior read and all subsequent read and
+writes, in which case \c WT_ACQUIRE_READ_WITH_BARRIER can be used. While
+\c WT_ACQUIRE_READ_WITH_BARRIER can be thought of as ordering a single read with all subsequent
+instructions, mechanically it is still a \c WT_ACQUIRE_BARRIER and has the same semantics.
 
 @subsection rel-bar Release barrier
 
-The release barrier prevents StoreStore and LoadStore reorderings. Like the acquire barrier it is
-accessible through two macros. The \c WT_RELEASE_BARRIER, this like the matching acquire barrier
-macro is just the barrier. The \c WT_RELEASE_WRITE_WITH_BARRIER macro issues a barrier before a
-single store to memory. These barriers should be used as pairs. If one location requires an acquire
-barrier then there must be another location that requires a release barrier.
+The release barrier prevents StoreStore and LoadStore reorderings. \c WT_RELEASE_BARRIER behaves
+similarly to \c WT_ACQUIRE_BARRIER, but orders all subsequent writes against all prior reads and
+writes. \c WT_RELEASE_WRITE_WITH_BARRIER has a similar intent to the
+\c WT_ACQUIRE_READ_WITH_BARRIER. It can be thought of as ordering a single write with respect to all
+prior reads and writes. However it is semantically the same as the \c WT_RELEASE_BARRIER. These
+barriers should be used as pairs. If one location requires an acquire barrier then there must be
+another location that requires a release barrier.
 
 Previously WiredTiger defined a \c WT_PUBLISH macro which prevented StoreStore reordering, this
 macro has since been removed however the term publish still exists in the code base. The term
 publish is used to refer to writing a value to a shared memory location. It doesn't define any
 memory ordering semantics.
 
-@subsection ful-bar Full barrier
+@subsection full-bar Full barrier
 
 The full barrier prevents all 4 described types of reorderings and is accessible via the
 \c WT_FULL_BARRIER macro.
