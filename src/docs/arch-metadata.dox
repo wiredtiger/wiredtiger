@@ -73,7 +73,6 @@ cursor causes WiredTiger to strip out internal metadata when querying.
 Lastly the metadata in the \c WiredTiger.wt table can be dumped using the \c wt utility. A command option for
 specifically printing the metadata is \c "wt list -v". This will display the various \c uri key strings with their associated
 configuration strings.
-*/
 
 @section metadata_example Example Metadata
 
@@ -111,3 +110,4 @@ URI prefix    | struct type    | has dhandle?  | notes
 \c colgroup:  |                | no            | stored in an array in the WT_TABLE
 
 See @ref arch-dhandle for more information about data handles (dhandles).
+*/
