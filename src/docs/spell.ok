@@ -388,7 +388,6 @@ fs
 fsanitize
 fsync
 ftruncate
-ful
 func
 fuzzer
 fuzzers
