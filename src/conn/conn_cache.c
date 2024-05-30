@@ -179,42 +179,21 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
         conn->cache_size = (uint64_t)cval.val;
     }
 
+    /* Set config values as percentages */
     WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
     cache->overhead_pct = (u_int)cval.val;
-
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
-    // cache->eviction_target = (double)cval.val;
     WT_RET(
       __cache_config_abs_to_pct(session, &(cache->eviction_target), "eviction target", shared));
-
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
-    // cache->eviction_trigger = (double)cval.val;
     WT_RET(
       __cache_config_abs_to_pct(session, &(cache->eviction_trigger), "eviction trigger", shared));
-
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
-    // cache->eviction_checkpoint_target = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_checkpoint_target), "eviction checkpoint target", shared));
-
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
-    // cache->eviction_dirty_target = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_dirty_target), "eviction dirty target", shared));
-
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_trigger", &cval));
-    // cache->eviction_dirty_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_dirty_trigger), "eviction dirty trigger", shared));
-
-    // /* Configure updates target / trigger */
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_updates_target", &cval));
-    // cache->eviction_updates_target = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_updates_target), "eviction updates target", shared));
-
-    // WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
-    // cache->eviction_updates_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_updates_trigger), "eviction updates trigger", shared));
 

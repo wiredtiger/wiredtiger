@@ -2485,10 +2485,6 @@ struct __wt_connection {
      * tiered storage on the local tier for faster read access., an integer between \c 0 and \c
      * 10000; default \c 300.}
      * @config{ ),,}
-     * @config{validate_mode, Offers three mode when validating cache config: Silent(0):
-     * Automatically fix invalid configs without any warning or error messages.  Warning: Apply
-     * changes to the config but emit a warning.  Error: Treat invalid configs as failures with no
-     * auto-correction., an integer between \c 0 and \c 2; default \c 0.}
      * @config{verbose, enable messages for various subsystems and operations.  Options are given as
      * a list\, where each message type can optionally define an associated verbosity level\, such
      * as <code>"verbose=[evictserver\,read:1\,rts:0]"</code>. Verbosity levels that can be provided
@@ -3411,10 +3407,6 @@ struct __wt_connection {
  * @config{use_environment_priv, use the \c WIREDTIGER_CONFIG and \c WIREDTIGER_HOME environment
  * variables even if the process is running with special privileges.  See @ref home for more
  * information., a boolean flag; default \c false.}
- * @config{validate_mode, Offers three mode when validating cache config: Silent(0): Automatically
- * fix invalid configs without any warning or error messages.  Warning: Apply changes to the config
- * but emit a warning.  Error: Treat invalid configs as failures with no auto-correction., an
- * integer between \c 0 and \c 2; default \c 0.}
  * @config{verbose, enable messages for various subsystems and operations.  Options are given as a
  * list\, where each message type can optionally define an associated verbosity level\, such as
  * <code>"verbose=[evictserver\,read:1\,rts:0]"</code>. Verbosity levels that can be provided

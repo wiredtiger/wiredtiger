@@ -35,7 +35,6 @@ import wttest
 from contextlib import contextmanager
 
 class test_config12(wttest.WiredTigerTestCase):
-    # conn_config = 'debug_mode=(configuration=true)'
 
     @contextmanager
     def expect_verbose(self, config, patterns, expect_output = True):
@@ -48,12 +47,9 @@ class test_config12(wttest.WiredTigerTestCase):
         yield conn
         # Read the contents of stdout to extract our verbose messages.
         output = self.readStdout(1000)
-        print(output)
         # Split the output into their individual messages. We want validate the contents of each message
         # to ensure we've only generated verbose messages for the expected categories.
         verbose_messages = output.splitlines()
-
-        print(verbose_messages)
 
         if expect_output:
             self.assertGreater(len(verbose_messages), 0)
@@ -76,8 +72,12 @@ class test_config12(wttest.WiredTigerTestCase):
         self.cleanStdout()
 
     def test_config12(self):
-        # with self.expectedStdoutPattern('config checkpoint target=.* is less than eviction dirty target=.*'):
-        #     self.reopen_conn(config='debug_mode=(configuration=true)')
         self.conn.close()
-        with self.expect_verbose('debug_mode=(configuration=true)', ['']) as conn:
+        # Test invalid config with debug mode enabled, warning messages expected.
+        with self.expect_verbose('debug_mode=(configuration=true)', ['config checkpoint target=.*is less than eviction dirty target=.*',
+                                                                     'config eviction updates target=.*is less than DBL_EPSILON=.*',
+                                                                     'config eviction updates trigger=.*is less than DBL_EPSILON=.*']):
+            pass
+        # Disable debug mode, expect no warning messages.
+        with self.expect_verbose('debug_mode=(configuration=false)', [], False):
             pass
