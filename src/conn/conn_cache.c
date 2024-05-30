@@ -47,8 +47,8 @@ __cache_config_abs_to_pct(
 }
 
 /*
- * validate_cache_config --
- *     Validate trigger and target values of given configs
+ * __validate_cache_config --
+ *     Validate trigger and target values of given configs.
  */
 static int
 __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create)
@@ -64,9 +64,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
     debug_config = cval.val;
 
-    /*
-     * The target size must be lower than the trigger size or we will never get any work done.
-     */
+    /* The target size must be lower than the trigger size or we will never get any work done. */
     if (create) {
         if (cache->eviction_target >= cache->eviction_trigger)
             WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
@@ -179,7 +177,7 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
         conn->cache_size = (uint64_t)cval.val;
     }
 
-    /* Set config values as percentages */
+    /* Set config values as percentages. */
     WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
     cache->overhead_pct = (u_int)cval.val;
     WT_RET(

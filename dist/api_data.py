@@ -578,7 +578,7 @@ connection_runtime_config = [
             or one means perform normal removal.''',
             min='0', max='1024'),
         Config('configuration', 'false', r'''
-               tbd''',
+               if true, display invalid cache configuration warnings.''',
                type='boolean'),
         Config('cursor_copy', 'false', r'''
             if true, use the system allocator to make a copy of any data returned by a cursor
