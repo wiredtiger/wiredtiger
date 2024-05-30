@@ -12,6 +12,6 @@ if ! [[ -f $SO__ ]]; then
     return
 fi
 
-eval "with_tcmalloc() { LD_PRELOAD=$SO__ \"\$@\"; }"
+eval "with_tcmalloc() { LD_PRELOAD=$SO__:$LD_PRELOAD \"\$@\"; }"
 
 unset TOP__ SO__
