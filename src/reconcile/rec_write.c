@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_bulk.h"
 
 static int __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_destroy(WT_SESSION_IMPL *, void *);
@@ -729,9 +730,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a
      * way to access the page, and also needs to set the format.
      */
-    r->update_modify_cbt.ref = ref;
-    r->update_modify_cbt.iface.value_format = btree->value_format;
-    r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
+    WT_CURSOR_BTREE_CAST(&r->update_modify_cbt)->ref = ref;
+    WT_CURSOR_BTREE_CAST(&r->update_modify_cbt)->iface.value_format = btree->value_format;
+    WT_CURSOR_BTREE_CAST(&r->update_modify_cbt)->upd_value = &WT_CURSOR_BTREE_CAST(&r->update_modify_cbt)->_upd_value;
 
     /* Clear stats related data. */
     r->rec_page_cell_with_ts = false;
@@ -837,8 +838,8 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->_cur);
     __wt_buf_free(session, &r->_last);
 
-    __wt_buf_free(session, &r->update_modify_cbt.iface.value);
-    __wt_buf_free(session, &r->update_modify_cbt._upd_value.buf);
+    __wt_buf_free(session, &WT_CURSOR_BTREE_CAST(&r->update_modify_cbt)->iface.value);
+    __wt_buf_free(session, &WT_CURSOR_BTREE_CAST(&r->update_modify_cbt)->_upd_value.buf);
 
     __wt_free(session, r);
 

@@ -8,6 +8,7 @@
 
 #include "util.h"
 #include "util_dump.h"
+#include "cursor_dump.h"
 
 #define ARG_BUF_SIZE 256
 #define MAX_ARGS 20

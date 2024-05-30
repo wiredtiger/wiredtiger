@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_data_source.h" 
 
 /*
  * __curds_key_set --

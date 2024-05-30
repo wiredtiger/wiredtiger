@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "opaque.h"             /* WT_CURSOR_BTREE_OPAQUE */
+
 /*
  * WT_REC_KV--
  *	An on-page key/value item we're building.
@@ -302,7 +304,7 @@ struct __wt_reconcile {
      * bytes. We call back into the btree code using a fake cursor to do that work. This a layering
      * violation and fragile, we need a better solution.
      */
-    WT_CURSOR_BTREE update_modify_cbt;
+    WT_CURSOR_BTREE_OPAQUE update_modify_cbt;
 
     /*
      * Variables to track reconciliation calls for pages containing cells with time window values

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_stat.h"
 
 /*
  * __wt_curstat_colgroup_init --

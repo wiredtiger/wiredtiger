@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_bulk.h"
 
 /*
  * __rec_key_state_update --
@@ -507,7 +508,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
     btree = S2BT(session);
 
-    cbt = &r->update_modify_cbt;
+    cbt = WT_CURSOR_BTREE_CAST(&r->update_modify_cbt);
     cbt->iface.session = (WT_SESSION *)session;
 
     key = &r->k;
@@ -701,7 +702,7 @@ __wti_rec_row_leaf(
     val = &r->v;
     vpack = &_vpack;
 
-    cbt = &r->update_modify_cbt;
+    cbt = WT_CURSOR_BTREE_CAST(&r->update_modify_cbt);
     cbt->iface.session = (WT_SESSION *)session;
 
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_backup.h"
 
 /*
  * __wt_backup_load_incr --

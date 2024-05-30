@@ -1,6 +1,7 @@
 /* DO NOT EDIT: automatically built by dist/stat.py. */
 
 #include "wt_internal.h"
+#include "cursor_stat.h"
 
 static const char *const __stats_dsrc_desc[] = {
   "LSM: bloom filter false positives",

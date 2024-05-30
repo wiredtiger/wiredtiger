@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_dump.h"
+#include "cursor_json.h"
 
 /*
  * __raw_to_dump --

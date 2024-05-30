@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "cursor_btree.h"
+
 /*
  * __wt_txn_context_prepare_check --
  *     Return an error if the current transaction is in the prepare state.

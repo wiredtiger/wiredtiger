@@ -21,6 +21,8 @@
 #define WT_ALIGNED_16(p) (((uintptr_t)(p)&0x0f) == 0)
 #define WT_VECTOR_SIZE 16 /* chunk size */
 
+#include "cursor_btree.h"
+
 /*
  * __wt_lex_compare --
  *     Lexicographic comparison routine. Returns: < 0 if user_item is lexicographically < tree_item,

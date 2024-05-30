@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_index.h"
+#include "cursor_join.h"
 
 static int __session_rollback_transaction(WT_SESSION *, const char *);
 

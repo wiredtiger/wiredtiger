@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_backup.h"
 
 /*
  * __logmgr_sync_cfg --

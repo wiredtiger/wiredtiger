@@ -12,6 +12,7 @@
 #include "wiredtiger.h"
 #include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
+#include "cursor_bounds_state.h"
 
 bool
 validate_cursor_bounds_restore(WT_CURSOR *cursor, uint64_t original_cursor_flags)

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_bulk.h"
 
 /*
  * __rec_col_fix_bulk_insert_split_check --
@@ -1224,7 +1225,7 @@ __wti_rec_col_var(
     dictionary = false;
     data = NULL;
 
-    cbt = &r->update_modify_cbt;
+    cbt = WT_CURSOR_BTREE_CAST(&r->update_modify_cbt);
     cbt->iface.session = (WT_SESSION *)session;
 
     /* Set the "last" values to cause failure if they're not set. */

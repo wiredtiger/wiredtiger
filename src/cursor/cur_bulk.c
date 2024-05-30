@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_bulk.h"
 
 /*
  * __bulk_col_keycmp_err --

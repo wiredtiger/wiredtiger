@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_metadata.h"
 
 /*
  * Custom NEED macros for metadata cursors - that copy the values into the backing metadata table

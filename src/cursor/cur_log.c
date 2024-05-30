@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_log.h"
 
 /*
  * __curlog_logrec --

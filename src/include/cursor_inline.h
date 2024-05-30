@@ -8,6 +8,10 @@
 
 #pragma once
 
+#include "cursor_hs.h"
+#include "cursor_index.h"
+#include "cursor_table.h"
+
 /*
  * Define functions that increment histogram statistics for cursor read and write operations
  * latency. These are defined here as two .c files depend on them but there isn't a perfect header

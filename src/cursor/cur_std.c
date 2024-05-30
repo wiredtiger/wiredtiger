@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_bounds_state.h"
+#include "cursor_btree.h"
 
 static int __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[]);
 

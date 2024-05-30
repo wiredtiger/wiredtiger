@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_btree.h"
+#include "cursor_bulk.h"
 
 /*
  * Wrapper for substituting checkpoint state when doing checkpoint cursor operations.

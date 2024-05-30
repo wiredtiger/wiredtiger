@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_btree.h"
+#include "cursor_version.h"
 
 #define WT_CURVERSION_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
 /*
