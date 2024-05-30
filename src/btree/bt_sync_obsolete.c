@@ -80,11 +80,11 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         obsolete = __wt_txn_visible_all(
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
-    __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
-      "%p in-memory page obsolete check: %s %s obsolete, stop time aggregate %s", (void *)ref, tag,
-      obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
-
     if (obsolete) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p in-memory page with %s obsolete has a stop time aggregate %s", (void *)ref, tag,
+          __wt_time_aggregate_to_string(&newest_ta, time_string));
+
         /*
          * Dirty the obsolete page with overflow items to let the page reconciliation remove all the
          * overflow items.
@@ -451,13 +451,12 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
       ref != NULL) {
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
-            WT_ERR(ret);
         } else {
             WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
             ret = __sync_obsolete_inmem_evict_or_mark_dirty(session, ref);
             WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
-            WT_ERR(ret);
         }
+        WT_ERR(ret);
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
