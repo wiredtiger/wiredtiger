@@ -43,7 +43,6 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet, SimpleLSMDataSet, \
 # Test the dump utility (I'm not testing the dump cursors, that's what the
 # utility uses underneath).
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
-    conn_config = 'verbose=(configuration:1)'
     dir = 'dump.dir'            # Backup directory name
 
     name = 'test_dump'
@@ -51,26 +50,26 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     nentries = 2500
 
     dumpfmt = [
-        # ('hex', dict(hex=1)),
+        ('hex', dict(hex=1)),
         ('txt', dict(hex=0))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        # ('recno', dict(keyfmt='r')),
-        # ('string', dict(keyfmt='S'))
+        ('recno', dict(keyfmt='r')),
+        ('string', dict(keyfmt='S'))
     ]
     types = [
         ('file', dict(uri='file:', dataset=SimpleDataSet)),
-        # ('lsm', dict(uri='lsm:', dataset=SimpleDataSet)),
-        # ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
-        # ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
-        # ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
-        # ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
-        # ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet)),
-        # ('table-simple-proj', dict(uri='table:',
-        #     dataset=ProjectionDataSet, projection=True)),
-        # ('table-index-proj', dict(uri='table:',
-        #     dataset=ProjectionIndexDataSet, projection=True)),
+        ('lsm', dict(uri='lsm:', dataset=SimpleDataSet)),
+        ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
+        ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
+        ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
+        ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
+        ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet)),
+        ('table-simple-proj', dict(uri='table:',
+            dataset=ProjectionDataSet, projection=True)),
+        ('table-index-proj', dict(uri='table:',
+            dataset=ProjectionIndexDataSet, projection=True)),
     ]
     scenarios = make_scenarios(types, keyfmt, dumpfmt)
 
