@@ -49,6 +49,9 @@ class test_cc07(test_cc_base):
         c.close()
 
     def test_cc(self):
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
+
         create_params = 'key_format=i,value_format=S'
         nrows = 10000
         uri = 'table:cc07'
@@ -65,6 +68,22 @@ class test_cc07(test_cc_base):
             self.session.checkpoint("debug=(checkpoint_cleanup=true)")
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
+
+        # Perform a single remove operation.
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        cursor.set_key(10)
+        self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(nrows * 12))
+        cursor.close()
+
+        # Checkpoint.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows * 12))
+        self.session.checkpoint()
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * 12))
+
+
+        # Perform a final checkpoint with cleanup and wait for it to be finished.
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
 
