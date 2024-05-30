@@ -276,7 +276,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
         return;
 
     WT_RELEASE_WRITE_WITH_BARRIER(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
-    WT_STAT_DATA_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
+    WT_STAT_DSRC_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
 }
 
 /*
@@ -521,7 +521,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * Save the current eviction walk setting: checkpoint can interfere with eviction and we don't
      * want to unfairly penalize (or promote) eviction in trees due to checkpoints.
      */
-    btree->evict_walk_saved = btree->evict_walk_period;
+    btree->evict_walk_saved = __wt_atomic_load32(&btree->evict_walk_period);
 
     session->ckpt_handle[session->ckpt_handle_next++] = session->dhandle;
     return (0);
@@ -1156,8 +1156,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
-    cache->evict_max_page_size = 0;
-    cache->evict_max_ms = 0;
+    __wt_atomic_store64(&cache->evict_max_page_size, 0);
+    __wt_atomic_store64(&cache->evict_max_ms, 0);
     cache->reentry_hs_eviction_ms = 0;
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
@@ -1318,7 +1318,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * to reset these transaction ids present on the pages when reading them.
      */
     if (F_ISSET(conn, WT_CONN_RECOVERING))
-        WT_ERR(__wt_metadata_correct_base_write_gen(session));
+        WT_ERR(__wt_meta_correct_base_write_gen(session));
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -1852,7 +1852,8 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
          * been created before the backup started. Fail if trying to delete any other named
          * checkpoint.
          */
-        if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start) {
+        if (__wt_atomic_load64(&conn->hot_backup_start) != 0 &&
+          ckpt->sec <= __wt_atomic_load64(&conn->hot_backup_start)) {
             if (is_wt_ckpt) {
                 F_CLR(ckpt, WT_CKPT_DELETE);
                 continue;
@@ -1901,8 +1902,9 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
             if (!F_ISSET(ckpt, WT_CKPT_DELETE))
                 continue;
             WT_ASSERT(session,
-              !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT) || conn->hot_backup_start == 0 ||
-                ckpt->sec > conn->hot_backup_start);
+              !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT) ||
+                __wt_atomic_load64(&conn->hot_backup_start) == 0 ||
+                ckpt->sec > __wt_atomic_load64(&conn->hot_backup_start));
             /*
              * We can't delete checkpoints referenced by a cursor. WiredTiger checkpoints are
              * uniquely named and it's OK to have multiple in the system: clear the delete flag for
@@ -2152,7 +2154,7 @@ __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *
             stop_ts = ckpt->ta.newest_stop_durable_ts;
         }
         if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn, stop_ts)) {
-            WT_STAT_CONN_DATA_INCR(session, checkpoint_obsolete_applied);
+            WT_STAT_CONN_DSRC_INCR(session, checkpoint_obsolete_applied);
             return (true);
         }
     }
@@ -2508,7 +2510,7 @@ __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
     WT_ASSERT(session, btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT));
-    btree->evict_walk_period = btree->evict_walk_saved;
+    __wt_atomic_store32(&btree->evict_walk_period, btree->evict_walk_saved);
     return (0);
 }
 
@@ -2556,7 +2558,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
      * In case this tree was being skipped by the eviction server during the checkpoint, restore the
      * previous state.
      */
-    btree->evict_walk_period = btree->evict_walk_saved;
+    __wt_atomic_store32(&btree->evict_walk_period, btree->evict_walk_saved);
 
     /*
      * Wake the eviction server, in case application threads have stalled while the eviction server

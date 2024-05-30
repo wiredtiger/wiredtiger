@@ -218,7 +218,7 @@ struct __wt_btree {
 #define WT_BTREE_CLEAN_CKPT(session, btree, val)                          \
     do {                                                                  \
         (btree)->clean_ckpt_timer = (val);                                \
-        WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
+        WT_STAT_DSRC_SET((session), btree_clean_checkpoint_timer, (val)); \
     } while (0)
 /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
 #define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
@@ -248,7 +248,7 @@ struct __wt_btree {
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */
     uint32_t evict_walk_target;                /* Eviction walk target */
-    u_int evict_walk_period;                   /* Skip this many LRU walks */
+    wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
     u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
     u_int evict_walk_skips;                    /* Number of walks skipped */
     wt_shared int32_t evict_disabled;          /* Eviction disabled count */

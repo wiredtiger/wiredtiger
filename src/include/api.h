@@ -97,8 +97,19 @@
         bool __set_err = true;                                                              \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
-        if ((config) != NULL)                                                               \
-    WT_ERR(__wt_config_check((s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0))
+        /*                                                                                  \
+         * Optimize configuration checking. If the configuration string                     \
+         * passed into the API is empty, use NULL instead, it saves a                       \
+         * little on every configuration lookup. The API caller's configuration             \
+         * string is stored in array position 1.                                            \
+         */                                                                                 \
+        if (config != NULL) {                                                               \
+            if (((const char *)config)[0] == '\0')                                          \
+                cfg[1] = NULL;                                                              \
+            else                                                                            \
+                WT_ERR(__wt_config_check(                                                   \
+                  (s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0));          \
+        }
 
 #define API_END(s, ret)                                                                    \
     if ((s) != NULL) {                                                                     \
@@ -156,7 +167,7 @@
             F_CLR((s)->txn, WT_TXN_AUTOCOMMIT);                     \
             if ((retry) && (ret) == WT_ROLLBACK) {                  \
                 (ret) = 0;                                          \
-                WT_STAT_CONN_DATA_INCR(s, autocommit_update_retry); \
+                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \
                 continue;                                           \
             }                                                       \
         } else if ((ret) == 0)                                      \
@@ -167,7 +178,7 @@
             WT_TRET(__wt_txn_rollback((s), NULL));                  \
             if ((retry) && (ret) == WT_ROLLBACK) {                  \
                 (ret) = 0;                                          \
-                WT_STAT_CONN_DATA_INCR(s, autocommit_update_retry); \
+                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \
                 continue;                                           \
             }                                                       \
             WT_TRET(__wt_session_reset_cursors(s, false));          \
@@ -190,7 +201,7 @@
 #define API_END_STAT(s, ret, api)                   \
     do {                                            \
         if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
-            WT_STAT_CONN_DATA_INCR(s, api##_error); \
+            WT_STAT_CONN_DSRC_INCR(s, api##_error); \
         }                                           \
     } while (0)
 
@@ -301,7 +312,7 @@
     if ((ret) != WT_ROLLBACK || F_ISSET((s)->txn, WT_TXN_RUNNING) || (s)->api_call_counter != 1) \
         break;                                                                                   \
     (ret) = 0;                                                                                   \
-    WT_STAT_CONN_DATA_INCR(s, autocommit_readonly_retry);                                        \
+    WT_STAT_CONN_DSRC_INCR(s, autocommit_readonly_retry);                                        \
     }                                                                                            \
     /* !!!! This is a while(1) loop. !!!! */                                                     \
     while (1)

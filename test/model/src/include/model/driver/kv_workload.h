@@ -347,6 +347,52 @@ operator<<(std::ostream &out, const create_table &op)
 }
 
 /*
+ * evict --
+ *     A representation of this workload operation.
+ */
+struct evict : public without_txn_id {
+    table_id_t table_id;
+    data_value key;
+
+    /*
+     * evict::evict --
+     *     Create the operation.
+     */
+    inline evict(table_id_t table_id, const data_value &key) : table_id(table_id), key(key) {}
+
+    /*
+     * evict::operator== --
+     *     Compare for equality.
+     */
+    inline bool
+    operator==(const evict &other) const noexcept
+    {
+        return table_id == other.table_id && key == other.key;
+    }
+
+    /*
+     * evict::operator!= --
+     *     Compare for inequality.
+     */
+    inline bool
+    operator!=(const evict &other) const noexcept
+    {
+        return !(*this == other);
+    }
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const evict &op)
+{
+    out << "evict(" << op.table_id << ", " << op.key << ")";
+    return out;
+}
+
+/*
  * insert --
  *     A representation of this workload operation.
  */
@@ -828,7 +874,7 @@ operator<<(std::ostream &out, const truncate &op)
  *     Any workload operation.
  */
 using any = std::variant<begin_transaction, checkpoint, commit_transaction, crash, create_table,
-  insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
+  evict, insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
   set_commit_timestamp, set_oldest_timestamp, set_stable_timestamp, truncate>;
 
 /*
@@ -1008,6 +1054,29 @@ public:
     }
 
     /*
+     * kv_workload::assert_timestamps --
+     *     Assert that all timestamps in the entire workload are assigned correctly. Throw an
+     *     exception on error.
+     */
+    void assert_timestamps();
+
+    /*
+     * kv_workload::verify_timestamps --
+     *     Verify that all timestamps in the entire workload are assigned correctly; just return
+     *     true or false instead of throwing an exception.
+     */
+    bool
+    verify_timestamps()
+    {
+        try {
+            assert_timestamps();
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    /*
      * kv_workload::run --
      *     Run the workload in the model. Return the return codes of the workload operations.
      */
@@ -1019,6 +1088,14 @@ public:
      */
     std::vector<int> run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
       const char *table_config = nullptr) const;
+
+protected:
+    /*
+     * kv_workload::assert_timestamps --
+     *     Assert that the timestamps are assigned correctly. Call this function one sequence at a
+     *     time.
+     */
+    void assert_timestamps(const operation::any &op, timestamp_t &oldest, timestamp_t &stable);
 
 private:
     std::deque<kv_workload_operation> _operations;

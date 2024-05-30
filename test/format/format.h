@@ -90,6 +90,9 @@
 #define STR(s) #s
 #define XSTR(s) STR(s)
 
+/* Session configuration to enable prefetch. */
+#define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
+
 #include "config.h"
 extern CONFIG configuration_list[];
 
@@ -446,6 +449,7 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
@@ -496,7 +500,8 @@ void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
 void val_to_flcs(TABLE *, WT_ITEM *, uint8_t *);
-void wt_wrap_open_session(WT_CONNECTION *conn, SAP *sap, const char *track, WT_SESSION **sessionp);
+void wt_wrap_open_session(
+  WT_CONNECTION *conn, SAP *sap, const char *track, const char *cfg, WT_SESSION **sessionp);
 void wt_wrap_close_session(WT_SESSION *session);
 void wts_checkpoints(void);
 void wts_close(WT_CONNECTION **);

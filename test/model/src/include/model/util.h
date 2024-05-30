@@ -153,8 +153,9 @@ public:
      */
     inline ~wiredtiger_session_guard()
     {
-        if (_session != nullptr)
-            (void)_session->close(_session, nullptr);
+        if (_session == nullptr)
+            return;
+        (void)_session->close(_session, nullptr);
     }
 
     /*
@@ -500,6 +501,12 @@ private:
 };
 
 /*
+ * decode_utf8 --
+ *     Decode a UTF-8 string into one-byte code points. Throw an exception on error.
+ */
+std::string decode_utf8(const std::string &str);
+
+/*
  * parse_uint64 --
  *     Parse the string into a number. Throw an exception on error.
  */
@@ -592,6 +599,12 @@ wt_cursor_update(WT_CURSOR *cursor, const data_value &key, const data_value &val
     set_wt_cursor_value(cursor, value);
     return cursor->update(cursor);
 }
+
+/*
+ * wt_evict --
+ *     Evict a WiredTiger page with the given key.
+ */
+void wt_evict(WT_CONNECTION *conn, const char *uri, const data_value &key);
 
 /*
  * wt_list_tables --

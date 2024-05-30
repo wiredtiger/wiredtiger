@@ -30,7 +30,7 @@ static WT_INLINE void
 __spin_init_internal(WT_SPINLOCK *t, const char *name)
 {
     t->name = name;
-    t->session_id = WT_SESSION_ID_INVALID;
+    __wt_atomic_store32(&t->session_id, WT_SESSION_ID_INVALID);
     t->stat_count_off = t->stat_app_usecs_off = t->stat_int_usecs_off = -1;
     t->stat_session_usecs_off = -1;
     t->initialized = 1;
@@ -176,7 +176,7 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
     ret = pthread_mutex_trylock(&t->lock);
     if (ret == 0)
-        t->session_id = WT_SPIN_SESSION_ID_SAFE(session);
+        __wt_atomic_store32(&t->session_id, WT_SPIN_SESSION_ID_SAFE(session));
     return (ret);
 }
 
@@ -191,7 +191,7 @@ __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
     if ((ret = pthread_mutex_lock(&t->lock)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "pthread_mutex_lock: %s", t->name));
-    t->session_id = WT_SPIN_SESSION_ID_SAFE(session);
+    __wt_atomic_store32(&t->session_id, WT_SPIN_SESSION_ID_SAFE(session));
 }
 #endif
 
@@ -341,7 +341,7 @@ __wt_spin_unlock_if_owned(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
  */
 #define WT_SPIN_INIT_TRACKED(session, t, name)                                                    \
     do {                                                                                          \
-        WT_RET(__wt_spin_init(session, t, #name));                                                \
+        WT_ERR(__wt_spin_init(session, t, #name));                                                \
         (t)->stat_count_off =                                                                     \
           (int16_t)WT_STATS_FIELD_TO_OFFSET(S2C(session)->stats, lock_##name##_count);            \
         (t)->stat_app_usecs_off =                                                                 \
@@ -374,11 +374,11 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
         stats = (int64_t **)S2C(session)->stats;
         session_stats = (int64_t *)&(session->stats);
-        stats[session->stat_bucket][t->stat_count_off]++;
+        stats[session->stat_conn_bucket][t->stat_count_off]++;
         if (F_ISSET(session, WT_SESSION_INTERNAL))
-            stats[session->stat_bucket][t->stat_int_usecs_off] += (int64_t)time_diff;
+            stats[session->stat_conn_bucket][t->stat_int_usecs_off] += (int64_t)time_diff;
         else {
-            stats[session->stat_bucket][t->stat_app_usecs_off] += (int64_t)time_diff;
+            stats[session->stat_conn_bucket][t->stat_app_usecs_off] += (int64_t)time_diff;
         }
 
         /*
@@ -403,7 +403,7 @@ __wt_spin_trylock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
     if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
         WT_RET(__wt_spin_trylock(session, t));
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_bucket][t->stat_count_off]++;
+        stats[session->stat_conn_bucket][t->stat_count_off]++;
         return (0);
     }
     return (__wt_spin_trylock(session, t));

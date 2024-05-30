@@ -25,7 +25,7 @@ __random_insert_valid(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT 
     cbt->tmp->data = WT_INSERT_KEY(ins);
     cbt->tmp->size = WT_INSERT_KEY_SIZE(ins);
 
-    return (__wt_cursor_valid(cbt, validp, false));
+    return (__wti_cursor_valid(cbt, validp, false));
 }
 
 /*
@@ -41,7 +41,7 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, bool *validp)
     cbt->slot = slot;
     cbt->compare = 0;
 
-    return (__wt_cursor_valid(cbt, validp, false));
+    return (__wti_cursor_valid(cbt, validp, false));
 }
 
 /* Magic constant: 5000 entries in a skip list is enough to forcibly evict. */
@@ -362,7 +362,7 @@ __random_root_inmem_ref(
     WT_ASSERT(session, __wt_ref_is_root(current));
 
     WT_STAT_CONN_INCR(session, cache_eviction_random_sample_inmem_root);
-    WT_STAT_DATA_INCR(session, cache_eviction_random_sample_inmem_root);
+    WT_STAT_DSRC_INCR(session, cache_eviction_random_sample_inmem_root);
 
     WT_INTL_FOREACH_BEGIN (session, current->page, ref)
         if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
@@ -388,8 +388,8 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_REF *current, *descent;
+    WT_REF_STATE descent_state;
     uint32_t entries, i;
-    uint8_t descent_state;
     int retry;
     bool eviction, sample_inmem_page;
 
@@ -530,7 +530,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
     if (btree->type != BTREE_ROW)
         WT_RET_MSG(session, ENOTSUP, "WT_CURSOR.next_random only supported by row-store tables");
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_next);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
@@ -608,7 +608,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      */
     for (skip = cbt->next_random_leaf_skip; cbt->ref == NULL || skip > 0;) {
         n = skip;
-        WT_ERR(__wt_tree_walk_skip(session, &cbt->ref, &skip));
+        WT_ERR(__wti_tree_walk_skip(session, &cbt->ref, &skip));
         if (n == skip) {
             if (skip == 0)
                 break;

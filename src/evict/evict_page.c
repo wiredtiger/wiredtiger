@@ -18,7 +18,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
  *     Release exclusive access to a page.
  */
 static WT_INLINE void
-__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
+__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state)
 {
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL);
 
@@ -41,7 +41,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_hazard_check(session, ref, NULL) == NULL)
         return (0);
 
-    WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_hazard);
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
     return (__wt_set_return(session, EBUSY));
 }
 
@@ -54,8 +54,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_REF_STATE previous_state;
     uint32_t evict_flags;
-    uint8_t previous_state;
     bool locked;
 
     btree = S2BT(session);
@@ -135,9 +135,9 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
         }
 
         if (LF_ISSET(WT_EVICT_STATS_CLEAN))
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_clean);
         else
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty);
 
         /* Count page evictions in parallel with checkpoint. */
         if (__wt_atomic_loadvbool(&conn->txn_global.checkpoint_running))
@@ -150,12 +150,12 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time, eviction_time);
         }
 
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_fail);
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-        if (eviction_time_milliseconds > conn->cache->evict_max_ms)
-            conn->cache->evict_max_ms = eviction_time_milliseconds;
+        if (eviction_time_milliseconds > __wt_atomic_load64(&conn->cache->evict_max_ms))
+            __wt_atomic_store64(&conn->cache->evict_max_ms, eviction_time_milliseconds);
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICT,
               "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
@@ -182,7 +182,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  *     Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -248,7 +248,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
          * freeing the page memory or otherwise touching the reference because eviction paths assume
          * a non-NULL reference on the queue is pointing at valid memory.
          */
-        __wt_evict_list_clear_page(session, ref);
+        __wti_evict_list_clear_page(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -285,15 +285,17 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_internal);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_internal);
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
      * force pages out before they're larger than the cache. We don't care about races, it's just a
      * statistic.
      */
-    if (page->memory_footprint > conn->cache->evict_max_page_size)
-        conn->cache->evict_max_page_size = page->memory_footprint;
+    if (__wt_atomic_loadsize(&page->memory_footprint) >
+      __wt_atomic_load64(&conn->cache->evict_max_page_size))
+        __wt_atomic_store64(
+          &conn->cache->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
 
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
@@ -379,10 +381,10 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          */
         if (ndeleted > pindex->entries / 10 && pindex->entries > 1) {
             if (S2BT(session)->type == BTREE_COL_VAR && ref == pindex->index[0])
-                WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits_skipped_vlcs);
+                WT_STAT_CONN_DSRC_INCR(session, cache_reverse_splits_skipped_vlcs);
             else {
                 if ((ret = __wt_split_reverse(session, ref)) == 0) {
-                    WT_STAT_CONN_DATA_INCR(session, cache_reverse_splits);
+                    WT_STAT_CONN_DSRC_INCR(session, cache_reverse_splits);
                     return (0);
                 }
                 WT_RET_BUSY_OK(ret);
@@ -546,8 +548,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     bool busy, visible;
 
     busy = false;
-    /* Pre-fetch queue flags on a ref need to be checked while holding the pre-fetch lock. */
-    __wt_spin_lock(session, &S2C(session)->prefetch_lock);
 
     /*
      * There may be cursors in the tree walking the list of child pages. The parent is locked, so
@@ -575,7 +575,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             break;
     }
     WT_INTL_FOREACH_END;
-    __wt_spin_unlock(session, &S2C(session)->prefetch_lock);
+
     if (busy)
         return (__wt_set_return(session, EBUSY));
 
