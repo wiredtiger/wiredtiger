@@ -480,7 +480,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_stop_durable_ts, oldest_start_ts;
+    wt_timestamp_t newest_stop_durable_ts, oldest_start_ts, pinned_ts;
     size_t addr_size;
     bool logged;
 
@@ -528,6 +528,14 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      */
     if ((addr_size != 0) &&
       (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
+        return (true);
+
+    /*
+     * The checkpoint has some obsolete time windows that are no longer required to exist in the
+     * btree. Remove the obsolete time windows to reduce the checkpoint size.
+     */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    if (pinned_ts != WT_TS_NONE && oldest_start_ts != WT_TS_NONE && oldest_start_ts <= pinned_ts)
         return (true);
 
     return (false);
