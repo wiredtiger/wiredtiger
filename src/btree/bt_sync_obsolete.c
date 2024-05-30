@@ -54,7 +54,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi-block";
 
-        /* Calculate the min oldest start time point by traversing all multi addresses. */
+        /* Calculate the max time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
             WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &multi->addr.ta);
             if (multi->addr.type == WT_ADDR_LEAF)
