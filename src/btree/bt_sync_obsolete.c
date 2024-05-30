@@ -273,7 +273,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, cc_pages_evict);
-    } else {
+    } else if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta)) {
         __wt_txn_pinned_timestamp(session, &pinned_ts);
         newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
         if (pinned_ts != WT_TS_NONE && newest_ts != WT_TS_NONE && newest_ts <= pinned_ts) {
