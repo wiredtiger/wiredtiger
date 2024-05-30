@@ -3,25 +3,27 @@ WiredTiger utilizes tcmalloc in testing through LD_PRELOAD.
 Implicit
 ========
 
-To load tcmalloc into your current environment run:
+To load tcmalloc into your current environment by running in the root
+of your workspace:
 
 export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
 
 This will be in effect until you exit the current shell.
 
-NOTE: This will affect ALL binaries run in that environment that
-dynamically link to libc.
+NOTE: This will affect ANY binary that you run in that environment:
+this includes system commands.
 
 Explicit
 ========
 
-Alternatively you can source the script with_tcmalloc.sh in this
-directory, like this:
+Alternatively you can source the script define-with_tcmalloc.sh in
+this directory, like this:
 
-source $PWD/with_tcmalloc.sh
+source tools/tcmalloc/with_tcmalloc.sh
 
-This will define a shell function "with_tcmalloc" that you prefix
-commands with to define LD_PRELOAD for that single invocation ONLY.
+Which defines a shell function "with_tcmalloc" in the current
+environment that you can prefix commands with to define LD_PRELOAD for
+that invocation ONLY.
 
 For example:
 

@@ -1,5 +1,6 @@
 # Evaluate this file with the source command from somewhere within
 # your git repository workspace.
+
 TOP__=$(git rev-parse --show-toplevel)
 if ! [[ $? ]]; then
     echo "FATAL Not a git repo"
