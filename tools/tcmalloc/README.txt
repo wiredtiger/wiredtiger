@@ -19,7 +19,7 @@ Explicit
 Alternatively you can source the script define-with_tcmalloc.sh in
 this directory, like this:
 
-source tools/tcmalloc/with_tcmalloc.sh
+source tools/tcmalloc/define-with_tcmalloc.sh
 
 Which defines a shell function "with_tcmalloc" in the current
 environment that you can prefix commands with to define LD_PRELOAD for
