@@ -329,6 +329,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if not("statistics" in config):
             config += ',statistics=(all)'
 
+        # config += ',eviction_checkpoint_target=6, eviction_updates_target=1, eviction_updates_trigger=2'
+
+        # config += ',verbose=[all:1]'
+
         # Enable statistics logging if we haven't already.
         if ("statistics=(all)" in config or "statistics=(fast)" in config) and not("statistics_log" in config):
             config += ',statistics_log=(wait=1,json=true,on_close=true)'
@@ -546,9 +550,9 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         try:
             self.fdTearDown()
             if not (dueToRetry or self.ignoreTearDownLogs):
-                self.ignoreStdoutPatternIfExists("""config (?:eviction dirty target|checkpoint target|eviction dirty trigger|eviction updates target
-                                                 |eviction updates trigger)=(\d*\.?\d+) is (?:larger than|less than) (?:eviction target|eviction dirty 
-                                                 target|eviction trigger|DBL_EPSILON)=(\d*\.?\d+)""")
+                # self.ignoreStdoutPatternIfExists("""config (?:eviction dirty target|checkpoint target|eviction dirty trigger|eviction updates target
+                #                                  |eviction updates trigger)=(\d*\.?\d+) is (?:larger than|less than) (?:eviction target|eviction dirty
+                #                                  target|eviction trigger|DBL_EPSILON)=(\d*\.?\d+)""")
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:

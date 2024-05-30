@@ -11,7 +11,6 @@
 #include "wrappers/connection_wrapper.h"
 #include "utils.h"
 
-
 TEST_CASE("Test cache config validation: validate_cache_config", "[VALIDATE_CACHE_CONFIG]")
 {
     ConnectionWrapper conn(DB_HOME);
@@ -19,9 +18,6 @@ TEST_CASE("Test cache config validation: validate_cache_config", "[VALIDATE_CACH
 
     const char *cfg[] = {"eviction_target=60", "eviction_trigger=61"};
 
-
-
     CHECK(__ut_validate_cache_config(session_impl, cfg, true) == 0);
     // CHECK(__ut_validate_cache_config(session_impl, cfg, true) == 1);
-    
 }
