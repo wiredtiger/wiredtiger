@@ -28,7 +28,7 @@ Such instances are only permitted if reading inconsistent data is sufficient for
 
 @section generations Generations
 
-Shared object, including the page index, WT_REFs, etc. have their lifecycles managed using
+Shared objects, including the page index, WT_REFs, etc. have their lifecycles managed using
 the WiredTiger generations system. In general when a reader thread accesses an object, that could be
 concurrently freed, it enters a "generation". After entering that generation it accesses the object.
 A generation is a monotonically increasing integer which denotes times at which a given object must
@@ -114,7 +114,7 @@ with it. Ensuring they happen after the marked load.
 @subsection rel-marked Release
 
 \c The WT_RELEASE_WRITE macro prevents loads and stores prior to the store from being reordered
-with it. Ensuring the store happens-after the given loads and stores. As with the acquire and
+with it. Ensuring the store happens after the given loads and stores. As with the acquire and
 release barriers these marked access macros should be paired together to function correctly.
 
 */
