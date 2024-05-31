@@ -470,13 +470,3 @@ __wti_cache_destroy(WT_SESSION_IMPL *session)
     __wt_free(session, conn->cache);
     return (ret);
 }
-
-#ifdef HAVE_UNITTEST
-
-int
-__ut_validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create)
-{
-    return (__validate_cache_config(session, cfg, create));
-}
-
-#endif
