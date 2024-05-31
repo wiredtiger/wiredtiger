@@ -29,6 +29,7 @@
 import argparse
 import concurrent.futures
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -36,6 +37,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
+
+
+def get_logger(verbose: bool) -> logging.Logger:
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+    return logger
 
 
 class PushWorkingDirectory:
@@ -49,16 +56,14 @@ class PushWorkingDirectory:
 
 
 # Clean up the run-time code coverage files ready to run another test
-def delete_runtime_coverage_files(build_dir_base: str, verbose: bool):
+def delete_runtime_coverage_files(build_dir_base: str, logger) -> None:
     for root, dirs, files in os.walk(build_dir_base):
         for filename in files:
             if filename.endswith('.gcda'):
                 file_path = os.path.join(root, filename)
-                if verbose:
-                    print(f"Deleting: {file_path}")
+                logger.debug(f"Deleting: {file_path}")
                 os.remove(file_path)
-                if verbose:
-                    print(f"Deleted: {file_path}")
+                logger.debug(f"Deleted: {file_path}")
 
 
 # Run a series of tests with code coverage, copying the results and cleaning up
@@ -67,21 +72,20 @@ def run_coverage_task_list(task_list_info):
     build_dir = task_list_info["build_dir"]
     task_list = task_list_info["task_bucket"]
     verbose = task_list_info['verbose']
+    logger = get_logger(verbose)
     list_start_time = datetime.now()
     for index in range(len(task_list)):
         task = task_list[index]
-        if verbose:
-            print("Running task {} in {}".format(task, build_dir))
+        logger.debug("Running task {} in {}".format(task, build_dir))
 
         start_time = datetime.now()
         try:
-            delete_runtime_coverage_files(build_dir_base=build_dir, verbose=verbose)
+            delete_runtime_coverage_files(build_dir_base=build_dir, logger=logger)
             os.chdir(build_dir)
             split_command = task.split()
             subprocess.run(split_command, check=True)
             copy_dest_dir = f"{build_dir}_{index}_copy"
-            if (verbose):
-                print(f"Copying directory {build_dir} to {copy_dest_dir}")
+            logger.debug(f"Copying directory {build_dir} to {copy_dest_dir}")
             shutil.copytree(src=build_dir, dst=copy_dest_dir)
 
             task_info = {"task": task}
@@ -95,16 +99,13 @@ def run_coverage_task_list(task_list_info):
         end_time = datetime.now()
         diff = end_time - start_time
 
-        if verbose:
-            print("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+        logger.debug("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
 
     list_end_time = datetime.now()
     diff = list_end_time - list_start_time
 
     return_value = "Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds())
-
-    if verbose:
-        print(return_value)
+    logger.debug(return_value)
 
     return return_value
 
@@ -113,22 +114,20 @@ def run_coverage_task_list(task_list_info):
 def run_coverage_task_lists_in_parallel(label, task_bucket_info):
     parallel = len(task_bucket_info)
     verbose = task_bucket_info[0]['verbose']
+    logger = get_logger(verbose)
     task_start_time = datetime.now()
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
         for e in executor.map(run_coverage_task_list, task_bucket_info):
-             if verbose:
-                print(e)
+            logger.debug(e)
 
     task_end_time = datetime.now()
     task_diff = task_end_time - task_start_time
-
-    if verbose:
-        print("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
+    logger.debug("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
 
 
 # Run gcovr on each copy of a build directory that contains run-time coverage data
-def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
+def run_gcovr(build_dir_base: str, gcovr_dir: str, logger):
     print(f"Starting run_gcovr({build_dir_base}, {gcovr_dir})")
     dir_name = os.path.dirname(build_dir_base)
     filenames_in_dir = os.listdir(dir_name)
@@ -139,10 +138,9 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
             build_copy_path = os.path.join(dir_name, build_copy_name)
             task_info_path = os.path.join(build_copy_path, "task_info.json")
             coverage_output_dir = os.path.join(gcovr_dir, build_copy_name)
-            if verbose:
-                print(
-                    f"build_copy_name = {build_copy_name}, build_copy_path = {build_copy_path}, "
-                    f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
+            logger.debug(
+                f"build_copy_name = {build_copy_name}, build_copy_path = {build_copy_path}, "
+                f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
             os.mkdir(coverage_output_dir)
             shutil.copy(src=task_info_path, dst=coverage_output_dir)
             gcovr_command = (f"gcovr {build_copy_name} -f src -j 4 --html-self-contained --html-details "
@@ -151,17 +149,15 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, verbose: bool):
                              f"--json {coverage_output_dir}/full_coverage_report.json")
             split_command = gcovr_command.split()
             env = os.environ.copy()
-            if verbose:
-                print(f'env: {env}')
-                print(f'gcovr_command: {gcovr_command}')
+            logger.debug(f'env: {env}')
+            logger.debug(f'gcovr_command: {gcovr_command}')
             try:
                 completed_process = subprocess.run(split_command, env=env, check=True)
                 output = completed_process.stdout
                 print(f'Command returned {output}')
             except subprocess.CalledProcessError as exception:
                 print(f'Command {exception.cmd} failed with error {exception.returncode} "{exception.output}"')
-            if verbose:
-                print(f'Completed a run of gcovr on {build_copy_name}')
+            logger.debug(f'Completed a run of gcovr on {build_copy_name}')
     print(f"Ending run_gcovr({build_dir_base}, {gcovr_dir})")
 
 
@@ -183,16 +179,16 @@ def main():
     parallel_tests = args.parallel
     setup = args.setup
 
-    if verbose:
-        print('Per-Test Code Coverage')
-        print('======================')
-        print('Configuration:')
-        print(f'  Config file                      {config_path}')
-        print(f'  Base name for build directories: {build_dir_base}')
-        print(f'  Number of parallel tests:        {parallel_tests}')
-        print(f'  Perform setup actions:           {setup}')
-        print(f'  Gcovr output directory:          {gcovr_dir}')
-        print()
+    logger = get_logger(verbose)
+
+    logger.debug('Per-Test Code Coverage')
+    logger.debug('======================')
+    logger.debug('Configuration:')
+    logger.debug(f'  Config file                      {config_path}')
+    logger.debug(f'  Base name for build directories: {build_dir_base}')
+    logger.debug(f'  Number of parallel tests:        {parallel_tests}')
+    logger.debug(f'  Perform setup actions:           {setup}')
+    logger.debug(f'  Gcovr output directory:          {gcovr_dir}')
 
     if parallel_tests < 1:
         sys.exit("Number of parallel tests must be >= 1")
@@ -201,9 +197,8 @@ def main():
     with open(config_path) as json_file:
         config = json.load(json_file)
 
-    if verbose:
-        print('  Configuration:')
-        print(config)
+    logger.debug('  Configuration:')
+    logger.debug(config)
 
     if len(config['test_tasks']) < 1:
         sys.exit("No test tasks")
@@ -213,14 +208,13 @@ def main():
     if setup and len(setup_actions) < 1:
         sys.exit("No setup actions")
 
-    if verbose:
-        print('  Setup actions: {}'.format(setup_actions))
+    logger.debug('  Setup actions: {}'.format(setup_actions))
 
     if gcovr_dir:
         if not Path(gcovr_dir).is_absolute():
             sys.exit("gcovr_dir must be an absolute path")
 
-    build_dirs = check_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests, setup=setup, verbose=verbose)
+    build_dirs = check_build_dirs(build_dir_base, parallel_tests, setup, verbose)
 
     setup_bucket_info = []
     task_bucket_info = []
@@ -240,21 +234,17 @@ def main():
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
         build_dir_number = test_num % parallel_tests
-
-        if verbose:
-            print("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
-
+        logger.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
         task_bucket_info[build_dir_number]['task_bucket'].append(test)
 
-    if verbose:
-        print("task_bucket_info: {}".format(task_bucket_info))
+    logger.debug("task_bucket_info: {}".format(task_bucket_info))
 
     # Perform code coverage task operations in parallel across the build directories
     run_coverage_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
 
     # Run gcovr if required
     if gcovr_dir:
-        run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir, verbose=verbose)
+        run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir, logger=logger)
 
 
 if __name__ == '__main__':
