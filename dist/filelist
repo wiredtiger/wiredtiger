@@ -33,7 +33,6 @@ src/btree/row/row_modify.c
 src/btree/row/row_srch.c
 src/btree/verify/vrfy_dsk.c
 src/btree/verify/vrfy.c
-src/btree/bt_config.c
 src/btree/bt_curnext.c
 src/btree/bt_curprev.c
 src/btree/bt_cursor.c
