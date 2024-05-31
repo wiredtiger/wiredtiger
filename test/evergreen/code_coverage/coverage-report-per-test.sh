@@ -1,8 +1,10 @@
 #! /usr/bin/env bash
 
+echo "=== Starting Code Coverage Per Test script ==="
+
 # Copy command line parameters into local variables
 if test "$#" -ne 2; then
-    echo "Two command line parameters are required"
+    echo "Two command line parameters (is_patch and num_jobs) are required"
     exit 1
 fi
 is_patch=$1
