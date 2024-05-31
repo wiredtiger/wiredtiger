@@ -101,8 +101,9 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_dirty_target > cache->eviction_target) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction dirty target=%f is larger than eviction target=%f",
-              cache->eviction_dirty_target, cache->eviction_target);
+              "config eviction dirty target=%f is larger than eviction target=%f, changing "
+              "eviction dirty target to %f.",
+              cache->eviction_dirty_target, cache->eviction_target, cache->eviction_target);
         cache->eviction_dirty_target = cache->eviction_target;
     }
 
@@ -110,32 +111,37 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
       cache->eviction_checkpoint_target < cache->eviction_dirty_target) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config checkpoint target=%f is less than eviction dirty target=%f",
-              cache->eviction_checkpoint_target, cache->eviction_dirty_target);
+              "config checkpoint target=%f is less than eviction dirty target=%f, changing "
+              "checkpoint target to %f.",
+              cache->eviction_checkpoint_target, cache->eviction_dirty_target,
+              cache->eviction_dirty_target);
         cache->eviction_checkpoint_target = cache->eviction_dirty_target;
     }
 
     if (cache->eviction_dirty_trigger > cache->eviction_trigger) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction dirty trigger=%f is larger than eviction trigger=%f",
-              cache->eviction_dirty_trigger, cache->eviction_trigger);
+              "config eviction dirty trigger=%f is larger than eviction trigger=%f, changing "
+              "eviction dirty trigger to %f.",
+              cache->eviction_dirty_trigger, cache->eviction_trigger, cache->eviction_trigger);
         cache->eviction_dirty_trigger = cache->eviction_trigger;
     }
 
     if (cache->eviction_updates_target < DBL_EPSILON) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction updates target=%f is less than DBL_EPSILON=%f",
-              cache->eviction_updates_target, DBL_EPSILON);
+              "config eviction updates target=%f is less than DBL_EPSILON=%f,changing eviction "
+              "updates target to %f.",
+              cache->eviction_updates_target, DBL_EPSILON, cache->eviction_dirty_target / 2);
         cache->eviction_updates_target = cache->eviction_dirty_target / 2;
     }
 
     if (cache->eviction_updates_trigger < DBL_EPSILON) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction updates trigger=%f is less than DBL_EPSILON=%f",
-              cache->eviction_updates_trigger, DBL_EPSILON);
+              "config eviction updates trigger=%f is less than DBL_EPSILON=%f, changing eviction "
+              "updates trigger to %f.",
+              cache->eviction_updates_trigger, DBL_EPSILON, cache->eviction_dirty_trigger / 2);
         cache->eviction_updates_trigger = cache->eviction_dirty_trigger / 2;
     }
 
@@ -143,8 +149,9 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_updates_trigger > cache->eviction_trigger) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction updates trigger=%f is larger than eviction trigger=%f",
-              cache->eviction_updates_trigger, cache->eviction_trigger);
+              "config eviction updates trigger=%f is larger than eviction trigger=%f, changing "
+              "eviction updates trigger to %f.",
+              cache->eviction_updates_trigger, cache->eviction_trigger, cache->eviction_trigger);
         cache->eviction_updates_trigger = cache->eviction_trigger;
     }
 
