@@ -19,37 +19,38 @@ src/block_cache/block_map.c
 src/block_cache/block_mgr.c
 src/block_cache/block_tier.c
 src/bloom/bloom.c
-src/btree/bt_compact.c
+src/btree/col/col_modify.c
+src/btree/col/col_srch.c
+src/btree/page/page_free.c
+src/btree/page/page_read.c
+src/btree/page/page.c
+src/btree/ref/ref_addr.c
+src/btree/ref/ref_fast_truncate.c
+src/btree/ref/ref_free.c
+src/btree/ref/ref.c
+src/btree/row/row_key.c
+src/btree/row/row_modify.c
+src/btree/row/row_srch.c
+src/btree/verify/vrfy_dsk.c
+src/btree/verify/vrfy.c
+src/btree/bt_config.c
 src/btree/bt_curnext.c
 src/btree/bt_curprev.c
 src/btree/bt_cursor.c
 src/btree/bt_debug.c
-src/btree/bt_delete.c
-src/btree/bt_discard.c
-src/btree/bt_handle.c
-src/btree/bt_import.c
+src/btree/bt_insert.c
 src/btree/bt_misc.c
+src/btree/bt_open_close.c
 src/btree/bt_ovfl.c
-src/btree/bt_page.c
-src/btree/bt_prefetch.c
 src/btree/bt_random.c
-src/btree/bt_read.c
 src/btree/bt_ret.c
-src/btree/bt_slvg.c
 src/btree/bt_split.c
 src/btree/bt_stat.c
 src/btree/bt_sync.c
-src/btree/bt_sync_obsolete.c
 src/btree/bt_upgrade.c
-src/btree/bt_vrfy.c
-src/btree/bt_vrfy_dsk.c
 src/btree/bt_walk.c
-src/btree/col_modify.c
-src/btree/col_srch.c
-src/btree/row_key.c
-src/btree/row_modify.c
-src/btree/row_srch.c
 src/call_log/call_log.c
+src/checkpoint/checkpoint_cleanup.c
 src/checksum/arm64/crc32-arm64.c                ARM64_HOST
 src/checksum/loongarch64/crc32-loongarch64.c    LOONGARCH64_HOST
 src/checksum/power8/crc32_wrapper.c             POWERPC_HOST
@@ -60,6 +61,7 @@ src/checksum/x86/crc32-x86-alt.c                X86_HOST
 src/checksum/x86/crc32-x86.c                    X86_HOST
 src/checksum/zseries/crc32-s390x.c              ZSERIES_HOST
 src/checksum/zseries/crc32le-vx.sx              ZSERIES_HOST
+src/compact/compact.c
 src/conf/conf_bind.c
 src/conf/conf_compile.c
 src/conf/conf_get.c
@@ -114,6 +116,7 @@ src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
 src/history/hs_verify.c
+src/import/import.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c
@@ -182,6 +185,7 @@ src/os_win/os_yield.c            WINDOWS_HOST
 src/packing/pack_api.c
 src/packing/pack_impl.c
 src/packing/pack_stream.c
+src/prefetch/prefetch.c
 src/reconcile/rec_child.c
 src/reconcile/rec_col.c
 src/reconcile/rec_dictionary.c
@@ -211,6 +215,7 @@ src/rollback_to_stable/rts_btree_walk.c
 src/rollback_to_stable/rts.c
 src/rollback_to_stable/rts_history.c
 src/rollback_to_stable/rts_visibility.c
+src/salvage/salvage.c
 src/support/cond_auto.c
 src/support/crypto.c
 src/support/err.c

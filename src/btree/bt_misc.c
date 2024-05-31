@@ -1,3 +1,4 @@
+
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
@@ -7,31 +8,6 @@
  */
 
 #include "wt_internal.h"
-
-/*
- * __wt_addr_string --
- *     Load a buffer with a printable, nul-terminated representation of an address.
- */
-const char *
-__wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_ITEM *buf)
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-
-    btree = S2BT_SAFE(session);
-
-    WT_ASSERT(session, buf != NULL);
-
-    if (addr == NULL || addr_size == 0) {
-        buf->data = WT_NO_ADDR_STRING;
-        buf->size = strlen(WT_NO_ADDR_STRING);
-    } else if (btree == NULL || (bm = btree->bm) == NULL ||
-      bm->addr_string(bm, session, buf, addr, addr_size) != 0) {
-        buf->data = WT_ERR_STRING;
-        buf->size = strlen(WT_ERR_STRING);
-    }
-    return (buf->data);
-}
 
 /*
  * __wti_cell_type_string --
@@ -110,32 +86,3 @@ __wt_key_string(
     return (__wt_buf_set_printable_format(session, data_arg, size, key_format, false, buf));
 }
 
-/*
- * __wt_page_type_string --
- *     Return a string representing the page type.
- */
-const char *
-__wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-    switch (type) {
-    case WT_PAGE_INVALID:
-        return ("invalid");
-    case WT_PAGE_BLOCK_MANAGER:
-        return ("block manager");
-    case WT_PAGE_COL_FIX:
-        return ("column-store fixed-length leaf");
-    case WT_PAGE_COL_INT:
-        return ("column-store internal");
-    case WT_PAGE_COL_VAR:
-        return ("column-store variable-length leaf");
-    case WT_PAGE_OVFL:
-        return ("overflow");
-    case WT_PAGE_ROW_INT:
-        return ("row-store internal");
-    case WT_PAGE_ROW_LEAF:
-        return ("row-store leaf");
-    default:
-        return ("unknown");
-    }
-    /* NOTREACHED */
-}

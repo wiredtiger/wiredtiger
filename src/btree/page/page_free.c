@@ -18,36 +18,19 @@ static void __free_skip_list(WT_SESSION_IMPL *, WT_INSERT *, bool);
 static void __free_update(WT_SESSION_IMPL *, WT_UPDATE **, uint32_t, bool);
 
 /*
- * __wt_ref_out --
- *     Discard an in-memory page, freeing all memory associated with it.
+ * __free_page_int --
+ *     Discard a WT_PAGE_COL_INT or WT_PAGE_ROW_INT page.
  */
-void
-__wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
+static void
+__free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    /*
-     * A version of the page-out function that allows us to make additional diagnostic checks.
-     *
-     * The WT_REF cannot be the eviction thread's location.
-     */
-    WT_ASSERT(session, S2BT(session)->evict_ref != ref);
+    WT_PAGE_INDEX *pindex;
+    uint32_t i;
 
-    /*
-     * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
-     * complicated by the fact that readers publish their hazard pointer before re-checking the page
-     * state, so our check can race with readers without indicating a real problem. If we find a
-     * hazard pointer, wait for it to be cleared.
-     */
-    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
-      __wt_hazard_check_assert(session, ref, true),
-      "Attempted to free a page with active hazard pointers");
+    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
+        __wti_free_ref(session, pindex->index[i], page->type, false);
 
-    /* Check we are not evicting an accessible internal page with an active split generation. */
-    WT_ASSERT(session,
-      !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
-        F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
-        !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
-
-    __wt_page_out(session, &ref->page);
+    __wt_free(session, pindex);
 }
 
 /*
@@ -241,179 +224,6 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     __wt_free(session, page->modify);
 }
 
-/*
- * __wti_ref_addr_safe_free --
- *     Any thread that is reviewing the address in a WT_REF, must also be holding a split generation
- *     to ensure that the page index they are using remains valid. Utilize the same generation type
- *     to safely free the address once all users of it have left the generation.
- */
-void
-__wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
-{
-    WT_DECL_RET;
-    uint64_t split_gen;
-
-    /*
-     * The reading thread is always inside a split generation when it reads the ref, so we make use
-     * of WT_GEN_SPLIT type generation mechanism to protect the address in a WT_REF rather than
-     * creating a whole new generation counter. There are no page splits taking place.
-     */
-    split_gen = __wt_gen(session, WT_GEN_SPLIT);
-    WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, len));
-    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
-
-    if (ret != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during ref address free"));
-}
-
-/*
- * __wt_ref_addr_free --
- *     Free the address in a reference, if necessary.
- */
-void
-__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_PAGE *home;
-    void *ref_addr;
-
-    /*
-     * In order to free the WT_REF.addr field we need to read and clear the address without a race.
-     * The WT_REF may be a child of a page being split, in which case the addr field could be
-     * instantiated concurrently which changes the addr field. Once we swap in NULL we effectively
-     * own the addr. Then provided the addr is off page we can free the memory.
-     *
-     * However as we could be the child of a page being split the ref->home pointer which tells us
-     * whether the addr is on or off page could change concurrently. To avoid this we save the home
-     * pointer before we do the compare and swap. While the second acquire read should be sufficient
-     * we use an acquire read on the ref->home pointer as that is the standard mechanism to
-     * guarantee we read the current value.
-     *
-     * We don't reread this value inside loop as if it was to change then we would be pointing at a
-     * new parent, which would mean that our ref->addr must have been instantiated and thus we are
-     * safe to free it at the end of this function.
-     */
-    WT_ACQUIRE_READ_WITH_BARRIER(home, ref->home);
-    do {
-        WT_ACQUIRE_READ_WITH_BARRIER(ref_addr, ref->addr);
-        if (ref_addr == NULL)
-            return;
-    } while (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, NULL));
-
-    /* Encourage races. */
-    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_SPLIT_8)) {
-        __wt_yield();
-        __wt_yield();
-    }
-
-    if (home == NULL || __wt_off_page(home, ref_addr)) {
-        __wti_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size);
-        __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
-    }
-}
-
-/*
- * __wti_free_ref --
- *     Discard the contents of a WT_REF structure (optionally including the pages it references).
- */
-void
-__wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
-{
-    WT_IKEY *ikey;
-
-    if (ref == NULL)
-        return;
-
-    /*
-     * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
-     * page or a leaf page, to catch any we've missed.
-     */
-    WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL) || F_ISSET(ref, WT_REF_FLAG_LEAF));
-
-    /*
-     * Optionally free the referenced pages. (The path to free referenced page is used for error
-     * cleanup, no instantiated and then discarded page should have WT_REF entries with real pages.
-     * The page may have been marked dirty as well; page discard checks for that, so we mark it
-     * clean explicitly.)
-     */
-    if (free_pages && ref->page != NULL) {
-        WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
-          "Attempting to discard ref to a page being reconciled");
-        __wt_page_modify_clear(session, ref->page);
-        __wt_page_out(session, &ref->page);
-    }
-
-    /*
-     * Optionally free row-store WT_REF key allocation. Historic versions of this code looked in a
-     * passed-in page argument, but that is dangerous, some of our error-path callers create WT_REF
-     * structures without ever setting WT_REF.home or having a parent page to which the WT_REF will
-     * be linked. Those WT_REF structures invariably have instantiated keys, (they obviously cannot
-     * be on-page keys), and we must free the memory.
-     */
-    switch (page_type) {
-    case WT_PAGE_ROW_INT:
-    case WT_PAGE_ROW_LEAF:
-        if ((ikey = __wt_ref_key_instantiated(ref)) != NULL)
-            __wt_free(session, ikey);
-        break;
-    }
-
-    /* Free any address allocation. */
-    __wt_ref_addr_free(session, ref);
-
-    /* Free any backing fast-truncate memory. */
-    __wt_free(session, ref->page_del);
-
-    __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
-}
-
-/*
- * __free_page_int --
- *     Discard a WT_PAGE_COL_INT or WT_PAGE_ROW_INT page.
- */
-static void
-__free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    WT_PAGE_INDEX *pindex;
-    uint32_t i;
-
-    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
-        __wti_free_ref(session, pindex->index[i], page->type, false);
-
-    __wt_free(session, pindex);
-}
-
-/*
- * __wti_free_ref_index --
- *     Discard a page index and its references.
- */
-void
-__wti_free_ref_index(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
-{
-    WT_REF *ref;
-    uint32_t i;
-
-    if (pindex == NULL)
-        return;
-
-    WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(page),
-      "Attempting to discard ref to a page being reconciled");
-
-    for (i = 0; i < pindex->entries; ++i) {
-        ref = pindex->index[i];
-
-        /*
-         * Used when unrolling splits and other error paths where there should never have been a
-         * hazard pointer taken.
-         */
-        WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
-          __wt_hazard_check_assert(session, ref, false),
-          "Attempting to discard ref to a page with hazard pointers");
-
-        __wti_free_ref(session, ref, page->type, free_pages);
-    }
-    __wt_free(session, pindex);
-}
 
 /*
  * __free_page_col_fix --

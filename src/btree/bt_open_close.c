@@ -8,258 +8,11 @@
 
 #include "wt_internal.h"
 
-static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, bool);
 static int __btree_get_last_recno(WT_SESSION_IMPL *);
-static int __btree_page_sizes(WT_SESSION_IMPL *);
 static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
-
-/*
- * __btree_clear --
- *     Clear a Btree, either on handle discard or re-open.
- */
-static int
-__btree_clear(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_DECL_RET;
-
-    btree = S2BT(session);
-
-    /*
-     * If the tree hasn't gone through an open/close cycle, there's no cleanup to be done.
-     */
-    if (!F_ISSET(btree, WT_BTREE_CLOSED))
-        return (0);
-
-    /* Terminate any associated collator. */
-    if (btree->collator_owned && btree->collator->terminate != NULL)
-        WT_TRET(btree->collator->terminate(btree->collator, &session->iface));
-
-    /* Destroy locks. */
-    __wt_rwlock_destroy(session, &btree->ovfl_lock);
-    __wt_spin_destroy(session, &btree->flush_lock);
-
-    /* Free allocated memory. */
-    __wt_free(session, btree->key_format);
-    __wt_free(session, btree->value_format);
-
-    return (ret);
-}
-
-/*
- * __wt_btree_open --
- *     Open a Btree.
- */
-int
-__wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_CKPT ckpt;
-    WT_CONFIG_ITEM cval;
-    WT_DATA_HANDLE *dhandle;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    size_t root_addr_size;
-    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool creation, forced_salvage;
-
-    btree = S2BT(session);
-    dhandle = session->dhandle;
-
-    /*
-     * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
-     * across a re-open. Clear all flags other than the operation flags (which are set by the
-     * connection handle software that called us).
-     */
-    WT_RET(__btree_clear(session));
-    memset(btree, 0, WT_BTREE_CLEAR_SIZE);
-    F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
-
-    /* Set the data handle first, our called functions reasonably use it. */
-    btree->dhandle = dhandle;
-
-    /* Checkpoint and verify files are readonly. */
-    if (WT_DHANDLE_IS_CHECKPOINT(dhandle) || F_ISSET(btree, WT_BTREE_VERIFY) ||
-      F_ISSET(S2C(session), WT_CONN_READONLY))
-        F_SET(btree, WT_BTREE_READONLY);
-
-    /* Get the checkpoint information for this name/checkpoint pair. */
-    WT_RET(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt));
-
-    /* Set the order number. */
-    dhandle->checkpoint_order = ckpt.order;
-
-    /*
-     * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
-     * code for a discussion.
-     */
-    creation = ckpt.raw.size == 0;
-    if (!creation && F_ISSET(btree, WT_BTREE_BULK))
-        WT_ERR_MSG(session, EINVAL, "bulk-load is only supported on newly created objects");
-
-    /* Handle salvage configuration. */
-    forced_salvage = false;
-    if (F_ISSET(btree, WT_BTREE_SALVAGE)) {
-        WT_ERR(__wt_config_gets(session, op_cfg, "force", &cval));
-        forced_salvage = cval.val != 0;
-    }
-
-    /* Initialize and configure the WT_BTREE structure. */
-    WT_ERR(__btree_conf(session, &ckpt, WT_DHANDLE_IS_CHECKPOINT(dhandle)));
-
-    /* Connect to the underlying block manager. */
-    WT_ERR(__wt_blkcache_open(
-      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
-
-    bm = btree->bm;
-
-    /*
-     * !!!
-     * As part of block-manager configuration, we need to return the maximum
-     * sized address cookie that a block manager will ever return.  There's
-     * a limit of WT_BTREE_MAX_ADDR_COOKIE, but at 255B, it's too large for
-     * a Btree with 512B internal pages.  The default block manager packs
-     * a wt_off_t and 2 uint32_t's into its cookie, so there's no problem
-     * now, but when we create a block manager extension API, we need some
-     * way to consider the block manager's maximum cookie size versus the
-     * minimum Btree internal node size.
-     */
-    btree->block_header = bm->block_header(bm);
-
-    /*
-     * Open the specified checkpoint unless it's a special command (special commands are responsible
-     * for loading their own checkpoints, if any).
-     */
-    if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
-        /*
-         * There are two reasons to load an empty tree rather than a checkpoint: either there is no
-         * checkpoint (the file is being created), or the load call returns no root page (the
-         * checkpoint is for an empty file).
-         */
-        WT_ERR(bm->checkpoint_load(bm, session, ckpt.raw.data, ckpt.raw.size, root_addr,
-          &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
-        if (creation || root_addr_size == 0)
-            WT_ERR(__btree_tree_open_empty(session, creation));
-        else {
-            WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
-
-            /* Warm the cache, if possible. */
-            WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-            WT_ERR(ret);
-
-            /* Get the last record number in a column-store file. */
-            if (btree->type != BTREE_ROW)
-                WT_ERR(__btree_get_last_recno(session));
-        }
-    }
-
-    /*
-     * Eviction ignores trees until the handle's open flag is set, configure eviction before that
-     * happens.
-     *
-     * Files that can still be bulk-loaded cannot be evicted. Permanently cache-resident files can
-     * never be evicted. Special operations don't enable eviction. The underlying commands may turn
-     * on eviction (for example, verify turns on eviction while working a file to keep from
-     * consuming the cache), but it's their decision. If an underlying command reconfigures
-     * eviction, it must either clear the evict-disabled-open flag or restore the eviction
-     * configuration when finished so that handle close behaves correctly.
-     */
-    if (btree->original ||
-      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
-        WT_ERR(__wt_evict_file_exclusive_on(session));
-        btree->evict_disabled_open = true;
-    }
-
-    if (0) {
-err:
-        WT_TRET(__wt_btree_close(session));
-    }
-    __wt_meta_checkpoint_free(session, &ckpt);
-
-    __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
- * __wt_btree_close --
- *     Close a Btree.
- */
-int
-__wt_btree_close(WT_SESSION_IMPL *session)
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_DECL_RET;
-
-    btree = S2BT(session);
-
-    /*
-     * The close process isn't the same as discarding the handle: we might re-open the handle, which
-     * isn't a big deal, but the backing blocks for the handle may not yet have been discarded from
-     * the cache, and eviction uses WT_BTREE structure elements. Free backing resources but leave
-     * the rest alone, and we'll discard the structure when we discard the data handle.
-     *
-     * Handles can be closed multiple times, ignore all but the first.
-     */
-    if (F_ISSET(btree, WT_BTREE_CLOSED))
-        return (0);
-    F_SET(btree, WT_BTREE_CLOSED);
-
-    /*
-     * Verify the history store state. If the history store is open and this btree has history store
-     * entries, it can't be a metadata file, nor can it be the history store file.
-     */
-    WT_ASSERT(session,
-      !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
-        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
-
-    /* Clear the saved checkpoint information. */
-    __wt_meta_saved_ckptlist_free(session);
-
-    /*
-     * If we turned eviction off and never turned it back on, do that now, otherwise the counter
-     * will be off.
-     */
-    if (btree->evict_disabled_open) {
-        btree->evict_disabled_open = false;
-        __wt_evict_file_exclusive_off(session);
-    }
-
-    /* Discard any underlying block manager resources. */
-    if ((bm = btree->bm) != NULL) {
-        btree->bm = NULL;
-
-        /* Unload the checkpoint, unless it's a special command. */
-        if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
-            WT_TRET(bm->checkpoint_unload(bm, session));
-
-        /* Close the underlying block manager reference. */
-        WT_TRET(bm->close(bm, session));
-    }
-
-    return (ret);
-}
-
-/*
- * __wt_btree_discard --
- *     Discard a Btree.
- */
-int
-__wt_btree_discard(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_DECL_RET;
-
-    ret = __btree_clear(session);
-
-    btree = S2BT(session);
-    __wt_overwrite_and_free(session, btree);
-    session->dhandle->handle = NULL;
-
-    return (ret);
-}
+static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, bool);
+static int __btree_page_sizes(WT_SESSION_IMPL *);
 
 /*
  * __wt_btree_config_encryptor --
@@ -594,23 +347,405 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     return (0);
 }
 
+
 /*
- * __wt_root_ref_init --
- *     Initialize a tree root reference, and link in the root page.
+ * __btree_page_sizes --
+ *     Verify the page sizes. Some of these sizes are automatically checked using limits defined in
+ *     the API, don't duplicate the logic here.
  */
-void
-__wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bool is_recno)
+static int
+__btree_page_sizes(WT_SESSION_IMPL *session)
 {
-    WT_UNUSED(session); /* Used in a macro for diagnostic builds */
-    memset(root_ref, 0, sizeof(*root_ref));
+    WT_BTREE *btree;
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t cache_size;
+    uint32_t leaf_split_size, max;
+    const char **cfg;
 
-    root_ref->page = root;
-    F_SET(root_ref, WT_REF_FLAG_INTERNAL);
-    WT_REF_SET_STATE(root_ref, WT_REF_MEM);
+    btree = S2BT(session);
+    conn = S2C(session);
+    cfg = btree->dhandle->cfg;
 
-    root_ref->ref_recno = is_recno ? 1 : WT_RECNO_OOB;
+    /*
+     * Get the allocation size. Allocation sizes must be a power-of-two, nothing else makes sense.
+     */
+    WT_RET(__wt_direct_io_size_check(session, cfg, "allocation_size", &btree->allocsize));
+    if (!__wt_ispo2(btree->allocsize))
+        WT_RET_MSG(session, EINVAL, "the allocation size must be a power of two");
 
-    root->pg_intl_parent_ref = root_ref;
+    /*
+     * Get the internal/leaf page sizes. All page sizes must be in units of the allocation size.
+     */
+    WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->maxintlpage));
+    WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
+    if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
+      btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
+        WT_RET_MSG(session, EINVAL,
+          "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
+          btree->allocsize);
+
+    /*
+     * FLCS leaf pages have a lower size limit than the default, because the size configures the
+     * bitmap data size and the timestamp data adds on to that. Each time window can be up to 63
+     * bytes and the total page size must not exceed 4G. Thus for an 8t table there can be 64M
+     * entries (so 64M of bitmap data and up to 63*64M == 4032M of time windows), less a bit for
+     * headers. For a 1t table there can be (64 7/8)M entries because the bitmap takes less space,
+     * but that corresponds to a configured page size of a bit over 8M. Consequently the absolute
+     * limit on the page size is 8M, but since pages this large make no sense and perform poorly
+     * even if they don't get bloated out with timestamp data, we'll cut down by a factor of 16 and
+     * set the limit to 128KB.
+     */
+    if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
+        WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
+
+    /*
+     * Default in-memory page image size for compression is 4x the maximum internal or leaf page
+     * size, and enforce the on-disk page sizes as a lower-limit for the in-memory image size.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
+    btree->maxmempage_image = (uint32_t)cval.val;
+    max = WT_MAX(btree->maxintlpage, btree->maxleafpage);
+    if (btree->maxmempage_image == 0)
+        btree->maxmempage_image = 4 * max;
+    else if (btree->maxmempage_image < max)
+        WT_RET_MSG(session, EINVAL,
+          "in-memory page image size must be larger than the maximum page size (%" PRIu32
+          "B < %" PRIu32 "B)",
+          btree->maxmempage_image, max);
+
+    /*
+     * Don't let pages grow large compared to the cache size or we can end
+     * up in a situation where nothing can be evicted.  Make sure at least
+     * 10 pages fit in cache when it is at the dirty trigger where threads
+     * stall.
+     *
+     * Take care getting the cache size: with a shared cache, it may not
+     * have been set.  Don't forget to update the API documentation if you
+     * alter the bounds for any of the parameters here.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
+    btree->maxmempage = (uint64_t)cval.val;
+
+#define WT_MIN_PAGES 10
+    if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
+        btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
+          ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
+
+    /* Enforce a lower bound of a single disk leaf page */
+    btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
+
+    /*
+     * Try in-memory splits once we hit 80% of the maximum in-memory page size. This gives
+     * multi-threaded append workloads a better chance of not stalling.
+     */
+    btree->splitmempage = (8 * btree->maxmempage) / 10;
+
+    /*
+     * Get the split percentage (reconciliation splits pages into smaller than the maximum page size
+     * chunks so we don't split every time a new entry is added). Determine how large newly split
+     * pages will be. Set to the minimum, if the read value is less than that.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
+    if (cval.val < WT_BTREE_MIN_SPLIT_PCT) {
+        btree->split_pct = WT_BTREE_MIN_SPLIT_PCT;
+        __wt_verbose_notice(session, WT_VERB_SPLIT,
+          "Re-setting split_pct for %s to the minimum allowed of %d%%", session->dhandle->name,
+          WT_BTREE_MIN_SPLIT_PCT);
+    } else
+        btree->split_pct = (int)cval.val;
+    leaf_split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
+
+    /*
+     * In-memory split configuration.
+     */
+    if (__wt_config_gets(session, cfg, "split_deepen_min_child", &cval) == WT_NOTFOUND ||
+      cval.val == 0)
+        btree->split_deepen_min_child = WT_SPLIT_DEEPEN_MIN_CHILD_DEF;
+    else
+        btree->split_deepen_min_child = (u_int)cval.val;
+    if (__wt_config_gets(session, cfg, "split_deepen_per_child", &cval) == WT_NOTFOUND ||
+      cval.val == 0)
+        btree->split_deepen_per_child = WT_SPLIT_DEEPEN_PER_CHILD_DEF;
+    else
+        btree->split_deepen_per_child = (u_int)cval.val;
+
+    /*
+     * Get the maximum internal/leaf page key/value sizes.
+     *
+     * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
+     * item in an in-memory configuration.
+     */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
+        btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
+        return (0);
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "leaf_key_max", &cval));
+    btree->maxleafkey = (uint32_t)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "leaf_value_max", &cval));
+    btree->maxleafvalue = (uint32_t)cval.val;
+
+    /*
+     * Default max for leaf keys: split-page / 10. Default max for leaf values: split-page / 2.
+     *
+     * It's difficult for applications to configure this in any exact way as they have to duplicate
+     * our calculation of how many keys must fit on a page, and given a split-percentage and page
+     * header, that isn't easy to do.
+     */
+    if (btree->maxleafkey == 0)
+        btree->maxleafkey = leaf_split_size / 10;
+    if (btree->maxleafvalue == 0)
+        btree->maxleafvalue = leaf_split_size / 2;
+
+    return (0);
+}
+/*
+ * __btree_clear --
+ *     Clear a Btree, either on handle discard or re-open.
+ */
+static int
+__btree_clear(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+
+    btree = S2BT(session);
+
+    /*
+     * If the tree hasn't gone through an open/close cycle, there's no cleanup to be done.
+     */
+    if (!F_ISSET(btree, WT_BTREE_CLOSED))
+        return (0);
+
+    /* Terminate any associated collator. */
+    if (btree->collator_owned && btree->collator->terminate != NULL)
+        WT_TRET(btree->collator->terminate(btree->collator, &session->iface));
+
+    /* Destroy locks. */
+    __wt_rwlock_destroy(session, &btree->ovfl_lock);
+    __wt_spin_destroy(session, &btree->flush_lock);
+
+    /* Free allocated memory. */
+    __wt_free(session, btree->key_format);
+    __wt_free(session, btree->value_format);
+
+    return (ret);
+}
+
+/*
+ * __wt_btree_open --
+ *     Open a Btree.
+ */
+int
+__wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_CKPT ckpt;
+    WT_CONFIG_ITEM cval;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    size_t root_addr_size;
+    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    bool creation, forced_salvage;
+
+    btree = S2BT(session);
+    dhandle = session->dhandle;
+
+    /*
+     * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
+     * across a re-open. Clear all flags other than the operation flags (which are set by the
+     * connection handle software that called us).
+     */
+    WT_RET(__btree_clear(session));
+    memset(btree, 0, WT_BTREE_CLEAR_SIZE);
+    F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
+
+    /* Set the data handle first, our called functions reasonably use it. */
+    btree->dhandle = dhandle;
+
+    /* Checkpoint and verify files are readonly. */
+    if (WT_DHANDLE_IS_CHECKPOINT(dhandle) || F_ISSET(btree, WT_BTREE_VERIFY) ||
+      F_ISSET(S2C(session), WT_CONN_READONLY))
+        F_SET(btree, WT_BTREE_READONLY);
+
+    /* Get the checkpoint information for this name/checkpoint pair. */
+    WT_RET(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt));
+
+    /* Set the order number. */
+    dhandle->checkpoint_order = ckpt.order;
+
+    /*
+     * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
+     * code for a discussion.
+     */
+    creation = ckpt.raw.size == 0;
+    if (!creation && F_ISSET(btree, WT_BTREE_BULK))
+        WT_ERR_MSG(session, EINVAL, "bulk-load is only supported on newly created objects");
+
+    /* Handle salvage configuration. */
+    forced_salvage = false;
+    if (F_ISSET(btree, WT_BTREE_SALVAGE)) {
+        WT_ERR(__wt_config_gets(session, op_cfg, "force", &cval));
+        forced_salvage = cval.val != 0;
+    }
+
+    /* Initialize and configure the WT_BTREE structure. */
+    WT_ERR(__btree_conf(session, &ckpt, WT_DHANDLE_IS_CHECKPOINT(dhandle)));
+
+    /* Connect to the underlying block manager. */
+    WT_ERR(__wt_blkcache_open(
+      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
+
+    bm = btree->bm;
+
+    /*
+     * !!!
+     * As part of block-manager configuration, we need to return the maximum
+     * sized address cookie that a block manager will ever return.  There's
+     * a limit of WT_BTREE_MAX_ADDR_COOKIE, but at 255B, it's too large for
+     * a Btree with 512B internal pages.  The default block manager packs
+     * a wt_off_t and 2 uint32_t's into its cookie, so there's no problem
+     * now, but when we create a block manager extension API, we need some
+     * way to consider the block manager's maximum cookie size versus the
+     * minimum Btree internal node size.
+     */
+    btree->block_header = bm->block_header(bm);
+
+    /*
+     * Open the specified checkpoint unless it's a special command (special commands are responsible
+     * for loading their own checkpoints, if any).
+     */
+    if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+        /*
+         * There are two reasons to load an empty tree rather than a checkpoint: either there is no
+         * checkpoint (the file is being created), or the load call returns no root page (the
+         * checkpoint is for an empty file).
+         */
+        WT_ERR(bm->checkpoint_load(bm, session, ckpt.raw.data, ckpt.raw.size, root_addr,
+          &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
+        if (creation || root_addr_size == 0)
+            WT_ERR(__btree_tree_open_empty(session, creation));
+        else {
+            WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
+
+            /* Warm the cache, if possible. */
+            WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
+            WT_ERR(ret);
+
+            /* Get the last record number in a column-store file. */
+            if (btree->type != BTREE_ROW)
+                WT_ERR(__btree_get_last_recno(session));
+        }
+    }
+
+    /*
+     * Eviction ignores trees until the handle's open flag is set, configure eviction before that
+     * happens.
+     *
+     * Files that can still be bulk-loaded cannot be evicted. Permanently cache-resident files can
+     * never be evicted. Special operations don't enable eviction. The underlying commands may turn
+     * on eviction (for example, verify turns on eviction while working a file to keep from
+     * consuming the cache), but it's their decision. If an underlying command reconfigures
+     * eviction, it must either clear the evict-disabled-open flag or restore the eviction
+     * configuration when finished so that handle close behaves correctly.
+     */
+    if (btree->original ||
+      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+        WT_ERR(__wt_evict_file_exclusive_on(session));
+        btree->evict_disabled_open = true;
+    }
+
+    if (0) {
+err:
+        WT_TRET(__wt_btree_close(session));
+    }
+    __wt_meta_checkpoint_free(session, &ckpt);
+
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __wt_btree_close --
+ *     Close a Btree.
+ */
+int
+__wt_btree_close(WT_SESSION_IMPL *session)
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_RET;
+
+    btree = S2BT(session);
+
+    /*
+     * The close process isn't the same as discarding the handle: we might re-open the handle, which
+     * isn't a big deal, but the backing blocks for the handle may not yet have been discarded from
+     * the cache, and eviction uses WT_BTREE structure elements. Free backing resources but leave
+     * the rest alone, and we'll discard the structure when we discard the data handle.
+     *
+     * Handles can be closed multiple times, ignore all but the first.
+     */
+    if (F_ISSET(btree, WT_BTREE_CLOSED))
+        return (0);
+    F_SET(btree, WT_BTREE_CLOSED);
+
+    /*
+     * Verify the history store state. If the history store is open and this btree has history store
+     * entries, it can't be a metadata file, nor can it be the history store file.
+     */
+    WT_ASSERT(session,
+      !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
+        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
+
+    /* Clear the saved checkpoint information. */
+    __wt_meta_saved_ckptlist_free(session);
+
+    /*
+     * If we turned eviction off and never turned it back on, do that now, otherwise the counter
+     * will be off.
+     */
+    if (btree->evict_disabled_open) {
+        btree->evict_disabled_open = false;
+        __wt_evict_file_exclusive_off(session);
+    }
+
+    /* Discard any underlying block manager resources. */
+    if ((bm = btree->bm) != NULL) {
+        btree->bm = NULL;
+
+        /* Unload the checkpoint, unless it's a special command. */
+        if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
+            WT_TRET(bm->checkpoint_unload(bm, session));
+
+        /* Close the underlying block manager reference. */
+        WT_TRET(bm->close(bm, session));
+    }
+
+    return (ret);
+}
+
+/*
+ * __wt_btree_discard --
+ *     Discard a Btree.
+ */
+int
+__wt_btree_discard(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+
+    ret = __btree_clear(session);
+
+    btree = S2BT(session);
+    __wt_overwrite_and_free(session, btree);
+    session->dhandle->handle = NULL;
+
+    return (ret);
 }
 
 /*
@@ -775,40 +910,6 @@ err:
 }
 
 /*
- * __wti_btree_new_leaf_page --
- *     Create an empty leaf page.
- */
-int
-__wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    switch (btree->type) {
-    case BTREE_COL_FIX:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
-        break;
-    case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page));
-        break;
-    case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
-        break;
-    }
-
-    /*
-     * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
-     * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
-     * Reset the WT_REF type as it's possible that it has changed.
-     */
-    F_CLR(ref, WT_REF_FLAG_INTERNAL);
-    F_SET(ref, WT_REF_FLAG_LEAF);
-
-    return (0);
-}
-
-/*
  * __btree_preload --
  *     Pre-load internal pages.
  */
@@ -899,160 +1000,6 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     btree->last_recno = last_recno;
 
     return (__wt_page_release(session, next_walk, 0));
-}
-
-/*
- * __btree_page_sizes --
- *     Verify the page sizes. Some of these sizes are automatically checked using limits defined in
- *     the API, don't duplicate the logic here.
- */
-static int
-__btree_page_sizes(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    uint64_t cache_size;
-    uint32_t leaf_split_size, max;
-    const char **cfg;
-
-    btree = S2BT(session);
-    conn = S2C(session);
-    cfg = btree->dhandle->cfg;
-
-    /*
-     * Get the allocation size. Allocation sizes must be a power-of-two, nothing else makes sense.
-     */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "allocation_size", &btree->allocsize));
-    if (!__wt_ispo2(btree->allocsize))
-        WT_RET_MSG(session, EINVAL, "the allocation size must be a power of two");
-
-    /*
-     * Get the internal/leaf page sizes. All page sizes must be in units of the allocation size.
-     */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->maxintlpage));
-    WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
-    if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
-      btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
-        WT_RET_MSG(session, EINVAL,
-          "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
-          btree->allocsize);
-
-    /*
-     * FLCS leaf pages have a lower size limit than the default, because the size configures the
-     * bitmap data size and the timestamp data adds on to that. Each time window can be up to 63
-     * bytes and the total page size must not exceed 4G. Thus for an 8t table there can be 64M
-     * entries (so 64M of bitmap data and up to 63*64M == 4032M of time windows), less a bit for
-     * headers. For a 1t table there can be (64 7/8)M entries because the bitmap takes less space,
-     * but that corresponds to a configured page size of a bit over 8M. Consequently the absolute
-     * limit on the page size is 8M, but since pages this large make no sense and perform poorly
-     * even if they don't get bloated out with timestamp data, we'll cut down by a factor of 16 and
-     * set the limit to 128KB.
-     */
-    if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
-        WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
-
-    /*
-     * Default in-memory page image size for compression is 4x the maximum internal or leaf page
-     * size, and enforce the on-disk page sizes as a lower-limit for the in-memory image size.
-     */
-    WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
-    btree->maxmempage_image = (uint32_t)cval.val;
-    max = WT_MAX(btree->maxintlpage, btree->maxleafpage);
-    if (btree->maxmempage_image == 0)
-        btree->maxmempage_image = 4 * max;
-    else if (btree->maxmempage_image < max)
-        WT_RET_MSG(session, EINVAL,
-          "in-memory page image size must be larger than the maximum page size (%" PRIu32
-          "B < %" PRIu32 "B)",
-          btree->maxmempage_image, max);
-
-    /*
-     * Don't let pages grow large compared to the cache size or we can end
-     * up in a situation where nothing can be evicted.  Make sure at least
-     * 10 pages fit in cache when it is at the dirty trigger where threads
-     * stall.
-     *
-     * Take care getting the cache size: with a shared cache, it may not
-     * have been set.  Don't forget to update the API documentation if you
-     * alter the bounds for any of the parameters here.
-     */
-    WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
-    btree->maxmempage = (uint64_t)cval.val;
-
-#define WT_MIN_PAGES 10
-    if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
-        btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
-          ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
-
-    /* Enforce a lower bound of a single disk leaf page */
-    btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
-
-    /*
-     * Try in-memory splits once we hit 80% of the maximum in-memory page size. This gives
-     * multi-threaded append workloads a better chance of not stalling.
-     */
-    btree->splitmempage = (8 * btree->maxmempage) / 10;
-
-    /*
-     * Get the split percentage (reconciliation splits pages into smaller than the maximum page size
-     * chunks so we don't split every time a new entry is added). Determine how large newly split
-     * pages will be. Set to the minimum, if the read value is less than that.
-     */
-    WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
-    if (cval.val < WT_BTREE_MIN_SPLIT_PCT) {
-        btree->split_pct = WT_BTREE_MIN_SPLIT_PCT;
-        __wt_verbose_notice(session, WT_VERB_SPLIT,
-          "Re-setting split_pct for %s to the minimum allowed of %d%%", session->dhandle->name,
-          WT_BTREE_MIN_SPLIT_PCT);
-    } else
-        btree->split_pct = (int)cval.val;
-    leaf_split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
-
-    /*
-     * In-memory split configuration.
-     */
-    if (__wt_config_gets(session, cfg, "split_deepen_min_child", &cval) == WT_NOTFOUND ||
-      cval.val == 0)
-        btree->split_deepen_min_child = WT_SPLIT_DEEPEN_MIN_CHILD_DEF;
-    else
-        btree->split_deepen_min_child = (u_int)cval.val;
-    if (__wt_config_gets(session, cfg, "split_deepen_per_child", &cval) == WT_NOTFOUND ||
-      cval.val == 0)
-        btree->split_deepen_per_child = WT_SPLIT_DEEPEN_PER_CHILD_DEF;
-    else
-        btree->split_deepen_per_child = (u_int)cval.val;
-
-    /*
-     * Get the maximum internal/leaf page key/value sizes.
-     *
-     * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
-     * item in an in-memory configuration.
-     */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
-        btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
-        btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
-        return (0);
-    }
-
-    WT_RET(__wt_config_gets(session, cfg, "leaf_key_max", &cval));
-    btree->maxleafkey = (uint32_t)cval.val;
-    WT_RET(__wt_config_gets(session, cfg, "leaf_value_max", &cval));
-    btree->maxleafvalue = (uint32_t)cval.val;
-
-    /*
-     * Default max for leaf keys: split-page / 10. Default max for leaf values: split-page / 2.
-     *
-     * It's difficult for applications to configure this in any exact way as they have to duplicate
-     * our calculation of how many keys must fit on a page, and given a split-percentage and page
-     * header, that isn't easy to do.
-     */
-    if (btree->maxleafkey == 0)
-        btree->maxleafkey = leaf_split_size / 10;
-    if (btree->maxleafvalue == 0)
-        btree->maxleafvalue = leaf_split_size / 2;
-
-    return (0);
 }
 
 /*

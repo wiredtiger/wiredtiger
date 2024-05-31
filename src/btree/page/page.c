@@ -329,6 +329,7 @@ err:
     return (ret);
 }
 
+
 /*
  * __wti_page_inmem --
  *     Build in-memory page information.
@@ -1119,4 +1120,68 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
 
 err:
     return (ret);
+}
+
+/*
+ * __wti_btree_new_leaf_page --
+ *     Create an empty leaf page.
+ */
+int
+__wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    switch (btree->type) {
+    case BTREE_COL_FIX:
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
+        break;
+    case BTREE_COL_VAR:
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page));
+        break;
+    case BTREE_ROW:
+        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
+        break;
+    }
+
+    /*
+     * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
+     * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
+     * Reset the WT_REF type as it's possible that it has changed.
+     */
+    F_CLR(ref, WT_REF_FLAG_INTERNAL);
+    F_SET(ref, WT_REF_FLAG_LEAF);
+
+    return (0);
+}
+
+/*
+ * __wt_page_type_string --
+ *     Return a string representing the page type.
+ */
+const char *
+__wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    switch (type) {
+    case WT_PAGE_INVALID:
+        return ("invalid");
+    case WT_PAGE_BLOCK_MANAGER:
+        return ("block manager");
+    case WT_PAGE_COL_FIX:
+        return ("column-store fixed-length leaf");
+    case WT_PAGE_COL_INT:
+        return ("column-store internal");
+    case WT_PAGE_COL_VAR:
+        return ("column-store variable-length leaf");
+    case WT_PAGE_OVFL:
+        return ("overflow");
+    case WT_PAGE_ROW_INT:
+        return ("row-store internal");
+    case WT_PAGE_ROW_LEAF:
+        return ("row-store leaf");
+    default:
+        return ("unknown");
+    }
+    /* NOTREACHED */
 }
