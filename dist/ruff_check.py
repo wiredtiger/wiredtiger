@@ -35,12 +35,11 @@ if not which("ruff"):
                 ruff_version = m.group(1)
                 break
     print("Ruff is not installed!")
-    print("\nCreate a virtual environment if you haven't yet:")
+    print(f"Please install Ruff using the official documentation: {doc_link}\n")
+    print("Suggested steps using a virtual environment:")
     print(f"virtualenv -p python3 {current_dir.parent}/venv")
     print(f"source {current_dir.parent}/venv/bin/activate")
-    print("\nInstall Ruff:")
-    print(f"python3 -m pip install ruff=={ruff_version}")
-    print(f"\nFor more information: {doc_link}")
+    print(f"python3 -m pip install ruff=={ruff_version}\n")
     exit(1)
 
 cmd = ["ruff", "check", "--fix", "../.", ".", "--config", ruff_config]
