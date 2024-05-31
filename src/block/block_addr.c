@@ -77,6 +77,10 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
         *checksump = (uint32_t)c;
     }
 
+    __wt_verbose_debug1(session, WT_VERB_TEMPORARY,
+                        "block_addr_unpack %s: off=%ld, size=%u, cksum=%u",
+                        block->name, *offsetp, *sizep, *checksump);
+
     return (0);
 }
 

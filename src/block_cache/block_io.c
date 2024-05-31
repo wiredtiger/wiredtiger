@@ -385,6 +385,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
      */
     dsk = ip->mem;
     WT_ASSERT(session, dsk->write_gen != 0);
+    __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "bm->write %s, addr=%p gen=%" PRIu64, bm->block->name, addr, dsk->write_gen);
 
     WT_STAT_CONN_DATA_INCR(session, cache_write);
     WT_STAT_CONN_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);

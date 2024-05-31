@@ -631,6 +631,8 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
+    __wt_verbose_debug1(session, WT_VERB_TEMPORARY, "opening root addr=%s", (const char *)tmp->data);
+
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if ((ret = __wt_blkcache_read(session, &dsk, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);

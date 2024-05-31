@@ -132,7 +132,7 @@ extern char *__wt_optarg;
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=true),session_max=%d,"  \
-    "statistics=(all),statistics_log=(wait=%d,json,on_close)"
+"statistics=(all),statistics_log=(wait=%d,json,on_close),verbose=[block:5,read:5,write:5,temporary:5]"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
