@@ -3003,7 +3003,7 @@ tasks:
             python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../coverage_report/metrixpp.csv
             cd ..
 
-            ${python_binary|python3} test/evergreen/code_coverage/per_test_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_config.json -b $(pwd)/build_ -j ${num_jobs} -g $(pwd)/coverage_data -s
+            python3 test/evergreen/code_coverage/per_test_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_config.json -b $(pwd)/build_ -j ${num_jobs} -g $(pwd)/coverage_data -s
 
             echo "Disk usage and free space for the current drive (after completing coverage tests):"
             df -h
@@ -3022,7 +3022,7 @@ tasks:
               # Logging for debugging
               ls -l coverage_report
               cat coverage_report/diff.txt
-              ${python_binary|python3} test/evergreen/code_change_report/per_test_code_coverage_report.py -v -c coverage_data -d coverage_report/diff.txt -m coverage_report/metrixpp.csv
+              python3 test/evergreen/code_change_report/per_test_code_coverage_report.py -v -c coverage_data -d coverage_report/diff.txt -m coverage_report/metrixpp.csv
             fi
 
             tar -czf coverage_report/coverage_data.tar.gz coverage_data
