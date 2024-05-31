@@ -40,9 +40,6 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_page_out(session, &ref->page);
 }
 
-
-
-
 /*
  * __wti_free_ref_index --
  *     Discard a page index and its references.

@@ -9,6 +9,83 @@
 #include "wt_internal.h"
 
 /*
+ * __wti_cell_type_string --
+ *     Return a string representing the cell type.
+ */
+const char *
+__wti_cell_type_string(uint8_t type)
+{
+    switch (type) {
+    case WT_CELL_ADDR_DEL:
+        return ("addr_del");
+    case WT_CELL_ADDR_INT:
+        return ("addr_int");
+    case WT_CELL_ADDR_LEAF:
+        return ("addr_leaf");
+    case WT_CELL_ADDR_LEAF_NO:
+        return ("addr_leaf_no_ovfl");
+    case WT_CELL_DEL:
+        return ("deleted");
+    case WT_CELL_KEY:
+        return ("key");
+    case WT_CELL_KEY_PFX:
+        return ("key_pfx");
+    case WT_CELL_KEY_OVFL:
+        return ("key_ovfl");
+    case WT_CELL_KEY_SHORT:
+        return ("key_short");
+    case WT_CELL_KEY_SHORT_PFX:
+        return ("key_short_pfx");
+    case WT_CELL_KEY_OVFL_RM:
+        return ("key_ovfl_rm");
+    case WT_CELL_VALUE:
+        return ("value");
+    case WT_CELL_VALUE_COPY:
+        return ("value_copy");
+    case WT_CELL_VALUE_OVFL:
+        return ("value_ovfl");
+    case WT_CELL_VALUE_OVFL_RM:
+        return ("value_ovfl_rm");
+    case WT_CELL_VALUE_SHORT:
+        return ("value_short");
+    default:
+        return ("unknown");
+    }
+    /* NOTREACHED */
+}
+
+/*
+ * __wt_key_string --
+ *     Load a buffer with a printable, nul-terminated representation of a key.
+ */
+const char *
+__wt_key_string(
+  WT_SESSION_IMPL *session, const void *data_arg, size_t size, const char *key_format, WT_ITEM *buf)
+{
+    WT_ITEM tmp;
+
+#ifdef HAVE_DIAGNOSTIC
+    if (session->dump_raw)
+        return (__wt_buf_set_printable(session, data_arg, size, false, buf));
+#endif
+
+    /*
+     * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
+     */
+    if (WT_STREQ(key_format, "S") && ((char *)data_arg)[size - 1] != '\0') {
+        WT_CLEAR(tmp);
+        if (__wt_buf_fmt(session, &tmp, "%.*s", (int)size, (char *)data_arg) == 0) {
+            data_arg = tmp.data;
+            size = tmp.size + 1;
+        } else {
+            data_arg = WT_ERR_STRING;
+            size = sizeof(WT_ERR_STRING);
+        }
+    }
+    return (__wt_buf_set_printable_format(session, data_arg, size, key_format, false, buf));
+}
+
+/*
  * __key_return --
  *     Change the cursor to reference an internal return key.
  */
@@ -204,6 +281,61 @@ __read_page_cell_data_ref_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UN
     return (0);
 }
 
+
+
+/*
+ * __wt_key_return --
+ *     Change the cursor to reference an internal return key.
+ */
+int
+__wt_key_return(WT_CURSOR_BTREE *cbt)
+{
+    WT_CURSOR *cursor;
+
+    cursor = &cbt->iface;
+
+    /*
+     * We may already have an internal key and the cursor may not be set up to get another copy, so
+     * we have to leave it alone. Consider a cursor search followed by an update: the update doesn't
+     * repeat the search, it simply updates the currently referenced key's value. We will end up
+     * here with the correct internal key, but we can't "return" the key again even if we wanted to
+     * do the additional work, the cursor isn't set up for that because we didn't just complete a
+     * search.
+     */
+    F_CLR(cursor, WT_CURSTD_KEY_EXT);
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+        WT_RET(__key_return(cbt));
+        F_SET(cursor, WT_CURSTD_KEY_INT);
+    }
+    return (0);
+}
+
+/*
+ * __wt_value_return --
+ *     Change the cursor to reference an update return value.
+ */
+void
+__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
+{
+    WT_CURSOR *cursor;
+
+    cursor = &cbt->iface;
+
+    F_CLR(cursor, WT_CURSTD_VALUE_EXT);
+    /*
+     * We're passed a "standard" update that's visible to us. Our caller should have already checked
+     * for deleted items (we're too far down the call stack to return not-found) and any modify
+     * updates should have been reconstructed into a full standard update.
+     *
+     * We are here to return a value to the caller. Make sure we don't skip the buf.
+     */
+    WT_ASSERT(CUR2S(cbt), upd_value->type == WT_UPDATE_STANDARD && !upd_value->skip_buf);
+    cursor->value.data = upd_value->buf.data;
+    cursor->value.size = upd_value->buf.size;
+
+    F_SET(cursor, WT_CURSTD_VALUE_INT);
+}
+
 /*
  * __wt_value_return_buf --
  *     Change a buffer to reference an internal original-page return value. If we see an overflow
@@ -266,57 +398,4 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
 
     /* Compilers can't in general tell that other values of page->type aren't valid here. */
     return (__wt_illegal_value(session, page->type));
-}
-
-/*
- * __wt_key_return --
- *     Change the cursor to reference an internal return key.
- */
-int
-__wt_key_return(WT_CURSOR_BTREE *cbt)
-{
-    WT_CURSOR *cursor;
-
-    cursor = &cbt->iface;
-
-    /*
-     * We may already have an internal key and the cursor may not be set up to get another copy, so
-     * we have to leave it alone. Consider a cursor search followed by an update: the update doesn't
-     * repeat the search, it simply updates the currently referenced key's value. We will end up
-     * here with the correct internal key, but we can't "return" the key again even if we wanted to
-     * do the additional work, the cursor isn't set up for that because we didn't just complete a
-     * search.
-     */
-    F_CLR(cursor, WT_CURSTD_KEY_EXT);
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
-        WT_RET(__key_return(cbt));
-        F_SET(cursor, WT_CURSTD_KEY_INT);
-    }
-    return (0);
-}
-
-/*
- * __wt_value_return --
- *     Change the cursor to reference an update return value.
- */
-void
-__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
-{
-    WT_CURSOR *cursor;
-
-    cursor = &cbt->iface;
-
-    F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    /*
-     * We're passed a "standard" update that's visible to us. Our caller should have already checked
-     * for deleted items (we're too far down the call stack to return not-found) and any modify
-     * updates should have been reconstructed into a full standard update.
-     *
-     * We are here to return a value to the caller. Make sure we don't skip the buf.
-     */
-    WT_ASSERT(CUR2S(cbt), upd_value->type == WT_UPDATE_STANDARD && !upd_value->skip_buf);
-    cursor->value.data = upd_value->buf.data;
-    cursor->value.size = upd_value->buf.size;
-
-    F_SET(cursor, WT_CURSTD_VALUE_INT);
 }

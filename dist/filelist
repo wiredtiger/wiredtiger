@@ -22,6 +22,7 @@ src/bloom/bloom.c
 src/btree/col/col_modify.c
 src/btree/col/col_srch.c
 src/btree/page/page_free.c
+src/btree/page/page_kv.c
 src/btree/page/page_read.c
 src/btree/page/page.c
 src/btree/ref/ref_addr.c
@@ -38,11 +39,9 @@ src/btree/bt_curprev.c
 src/btree/bt_cursor.c
 src/btree/bt_debug.c
 src/btree/bt_insert.c
-src/btree/bt_misc.c
 src/btree/bt_open_close.c
 src/btree/bt_ovfl.c
 src/btree/bt_random.c
-src/btree/bt_ret.c
 src/btree/bt_split.c
 src/btree/bt_stat.c
 src/btree/bt_sync.c
