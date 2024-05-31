@@ -67,13 +67,13 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     /* The target size must be lower than the trigger size or we will never get any work done. */
     if (create) {
         if (cache->eviction_target >= cache->eviction_trigger)
-            WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
+            WT_RET_MSG(session, EINVAL, "eviction_target must be lower than the eviction_trigger");
         if (cache->eviction_dirty_target >= cache->eviction_dirty_trigger)
             WT_RET_MSG(session, EINVAL,
-              "eviction dirty target must be lower than the eviction dirty trigger");
+              "eviction_dirty_target must be lower than the eviction_dirty_trigger");
         if (cache->eviction_updates_target >= cache->eviction_updates_trigger)
             WT_RET_MSG(session, EINVAL,
-              "eviction updates target must be lower than the eviction updates trigger");
+              "eviction_updates_target must be lower than the eviction_updates_trigger");
         return (0);
     }
 
@@ -103,8 +103,8 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_dirty_target > cache->eviction_target) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction dirty target=%f is larger than eviction target=%f, changing "
-              "eviction dirty target to %f.",
+              "config eviction_dirty_target=%f is larger than eviction_target=%f, changing "
+              "eviction_dirty_target to %f.",
               cache->eviction_dirty_target, cache->eviction_target, cache->eviction_target);
         cache->eviction_dirty_target = cache->eviction_target;
     }
@@ -113,8 +113,8 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
       cache->eviction_checkpoint_target < cache->eviction_dirty_target) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config checkpoint target=%f is less than eviction dirty target=%f, changing "
-              "checkpoint target to %f.",
+              "config eviction_checkpoint_target=%f is less than eviction_dirty_target=%f, changing "
+              "eviction_checkpoint_target to %f.",
               cache->eviction_checkpoint_target, cache->eviction_dirty_target,
               cache->eviction_dirty_target);
         cache->eviction_checkpoint_target = cache->eviction_dirty_target;
@@ -123,8 +123,8 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_dirty_trigger > cache->eviction_trigger) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction dirty trigger=%f is larger than eviction trigger=%f, changing "
-              "eviction dirty trigger to %f.",
+              "config eviction_dirty_trigger=%f is larger than eviction_trigger=%f, changing "
+              "eviction_dirty_trigger to %f.",
               cache->eviction_dirty_trigger, cache->eviction_trigger, cache->eviction_trigger);
         cache->eviction_dirty_trigger = cache->eviction_trigger;
     }
@@ -132,8 +132,8 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_updates_target < DBL_EPSILON) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction updates target=%f is less than DBL_EPSILON=%f,changing eviction "
-              "updates target to %f.",
+              "config eviction_updates_target=%f is less than DBL_EPSILON=%f,changing "
+              "eviction_updates_target to %f.",
               cache->eviction_updates_target, DBL_EPSILON, cache->eviction_dirty_target / 2);
         cache->eviction_updates_target = cache->eviction_dirty_target / 2;
     }
@@ -141,8 +141,8 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_updates_trigger < DBL_EPSILON) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction updates trigger=%f is less than DBL_EPSILON=%f, changing eviction "
-              "updates trigger to %f.",
+              "config eviction_updates_trigger=%f is less than DBL_EPSILON=%f, changing "
+              "eviction_updates_trigger to %f.",
               cache->eviction_updates_trigger, DBL_EPSILON, cache->eviction_dirty_trigger / 2);
         cache->eviction_updates_trigger = cache->eviction_dirty_trigger / 2;
     }
@@ -151,8 +151,8 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     if (cache->eviction_updates_trigger > cache->eviction_trigger) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-              "config eviction updates trigger=%f is larger than eviction trigger=%f, changing "
-              "eviction updates trigger to %f.",
+              "config eviction_updates_trigger=%f is larger than eviction_trigger=%f, changing "
+              "eviction_updates_trigger to %f.",
               cache->eviction_updates_trigger, cache->eviction_trigger, cache->eviction_trigger);
         cache->eviction_updates_trigger = cache->eviction_trigger;
     }
