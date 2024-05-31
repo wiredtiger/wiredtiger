@@ -77,6 +77,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
         return (0);
     }
 
+    /* Resetting values for reconfiguration. */
     WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
     cache->eviction_target = (double)cval.val;
 
@@ -98,6 +99,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool create
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
     cache->eviction_checkpoint_target = (double)cval.val;
 
+    /* Check for invalid configurations and automatically fix them to suitable values. */
     if (cache->eviction_dirty_target > cache->eviction_target) {
         if (debug_config)
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
