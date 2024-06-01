@@ -50,6 +50,9 @@ make_insert(thread_worker *tc, const std::string &id)
  * further details.
  */
 class session_microbenchmarks : public test {
+    /* Loop each timer this many times to reduce noise. */
+    const int _LOOP_COUNTER = 30;
+
 public:
     session_microbenchmarks(const test_args &args) : test(args)
     {
@@ -80,7 +83,7 @@ public:
          */
         scoped_session &session = tc->session;
         int result;
-        for (int i = 0; i < LOOP_COUNTER; i++) {
+        for (int i = 0; i < _LOOP_COUNTER; i++) {
             result = begin_transaction_timer.track(
               [&session]() -> int { return session->begin_transaction(session.get(), NULL); });
             testutil_assert(result == 0);
@@ -94,7 +97,7 @@ public:
         }
 
         /* Time rollback transaction. */
-        for (int i = 0; i < LOOP_COUNTER; i++) {
+        for (int i = 0; i < _LOOP_COUNTER; i++) {
             result = begin_transaction_timer.track(
               [&session]() -> int { return session->begin_transaction(session.get(), NULL); });
             testutil_assert(result == 0);
@@ -105,7 +108,7 @@ public:
 
         /* Time timestamp transaction_uint. */
         testutil_assert(session->begin_transaction(session.get(), NULL) == 0);
-        for (int i = 0; i < LOOP_COUNTER; i++) {
+        for (int i = 0; i < _LOOP_COUNTER; i++) {
             auto timestamp = tc->tsm->get_next_ts();
             result = timestamp_transaction_uint_timer.track([&session, &timestamp]() -> int {
                 return session->timestamp_transaction_uint(
@@ -135,9 +138,6 @@ public:
         cursorp->close(cursorp);
         cursorp = NULL;
     }
-
-    /* Loop each timer this many times to reduce noise. */
-    const int LOOP_COUNTER = 30;
 };
 
 } // namespace test_harness
