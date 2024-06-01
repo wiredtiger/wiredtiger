@@ -28,6 +28,8 @@
 
 #include <cstdint>
 #include <iostream>
+#include <algorithm>
+#include <cmath>
 
 #include "execution_timer.h"
 #include "src/component/metrics_writer.h"
@@ -35,8 +37,7 @@
 namespace test_harness {
 execution_timer::execution_timer(
   const std::string &id, const std::string &test_name, const bool measure_time)
-    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0),
-      _total_instruction_count(0), _measure_time(measure_time)
+    : _id(id), _test_name(test_name), _measure_time(measure_time)
 {
     memset(&_pe, 0, sizeof(_pe));
     _pe.type = PERF_TYPE_HARDWARE;
@@ -55,21 +56,25 @@ execution_timer::execution_timer(const std::string &id, const std::string &test_
 void
 execution_timer::append_stats()
 {
-    uint64_t avg;
+    uint64_t percentile;
     std::string stat;
     if (_measure_time) {
-        avg = (uint64_t)_total_time_taken / _it_count;
-        stat = "{\"name\":\"" + _id + "_nanoseconds\",\"value\":" + std::to_string(avg) + "}";
+        std::sort(_time_recordings.begin(), _time_recordings.end());
+        percentile = _time_recordings[std::floor(_time_recordings.size() * 0.9)];
+        stat = "{\"name\":\"" + _id +
+          "_nanoseconds_90th_percentile\",\"value\":" + std::to_string(percentile) + "}";
         metrics_writer::instance().add_stat(stat);
     }
-    avg = (uint64_t)_total_instruction_count / _it_count;
-    stat = "{\"name\":\"" + _id + "_instructions\",\"value\":" + std::to_string(avg) + "}";
+    std::sort(_instruction_recordings.begin(), _instruction_recordings.end());
+    percentile = _instruction_recordings[std::floor(_instruction_recordings.size() * 0.9)];
+    stat = "{\"name\":\"" + _id +
+      "_instructions_90th_percentile\",\"value\":" + std::to_string(percentile) + "}";
     metrics_writer::instance().add_stat(stat);
 }
 
 execution_timer::~execution_timer()
 {
-    if (_it_count != 0)
+    if (_instruction_recordings.size() != 0)
         append_stats();
 }
 }; // namespace test_harness

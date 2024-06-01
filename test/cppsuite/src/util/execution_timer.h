@@ -28,8 +28,8 @@
 
 #pragma once
 #include <chrono>
-
 #include <string>
+#include <vector>
 
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
@@ -82,27 +82,25 @@ public:
         ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
         ssize_t bytes_read = read(fd, &count, sizeof(count));
         testutil_assert(bytes_read == sizeof(count));
-        _total_instruction_count += count;
 
         if (_measure_time)
-            _total_time_taken += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            _time_recordings.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
               (std::chrono::steady_clock::now() - start_time))
-                                   .count();
-        _it_count += 1;
+                                         .count());
+
+        _instruction_recordings.push_back(count);
 
         if (fd > 0) {
             close(fd);
         }
-
         return ret;
     }
 
 private:
     std::string _id;
     std::string _test_name;
-    int _it_count;
-    uint64_t _total_time_taken;
-    uint64_t _total_instruction_count;
+    std::vector<uint64_t> _time_recordings;
+    std::vector<uint64_t> _instruction_recordings;
     struct perf_event_attr _pe;
     const bool _measure_time;
 };
