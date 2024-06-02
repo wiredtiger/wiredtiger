@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
+#define WT_CC_FILE_INTERVAL 1 /* 1 second */
+#define WT_CC_MAX_PAGES_PER_BTREE 1000
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -18,7 +19,8 @@
  *     point and mark it dirty for reconciliation to remove the obsolete time window information.
  */
 static int
-__sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_inmem_evict_or_mark_dirty(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *num_cc_pagesp)
 {
     WT_ADDR_COPY addr;
     WT_MULTI *multi;
@@ -97,6 +99,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, cc_pages_evict);
+        (*num_cc_pagesp)++;
     } else if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta)) {
         __wt_txn_pinned_timestamp(session, &pinned_ts);
         newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
@@ -116,6 +119,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
                 __wt_page_modify_set(session, ref->page);
             }
             WT_STAT_CONN_DSRC_INCR(session, cc_pages_obsolete_timewindow);
+            (*num_cc_pagesp)++;
         }
     }
 
@@ -128,7 +132,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
  *     its parent page dirty to remove it.
  */
 static int
-__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *num_cc_pagesp)
 {
     WT_PAGE_DELETED *page_del;
 
@@ -139,6 +143,7 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, cc_pages_removed);
+        (*num_cc_pagesp)++;
     } else
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
@@ -152,7 +157,8 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
  *     its parent page dirty by changing the ref status as deleted.
  */
 static int
-__sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_deleted)
+__sync_obsolete_disk_cleanup(
+  WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_deleted, uint32_t *num_cc_pagesp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -195,6 +201,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
         WT_STAT_CONN_DSRC_INCR(session, cc_pages_removed);
+        (*num_cc_pagesp)++;
         return (0);
     }
 
@@ -210,7 +217,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
  *     between operations.
  */
 static int
-__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *num_cc_pagesp)
 {
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
@@ -248,9 +255,9 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         new_state = previous_state;
         if (previous_state == WT_REF_DELETED)
-            ret = __sync_obsolete_deleted_cleanup(session, ref);
+            ret = __sync_obsolete_deleted_cleanup(session, ref, num_cc_pagesp);
         else if (previous_state == WT_REF_DISK) {
-            ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
+            ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted, num_cc_pagesp);
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
         }
@@ -273,7 +280,8 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
  *     deleted.
  */
 static int
-__checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+__checkpoint_cleanup_obsolete_cleanup(
+  WT_SESSION_IMPL *session, WT_REF *parent, uint32_t *num_cc_pagesp)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -290,7 +298,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        WT_RET(__sync_obsolete_cleanup_one(session, ref));
+        WT_RET(__sync_obsolete_cleanup_one(session, ref, num_cc_pagesp));
     }
 
     WT_STAT_CONN_DSRC_INCRV(session, cc_pages_visited, pindex->entries);
@@ -409,10 +417,11 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_REF *ref;
-    uint32_t flags;
+    uint32_t flags, num_cc_pages;
 
     ref = NULL;
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
+    num_cc_pages = 0;
 
     /*
      * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
@@ -450,16 +459,17 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
+            WT_WITH_PAGE_INDEX(
+              session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref, &num_cc_pages));
         } else {
             WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
-            ret = __sync_obsolete_inmem_evict_or_mark_dirty(session, ref);
+            ret = __sync_obsolete_inmem_evict_or_mark_dirty(session, ref, &num_cc_pages);
             WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         }
         WT_ERR(ret);
 
-        /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        /* Check if we're quitting or reached the maximum number of pages per btree. */
+        if (num_cc_pages >= WT_CC_MAX_PAGES_PER_BTREE || !__checkpoint_cleanup_run_chk(session))
             break;
     }
 
@@ -623,8 +633,8 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
          * Wait here for some time before proceeding with another table to minimize the impact of
          * checkpoint cleanup on the regular workload.
          */
-        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __checkpoint_cleanup_run_chk);
+        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond, WT_CC_FILE_INTERVAL * WT_MILLION,
+          __checkpoint_cleanup_run_chk);
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
