@@ -686,9 +686,10 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
     txn = session->txn;
 
-    /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
+    /* Make sure that checkpoint cursor transactions only read checkpoints and never reads metadata.
+     */
     WT_ASSERT(session,
-      (session->dhandle != NULL && WT_IS_METADATA(session->dhandle)) ||
+      (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle)) ||
         WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
 
     /*
@@ -750,9 +751,10 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
     if (timestamp == WT_TS_NONE)
         return (true);
 
-    /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
+    /* Make sure that checkpoint cursor transactions only read checkpoints and it never reads
+     * metadata. */
     WT_ASSERT(session,
-      (session->dhandle != NULL && WT_IS_METADATA(session->dhandle)) ||
+      (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle)) ||
         WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
 
     /* When reading a checkpoint, use the checkpoint state instead of the current state. */
