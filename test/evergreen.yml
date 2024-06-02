@@ -5893,8 +5893,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
@@ -5910,8 +5908,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
@@ -5968,10 +5964,6 @@ buildvariants:
       distros: ubuntu2004-test
     - name: ".stress-test-2"
       distros: ubuntu2004-test
-    - name: ".stress-test-3"
-      distros: ubuntu2004-test
-    - name: ".stress-test-4"
-      distros: ubuntu2004-test
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
     - name: compile
@@ -6018,10 +6010,6 @@ buildvariants:
     - name: ".stress-test-1"
       distros: ubuntu2004-arm64-large
     - name: ".stress-test-2"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-3"
-      distros: ubuntu2004-arm64-large
-    - name: ".stress-test-4"
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
