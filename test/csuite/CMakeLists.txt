@@ -32,6 +32,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_futex
+    SOURCES futex/main.c
+    DIR_NAME futex
+    ARGUMENTS
+)
+
+define_c_test(
     TARGET test_random
     SOURCES random/main.c
     DIR_NAME random

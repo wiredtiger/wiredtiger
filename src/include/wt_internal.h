@@ -528,6 +528,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
+#include "futex.h"
 #include "generation.h"
 #include "hazard.h"
 #include "log.h"
