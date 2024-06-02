@@ -299,8 +299,8 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
 
     /*
-     * It is wrong to read the metadata with the checkpoint transaction because it doesn't publish
-     * the metadata_pinned.
+     * It is wrong to read the metadata with the checkpoint cursor transaction because it doesn't
+     * publish the metadata_pinned.
      */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
 

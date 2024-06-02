@@ -556,13 +556,17 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     is_hs = strcmp(uri, WT_HS_URI) == 0;
 
     /*
-     * We have already pinned the history store checkpoint dhandle when we open the data store
-     * checkpoint cursor. No need to resolve and open it again. We only need to lock it here. It is
-     * also wrong to read the metadata with the checkpoint transaction.
+     * We have already pinned the history store checkpoint dhandle when we open the checkpoint
+     * cursor. No need to resolve and open it again. We only need to lock it here. It is also wrong
+     * to read the metadata with the checkpoint transaction.
      */
     if (is_hs && session->hs_checkpoint != NULL) {
         WT_ASSERT(session, hs_dhandlep == NULL);
         ret = __wt_session_get_dhandle(session, uri, session->hs_checkpoint, cfg, flags);
+        /*
+         * We have already pinned the history store checkpoint dhandle. Therefore, we should be able
+         * to lock it here.
+         */
         WT_ASSERT(session, ret != EBUSY);
         return (ret);
     }
