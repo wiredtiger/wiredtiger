@@ -13,9 +13,9 @@ struct wakeup {
 struct waiter {
     pthread_t tid;
     WT_FUTEX_WORD *ftx_word;
-    WT_FUTEX_WORD expected;  /* Expected parameter value for __wt_futex_op_wait(). */
-    time_t timeout;          /* Timeout in microseconds. */
-    struct wakeup wakeup;    /* Context captured upon wakeup. */
+    WT_FUTEX_WORD expected; /* Expected parameter value for __wt_futex_op_wait(). */
+    time_t timeout;         /* Timeout in microseconds. */
+    struct wakeup wakeup;   /* Context captured upon wakeup. */
 };
 
 struct waiters_outcomes {

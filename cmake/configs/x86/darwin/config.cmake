@@ -8,3 +8,8 @@ if(has_x86intrin)
     add_cmake_flag(CMAKE_C_FLAGS -DHAVE_X86INTRIN_H)
 endif()
 unset(has_x86intrin CACHE)
+
+# Header file here is required for portable futex implementation.
+if(NOT CMAKE_CROSSCOMPILING)
+    include_directories(AFTER SYSTEM "${CMAKE_SOURCE_DIR}/oss/apple")
+endif()

@@ -1356,6 +1356,7 @@ uS
 ui
 uint
 uintAny
+ulock
 umount
 unallocated
 unbare
