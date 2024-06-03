@@ -435,6 +435,7 @@ WRLSN
 WRNOLOCK
 WTPERF
 WaitForSingleObject
+Wakeup
 Wconditional
 Wduplicated
 WeakHashLen
