@@ -1007,9 +1007,10 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 
     /*
      * We should already set up the checkpoint cursor snapshot to read the history store unless we
-     * are reading the history store checkpoint cursor directly.
+     * are reading the history store checkpoint cursor directly. Check whether we are already in a
+     * checkpoint cursor transaction.
      */
-    if (WT_READING_CHECKPOINT(session) && !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT)) {
+    if (!F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT) && WT_READING_CHECKPOINT(session)) {
         /* Checkpoint cursor. */
         if (bulk)
             /* Fail now; otherwise we fail further down and then segfault trying to recover. */
