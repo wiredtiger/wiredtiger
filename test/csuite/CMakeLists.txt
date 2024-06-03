@@ -262,14 +262,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt4803_history_store_abort
-    SOURCES wt4803_history_store_abort/main.c
-    DIR_NAME wt4803_history_store_abort
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4803_history_store_abort>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_wt4891_meta_ckptlist_get_alloc
     SOURCES wt4891_meta_ckptlist_get_alloc/main.c
     DIR_NAME wt4891_meta_ckptlist_get_alloc

@@ -170,11 +170,11 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 }
 
 /*
- * __wt_cache_config --
+ * __wti_cache_config --
  *     Configure or reconfigure the current cache and shared cache.
  */
 int
-__wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wti_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -191,7 +191,7 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     /* Cleanup if reconfiguring */
     if (reconfig && was_shared && !now_shared)
         /* Remove ourselves from the pool if necessary */
-        WT_RET(__wt_conn_cache_pool_destroy(session));
+        WT_RET(__wti_conn_cache_pool_destroy(session));
     else if (reconfig && !was_shared && now_shared)
         /*
          * Cache size will now be managed by the cache pool - the start size always needs to be zero
@@ -204,10 +204,10 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
      */
     WT_RET(__cache_config_local(session, now_shared, cfg));
     if (now_shared) {
-        WT_RET(__wt_cache_pool_config(session, cfg));
+        WT_RET(__wti_cache_pool_config(session, cfg));
         WT_ASSERT(session, F_ISSET(conn, WT_CONN_CACHE_POOL));
         if (!was_shared)
-            WT_RET(__wt_conn_cache_pool_open(session));
+            WT_RET(__wti_conn_cache_pool_open(session));
     }
 
     /*
@@ -222,11 +222,11 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 }
 
 /*
- * __wt_cache_create --
+ * __wti_cache_create --
  *     Create the underlying cache.
  */
 int
-__wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -242,7 +242,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     cache = conn->cache;
 
     /* Use a common routine for run-time configuration options. */
-    WT_RET(__wt_cache_config(session, cfg, false));
+    WT_RET(__wti_cache_config(session, cfg, false));
 
     /*
      * The lowest possible page read-generation has a special meaning, it marks a page for forcible
@@ -287,16 +287,16 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * We get/set some values in the cache statistics (rather than have two copies), configure them.
      */
-    __wt_cache_stats_update(session);
+    __wti_cache_stats_update(session);
     return (0);
 }
 
 /*
- * __wt_cache_stats_update --
+ * __wti_cache_stats_update --
  *     Update the cache statistics for return to the application.
  */
 void
-__wt_cache_stats_update(WT_SESSION_IMPL *session)
+__wti_cache_stats_update(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -331,8 +331,10 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
 
-    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_page_size, cache->evict_max_page_size);
-    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_milliseconds, cache->evict_max_ms);
+    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_page_size,
+      __wt_atomic_load64(&cache->evict_max_page_size));
+    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_milliseconds,
+      __wt_atomic_load64(&cache->evict_max_ms));
     WT_STATP_CONN_SET(
       session, stats, cache_reentry_hs_eviction_milliseconds, cache->reentry_hs_eviction_ms);
     WT_STATP_CONN_SET(
@@ -363,11 +365,11 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_cache_destroy --
+ * __wti_cache_destroy --
  *     Discard the underlying cache.
  */
 int
-__wt_cache_destroy(WT_SESSION_IMPL *session)
+__wti_cache_destroy(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;

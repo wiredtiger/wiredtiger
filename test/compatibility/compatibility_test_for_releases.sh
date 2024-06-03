@@ -14,6 +14,7 @@ bflag()
 {
     # Return if the branch's format command takes the -B flag for backward compatibility.
     test "$1" = "develop" && echo "-B "
+    test "$1" = "mongodb-8.0" && echo "-B"
     test "$1" = "mongodb-7.0" && echo "-B "
     test "$1" = "mongodb-6.0" && echo "-B "
     test "$1" = "mongodb-5.0" && echo "-B "
@@ -168,8 +169,10 @@ create_configs()
     echo "leak_memory=1" >> $file_name              # Faster runs
     echo "logging=1" >> $file_name                  # Test log compatibility
     echo "logging_compression=snappy" >> $file_name # We only built with snappy, force the choice
+    echo "prefetch=0" >> $file_name                 # WT-12978 - Not supported by older releases
     echo "rows=1000000" >> $file_name
     echo "salvage=0" >> $file_name                  # Faster runs
+    echo "statistics_log.sources=off" >> $file_name # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
     echo "stress.checkpoint=0" >> $file_name        # Faster runs
     echo "timer=4" >> $file_name
     echo "verify=1" >> $file_name
@@ -684,6 +687,7 @@ upgrade_to_latest=false
 # then the branch name itself will be used for the checkout
 declare -A gittags
 gittags['develop']="develop"
+gittags['mongodb-8.0']="mongodb-8.0"
 gittags['mongodb-7.0']="mongodb-7.0"
 gittags['mongodb-6.0']="mongodb-6.0"
 gittags['mongodb-5.0']="mongodb-5.0"
@@ -699,7 +703,7 @@ gittags['mongodb-4.2']="mongodb-4.2"
 # This array is used to configure the release branches we'd like to use for testing the importing
 # of files created in previous versions of WiredTiger. Go all the way back to mongodb-4.2 since
 # that's the first release where we don't support live import.
-import_release_branches=(develop mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4 mongodb-4.2)
+import_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4 mongodb-4.2)
 
 # Branches in below 2 arrays should be put in newer-to-older order.
 #
@@ -708,7 +712,7 @@ import_release_branches=(develop mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4
 #
 # The 2 arrays should be adjusted over time when newer branches are created,
 # or older branches are EOL.
-newer_release_branches=(develop mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+newer_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
 older_release_branches=(mongodb-4.4 mongodb-4.2)
 
 # This array is used to generate compatible configuration files between releases, because
@@ -718,14 +722,14 @@ compatible_upgrade_downgrade_release_branches=(mongodb-4.4 mongodb-4.2)
 
 # This array is used to configure the release branches we'd like to run patch version
 # upgrade/downgrade test.
-patch_version_upgrade_downgrade_release_branches=(mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+patch_version_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-4.4)
 
 # This array is used to configure the release branches we'd like to run test checkpoint
 # upgrade/downgrade test.
-test_checkpoint_release_branches=(develop mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+test_checkpoint_release_branches=(develop mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-4.4)
 
 # This array is used to configure the release branches we'd like to run upgrade to latest test.
-upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
+upgrade_to_latest_upgrade_downgrade_release_branches=(mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4)
 
 declare -A scopes
 scopes[import]="import files from previous versions"

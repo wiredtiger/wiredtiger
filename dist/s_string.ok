@@ -73,6 +73,7 @@ Castagnoli
 Cclmpv
 Ceil
 CentOS
+Charset
 Checkpointing
 Checksums
 CityHash
@@ -422,6 +423,7 @@ Vixie
 VloaY
 Vo
 VxWorks
+WCHAR
 WILLNEED
 WIREDTIGER
 WRLSN
@@ -465,7 +467,6 @@ abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
 acqrel
-addl
 addr
 addrs
 addtw
@@ -562,6 +563,7 @@ cerr
 cfg
 cfko
 chacha
+charset
 chdir
 checkfmt
 checkkey

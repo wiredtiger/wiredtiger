@@ -46,7 +46,7 @@ __win_fs_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
     session = (WT_SESSION_IMPL *)wt_session;
     *existp = false;
 
-    WT_RET(__wt_to_utf16_string(session, name, &name_wide));
+    WT_RET(__wti_to_utf16_string(session, name, &name_wide));
 
     if (GetFileAttributesW(name_wide->data) != INVALID_FILE_ATTRIBUTES)
         *existp = true;
@@ -73,7 +73,7 @@ __win_fs_remove(
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_RET(__wt_to_utf16_string(session, name, &name_wide));
+    WT_RET(__wti_to_utf16_string(session, name, &name_wide));
 
     WT_WINCALL_RETRY(DeleteFileW(name_wide->data), ret);
     if (ret != 0) {
@@ -105,8 +105,8 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
     WT_UNUSED(flags);
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_ERR(__wt_to_utf16_string(session, from, &from_wide));
-    WT_ERR(__wt_to_utf16_string(session, to, &to_wide));
+    WT_ERR(__wti_to_utf16_string(session, from, &from_wide));
+    WT_ERR(__wti_to_utf16_string(session, to, &to_wide));
 
     /*
      * We want an atomic rename, but that's not guaranteed by MoveFileExW (or by any MSDN API).
@@ -131,11 +131,11 @@ err:
 }
 
 /*
- * __wt_win_fs_size --
+ * __wti_win_fs_size --
  *     Get the size of a file in bytes, by file name.
  */
 int
-__wt_win_fs_size(
+__wti_win_fs_size(
   WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
     DWORD windows_error;
@@ -147,7 +147,7 @@ __wt_win_fs_size(
     WT_UNUSED(file_system);
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_RET(__wt_to_utf16_string(session, name, &name_wide));
+    WT_RET(__wti_to_utf16_string(session, name, &name_wide));
 
     if (GetFileAttributesExW(name_wide->data, GetFileExInfoStandard, &data) == 0) {
         windows_error = __wt_getlasterror();
@@ -454,7 +454,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
     /* Set up error handling. */
     win_fh->filehandle = win_fh->filehandle_secondary = INVALID_HANDLE_VALUE;
 
-    WT_ERR(__wt_to_utf16_string(session, name, &name_wide));
+    WT_ERR(__wti_to_utf16_string(session, name, &name_wide));
 
     /*
      * Opening a file handle on a directory is only to support filesystems that require a directory
@@ -542,8 +542,8 @@ directory_open:
  * systems.
  */
 #else
-    file_handle->fh_map = __wt_win_map;
-    file_handle->fh_unmap = __wt_win_unmap;
+    file_handle->fh_map = __wti_win_map;
+    file_handle->fh_unmap = __wti_win_unmap;
 #endif
     file_handle->fh_read = __win_file_read;
     file_handle->fh_size = __win_file_size;
@@ -596,14 +596,14 @@ __wt_os_win(WT_SESSION_IMPL *session)
     WT_RET(__wt_calloc_one(session, &file_system));
 
     /* Initialize the Windows jump table. */
-    file_system->fs_directory_list = __wt_win_directory_list;
-    file_system->fs_directory_list_single = __wt_win_directory_list_single;
-    file_system->fs_directory_list_free = __wt_win_directory_list_free;
+    file_system->fs_directory_list = __wti_win_directory_list;
+    file_system->fs_directory_list_single = __wti_win_directory_list_single;
+    file_system->fs_directory_list_free = __wti_win_directory_list_free;
     file_system->fs_exist = __win_fs_exist;
     file_system->fs_open_file = __win_open_file;
     file_system->fs_remove = __win_fs_remove;
     file_system->fs_rename = __win_fs_rename;
-    file_system->fs_size = __wt_win_fs_size;
+    file_system->fs_size = __wti_win_fs_size;
     file_system->terminate = __win_terminate;
 
     /* Switch it into place. */

@@ -499,7 +499,7 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     switch (rectype) {
     case WT_LOGREC_CHECKPOINT:
         if (r->metadata_only)
-            WT_RET(__wt_txn_checkpoint_logread(session, &p, end, &r->ckpt_lsn));
+            WT_RET(__wti_txn_checkpoint_logread(session, &p, end, &r->ckpt_lsn));
         break;
     case WT_LOGREC_COMMIT:
         if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid_unused)) != 0)
@@ -670,7 +670,7 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
      * Now that timestamps extracted from the checkpoint metadata have been configured, configure
      * the pinned timestamp.
      */
-    __wt_txn_update_pinned_timestamp(session, true);
+    __wti_txn_update_pinned_timestamp(session, true);
 
     WT_ASSERT(session,
       conn->txn_global.has_stable_timestamp == false &&
@@ -738,7 +738,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
     /* Update the base write gen and most recent checkpoint based on this file's configuration. */
-    if ((ret = __wt_metadata_update_connection(r->session, config)) != 0)
+    if ((ret = __wt_meta_update_connection(r->session, config)) != 0)
         WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
     return (0);
 }

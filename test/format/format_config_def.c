@@ -279,6 +279,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.verify", "configure verify", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_VERIFY},
 
+  {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
+
   {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_QUIET},
 
   {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX,
@@ -350,6 +352,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SEARCH},
 
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SWEEP},
+
+  {"stress.prefetch_delay", "stress prefetch delay", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_PREFETCH_DELAY},
 
   {"stress.prepare_resolution_1", "stress prepare resolution (#1)", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_PREPARE_RESOLUTION_1},

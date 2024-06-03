@@ -18,7 +18,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
  *     Release exclusive access to a page.
  */
 static WT_INLINE void
-__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
+__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state)
 {
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL);
 
@@ -54,8 +54,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_REF_STATE previous_state;
     uint32_t evict_flags;
-    uint8_t previous_state;
     bool locked;
 
     btree = S2BT(session);
@@ -154,8 +154,8 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-        if (eviction_time_milliseconds > conn->cache->evict_max_ms)
-            conn->cache->evict_max_ms = eviction_time_milliseconds;
+        if (eviction_time_milliseconds > __wt_atomic_load64(&conn->cache->evict_max_ms))
+            __wt_atomic_store64(&conn->cache->evict_max_ms, eviction_time_milliseconds);
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICT,
               "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
@@ -182,7 +182,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  *     Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -248,7 +248,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
          * freeing the page memory or otherwise touching the reference because eviction paths assume
          * a non-NULL reference on the queue is pointing at valid memory.
          */
-        __wt_evict_list_clear_page(session, ref);
+        __wti_evict_list_clear_page(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -292,8 +292,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * force pages out before they're larger than the cache. We don't care about races, it's just a
      * statistic.
      */
-    if (page->memory_footprint > conn->cache->evict_max_page_size)
-        conn->cache->evict_max_page_size = page->memory_footprint;
+    if (__wt_atomic_loadsize(&page->memory_footprint) >
+      __wt_atomic_load64(&conn->cache->evict_max_page_size))
+        __wt_atomic_store64(
+          &conn->cache->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
 
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
