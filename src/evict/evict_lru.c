@@ -2447,8 +2447,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     WT_REF_STATE previous_state;
     WT_TRACK_OP_DECL;
     uint64_t time_start, time_stop;
-    int64_t cache_eviction_app_dirty_inc;
     uint32_t flags;
+    bool page_is_modified;
 
     WT_TRACK_OP_INIT(session);
 
@@ -2459,7 +2459,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     time_start = 0;
 
     flags = 0;
-    cache_eviction_app_dirty_inc = 0;
+    page_is_modified = false;
 
     /*
      * An internal session flags either the server itself or an eviction worker thread.
@@ -2470,7 +2470,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
         WT_STAT_CONN_INCR(session, cache_eviction_worker_evict_attempt);
     else {
         if (__wt_page_is_modified(ref->page)) {
-            cache_eviction_app_dirty_inc = 1;
+            page_is_modified = true;
             WT_STAT_CONN_INCR(session, cache_eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, cache_eviction_app_attempt);
@@ -2503,8 +2503,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
         else if (F_ISSET(session, WT_SESSION_INTERNAL))
             WT_STAT_CONN_INCR(session, cache_eviction_worker_evict_fail);
         else {
-            WT_STAT_CONN_INCRV(
-              session, cache_eviction_app_dirty_fail, cache_eviction_app_dirty_inc);
+            if (page_is_modified)
+                WT_STAT_CONN_INCR(session, cache_eviction_app_dirty_fail);
             WT_STAT_CONN_INCR(session, cache_eviction_app_fail);
         }
     }
