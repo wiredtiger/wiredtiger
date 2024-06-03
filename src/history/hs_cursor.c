@@ -102,9 +102,9 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t btree_
         goto done;
     }
 
-    if (cbt->hs_cursor != NULL) {
+    if (cbt->hs_cursor != NULL)
         hs_cursor = cbt->hs_cursor;
-    } else {
+    else {
         WT_ERR_NOTFOUND_OK(__wt_curhs_open(session, NULL, &hs_cursor), true);
         /* Do this separately for now because the behavior below is confusing if it triggers. */
         WT_ASSERT(session, ret != WT_NOTFOUND);
