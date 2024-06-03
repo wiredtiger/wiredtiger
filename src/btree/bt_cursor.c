@@ -2280,6 +2280,11 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 {
     WT_DECL_RET;
 
+    if (cbt->hs_cursor != NULL) {
+        WT_RET(cbt->hs_cursor->close(cbt->hs_cursor));
+        cbt->hs_cursor = NULL;
+    }
+
     /*
      * The in-memory split, history store table, and fast-truncate instantiation code creates
      * low-level btree cursors to search/modify leaf pages. Those cursors don't hold hazard

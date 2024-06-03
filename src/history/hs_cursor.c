@@ -50,7 +50,7 @@ __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
  *     for the record and return to the caller.
  */
 int
-__wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
+__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t btree_id, WT_ITEM *key,
   const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
 {
     WT_CURSOR *hs_cursor;
@@ -102,10 +102,15 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         goto done;
     }
 
-    WT_ERR_NOTFOUND_OK(__wt_curhs_open(session, NULL, &hs_cursor), true);
-    /* Do this separately for now because the behavior below is confusing if it triggers. */
-    WT_ASSERT(session, ret != WT_NOTFOUND);
-    WT_ERR(ret);
+    if (cbt->hs_cursor != NULL) {
+        hs_cursor = cbt->hs_cursor;
+    } else {
+        WT_ERR_NOTFOUND_OK(__wt_curhs_open(session, NULL, &hs_cursor), true);
+        /* Do this separately for now because the behavior below is confusing if it triggers. */
+        WT_ASSERT(session, ret != WT_NOTFOUND);
+        WT_ERR(ret);
+        cbt->hs_cursor = hs_cursor;
+    }
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
@@ -243,7 +248,7 @@ err:
     WT_ASSERT(session, ret != WT_NOTFOUND);
 
     if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
+        WT_TRET(hs_cursor->reset(hs_cursor));
 
     return (ret);
 }
