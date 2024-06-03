@@ -6162,7 +6162,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: pages removed during checkpoint cleanup */
 #define	WT_STAT_CONN_CC_PAGES_REMOVED			1284
 /*! checkpoint: pages skipped during checkpoint cleanup tree walk */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	1285
+#define	WT_STAT_CONN_CC_PAGES_WALK_SKIPPED		1285
 /*! checkpoint: pages visited during checkpoint cleanup */
 #define	WT_STAT_CONN_CC_PAGES_VISITED			1286
 /*! checkpoint: prepare currently running */
@@ -7636,7 +7636,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: pages removed during checkpoint cleanup */
 #define	WT_STAT_DSRC_CC_PAGES_REMOVED			2154
 /*! checkpoint: pages skipped during checkpoint cleanup tree walk */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	2155
+#define	WT_STAT_DSRC_CC_PAGES_WALK_SKIPPED		2155
 /*! checkpoint: pages visited during checkpoint cleanup */
 #define	WT_STAT_DSRC_CC_PAGES_VISITED			2156
 /*! checkpoint: transaction checkpoints due to obsolete pages */

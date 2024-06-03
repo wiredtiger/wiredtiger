@@ -522,7 +522,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cc_pages_evict = 0;
     stats->cc_pages_obsolete_timewindow = 0;
     stats->cc_pages_removed = 0;
-    stats->checkpoint_cleanup_pages_walk_skipped = 0;
+    stats->cc_pages_walk_skipped = 0;
     stats->cc_pages_visited = 0;
     stats->checkpoint_obsolete_applied = 0;
     /* not clearing compress_precomp_intl_max_page_size */
@@ -861,7 +861,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cc_pages_evict += from->cc_pages_evict;
     to->cc_pages_obsolete_timewindow += from->cc_pages_obsolete_timewindow;
     to->cc_pages_removed += from->cc_pages_removed;
-    to->checkpoint_cleanup_pages_walk_skipped += from->checkpoint_cleanup_pages_walk_skipped;
+    to->cc_pages_walk_skipped += from->cc_pages_walk_skipped;
     to->cc_pages_visited += from->cc_pages_visited;
     to->checkpoint_obsolete_applied += from->checkpoint_obsolete_applied;
     to->compress_precomp_intl_max_page_size += from->compress_precomp_intl_max_page_size;
@@ -1215,8 +1215,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cc_pages_evict += WT_STAT_DSRC_READ(from, cc_pages_evict);
     to->cc_pages_obsolete_timewindow += WT_STAT_DSRC_READ(from, cc_pages_obsolete_timewindow);
     to->cc_pages_removed += WT_STAT_DSRC_READ(from, cc_pages_removed);
-    to->checkpoint_cleanup_pages_walk_skipped +=
-      WT_STAT_DSRC_READ(from, checkpoint_cleanup_pages_walk_skipped);
+    to->cc_pages_walk_skipped += WT_STAT_DSRC_READ(from, cc_pages_walk_skipped);
     to->cc_pages_visited += WT_STAT_DSRC_READ(from, cc_pages_visited);
     to->checkpoint_obsolete_applied += WT_STAT_DSRC_READ(from, checkpoint_obsolete_applied);
     to->compress_precomp_intl_max_page_size +=
@@ -2433,7 +2432,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cc_pages_evict = 0;
     stats->cc_pages_obsolete_timewindow = 0;
     stats->cc_pages_removed = 0;
-    stats->checkpoint_cleanup_pages_walk_skipped = 0;
+    stats->cc_pages_walk_skipped = 0;
     stats->cc_pages_visited = 0;
     /* not clearing checkpoint_prep_running */
     /* not clearing checkpoint_prep_max */
@@ -3215,8 +3214,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cc_pages_evict += WT_STAT_CONN_READ(from, cc_pages_evict);
     to->cc_pages_obsolete_timewindow += WT_STAT_CONN_READ(from, cc_pages_obsolete_timewindow);
     to->cc_pages_removed += WT_STAT_CONN_READ(from, cc_pages_removed);
-    to->checkpoint_cleanup_pages_walk_skipped +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_walk_skipped);
+    to->cc_pages_walk_skipped += WT_STAT_CONN_READ(from, cc_pages_walk_skipped);
     to->cc_pages_visited += WT_STAT_CONN_READ(from, cc_pages_visited);
     to->checkpoint_prep_running += WT_STAT_CONN_READ(from, checkpoint_prep_running);
     to->checkpoint_prep_max += WT_STAT_CONN_READ(from, checkpoint_prep_max);

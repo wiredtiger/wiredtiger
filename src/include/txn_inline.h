@@ -734,8 +734,6 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 static WT_INLINE bool
 __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
-    wt_timestamp_t pinned_ts;
-
     /*
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
@@ -760,10 +758,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
         return (session->txn->checkpoint_oldest_timestamp != WT_TS_NONE &&
           timestamp <= session->txn->checkpoint_oldest_timestamp);
 
-    /* If no oldest timestamp has been supplied, updates have to stay in cache. */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-
-    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
+    return (__wt_txn_timestamp_visible_all(session, timestamp));
 }
 
 /*
@@ -921,6 +916,21 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 
     return (__wt_txn_visible_id_snapshot(id, txn->snapshot_data.snap_min,
       txn->snapshot_data.snap_max, txn->snapshot_data.snapshot, txn->snapshot_data.snapshot_count));
+}
+
+/*
+ * __wt_txn_timestamp_visible_all --
+ *     Can the provided timestamp be globally visible?
+ */
+static WT_INLINE bool
+__wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session, wt_timestamp_t timestamp)
+{
+    wt_timestamp_t pinned_ts;
+
+    /* If no oldest timestamp has been supplied, updates have to stay in cache. */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+
+    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
 }
 
 /*

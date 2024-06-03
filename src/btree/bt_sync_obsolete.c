@@ -8,15 +8,22 @@
 
 #include "wt_internal.h"
 
+/* Time interval where the checkpoint cleanup thread waits before moving on to another file. */
 #define WT_CC_FILE_INTERVAL 1 /* 1 second */
+
+/*
+ * The maximum number of pages that a checkpoint cleanup performs the cleanup on a single btree per
+ * visit.
+ */
 #define WT_CC_MAX_PAGES_PER_BTREE 500
+
+/* The file prefix that is eligible for checkpoint cleanup. */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
  * __sync_obsolete_inmem_evict_or_mark_dirty --
- *     Check whether the inmem ref is obsolete according to the newest stop time point and mark it
- *     for urgent eviction or having an obsolete time window according to the newest durable time
- *     point and mark it dirty for reconciliation to remove the obsolete time window information.
+ *     This function checks whether the in-memory ref contains obsolete information and takes
+ *     necessary action.
  */
 static int
 __sync_obsolete_inmem_evict_or_mark_dirty(
@@ -26,7 +33,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
-    wt_timestamp_t newest_ts, pinned_ts;
+    wt_timestamp_t newest_ts;
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
     const char *tag;
@@ -49,6 +56,13 @@ __sync_obsolete_inmem_evict_or_mark_dirty(
     WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
     do_visibility_check = obsolete = ovfl_items = false;
 
+    /*
+     *  The obsolete information on a page is identified as follows:
+     *  1. If the ref is obsolete using the newest stop time. In this case, mark it is
+     *     for urgent eviction.
+     *  2. If the ref contains obsolete time window information using the newest durable
+     *     time. In this case, mark the ref dirty so reconciliation removes the obsolete data.
+     */
     mod = ref->page->modify;
     if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
         tag = "reconciled empty";
@@ -101,9 +115,8 @@ __sync_obsolete_inmem_evict_or_mark_dirty(
         WT_STAT_CONN_DSRC_INCR(session, cc_pages_evict);
         (*num_cc_pagesp)++;
     } else if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta)) {
-        __wt_txn_pinned_timestamp(session, &pinned_ts);
         newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
-        if (pinned_ts != WT_TS_NONE && newest_ts != WT_TS_NONE && newest_ts <= pinned_ts) {
+        if (newest_ts != WT_TS_NONE && __wt_txn_timestamp_visible_all(session, newest_ts)) {
             /*
              * Dirty the page with an obsolete time window to let the page reconciliation remove all
              * the obsolete time window information.
@@ -325,7 +338,7 @@ __checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
-    wt_timestamp_t newest_ts, pinned_ts;
+    wt_timestamp_t newest_ts;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -366,13 +379,12 @@ __checkpoint_cleanup_page_skip(
 
     /*
      * If an obsolete data or time window exists on the page, read it into the cache. Read it only
-     * when not all entries on the page are not removed. The pages will all the removed entries are
+     * when not all entries on the page are not removed. The pages with all the removed entries are
      * handled in a different code flow without reading them into the cache.
      */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
     newest_ts = WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts);
-    if (pinned_ts != WT_TS_NONE && newest_ts != WT_TS_NONE &&
-      !WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && newest_ts <= pinned_ts) {
+    if (newest_ts != WT_TS_NONE && !WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
+      __wt_txn_timestamp_visible_all(session, newest_ts)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: obsolete time window page read into the cache", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, cc_obsolete_timewindow_pages_read);
@@ -401,7 +413,7 @@ __checkpoint_cleanup_page_skip(
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED)))) {
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped);
+        WT_STAT_CONN_DSRC_INCR(session, cc_pages_walk_skipped);
         *skipp = true;
     }
     return (0);
@@ -490,7 +502,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_stop_durable_ts, oldest_start_ts, pinned_ts;
+    wt_timestamp_t newest_stop_durable_ts, oldest_start_ts;
     size_t addr_size;
     bool logged;
 
@@ -544,8 +556,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * The checkpoint has some obsolete time windows that are no longer required to exist in the
      * btree. Remove the obsolete time windows to reduce the checkpoint size.
      */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (pinned_ts != WT_TS_NONE && oldest_start_ts != WT_TS_NONE && oldest_start_ts <= pinned_ts)
+    if (oldest_start_ts != WT_TS_NONE && __wt_txn_timestamp_visible_all(session, oldest_start_ts))
         return (true);
 
     return (false);

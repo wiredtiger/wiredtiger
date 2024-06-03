@@ -697,7 +697,7 @@ struct __wt_connection_stats {
     int64_t cc_pages_evict;
     int64_t cc_pages_obsolete_timewindow;
     int64_t cc_pages_removed;
-    int64_t checkpoint_cleanup_pages_walk_skipped;
+    int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
     int64_t checkpoint_prep_running;
     int64_t checkpoint_prep_max;
@@ -1270,7 +1270,7 @@ struct __wt_dsrc_stats {
     int64_t cc_pages_evict;
     int64_t cc_pages_obsolete_timewindow;
     int64_t cc_pages_removed;
-    int64_t checkpoint_cleanup_pages_walk_skipped;
+    int64_t cc_pages_walk_skipped;
     int64_t cc_pages_visited;
     int64_t checkpoint_obsolete_applied;
     int64_t compress_precomp_intl_max_page_size;
