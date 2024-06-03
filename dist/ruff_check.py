@@ -40,7 +40,7 @@ if not which("ruff"):
     print(f"virtualenv -p python3 {current_dir.parent}/venv")
     print(f"source {current_dir.parent}/venv/bin/activate")
     print(f"python3 -m pip install ruff=={ruff_version}\n")
-    exit(1)
+    sys.exit(1)
 
 cmd = ["ruff", "check", "--fix", "../.", ".", "--config", ruff_config]
 
