@@ -74,9 +74,9 @@ class test_config12(wttest.WiredTigerTestCase):
     def test_config12(self):
         self.conn.close()
         # Test the default WT connection configuration with debug mode enabled. Expect warning messages.
-        with self.expect_verbose('debug_mode=(configuration=true)', ['config checkpoint target=.*is less than eviction dirty target=.*',
-                                                                     'config eviction updates target=.*is less than DBL_EPSILON=.*',
-                                                                     'config eviction updates trigger=.*is less than DBL_EPSILON=.*']):
+        with self.expect_verbose('debug_mode=(configuration=true)', ['config eviction_checkpoint_target=.*cannot be less than eviction_dirty_target=.*Setting eviction_checkpoint_target to.*',
+                                                                     'config eviction_updates_target.*cannot be zero.*Setting to.*of eviction_updates_target.*',
+                                                                     'config eviction_updates_trigger.*cannot be zero.*Setting to.*of eviction_updates_trigger.*']):
             pass
         # Disable debug mode, expect no warning messages.
         with self.expect_verbose('debug_mode=(configuration=false)', [], False):
