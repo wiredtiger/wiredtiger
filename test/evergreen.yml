@@ -2051,8 +2051,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
-          test_config_filename: configs/cursor_microbenchmarks_default.txt
-          test_name: cursor_microbenchmarks
+          test_config_filename: configs/api_instruction_count_benchmarks_default.txt
+          test_name: api_instruction_count_benchmarks
 
   - name: cppsuite-session-microbenchmarks-default-perf
     depends_on:
@@ -2062,8 +2062,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
-          test_config_filename: configs/session_microbenchmarks_default.txt
-          test_name: session_microbenchmarks
+          test_config_filename: configs/api_timing_benchmarks_default.txt
+          test_name: api_timing_benchmarks
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks

@@ -269,6 +269,8 @@ test_config = [
 # Test and their respective configuration sorted alphabetically.
 #
 methods = {
+    'api_instruction_count_benchmarks' : Method(test_config),
+    'api_timing_benchmarks' : Method(test_config),
     'background_compact' : Method(test_config),
     'bounded_cursor_perf' : Method(test_config),
     'bounded_cursor_prefix_indices' : Method(test_config),
@@ -281,7 +283,6 @@ methods = {
         Config("burst_duration", 90, r'''
         How long the insertions will occur for.''')]),
     'cache_resize' : Method(test_config),
-    'cursor_microbenchmarks' : Method(test_config),
     'hs_cleanup' : Method(test_config),
     'operations_test' : Method(test_config),
     'reverse_split' : Method(test_config),
@@ -290,6 +291,5 @@ methods = {
         Number of threads that execute search near calls.''')]),
     'search_near_02' : Method(test_config),
     'search_near_03' : Method(test_config),
-    'session_microbenchmarks' : Method(test_config),
     'test_template' : Method(test_config),
 }

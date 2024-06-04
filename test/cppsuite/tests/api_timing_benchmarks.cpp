@@ -27,6 +27,7 @@
  */
 
 #include "src/util/execution_timer.h"
+#include "src/util/instruction_counter.h"
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/main/test.h"
@@ -46,15 +47,15 @@ make_insert(thread_worker *tc, const std::string &id)
 }
 
 /*
- * Benchmark various frequently called session APIs. See the comment in cursor_microbenchmarks for
- * further details.
+ * Benchmark various frequently called session APIs. See the comment in
+ * api_instruction_count_benchmarks for further details.
  */
-class session_microbenchmarks : public test {
+class api_timing_benchmarks : public test {
     /* Loop each timer this many times to reduce noise. */
-    const int _LOOP_COUNTER = 30;
+    const int _LOOP_COUNTER = 1000;
 
 public:
-    session_microbenchmarks(const test_args &args) : test(args)
+    api_timing_benchmarks(const test_args &args) : test(args)
     {
         init_operation_tracker(NULL);
     }
@@ -69,13 +70,10 @@ public:
         execution_timer begin_transaction_timer("begin_transaction", test::_args.test_name);
         execution_timer commit_transaction_timer("commit_transaction", test::_args.test_name);
         execution_timer rollback_transaction_timer("rollback_transaction", test::_args.test_name);
-        execution_timer open_cursor_cached_timer(
-          "open_cursor_cached", test::_args.test_name, false);
-        execution_timer open_cursor_uncached_timer(
-          "open_cursor_uncached", test::_args.test_name, false);
         execution_timer timestamp_transaction_uint_timer(
           "timestamp_transaction_uint", test::_args.test_name);
-        std::string cursor_uri = tc->db.get_collection(0).name;
+        execution_timer cursor_reset_timer("cursor_reset", test::_args.test_name);
+        execution_timer cursor_search_timer("cursor_search", test::_args.test_name);
 
         /*
          * Time begin transaction and commit transaction. In order for commit to do work we need at
@@ -83,7 +81,7 @@ public:
          */
         scoped_session &session = tc->session;
         int result;
-        for (int i = 0; i < _LOOP_COUNTER; i++) {
+        for (int i = 0; i < _LOOP_COUNTER / 10; i++) {
             result = begin_transaction_timer.track(
               [&session]() -> int { return session->begin_transaction(session.get(), NULL); });
             testutil_assert(result == 0);
@@ -117,26 +115,6 @@ public:
         }
         testutil_assert(result == 0);
         testutil_assert(session->rollback_transaction(session.get(), NULL) == 0);
-
-        /* Count instructions taken to open a cursor, this should use a cached cursor. */
-        WT_CURSOR *cursorp = NULL;
-        result = open_cursor_cached_timer.track([&session, &cursor_uri, &cursorp]() -> int {
-            return session->open_cursor(session.get(), cursor_uri.c_str(), NULL, NULL, &cursorp);
-        });
-        testutil_assert(result == 0);
-
-        cursorp->close(cursorp);
-        cursorp = NULL;
-
-        /* Count instructions taken to open a cursor without using the cache. */
-        session->reconfigure(session.get(), "cache_cursors=false");
-        result = open_cursor_uncached_timer.track([&session, &cursor_uri, &cursorp]() -> int {
-            return session->open_cursor(session.get(), cursor_uri.c_str(), NULL, NULL, &cursorp);
-        });
-        testutil_assert(result == 0);
-
-        cursorp->close(cursorp);
-        cursorp = NULL;
     }
 };
 

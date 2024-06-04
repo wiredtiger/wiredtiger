@@ -813,6 +813,7 @@ getone
 getones
 getopt
 getraw
+getter
 getters
 gettime
 gettimeofday
