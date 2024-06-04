@@ -1691,7 +1691,6 @@ methods = {
 'WT_SESSION.strerror' : Method([]),
 
 'WT_SESSION.truncate' : Method([]),
-'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
