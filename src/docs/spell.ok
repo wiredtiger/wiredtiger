@@ -1,4 +1,3 @@
-personal_ws-1.1 en 200
 ACM
 ADDR
 APIs
@@ -564,6 +563,7 @@ pareto
 pcoll
 pdf
 perf
+personal_ws-1.1 en 200
 petabyte
 pget
 php
@@ -708,6 +708,7 @@ tradeoffs
 transactional
 transactionally
 truncations
+trylock
 tt
 txn
 txnid
