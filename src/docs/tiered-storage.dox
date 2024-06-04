@@ -42,18 +42,11 @@ is a part of checkpoint, it is a system-wide operation. Thus, flush_tier
 allows the data for all tiered btrees to move from the local file system
 to object storage.
 
-The flush_tier checkpoint does all the operations normally associated with
-a checkpoint, and in addition:
-
- -# identifies any tiered btrees that have changes since the previous checkpoint
- -# for each such modified btree:
-     -# eviction is temporarily disabled on this btree, while waiting for any writes to the active file to drain
-     -# a new empty file is created named with the next object number, this will become the table's active file
-     -# switch the table's active file
-     -# enable eviction on this btree
-     -# queue the old active file to be written to object storage in the background
- -# when every modified btree has finished switching in this way, the flush_tier part of the checkpoint is finished.
-    Writes to object storage are likely to be incomplete at this stage, they are completely asynchronous.
+A flush_tier checkpoint has a slightly different sequence of operations from
+a regular checkpoint without flush_tier.
+For each tiered table, a new active file is created, data is checkpointed
+to the old active file (see @ref checkpoint_checkpoints), and when that is
+completed, the old active file is copied to object storage in the background.
 
 As each object storage write completes, the local file that was the source of that write will be removed.
 The removal is coordinated with any active readers of that file.  Since the file is no longer an active file,

@@ -307,27 +307,64 @@ part of the \c WT_BUCKET_STORAGE, and so can also be
 specified per table upon creation.  The prefix is prepended to every
 name stored in a bucket.
 
-@section ts_flush flush_tier
+@section ts_flush Flush Checkpoint Operations
 
-A WT_SESSION::checkpoint call with \c flush_tier enabled (also known
-as \c flush_tier) puts everything discussed on this page together.
-It identifies any tiered btrees that have changes since the previous
-checkpoint, and for each such modified btree:
-    -# eviction is temporarily disabled on this btree, while waiting
-       for any writes to the active object file to drain
-    -# update the metadata to know about the next object
-    -# a new empty file is created named with the next object number,
-       this will become the table's active file
-    -# switch the table's active file
-    -# add a FLUSH entry to the work queue for the previously active
-       file to be copied to the cloud
-    -# enable eviction on this btree
+A flush_tier checkpoint has a slightly different sequence of operations from
+a regular checkpoint without flush_tier.  In particular, eviction is only disabled
+when we are checkpointing the tree.
 
-When the FLUSH work entry is completed, these actions occur:
-    -# tell the chunk cache to ingest the object before it is removed
-    -# update the metadata to reference the new object in the cloud
-    -# queue a FLUSH_FINISH operation
-    -# queue a REMOVE_LOCAL operation
+The first part of the checkpoint is determining which btrees need to participate.
+Following that, those btrees are checkpointed to disk.  Finally, when the
+files have been written, they can be asynchronously copied (\a flushed) to cloud storage.
+
+@subsection ts_checkpoint_prepare Checkpoint Prepare Phase
+
+- Assemble a list of all the dhandles that will be part of the checkpoint.
+  For non-tiered btrees this will be btrees that have been modified since
+  the last checkpoint.
+  For tiered btrees this will be btrees modified since the last flush.
+  See \c checkpoint_flush_tier called from \c checkpoint_prepare.
+- For each tiered btree, create the new file, and queue a FLUSH
+  work entry to flush the old one. The work entry includes checkpoint
+  generation information that is used by the tiered server thread to know
+  when it is okay to flush the file to object storage (i.e., after
+  the current checkpoint has completed).
+  See \c tiered_switch, which is called from \c checkpoint_flush_tier.
+- This work is done now so that it doesn't add time to the actual checkpoint
+  when eviction is disabled.
+
+@subsection ts_checkpoint_data_file Data file checkpoint
+
+Once the list of dhandles is known, each dhandle (that is, btree) is checkpointed:
+
+- When doing the actual checkpoint for each btree, eviction to the btree
+  is blocked.  Hence checkpoint is the only thread updating the btree.
+  This happens in \c wt_sync_file.
+- At the end of the checkpoint, after writing the new checkpoint root
+  but before re-enabling eviction, the active file switches to be the
+  new file created during the prepare phase.
+  This ensures that everything that is part of the checkpoint is in the old file,
+  and anything evicted after the checkpoint is in the next file.
+- If the btree is tiered, fsync is called on the old active file to ensure
+  that all checkpoint updates are durable.
+  Side note: the fsync doesn't have to be done here, it could happen
+  after re-enabling eviction. But this describes the current actions of the code.
+- See \c bm_checkpoint for the active file switch and fsync.
+- After switching the file, eviction is allowed again
+  as we finish \c wt_sync_file. Then the next dhandle is processed.
+
+@subsection ts_checkpoint_flush Flush actions
+
+As indicated above, the FLUSH work entry is queued during the
+prepare phase and is processed asynchronously. The FLUSH entry
+indicates that WiredTiger should copy the completed file on disk
+to cloud storage.
+
+When the FLUSH completes, these actions occur:
+- tell the chunk cache to ingest the object before it is removed
+- update the metadata to reference the new object in the cloud
+- queue a FLUSH_FINISH operation
+- queue a REMOVE_LOCAL operation
 
 @section ts_future Future
 
