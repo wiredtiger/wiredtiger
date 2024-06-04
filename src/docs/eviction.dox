@@ -44,6 +44,9 @@ Locking order:
     - lock \c cache->evict_pass_lock
       - lock \c cache->evict_queue_lock
         - lock \c queue->evict_lock
+- Eviction queue access:
+  - lock \c cache->evict_queue_lock
+    - lock \c queue->evict_lock
 
 There are three types of eviction in WiredTiger:
 
