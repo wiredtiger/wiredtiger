@@ -31,6 +31,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <unordered_map>
+#include <vector>
 #include "model/driver/kv_workload.h"
 #include "model/core.h"
 #include "wiredtiger.h"
@@ -64,10 +65,22 @@ protected:
         }
 
         /*
+         * session_context::session_context --
+         *     Delete the copy constructor.
+         */
+        session_context(const session_context &) = delete;
+
+        /*
          * session_context::~session_context --
          *     Destroy the context, alongside the corresponding resources.
          */
         ~session_context();
+
+        /*
+         * session_context::operator= --
+         *     Delete the assignment operator.
+         */
+        session_context &operator=(const session_context &) = delete;
 
         /*
          * session_context::session --
@@ -94,7 +107,7 @@ protected:
         static inline cursor_id_t
         cursor_id(table_id_t table_id, unsigned table_cur_id)
         {
-            if (table_cur_id < 0 || table_cur_id >= k_cursors_per_table)
+            if (table_cur_id >= k_cursors_per_table)
                 throw model_exception("Cursor ID out of range");
             return (cursor_id_t)(table_id * k_cursors_per_table + table_cur_id);
         }
@@ -141,6 +154,10 @@ protected:
         /* The map of table IDs to URIs, needed to resume the workload from a crash. */
         size_t num_tables;
         table_state tables[256]; /* The table states; protected by the same lock as the URI map. */
+
+        /* Return codes. */
+        size_t num_operations; /* The number of executed operations. */
+        int return_codes[];    /* Must be last, as the size is variable. */
     };
 
 public:
@@ -157,37 +174,40 @@ public:
     }
 
     /*
+     * kv_workload_runner_wt::kv_workload_runner_wt --
+     *     Delete the copy constructor.
+     */
+    kv_workload_runner_wt(const kv_workload_runner_wt &) = delete;
+
+    /*
      * kv_workload_runner_wt::~kv_workload_runner_wt --
-     *     Clean up the workload
+     *     Clean up the workload.
      */
     ~kv_workload_runner_wt();
 
     /*
-     * kv_workload::run --
-     *     Run the workload in WiredTiger.
+     * kv_workload_runner_wt::operator= --
+     *     Delete the assignment operator.
      */
-    void run(const kv_workload &workload);
+    kv_workload_runner_wt &operator=(const kv_workload_runner_wt &) = delete;
+
+    /*
+     * kv_workload::run --
+     *     Run the workload in WiredTiger. Return the return codes of the workload operations.
+     */
+    std::vector<int> run(const kv_workload &workload);
 
 protected:
     /*
      * kv_workload_runner::run_operation --
      *     Run the given operation.
      */
-    inline void
+    inline int
     run_operation(const operation::any &op)
     {
-        std::visit(
-          [this](auto &&x) {
-              int ret = do_operation(x);
-              /*
-               * In the future, we would like to be able to test operations that can fail, at which
-               * point we would record and compare return codes. But we're not there yet, so just
-               * fail on error.
-               */
-              if (ret != 0 && ret != WT_NOTFOUND)
-                  throw wiredtiger_exception(ret);
-          },
-          op);
+        int ret = WT_ERROR; /* So that Coverity does not complain. */
+        std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
+        return ret;
     }
 
     /*
@@ -246,6 +266,12 @@ protected:
      * kv_workload_runner_wt::do_operation --
      *     Execute the given workload operation in WiredTiger.
      */
+    int do_operation(const operation::evict &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
     int do_operation(const operation::insert &op);
 
     /*
@@ -283,6 +309,12 @@ protected:
      *     Execute the given workload operation in WiredTiger.
      */
     int do_operation(const operation::set_commit_timestamp &op);
+
+    /*
+     * kv_workload_runner_wt::do_operation --
+     *     Execute the given workload operation in WiredTiger.
+     */
+    int do_operation(const operation::set_oldest_timestamp &op);
 
     /*
      * kv_workload_runner_wt::do_operation --

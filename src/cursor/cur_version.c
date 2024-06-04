@@ -36,7 +36,7 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     /* Pass on the raw flag. */
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         LF_SET(WT_CURSTD_RAW);
-    if ((ret = __wt_cursor_set_keyv(file_cursor, flags, ap)) != 0)
+    if ((ret = __wti_cursor_set_keyv(file_cursor, flags, ap)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "failed to set key"));
     va_end(ap);
 }
@@ -61,7 +61,7 @@ __curversion_get_key(WT_CURSOR *cursor, ...)
     /* Pass on the raw flag. */
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         flags |= WT_CURSTD_RAW;
-    WT_ERR(__wt_cursor_get_keyv(file_cursor, flags, ap));
+    WT_ERR(__wti_cursor_get_keyv(file_cursor, flags, ap));
 
 err:
     va_end(ap);
@@ -83,7 +83,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     WT_DECL_RET;
     WT_PACK pack;
     WT_SESSION_IMPL *session;
-    const uint8_t *p, *end;
+    const uint8_t *end, *p;
     va_list ap;
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
@@ -119,7 +119,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
         WT_ERR_NOTFOUND_OK(ret, false);
 
         WT_ASSERT(session, p <= end);
-        WT_ERR(__wt_cursor_get_valuev(file_cursor, ap));
+        WT_ERR(__wti_cursor_get_valuev(file_cursor, ap));
     }
 
 err:
@@ -138,7 +138,7 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    ret = __wt_cursor_set_valuev(cursor, fmt, ap);
+    ret = __wti_cursor_set_valuev(cursor, fmt, ap);
     va_end(ap);
 
     return (ret);
@@ -151,7 +151,7 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
 static int
 __curversion_next_int(WT_CURSOR *cursor)
 {
-    WT_CURSOR *hs_cursor, *file_cursor;
+    WT_CURSOR *file_cursor, *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_ITEM(hs_value);
@@ -160,21 +160,21 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *first, *next_upd, *upd, *tombstone;
+    WT_UPDATE *first, *next_upd, *tombstone, *upd;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
-    uint64_t stop_txn, hs_upd_type, raw;
+    uint64_t hs_upd_type, raw, stop_txn;
     uint8_t *p, version_prepare_state;
     bool upd_found;
 
     session = CUR2S(cursor);
     version_cursor = (WT_CURSOR_VERSION *)cursor;
-    hs_cursor = version_cursor->hs_cursor;
     file_cursor = version_cursor->file_cursor;
+    hs_cursor = version_cursor->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
-    first = upd = tombstone = NULL;
+    first = tombstone = upd = NULL;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -448,7 +448,7 @@ err:
 static int
 __curversion_reset(WT_CURSOR *cursor)
 {
-    WT_CURSOR *hs_cursor, *file_cursor;
+    WT_CURSOR *file_cursor, *hs_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -564,7 +564,7 @@ err:
 static int
 __curversion_close(WT_CURSOR *cursor)
 {
-    WT_CURSOR *hs_cursor, *file_cursor;
+    WT_CURSOR *file_cursor, *hs_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -601,18 +601,18 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 {
     WT_CURSOR_STATIC_INIT(iface, __curversion_get_key, /* get-key */
       __curversion_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,            /* get-raw-key-value */
+      __wti_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
       __curversion_set_key,                            /* set-key */
-      __wt_cursor_set_value_notsup,                    /* set-value */
-      __wt_cursor_compare_notsup,                      /* compare */
-      __wt_cursor_equals_notsup,                       /* equals */
+      __wti_cursor_set_value_notsup,                   /* set-value */
+      __wti_cursor_compare_notsup,                     /* compare */
+      __wti_cursor_equals_notsup,                      /* equals */
       __curversion_next,                               /* next */
       __wt_cursor_notsup,                              /* prev */
       __curversion_reset,                              /* reset */
       __curversion_search,                             /* search */
-      __wt_cursor_search_near_notsup,                  /* search-near */
+      __wti_cursor_search_near_notsup,                 /* search-near */
       __wt_cursor_notsup,                              /* insert */
-      __wt_cursor_modify_notsup,                       /* modify */
+      __wti_cursor_modify_notsup,                      /* modify */
       __wt_cursor_notsup,                              /* update */
       __wt_cursor_notsup,                              /* remove */
       __wt_cursor_notsup,                              /* reserve */

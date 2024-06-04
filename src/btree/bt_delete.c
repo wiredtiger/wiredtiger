@@ -99,20 +99,20 @@
  */
 
 /*
- * __wt_delete_page --
+ * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
 int
-__wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+__wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
-    uint8_t previous_state;
+    WT_REF_STATE previous_state;
 
     *skipp = false;
 
     /* If we have a clean page in memory, attempt to evict it. */
-    previous_state = ref->state;
+    previous_state = WT_REF_GET_STATE(ref);
     if (previous_state == WT_REF_MEM &&
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
@@ -131,13 +131,10 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     /*
      * Fast check to see if it's worth locking, then atomically switch the page's state to lock it.
      */
-    previous_state = ref->state;
-    switch (previous_state) {
-    case WT_REF_DISK:
-        break;
-    default:
+    previous_state = WT_REF_GET_STATE(ref);
+    if (previous_state != WT_REF_DISK)
         return (0);
-    }
+
     if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
         return (0);
 
@@ -167,6 +164,19 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
     if (addr.ta.prepare)
         goto err;
+
+    /*
+     * When performing a truncate operation with no associated timestamp, limit fast-truncate to
+     * pages where all its data is globally visible. This is done to prevent data in the history
+     * store (that should have been cleared) from appearing again. Technically we don't need to
+     * check the newest stop durable timestamp, but for consistency, we check for the maximum of
+     * both the start and stop timestamps.
+     */
+    if (F_ISSET(session->txn, WT_TXN_TS_NOT_SET) &&
+      !__wt_txn_visible_all(session, addr.ta.newest_txn,
+        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
+        goto err;
+
     /*
      * History store data are always visible. No need to check visibility. Other than history store,
      * use the max durable timestamp that is available in the page aggregation for the visibility
@@ -193,7 +203,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         WT_ERR(__wt_txn_modify_page_delete(session, ref));
 
     *skipp = true;
-    WT_STAT_CONN_DATA_INCR(session, rec_page_delete_fast);
+    WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -214,14 +224,14 @@ err:
 int
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_REF_STATE current_state;
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
-    uint8_t current_state;
     bool locked;
 
     /* Lock the reference. We cannot access ref->page_del except when locked. */
     for (locked = false, sleep_usecs = yield_count = 0;;) {
-        switch (current_state = ref->state) {
+        switch (current_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_LOCKED:
             break;
         case WT_REF_DELETED:
@@ -307,7 +317,7 @@ __delete_redo_window_cleanup_internal(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL));
     if (ref->page != NULL) {
         WT_INTL_FOREACH_BEGIN (session, ref->page, child) {
-            if (child->state == WT_REF_DELETED && child->page_del != NULL)
+            if (WT_REF_GET_STATE(child) == WT_REF_DELETED && child->page_del != NULL)
                 __cell_redo_page_del_cleanup(session, ref->page->dsk, child->page_del);
         }
         WT_INTL_FOREACH_END;
@@ -362,11 +372,11 @@ __wt_delete_redo_window_cleanup(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_delete_page_skip --
+ * __wti_delete_page_skip --
  *     If iterating a cursor, skip deleted pages that are either visible to us or globally visible.
  */
 bool
-__wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+__wti_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
     bool discard, skip;
 
@@ -581,7 +591,7 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
     /* Walk the page entries, giving each one a tombstone. */
     WT_ROW_FOREACH (page, rip, i) {
         /* Retrieve the stop time point from the page's row. */
-        __wt_read_row_time_window(session, page, rip, &tw);
+        __wti_read_row_time_window(session, page, rip, &tw);
 
         WT_RET(__instantiate_tombstone(session, page_del, update_list, countp, &tw, &upd, &size));
         if (upd != NULL) {
@@ -606,11 +616,11 @@ err:
 }
 
 /*
- * __wt_delete_page_instantiate --
+ * __wti_delete_page_instantiate --
  *     Instantiate an entirely deleted row-store leaf page.
  */
 int
-__wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -643,11 +653,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Empty pages should get skipped before reaching this point. */
     WT_ASSERT(session, page->entries > 0);
 
-    WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
+    WT_STAT_CONN_DSRC_INCR(session, cache_read_deleted);
 
     /* Track the prepared, fast-truncate pages we've had to instantiate. */
     if (page_del != NULL && page_del->prepare_state != WT_PREPARE_INIT)
-        WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_deleted_prepared);
 
     /*
      * Give the page a modify structure. We need it to remember that the page has been instantiated.

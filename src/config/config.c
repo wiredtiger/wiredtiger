@@ -443,10 +443,10 @@ __config_process_value(WT_CONFIG_ITEM *value)
         return;
 
     if (value->type == WT_CONFIG_ITEM_ID) {
-        if (WT_STRING_MATCH("false", value->str, value->len)) {
+        if (WT_CONFIG_LIT_MATCH("false", *value)) {
             value->type = WT_CONFIG_ITEM_BOOL;
             value->val = 0;
-        } else if (WT_STRING_MATCH("true", value->str, value->len)) {
+        } else if (WT_CONFIG_LIT_MATCH("true", *value)) {
             value->type = WT_CONFIG_ITEM_BOOL;
             value->val = 1;
         }
@@ -554,11 +554,11 @@ __config_getraw(WT_CONFIG *cparser, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, 
 }
 
 /*
- * __wt_config_get --
+ * __wti_config_get --
  *     Given a NULL-terminated list of configuration strings, find the final value for a given key.
  */
 int
-__wt_config_get(
+__wti_config_get(
   WT_SESSION_IMPL *session, const char **cfg_arg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
     WT_CONFIG cparser;
@@ -596,7 +596,7 @@ __wt_config_gets(WT_SESSION_IMPL *session, const char **cfg, const char *key, WT
 {
     WT_CONFIG_ITEM key_item = {key, strlen(key), 0, WT_CONFIG_ITEM_STRING};
 
-    return (__wt_config_get(session, cfg, &key_item, value));
+    return (__wti_config_get(session, cfg, &key_item, value));
 }
 
 /*
@@ -609,7 +609,7 @@ __wt_config_gets_none(
   WT_SESSION_IMPL *session, const char **cfg, const char *key, WT_CONFIG_ITEM *value)
 {
     WT_RET(__wt_config_gets(session, cfg, key, value));
-    if (WT_STRING_MATCH("none", value->str, value->len))
+    if (WT_CONFIG_LIT_MATCH("none", *value))
         value->len = 0;
     return (0);
 }
@@ -652,7 +652,7 @@ __wt_config_getones_none(
   WT_SESSION_IMPL *session, const char *config, const char *key, WT_CONFIG_ITEM *value)
 {
     WT_RET(__wt_config_getones(session, config, key, value));
-    if (WT_STRING_MATCH("none", value->str, value->len))
+    if (WT_CONFIG_LIT_MATCH("none", *value))
         value->len = 0;
     return (0);
 }

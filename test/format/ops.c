@@ -241,7 +241,7 @@ rollback_to_stable(WT_SESSION *session)
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
      * debugging the race.
      */
-    timestamp_query("get=stable", &g.stable_timestamp);
+    testutil_check(timestamp_query("get=stable_timestamp", &g.stable_timestamp));
     trace_msg(session, "rollback-to-stable: stable timestamp %" PRIu64, g.stable_timestamp);
 
     /* Check the saved snap operations for consistency. */
@@ -331,7 +331,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Get a session. */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
 
     /* Initialize and start the worker threads. */
     lanes_init();
@@ -483,7 +483,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     if (lastrun) {
         tinfo_teardown();
-        timestamp_teardown(session);
+        if (g.transaction_timestamps_config)
+            timestamp_teardown(session);
     }
 
     wt_wrap_close_session(session);
@@ -938,7 +939,7 @@ ops_session_open(TINFO *tinfo)
     tinfo->session = NULL;
     memset(tinfo->cursors, 0, WT_MAX(ntables, 1) * sizeof(tinfo->cursors[0]));
 
-    wt_wrap_open_session(conn, &tinfo->sap, NULL, &session);
+    wt_wrap_open_session(conn, &tinfo->sap, NULL, NULL, &session);
     tinfo->session = session;
 }
 
@@ -1632,7 +1633,8 @@ wts_read_scan(TABLE *table, void *args)
 
     /* Open a session and cursor pair. */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(
+      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */

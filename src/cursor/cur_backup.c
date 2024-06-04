@@ -71,6 +71,7 @@ __wt_backup_set_blkincr(
     /* Free any id already set. */
     __wt_free(session, blkincr->id_str);
     blkincr->granularity = conn->incr_granularity = granularity;
+    WT_STAT_CONN_SET(session, backup_granularity, granularity);
     WT_RET(__wt_strndup(session, id, id_len, &blkincr->id_str));
     WT_CONN_SET_INCR_BACKUP(conn);
     F_SET(blkincr, WT_BLKINCR_VALID);
@@ -233,7 +234,7 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     if (cb->incr_file != NULL)
         __wt_free(session, cb->incr_file);
 
-    return (__wt_curbackup_free_incr(session, cb));
+    return (__wti_curbackup_free_incr(session, cb));
 }
 
 /*
@@ -310,19 +311,19 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
-      __wt_cursor_get_value_notsup,                   /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
-      __wt_cursor_set_key_notsup,                     /* set-key */
-      __wt_cursor_set_value_notsup,                   /* set-value */
-      __wt_cursor_compare_notsup,                     /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
+      __wti_cursor_get_value_notsup,                  /* get-value */
+      __wti_cursor_get_raw_key_value_notsup,          /* get-raw-key-value */
+      __wti_cursor_set_key_notsup,                    /* set-key */
+      __wti_cursor_set_value_notsup,                  /* set-value */
+      __wti_cursor_compare_notsup,                    /* compare */
+      __wti_cursor_equals_notsup,                     /* equals */
       __curbackup_next,                               /* next */
       __wt_cursor_notsup,                             /* prev */
       __curbackup_reset,                              /* reset */
       __wt_cursor_notsup,                             /* search */
-      __wt_cursor_search_near_notsup,                 /* search-near */
+      __wti_cursor_search_near_notsup,                /* search-near */
       __wt_cursor_notsup,                             /* insert */
-      __wt_cursor_modify_notsup,                      /* modify */
+      __wti_cursor_modify_notsup,                     /* modify */
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
@@ -336,6 +337,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_CURSOR *cursor;
     WT_CURSOR_BACKUP *cb, *othercb;
     WT_DECL_RET;
+    size_t uri_len;
 
     WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_BACKUP);
 
@@ -345,6 +347,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = "S";  /* Return the file names as the key. */
     cursor->value_format = ""; /* No value, for now. */
+    uri_len = strlen(uri);
 
     session->bkp_cursor = cb;
     othercb = (WT_CURSOR_BACKUP *)other;
@@ -355,13 +358,13 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", cfg[1]);
 
     /* Special backup cursor to query incremental IDs. */
-    if (WT_STRING_MATCH("backup:query_id", uri, strlen(uri))) {
+    if (WT_STRING_LIT_MATCH("backup:query_id", uri, uri_len)) {
         /* Top level cursor code does not allow a URI and cursor. We don't need to check here. */
         WT_ASSERT(session, othercb == NULL);
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
-            WT_RET_MSG(session, EINVAL, "Incremental backup is not configured");
+            WT_ERR_MSG(session, EINVAL, "Incremental backup is not configured");
         F_SET(cb, WT_CURBACKUP_QUERYID);
-    } else if (WT_STRING_MATCH("backup:export", uri, strlen(uri)))
+    } else if (WT_STRING_LIT_MATCH("backup:export", uri, uri_len))
         /* Special backup cursor for export operation. */
         F_SET(cb, WT_CURBACKUP_EXPORT);
 
@@ -370,7 +373,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
      * use on the connection and it isn't an export cursor.
      */
     if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)) && !F_ISSET(cb, WT_CURBACKUP_EXPORT))
-        return (ENOTSUP);
+        WT_ERR(ENOTSUP);
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
@@ -382,7 +385,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_ERR(ret);
     WT_ERR(cb->incr_file == NULL ?
         __wt_cursor_init(cursor, uri, NULL, cfg, cursorp) :
-        __wt_curbackup_open_incr(session, uri, other, cursor, cfg, cursorp));
+        __wti_curbackup_open_incr(session, uri, other, cursor, cfg, cursorp));
 
     WT_STAT_CONN_SET(session, backup_cursor_open, 1);
     if (0) {
@@ -477,7 +480,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
         /* If it isn't valid, skip it. */
         if (!F_ISSET(blk, WT_BLKINCR_VALID))
             continue;
-        if (WT_STRING_MATCH(blk->id_str, cval->str, cval->len)) {
+        if (WT_CONFIG_MATCH(blk->id_str, *cval)) {
             if (F_ISSET(blk, WT_BLKINCR_INUSE))
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
@@ -766,7 +769,7 @@ __backup_start(
      * Single thread hot backups: we're holding the schema lock, so we know we'll serialize with
      * other attempts to start a hot backup.
      */
-    if (conn->hot_backup_start != 0 && !is_dup)
+    if (__wt_atomic_load64(&conn->hot_backup_start) != 0 && !is_dup)
         WT_RET_MSG(session, EINVAL, "there is already a backup cursor open");
 
     if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && is_dup)
@@ -937,7 +940,7 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
 
     /* Checkpoint deletion and next hot backup can proceed. */
-    WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_start = 0);
+    WT_WITH_HOTBACKUP_WRITE_LOCK(session, __wt_atomic_store64(&conn->hot_backup_start, 0));
     F_CLR(session, WT_SESSION_BACKUP_CURSOR);
 
     return (ret);

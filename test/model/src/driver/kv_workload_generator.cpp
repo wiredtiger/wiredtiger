@@ -46,7 +46,11 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_sequences = 1000;
     max_concurrent_transactions = 3;
 
+    max_recno = 100'000;
     max_value_uint64 = 1'000'000;
+
+    column_fix = 0.1;
+    column_var = 0.1;
 
     finish_transaction = 0.08;
     insert = 0.75;
@@ -56,8 +60,15 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     checkpoint = 0.02;
     crash = 0.002;
+    /* FIXME-WT-12972 Enable the eviction operator when it is safe to do so. Set to 0.1. */
+    evict = 0.0;
     restart = 0.002;
+    rollback_to_stable = 0.005;
+    set_oldest_timestamp = 0.1;
     set_stable_timestamp = 0.2;
+
+    remove_existing = 0.9;
+    update_existing = 0.1;
 
     prepared_transaction = 0.25;
     use_set_commit_timestamp = 0.25;
@@ -67,13 +78,42 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 }
 
 /*
+ * kv_workload_generator::_default_spec --
+ *     The default workload specification.
+ */
+const kv_workload_generator_spec kv_workload_generator::_default_spec;
+
+/*
  * kv_workload_generator::kv_workload_generator --
  *     Create a new workload generator.
  */
-kv_workload_generator::kv_workload_generator(kv_workload_generator_spec spec, uint64_t seed)
+kv_workload_generator::kv_workload_generator(const kv_workload_generator_spec &spec, uint64_t seed)
     : _workload_ptr(std::make_shared<kv_workload>()), _workload(*(_workload_ptr.get())),
       _last_table_id(0), _last_txn_id(0), _random(seed), _spec(spec)
 {
+}
+
+/*
+ * table_context::choose_existing_key --
+ *     Randomly select an existing key.
+ */
+data_value
+kv_workload_generator::table_context::choose_existing_key(random &r)
+{
+    if (_keys.empty())
+        throw std::runtime_error("The table is empty");
+
+    /*
+     * For now, just pick a key at random. We may add weights based on number of operations per key
+     * in the future.
+     */
+    size_t index = r.next_index(_keys.size());
+
+    auto iter = _keys.begin();
+    std::advance(iter, index);
+    assert(iter != _keys.end());
+
+    return iter->first;
 }
 
 /*
@@ -83,7 +123,7 @@ kv_workload_generator::kv_workload_generator(kv_workload_generator_spec spec, ui
 kv_workload_generator::sequence_traversal::sequence_traversal(
   std::deque<kv_workload_sequence_ptr> &sequences,
   std::function<bool(kv_workload_sequence &)> barrier_fn)
-    : _sequences(sequences), _barrier_fn(barrier_fn)
+    : _sequences(sequences), _barrier_fn(std::move(barrier_fn))
 {
     for (kv_workload_sequence_ptr &seq : _sequences)
         _per_sequence_state.emplace(seq.get(), new sequence_state(seq.get()));
@@ -160,7 +200,7 @@ kv_workload_generator::sequence_traversal::complete_all()
             }
         }
 
-    _runnable = new_runnable;
+    _runnable = std::move(new_runnable);
     if (_runnable.empty())
         advance_barrier();
 }
@@ -197,71 +237,14 @@ kv_workload_generator::sequence_traversal::complete_one(sequence_state *s)
 }
 
 /*
- * kv_workload_generator::assert_timestamps --
- *     Assert that the timestamps are assigned correctly. Call this function one sequence at a time.
- */
-void
-kv_workload_generator::assert_timestamps(
-  const kv_workload_sequence &sequence, const operation::any &op, timestamp_t &stable)
-{
-    if (std::holds_alternative<operation::set_stable_timestamp>(op)) {
-        timestamp_t t = std::get<operation::set_stable_timestamp>(op).stable_timestamp;
-        if (t < stable) {
-            std::ostringstream err;
-            err << "The stable timestamp went backwards: " << stable << " -> " << t << " (sequence "
-                << sequence.seq_no() << ")" << std::endl;
-            throw model_exception(err.str());
-        }
-        stable = t;
-    }
-
-    if (std::holds_alternative<operation::prepare_transaction>(op)) {
-        timestamp_t t = std::get<operation::prepare_transaction>(op).prepare_timestamp;
-        if (t < stable) {
-            std::ostringstream err;
-            err << "Prepare timestamp is before the stable timestamp: " << t << " < " << stable
-                << " (sequence " << sequence.seq_no() << ")" << std::endl;
-            throw model_exception(err.str());
-        }
-    }
-
-    if (std::holds_alternative<operation::set_commit_timestamp>(op)) {
-        timestamp_t t = std::get<operation::set_commit_timestamp>(op).commit_timestamp;
-        if (t < stable) {
-            std::ostringstream err;
-            err << "Commit timestamp is before the stable timestamp: " << t << " < " << stable
-                << " (sequence " << sequence.seq_no() << ")" << std::endl;
-            throw model_exception(err.str());
-        }
-    }
-
-    if (std::holds_alternative<operation::commit_transaction>(op)) {
-        timestamp_t t = std::get<operation::commit_transaction>(op).commit_timestamp;
-        if (t < stable) {
-            std::ostringstream err;
-            err << "Commit timestamp is before the stable timestamp: " << t << " < " << stable
-                << " (sequence " << sequence.seq_no() << ")" << std::endl;
-            throw model_exception(err.str());
-        }
-        t = std::get<operation::commit_transaction>(op).durable_timestamp;
-        if (t < stable && t != k_timestamp_none) {
-            std::ostringstream err;
-            err << "Durable timestamp is before the stable timestamp: " << t << " < " << stable
-                << " (sequence " << sequence.seq_no() << ")" << std::endl;
-            throw model_exception(err.str());
-        }
-    }
-}
-
-/*
  * kv_workload_generator::assign_timestamps --
  *     Assign timestamps to operations in a sequence.
  */
 void
-kv_workload_generator::assign_timestamps(
-  kv_workload_sequence &sequence, timestamp_t first, timestamp_t last)
+kv_workload_generator::assign_timestamps(kv_workload_sequence &sequence, timestamp_t first,
+  timestamp_t last, timestamp_t &oldest, timestamp_t &stable)
 {
-    if (first + 10 >= last)
+    if (sequence.size() > 1 && first + 10 >= last)
         throw model_exception("Need a bigger difference between first and last timestamp");
 
     /* Assume that there is at most one transaction in the sequence. */
@@ -274,6 +257,7 @@ kv_workload_generator::assign_timestamps(
         if (std::holds_alternative<operation::commit_transaction>(op) ||
           std::holds_alternative<operation::prepare_transaction>(op) ||
           std::holds_alternative<operation::set_commit_timestamp>(op) ||
+          std::holds_alternative<operation::set_oldest_timestamp>(op) ||
           std::holds_alternative<operation::set_stable_timestamp>(op))
             timestamped_ops.push_back(&op);
         if (std::holds_alternative<operation::prepare_transaction>(op))
@@ -291,22 +275,24 @@ kv_workload_generator::assign_timestamps(
 
         /* Generate the next timestamp. */
         x = x + 1 + _random.next_double() * (first + (++count) * step - x);
-        timestamp_t t = (timestamp_t)x;
+        timestamp_t t = std::min((timestamp_t)x, last);
 
         /* Assign. */
         if (std::holds_alternative<operation::commit_transaction>(*op)) {
             std::get<operation::commit_transaction>(*op).commit_timestamp = t;
             if (prepared) {
                 x = x + 1 + _random.next_double() * (first + (++count) * step - x);
-                std::get<operation::commit_transaction>(*op).durable_timestamp = (timestamp_t)x;
+                std::get<operation::commit_transaction>(*op).durable_timestamp =
+                  std::min((timestamp_t)x, last);
             }
-        }
-        if (std::holds_alternative<operation::prepare_transaction>(*op))
+        } else if (std::holds_alternative<operation::prepare_transaction>(*op))
             std::get<operation::prepare_transaction>(*op).prepare_timestamp = t;
-        if (std::holds_alternative<operation::set_commit_timestamp>(*op))
+        else if (std::holds_alternative<operation::set_commit_timestamp>(*op))
             std::get<operation::set_commit_timestamp>(*op).commit_timestamp = t;
-        if (std::holds_alternative<operation::set_stable_timestamp>(*op))
-            std::get<operation::set_stable_timestamp>(*op).stable_timestamp = t;
+        else if (std::holds_alternative<operation::set_oldest_timestamp>(*op))
+            std::get<operation::set_oldest_timestamp>(*op).oldest_timestamp = oldest = t;
+        else if (std::holds_alternative<operation::set_stable_timestamp>(*op))
+            std::get<operation::set_stable_timestamp>(*op).stable_timestamp = stable = t;
     }
 }
 
@@ -337,8 +323,25 @@ kv_workload_generator::create_table()
     std::string name = "table" + std::to_string(id);
     std::string key_format = "Q";
     std::string value_format = "Q";
+    kv_table_type type = kv_table_type::row;
 
-    table_context_ptr table = std::make_shared<table_context>(id, name, key_format, value_format);
+    probability_switch(_random.next_float())
+    {
+        probability_case(_spec.column_fix)
+        {
+            key_format = "r";
+            value_format = "8t";
+            type = kv_table_type::column_fix;
+        }
+        probability_case(_spec.column_var)
+        {
+            key_format = "r";
+            type = kv_table_type::column;
+        }
+    }
+
+    table_context_ptr table =
+      std::make_shared<table_context>(id, name, key_format, value_format, type);
     _tables_list.push_back(table);
     _tables[id] = table;
 
@@ -396,14 +399,16 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.insert)
             {
                 table_context_ptr table = choose_table(txn_ptr);
-                data_value key = generate_key(table);
+                data_value key = generate_key(table, op_category::update);
                 data_value value = generate_value(table);
+                table->update_key(key);
                 txn << operation::insert(table->id(), txn_id, key, value);
             }
             probability_case(_spec.remove)
             {
                 table_context_ptr table = choose_table(txn_ptr);
-                data_value key = generate_key(table);
+                data_value key = generate_key(table, op_category::remove);
+                table->remove_key(key);
                 txn << operation::remove(table->id(), txn_id, key);
             }
             probability_case(_spec.set_commit_timestamp)
@@ -414,10 +419,27 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.truncate)
             {
                 table_context_ptr table = choose_table(txn_ptr);
+
+                /*
+                 * Don't use truncate on FLCS tables, because a truncate on an FLCS table can
+                 * conflict with operations adjacent to the truncation range's key range. For
+                 * example, if a user wants to truncate range 10-12 on a table with keys [10, 11,
+                 * 12, 13, 14], a concurrent update to key 13 would result in a conflict (while an
+                 * update to 14 would be able proceed). This does not happen with the other table
+                 * types, which are implemented using bounded cursors; FLCS does not support bounded
+                 * cursors, so it uses a different implementation.
+                 *
+                 * The workload generator cannot currently account for this, so don't use truncate
+                 * with FLCS tables for now.
+                 */
+                if (table->type() == kv_table_type::column_fix)
+                    break;
+
                 data_value start = generate_key(table);
                 data_value stop = generate_key(table);
                 if (start > stop)
                     std::swap(start, stop);
+                table->remove_key_range(start, stop);
                 txn << operation::truncate(table->id(), txn_id, start, stop);
             }
         }
@@ -469,23 +491,46 @@ kv_workload_generator::run()
         {
             probability_case(_spec.checkpoint)
             {
-                kv_workload_sequence_ptr p =
-                  std::make_shared<kv_workload_sequence>(_sequences.size());
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::checkpoint);
                 *p << operation::checkpoint();
                 _sequences.push_back(p);
             }
             probability_case(_spec.crash)
             {
-                kv_workload_sequence_ptr p =
-                  std::make_shared<kv_workload_sequence>(_sequences.size());
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::crash);
                 *p << operation::crash();
+                _sequences.push_back(p);
+            }
+            probability_case(_spec.evict)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::evict);
+                table_context_ptr table = choose_table(std::move(kv_workload_sequence_ptr()));
+                data_value key = generate_key(table, op_category::evict);
+                *p << operation::evict(table->id(), key);
                 _sequences.push_back(p);
             }
             probability_case(_spec.restart)
             {
-                kv_workload_sequence_ptr p =
-                  std::make_shared<kv_workload_sequence>(_sequences.size());
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::restart);
                 *p << operation::restart();
+                _sequences.push_back(p);
+            }
+            probability_case(_spec.rollback_to_stable)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::rollback_to_stable);
+                *p << operation::rollback_to_stable();
+                _sequences.push_back(p);
+            }
+            probability_case(_spec.set_oldest_timestamp)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::set_oldest_timestamp);
+                *p << operation::set_oldest_timestamp(k_timestamp_none); /* Placeholder. */
                 _sequences.push_back(p);
             }
             probability_case(_spec.set_stable_timestamp)
@@ -516,6 +561,18 @@ kv_workload_generator::run()
         }
 
     /*
+     * Rollback to stable must be executed outside of transactions, so make sure to add the
+     * corresponding dependencies.
+     */
+    for (size_t i = 0; i < _sequences.size(); i++)
+        if (_sequences[i]->type() == kv_workload_sequence_type::rollback_to_stable) {
+            for (size_t j = 0; j < i; j++)
+                _sequences[j]->must_finish_before(_sequences[i].get());
+            for (size_t j = i + 1; j < _sequences.size(); j++)
+                _sequences[i]->must_finish_before(_sequences[j].get());
+        }
+
+    /*
      * Find dependencies between workload sequences: If two sequences operate on the same keys, they
      * must be run serially to preserve the serial workload's semantics. It is not sufficient to
      * just ensure that conflicting transactions commit in the correct order, because WiredTiger
@@ -530,22 +587,52 @@ kv_workload_generator::run()
      * Fill in the timestamps. Break up the collection of sequences into blocks of transactions
      * (breaking them up by non-transactional sequences, such as the ones for "set stable
      * timestamp"), and traverse them in the dependency order, processing a block of independent
-     * sequences at a time.
+     * sequences at a time. Keep track of the oldest and stable timestamps to ensure that we assign
+     * them in the correct order.
      */
     const auto barrier_fn = [](kv_workload_sequence &seq) {
         return seq.type() != kv_workload_sequence_type::transaction;
     };
+
     timestamp_t step = 1000;
     timestamp_t first = step + 1;
     timestamp_t last = first + step;
 
+    timestamp_t ckpt_oldest = k_timestamp_none;
+    timestamp_t ckpt_stable = k_timestamp_none;
+    timestamp_t oldest = k_timestamp_none;
+    timestamp_t stable = k_timestamp_none;
+
     for (sequence_traversal t(_sequences, barrier_fn); t.has_more(); t.complete_all()) {
-        for (sequence_state *s : t.runnable())
-            if (s->sequence->type() == kv_workload_sequence_type::set_stable_timestamp)
-                /* Operations such as "set stable timestamp" must lag a little behind. */
-                assign_timestamps(*s->sequence, first - step, last - step);
+        for (sequence_state *s : t.runnable()) {
+
+            /* Simulate how checkpoints, crashes, and restarts manipulate the timestamps. */
+            if (s->sequence->type() == kv_workload_sequence_type::checkpoint ||
+              s->sequence->type() == kv_workload_sequence_type::restart ||
+              s->sequence->type() == kv_workload_sequence_type::rollback_to_stable) {
+                ckpt_oldest = oldest;
+                ckpt_stable = stable;
+                if (ckpt_stable == k_timestamp_none)
+                    ckpt_oldest = k_timestamp_none;
+            }
+            if (s->sequence->type() == kv_workload_sequence_type::crash ||
+              s->sequence->type() == kv_workload_sequence_type::restart) {
+                oldest = ckpt_oldest;
+                stable = ckpt_stable;
+            }
+
+            /* Assign the timestamps. */
+            if (s->sequence->type() == kv_workload_sequence_type::set_oldest_timestamp)
+                /* The oldest timestamp must lag behind the stable timestamp. */
+                assign_timestamps(*s->sequence, oldest,
+                  stable != k_timestamp_none ? stable : first - step, oldest, stable);
+            else if (s->sequence->type() == kv_workload_sequence_type::set_stable_timestamp)
+                /* The stable timestamp must lag behind the other operations. */
+                assign_timestamps(*s->sequence, first - step, last - step, oldest, stable);
             else
-                assign_timestamps(*s->sequence, first, last);
+                assign_timestamps(*s->sequence, first, last, oldest, stable);
+        }
+
         first = last + 1;
         last = first + step - 1;
     }
@@ -555,7 +642,6 @@ kv_workload_generator::run()
      * traversing the sequences in dependency order, and at each step, choosing one runnable
      * operation at random.
      */
-    timestamp_t stable = k_timestamp_none;
     for (sequence_traversal t(_sequences); t.has_more();) {
         const std::deque<sequence_state *> &runnable = t.runnable();
 
@@ -567,10 +653,7 @@ kv_workload_generator::run()
         if (s->next_operation_index >= s->sequence->size())
             throw model_exception("Internal error: No more operations left in a sequence");
         const operation::any &op = (*s->sequence)[s->next_operation_index++];
-        _workload << op;
-
-        /* Validate that we filled in the timestamps in the correct order. */
-        assert_timestamps(*s->sequence, op, stable);
+        _workload << kv_workload_operation(op, s->sequence->seq_no());
 
         /* If the operation resulted in a database crash or restart, stop all started sequences. */
         if (std::holds_alternative<operation::crash>(op) ||
@@ -583,6 +666,44 @@ kv_workload_generator::run()
         if (s->next_operation_index >= s->sequence->size())
             t.complete_one(s);
     }
+
+    /* Validate that we filled in the timestamps in the correct order. */
+    _workload.assert_timestamps();
+}
+
+/*
+ * kv_workload_generator::generate_key --
+ *     Generate a key.
+ */
+data_value
+kv_workload_generator::generate_key(table_context_ptr table, op_category op)
+{
+    /* Get the probability of choosing an existing key. */
+    float p_existing = 0;
+    switch (op) {
+    case op_category::none:
+        p_existing = 0;
+        break;
+
+    case op_category::evict:
+        p_existing = 1.0;
+        break;
+
+    case op_category::remove:
+        p_existing = _spec.remove_existing;
+        break;
+
+    case op_category::update:
+        p_existing = _spec.update_existing;
+        break;
+    }
+
+    /* See if we should get an existing key. */
+    if (!table->empty() && _random.next_float() < p_existing)
+        return table->choose_existing_key(_random);
+
+    /* Otherwise generate a random key. It's okay if the key already exists. */
+    return random_data_value(table->key_format());
 }
 
 /*
@@ -592,12 +713,30 @@ kv_workload_generator::run()
 data_value
 kv_workload_generator::random_data_value(const std::string &format)
 {
-    if (format.length() != 1)
-        throw model_exception("The model does not currently support structs or types with sizes");
+    if (format.empty())
+        throw model_exception("The format cannot be an empty string");
 
-    switch (format[0]) {
+    const char *f = format.c_str();
+
+    /* Get the length. */
+    unsigned length = 0;
+    if (isdigit(f[0]))
+        length = (u_int)parse_uint64(f, &f);
+
+    if (strlen(f) != 1)
+        throw model_exception("The model does not currently support structs");
+
+    switch (f[0]) {
     case 'Q':
         return data_value(_random.next_uint64(_spec.max_value_uint64));
+    case 'r':
+        return data_value(_random.next_uint64(1, _spec.max_recno));
+    case 't':
+        if (length == 0)
+            length = 1;
+        if (length > 8)
+            throw model_exception("The length cannot be higher than 8 for type \"t\"");
+        return data_value(_random.next_uint64(1 << (length - 1)));
     default:
         throw model_exception("Unsupported type.");
     };

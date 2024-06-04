@@ -316,11 +316,11 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_blkcache_get --
+ * __wti_blkcache_get --
  *     Get a block from the cache.
  */
 void
-__wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
+__wti_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
   WT_BLKCACHE_ITEM **blkcache_retp, bool *foundp, bool *skip_cache_putp)
 {
     WT_BLKCACHE *blkcache;
@@ -385,11 +385,11 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 }
 
 /*
- * __wt_blkcache_put --
+ * __wti_blkcache_put --
  *     Put a block into the cache.
  */
 int
-__wt_blkcache_put(
+__wti_blkcache_put(
   WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr, size_t addr_size, bool write)
 {
     WT_BLKCACHE *blkcache;
@@ -503,11 +503,11 @@ err:
 }
 
 /*
- * __wt_blkcache_remove --
+ * __wti_blkcache_remove --
  *     Remove a block from the cache.
  */
 void
-__wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
@@ -763,10 +763,9 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
           WT_BLKCACHE_HASHSIZE_MIN, WT_BLKCACHE_HASHSIZE_MAX);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.type", &cval));
-    if (WT_STRING_MATCH("dram", cval.str, cval.len) || WT_STRING_MATCH("DRAM", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("dram", cval) || WT_CONFIG_LIT_MATCH("DRAM", cval))
         cache_type = WT_BLKCACHE_DRAM;
-    else if (WT_STRING_MATCH("nvram", cval.str, cval.len) ||
-      WT_STRING_MATCH("NVRAM", cval.str, cval.len)) {
+    else if (WT_CONFIG_LIT_MATCH("nvram", cval) || WT_CONFIG_LIT_MATCH("NVRAM", cval)) {
 #ifdef ENABLE_MEMKIND
         cache_type = WT_BLKCACHE_NVRAM;
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));

@@ -85,7 +85,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     }
 
     /* Check for mapped blocks. */
-    WT_RET(__wt_blkcache_map_read(session, ip, addr, addr_size, &found));
+    WT_RET(__wti_blkcache_map_read(session, ip, addr, addr_size, &found));
     if (found) {
         skip_cache_put = true;
         if (!expect_conversion)
@@ -94,7 +94,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     /* Check the block cache. */
     if (!found && blkcache->type != WT_BLKCACHE_UNCONFIGURED) {
-        __wt_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
+        __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
         if (found) {
             blkcache_found = true;
             ip->data = blkcache_item->data;
@@ -121,12 +121,12 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
         }
 
         dsk = ip->data;
-        WT_STAT_CONN_DATA_INCR(session, cache_read);
+        WT_STAT_CONN_DSRC_INCR(session, cache_read);
         if (WT_SESSION_IS_CHECKPOINT(session))
-            WT_STAT_CONN_DATA_INCR(session, cache_read_checkpoint);
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
-            WT_STAT_DATA_INCR(session, compress_read);
-        WT_STAT_CONN_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
+            WT_STAT_DSRC_INCR(session, compress_read);
+        WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
         (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
     }
@@ -159,7 +159,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     /* Store the decrypted, possibly compressed, block in the block_cache. */
     if (!skip_cache_put)
-        WT_ERR(__wt_blkcache_put(session, ip, addr, addr_size, false));
+        WT_ERR(__wti_blkcache_put(session, ip, addr, addr_size, false));
 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
@@ -268,7 +268,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         ip = buf;
     else if (buf->size <= btree->allocsize) {
         ip = buf;
-        WT_STAT_DATA_INCR(session, compress_write_too_small);
+        WT_STAT_DSRC_INCR(session, compress_write_too_small);
     } else {
         /* Skip the header bytes of the source data. */
         src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
@@ -309,10 +309,10 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
          */
         if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
             ip = buf;
-            WT_STAT_DATA_INCR(session, compress_write_fail);
+            WT_STAT_DSRC_INCR(session, compress_write_fail);
         } else {
             compressed = true;
-            WT_STAT_DATA_INCR(session, compress_write);
+            WT_STAT_DSRC_INCR(session, compress_write);
 
             compression_ratio = src_len / (result_len - WT_BLOCK_COMPRESS_SKIP);
             __wt_stat_compr_ratio_write_hist_incr(session, compression_ratio);
@@ -394,8 +394,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     dsk = ip->mem;
     WT_ASSERT(session, dsk->write_gen != 0);
 
-    WT_STAT_CONN_DATA_INCR(session, cache_write);
-    WT_STAT_CONN_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
+    WT_STAT_CONN_DSRC_INCR(session, cache_write);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, dsk->mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size);
 
@@ -419,7 +419,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     else if (!blkcache->cache_on_writes)
         WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
     else if (!checkpoint)
-        WT_ERR(__wt_blkcache_put(session, compressed ? ctmp : buf, addr, *addr_sizep, true));
+        WT_ERR(__wti_blkcache_put(session, compressed ? ctmp : buf, addr, *addr_sizep, true));
 
 err:
     __wt_scr_free(session, &ctmp);

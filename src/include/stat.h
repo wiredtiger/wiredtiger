@@ -48,11 +48,19 @@
  *
  * Default hash table size; use a prime number of buckets rather than assuming a good hash
  * (Reference Sedgewick, Algorithms in C, "Hash Functions").
+ *
+ * The counter slots are split into two separate counters, one for connection and the other for
+ * data-source. This is because we want to be able to independently increase one counter slot
+ * without increasing the other, as for example, increasing the data-source counter by a small
+ * number would have a greater impact than increasing the connection counter by the same number -
+ * depending on the number of dhandles in the system.
+ *
  */
-#define WT_COUNTER_SLOTS 23
+#define WT_STAT_CONN_COUNTER_SLOTS 23
+#define WT_STAT_DSRC_COUNTER_SLOTS 23
 
 /*
- * WT_STATS_SLOT_ID is the thread's slot ID for the array of structures.
+ * WT_STATS_###_SLOT_ID is the thread's slot ID for the array of structures.
  *
  * Ideally, we want a slot per CPU, and we want each thread to index the slot corresponding to the
  * CPU it runs on. Unfortunately, getting the ID of the current CPU is difficult: some operating
@@ -66,7 +74,8 @@
  * Our solution is to use the session ID; there is normally a session per thread and the session ID
  * is a small, monotonically increasing number.
  */
-#define WT_STATS_SLOT_ID(session) (((session)->id) % WT_COUNTER_SLOTS)
+#define WT_STATS_CONN_SLOT_ID(session) (((session)->id) % WT_STAT_CONN_COUNTER_SLOTS)
+#define WT_STATS_DSRC_SLOT_ID(session) (((session)->id) % WT_STAT_DSRC_COUNTER_SLOTS)
 
 /*
  * Statistic structures are arrays of int64_t's. We have functions to read/write those structures
@@ -94,13 +103,13 @@
  * Sum the values from all structures in the array.
  */
 static WT_INLINE int64_t
-__wt_stats_aggregate(void *stats_arg, int slot)
+__wt_stats_aggregate_internal(void *stats_arg, int slot, u_int num_slots)
 {
     int64_t **stats, aggr_v;
-    int i;
+    u_int i;
 
     stats = (int64_t **)stats_arg;
-    for (aggr_v = 0, i = 0; i < WT_COUNTER_SLOTS; i++)
+    for (aggr_v = 0, i = 0; i < num_slots; i++)
         aggr_v += stats[i][slot];
 
     /*
@@ -121,17 +130,43 @@ __wt_stats_aggregate(void *stats_arg, int slot)
     return (aggr_v);
 }
 
+static WT_INLINE int64_t
+__wt_stats_aggregate_conn(void *stats_arg, int slot)
+{
+    return (__wt_stats_aggregate_internal(stats_arg, slot, WT_STAT_CONN_COUNTER_SLOTS));
+}
+
+static WT_INLINE int64_t
+__wt_stats_aggregate_dsrc(void *stats_arg, int slot)
+{
+    return (__wt_stats_aggregate_internal(stats_arg, slot, WT_STAT_DSRC_COUNTER_SLOTS));
+}
+
 /*
- * Clear the values in all structures in the array.
+ * Clear the values in all structures in the array for connection statistics.
  */
 static WT_INLINE void
-__wt_stats_clear(void *stats_arg, int slot)
+__wt_stats_clear_conn(void *stats_arg, int slot)
 {
     int64_t **stats;
     int i;
 
     stats = (int64_t **)stats_arg;
-    for (i = 0; i < WT_COUNTER_SLOTS; i++)
+    for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; i++)
+        stats[i][slot] = 0;
+}
+
+/*
+ * Clear the values in all structures in the array for data-source statistics.
+ */
+static WT_INLINE void
+__wt_stats_clear_dsrc(void *stats_arg, int slot)
+{
+    int64_t **stats;
+    int i;
+
+    stats = (int64_t **)stats_arg;
+    for (i = 0; i < WT_STAT_DSRC_COUNTER_SLOTS; i++)
         stats[i][slot] = 0;
 }
 
@@ -139,16 +174,28 @@ __wt_stats_clear(void *stats_arg, int slot)
  * Read/write statistics if statistics gathering is enabled. Reading and writing the field requires
  * different actions: reading sums the values across the array of structures, writing updates a
  * single structure's value.
+ *
+ * The read statistics are separated into data-source or connection statistics as the counter slots
+ * for the statistics are separate. The write statistics do not rely on counter slots in this way so
+ * they do not need to be split.
  */
 #define WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
 
-#define WT_STAT_READ(stats, fld) __wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_CONN_READ(stats, fld) \
+    __wt_stats_aggregate_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_DSRC_READ(stats, fld) \
+    __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define WT_STAT_WRITE(session, stats, fld, v) \
     do {                                      \
         if (WT_STAT_ENABLED(session))         \
             (stats)->fld = (int64_t)(v);      \
     } while (0)
 
+#define WT_STAT_SET_BASE(session, stat, fld, value) \
+    do {                                            \
+        if (WT_STAT_ENABLED(session))               \
+            (stat)->fld = (int64_t)(value);         \
+    } while (0)
 #define WT_STAT_DECRV_BASE(session, stat, fld, value) \
     do {                                              \
         if (WT_STAT_ENABLED(session))                 \
@@ -170,54 +217,35 @@ __wt_stats_clear(void *stats_arg, int slot)
             (void)__wt_atomic_addi64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
 
-#define WT_STAT_DECRV(session, stats, fld, value)                                 \
-    do {                                                                          \
-        WT_STAT_DECRV_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
-    } while (0)
-#define WT_STAT_DECRV_ATOMIC(session, stats, fld, value)                                 \
-    do {                                                                                 \
-        WT_STAT_DECRV_ATOMIC_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
-    } while (0)
-#define WT_STAT_DECR(session, stats, fld) WT_STAT_DECRV(session, stats, fld, 1)
-
-#define WT_STAT_INCRV(session, stats, fld, value)                                 \
-    do {                                                                          \
-        WT_STAT_INCRV_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
-    } while (0)
-#define WT_STAT_INCRV_ATOMIC(session, stats, fld, value)                                 \
-    do {                                                                                 \
-        WT_STAT_INCRV_ATOMIC_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
-    } while (0)
-#define WT_STAT_INCR(session, stats, fld) WT_STAT_INCRV(session, stats, fld, 1)
-#define WT_STAT_SET_BASE(session, stat, fld, value) \
-    do {                                            \
-        if (WT_STAT_ENABLED(session))               \
-            (stat)->fld = (int64_t)(value);         \
-    } while (0)
-#define WT_STAT_SET(session, stats, fld, value)                            \
-    do {                                                                   \
-        if (WT_STAT_ENABLED(session)) {                                    \
-            __wt_stats_clear(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld)); \
-            WT_STAT_SET_BASE(session, (stats)[0], fld, value);             \
-        }                                                                  \
-    } while (0)
-
 /*
+ * The following connection and data-source statistic updates are done to their separate statistic
+ * buckets. WT_STATP_### should be used when you want to give a statistic pointer, in cases where
+ * the statistic structure is not tied to the current session or data-source. WT_STAT_### is used
+ * when there is no pointer given, and the implied statistic bucket is tied to the session.
+ *
  * Update connection handle statistics if statistics gathering is enabled.
  */
 #define WT_STAT_CONN_DECRV(session, fld, value) \
-    WT_STAT_DECRV_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, value)
+    WT_STAT_DECRV_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_DECR_ATOMIC(session, fld) \
-    WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, 1)
+    WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, 1)
 #define WT_STAT_CONN_DECR(session, fld) WT_STAT_CONN_DECRV(session, fld, 1)
 
 #define WT_STAT_CONN_INCRV(session, fld, value) \
-    WT_STAT_INCRV_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, value)
+    WT_STAT_INCRV_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR_ATOMIC(session, fld) \
-    WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, 1)
+    WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, 1)
 #define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
-#define WT_STAT_CONN_SET(session, fld, value) WT_STAT_SET(session, S2C(session)->stats, fld, value)
+#define WT_STATP_CONN_SET(session, stats, fld, value)                           \
+    do {                                                                        \
+        if (WT_STAT_ENABLED(session)) {                                         \
+            __wt_stats_clear_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld)); \
+            WT_STAT_SET_BASE(session, (stats)[0], fld, value);                  \
+        }                                                                       \
+    } while (0)
+#define WT_STAT_CONN_SET(session, fld, value) \
+    WT_STATP_CONN_SET(session, S2C(session)->stats, fld, value)
 
 /*
  * Update data-source handle statistics if statistics gathering is enabled and the data-source
@@ -226,22 +254,41 @@ __wt_stats_clear(void *stats_arg, int slot)
  * XXX We shouldn't have to check if the data-source handle is NULL, but it's necessary until
  * everything is converted to using data-source handles.
  */
-#define WT_STAT_DATA_DECRV(session, fld, value)                                   \
-    do {                                                                          \
-        if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
-            WT_STAT_DECRV(session, (session)->dhandle->stats, fld, value);        \
+#define WT_STATP_DSRC_INCRV(session, stats, fld, value)                                \
+    do {                                                                               \
+        WT_STAT_INCRV_BASE(session, (stats)[(session)->stat_dsrc_bucket], fld, value); \
     } while (0)
-#define WT_STAT_DATA_DECR(session, fld) WT_STAT_DATA_DECRV(session, fld, 1)
-#define WT_STAT_DATA_INCRV(session, fld, value)                                   \
+#define WT_STATP_DSRC_INCR(session, stats, fld) WT_STATP_DSRC_INCRV(session, stats, fld, 1)
+#define WT_STAT_DSRC_INCRV(session, fld, value)                                   \
     do {                                                                          \
         if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
-            WT_STAT_INCRV(session, (session)->dhandle->stats, fld, value);        \
+            WT_STATP_DSRC_INCRV(session, (session)->dhandle->stats, fld, value);  \
     } while (0)
-#define WT_STAT_DATA_INCR(session, fld) WT_STAT_DATA_INCRV(session, fld, 1)
-#define WT_STAT_DATA_SET(session, fld, value)                                     \
+#define WT_STAT_DSRC_INCR(session, fld) WT_STAT_DSRC_INCRV(session, fld, 1)
+
+#define WT_STATP_DSRC_DECRV(session, stats, fld, value)                                \
+    do {                                                                               \
+        WT_STAT_DECRV_BASE(session, (stats)[(session)->stat_dsrc_bucket], fld, value); \
+    } while (0)
+#define WT_STATP_DSRC_DECR(session, stats, fld) WT_STATP_DSRC_DECRV(session, stats, fld, 1)
+#define WT_STAT_DSRC_DECRV(session, fld, value)                                   \
     do {                                                                          \
         if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
-            WT_STAT_SET(session, (session)->dhandle->stats, fld, value);          \
+            WT_STATP_DSRC_DECRV(session, (session)->dhandle->stats, fld, value);  \
+    } while (0)
+#define WT_STAT_DSRC_DECR(session, fld) WT_STAT_DSRC_DECRV(session, fld, 1)
+
+#define WT_STATP_DSRC_SET(session, stats, fld, value)                           \
+    do {                                                                        \
+        if (WT_STAT_ENABLED(session)) {                                         \
+            __wt_stats_clear_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld)); \
+            WT_STAT_SET_BASE(session, (stats)[0], fld, value);                  \
+        }                                                                       \
+    } while (0)
+#define WT_STAT_DSRC_SET(session, fld, value)                                     \
+    do {                                                                          \
+        if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
+            WT_STATP_DSRC_SET(session, (session)->dhandle->stats, fld, value);    \
     } while (0)
 
 /*
@@ -249,19 +296,19 @@ __wt_stats_clear(void *stats_arg, int slot)
  * statistics concurrently and is useful to avoid the duplicated calls that happen in a lot of
  * places.
  */
-#define WT_STAT_CONN_DATA_DECRV(session, fld, value) \
+#define WT_STAT_CONN_DSRC_DECRV(session, fld, value) \
     do {                                             \
         WT_STAT_CONN_DECRV(session, fld, value);     \
-        WT_STAT_DATA_DECRV(session, fld, value);     \
+        WT_STAT_DSRC_DECRV(session, fld, value);     \
     } while (0)
-#define WT_STAT_CONN_DATA_DECR(session, fld) WT_STAT_CONN_DATA_DECRV(session, fld, 1)
+#define WT_STAT_CONN_DSRC_DECR(session, fld) WT_STAT_CONN_DSRC_DECRV(session, fld, 1)
 
-#define WT_STAT_CONN_DATA_INCRV(session, fld, value) \
+#define WT_STAT_CONN_DSRC_INCRV(session, fld, value) \
     do {                                             \
         WT_STAT_CONN_INCRV(session, fld, value);     \
-        WT_STAT_DATA_INCRV(session, fld, value);     \
+        WT_STAT_DSRC_INCRV(session, fld, value);     \
     } while (0)
-#define WT_STAT_CONN_DATA_INCR(session, fld) WT_STAT_CONN_DATA_INCRV(session, fld, 1)
+#define WT_STAT_CONN_DSRC_INCR(session, fld) WT_STAT_CONN_DSRC_INCRV(session, fld, 1)
 /*
  * Update per session statistics.
  */
@@ -320,19 +367,19 @@ __wt_stats_clear(void *stats_arg, int slot)
       WT_SESSION_IMPL *session, uint64_t ratio)                       \
     {                                                                 \
         if (ratio < 2)                                                \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_2);   \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_2);   \
         else if (ratio < 4)                                           \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_4);   \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_4);   \
         else if (ratio < 8)                                           \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_8);   \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_8);   \
         else if (ratio < 16)                                          \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_16);  \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_16);  \
         else if (ratio < 32)                                          \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_32);  \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_32);  \
         else if (ratio < 64)                                          \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_64);  \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_64);  \
         else                                                          \
-            WT_STAT_DATA_INCR(session, compress_read_ratio_hist_max); \
+            WT_STAT_DSRC_INCR(session, compress_read_ratio_hist_max); \
     }
 
 #define WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC(ratio)                \
@@ -340,19 +387,19 @@ __wt_stats_clear(void *stats_arg, int slot)
       WT_SESSION_IMPL *session, uint64_t ratio)                        \
     {                                                                  \
         if (ratio < 2)                                                 \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_2);   \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_2);   \
         else if (ratio < 4)                                            \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_4);   \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_4);   \
         else if (ratio < 8)                                            \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_8);   \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_8);   \
         else if (ratio < 16)                                           \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_16);  \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_16);  \
         else if (ratio < 32)                                           \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_32);  \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_32);  \
         else if (ratio < 64)                                           \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_64);  \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_64);  \
         else                                                           \
-            WT_STAT_DATA_INCR(session, compress_write_ratio_hist_max); \
+            WT_STAT_DSRC_INCR(session, compress_write_ratio_hist_max); \
     }
 
 /*
@@ -388,10 +435,16 @@ struct __wt_connection_stats {
     int64_t background_compact_success;
     int64_t background_compact_timeout;
     int64_t background_compact_files_tracked;
+    int64_t backup_cursor_open;
+    int64_t backup_dup_open;
+    int64_t backup_granularity;
+    int64_t backup_incremental;
+    int64_t backup_start;
+    int64_t backup_blocks;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
-    int64_t block_prefetch_skipped_internal_page;
-    int64_t block_prefetch_skipped_no_flag_set;
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
@@ -404,18 +457,6 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
-    int64_t block_prefetch_failed_start;
-    int64_t block_prefetch_skipped_same_ref;
-    int64_t block_prefetch_disk_one;
-    int64_t block_prefetch_skipped_no_valid_dhandle;
-    int64_t block_prefetch_skipped;
-    int64_t block_prefetch_skipped_disk_read_count;
-    int64_t block_prefetch_skipped_internal_session;
-    int64_t block_prefetch_skipped_special_handle;
-    int64_t block_prefetch_pages_fail;
-    int64_t block_prefetch_pages_queued;
-    int64_t block_prefetch_pages_read;
-    int64_t block_prefetch_attempts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_blocks;
@@ -439,6 +480,7 @@ struct __wt_connection_stats {
     int64_t block_byte_map_read;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t cache_eviction_app_time;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -453,6 +495,10 @@ struct __wt_connection_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_eviction_server_evict_attempt;
+    int64_t cache_eviction_worker_evict_attempt;
+    int64_t cache_eviction_server_evict_fail;
+    int64_t cache_eviction_worker_evict_fail;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
     int64_t cache_eviction_get_ref_empty2;
@@ -467,12 +513,13 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
-    int64_t cache_eviction_server_evicting;
     int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t cache_eviction_server_skip_intl_page_with_active_child;
     int64_t cache_eviction_server_skip_metatdata_with_history;
     int64_t cache_eviction_server_skip_pages_last_running;
     int64_t cache_eviction_server_skip_pages_retry;
     int64_t cache_eviction_server_skip_unwanted_pages;
+    int64_t cache_eviction_server_skip_unwanted_tree;
     int64_t cache_eviction_server_skip_trees_too_many_active_walks;
     int64_t cache_eviction_server_skip_checkpointing_trees;
     int64_t cache_eviction_server_skip_trees_stick_in_cache;
@@ -496,13 +543,13 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
+    int64_t cache_eviction_walk_random_returns_null_position;
     int64_t cache_eviction_walks_ended;
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_active_workers;
     int64_t cache_eviction_worker_created;
-    int64_t cache_eviction_worker_evicting;
     int64_t cache_eviction_worker_removed;
     int64_t cache_eviction_stable_state_workers;
     int64_t cache_eviction_walks_active;
@@ -553,20 +600,23 @@ struct __wt_connection_stats {
     int64_t cache_eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
+    int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
     int64_t cache_eviction_maximum_milliseconds;
     int64_t cache_eviction_maximum_page_size;
+    int64_t cache_eviction_app_dirty_attempt;
+    int64_t cache_eviction_app_dirty_fail;
     int64_t cache_eviction_dirty;
-    int64_t cache_eviction_app_dirty;
     int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t cache_eviction_app_attempt;
+    int64_t cache_eviction_app_fail;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t cache_eviction_consider_prefetch;
     int64_t cache_pages_inuse;
-    int64_t cache_eviction_app;
     int64_t cache_eviction_pages_in_parallel_with_checkpoint;
     int64_t cache_eviction_pages_queued;
     int64_t cache_eviction_pages_queued_post_lru;
@@ -618,6 +668,7 @@ struct __wt_connection_stats {
     int64_t capacity_time_log;
     int64_t capacity_time_read;
     int64_t capacity_time_chunkcache;
+    int64_t checkpoint_cleanup_success;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_skipped;
     int64_t checkpoint_fsync_post;
@@ -693,24 +744,19 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
-    int64_t backup_cursor_open;
-    int64_t backup_dup_open;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;
     int64_t buckets;
-    int64_t backup_incremental;
     int64_t memory_allocation;
     int64_t memory_free;
     int64_t memory_grow;
     int64_t no_session_sweep_5min;
     int64_t no_session_sweep_60min;
-    int64_t backup_start;
     int64_t cond_wait;
     int64_t rwlock_read;
     int64_t rwlock_write;
     int64_t fsync_io;
-    int64_t backup_blocks;
     int64_t read_io;
     int64_t write_io;
     int64_t cursor_tree_walk_del_page_skip;
@@ -799,6 +845,9 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
+    int64_t lock_btree_page_count;
+    int64_t lock_btree_page_wait_application;
+    int64_t lock_btree_page_wait_internal;
     int64_t lock_checkpoint_count;
     int64_t lock_checkpoint_wait_application;
     int64_t lock_checkpoint_wait_internal;
@@ -896,6 +945,20 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
     int64_t perf_hist_opwrite_latency_total_usecs;
+    int64_t prefetch_skipped_internal_page;
+    int64_t prefetch_skipped_no_flag_set;
+    int64_t prefetch_failed_start;
+    int64_t prefetch_skipped_same_ref;
+    int64_t prefetch_disk_one;
+    int64_t prefetch_skipped_no_valid_dhandle;
+    int64_t prefetch_skipped;
+    int64_t prefetch_skipped_disk_read_count;
+    int64_t prefetch_skipped_internal_session;
+    int64_t prefetch_skipped_special_handle;
+    int64_t prefetch_pages_fail;
+    int64_t prefetch_pages_queued;
+    int64_t prefetch_pages_read;
+    int64_t prefetch_attempts;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
@@ -961,8 +1024,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rename_fail;
-    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
@@ -976,8 +1037,8 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_cache_ops;
     int64_t application_evict_snapshot_refreshed;
-    int64_t application_evict_time;
     int64_t application_cache_time;
     int64_t txn_release_blocked;
     int64_t conn_close_blocked_lsm;
@@ -1070,6 +1131,8 @@ struct __wt_dsrc_stats {
     int64_t bloom_size;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
+    int64_t backup_blocks_compressed;
+    int64_t backup_blocks_uncompressed;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1085,7 +1148,9 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_reviewed;
     int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;
+    int64_t btree_compact_bytes_rewritten_expected;
     int64_t btree_compact_pages_rewritten_expected;
+    int64_t btree_checkpoint_pages_reconciled;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
     int64_t btree_column_tws;
@@ -1128,6 +1193,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
+    int64_t cache_eviction_walk_random_returns_null_position;
     int64_t cache_eviction_walks_ended;
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
@@ -1156,6 +1222,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_internal;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
+    int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_eviction_blocked_overflow_keys;

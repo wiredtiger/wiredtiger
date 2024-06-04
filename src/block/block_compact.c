@@ -17,16 +17,18 @@ static void __block_dump_file_stat(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 int
 __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-
     if (block->compact_session_id != WT_SESSION_ID_INVALID)
-        return (EBUSY);
+        WT_RET_MSG(session, EBUSY,
+          "Compaction already happening on data handle %s by session %" PRIu32, block->name,
+          session->id);
 
     /* Switch to first-fit allocation. */
-    __wt_block_configure_first_fit(block, true);
+    __wti_block_configure_first_fit(block, true);
 
     /* Reset the compaction state information. */
     block->compact_bytes_reviewed = 0;
     block->compact_bytes_rewritten = 0;
+    block->compact_bytes_rewritten_expected = 0;
     block->compact_estimated = false;
     block->compact_internal_pages_reviewed = 0;
     block->compact_pages_reviewed = 0;
@@ -34,6 +36,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     block->compact_pages_rewritten_expected = 0;
     block->compact_pages_skipped = 0;
     block->compact_pct_tenths = 0;
+    block->compact_prev_pages_rewritten = 0;
     block->compact_prev_size = 0;
     block->compact_session_id = session->id;
 
@@ -51,7 +54,7 @@ int
 __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     /* Restore the original allocation plan. */
-    __wt_block_configure_first_fit(block, false);
+    __wti_block_configure_first_fit(block, false);
 
     /* Ensure this the same session that started compaction. */
     WT_ASSERT(session, block->compact_session_id == session->id);
@@ -84,11 +87,13 @@ __wt_block_compact_get_progress_stats(
     block = bm->block;
     *pages_reviewedp = block->compact_pages_reviewed;
 
-    WT_STAT_DATA_SET(session, btree_compact_pages_reviewed, block->compact_pages_reviewed);
-    WT_STAT_DATA_SET(session, btree_compact_pages_skipped, block->compact_pages_skipped);
-    WT_STAT_DATA_SET(session, btree_compact_pages_rewritten, block->compact_pages_rewritten);
-    WT_STAT_DATA_SET(
+    WT_STAT_DSRC_SET(
+      session, btree_compact_bytes_rewritten_expected, block->compact_bytes_rewritten_expected);
+    WT_STAT_DSRC_SET(session, btree_compact_pages_reviewed, block->compact_pages_reviewed);
+    WT_STAT_DSRC_SET(session, btree_compact_pages_rewritten, block->compact_pages_rewritten);
+    WT_STAT_DSRC_SET(
       session, btree_compact_pages_rewritten_expected, block->compact_pages_rewritten_expected);
+    WT_STAT_DSRC_SET(session, btree_compact_pages_skipped, block->compact_pages_skipped);
 }
 
 /*
@@ -139,7 +144,7 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
   int *compact_pct_tenths_p)
 {
     WT_EXT *ext;
-    wt_off_t avail_eighty, avail_ninety, off, size, eighty, ninety;
+    wt_off_t avail_eighty, avail_ninety, eighty, ninety, off, size;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -200,9 +205,26 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     __wt_verbose_level(session, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
-      ") in the first 90%% of the file to perform compaction, compaction %s",
+      ") in the first 90%% of the file to perform compaction",
       block->name, estimate ? " estimating --" : "", (uintmax_t)(file_size / 10) / WT_MEGABYTE,
-      (uintmax_t)(file_size / 10), *skipp ? "skipped" : "proceeding");
+      (uintmax_t)(file_size / 10));
+
+    /*
+     * Skip files that have failed to make progress on previous compact iterations. Use
+     * compact_estimated to avoid this check on the first pass.
+     */
+    if (block->compact_estimated && !*skipp) {
+        if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
+            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+              "%s: compaction failed to make progress, no new pages rewritten", block->name);
+            *skipp = true;
+        } else
+            block->compact_prev_pages_rewritten = block->compact_pages_rewritten;
+    }
+
+    __wt_verbose_level(session, WT_VERB_COMPACT,
+      (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1), "%s:%s compaction %s", block->name,
+      estimate ? " estimating --" : "", *skipp ? "skipped" : "proceeding");
 }
 
 /*
@@ -215,8 +237,9 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 {
     WT_EXT *ext;
     WT_VERBOSE_LEVEL verbose_level;
-    wt_off_t avg_block_size, avg_internal_block_size, depth1_subtree_size, leaves_per_internal_page;
-    wt_off_t compact_start_off, extra_space, file_size, last, off, rewrite_size, size, write_off;
+    wt_off_t avg_block_size, avg_internal_block_size, compact_start_off, depth1_subtree_size;
+    wt_off_t extra_space, file_size, last, leaves_per_internal_page, off, rewrite_size, size;
+    wt_off_t write_off;
     uint64_t n, pages_to_move, pages_to_move_orig, total_pages_to_move;
     int compact_pct_tenths, iteration;
     bool skip;
@@ -403,6 +426,8 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
     block->compact_estimated = true;
     block->compact_pages_rewritten_expected = block->compact_pages_rewritten + total_pages_to_move;
+    block->compact_bytes_rewritten_expected =
+      block->compact_pages_rewritten_expected * (uint64_t)avg_block_size;
 
     __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
@@ -563,8 +588,8 @@ __compact_page_skip(
      */
     if (!block->compact_estimated && block->compact_pages_reviewed >= WT_THOUSAND) {
         __block_compact_estimate_remaining_work(session, block);
-        /* If no potential work has been found, or we're in dry run mode, exit compaction. */
-        if (block->compact_pages_rewritten_expected == 0 || session->compact->dryrun)
+        /* If we're in dry run mode, exit compaction. */
+        if (session->compact->dryrun)
             ret = ECANCELED;
     }
 
@@ -580,7 +605,7 @@ __wt_block_compact_page_skip(
   WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
     wt_off_t offset;
-    uint32_t size, checksum, objectid;
+    uint32_t checksum, objectid, size;
 
     WT_UNUSED(addr_size);
     *skipp = true; /* Return a default skip. */
@@ -603,8 +628,8 @@ __wt_block_compact_page_rewrite(
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    wt_off_t offset, new_offset;
-    uint32_t size, checksum, objectid;
+    wt_off_t new_offset, offset;
+    uint32_t checksum, objectid, size;
     uint8_t *endp;
     bool discard_block;
 
@@ -627,9 +652,9 @@ __wt_block_compact_page_rewrite(
     WT_ERR(__wt_read(session, block->fh, offset, size, tmp->mem));
 
     /* Allocate a replacement block. */
-    WT_ERR(__wt_block_ext_prealloc(session, 5));
+    WT_ERR(__wti_block_ext_prealloc(session, 5));
     __wt_spin_lock(session, &block->live_lock);
-    ret = __wt_block_alloc(session, block, &new_offset, (wt_off_t)size);
+    ret = __wti_block_alloc(session, block, &new_offset, (wt_off_t)size);
     __wt_spin_unlock(session, &block->live_lock);
     WT_ERR(ret);
     discard_block = true;
@@ -639,7 +664,7 @@ __wt_block_compact_page_rewrite(
 
     /* Free the original block. */
     __wt_spin_lock(session, &block->live_lock);
-    ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
+    ret = __wti_block_off_free(session, block, objectid, offset, (wt_off_t)size);
     __wt_spin_unlock(session, &block->live_lock);
     WT_ERR(ret);
 
@@ -661,7 +686,7 @@ __wt_block_compact_page_rewrite(
 err:
     if (discard_block) {
         __wt_spin_lock(session, &block->live_lock);
-        WT_TRET(__wt_block_off_free(session, block, objectid, new_offset, (wt_off_t)size));
+        WT_TRET(__wti_block_off_free(session, block, objectid, new_offset, (wt_off_t)size));
         __wt_spin_unlock(session, &block->live_lock);
     }
     __wt_scr_free(session, &tmp);

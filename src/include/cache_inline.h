@@ -15,7 +15,8 @@
 static WT_INLINE bool
 __wt_cache_aggressive(WT_SESSION_IMPL *session)
 {
-    return (S2C(session)->cache->evict_aggressive_score >= WT_EVICT_SCORE_CUTOFF);
+    return (
+      __wt_atomic_load32(&S2C(session)->cache->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
 }
 
 /*
@@ -46,11 +47,11 @@ static WT_INLINE void
 __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
-    if (page->read_gen == WT_READGEN_OLDEST)
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
         return;
 
     /* Ignore pages already in the future. */
-    if (page->read_gen > __wt_cache_read_gen(session))
+    if (__wt_atomic_load64(&page->read_gen) > __wt_cache_read_gen(session))
         return;
 
     /*
@@ -60,7 +61,7 @@ __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * current global generation, we don't bother updating the page. In other words, the goal is to
      * avoid some number of updates immediately after each update we have to make.
      */
-    page->read_gen = __wt_cache_read_gen(session) + WT_READGEN_STEP;
+    __wt_atomic_store64(&page->read_gen, __wt_cache_read_gen(session) + WT_READGEN_STEP);
 }
 
 /*
@@ -73,7 +74,8 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_CACHE *cache;
 
     cache = S2C(session)->cache;
-    page->read_gen = (__wt_cache_read_gen(session) + cache->read_gen_oldest) / 2;
+    __wt_atomic_store64(
+      &page->read_gen, (__wt_cache_read_gen(session) + cache->read_gen_oldest) / 2);
 }
 
 /*
@@ -84,11 +86,13 @@ static WT_INLINE bool
 __wt_cache_stuck(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
+    uint32_t tmp_evict_aggressive_score;
 
     cache = S2C(session)->cache;
-    WT_ASSERT(session, cache->evict_aggressive_score <= WT_EVICT_SCORE_MAX);
+    tmp_evict_aggressive_score = __wt_atomic_load32(&cache->evict_aggressive_score);
+    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
     return (
-      cache->evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(cache, WT_CACHE_EVICT_HARD));
+      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(cache, WT_CACHE_EVICT_HARD));
 }
 
 /*
@@ -100,7 +104,7 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UNUSED(session);
 
-    ref->page->read_gen = WT_READGEN_OLDEST;
+    __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_OLDEST);
 }
 
 /*
@@ -157,8 +161,10 @@ __wt_cache_bytes_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache,
-      __wt_atomic_load64(&cache->bytes_dirty_intl) + __wt_atomic_load64(&cache->bytes_dirty_leaf)));
+    uint64_t dirty_inuse;
+    dirty_inuse =
+      __wt_atomic_load64(&cache->bytes_dirty_intl) + __wt_atomic_load64(&cache->bytes_dirty_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&dirty_inuse)));
 }
 
 /*
@@ -188,8 +194,10 @@ __wt_cache_bytes_updates(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_image(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache,
-      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf)));
+    uint64_t bytes_image;
+    bytes_image =
+      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_image));
 }
 
 /*
@@ -199,13 +207,15 @@ __wt_cache_bytes_image(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_other(WT_CACHE *cache)
 {
-    uint64_t bytes_other;
+    uint64_t bytes_other, bytes_inmem, bytes_image_intl, bytes_image_leaf;
 
+    bytes_inmem = __wt_atomic_load64(&cache->bytes_inmem);
+    bytes_image_intl = __wt_atomic_load64(&cache->bytes_image_intl);
+    bytes_image_leaf = __wt_atomic_load64(&cache->bytes_image_leaf);
     /*
      * Reads can race with changes to the values, so check that the calculation doesn't go negative.
      */
-    bytes_other = __wt_safe_sub(__wt_atomic_load64(&cache->bytes_inmem),
-      __wt_atomic_load64(&cache->bytes_image_intl) + __wt_atomic_load64(&cache->bytes_image_leaf));
+    bytes_other = __wt_safe_sub(bytes_inmem, bytes_image_intl + bytes_image_leaf);
     return (__wt_cache_bytes_plus_overhead(cache, bytes_other));
 }
 
@@ -229,6 +239,29 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
      */
     return (!(F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ||
       FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)));
+}
+
+/*
+ * __wt_eviction_clean_pressure --
+ *     Return true if clean cache is stressed and will soon require application threads to evict
+ *     content.
+ */
+static WT_INLINE bool
+__wt_eviction_clean_pressure(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    double pct_full;
+
+    cache = S2C(session)->cache;
+    pct_full = 0;
+
+    /* Eviction should be done if we hit the eviction clean trigger or come close to hitting it. */
+    if (__wt_eviction_clean_needed(session, &pct_full))
+        return (true);
+    if (pct_full > cache->eviction_target &&
+      pct_full >= WT_EVICT_PRESSURE_THRESHOLD * cache->eviction_trigger)
+        return (true);
+    return (false);
 }
 
 /*
@@ -264,8 +297,8 @@ __wt_eviction_dirty_target(WT_CACHE *cache)
 {
     double dirty_target, scrub_target;
 
-    dirty_target = cache->eviction_dirty_target;
-    scrub_target = cache->eviction_scrub_target;
+    dirty_target = __wt_read_shared_double(&cache->eviction_dirty_target);
+    scrub_target = __wt_read_shared_double(&cache->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
@@ -328,18 +361,22 @@ static WT_INLINE bool
 __wt_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
+    uint64_t bytes_dirty;
     uint64_t bytes_max;
 
     cache = S2C(session)->cache;
     bytes_max = S2C(session)->cache_size + 1;
 
-    if (__wt_cache_bytes_plus_overhead(cache, btree->bytes_inmem) >
+    if (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_inmem)) >
       (uint64_t)(0.5 * cache->eviction_target * bytes_max) / 100)
         return (true);
-    if (__wt_cache_bytes_plus_overhead(cache, btree->bytes_dirty_intl + btree->bytes_dirty_leaf) >
+
+    bytes_dirty =
+      __wt_atomic_load64(&btree->bytes_dirty_intl) + __wt_atomic_load64(&btree->bytes_dirty_leaf);
+    if (__wt_cache_bytes_plus_overhead(cache, bytes_dirty) >
       (uint64_t)(0.5 * cache->eviction_dirty_target * bytes_max) / 100)
         return (true);
-    if (__wt_cache_bytes_plus_overhead(cache, btree->bytes_updates) >
+    if (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_updates)) >
       (uint64_t)(0.5 * cache->eviction_updates_target * bytes_max) / 100)
         return (true);
 
@@ -427,7 +464,7 @@ __wt_cache_hs_dirty(WT_SESSION_IMPL *session)
     cache = conn->cache;
     bytes_max = conn->cache_size;
 
-    return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_hs_dirty) >=
+    return (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_hs_dirty)) >=
       ((uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100));
 }
 

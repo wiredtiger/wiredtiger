@@ -296,11 +296,13 @@ struct __wt_block {
     int compact_pct_tenths;                    /* Percent to compact */
     uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
     uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
+    uint64_t compact_bytes_rewritten_expected; /* The expected number of bytes to rewrite */
     uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */
     uint64_t compact_pages_reviewed;           /* Pages reviewed */
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint64_t compact_prev_pages_rewritten;     /* Pages rewritten during the previous iteration */
     wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
     uint32_t compact_session_id;               /* Session compacting */
 

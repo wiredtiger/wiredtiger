@@ -362,7 +362,7 @@ err:
 static WT_INLINE bool
 __increment_bound_array(WT_ITEM *user_item)
 {
-    size_t usz, i;
+    size_t i, usz;
     uint8_t *userp;
 
     usz = user_item->size;
@@ -417,7 +417,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
     WT_ERR(__wt_config_gets(session, cfg, "action", &cval));
 
     /* When setting bounds, we need to check that the key is set. */
-    if (WT_STRING_MATCH("set", cval.str, cval.len)) {
+    if (WT_CONFIG_LIT_MATCH("set", cval)) {
         WT_ERR(__cursor_checkkey(cursor));
 
         /* Point the public cursor to the key in the child. */
@@ -440,7 +440,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
      *  1. If the set bound is lower and it is not inclusive.
      *  2. If the set bound is upper and it is inclusive.
      */
-    if (WT_STRING_MATCH("lower", cval.str, cval.len) && !inclusive) {
+    if (WT_CONFIG_LIT_MATCH("lower", cval) && !inclusive) {
         /*
          * In the case that we can't increment the lower bound, it means we have reached the max
          * possible key for the lower bound. This is a very tricky case since there isn't a trivial
@@ -456,7 +456,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
         }
     }
 
-    if (WT_STRING_MATCH("upper", cval.str, cval.len) && inclusive) {
+    if (WT_CONFIG_LIT_MATCH("upper", cval) && inclusive) {
         /*
          * In the case that we can't increment the upper bound, it means we have reached the max
          * possible key for the upper bound. In that case we can just clear upper bound.
@@ -562,7 +562,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __curindex_get_value,                           /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
+      __wti_cursor_get_raw_key_value_notsup,          /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __curindex_set_value,                           /* set-value */
       __curindex_compare,                             /* compare */
@@ -573,7 +573,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curindex_search,                              /* search */
       __curindex_search_near,                         /* search-near */
       __wt_cursor_notsup,                             /* insert */
-      __wt_cursor_modify_notsup,                      /* modify */
+      __wti_cursor_modify_notsup,                     /* modify */
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
@@ -659,7 +659,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
         WT_ERR(
-          __wt_json_column_init(cursor, uri, table->key_format, &idx->colconf, &table->colconf));
+          __wti_json_column_init(cursor, uri, table->key_format, &idx->colconf, &table->colconf));
 
     if (0) {
 err:

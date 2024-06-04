@@ -30,6 +30,67 @@
 
 #define WT_BACKUP_COPY_SIZE (128 * 1024)
 
+/* Common key snprintf function for both generating and deleting keys. */
+static void
+create_index_key(char *key_buf, size_t len, uint64_t index_val, uint64_t keyno)
+{
+    testutil_snprintf(key_buf, len, "%" PRIu64 ":%" PRIu64, index_val, keyno);
+}
+
+int
+delete_index_key(WTPERF *wtperf, WT_CURSOR *index_cursor, char *key_buf, uint64_t keyno)
+{
+    CONFIG_OPTS *opts;
+    uint64_t i, index_val;
+    size_t len;
+    int ret;
+
+    opts = wtperf->opts;
+    len = opts->key_sz + opts->value_sz_max;
+
+    /* Delete any other index entries. */
+    for (i = 1; i <= INDEX_MAX_MULTIPLIER; ++i) {
+        index_val = i * INDEX_BASE;
+        create_index_key(key_buf, len, index_val, keyno);
+        index_cursor->set_key(index_cursor, key_buf);
+        ret = index_cursor->remove(index_cursor);
+        if (ret == 0 || ret == WT_NOTFOUND)
+            continue;
+        if (ret == WT_ROLLBACK)
+            return (ret);
+        lprintf(wtperf, ret, 1, "Delete earlier index key failed");
+    }
+    return (0);
+}
+
+/*
+ * Set up an index key based on global values. The populate inserted index values of the form
+ * INDEX_BASE:key. Then each workload thread is assigned an id and uses its id to modify the index
+ * keys. This spreads out the keys for each key number but clusters the keys from each particular
+ * thread.
+ */
+void
+generate_index_key(WTPERF_THREAD *thread, bool populate, char *key_buf, uint64_t keyno)
+{
+    CONFIG_OPTS *opts;
+    WTPERF *wtperf;
+    uint64_t index_val, mult;
+    size_t len;
+
+    wtperf = thread->wtperf;
+    opts = wtperf->opts;
+    if (populate)
+        mult = INDEX_POPULATE_MULT;
+    else
+        /* Multipliers go from 2 through the maximum.  */
+        mult = __wt_random(&thread->rnd) % (INDEX_MAX_MULTIPLIER - INDEX_POPULATE_MULT) +
+          INDEX_POPULATE_MULT + 1;
+
+    len = opts->key_sz + opts->value_sz_max;
+    index_val = mult * INDEX_BASE;
+    create_index_key(key_buf, len, index_val, keyno);
+}
+
 /* Setup the logging output mechanism. */
 int
 setup_log_file(WTPERF *wtperf)
@@ -119,7 +180,6 @@ backup_read(WTPERF *wtperf, WT_SESSION *session)
     WT_DECL_RET;
     uint32_t buf_size, size, total;
     int rfd;
-    size_t len;
     ssize_t rdsize;
     char *buf;
     const char *filename;
@@ -134,22 +194,21 @@ backup_read(WTPERF *wtperf, WT_SESSION *session)
     if (ret != 0)
         goto err;
 
+    buf = dmalloc(WT_BACKUP_COPY_SIZE);
     while ((ret = backup_cursor->next(backup_cursor)) == 0) {
         testutil_check(backup_cursor->get_key(backup_cursor, &filename));
 
         rfd = -1;
         /* Open the file handle. */
-        len = strlen(wtperf->home) + strlen(filename) + 10;
-        buf = dmalloc(len);
-        testutil_snprintf(buf, len, "%s/%s", wtperf->home, filename);
+        testutil_snprintf(buf, WT_BACKUP_COPY_SIZE, "%s/%s", wtperf->home, filename);
         error_sys_check(rfd = open(buf, O_RDONLY, 0644));
+        if (rfd < 0)
+            continue;
 
         /* Get the file's size. */
         testutil_check(stat(buf, &st));
         size = (uint32_t)st.st_size;
-        free(buf);
 
-        buf = dmalloc(WT_BACKUP_COPY_SIZE);
         total = 0;
         buf_size = WT_MIN(size, WT_BACKUP_COPY_SIZE);
         while (total < size) {
@@ -162,9 +221,7 @@ backup_read(WTPERF *wtperf, WT_SESSION *session)
             total += (uint32_t)rdsize;
             buf_size = WT_MIN(buf_size, size - total);
         }
-
-        if (rfd != -1)
-            testutil_check(close(rfd));
+        testutil_check(close(rfd));
     }
     testutil_check(backup_cursor->close(backup_cursor));
 err:

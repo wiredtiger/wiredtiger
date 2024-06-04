@@ -30,6 +30,7 @@
 
 #include <shared_mutex>
 #include <unordered_map>
+#include <vector>
 #include "model/driver/kv_workload.h"
 #include "model/core.h"
 #include "model/kv_database.h"
@@ -64,34 +65,27 @@ public:
 
     /*
      * kv_workload_runner::run --
-     *     Run the workload in the model.
+     *     Run the workload in the model. Return the return codes of the workload operations.
      */
-    inline void
+    inline std::vector<int>
     run(const kv_workload &workload)
     {
+        std::vector<int> ret;
         for (size_t i = 0; i < workload.size(); i++)
-            run_operation(workload[i]);
+            ret.push_back(run_operation(workload[i].operation));
+        return ret;
     }
 
     /*
      * kv_workload_runner::run_operation --
      *     Run the given operation.
      */
-    inline void
+    inline int
     run_operation(const operation::any &op)
     {
-        std::visit(
-          [this](auto &&x) {
-              int ret = do_operation(x);
-              /*
-               * In the future, we would like to be able to test operations that can fail, at which
-               * point we would record and compare return codes. But we're not there yet, so just
-               * fail on error.
-               */
-              if (ret != 0 && ret != WT_NOTFOUND)
-                  throw wiredtiger_exception(ret);
-          },
-          op);
+        int ret = WT_ERROR; /* So that Coverity does not complain. */
+        std::visit([this, &ret](auto &&x) { ret = do_operation(x); }, op);
+        return ret;
     }
 
 protected:
@@ -148,9 +142,24 @@ protected:
     int
     do_operation(const operation::create_table &op)
     {
-        kv_table_ptr table = _database.create_table(op.name);
+        kv_table_config config;
+        config.type = kv_table::type_by_key_value_format(op.key_format, op.value_format);
+
+        kv_table_ptr table = _database.create_table(op.name, config);
         table->set_key_value_format(op.key_format, op.value_format);
-        add_table(op.table_id, table);
+
+        add_table(op.table_id, std::move(table));
+        return 0;
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::evict &op)
+    {
+        (void)op;
         return 0;
     }
 
@@ -236,10 +245,19 @@ protected:
      *     Execute the given workload operation in the model.
      */
     int
+    do_operation(const operation::set_oldest_timestamp &op)
+    {
+        return _database.set_oldest_timestamp(op.oldest_timestamp);
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
     do_operation(const operation::set_stable_timestamp &op)
     {
-        _database.set_stable_timestamp(op.stable_timestamp);
-        return 0;
+        return _database.set_stable_timestamp(op.stable_timestamp);
     }
 
     /*

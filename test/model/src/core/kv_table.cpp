@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <cstring>
 #include <iostream>
 
 #include "model/kv_database.h"
@@ -36,6 +37,24 @@
 #include "wiredtiger.h"
 
 namespace model {
+
+/*
+ * kv_table::type_by_key_value_format --
+ *     Infer the table type from the key and value formats.
+ */
+kv_table_type
+kv_table::type_by_key_value_format(const std::string &key_format, const std::string &value_format)
+{
+    if (key_format == "r") {
+        /* Skip leading digits for the value format. */
+        const char *f = value_format.c_str();
+        if (isdigit(f[0]))
+            (void)parse_uint64(f, &f);
+        return strcmp(f, "t") == 0 ? kv_table_type::column_fix : kv_table_type::column;
+    }
+
+    return kv_table_type::row;
+}
 
 /*
  * kv_table::contains_any --
@@ -62,7 +81,7 @@ kv_table::contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return false;
-    return item->contains_any(ckpt, value);
+    return item->contains_any(std::move(ckpt), value);
 }
 
 /*
@@ -73,10 +92,14 @@ kv_table::contains_any(kv_checkpoint_ptr ckpt, const data_value &key, const data
 data_value
 kv_table::get(const data_value &key, timestamp_t timestamp) const
 {
+    timestamp_t t = fix_timestamp(timestamp);
+    if (t < _database.oldest_timestamp())
+        throw wiredtiger_exception(EINVAL);
+
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(fix_timestamp(timestamp));
+    return fix_get(item->get(t));
 }
 
 /*
@@ -87,10 +110,14 @@ kv_table::get(const data_value &key, timestamp_t timestamp) const
 data_value
 kv_table::get(kv_checkpoint_ptr ckpt, const data_value &key, timestamp_t timestamp) const
 {
+    timestamp_t t = fix_timestamp(timestamp);
+    if (t < _database.oldest_timestamp())
+        throw wiredtiger_exception(EINVAL);
+
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return item->get(ckpt, fix_timestamp(timestamp));
+    return fix_get(item->get(std::move(ckpt), t));
 }
 
 /*
@@ -104,7 +131,7 @@ kv_table::get(kv_transaction_ptr txn, const data_value &key) const
     const kv_table_item *item = item_if_exists(key);
     if (item == nullptr)
         return NONE;
-    return timestamped() ? item->get(txn) : item->get_latest(txn);
+    return fix_get(timestamped() ? item->get(std::move(txn)) : item->get_latest(std::move(txn)));
 }
 
 /*
@@ -132,7 +159,7 @@ kv_table::get_ext(
   kv_checkpoint_ptr ckpt, const data_value &key, data_value &out, timestamp_t timestamp) const
 {
     try {
-        out = get(ckpt, key, fix_timestamp(timestamp));
+        out = get(std::move(ckpt), key, fix_timestamp(timestamp));
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -148,7 +175,7 @@ int
 kv_table::get_ext(kv_transaction_ptr txn, const data_value &key, data_value &out) const
 {
     try {
-        out = get(txn, key);
+        out = get(std::move(txn), key);
         return out == NONE ? WT_NOTFOUND : 0;
     } catch (wiredtiger_exception &e) {
         out = NONE;
@@ -165,7 +192,7 @@ kv_table::insert(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
     return with_transaction(
-      [&](auto txn) { return insert(txn, key, value, overwrite); }, timestamp);
+      [&](auto txn) { return insert(std::move(txn), key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -179,7 +206,7 @@ kv_table::insert(
     std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(value, txn));
     try {
         item(key).add_update(update, false, !overwrite);
-        txn->add_update(*this, key, update);
+        txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -193,7 +220,7 @@ kv_table::insert(
 int
 kv_table::remove(const data_value &key, timestamp_t timestamp)
 {
-    return with_transaction([&](auto txn) { return remove(txn, key); }, timestamp);
+    return with_transaction([&](auto txn) { return remove(std::move(txn), key); }, timestamp);
 }
 
 /*
@@ -207,10 +234,11 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     if (item == nullptr)
         return WT_NOTFOUND;
 
-    std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(NONE, txn));
+    std::shared_ptr<kv_update> update = fix_timestamps(
+      std::make_shared<kv_update>(_config.type == kv_table_type::column_fix ? ZERO : NONE, txn));
     try {
         item->add_update(update, true, false);
-        txn->add_update(*this, key, update);
+        txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -224,7 +252,8 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
 int
 kv_table::truncate(const data_value &start, const data_value &stop, timestamp_t timestamp)
 {
-    return with_transaction([&](auto txn) { return truncate(txn, start, stop); }, timestamp);
+    return with_transaction(
+      [&](auto txn) { return truncate(std::move(txn), start, stop); }, timestamp);
 }
 
 /*
@@ -243,10 +272,10 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
 
     try {
         for (auto i = start_iter; i != stop_iter; i++) {
-            std::shared_ptr<kv_update> update =
-              fix_timestamps(std::make_shared<kv_update>(NONE, txn));
+            std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(
+              _config.type == kv_table_type::column_fix ? ZERO : NONE, txn));
             i->second.add_update(update, false, false);
-            txn->add_update(*this, i->first, update);
+            txn->add_update(*this, i->first, std::move(update));
         }
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -264,7 +293,7 @@ kv_table::update(
   const data_value &key, const data_value &value, timestamp_t timestamp, bool overwrite)
 {
     return with_transaction(
-      [&](auto txn) { return update(txn, key, value, overwrite); }, timestamp);
+      [&](auto txn) { return update(std::move(txn), key, value, overwrite); }, timestamp);
 }
 
 /*
@@ -278,7 +307,7 @@ kv_table::update(
     std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(value, txn));
     try {
         item(key).add_update(update, !overwrite, false);
-        txn->add_update(*this, key, update);
+        txn->add_update(*this, key, std::move(update));
         return 0;
     } catch (wiredtiger_exception &e) {
         return e.error();
@@ -348,6 +377,67 @@ kv_table::verify_cursor()
 }
 
 /*
+ * kv_table::highest_recno --
+ *     Get the highest recno in the table. Return 0 if the table is empty.
+ */
+uint64_t
+kv_table::highest_recno() const
+{
+    std::lock_guard lock_guard(_lock);
+    if (_config.type != kv_table_type::column && _config.type != kv_table_type::column_fix)
+        throw model_exception("Not a column store table");
+    if (_data.empty())
+        return 0;
+    const data_value &last = _data.rbegin()->first;
+    if (!std::holds_alternative<uint64_t>(last))
+        throw model_exception("The last key in the table is not a valid recno");
+    return std::get<uint64_t>(last);
+}
+
+/*
+ * kv_table::truncate_recnos_after --
+ *     Truncate all recnos higher than the given recno on a fixed-length column store table.
+ */
+void
+kv_table::truncate_recnos_after(uint64_t recno)
+{
+    std::lock_guard lock_guard(_lock);
+    if (_config.type != kv_table_type::column_fix)
+        throw model_exception("Not a fixed-length column store table");
+
+    data_value r(recno);
+    auto i = _data.upper_bound(r);
+    if (i != _data.end())
+        _data.erase(i, _data.end());
+}
+
+/*
+ * kv_table::fill_missing_column_fix_recnos --
+ *     Fill in missing recnos for FLCS to ensure that key ranges are contiguous.
+ */
+void
+kv_table::fill_missing_column_fix_recnos_nolock(const data_value &key)
+{
+    if (_config.type != kv_table_type::column_fix)
+        return;
+
+    if (!std::holds_alternative<uint64_t>(key))
+        throw model_exception("The key is not compatible with a column store: Not a recno.");
+    uint64_t recno = std::get<uint64_t>(key);
+
+    uint64_t last = 0;
+    if (!_data.empty()) {
+        if (!std::holds_alternative<uint64_t>(_data.begin()->first))
+            throw model_exception("Invalid keys in a column store: Not a recno.");
+        last = std::get<uint64_t>(_data.rbegin()->first);
+    }
+
+    for (uint64_t i = last + 1; i <= recno; i++)
+        _data[data_value(i)].add_update(
+          std::make_shared<kv_update>(ZERO, k_timestamp_none, true /* implicit */), false, false);
+}
+
+/*
  * kv_table::with_transaction --
  *     Run the following function within a transaction and clean up afterwards, committing the
  *     transaction if possible, and rolling it back if not.
@@ -358,7 +448,7 @@ kv_table::with_transaction(std::function<int(kv_transaction_ptr)> fn, timestamp_
     kv_transaction_ptr txn = _database.begin_transaction();
     kv_transaction_guard txn_guard(txn, commit_timestamp);
 
-    return fn(txn);
+    return fn(std::move(txn));
 }
 
 } /* namespace model */

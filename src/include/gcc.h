@@ -27,71 +27,9 @@
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x) __attribute__(x)
 
 /*
- * Atomic writes:
- *
- * WiredTiger requires pointers (void *) and some variables to be read/written
- * atomically, that is, in a single cycle.  This is not write ordering -- to be
- * clear, the requirement is that no partial value can ever be read or written.
- * For example, if 8-bits of a 32-bit quantity were written, then the rest of
- * the 32-bits were written, and another thread of control was able to read the
- * memory location after the first 8-bits were written and before the subsequent
- * 24-bits were written, WiredTiger would break. Or, if two threads of control
- * attempt to write the same location simultaneously, the result must be one or
- * the other of the two values, not some combination of both.
- *
- * To reduce memory requirements, we use a 32-bit type on 64-bit machines, which
- * is OK if the compiler doesn't accumulate two adjacent 32-bit variables into a
- * single 64-bit write, that is, there needs to be a single load/store of the 32
- * bits, not a load/store of 64 bits, where the 64 bits is comprised of two
- * adjacent 32-bit locations.  The problem is when two threads are cooperating
- * (thread X finds 32-bits set to 0, writes in a new value, flushes memory;
- * thread Y reads 32-bits that are non-zero, does some operation, resets the
- * memory location to 0 and flushes). If thread X were to read the 32 bits
- * adjacent to a different 32 bits, and write them both, the two threads could
- * race.  If that can happen, you must increase the size of the memory type to
- * a type guaranteed to be written atomically in a single cycle, without writing
- * an adjacent memory location.
- *
- * WiredTiger additionally requires atomic writes for 64-bit memory locations,
- * and so cannot run on machines with a 32-bit memory bus.
- *
- * We don't depend on writes across cache lines being atomic, and to make sure
- * that never happens, we check address alignment: we know of no architectures
- * with cache lines other than a multiple of 4 bytes in size, so aligned 4-byte
- * accesses will always be in a single cache line.
- *
- * Atomic writes are often associated with memory barriers, implemented by the
- * WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER macros.  WiredTiger's requirement as
- * described by the Solaris membar_enter description:
- *
- *	No stores from after the memory barrier will reach visibility and
- *	no loads from after the barrier will be resolved before the lock
- *	acquisition reaches global visibility
- *
- * In other words, the WT_RELEASE_BARRIER macro must ensure that memory stores by
- * the processor, made before the WT_RELEASE_BARRIER call, be visible to all
- * processors in the system before any memory stores by the processor, made
- * after the WT_RELEASE_BARRIER call, are visible to any processor.  The
- * WT_ACQUIRE_BARRIER macro ensures that all loads before the barrier are complete
- * before any loads after the barrier.  The compiler cannot reorder or cache
- * values across a barrier.
- *
- * The term publish - as it is used in WiredTiger - refers to writing a value to
- * a shared memory location. It doesn't imply any memory ordering semantics.
- *
- * Lock and unlock operations imply both read and write barriers.  In other
- * words, barriers are not required for values protected by locking.
- *
- * Data locations may also be marked volatile, forcing the compiler to re-load
- * the data on each access.  This is a weaker semantic than barriers provide,
- * only ensuring that the compiler will not cache values.  It makes no ordering
- * guarantees and may have no effect on systems with weaker cache guarantees.
- *
- * In summary, locking > barriers > volatile.
- *
- * To avoid locking shared data structures such as statistics and to permit
- * atomic state changes, we rely on the atomic-add and atomic-cas (compare and
- * swap) operations.
+ * For details on the hardware requirements of WiredTiger see the portability documentation. For
+ * details on concurrency primitive usage in WiredTiger see the architecture guide page "WiredTiger
+ * concurrency management".
  */
 
 /*
@@ -204,13 +142,42 @@ __wt_atomic_storebool(bool *vp, bool v)
 }
 
 /*
+ * __wt_atomic_loadvbool --
+ *     Atomically read a volatile boolean.
+ */
+static inline bool
+__wt_atomic_loadvbool(volatile bool *vp)
+{
+    return (__atomic_load_n(vp, __ATOMIC_RELAXED));
+}
+
+/*
+ * __wt_atomic_storevbool --
+ *     Atomically set a volatile boolean.
+ */
+static inline void
+__wt_atomic_storevbool(volatile bool *vp, bool v)
+{
+    __atomic_store_n(vp, v, __ATOMIC_RELAXED);
+}
+
+/*
  * Generic atomic functions that accept any type. The typed macros above should be preferred since
  * they provide better type checking.
  */
+#define __wt_atomic_load_enum(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
+#define __wt_atomic_store_enum(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_and_generic(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_or_generic(vp, v) __atomic_or_fetch(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_load_generic(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
 #define __wt_atomic_store_generic(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
+
+/*
+ * These pointer specific macros behave identically to the generic ones above, but better
+ * communicate intent and should be preferred over generic.
+ */
+#define __wt_atomic_load_pointer(vp) __wt_atomic_load_generic(vp)
+#define __wt_atomic_store_pointer(vp, v) __wt_atomic_store_generic(vp, v)
 
 /* Compile read-write barrier */
 #define WT_COMPILER_BARRIER() __asm__ volatile("" ::: "memory")
@@ -226,30 +193,14 @@ __wt_atomic_storebool(bool *vp, bool v)
 #define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
 #define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
-#elif defined(i386) || defined(__i386__)
-#define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
-#define WT_FULL_BARRIER()                                         \
-    do {                                                          \
-        __asm__ volatile("lock; addl $0, 0(%%esp)" ::: "memory"); \
-    } while (0)
-#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
-#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
-
 #elif defined(__mips64el__) || defined(__mips__) || defined(__mips64__) || defined(__mips64)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
 #define WT_FULL_BARRIER()                                                                  \
     do {                                                                                   \
         __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
     } while (0)
-#define WT_ACQUIRE_BARRIER()                                                               \
-    do {                                                                                   \
-        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
-    } while (0)
-#define WT_RELEASE_BARRIER()                                                               \
-    do {                                                                                   \
-        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
-    } while (0)
+#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 
 #elif defined(__PPC64__) || defined(PPC64)
 /* ori 0,0,0 is the PPC64 noop instruction */
@@ -333,18 +284,9 @@ __wt_atomic_storebool(bool *vp, bool v)
         __asm__ volatile("membar #StoreLoad" ::: "memory"); \
     } while (0)
 
-/*
- * On UltraSparc machines, TSO is used, and so there is no need for membar. READ_BARRIER =
- * #LoadLoad, and WRITE_BARRIER = #StoreStore are noop.
- */
-#define WT_ACQUIRE_BARRIER()               \
-    do {                                   \
-        __asm__ volatile("" ::: "memory"); \
-    } while (0)
-#define WT_RELEASE_BARRIER()               \
-    do {                                   \
-        __asm__ volatile("" ::: "memory"); \
-    } while (0)
+/* On UltraSparc machines, TSO is used, and so there is no need for membar. */
+#define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
+#define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
 
 #elif defined(__riscv) && (__riscv_xlen == 64)
 
@@ -367,21 +309,19 @@ __wt_atomic_storebool(bool *vp, bool v)
  * https://five-embeddev.com/riscv-isa-manual/latest/memory.html#sec:mm:fence
  *
  * On RISC-V, the fence instruction takes explicit flags that indicate the predecessor and successor
- * sets. Based on the file comment description of WT_ACQUIRE_BARRIER and WT_RELEASE_BARRIER, those
- * barriers only synchronize read/read and write/write respectively. The predecessor and successor
- * sets here are selected to match that description.
+ * sets.
  */
 #define WT_FULL_BARRIER()                              \
     do {                                               \
         __asm__ volatile("fence rw, rw" ::: "memory"); \
     } while (0)
-#define WT_ACQUIRE_BARRIER()                         \
-    do {                                             \
-        __asm__ volatile("fence r, r" ::: "memory"); \
+#define WT_ACQUIRE_BARRIER()                          \
+    do {                                              \
+        __asm__ volatile("fence r, rw" ::: "memory"); \
     } while (0)
-#define WT_RELEASE_BARRIER()                         \
-    do {                                             \
-        __asm__ volatile("fence w, w" ::: "memory"); \
+#define WT_RELEASE_BARRIER()                          \
+    do {                                              \
+        __asm__ volatile("fence rw, w" ::: "memory"); \
     } while (0)
 
 #elif defined(__loongarch64)
@@ -390,14 +330,8 @@ __wt_atomic_storebool(bool *vp, bool v)
     do {                                         \
         __asm__ volatile("dbar 0" ::: "memory"); \
     } while (0)
-#define WT_ACQUIRE_BARRIER()                     \
-    do {                                         \
-        __asm__ volatile("dbar 0" ::: "memory"); \
-    } while (0)
-#define WT_RELEASE_BARRIER()                     \
-    do {                                         \
-        __asm__ volatile("dbar 0" ::: "memory"); \
-    } while (0)
+#define WT_ACQUIRE_BARRIER() WT_FULL_BARRIER()
+#define WT_RELEASE_BARRIER() WT_FULL_BARRIER()
 #else
-#error "No release barrier implementation for this hardware"
+#error "No barrier implementation for this hardware"
 #endif

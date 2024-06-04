@@ -271,6 +271,8 @@ CONFIG configuration_list[] = {
 
 {"ops.verify", "configure verify", C_BOOL, 100, 1, 0}
 
+{"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
+
 {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1}
 
 {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX}
@@ -326,6 +328,8 @@ CONFIG configuration_list[] = {
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
+
+{"stress.prefetch_delay", "stress prefetch delay", C_BOOL, 2, 0, 0}
 
 {"stress.prepare_resolution_1", "stress prepare resolution (#1)", C_BOOL, 2, 0, 0}
 

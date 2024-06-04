@@ -830,7 +830,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     WT_CHUNKCACHE_CHUNK *chunk;
     WT_CHUNKCACHE_HASHID hash_id;
     WT_DECL_RET;
-    size_t already_read, remains_to_read, readable_in_chunk, size_copied;
+    size_t already_read, readable_in_chunk, remains_to_read, size_copied;
     uint64_t bucket_id, retries, sleep_usec;
     const char *object_name;
     bool chunk_cached, valid;
@@ -1229,11 +1229,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
           WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE, chunkcache->hashtable_size);
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.type", &cval));
-    if (cval.len == 0 || WT_STRING_MATCH("dram", cval.str, cval.len) ||
-      WT_STRING_MATCH("DRAM", cval.str, cval.len))
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("dram", cval) || WT_CONFIG_LIT_MATCH("DRAM", cval))
         chunkcache->type = WT_CHUNKCACHE_IN_VOLATILE_MEMORY;
-    else if (WT_STRING_MATCH("file", cval.str, cval.len) ||
-      WT_STRING_MATCH("FILE", cval.str, cval.len)) {
+    else if (WT_CONFIG_LIT_MATCH("file", cval) || WT_CONFIG_LIT_MATCH("FILE", cval)) {
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
         if (cval.len == 0)

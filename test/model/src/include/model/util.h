@@ -31,6 +31,7 @@
 #include <cstring>
 #include <functional>
 #include <iomanip>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -62,6 +63,12 @@ public:
         : _connection(connection), _close_config(close_config == nullptr ? "" : close_config){};
 
     /*
+     * wiredtiger_connection_guard::wiredtiger_connection_guard --
+     *     Delete the copy constructor.
+     */
+    wiredtiger_connection_guard(const wiredtiger_connection_guard &) = delete;
+
+    /*
      * wiredtiger_connection_guard::~wiredtiger_connection_guard --
      *     Destroy the guard.
      */
@@ -70,6 +77,12 @@ public:
         if (_connection != nullptr)
             (void)_connection->close(_connection, _close_config.c_str());
     }
+
+    /*
+     * wiredtiger_connection_guard::operator= --
+     *     Delete the assignment operator.
+     */
+    wiredtiger_connection_guard &operator=(const wiredtiger_connection_guard &) = delete;
 
 private:
     WT_CONNECTION *_connection;
@@ -90,6 +103,12 @@ public:
     inline wiredtiger_cursor_guard(WT_CURSOR *cursor) noexcept : _cursor(cursor){};
 
     /*
+     * wiredtiger_cursor_guard::wiredtiger_cursor_guard --
+     *     Delete the copy constructor.
+     */
+    wiredtiger_cursor_guard(const wiredtiger_cursor_guard &) = delete;
+
+    /*
      * wiredtiger_cursor_guard::~wiredtiger_cursor_guard --
      *     Destroy the guard.
      */
@@ -98,6 +117,12 @@ public:
         if (_cursor != nullptr)
             (void)_cursor->close(_cursor);
     }
+
+    /*
+     * wiredtiger_cursor_guard::operator= --
+     *     Delete the assignment operator.
+     */
+    wiredtiger_cursor_guard &operator=(const wiredtiger_cursor_guard &) = delete;
 
 private:
     WT_CURSOR *_cursor;
@@ -117,14 +142,27 @@ public:
     inline wiredtiger_session_guard(WT_SESSION *session) noexcept : _session(session){};
 
     /*
+     * wiredtiger_session_guard::wiredtiger_session_guard --
+     *     Delete the copy constructor.
+     */
+    wiredtiger_session_guard(const wiredtiger_session_guard &) = delete;
+
+    /*
      * wiredtiger_session_guard::~wiredtiger_session_guard --
      *     Destroy the guard.
      */
     inline ~wiredtiger_session_guard()
     {
-        if (_session != nullptr)
-            (void)_session->close(_session, nullptr);
+        if (_session == nullptr)
+            return;
+        (void)_session->close(_session, nullptr);
     }
+
+    /*
+     * wiredtiger_session_guard::operator= --
+     *     Delete the assignment operator.
+     */
+    wiredtiger_session_guard &operator=(const wiredtiger_session_guard &) = delete;
 
 private:
     WT_SESSION *_session;
@@ -145,7 +183,14 @@ public:
     inline kv_transaction_guard(kv_transaction_ptr txn,
       timestamp_t commit_timestamp = k_timestamp_none,
       timestamp_t durable_timestamp = k_timestamp_none) noexcept
-        : _txn(txn), _commit_timestamp(commit_timestamp), _durable_timestamp(durable_timestamp){};
+        : _txn(std::move(txn)), _commit_timestamp(commit_timestamp),
+          _durable_timestamp(durable_timestamp){};
+
+    /*
+     * kv_transaction_guard::kv_transaction_guard --
+     *     Delete the copy constructor.
+     */
+    kv_transaction_guard(const kv_transaction_guard &) = delete;
 
     /*
      * kv_transaction_guard::~kv_transaction_guard --
@@ -155,11 +200,25 @@ public:
     {
         if (!_txn)
             return;
-        if (_txn->failed())
-            _txn->rollback();
-        else
-            _txn->commit(_commit_timestamp, _durable_timestamp);
+        try {
+            if (_txn->failed())
+                _txn->rollback();
+            else
+                _txn->commit(_commit_timestamp, _durable_timestamp);
+        } catch (std::exception &e) {
+            /*
+             * We cannot propagate exceptions from a destructor, so just print a warning. Exceptions
+             * at this point here are exceedingly rare.
+             */
+            std::cerr << "Error while finishing a transaction: " << e.what() << std::endl;
+        }
     }
+
+    /*
+     * kv_transaction_guard::operator= --
+     *     Delete the assignment operator.
+     */
+    kv_transaction_guard &operator=(const kv_transaction_guard &) = delete;
 
 private:
     kv_transaction_ptr _txn;
@@ -225,7 +284,7 @@ public:
     inline std::shared_ptr<std::vector<std::string>>
     get_array(const char *key) const
     {
-        return std::get<std::shared_ptr<std::vector<std::string>>>(_map.find(key)->second);
+        return std::get<std::shared_ptr<std::vector<std::string>>>(get_raw(key));
     }
 
     /*
@@ -253,7 +312,7 @@ public:
     inline std::shared_ptr<config_map> const
     get_map(const char *key)
     {
-        return std::get<std::shared_ptr<config_map>>(_map.find(key)->second);
+        return std::get<std::shared_ptr<config_map>>(get_raw(key));
     }
 
     /*
@@ -263,7 +322,7 @@ public:
     inline std::string
     get_string(const char *key) const
     {
-        return std::get<std::string>(_map.find(key)->second);
+        return std::get<std::string>(get_raw(key));
     }
 
     /*
@@ -273,7 +332,7 @@ public:
     inline uint64_t
     get_bool(const char *key) const
     {
-        std::string v = std::get<std::string>(_map.find(key)->second);
+        std::string v = std::get<std::string>(get_raw(key));
         return v == "true" || v == "1";
     }
 
@@ -284,7 +343,7 @@ public:
     inline float
     get_float(const char *key) const
     {
-        return std::stof(std::get<std::string>(_map.find(key)->second));
+        return std::stof(std::get<std::string>(get_raw(key)));
     }
 
     /*
@@ -294,7 +353,7 @@ public:
     inline uint64_t
     get_uint64(const char *key) const
     {
-        std::istringstream stream(std::get<std::string>(_map.find(key)->second));
+        std::istringstream stream(std::get<std::string>(get_raw(key)));
         uint64_t v;
         stream >> v;
         return v;
@@ -307,7 +366,7 @@ public:
     inline uint64_t
     get_uint64_hex(const char *key) const
     {
-        std::istringstream stream(std::get<std::string>(_map.find(key)->second));
+        std::istringstream stream(std::get<std::string>(get_raw(key)));
         uint64_t v;
         stream >> std::hex >> v;
         return v;
@@ -332,6 +391,19 @@ private:
      *     Create a new instance of the config map.
      */
     inline config_map() noexcept {};
+
+    /*
+     * config_map::get_raw --
+     *     Get the raw value of a key from the config map; throw an exception if not found.
+     */
+    inline const value_t
+    get_raw(const std::string &key) const
+    {
+        auto iter = _map.find(key);
+        if (iter == _map.end())
+            throw std::runtime_error("No such key in the config map: " + key);
+        return iter->second;
+    }
 
     /*
      * config_map::parse_array --
@@ -407,7 +479,7 @@ public:
      * at_cleanup::at_cleanup --
      *     Create the cleanup object.
      */
-    inline at_cleanup(std::function<void()> fn) : _fn(fn){};
+    inline at_cleanup(std::function<void()> fn) : _fn(std::move(fn)){};
 
     /* Delete the copy constructor. */
     at_cleanup(const at_cleanup &) = delete;
@@ -429,10 +501,16 @@ private:
 };
 
 /*
+ * decode_utf8 --
+ *     Decode a UTF-8 string into one-byte code points. Throw an exception on error.
+ */
+std::string decode_utf8(const std::string &str);
+
+/*
  * parse_uint64 --
  *     Parse the string into a number. Throw an exception on error.
  */
-uint64_t parse_uint64(const char *str, char **end = nullptr);
+uint64_t parse_uint64(const char *str, const char **end = nullptr);
 
 /*
  * parse_uint64 --
@@ -521,6 +599,12 @@ wt_cursor_update(WT_CURSOR *cursor, const data_value &key, const data_value &val
     set_wt_cursor_value(cursor, value);
     return cursor->update(cursor);
 }
+
+/*
+ * wt_evict --
+ *     Evict a WiredTiger page with the given key.
+ */
+void wt_evict(WT_CONNECTION *conn, const char *uri, const data_value &key);
 
 /*
  * wt_list_tables --

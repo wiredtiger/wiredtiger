@@ -43,6 +43,11 @@ class BackgroundCompactStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, BackgroundCompactStat.prefix, desc, flags)
 
+class BackupStat(Stat):
+    prefix = 'backup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BackupStat.prefix, desc, flags)
+
 class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
@@ -116,6 +121,10 @@ class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, PerfHistStat.prefix, desc, flags)
+class PrefetchStat(Stat):
+    prefix = 'prefetch'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, PrefetchStat.prefix, desc, flags)
 class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
@@ -179,11 +188,6 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('backup_blocks', 'total modified incremental blocks'),
-    ConnStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
-    ConnStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
-    ConnStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
-    ConnStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
@@ -219,6 +223,16 @@ conn_stats = [
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
 
     ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks', 'total modified incremental blocks'),
+    BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
+    BackupStat('backup_granularity', 'backup granularity size'),
+    BackupStat('backup_incremental', 'incremental backup enabled', 'no_clear,no_scale'),
+    BackupStat('backup_start', 'opening the backup cursor in progress', 'no_clear,no_scale'),
+
+    ##########################################
     # Block cache statistics
     ##########################################
     BlockCacheStat('block_cache_blocks', 'total blocks'),
@@ -243,21 +257,6 @@ conn_stats = [
     BlockCacheStat('block_cache_lookups', 'lookups'),
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
-
-    BlockCacheStat('block_prefetch_attempts', 'pre-fetch triggered by page read'),
-    BlockCacheStat('block_prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
-    BlockCacheStat('block_prefetch_pages_queued', 'pre-fetch pages queued'),
-    BlockCacheStat('block_prefetch_failed_start', 'number of times pre-fetch failed to start'),
-    BlockCacheStat('block_prefetch_pages_read', 'pre-fetch pages read in background'),
-    BlockCacheStat('block_prefetch_skipped', 'pre-fetch not triggered by page read'),
-    BlockCacheStat('block_prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
-    BlockCacheStat('block_prefetch_skipped_internal_page', 'could not perform pre-fetch on internal page'),
-    BlockCacheStat('block_prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
-    BlockCacheStat('block_prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
-    BlockCacheStat('block_prefetch_skipped_no_valid_dhandle', 'pre-fetch not triggered as there is no valid dhandle'),
-    BlockCacheStat('block_prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
-    BlockCacheStat('block_prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
-    BlockCacheStat('block_prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
 
     ##########################################
     # Block manager statistics
@@ -290,8 +289,13 @@ conn_stats = [
     CacheStat('cache_bytes_updates', 'bytes allocated for updates', 'no_clear,no_scale,size'),
     CacheStat('cache_eviction_active_workers', 'eviction worker thread active', 'no_clear'),
     CacheStat('cache_eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
-    CacheStat('cache_eviction_app', 'pages evicted by application threads'),
-    CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
+    CacheStat('cache_eviction_app_attempt', 'page evict attempts by application threads'),
+    CacheStat('cache_eviction_app_fail', 'page evict failures by application threads'),
+    # Note cache_eviction_app_attempt - cache_eviction_app_fail = page evict successes by application threads.
+    CacheStat('cache_eviction_app_dirty_attempt', 'modified page evict attempts by application threads'),
+    CacheStat('cache_eviction_app_dirty_fail', 'modified page evict failures by application threads'),
+    # Note cache_eviction_app_dirty_attempt - cache_eviction_app_dirty_fail = modified page evict successes by application threads.
+    CacheStat('cache_eviction_app_time', 'application thread time evicting (usecs)'),
     CacheStat('cache_eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     CacheStat('cache_eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
@@ -330,17 +334,21 @@ conn_stats = [
     CacheStat('cache_eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
-    CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
+    CacheStat('cache_eviction_server_evict_attempt', 'evict page attempts by eviction server'),
+    CacheStat('cache_eviction_server_evict_fail', 'evict page failures by eviction server'),
+    # Note cache_eviction_server_evict_attempt - cache_eviction_server_evict_fail = evict page successes by eviction server.
     CacheStat('cache_eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     CacheStat('cache_eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
     CacheStat('cache_eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     CacheStat('cache_eviction_server_skip_pages_last_running', 'eviction server skips pages that are written with transactions greater than the last running'),
+    CacheStat('cache_eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
     CacheStat('cache_eviction_server_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
     CacheStat('cache_eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     CacheStat('cache_eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
     CacheStat('cache_eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     CacheStat('cache_eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     CacheStat('cache_eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
+    CacheStat('cache_eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
@@ -355,7 +363,9 @@ conn_stats = [
     CacheStat('cache_eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
     CacheStat('cache_eviction_worker_created', 'eviction worker thread created'),
-    CacheStat('cache_eviction_worker_evicting', 'eviction worker thread evicting pages'),
+    CacheStat('cache_eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
+    CacheStat('cache_eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
+    # Note cache_eviction_worker_evict_attempt - cache_eviction_worker_evict_fail = evict page successes by eviction worker threads.
     CacheStat('cache_eviction_worker_removed', 'eviction worker thread removed'),
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
@@ -395,6 +405,7 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
+    CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_generation', 'generation', 'no_clear,no_scale'),
@@ -521,6 +532,9 @@ conn_stats = [
     ##########################################
     # Locking statistics
     ##########################################
+    LockStat('lock_btree_page_count', 'btree page lock acquisitions'),
+    LockStat('lock_btree_page_wait_application', 'btree page lock application thread wait time (usecs)'),
+    LockStat('lock_btree_page_wait_internal', 'btree page lock internal thread wait time (usecs)'),
     LockStat('lock_checkpoint_count', 'checkpoint lock acquisitions'),
     LockStat('lock_checkpoint_wait_application', 'checkpoint lock application thread wait time (usecs)'),
     LockStat('lock_checkpoint_wait_internal', 'checkpoint lock internal thread wait time (usecs)'),
@@ -640,6 +654,24 @@ conn_stats = [
     PerfHistStat('perf_hist_opwrite_latency_total_usecs', 'operation write latency histogram total (usecs)'),
 
     ##########################################
+    # Prefetch statistics
+    ##########################################
+    PrefetchStat('prefetch_attempts', 'pre-fetch triggered by page read'),
+    PrefetchStat('prefetch_disk_one', 'pre-fetch not triggered after single disk read'),
+    PrefetchStat('prefetch_pages_queued', 'pre-fetch pages queued'),
+    PrefetchStat('prefetch_failed_start', 'number of times pre-fetch failed to start'),
+    PrefetchStat('prefetch_pages_read', 'pre-fetch pages read in background'),
+    PrefetchStat('prefetch_skipped', 'pre-fetch not triggered by page read'),
+    PrefetchStat('prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
+    PrefetchStat('prefetch_skipped_internal_page', 'could not perform pre-fetch on internal page'),
+    PrefetchStat('prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
+    PrefetchStat('prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
+    PrefetchStat('prefetch_skipped_no_valid_dhandle', 'pre-fetch not triggered as there is no valid dhandle'),
+    PrefetchStat('prefetch_skipped_same_ref', 'pre-fetch not repeating for recently pre-fetched ref'),
+    PrefetchStat('prefetch_skipped_special_handle', 'pre-fetch not triggered due to special btree handle'),
+    PrefetchStat('prefetch_pages_fail', 'pre-fetch page not on disk when reading'),
+
+    ##########################################
     # Reconciliation statistics
     ##########################################
     RecStat('rec_maximum_hs_wrapup_milliseconds', 'maximum milliseconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
@@ -678,8 +710,6 @@ conn_stats = [
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rename_success', 'table rename successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
@@ -753,8 +783,8 @@ conn_stats = [
     ##########################################
     # Yield statistics
     ##########################################
+    YieldStat('application_cache_ops', 'application thread operations waiting for cache'),
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
-    YieldStat('application_evict_time', 'application thread time evicting (usecs)'),
     YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
@@ -794,6 +824,7 @@ dsrc_stats = [
     # Btree statistics
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
+    BtreeStat('btree_checkpoint_pages_reconciled', 'btree number of pages reconciled during checkpoint', 'no_clear,no_scale'),
     BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
     BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,tree_walk'),
@@ -801,6 +832,7 @@ dsrc_stats = [
     BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_tws', 'column-store fixed-size time windows', 'no_scale,tree_walk'),
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
+    BtreeStat('btree_compact_bytes_rewritten_expected', 'btree expected number of compact bytes rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten_expected', 'btree expected number of compact pages rewritten', 'no_clear,no_scale'),
@@ -949,6 +981,12 @@ conn_dsrc_stats = [
     AutoCommitStat('autocommit_update_retry', 'retries for update operations'),
 
     ##########################################
+    # Backup statistics
+    ##########################################
+    BackupStat('backup_blocks_compressed', 'total modified incremental blocks with compressed data'),
+    BackupStat('backup_blocks_uncompressed', 'total modified incremental blocks without compressed data'),
+
+    ##########################################
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
@@ -974,6 +1012,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
+    CacheStat('cache_eviction_random_sample_inmem_root', 'locate a random in-mem ref by examining all entries on the root page'),
     CacheStat('cache_eviction_split_internal', 'internal pages split during eviction'),
     CacheStat('cache_eviction_split_leaf', 'leaf pages split during eviction'),
     CacheStat('cache_eviction_target_page_ge128', 'eviction walk target pages histogram - 128 and higher'),
@@ -983,6 +1022,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_target_page_lt64', 'eviction walk target pages histogram - 32-63'),
     CacheStat('cache_eviction_target_page_reduced', 'eviction walk target pages reduced due to history store cache pressure'),
     CacheStat('cache_eviction_walk_from_root', 'eviction walks started from root of tree'),
+    CacheStat('cache_eviction_walk_random_returns_null_position', 'eviction walks random search fails to locate a page, results in a null position'),
     CacheStat('cache_eviction_walk_restart', 'eviction walks restarted'),
     CacheStat('cache_eviction_walk_saved_pos', 'eviction walks started from saved location in tree'),
     CacheStat('cache_eviction_walks_abandoned', 'eviction walks abandoned'),

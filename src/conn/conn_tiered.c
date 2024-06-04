@@ -366,7 +366,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     /* There is nothing to do until the checkpoint after the flush completes. */
-    if (!conn->flush_ckpt_complete)
+    if (!__wt_atomic_loadbool(&conn->flush_ckpt_complete))
         return (0);
     entry = NULL;
     for (;;) {
@@ -483,11 +483,11 @@ err:
 }
 
 /*
- * __wt_tiered_storage_create --
+ * __wti_tiered_storage_create --
  *     Start the tiered storage subsystem.
  */
 int
-__wt_tiered_storage_create(WT_SESSION_IMPL *session)
+__wti_tiered_storage_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -515,17 +515,17 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session)
     if (0) {
 err:
         FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
-        WT_TRET(__wt_tiered_storage_destroy(session, false));
+        WT_TRET(__wti_tiered_storage_destroy(session, false));
     }
     return (ret);
 }
 
 /*
- * __wt_tiered_storage_destroy --
+ * __wti_tiered_storage_destroy --
  *     Destroy the tiered storage server thread.
  */
 int
-__wt_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
+__wti_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

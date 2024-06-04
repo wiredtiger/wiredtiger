@@ -231,38 +231,67 @@ __background_compact_get_stat(WT_SESSION_IMPL *session, const char *uri, int64_t
 }
 
 /*
- * __background_compact_should_run --
+ * __background_compact_should_skip --
  *     Check whether we should proceed with calling compaction on the given file.
  */
-static bool
-__background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64_t id)
+static int
+__background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int64_t id, bool *skipp)
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    wt_off_t file_size;
     uint64_t cur_time;
+    const char *filename;
 
     conn = S2C(session);
 
     /* Check if the file is excluded. */
     if (__background_compact_exclude(session, uri)) {
         WT_STAT_CONN_INCR(session, background_compact_exclude);
-        return (false);
+        *skipp = true;
+        return (0);
+    }
+
+    /* Fast path to check the file size, ignore small files. */
+    filename = uri;
+    WT_PREFIX_SKIP(filename, "file:");
+    ret = __wt_block_manager_named_size(session, filename, &file_size);
+
+    /* It is possible that the file no longer exists. */
+    if (ret == ENOENT) {
+        *skipp = true;
+        return (0);
+    }
+
+    WT_RET(ret);
+
+    if (file_size <= WT_MEGABYTE) {
+        WT_STAT_CONN_INCR(session, background_compact_skipped);
+        *skipp = true;
+        return (0);
     }
 
     /* If we haven't seen this file before we should try and compact it. */
     compact_stat = __background_compact_get_stat(session, uri, id);
-    if (compact_stat == NULL)
-        return (true);
+    if (compact_stat == NULL) {
+        *skipp = false;
+        return (0);
+    }
 
     /* If we are running once, force compaction on the file. */
-    if (conn->background_compact.run_once)
-        return (true);
+    if (conn->background_compact.run_once) {
+        *skipp = false;
+        return (0);
+    }
 
     /* Proceed with compaction when the file has not been compacted for some time. */
     cur_time = __wt_clock(session);
     if (WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >=
-      conn->background_compact.max_file_skip_time)
-        return (true);
+      conn->background_compact.max_file_skip_time) {
+        *skipp = false;
+        return (0);
+    }
 
     /*
      * If the last compaction pass was unsuccessful or less successful than the average, skip it for
@@ -273,10 +302,12 @@ __background_compact_should_run(WT_SESSION_IMPL *session, const char *uri, int64
         compact_stat->skip_count++;
         conn->background_compact.files_skipped++;
         WT_STAT_CONN_INCR(session, background_compact_skipped);
-        return (false);
+        *skipp = true;
+        return (0);
     }
 
-    return (true);
+    *skipp = false;
+    return (0);
 }
 
 /*
@@ -388,21 +419,28 @@ __background_compact_list_cleanup(
     WT_BACKGROUND_COMPACT_STAT *compact_stat, *temp_compact_stat;
     WT_CONNECTION_IMPL *conn;
     uint64_t cur_time, i;
+    bool cleanup_stat;
 
+    cleanup_stat = false;
     conn = S2C(session);
     cur_time = __wt_clock(session);
 
-    for (i = 0; i < conn->hash_size; i++)
+    if (cleanup_type == BACKGROUND_COMPACT_CLEANUP_EXIT ||
+      cleanup_type == BACKGROUND_COMPACT_CLEANUP_OFF)
+        cleanup_stat = true;
+
+    for (i = 0; i < conn->hash_size; i++) {
         TAILQ_FOREACH_SAFE(
           compact_stat, &conn->background_compact.stat_hash[i], hashq, temp_compact_stat)
         {
-            if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT ||
+            if (cleanup_stat ||
               WT_CLOCKDIFF_SEC(cur_time, compact_stat->prev_compact_time) >
                 conn->background_compact.max_file_idle_time)
                 __background_compact_list_remove(session, compact_stat, i);
         }
+    }
 
-    if (cleanup_type == BACKGROUND_CLEANUP_ALL_STAT)
+    if (cleanup_type == BACKGROUND_COMPACT_CLEANUP_EXIT)
         __wt_free(session, conn->background_compact.stat_hash);
 }
 
@@ -418,6 +456,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
     WT_DECL_RET;
     int exact;
     const char *key, *value;
+    bool skip;
 
     cursor = NULL;
     exact = 0;
@@ -456,7 +495,8 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
              */
             WT_ERR(cursor->get_value(cursor, &value));
             WT_ERR(__wt_config_getones(session, value, "id", &id));
-            if (__background_compact_should_run(session, key, id.val))
+            WT_ERR(__background_compact_should_skip(session, key, id.val, &skip));
+            if (!skip)
                 break;
         }
     } while ((ret = cursor->next(cursor)) == 0);
@@ -503,7 +543,7 @@ __background_compact_server(void *arg)
         /* If the server is configured to run once, stop it after a full iteration. */
         if (full_iteration && conn->background_compact.run_once) {
             __wt_spin_lock(session, &conn->background_compact.lock);
-            conn->background_compact.running = false;
+            __wt_atomic_storebool(&conn->background_compact.running, false);
             running = false;
             WT_STAT_CONN_SET(session, background_compact_running, running);
             __wt_spin_unlock(session, &conn->background_compact.lock);
@@ -521,7 +561,7 @@ __background_compact_server(void *arg)
                 full_iteration = false;
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
-                __background_compact_list_cleanup(session, BACKGROUND_CLEANUP_STALE_STAT);
+                __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
             }
 
             /* Check periodically in case the signal was missed. */
@@ -535,16 +575,20 @@ __background_compact_server(void *arg)
             break;
 
         __wt_spin_lock(session, &conn->background_compact.lock);
-        running = conn->background_compact.running;
+        running = __wt_atomic_loadbool(&conn->background_compact.running);
 
         /* The server has been signalled to change state. */
         if (conn->background_compact.signalled) {
+
             /* If configured to run once, start from the beginning. */
-            if (conn->background_compact.run_once) {
-                WT_ASSERT(session, running);
+            if (running && conn->background_compact.run_once)
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
-            }
+
+            /* If disabled, clean up the stats. */
+            if (!running)
+                __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_OFF);
+
             conn->background_compact.signalled = false;
             WT_STAT_CONN_SET(session, background_compact_running, running);
         }
@@ -606,7 +650,7 @@ __background_compact_server(void *arg)
              */
             else if (ret == WT_ERROR) {
                 __wt_spin_lock(session, &conn->background_compact.lock);
-                running = conn->background_compact.running;
+                running = __wt_atomic_loadbool(&conn->background_compact.running);
                 __wt_spin_unlock(session, &conn->background_compact.lock);
                 if (!running) {
                     WT_STAT_CONN_INCR(session, background_compact_interrupted);
@@ -622,7 +666,7 @@ __background_compact_server(void *arg)
 
 err:
     __background_compact_exclude_list_clear(session, true);
-    __background_compact_list_cleanup(session, BACKGROUND_CLEANUP_ALL_STAT);
+    __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_EXIT);
 
     __wt_free(session, conn->background_compact.config);
     __wt_scr_free(session, &config);
@@ -635,11 +679,11 @@ err:
 }
 
 /*
- * __wt_background_compact_server_create --
+ * __wti_background_compact_server_create --
  *     Start the compact thread.
  */
 int
-__wt_background_compact_server_create(WT_SESSION_IMPL *session)
+__wti_background_compact_server_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t i;
@@ -679,11 +723,11 @@ __wt_background_compact_server_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_background_compact_server_destroy --
+ * __wti_background_compact_server_destroy --
  *     Destroy the background compaction server thread.
  */
 int
-__wt_background_compact_server_destroy(WT_SESSION_IMPL *session)
+__wti_background_compact_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -692,7 +736,7 @@ __wt_background_compact_server_destroy(WT_SESSION_IMPL *session)
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_COMPACT);
     if (conn->background_compact.tid_set) {
-        conn->background_compact.running = false;
+        __wt_atomic_storebool(&conn->background_compact.running, false);
         __wt_cond_signal(session, conn->background_compact.cond);
         WT_TRET(__wt_thread_join(session, &conn->background_compact.tid));
         conn->background_compact.tid_set = false;
@@ -720,7 +764,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const char *cfg[3] = {NULL, NULL, NULL}, *stripped_config;
-    bool running, enable;
+    bool enable, running;
 
     conn = S2C(session);
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_compact);
@@ -742,7 +786,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
         goto err;
     }
 
-    running = conn->background_compact.running;
+    running = __wt_atomic_loadbool(&conn->background_compact.running);
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
     enable = cval.val;
@@ -770,7 +814,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     }
 
     /* The background compaction has been signalled successfully, update its state. */
-    conn->background_compact.running = enable;
+    __wt_atomic_storebool(&conn->background_compact.running, enable);
     __wt_free(session, conn->background_compact.config);
     conn->background_compact.config = stripped_config;
     stripped_config = NULL;

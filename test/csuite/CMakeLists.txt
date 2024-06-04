@@ -307,14 +307,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt4803_history_store_abort
-    SOURCES wt4803_history_store_abort/main.c
-    DIR_NAME wt4803_history_store_abort
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4803_history_store_abort>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_wt4891_meta_ckptlist_get_alloc
     SOURCES wt4891_meta_ckptlist_get_alloc/main.c
     DIR_NAME wt4891_meta_ckptlist_get_alloc
@@ -346,6 +338,15 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt7989_compact_checkpoint>/WT_HOME>
     DEPENDS "WT_POSIX"
     # This test takes over 40 minutes under ASan testing
+    LABEL "long_running"
+)
+
+define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt9199_checkpoint_txn_commit_race>/WT_HOME>
+    DEPENDS "WT_POSIX"
     LABEL "long_running"
 )
 

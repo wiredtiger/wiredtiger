@@ -42,6 +42,12 @@ namespace model {
  */
 enum class kv_workload_sequence_type {
     none,
+    checkpoint,
+    crash,
+    evict,
+    restart,
+    rollback_to_stable,
+    set_oldest_timestamp,
     set_stable_timestamp,
     transaction,
 };
@@ -81,6 +87,17 @@ public:
     type() const noexcept
     {
         return _type;
+    }
+
+    /*
+     * kv_workload_sequence::operator<< --
+     *     Add an operation to the sequence.
+     */
+    inline kv_workload_sequence &
+    operator<<(const operation::any &op)
+    {
+        _operations.push_back(op);
+        return *this;
     }
 
     /*

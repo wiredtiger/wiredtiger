@@ -12,11 +12,7 @@ target_compile_options(
     run_s3_unit_tests
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
-
 target_link_libraries(run_s3_unit_tests Catch2::Catch2)
-if(ENABLE_TCMALLOC)
-    target_link_libraries(run_s3_unit_tests wt::tcmalloc)
-endif()
 
 # Register the test with CTest.
 add_test(NAME s3_unit_tests COMMAND run_s3_unit_tests)

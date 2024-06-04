@@ -46,17 +46,77 @@ using table_id_t = int;
 namespace operation {
 
 /*
+ * with_txn_id --
+ *     Annotates transactional operations.
+ */
+struct with_txn_id {
+    txn_id_t txn_id;
+
+    /*
+     * with_txn_id::with_txn_id --
+     *     Create the operation.
+     */
+    inline with_txn_id(txn_id_t txn_id) : txn_id(txn_id) {}
+
+    /*
+     * with_txn_id::transactional --
+     *     Return whether the operation is transactional.
+     */
+    inline bool
+    transactional() const
+    {
+        return true;
+    }
+
+    /*
+     * with_txn_id::transaction_id --
+     *     Get the transaction ID.
+     */
+    inline txn_id_t
+    transaction_id() const
+    {
+        return txn_id;
+    }
+};
+
+/*
+ * without_txn_id --
+ *     Annotates non-transactional operations.
+ */
+struct without_txn_id {
+
+    /*
+     * without_txn_id::transactional --
+     *     Return whether the operation is transactional.
+     */
+    inline bool
+    transactional() const
+    {
+        return false;
+    }
+
+    /*
+     * without_txn_id::transaction_id --
+     *     Placeholder for getting a transaction ID.
+     */
+    inline txn_id_t
+    transaction_id() const
+    {
+        throw model_exception("Not a transactional operation");
+    }
+};
+
+/*
  * begin_transaction --
  *     A representation of this workload operation.
  */
-struct begin_transaction {
-    txn_id_t txn_id; /* This will be the public ID. */
+struct begin_transaction : public with_txn_id {
 
     /*
      * begin_transaction::begin_transaction --
      *     Create the operation.
      */
-    inline begin_transaction(txn_id_t txn_id) : txn_id(txn_id) {}
+    inline begin_transaction(txn_id_t txn_id) : with_txn_id(txn_id) {}
 
     /*
      * begin_transaction::operator== --
@@ -94,7 +154,7 @@ operator<<(std::ostream &out, const begin_transaction &op)
  * checkpoint --
  *     A representation of this workload operation.
  */
-struct checkpoint {
+struct checkpoint : public without_txn_id {
     std::string name;
 
     /*
@@ -139,8 +199,7 @@ operator<<(std::ostream &out, const checkpoint &op)
  * commit_transaction --
  *     A representation of this workload operation.
  */
-struct commit_transaction {
-    txn_id_t txn_id;
+struct commit_transaction : public with_txn_id {
     timestamp_t commit_timestamp;
     timestamp_t durable_timestamp;
 
@@ -150,7 +209,8 @@ struct commit_transaction {
      */
     inline commit_transaction(txn_id_t txn_id, timestamp_t commit_timestamp = k_timestamp_none,
       timestamp_t durable_timestamp = k_timestamp_none)
-        : txn_id(txn_id), commit_timestamp(commit_timestamp), durable_timestamp(durable_timestamp)
+        : with_txn_id(txn_id), commit_timestamp(commit_timestamp),
+          durable_timestamp(durable_timestamp)
     {
     }
 
@@ -192,7 +252,7 @@ operator<<(std::ostream &out, const commit_transaction &op)
  * crash --
  *     A representation of this workload operation.
  */
-struct crash {
+struct crash : public without_txn_id {
 
     /*
      * crash::crash --
@@ -236,7 +296,7 @@ operator<<(std::ostream &out, const crash &op)
  * create_table --
  *     A representation of this workload operation.
  */
-struct create_table {
+struct create_table : public without_txn_id {
     table_id_t table_id; /* This will be the table's public ID. */
     std::string name;
     std::string key_format;
@@ -287,12 +347,57 @@ operator<<(std::ostream &out, const create_table &op)
 }
 
 /*
+ * evict --
+ *     A representation of this workload operation.
+ */
+struct evict : public without_txn_id {
+    table_id_t table_id;
+    data_value key;
+
+    /*
+     * evict::evict --
+     *     Create the operation.
+     */
+    inline evict(table_id_t table_id, const data_value &key) : table_id(table_id), key(key) {}
+
+    /*
+     * evict::operator== --
+     *     Compare for equality.
+     */
+    inline bool
+    operator==(const evict &other) const noexcept
+    {
+        return table_id == other.table_id && key == other.key;
+    }
+
+    /*
+     * evict::operator!= --
+     *     Compare for inequality.
+     */
+    inline bool
+    operator!=(const evict &other) const noexcept
+    {
+        return !(*this == other);
+    }
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const evict &op)
+{
+    out << "evict(" << op.table_id << ", " << op.key << ")";
+    return out;
+}
+
+/*
  * insert --
  *     A representation of this workload operation.
  */
-struct insert {
+struct insert : public with_txn_id {
     table_id_t table_id;
-    txn_id_t txn_id;
     data_value key;
     data_value value;
 
@@ -302,7 +407,7 @@ struct insert {
      */
     inline insert(
       table_id_t table_id, txn_id_t txn_id, const data_value &key, const data_value &value)
-        : table_id(table_id), txn_id(txn_id), key(key), value(value)
+        : with_txn_id(txn_id), table_id(table_id), key(key), value(value)
     {
     }
 
@@ -344,8 +449,7 @@ operator<<(std::ostream &out, const insert &op)
  * prepare_transaction --
  *     A representation of this workload operation.
  */
-struct prepare_transaction {
-    txn_id_t txn_id;
+struct prepare_transaction : public with_txn_id {
     timestamp_t prepare_timestamp;
 
     /*
@@ -353,7 +457,7 @@ struct prepare_transaction {
      *     Create the operation.
      */
     inline prepare_transaction(txn_id_t txn_id, timestamp_t prepare_timestamp)
-        : txn_id(txn_id), prepare_timestamp(prepare_timestamp)
+        : with_txn_id(txn_id), prepare_timestamp(prepare_timestamp)
     {
     }
 
@@ -393,9 +497,8 @@ operator<<(std::ostream &out, const prepare_transaction &op)
  * remove --
  *     A representation of this workload operation.
  */
-struct remove {
+struct remove : public with_txn_id {
     table_id_t table_id;
-    txn_id_t txn_id;
     data_value key;
 
     /*
@@ -403,7 +506,7 @@ struct remove {
      *     Create the operation.
      */
     inline remove(table_id_t table_id, txn_id_t txn_id, const data_value &key)
-        : table_id(table_id), txn_id(txn_id), key(key)
+        : with_txn_id(txn_id), table_id(table_id), key(key)
     {
     }
 
@@ -443,7 +546,7 @@ operator<<(std::ostream &out, const remove &op)
  * restart --
  *     A representation of this workload operation.
  */
-struct restart {
+struct restart : public without_txn_id {
 
     /*
      * restart::restart --
@@ -487,7 +590,7 @@ operator<<(std::ostream &out, const restart &op)
  * rollback_to_stable --
  *     A representation of this workload operation.
  */
-struct rollback_to_stable {
+struct rollback_to_stable : public without_txn_id {
 
     /*
      * rollback_to_stable::rollback_to_stable --
@@ -531,14 +634,13 @@ operator<<(std::ostream &out, const rollback_to_stable &op)
  * rollback_transaction --
  *     A representation of this workload operation.
  */
-struct rollback_transaction {
-    txn_id_t txn_id;
+struct rollback_transaction : public with_txn_id {
 
     /*
      * rollback_transaction::rollback_transaction --
      *     Create the operation.
      */
-    inline rollback_transaction(txn_id_t txn_id) : txn_id(txn_id) {}
+    inline rollback_transaction(txn_id_t txn_id) : with_txn_id(txn_id) {}
 
     /*
      * rollback_transaction::operator== --
@@ -576,8 +678,7 @@ operator<<(std::ostream &out, const rollback_transaction &op)
  * set_commit_timestamp --
  *     A representation of this workload operation.
  */
-struct set_commit_timestamp {
-    txn_id_t txn_id;
+struct set_commit_timestamp : public with_txn_id {
     timestamp_t commit_timestamp;
 
     /*
@@ -585,7 +686,7 @@ struct set_commit_timestamp {
      *     Create the operation.
      */
     inline set_commit_timestamp(txn_id_t txn_id, timestamp_t commit_timestamp)
-        : txn_id(txn_id), commit_timestamp(commit_timestamp)
+        : with_txn_id(txn_id), commit_timestamp(commit_timestamp)
     {
     }
 
@@ -622,10 +723,57 @@ operator<<(std::ostream &out, const set_commit_timestamp &op)
 }
 
 /*
+ * set_oldest_timestamp --
+ *     A representation of this workload operation.
+ */
+struct set_oldest_timestamp : public without_txn_id {
+    timestamp_t oldest_timestamp;
+
+    /*
+     * set_oldest_timestamp::set_oldest_timestamp --
+     *     Create the operation.
+     */
+    inline set_oldest_timestamp(timestamp_t oldest_timestamp) : oldest_timestamp(oldest_timestamp)
+    {
+    }
+
+    /*
+     * set_oldest_timestamp::operator== --
+     *     Compare for equality.
+     */
+    inline bool
+    operator==(const set_oldest_timestamp &other) const noexcept
+    {
+        return oldest_timestamp == other.oldest_timestamp;
+    }
+
+    /*
+     * set_oldest_timestamp::operator!= --
+     *     Compare for inequality.
+     */
+    inline bool
+    operator!=(const set_oldest_timestamp &other) const noexcept
+    {
+        return !(*this == other);
+    }
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const set_oldest_timestamp &op)
+{
+    out << "set_oldest_timestamp(" << op.oldest_timestamp << ")";
+    return out;
+}
+
+/*
  * set_stable_timestamp --
  *     A representation of this workload operation.
  */
-struct set_stable_timestamp {
+struct set_stable_timestamp : public without_txn_id {
     timestamp_t stable_timestamp;
 
     /*
@@ -672,9 +820,8 @@ operator<<(std::ostream &out, const set_stable_timestamp &op)
  * truncate --
  *     A representation of this workload operation.
  */
-struct truncate {
+struct truncate : public with_txn_id {
     table_id_t table_id;
-    txn_id_t txn_id;
     data_value start;
     data_value stop;
 
@@ -684,7 +831,7 @@ struct truncate {
      */
     inline truncate(
       table_id_t table_id, txn_id_t txn_id, const data_value &start, const data_value &stop)
-        : table_id(table_id), txn_id(txn_id), start(start), stop(stop)
+        : with_txn_id(txn_id), table_id(table_id), start(start), stop(stop)
     {
     }
 
@@ -727,8 +874,8 @@ operator<<(std::ostream &out, const truncate &op)
  *     Any workload operation.
  */
 using any = std::variant<begin_transaction, checkpoint, commit_transaction, crash, create_table,
-  insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
-  set_commit_timestamp, set_stable_timestamp, truncate>;
+  evict, insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
+  set_commit_timestamp, set_oldest_timestamp, set_stable_timestamp, truncate>;
 
 /*
  * operator<< --
@@ -737,6 +884,10 @@ using any = std::variant<begin_transaction, checkpoint, commit_transaction, cras
 inline std::ostream &
 operator<<(std::ostream &out, const any &op)
 {
+    if (op.valueless_by_exception()) {
+        out << "(error)";
+        return out;
+    }
     std::visit([&out](auto &&x) { out << x; }, op);
     return out;
 }
@@ -757,7 +908,61 @@ parse(const std::string &str)
     return parse(str.c_str());
 }
 
+/*
+ * transactional --
+ *     Check if the workload operation is a transactional operation, including begin and commit.
+ */
+inline bool
+transactional(const any &op)
+{
+    bool r = false;
+    std::visit([&r](auto &&x) { r = x.transactional(); }, op);
+    return r;
+}
+
+/*
+ * transaction_id --
+ *     Extract the transaction ID.
+ */
+inline txn_id_t
+transaction_id(const any &op)
+{
+    txn_id_t r = k_txn_none;
+    std::visit([&r](auto &&x) { r = x.transaction_id(); }, op);
+    return r;
+}
+
 } /* namespace operation */
+
+/*
+ * k_no_seq_no --
+ *     No sequence.
+ */
+constexpr size_t k_no_seq_no = std::numeric_limits<size_t>::max();
+
+/*
+ * kv_workload_operation --
+ *     A workload operation in a key-value database.
+ */
+struct kv_workload_operation {
+
+    operation::any operation; /* The operation. */
+    size_t seq_no;            /* The source sequence number, if known. */
+
+    /*
+     * kv_workload_operation::kv_workload_operation --
+     *     Create a new workload operation.
+     */
+    inline kv_workload_operation(const operation::any &operation, size_t seq_no = k_no_seq_no)
+        : operation(operation), seq_no(seq_no){};
+
+    /*
+     * kv_workload_operation::kv_workload_operation --
+     *     Create a new workload operation.
+     */
+    inline kv_workload_operation(operation::any &&operation, size_t seq_no = k_no_seq_no)
+        : operation(std::move(operation)), seq_no(seq_no){};
+};
 
 /*
  * kv_workload --
@@ -781,7 +986,7 @@ public:
     inline kv_workload &
     operator<<(const operation::any &op)
     {
-        _operations.push_back(op);
+        _operations.push_back(kv_workload_operation(op));
         return *this;
     }
 
@@ -791,6 +996,28 @@ public:
      */
     inline kv_workload &
     operator<<(operation::any &&op)
+    {
+        _operations.push_back(kv_workload_operation(std::move(op)));
+        return *this;
+    }
+
+    /*
+     * kv_workload::operator<< --
+     *     Add an operation to the workload.
+     */
+    inline kv_workload &
+    operator<<(const kv_workload_operation &op)
+    {
+        _operations.push_back(op);
+        return *this;
+    }
+
+    /*
+     * kv_workload::operator<< --
+     *     Add an operation to the workload.
+     */
+    inline kv_workload &
+    operator<<(kv_workload_operation &&op)
     {
         _operations.push_back(std::move(op));
         return *this;
@@ -810,7 +1037,7 @@ public:
      * kv_workload_sequence::operator[] --
      *     Get an operation in the sequence.
      */
-    inline operation::any &
+    inline kv_workload_operation &
     operator[](size_t index)
     {
         return _operations[index];
@@ -820,27 +1047,58 @@ public:
      * kv_workload_sequence::operator[] --
      *     Get an operation in the sequence.
      */
-    inline const operation::any &
+    inline const kv_workload_operation &
     operator[](size_t index) const
     {
         return _operations[index];
     }
 
     /*
-     * kv_workload::run --
-     *     Run the workload in the model.
+     * kv_workload::assert_timestamps --
+     *     Assert that all timestamps in the entire workload are assigned correctly. Throw an
+     *     exception on error.
      */
-    void run(kv_database &database) const;
+    void assert_timestamps();
+
+    /*
+     * kv_workload::verify_timestamps --
+     *     Verify that all timestamps in the entire workload are assigned correctly; just return
+     *     true or false instead of throwing an exception.
+     */
+    bool
+    verify_timestamps()
+    {
+        try {
+            assert_timestamps();
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    /*
+     * kv_workload::run --
+     *     Run the workload in the model. Return the return codes of the workload operations.
+     */
+    std::vector<int> run(kv_database &database) const;
 
     /*
      * kv_workload::run_in_wiredtiger --
-     *     Run the workload in WiredTiger.
+     *     Run the workload in WiredTiger. Return the return codes of the workload operations.
      */
-    void run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
+    std::vector<int> run_in_wiredtiger(const char *home, const char *connection_config = nullptr,
       const char *table_config = nullptr) const;
 
+protected:
+    /*
+     * kv_workload::assert_timestamps --
+     *     Assert that the timestamps are assigned correctly. Call this function one sequence at a
+     *     time.
+     */
+    void assert_timestamps(const operation::any &op, timestamp_t &oldest, timestamp_t &stable);
+
 private:
-    std::deque<operation::any> _operations;
+    std::deque<kv_workload_operation> _operations;
 };
 
 /*
@@ -850,8 +1108,8 @@ private:
 inline std::ostream &
 operator<<(std::ostream &out, const kv_workload &workload)
 {
-    for (const operation::any &op : workload._operations)
-        out << op << std::endl;
+    for (const kv_workload_operation &op : workload._operations)
+        out << op.operation << std::endl;
     return out;
 }
 
