@@ -135,8 +135,8 @@ public:
           cursor_update_ic.track([&wt_cursor]() -> int { return wt_cursor->update(wt_cursor); }));
 
         /*
-         * Benchmark commit transaction.
-         * Note we need one modification here in order to actually commit.
+         * Benchmark commit transaction. Note we need one modification here in order to actually
+         * commit.
          */
         testutil_check(commit_transaction_ic.track(
           [&wt_session]() -> int { return wt_session->commit_transaction(wt_session, nullptr); }));
