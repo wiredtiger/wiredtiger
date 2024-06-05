@@ -2281,7 +2281,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     WT_DECL_RET;
 
     if (cbt->hs_cursor != NULL) {
-        if (!F_ISSET(session, WT_SESSION_CLOSE_ALL_CURSORS))
+        if (!F_ISSET(CUR2S(cbt), WT_SESSION_CLOSE_ALL_CURSORS))
             WT_RET(cbt->hs_cursor->close(cbt->hs_cursor));
         cbt->hs_cursor = NULL;
     }
