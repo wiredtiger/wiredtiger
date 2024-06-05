@@ -32,6 +32,15 @@ extern int __real_fstat(int fd, struct stat *statbuf);
 #error "msan_suppression_wrappers.c should only be compiled with MSan"
 #endif
 
+/*
+ * We've already checked that we're building with Clang above. LLVM and Clang versions are identical
+ * so Clang 14+ implies we're building with LLVM 14+.
+ */
+#if __clang_major__ >= 14
+#pragma message( \
+  "Building with Clang 14 or later. Please check if we can close WT-13103 and delete this file.")
+#endif
+
 int __wrap_stat(const char *path, struct stat *buf);
 int __wrap_fstat(int fd, struct stat *buf);
 
