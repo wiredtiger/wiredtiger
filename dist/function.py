@@ -205,8 +205,8 @@ def is_auto_generated(file_contents):
     skip_re = re.compile(r'DO NOT EDIT: automatically built')
     if type(file_contents) is not list:
         file_contents = [file_contents]
-    for line in file_contents:
-        if skip_re.search(line):
+    for s in file_contents:
+        if skip_re.search(s):
             return True
     return False
 
