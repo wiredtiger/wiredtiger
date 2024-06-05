@@ -436,9 +436,11 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
      * The following walk flags are needed for checkpoint cleanup.
      *
      * 1. WT_READ_NO_EVICT - flag to not evict the page by this thread.
-     * 2. WT_READ_WONT_NEED - pages read by this thread can be evicted immediately.
+     * 2. WT_READ_VISIBLE_ALL - flag to indicate the session does not have a transaction snapshot.
+     *      The tree walk needs a session with a transaction snapshot or this flag.
+     * 3. WT_READ_WONT_NEED - pages read by this thread can be evicted immediately.
      */
-    flags = WT_READ_NO_EVICT | WT_READ_WONT_NEED;
+    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
     num_cc_pages = 0;
 
     /*
