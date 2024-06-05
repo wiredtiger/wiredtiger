@@ -197,12 +197,28 @@ class FunctionDefinition:
         self.source = source
         self.used_outside_of_file = False
         self.used_outside_of_module = False
+        self.visibility_global = name.startswith('__wt_')
+        self.visibility_module = name.startswith('__wti_')
 
-# Complain if a "__wti" function is used outside of its intended scope, or if a "__wt" function is
-# used only within its module.
-def function_scoping():
+# Check if the file is auto-generated based on its contents (either a string or a list of lines).
+def is_auto_generated(file_contents):
     skip_re = re.compile(r'DO NOT EDIT: automatically built')
-    func_def_re = re.compile(r'\n\w[\w \*]+\n(\w+)', re.DOTALL)
+    if type(file_contents) is not list:
+        file_contents = [file_contents]
+    for line in file_contents:
+        if skip_re.search(line):
+            return True
+    return False
+
+# Check whether functions are used in their expected scopes:
+#   * "__wti" functions are only used or called by other files within that directory.
+#   * "__wti" functions are used in at least two files (otherwise they could be made static).
+#   * "__wt" functions are used outside of their directory (otherwise they could be made "__wti").
+#
+# It uses the same exceptions list as "s_funcs" (i.e., s_funcs.list), which ensures that all extern
+# functions are used.
+def function_scoping():
+    func_def_re = re.compile(r'\n\w[\w \*]+\n(\w+)\(', re.DOTALL)
     func_use_re = re.compile(r'[^\n](\w+)', re.DOTALL)
     failed = False
 
@@ -234,7 +250,7 @@ def function_scoping():
 
         # Skip auto-generated files.
         file_contents = open(source_file, 'r').read()
-        if skip_re.search(file_contents):
+        if is_auto_generated(file_contents):
             continue
 
         # Now actually find all definitions.
@@ -260,17 +276,14 @@ def function_scoping():
 
         # Skip auto-generated files.
         file_lines = open(source_file, 'r').readlines()
-        skip = False
-        for line in file_lines:
-            if skip_re.search(line):
-                skip = True
-                break
-        if skip:
+        if is_auto_generated(file_lines):
             continue
 
         # Find all uses. Check the use of "__wti" functions.
         in_block_comment = False
+        line_no = 0
         for line in file_lines:
+            line_no += 1
 
             # Skip block and line comments.
             s = line.strip()
@@ -301,21 +314,21 @@ def function_scoping():
                     fn.used_outside_of_file = True
 
                 # Check whether a "__wti" function is used outside of its module.
-                if fn_name.startswith('__wti_') and module != fn.module:
-                    print(f'{source_file}: {fn_name} is used outside of its module ' +
+                if fn.visibility_module and module != fn.module:
+                    print(f'{source_file}:{line_no}: {fn_name} is used outside of its module ' +
                           f'"{fn.module}"')
                     failed = True
 
-    # Load the list of functions that are not allowed to be used anywhere.
-    ignore = set(l.strip() for l in open('s_funcs.list', 'r').readlines())
+    # Load the list of functions whose scope is not enforced.
+    exceptions = set(l.strip() for l in open('s_funcs.list', 'r').readlines())
 
     # Check whether any "__wt" functions are used only within the same module (and could be thus
     # turned into "__wti" functions). Functions in "include" are implicitly used in more than one
     # module.
     for fn_name, d in fn_defs.items():
-        if not fn_name.startswith('__wt_'):
+        if not d.visibility_global:
             continue
-        if fn_name in ignore:
+        if fn_name in exceptions:
             continue
         if d.module == 'include':
             continue
@@ -326,9 +339,9 @@ def function_scoping():
     # Check whether any "__wti" functions are used only within the same file. Skip functions in
     # "include", because they are implicitly used in more than one file.
     for fn_name, d in fn_defs.items():
-        if not fn_name.startswith('__wti_'):
+        if not d.visibility_module:
             continue
-        if fn_name in ignore:
+        if fn_name in exceptions:
             continue
         if d.module == 'include':
             continue
