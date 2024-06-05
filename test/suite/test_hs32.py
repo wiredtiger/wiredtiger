@@ -33,20 +33,20 @@ from wiredtiger import stat
 # test_hs32.py
 # Ensure that updates without timestamps clear the history store records.
 class test_hs32(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=100MB,statistics=(all)'
+    conn_config = 'cache_size=500MB,statistics=(all)'
     format_values = [
-        #('column', dict(key_format='r', value_format='S')),
-        #('column-fix', dict(key_format='r', value_format='8t')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
         ('integer-row', dict(key_format='i', value_format='S')),
         ('string-row', dict(key_format='S', value_format='S')),
     ]
     update_type_values = [
         ('deletion', dict(update_type='deletion')),
-        #('update', dict(update_type='update'))
+        ('update', dict(update_type='update'))
     ]
     long_running_txn_values = [
         ('no-long-run-txn', dict(long_run_txn=False)),
-        #('long-run-txn', dict(long_run_txn=True))
+        ('long-run-txn', dict(long_run_txn=True))
     ]
     scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values)
     nrows = 10000
