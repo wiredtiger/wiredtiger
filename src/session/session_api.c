@@ -260,6 +260,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
     WT_CURSOR *cursor, *cursor_tmp;
     WT_DECL_RET;
 
+    F_SET(session, WT_SESSION_CLOSE_ALL_CURSORS);
     /* Close all open cursors. */
     WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp)
     {
@@ -280,6 +281,8 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
         WT_TRET(cursor->close(cursor));
     }
     WT_TAILQ_SAFE_REMOVE_END
+
+    F_CLR(session, WT_SESSION_CLOSE_ALL_CURSORS);
 
     return (ret);
 }
