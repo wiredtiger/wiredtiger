@@ -25,29 +25,6 @@ Eviction has to obtain exclusive access to the page as there may be
 application threads still reading content on the page that is being
 evicted.
 
-Internally eviction uses the following locks:
-
-- \c cache->evict_pass_lock
-- \c cache->evict_walk_lock
-- \c cache->evict_queue_lock
-- \c queue->evict_lock
-
-Locking order:
-
-- Eviction server:
-  - lock \c cache->evict_pass_lock
-    - trylock \c cache->evict_walk_lock
-      - lock \c cache->evict_queue_lock
-        - lock \c queue->evict_lock
-- Critical path:
-  - lock \c cache->evict_walk_lock
-    - lock \c cache->evict_pass_lock
-      - lock \c cache->evict_queue_lock
-        - lock \c queue->evict_lock
-- Eviction queue access:
-  - lock \c cache->evict_queue_lock
-    - lock \c queue->evict_lock
-
 There are three types of eviction in WiredTiger:
 
 1. Clean eviction
