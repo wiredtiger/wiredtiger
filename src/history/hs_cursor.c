@@ -247,8 +247,10 @@ err:
 
     WT_ASSERT(session, ret != WT_NOTFOUND);
 
-    if (hs_cursor != NULL)
+    if (hs_cursor != NULL) {
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
         WT_TRET(hs_cursor->reset(hs_cursor));
+    }
 
     return (ret);
 }
