@@ -90,7 +90,7 @@ than its trigger size counterpart.
 
 Internally eviction uses the following locks:
 
-- \c cache->evict_pass_lock - Guarantees that there's only one eviction server is running at most.
+- \c cache->evict_pass_lock - Guarantees that only one eviction server is running at most.
 - \c cache->evict_walk_lock - Locked when eviction walks a tree.
 - \c cache->evict_queue_lock - Access to cache->evict_queues.
 - \c queue->evict_lock - Access to a specific eviction queue.
