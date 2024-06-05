@@ -471,6 +471,7 @@ const char __WT_CONFIG_CHOICE_checkpoint_evict_page[] = "checkpoint_evict_page";
 const char __WT_CONFIG_CHOICE_checkpoint_handle[] = "checkpoint_handle";
 const char __WT_CONFIG_CHOICE_checkpoint_slow[] = "checkpoint_slow";
 const char __WT_CONFIG_CHOICE_checkpoint_stop[] = "checkpoint_stop";
+const char __WT_CONFIG_CHOICE_checkpoint_sync_file[] = "checkpoint_sync_file";
 const char __WT_CONFIG_CHOICE_commit_transaction_slow[] = "commit_transaction_slow";
 const char __WT_CONFIG_CHOICE_compact_slow[] = "compact_slow";
 const char __WT_CONFIG_CHOICE_evict_reposition[] = "evict_reposition";
@@ -501,9 +502,9 @@ static const char *confchk_timing_stress_for_test_choices[] = {
   __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
   __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
   __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
-  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_commit_transaction_slow,
-  __WT_CONFIG_CHOICE_compact_slow, __WT_CONFIG_CHOICE_evict_reposition,
-  __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_checkpoint_sync_file,
+  __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
   __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
   __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefetch_delay,
@@ -673,8 +674,9 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
     "\"backup_rename\",\"checkpoint_evict_page\","
     "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
-    "\"commit_transaction_slow\",\"compact_slow\","
-    "\"evict_reposition\",\"failpoint_eviction_split\","
+    "\"checkpoint_sync_file\",\"commit_transaction_slow\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prefetch_delay\","
@@ -2698,9 +2700,9 @@ static const char *confchk_timing_stress_for_test2_choices[] = {
   __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
   __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
   __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
-  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_commit_transaction_slow,
-  __WT_CONFIG_CHOICE_compact_slow, __WT_CONFIG_CHOICE_evict_reposition,
-  __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_checkpoint_sync_file,
+  __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
   __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
   __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefetch_delay,
@@ -2900,8 +2902,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
     "\"backup_rename\",\"checkpoint_evict_page\","
     "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
-    "\"commit_transaction_slow\",\"compact_slow\","
-    "\"evict_reposition\",\"failpoint_eviction_split\","
+    "\"checkpoint_sync_file\",\"commit_transaction_slow\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prefetch_delay\","
@@ -2970,9 +2973,9 @@ static const char *confchk_timing_stress_for_test3_choices[] = {
   __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
   __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
   __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
-  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_commit_transaction_slow,
-  __WT_CONFIG_CHOICE_compact_slow, __WT_CONFIG_CHOICE_evict_reposition,
-  __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_checkpoint_sync_file,
+  __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
   __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
   __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefetch_delay,
@@ -3153,8 +3156,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
     "\"backup_rename\",\"checkpoint_evict_page\","
     "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
-    "\"commit_transaction_slow\",\"compact_slow\","
-    "\"evict_reposition\",\"failpoint_eviction_split\","
+    "\"checkpoint_sync_file\",\"commit_transaction_slow\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prefetch_delay\","
@@ -3226,9 +3230,9 @@ static const char *confchk_timing_stress_for_test4_choices[] = {
   __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
   __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
   __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
-  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_commit_transaction_slow,
-  __WT_CONFIG_CHOICE_compact_slow, __WT_CONFIG_CHOICE_evict_reposition,
-  __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_checkpoint_sync_file,
+  __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
   __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
   __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefetch_delay,
@@ -3401,8 +3405,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
     "\"backup_rename\",\"checkpoint_evict_page\","
     "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
-    "\"commit_transaction_slow\",\"compact_slow\","
-    "\"evict_reposition\",\"failpoint_eviction_split\","
+    "\"checkpoint_sync_file\",\"commit_transaction_slow\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prefetch_delay\","
@@ -3470,9 +3475,9 @@ static const char *confchk_timing_stress_for_test5_choices[] = {
   __WT_CONFIG_CHOICE_aggressive_stash_free, __WT_CONFIG_CHOICE_aggressive_sweep,
   __WT_CONFIG_CHOICE_backup_rename, __WT_CONFIG_CHOICE_checkpoint_evict_page,
   __WT_CONFIG_CHOICE_checkpoint_handle, __WT_CONFIG_CHOICE_checkpoint_slow,
-  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_commit_transaction_slow,
-  __WT_CONFIG_CHOICE_compact_slow, __WT_CONFIG_CHOICE_evict_reposition,
-  __WT_CONFIG_CHOICE_failpoint_eviction_split,
+  __WT_CONFIG_CHOICE_checkpoint_stop, __WT_CONFIG_CHOICE_checkpoint_sync_file,
+  __WT_CONFIG_CHOICE_commit_transaction_slow, __WT_CONFIG_CHOICE_compact_slow,
+  __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
   __WT_CONFIG_CHOICE_history_store_checkpoint_delay, __WT_CONFIG_CHOICE_history_store_search,
   __WT_CONFIG_CHOICE_history_store_sweep_race, __WT_CONFIG_CHOICE_prefetch_delay,
@@ -3645,8 +3650,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "choices=[\"aggressive_stash_free\",\"aggressive_sweep\","
     "\"backup_rename\",\"checkpoint_evict_page\","
     "\"checkpoint_handle\",\"checkpoint_slow\",\"checkpoint_stop\","
-    "\"commit_transaction_slow\",\"compact_slow\","
-    "\"evict_reposition\",\"failpoint_eviction_split\","
+    "\"checkpoint_sync_file\",\"commit_transaction_slow\","
+    "\"compact_slow\",\"evict_reposition\","
+    "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prefetch_delay\","

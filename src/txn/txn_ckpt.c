@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
@@ -2715,7 +2714,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
  *     purposes. The reason for this option is finding operations that can block while waiting for a
  *     checkpoint to complete.
  */
-static void
+void
 __checkpoint_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct timespec *tsp)
 {
     WT_CONNECTION_IMPL *conn;
