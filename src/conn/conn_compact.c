@@ -239,6 +239,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
 {
     WT_BACKGROUND_COMPACT_STAT *compact_stat;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     wt_off_t file_size;
     uint64_t cur_time;
     const char *filename;
@@ -252,10 +253,19 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
         return (0);
     }
 
-    /* Fast path to check the file size. Ignore small files. */
+    /* Fast path to check the file size, ignore small files. */
     filename = uri;
     WT_PREFIX_SKIP(filename, "file:");
-    WT_RET(__wt_block_manager_named_size(session, filename, &file_size));
+    ret = __wt_block_manager_named_size(session, filename, &file_size);
+
+    /* It is possible that the file no longer exists. */
+    if (ret == ENOENT) {
+        *skipp = true;
+        return (0);
+    }
+
+    WT_RET(ret);
+
     if (file_size <= WT_MEGABYTE) {
         WT_STAT_CONN_INCR(session, background_compact_skipped);
         *skipp = true;
@@ -533,7 +543,7 @@ __background_compact_server(void *arg)
         /* If the server is configured to run once, stop it after a full iteration. */
         if (full_iteration && conn->background_compact.run_once) {
             __wt_spin_lock(session, &conn->background_compact.lock);
-            conn->background_compact.running = false;
+            __wt_atomic_storebool(&conn->background_compact.running, false);
             running = false;
             WT_STAT_CONN_SET(session, background_compact_running, running);
             __wt_spin_unlock(session, &conn->background_compact.lock);
@@ -565,7 +575,7 @@ __background_compact_server(void *arg)
             break;
 
         __wt_spin_lock(session, &conn->background_compact.lock);
-        running = conn->background_compact.running;
+        running = __wt_atomic_loadbool(&conn->background_compact.running);
 
         /* The server has been signalled to change state. */
         if (conn->background_compact.signalled) {
@@ -640,7 +650,7 @@ __background_compact_server(void *arg)
              */
             else if (ret == WT_ERROR) {
                 __wt_spin_lock(session, &conn->background_compact.lock);
-                running = conn->background_compact.running;
+                running = __wt_atomic_loadbool(&conn->background_compact.running);
                 __wt_spin_unlock(session, &conn->background_compact.lock);
                 if (!running) {
                     WT_STAT_CONN_INCR(session, background_compact_interrupted);
@@ -726,7 +736,7 @@ __wti_background_compact_server_destroy(WT_SESSION_IMPL *session)
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_COMPACT);
     if (conn->background_compact.tid_set) {
-        conn->background_compact.running = false;
+        __wt_atomic_storebool(&conn->background_compact.running, false);
         __wt_cond_signal(session, conn->background_compact.cond);
         WT_TRET(__wt_thread_join(session, &conn->background_compact.tid));
         conn->background_compact.tid_set = false;
@@ -776,7 +786,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
         goto err;
     }
 
-    running = conn->background_compact.running;
+    running = __wt_atomic_loadbool(&conn->background_compact.running);
 
     WT_ERR(__wt_config_getones(session, config, "background", &cval));
     enable = cval.val;
@@ -804,7 +814,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     }
 
     /* The background compaction has been signalled successfully, update its state. */
-    conn->background_compact.running = enable;
+    __wt_atomic_storebool(&conn->background_compact.running, enable);
     __wt_free(session, conn->background_compact.config);
     conn->background_compact.config = stripped_config;
     stripped_config = NULL;

@@ -301,11 +301,11 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_txn_log_commit --
+ * __wti_txn_log_commit --
  *     Write the operations of a transaction to the log at commit time.
  */
 int
-__wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_TXN *txn;
 
@@ -356,11 +356,11 @@ err:
 }
 
 /*
- * __wt_txn_checkpoint_logread --
+ * __wti_txn_checkpoint_logread --
  *     Read a log record for a checkpoint operation.
  */
 int
-__wt_txn_checkpoint_logread(
+__wti_txn_checkpoint_logread(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *ckpt_lsn)
 {
     WT_DECL_RET;
@@ -380,11 +380,11 @@ __wt_txn_checkpoint_logread(
 }
 
 /*
- * __wt_txn_ts_log --
+ * __wti_txn_ts_log --
  *     Write a log record recording timestamps in the transaction.
  */
 int
-__wt_txn_ts_log(WT_SESSION_IMPL *session)
+__wti_txn_ts_log(WT_SESSION_IMPL *session)
 {
     struct timespec t;
     WT_ITEM *logrec;
@@ -545,7 +545,7 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
          * connection close, only during a full checkpoint. A clean close may not update any
          * metadata LSN and we do not want to remove log files in that case.
          */
-        if (conn->hot_backup_start == 0 &&
+        if (__wt_atomic_load64(&conn->hot_backup_start) == 0 &&
           (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
             FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
