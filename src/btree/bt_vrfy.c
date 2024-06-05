@@ -243,7 +243,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * metadata file is verified before we verify the history store, and it makes no sense to verify
      * the history store against itself.
      */
-    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
+    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 
+        || F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID);
 
     /* Loop through the file's checkpoints, verifying each one. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
