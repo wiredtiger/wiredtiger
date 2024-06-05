@@ -2282,7 +2282,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 
     if (cbt->hs_cursor != NULL) {
         if (!F_ISSET(CUR2S(cbt), WT_SESSION_CLOSE_ALL_CURSORS))
-            WT_RET(cbt->hs_cursor->close(cbt->hs_cursor));
+            WT_TRET(cbt->hs_cursor->close(cbt->hs_cursor));
         cbt->hs_cursor = NULL;
     }
 
@@ -2293,7 +2293,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
      * tear-down in that case.
      */
     if (!lowlevel)
-        ret = __cursor_reset(cbt);
+        WT_TRET(__cursor_reset(cbt));
 
     __wt_btcur_free_cached_memory(cbt);
 
