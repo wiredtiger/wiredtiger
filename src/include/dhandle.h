@@ -73,11 +73,13 @@
     } while (0)
 
 enum wt_dhandle_type {
-    WT_DHANDLE_TYPE_BTREE,
+    WT_DHANDLE_TYPE_BTREE = 0,
     WT_DHANDLE_TYPE_TABLE,
     WT_DHANDLE_TYPE_TIERED,
     WT_DHANDLE_TYPE_TIERED_TREE
 };
+/* Number of values above. */
+#define WT_DHANDLE_TYPE_NUM (1 + WT_DHANDLE_TYPE_TIERED_TREE)
 
 /*
  * WT_DATA_HANDLE --

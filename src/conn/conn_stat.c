@@ -88,6 +88,8 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
       conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED]);
     WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_tree_count,
       conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED_TREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_checkpoint_count, conn->dhandle_checkpoint_count);
     WT_STATP_CONN_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
     WT_STATP_CONN_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
