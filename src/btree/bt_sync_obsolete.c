@@ -58,7 +58,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(
 
     /*
      *  The obsolete information on a page is identified as follows:
-     *  1. If the ref is obsolete using the newest stop time. In this case, mark it is
+     *  1. If the ref is obsolete using the newest stop time. In this case, mark it
      *     for urgent eviction.
      *  2. If the ref contains obsolete time window information using the newest durable
      *     time. In this case, mark the ref dirty so reconciliation removes the obsolete data.
@@ -432,7 +432,13 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     uint32_t flags, num_cc_pages;
 
     ref = NULL;
-    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
+    /*
+     * The following walk flags are needed for checkpoint cleanup.
+     *
+     * 1. WT_READ_NO_EVICT - flag to not evict the page by this thread.
+     * 2. WT_READ_WONT_NEED - pages read by this thread can be evicted immediately.
+     */
+    flags = WT_READ_NO_EVICT | WT_READ_WONT_NEED;
     num_cc_pages = 0;
 
     /*
@@ -553,8 +559,8 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         return (true);
 
     /*
-     * The checkpoint has some obsolete time windows that are no longer required to exist in the
-     * btree. Remove the obsolete time windows to reduce the checkpoint size.
+     * The checkpoint has some obsolete time window information that is no longer required to exist
+     * in the btree. Remove the obsolete data to reduce the checkpoint size.
      */
     if (oldest_start_ts != WT_TS_NONE && __wt_txn_timestamp_visible_all(session, oldest_start_ts))
         return (true);
