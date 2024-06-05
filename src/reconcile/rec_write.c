@@ -326,9 +326,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
 
     /* Wrap up the page reconciliation. Panic on failure. */
-    ret = __rec_write_wrapup(session, r, page);
+    WT_ERR(__rec_write_wrapup(session, r, page));
     __rec_write_page_status(session, r);
-    __reconcile_post_wrapup(session, r, page, flags, page_lockedp);
+    WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
     /*
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
@@ -2459,7 +2459,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (__wt_ref_is_root(ref))
             break;
 
-        ret = __wt_ref_block_free(session, ref);
+        WT_RET(__wt_ref_block_free(session, ref));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2467,7 +2467,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                                /*
                                 * Discard the multiple replacement blocks.
                                 */
-        ret = __rec_split_discard(session, page);
+        WT_RET(__rec_split_discard(session, page));
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
                             /*
@@ -2476,9 +2476,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
                              */
-        if (!__wt_ref_is_root(ref)) {
-            ret = __wt_btree_block_free(session, mod->mod_replace.addr, mod->mod_replace.size);
-        }
+        if (!__wt_ref_is_root(ref))
+            WT_RET(__wt_btree_block_free(session, mod->mod_replace.addr, mod->mod_replace.size));
+
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.addr);
         mod->mod_replace.size = 0;
@@ -2686,7 +2686,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            ret = __wt_hs_insert_updates(session, r, multi);
+            WT_ERR(__wt_hs_insert_updates(session, r, multi));
             if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;

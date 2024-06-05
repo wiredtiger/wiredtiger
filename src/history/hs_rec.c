@@ -228,16 +228,14 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
         if (ret == 0) {
             /* For non-timestamped updates we only need the counter, skip reinsert. */
-            if (non_ts_updates) {
+            if (non_ts_updates)
                 __hs_insert_pos_counter(session, cursor, btree->id, key, &counter);
-            } else {
+            else
                 WT_ERR(
                   __hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
                     true, false, non_ts_updates, error_on_ts_ordering, &counter, tw));
-            }
-        } else {
+        } else
             ret = 0;
-        }
     }
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -828,12 +826,12 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
      * continue into the function to delete only. If we do not have a valid cursor position then
      * nothing is found, return.
      */
-    if (!(reinsert && non_ts_updates) && ret == 0) {
+    if (!(reinsert && non_ts_updates) && ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE,
           reinsert, true, non_ts_updates, error_on_ts_ordering, &hs_counter, NULL));
-    } else {
+    else 
         ret = 0;
-    }
+    
 done:
 err:
     if (!hs_read_all_flag)
