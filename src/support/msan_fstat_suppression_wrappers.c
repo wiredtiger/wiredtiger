@@ -27,9 +27,9 @@ extern int __real_fstat(int fd, struct stat *statbuf);
  * is built with MSan.
  */
 #ifndef __clang__
-#error "msan_suppression_wrappers.c should only be compiled with Clang"
+#error "msan_fstat_suppression_wrappers.c should only be compiled with Clang"
 #elif !__has_feature(memory_sanitizer)
-#error "msan_suppression_wrappers.c should only be compiled with MSan"
+#error "msan_fstat_suppression_wrappers.c should only be compiled with MSan"
 #endif
 
 /*

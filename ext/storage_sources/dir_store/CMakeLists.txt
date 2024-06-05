@@ -3,7 +3,7 @@ project(dir_store C)
 set(sources "dir_store.c")
 
 if("${CMAKE_BUILD_TYPE}" MATCHES "^MSan$")
-    list(APPEND sources ${CMAKE_SOURCE_DIR}/test/evergreen/msan_suppression_wrappers.c)
+    list(APPEND sources ${CMAKE_SOURCE_DIR}/src/support/msan_fstat_suppression_wrappers.c)
 endif()
 
 add_library(wiredtiger_dir_store MODULE ${sources})
