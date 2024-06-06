@@ -373,6 +373,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->rec_maximum_image_build_milliseconds = rec_img_build;
     if (rec > conn->rec_maximum_milliseconds)
         conn->rec_maximum_milliseconds = rec;
+    if (rec > conn->rec_maximum_page_bytes)
+        conn->rec_maximum_page_bytes = ref->page->memory_footprint;
     if (session->reconcile_timeline.total_reentry_hs_eviction_time >
       conn->cache->reentry_hs_eviction_ms)
         conn->cache->reentry_hs_eviction_ms =

@@ -362,6 +362,7 @@ __wti_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
       conn->rec_maximum_image_build_milliseconds);
     WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_page_bytes, conn->rec_maximum_page_bytes);
 }
 
 /*
