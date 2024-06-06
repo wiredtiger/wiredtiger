@@ -89,6 +89,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walks restarted",
   "cache: eviction walks started from root of tree",
   "cache: eviction walks started from saved location in tree",
+  "cache: fast-path pages deleted",
   "cache: hazard pointer blocked page eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
@@ -267,7 +268,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: dictionary matches",
-  "reconciliation: fast-path pages deleted",
   "reconciliation: internal page key bytes discarded using suffix compression",
   "reconciliation: internal page multi-block writes",
   "reconciliation: leaf page key bytes discarded using prefix compression",
@@ -446,6 +446,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_walk_restart = 0;
     stats->cache_eviction_walk_from_root = 0;
     stats->cache_eviction_walk_saved_pos = 0;
+    stats->cache_page_delete_fast = 0;
     stats->cache_eviction_blocked_hazard = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
@@ -614,7 +615,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_dictionary = 0;
-    stats->rec_page_delete_fast = 0;
     stats->rec_suffix_compression = 0;
     stats->rec_multiblock_internal = 0;
     stats->rec_prefix_compression = 0;
@@ -779,6 +779,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_walk_restart += from->cache_eviction_walk_restart;
     to->cache_eviction_walk_from_root += from->cache_eviction_walk_from_root;
     to->cache_eviction_walk_saved_pos += from->cache_eviction_walk_saved_pos;
+    to->cache_page_delete_fast += from->cache_page_delete_fast;
     to->cache_eviction_blocked_hazard += from->cache_eviction_blocked_hazard;
     to->cache_hs_insert += from->cache_hs_insert;
     to->cache_hs_insert_restart += from->cache_hs_insert_restart;
@@ -952,7 +953,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
     to->rec_dictionary += from->rec_dictionary;
-    to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_suffix_compression += from->rec_suffix_compression;
     to->rec_multiblock_internal += from->rec_multiblock_internal;
     to->rec_prefix_compression += from->rec_prefix_compression;
@@ -1122,6 +1122,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_walk_restart += WT_STAT_DSRC_READ(from, cache_eviction_walk_restart);
     to->cache_eviction_walk_from_root += WT_STAT_DSRC_READ(from, cache_eviction_walk_from_root);
     to->cache_eviction_walk_saved_pos += WT_STAT_DSRC_READ(from, cache_eviction_walk_saved_pos);
+    to->cache_page_delete_fast += WT_STAT_DSRC_READ(from, cache_page_delete_fast);
     to->cache_eviction_blocked_hazard += WT_STAT_DSRC_READ(from, cache_eviction_blocked_hazard);
     to->cache_hs_insert += WT_STAT_DSRC_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_DSRC_READ(from, cache_hs_insert_restart);
@@ -1311,7 +1312,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
-    to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_suffix_compression += WT_STAT_DSRC_READ(from, rec_suffix_compression);
     to->rec_multiblock_internal += WT_STAT_DSRC_READ(from, rec_multiblock_internal);
     to->rec_prefix_compression += WT_STAT_DSRC_READ(from, rec_prefix_compression);
@@ -1523,6 +1523,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction worker thread created",
   "cache: eviction worker thread removed",
   "cache: eviction worker thread stable number",
+  "cache: fast-path pages deleted",
   "cache: files with active eviction walks",
   "cache: files with new eviction walks started",
   "cache: force re-tuning of eviction workers once in a while",
@@ -1947,7 +1948,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
-  "reconciliation: fast-path pages deleted",
   "reconciliation: leaf-page overflow keys",
   "reconciliation: maximum milliseconds spent in a reconciliation call",
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
@@ -2283,6 +2283,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_worker_created = 0;
     stats->cache_eviction_worker_removed = 0;
     /* not clearing cache_eviction_stable_state_workers */
+    stats->cache_page_delete_fast = 0;
     /* not clearing cache_eviction_walks_active */
     stats->cache_eviction_walks_started = 0;
     stats->cache_eviction_force_retune = 0;
@@ -2693,7 +2694,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
-    stats->rec_page_delete_fast = 0;
     stats->rec_overflow_key_leaf = 0;
     /* not clearing rec_maximum_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
@@ -3037,6 +3037,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_worker_removed += WT_STAT_CONN_READ(from, cache_eviction_worker_removed);
     to->cache_eviction_stable_state_workers +=
       WT_STAT_CONN_READ(from, cache_eviction_stable_state_workers);
+    to->cache_page_delete_fast += WT_STAT_CONN_READ(from, cache_page_delete_fast);
     to->cache_eviction_walks_active += WT_STAT_CONN_READ(from, cache_eviction_walks_active);
     to->cache_eviction_walks_started += WT_STAT_CONN_READ(from, cache_eviction_walks_started);
     to->cache_eviction_force_retune += WT_STAT_CONN_READ(from, cache_eviction_force_retune);
@@ -3513,7 +3514,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_vlcs_emptied_pages += WT_STAT_CONN_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_CONN_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
-    to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_overflow_key_leaf += WT_STAT_CONN_READ(from, rec_overflow_key_leaf);
     to->rec_maximum_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_milliseconds);
     to->rec_maximum_image_build_milliseconds +=

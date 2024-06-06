@@ -552,6 +552,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_worker_created;
     int64_t cache_eviction_worker_removed;
     int64_t cache_eviction_stable_state_workers;
+    int64_t cache_page_delete_fast;
     int64_t cache_eviction_walks_active;
     int64_t cache_eviction_walks_started;
     int64_t cache_eviction_force_retune;
@@ -962,7 +963,6 @@ struct __wt_connection_stats {
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
-    int64_t rec_page_delete_fast;
     int64_t rec_overflow_key_leaf;
     int64_t rec_maximum_milliseconds;
     int64_t rec_maximum_image_build_milliseconds;
@@ -1198,6 +1198,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
+    int64_t cache_page_delete_fast;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
@@ -1366,7 +1367,6 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
     int64_t rec_dictionary;
-    int64_t rec_page_delete_fast;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
     int64_t rec_prefix_compression;
