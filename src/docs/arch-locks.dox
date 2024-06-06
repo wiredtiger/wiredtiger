@@ -55,10 +55,6 @@ NOTE: A different locking order is used for \c evict_pass_lock and \c evict_walk
 @row{WRITE \c log_remove_lock, &rarr;, READ \c debug_log_retention_lock}
 </table>
 
-<table class=lock-hierarchy>
-@row{WRITE \c log_remove_lock, &rarr;, READ \c debug_log_retention_lock}
-</table>
-
 NOTE: Some functions expect \c log_slot_lock to be acquired, then they temporarily release it and re-acquire it.
 
 @section arch-locks-checkpoint-schema Checkpoint and Schema locks
