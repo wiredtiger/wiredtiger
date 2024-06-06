@@ -16,17 +16,17 @@
  *     Wait on the futex. The timeout is in microseconds and MUST be greater than zero.
  */
 int
-__wt_futex_wait(WT_FUTEX_WORD *futexp, uint32_t expected, time_t usec, uint32_t *wake_valp)
+__wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
 {
     struct timespec timeout;
     long sysret;
 
     WT_ASSERT(NULL, usec > 0);
 
-    sysret = syscall(SYS_futex, futexp, FUTEX_WAIT_PRIVATE, expected,
+    sysret = syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, expected,
       __wt_usec_as_timespec(usec, &timeout), NULL, 0);
     if (sysret == 0)
-        *wake_valp = __atomic_load_n(futexp, __ATOMIC_ACQUIRE);
+        *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
 
     return ((int)sysret);
 }
@@ -44,7 +44,7 @@ __wt_futex_wake(WT_FUTEX_WORD *futexp, WT_FUTEX_WAKE whom, WT_FUTEX_WORD wake_va
     WT_ASSERT(NULL, whom == WT_FUTEX_WAKE_ONE || whom == WT_FUTEX_WAKE_ALL);
 
     wake_op = (whom == WT_FUTEX_WAKE_ALL) ? INT_MAX : 1;
-    __atomic_store_n(futexp, wake_val, __ATOMIC_RELEASE);
+    __atomic_store_n(futexp, wake_val, __ATOMIC_SEQ_CST);
     sysret = syscall(SYS_futex, futexp, FUTEX_WAKE_PRIVATE, wake_op, NULL, 0);
 
     return ((int)((sysret >= 0) ? 0 : sysret));
