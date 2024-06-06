@@ -145,6 +145,7 @@ src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
 src/os_darwin/futex.c            DARWIN_HOST
 src/os_linux/futex.c             LINUX_HOST
+src/os_win/futex.c               WINDOWS_HOST
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST

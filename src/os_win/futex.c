@@ -1,0 +1,48 @@
+/*-
+ * Copyright (c) 2024-present MongoDB, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#include "wt_internal.h"
+
+/*
+ * __wt_futex_wait --
+ *     Wait on the futex. The timeout is in microseconds and MUST be greater than zero.
+ */
+int
+__wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
+{
+    DWORD msec;
+    bool retval;
+    DWORD windows_error;
+
+    msec = (DWORD)WT_MAX(1, usec / 1000);
+    retval = WaitOnAddress(addr, &expected, sizeof(WT_FUTEX_WORD), msec);
+    if (retval == TRUE) {
+        *wake_valp = *addr;
+        return 0;
+    }
+
+    windows_error = __wt_getlasterror();
+    errno = __wt_map_windows_error(windows_error);
+    return (-1);
+}
+
+/*
+ * __wt_futex_wake --
+ *     Wake the futex.
+ */
+int
+__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE whom, WT_FUTEX_WORD wake_val)
+{
+    WT_ASSERT(NULL, whom == WT_FUTEX_WAKE_ONE || whom == WT_FUTEX_WAKE_ALL);
+
+    *addr = wake_val;
+    if (whom == WT_FUTEX_WAKE_ONE)
+        WakeByAddressSingle(addr);
+    else
+        WakeByAddressAll(addr);
+    return (0);
+}

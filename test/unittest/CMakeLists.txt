@@ -59,6 +59,10 @@ target_compile_options(
 )
 
 target_link_libraries(catch2-unittests Catch2::Catch2)
+if(WT_WIN)
+    # Needed for testing futexes.
+    target_link_libraries(catch2-unittests Synchronization)
+endif()
 
 add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/catch2-unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
