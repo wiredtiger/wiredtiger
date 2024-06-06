@@ -121,7 +121,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
-  "cache: modified pages evicted due to obsolete time",
+  "cache: modified pages evicted due to obsolete time window",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -473,7 +473,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
-    stats->cache_eviction_dirty_obsolete_time = 0;
+    stats->cache_eviction_dirty_obsolete_tw = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -809,7 +809,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
     to->cache_eviction_random_sample_inmem_root += from->cache_eviction_random_sample_inmem_root;
     to->cache_eviction_dirty += from->cache_eviction_dirty;
-    to->cache_eviction_dirty_obsolete_time += from->cache_eviction_dirty_obsolete_time;
+    to->cache_eviction_dirty_obsolete_tw += from->cache_eviction_dirty_obsolete_tw;
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
@@ -1158,8 +1158,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_random_sample_inmem_root +=
       WT_STAT_DSRC_READ(from, cache_eviction_random_sample_inmem_root);
     to->cache_eviction_dirty += WT_STAT_DSRC_READ(from, cache_eviction_dirty);
-    to->cache_eviction_dirty_obsolete_time +=
-      WT_STAT_DSRC_READ(from, cache_eviction_dirty_obsolete_time);
+    to->cache_eviction_dirty_obsolete_tw +=
+      WT_STAT_DSRC_READ(from, cache_eviction_dirty_obsolete_tw);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
     to->cache_eviction_blocked_overflow_keys +=
@@ -1593,7 +1593,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: modified page evict attempts by application threads",
   "cache: modified page evict failures by application threads",
   "cache: modified pages evicted",
-  "cache: modified pages evicted due to obsolete time",
+  "cache: modified pages evicted due to obsolete time window",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
@@ -2344,7 +2344,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_app_dirty_attempt = 0;
     stats->cache_eviction_app_dirty_fail = 0;
     stats->cache_eviction_dirty = 0;
-    stats->cache_eviction_dirty_obsolete_time = 0;
+    stats->cache_eviction_dirty_obsolete_tw = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
@@ -3114,8 +3114,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_app_dirty_attempt);
     to->cache_eviction_app_dirty_fail += WT_STAT_CONN_READ(from, cache_eviction_app_dirty_fail);
     to->cache_eviction_dirty += WT_STAT_CONN_READ(from, cache_eviction_dirty);
-    to->cache_eviction_dirty_obsolete_time +=
-      WT_STAT_CONN_READ(from, cache_eviction_dirty_obsolete_time);
+    to->cache_eviction_dirty_obsolete_tw +=
+      WT_STAT_CONN_READ(from, cache_eviction_dirty_obsolete_tw);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
     to->cache_timed_out_ops += WT_STAT_CONN_READ(from, cache_timed_out_ops);

@@ -732,7 +732,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_modify_init(session, ref->page));
         __wt_page_modify_set(session, ref->page);
 
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_time);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
     }
 
     return (0);
