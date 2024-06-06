@@ -56,13 +56,16 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    bool debug_config;
 
     conn = S2C(session);
     cache = conn->cache;
 
+    /* Debug flags are not yet set when this function runs during connection open. Set it now. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
-    debug_config = cval.val;
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
 
     /*
      * If not using a shared cache configure the cache size, otherwise check for a reserved size.
@@ -111,7 +114,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
 
     /* Check for invalid configurations and automatically fix them to suitable values. */
     if (cache->eviction_dirty_target > cache->eviction_target) {
-        if (debug_config)
+        if(FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION))
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "config eviction_dirty_target=%f cannot exceed eviction_target=%f. Setting "
               "eviction_dirty_target to %f.",
@@ -121,7 +124,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
 
     if (cache->eviction_checkpoint_target > 0 &&
       cache->eviction_checkpoint_target < cache->eviction_dirty_target) {
-        if (debug_config)
+        if(FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION))
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "config eviction_checkpoint_target=%f cannot be less than eviction_dirty_target=%f. Setting "
               "eviction_checkpoint_target to %f.",
@@ -131,7 +134,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
     }
 
     if (cache->eviction_dirty_trigger > cache->eviction_trigger) {
-        if (debug_config)
+        if(FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION))
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "config eviction_dirty_trigger=%f cannot exceed eviction_trigger=%f. Setting "
               "eviction_dirty_trigger to %f.",
@@ -140,7 +143,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
     }
 
     if (cache->eviction_updates_target < DBL_EPSILON) {
-        if (debug_config)
+        if(FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION))
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "config eviction_updates_target (%f) cannot be zero. Setting "
               "to 50%% of eviction_updates_target (%f).",
@@ -149,7 +152,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
     }
 
     if (cache->eviction_updates_trigger < DBL_EPSILON) {
-        if (debug_config)
+        if(FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION))
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "config eviction_updates_trigger (%f) cannot be zero. Setting "
               "to 50%% of eviction_updates_trigger (%f).",
@@ -159,7 +162,7 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
 
     /* Don't allow the trigger to be larger than the overall trigger. */
     if (cache->eviction_updates_trigger > cache->eviction_trigger) {
-        if (debug_config)
+        if(FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION))
             __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
               "config eviction_updates_trigger=%f cannot exceed eviction_trigger=%f. Setting "
               "eviction_updates_trigger to %f.",
