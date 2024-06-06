@@ -57,7 +57,7 @@ extern "C" {
 const std::string parse_configuration_from_file(const std::string &filename);
 void print_help();
 int64_t run_test(const std::string &test_name, const std::string &config,
-  const std::string &wt_open_config, const std::string &home, const bool &exclude = false);
+  const std::string &wt_open_config, const std::string &home);
 
 const std::string
 parse_configuration_from_file(const std::string &filename)
@@ -126,12 +126,10 @@ print_help()
  * Run a specific test.
  * - test_name: specifies which test to run.
  * - config: defines the configuration used for the test.
- * - exclude: configuration that allows a test to not be included in the all tests run, useful if
- *   test requires additional external configuration.
  */
 int64_t
 run_test(const std::string &test_name, const std::string &config, const std::string &wt_open_config,
-  const std::string &home, const bool &exclude)
+  const std::string &home)
 {
     int error_code = 0;
 
@@ -144,10 +142,9 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 
     if (test_name == "api_timing_benchmarks")
         api_timing_benchmarks(args).run();
-    else if (test_name == "api_instruction_count_benchmarks") {
-        if (!exclude)
-            api_instruction_count_benchmarks(args).run();
-    } else if (test_name == "background_compact")
+    else if (test_name == "api_instruction_count_benchmarks")
+        api_instruction_count_benchmarks(args).run();
+    else if (test_name == "background_compact")
         background_compact(args).run();
     else if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();
@@ -274,7 +271,10 @@ main(int argc, char *argv[])
                 else
                     current_cfg = cfg;
 
-                error_code = run_test(current_test_name, current_cfg, wt_open_config, home, true);
+                /* This test is skipped as it requires elevated permissions to run. */
+                if (current_test_name == "api_instruction_count_benchmarks")
+                    continue;
+                error_code = run_test(current_test_name, current_cfg, wt_open_config, home);
                 /*
                  * The connection is usually closed using the destructor of the connection manager.
                  * Because it is a singleton and we are executing all tests, we are not going
