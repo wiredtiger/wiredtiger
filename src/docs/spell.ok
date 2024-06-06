@@ -426,6 +426,7 @@ icount
 ie
 ifdef
 iflag
+img
 incr
 indices
 init
