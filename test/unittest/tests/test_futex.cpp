@@ -158,7 +158,7 @@ TEST_CASE("wake three separately", "[futex]")
     std::list<std::thread> threads;
     ftx = expected;
     for (auto &&w : waiters)
-        threads.push_back(std::thread(&Waiter::wait_on, &w, &ftx, expected, msec_to_usec(600)));
+        threads.push_back(std::thread(&Waiter::wait_on, &w, &ftx, expected, msec_to_usec(400)));
     for (auto &&wval : wake_vals) {
         std::this_thread::sleep_for(std::chrono::duration<time_t, std::milli>(100));
         REQUIRE(__wt_futex_wake(&ftx, WT_FUTEX_WAKE_ONE, wval) == 0);
