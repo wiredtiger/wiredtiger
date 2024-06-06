@@ -239,11 +239,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Skip the history store explicit call if we're performing a metadata verification or when the
-     * debug flag is set where we do not clear the record's txn IDs. The metadata file is verified
+     * Skip the history store explicit call if:
+     * - we are performing a metadata verification. Indeed, the metadata file is verified
      * before we verify the history store, and it makes no sense to verify the history store against
-     * itself. The history store relies on the transaction visibility when returning records and
-     * messes up when we do not clear the record's txn IDs.
+     * itself.
+     * - the debug flag is set where we do not clear the record's txn IDs. Visibility rules may not
+     * work correctly when we do not clear the record's txn IDs.
      */
     skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 ||
       F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID);
