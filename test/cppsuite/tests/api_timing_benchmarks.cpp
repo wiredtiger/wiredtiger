@@ -33,19 +33,6 @@
 #include "src/main/test.h"
 
 namespace test_harness {
-
-/* Insert a key into the database. */
-static void
-make_insert(thread_worker *tc, const std::string &id)
-{
-    std::string cursor_uri = tc->db.get_collection(0).name;
-
-    auto cursor = tc->session.open_scoped_cursor(cursor_uri);
-    cursor->set_key(cursor.get(), std::string("key" + id).c_str());
-    cursor->set_value(cursor.get(), std::string("value1" + id).c_str());
-    testutil_assert(cursor->insert(cursor.get()) == 0);
-}
-
 /*
  * Benchmark various frequently called session APIs. See the comment in
  * api_instruction_count_benchmarks for further details.
@@ -57,7 +44,7 @@ class api_timing_benchmarks : public test {
 public:
     api_timing_benchmarks(const test_args &args) : test(args)
     {
-        init_operation_tracker(NULL);
+        init_operation_tracker(nullptr);
     }
 
     void
@@ -80,41 +67,43 @@ public:
          * least one modification on the transaction.
          */
         scoped_session &session = tc->session;
-        int result;
+        scoped_cursor cursor = session.open_scoped_cursor(tc->db.get_collection(0).name);
+        auto key_count = tc->db.get_collection(0).get_key_count();
+
         for (int i = 0; i < _LOOP_COUNTER / 10; i++) {
-            result = begin_transaction_timer.track(
-              [&session]() -> int { return session->begin_transaction(session.get(), NULL); });
-            testutil_assert(result == 0);
-
+            testutil_check(begin_transaction_timer.track(
+              [&session]() -> int { return session->begin_transaction(session.get(), nullptr); }));
+            auto key = tc->pad_string(std::to_string(key_count + i), tc->key_size);
+            auto value = "a";
             /* Add the modification. */
-            make_insert(tc, std::to_string(i + 1));
-
-            result = commit_transaction_timer.track(
-              [&session]() -> int { return session->commit_transaction(session.get(), NULL); });
-            testutil_assert(result == 0);
+            if (!tc->insert(cursor, 0, key, value)) {
+                i--;
+                testutil_check(session->rollback_transaction(session.get(), nullptr));
+                continue;
+            }
+            testutil_check(commit_transaction_timer.track(
+              [&session]() -> int { return session->commit_transaction(session.get(), nullptr); }));
         }
 
         /* Time rollback transaction. */
         for (int i = 0; i < _LOOP_COUNTER; i++) {
-            result = begin_transaction_timer.track(
-              [&session]() -> int { return session->begin_transaction(session.get(), NULL); });
-            testutil_assert(result == 0);
-            result = rollback_transaction_timer.track(
-              [&session]() -> int { return session->rollback_transaction(session.get(), NULL); });
-            testutil_assert(result == 0);
+            testutil_check(begin_transaction_timer.track(
+              [&session]() -> int { return session->begin_transaction(session.get(), nullptr); }));
+            testutil_check(rollback_transaction_timer.track([&session]() -> int {
+                return session->rollback_transaction(session.get(), nullptr);
+            }));
         }
 
         /* Time timestamp transaction_uint. */
-        testutil_assert(session->begin_transaction(session.get(), NULL) == 0);
+        testutil_check(session->begin_transaction(session.get(), nullptr));
         for (int i = 0; i < _LOOP_COUNTER; i++) {
             auto timestamp = tc->tsm->get_next_ts();
-            result = timestamp_transaction_uint_timer.track([&session, &timestamp]() -> int {
+            testutil_check(timestamp_transaction_uint_timer.track([&session, &timestamp]() -> int {
                 return session->timestamp_transaction_uint(
                   session.get(), WT_TS_TXN_TYPE_COMMIT, timestamp);
-            });
+            }));
         }
-        testutil_assert(result == 0);
-        testutil_assert(session->rollback_transaction(session.get(), NULL) == 0);
+        testutil_check(session->rollback_transaction(session.get(), nullptr));
     }
 };
 
