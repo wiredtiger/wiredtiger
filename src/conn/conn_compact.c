@@ -259,20 +259,17 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
     ret = __wt_block_manager_named_size(session, filename, &file_size);
 
     /* Ignore the error if the file no longer exists or in case of permission issues. */
-    if (ret == ENOENT) {
+    if (ret == ENOENT || ret == EACCES) {
         *skipp = true;
         return (0);
-    } else if (ret == EACCES) {
-        __wt_verbose_debug1(
-          session, WT_VERB_COMPACT, "Background compaction got EACCES error for the file %s", uri);
-        ret = 0;
-    } else {
-        WT_RET(ret);
-        if (file_size <= WT_MEGABYTE) {
-            WT_STAT_CONN_INCR(session, background_compact_skipped);
-            *skipp = true;
-            return (0);
-        }
+    }
+
+    WT_RET(ret);
+
+    if (file_size <= WT_MEGABYTE) {
+        WT_STAT_CONN_INCR(session, background_compact_skipped);
+        *skipp = true;
+        return (0);
     }
 
     /* If we haven't seen this file before we should try and compact it. */
