@@ -6,7 +6,7 @@ from shutil import which
 import subprocess
 import sys
 
-# Always use this scripts folder as the working directory.
+# Always use this script's folder as the working directory.
 current_dir = pathlib.Path(__file__).parent.resolve()
 ruff_config = f"{current_dir}/ruff.toml"
 
