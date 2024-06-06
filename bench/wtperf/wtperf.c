@@ -436,7 +436,7 @@ worker(void *arg)
 
     while (!wtperf->stop) {
         if (workload->pause != 0)
-            (void)sleep((unsigned int)workload->pause);
+            (void)usleep((unsigned int)workload->pause);
         /*
          * Generate the next key and setup operation specific statistics tracking objects.
          */
