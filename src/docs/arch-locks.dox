@@ -108,17 +108,17 @@ are covered with \c WT_ASSERT_SPINLOCK_OWNED statements which make the code easi
 
 @subsection arch-locks-examples-eviction0 Eviction (no queue lock)
 
-@image html locks-evict-example-simple.svg width=100%
+@image html locks-evict-example-simple.svg width=1000
 <!-- callgraph -f '///evict_walk_lock|evict_pass_lock|WT_WITH_PASS_LOCK' -t '///evict_walk_lock|evict_pass_lock|WT_WITH_PASS_LOCK' -t __evict_clear_walk -t __evict_walk_tree -continue -tagrex '/(__wt_spin_[^u]\w++)\({ARG},\s++({ARG})/index($2, "evict") != -1 ? "$1($2)" : undef' -tag "WT_WITH_PASS_LOCK(evict_pass_lock)=WT_WITH_PASS_LOCK" -x /_curhs_cache -x /_verbose_dump_cache -x /_cache_destroy -x /_cache_create -d 11 -dir td -dot | dot -Tsvg /dev/stdin > src/docs/images/locks-evict-example-simple.svg -->
 
 @subsection arch-locks-examples-eviction Eviction (full)
 
-@image html locks-evict-example.svg width=100%
+@image html locks-evict-example.svg width=2000
 <!-- callgraph -f '///evict_lock|evict_walk_lock|evict_pass_lock|evict_queue_lock|WT_WITH_PASS_LOCK' -t '///evict_lock|evict_walk_lock|evict_pass_lock|evict_queue_lock|WT_WITH_PASS_LOCK' -continue -tagrex '/(__wt_spin_[^u]\w++)\({ARG},\s++({ARG})/index($2, "evict") != -1 ? "$1($2)" : undef' -tag "WT_WITH_PASS_LOCK(evict_pass_lock)=WT_WITH_PASS_LOCK" -x /_curhs_cache -x /_verbose_dump_cache -x /_cache_destroy -x /_cache_create -d 11 -dot -dir td | dot -Tsvg /dev/stdin > src/docs/images/locks-evict-example.svg -->
 
 @subsection arch-locks-examples-log Log
 
-@image html locks-log-example.svg width=100%
+@image html locks-log-example.svg width=2000
 <!-- callgraph -f '///log_lock|log_fs_lock|log_slot_lock|log_sync_lock|log_writelsn_lock|log_remove_lock|debug_log_retention_lock|WT_WITH_SLOT_LOCK' -t '///log_lock|log_fs_lock|log_slot_lock|log_sync_lock|log_writelsn_lock|log_remove_lock|debug_log_retention_lock|WT_WITH_SLOT_LOCK' -continue -tagrex '/^(.*(log_lock|log_fs_lock|log_slot_lock|log_sync_lock|log_writelsn_lock|log_remove_lock|debug_log_retention_lock).*)$/index($1, "log_") != -1 ? $1 : undef' -tag "WT_WITH_SLOT_LOCK(log_slot_lock)=WT_WITH_SLOT_LOCK" -x /_logmgr_create -x /_logmgr_destroy -x /_connection_destroy -x /_connection_init -x __debug_mode_log_retention_config -x __log_file_server -x __wt_log_ckpt -d 20 -dot | dot -Tsvg /dev/stdin > src/docs/images/locks-log-example.svg -->
 
 */
