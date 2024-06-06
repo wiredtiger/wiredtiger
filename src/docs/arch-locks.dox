@@ -108,8 +108,8 @@ are covered with \c WT_ASSERT_SPINLOCK_OWNED statements which make the code easi
 
 @subsection arch-locks-examples-eviction0 Eviction (no queue lock)
 
-@image html locks-evict-example-simple.svg width=1000
-<!-- callgraph -f '///evict_walk_lock|evict_pass_lock|WT_WITH_PASS_LOCK' -t '///evict_walk_lock|evict_pass_lock|WT_WITH_PASS_LOCK' -t __evict_clear_walk -t __evict_walk_tree -continue -tagrex '/(__wt_spin_[^u]\w++)\({ARG},\s++({ARG})/index($2, "evict") != -1 ? "$1($2)" : undef' -tag "WT_WITH_PASS_LOCK(evict_pass_lock)=WT_WITH_PASS_LOCK" -x /_curhs_cache -x /_verbose_dump_cache -x /_cache_destroy -x /_cache_create -d 11 -dir td -dot | dot -Tsvg /dev/stdin > src/docs/images/locks-evict-example-simple.svg -->
+@image html locks-evict-example-simple.svg width=900
+<!-- callgraph -f '///evict_walk_lock|evict_pass_lock|WT_WITH_PASS_LOCK' -t '///evict_walk_lock|evict_pass_lock|WT_WITH_PASS_LOCK' -t __evict_clear_walk -t __evict_walk_tree -continue -tagrex '/(__wt_spin_[^u]\w++)\({ARG},\s++({ARG})/index($2, "evict") != -1 && index($2, "queue") == -1 ? "$1($2)" : undef' -tag "WT_WITH_PASS_LOCK(evict_pass_lock)=WT_WITH_PASS_LOCK" -x /_curhs_cache -x /_verbose_dump_cache -x /_cache_destroy -x /_cache_create -d 11 -dir td -dot | dot -Tsvg /dev/stdin > src/docs/images/locks-evict-example-simple.svg -->
 
 @subsection arch-locks-examples-eviction Eviction (full)
 
