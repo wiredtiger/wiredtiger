@@ -1639,23 +1639,6 @@ struct __wt_session {
         const char *name, WT_CURSOR *start, WT_CURSOR *stop, const char *config);
 
     /*!
-     * Upgrade a table.
-     *
-     * Upgrade upgrades a table or file, if upgrade is required.
-     *
-     * @exclusive
-     *
-     * @snippet ex_all.c Upgrade a table
-     *
-     * @param session the session handle
-     * @param name the URI of the table or file to upgrade
-     * @configempty{WT_SESSION.upgrade, see dist/api_data.py}
-     * @ebusy_errors
-     */
-    int __F(upgrade)(WT_SESSION *session,
-        const char *name, const char *config);
-
-    /*!
      * Verify a table.
      *
      * Verify reports if a file, or the files that comprise a table, have been corrupted.
