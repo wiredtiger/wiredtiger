@@ -1888,7 +1888,7 @@ methods = {
         prior to the start of the backup cannot be dropped''',
         type='list'),
     Config('flush_tier', '', r'''
-        configure flushing objects to tiered storage after checkpoint''',
+        configure flushing objects to tiered storage after checkpoint. See @ref tiered_storage''',
         type='category', subconfig= [
             Config('enabled', 'false', r'''
                 if true and tiered storage is in use, perform one iteration of object switching
