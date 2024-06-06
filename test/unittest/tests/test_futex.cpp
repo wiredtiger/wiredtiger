@@ -40,7 +40,7 @@ struct Waiter {
 std::ostream &
 operator<<(std::ostream &out, const Waiter &w)
 {
-    out << "WaitOutcome(" << w.val_on_wake << "  " << w.ret << "  " << w.eno << ")";
+    out << "Waiter(" << w.val_on_wake << "  " << w.ret << "  " << w.eno << ")";
     return out;
 }
 
@@ -149,7 +149,7 @@ TEST_CASE("wake all of two", "[futex]")
     CHECK((outs.wakeup + outs.spurious) == 2);
 }
 
-TEST_CASE("wake three separately", "[futex]")
+TEST_CASE("wake three individually", "[futex]")
 {
     const futex_word expected = 7011900;
     const std::vector<futex_word> wake_vals{{11819, 3249384, 422992}};
