@@ -152,8 +152,9 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]), threads);
 
     /* If the stable timestamp is not set, do not roll back based on it. */
-    rollback_timestamp = stable_timestamp;
-    if (rollback_timestamp == WT_TS_NONE) {
+    if (stable_timestamp != WT_TS_NONE)
+        rollback_timestamp = stable_timestamp;
+    else {
         rollback_timestamp = WT_TS_MAX;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), WT_RTS_VERB_TAG_NO_STABLE "%s",
           "the stable timestamp is not set; set the rollback timestamp to the maximum timestamp");
@@ -226,8 +227,9 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
     /* If the stable timestamp is not set, do not roll back based on it. */
-    rollback_timestamp = stable_timestamp;
-    if (rollback_timestamp == WT_TS_NONE) {
+    if (stable_timestamp != WT_TS_NONE)
+        rollback_timestamp = stable_timestamp;
+    else {
         rollback_timestamp = WT_TS_MAX;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), WT_RTS_VERB_TAG_NO_STABLE "%s",
           "the stable timestamp is not set; set the rollback timestamp to the maximum timestamp");
