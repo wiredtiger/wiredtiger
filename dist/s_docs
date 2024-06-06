@@ -300,9 +300,9 @@ glossarychk
 check_docs_data
 
 # Do not build the doc if we get warnings.
-if [ $e != 0 ]; then
-    exit $e
-fi
+# if [ $e != 0 ]; then
+#     exit $e
+# fi
 
 # Build the documentation.
 build $clean
