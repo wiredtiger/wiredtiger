@@ -71,13 +71,54 @@ class test_config12(wttest.WiredTigerTestCase):
         conn.close()
         self.cleanStdout()
 
+    # Test default config
     def test_config12(self):
         self.conn.close()
-        # Test the default WT connection configuration with debug mode enabled. Expect warning messages.
-        with self.expect_verbose('debug_mode=(configuration=true)', ['config eviction_checkpoint_target=.*cannot be less than eviction_dirty_target=.*Setting eviction_checkpoint_target to.*',
+        expect_message = ['config eviction_checkpoint_target=.*cannot be less than eviction_dirty_target=.*Setting eviction_checkpoint_target to.*',
                                                                      'config eviction_updates_target.*cannot be zero.*Setting to.*of eviction_updates_target.*',
-                                                                     'config eviction_updates_trigger.*cannot be zero.*Setting to.*of eviction_updates_trigger.*']):
+                                                                     'config eviction_updates_trigger.*cannot be zero.*Setting to.*of eviction_updates_trigger.*']
+        # Test the default WT connection configuration with debug mode enabled. Expect warning messages.
+        with self.expect_verbose('debug_mode=(configuration=true)', expect_message):
             pass
         # Disable debug mode, expect no warning messages.
         with self.expect_verbose('debug_mode=(configuration=false)', [], False):
+            pass
+
+    # Test check cache->eviction_dirty_target > cache->eviction_target
+    def test_config12_check1(self):
+        self.conn.close()
+        expect_message = ['config eviction_checkpoint_target=.*cannot be less than eviction_dirty_target=.*Setting eviction_checkpoint_target to.*',
+                                                                     'config eviction_updates_target.*cannot be zero.*Setting to.*of eviction_updates_target.*',
+                                                                     'config eviction_updates_trigger.*cannot be zero.*Setting to.*of eviction_updates_trigger.*',
+                                                                     'config eviction_dirty_target=.*cannot exceed eviction_target=.*Setting eviction_dirty_target to.*']
+        with self.expect_verbose('debug_mode=(configuration=true),eviction_dirty_target=15,eviction_target=10', expect_message):
+            pass
+
+        with self.expect_verbose('debug_mode=(configuration=false),eviction_dirty_target=15,eviction_target=10', [], False):
+            pass
+
+    # Test check cache->eviction_dirty_trigger > cache->eviction_trigger
+    def test_config12_check2(self):
+        self.conn.close()
+        expect_message = ['config eviction_checkpoint_target=.*cannot be less than eviction_dirty_target=.*Setting eviction_checkpoint_target to.*',
+                                                                     'config eviction_updates_target.*cannot be zero.*Setting to.*of eviction_updates_target.*',
+                                                                     'config eviction_updates_trigger.*cannot be zero.*Setting to.*of eviction_updates_trigger.*',
+                                                                     'config eviction_dirty_trigger=.*cannot exceed eviction_trigger=.*Setting eviction_dirty_trigger to.*']
+        with self.expect_verbose('debug_mode=(configuration=true),eviction_dirty_trigger=100,eviction_trigger=95', expect_message):
+            pass
+
+        with self.expect_verbose('debug_mode=(configuration=false),eviction_dirty_trigger=100,eviction_trigger=95', [], False):
+            pass
+
+    # Test check cache->eviction_updates_trigger > cache->eviction_trigger
+    def test_config12_check3(self):
+        self.conn.close()
+        expect_message = ['config eviction_checkpoint_target=.*cannot be less than eviction_dirty_target=.*Setting eviction_checkpoint_target to.*',
+                                                                     'config eviction_updates_target.*cannot be zero.*Setting to.*of eviction_updates_target.*',
+                                                                     'config eviction_updates_trigger.*cannot be zero.*Setting to.*of eviction_updates_trigger.*',
+                                                                     'config eviction_updates_trigger=.*cannot exceed eviction_trigger=.*Setting eviction_updates_trigger to.*']
+        with self.expect_verbose('debug_mode=(configuration=true),eviction_updates_trigger=96,eviction_trigger=95', expect_message):
+            pass
+
+        with self.expect_verbose('debug_mode=(configuration=false),eviction_updates_trigger=96,eviction_trigger=95', [], False):
             pass
