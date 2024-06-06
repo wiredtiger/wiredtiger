@@ -9,7 +9,7 @@
 /*
  * Linux limits the futex size to 32 bits irrespective architecture word size.
  */
-typedef uint32_t WT_FUTEX_WORD;
+typedef uint64_t WT_FUTEX_WORD;
 
 /*
  * Number of waiting threads to wake.
