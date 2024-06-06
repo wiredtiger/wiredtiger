@@ -48,7 +48,7 @@ table.lock-hierarchy {
     border-radius: 0.2em;
     white-space: nowrap;
     margin: 2em auto;         /* align=center */
-    border-spacing: 1em 0.5em;  /* table cellspacing */
+    border-spacing: 0.3em 0.5em;  /* table cellspacing */
     padding: 1em;
 }
 
@@ -61,6 +61,7 @@ table.lock-hierarchy td:nth-of-type(2n+1) {
     border: 1px solid #888;
     border-radius: 1em;
     padding: 0.2em 0.8em;
+    background-color: #8882;
 }
 
 /* Architecture guide TOC styling. */
