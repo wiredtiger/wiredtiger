@@ -123,6 +123,7 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 int
 __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
+    struct timespec tsp;
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -134,7 +135,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
-    struct timespec tsp;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -252,7 +252,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
-            
+
         /* Add a ten second wait to simulate checkpoint sync file's slowness. */
         tsp.tv_sec = 10;
         tsp.tv_nsec = 0;
