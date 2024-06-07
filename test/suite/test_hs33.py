@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs_log_config.py
+# test_hs33.py
 #    Check log disabled for the history store table in metadata.
 class test_hs33(wttest.WiredTigerTestCase):
     name = "test_hs33"
