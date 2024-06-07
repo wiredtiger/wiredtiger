@@ -616,6 +616,25 @@ struct __wt_page {
  * but it's not always required: for example, if a page is locked for splitting, or being created or
  * destroyed.
  */
+#ifdef TSAN_BUILD
+/*
+ * TSan doesn't detect the acquire/release barriers used in our normal WT_INTL_INDEX_* functions, so
+ * use __atomic intrinsics instead. We can use __atomics here as MSVC doesn't support TSan.
+ */
+#define WT_INTL_INDEX_GET_SAFE(page, pindex)                                   \
+    do {                                                                       \
+        (pindex) = __atomic_load_n(&(page)->u.intl.__index, __ATOMIC_ACQUIRE); \
+    } while (0)
+#define WT_INTL_INDEX_GET(session, page, pindex)                          \
+    do {                                                                  \
+        WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
+        WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
+    } while (0)
+#define WT_INTL_INDEX_SET(page, v)                                       \
+    do {                                                                 \
+        __atomic_store_n(&(page)->u.intl.__index, (v), __ATOMIC_RELEASE); \
+    } while (0)
+#else
 #define WT_INTL_INDEX_GET_SAFE(page, pindex)                          \
     do {                                                              \
         WT_ACQUIRE_BARRIER();                                         \
@@ -631,6 +650,7 @@ struct __wt_page {
         WT_RELEASE_BARRIER();                                    \
         __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
     } while (0)
+#endif
 
 /*
  * Macro to walk the list of references in an internal page.
