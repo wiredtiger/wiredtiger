@@ -12,7 +12,6 @@
 #include <ulock.h>
 #undef PRIVATE
 
-
 /*
  * __wt_futex_wait --
  *     Wait on the futex. The timeout is in microseconds and MUST be greater than zero.
@@ -20,7 +19,7 @@
 int
 __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
 {
-    int ret;
+    WT_DECL_RET;
     uint64_t nsec;
 
     /* Check for overflow? */
@@ -50,14 +49,15 @@ __wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
     uint32_t op;
 
     WT_ASSERT(NULL, wake == WT_FUTEX_WAKE_ONE || wake == WT_FUTEX_WAKE_ALL);
-    op = UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO | ((wake == WT_FUTEX_WAKE_ALL) ? ULF_WAKE_ALL : 0);
+    op =
+      UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO | ((wake == WT_FUTEX_WAKE_ALL) ? ULF_WAKE_ALL : 0);
     __atomic_store_n(addr, wake_val, __ATOMIC_SEQ_CST);
     ret = __ulock_wake(op, addr, wake_val);
     switch (ret) {
-    case -ENOENT:   /* No waiters were awoken.  */
+    case -ENOENT: /* No waiters were awoken.  */
         ret = 0;
         break;
-    case -EINTR:    /* Fall thru. */
+    case -EINTR: /* Fall thru. */
     case -EAGAIN:
         errno = EINTR;
         ret = -1;

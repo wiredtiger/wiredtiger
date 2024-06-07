@@ -15,8 +15,8 @@ int
 __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
 {
     DWORD msec;
-    bool retval;
     DWORD windows_error;
+    bool retval;
 
     msec = (DWORD)WT_MAX(1, usec / 1000);
     retval = WaitOnAddress(addr, &expected, sizeof(WT_FUTEX_WORD), msec);
