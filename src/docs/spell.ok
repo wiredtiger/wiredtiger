@@ -313,6 +313,7 @@ dhandle
 dhandle's
 dhandles
 dir
+dirstore
 disjunction
 disjunctions
 distclean
@@ -420,6 +421,7 @@ iSi
 iaa
 icount
 ie
+iface
 ifdef
 iflag
 incr
@@ -549,6 +551,7 @@ nul
 num
 numa
 nvd
+objectid
 objectsin
 ol
 oltp
@@ -708,6 +711,7 @@ tradeoffs
 transactional
 transactionally
 truncations
+trylock
 tt
 txn
 txnid
@@ -754,6 +758,7 @@ writelock
 writelocks
 wrlock
 wti
+wtobj
 wtperf
 wtstats
 xa
@@ -770,3 +775,4 @@ yieldcpu
 zlib
 zseries
 zstd
+zwj
