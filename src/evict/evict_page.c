@@ -680,7 +680,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 /*
  * __evict_review_obsolete_time_window --
  *     Check whether the ref has obsolete time window information and mark it for dirty eviction to
- *     remove those obsolete data.
+ *     remove those obsolete data. An exclusive lock on the page has already been obtained by the caller.
  */
 static int
 __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -689,23 +689,18 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
-    wt_timestamp_t newest_ts;
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
 
-    /*
-     * Skip the modified pages as their reconciliation results are not valid any more. Check for the
-     * page modification only after acquiring the hazard pointer to protect against the page being
-     * freed in parallel.
-     */
+    /* We are only interested in clean pages. */
     WT_ASSERT(session, ref->page != NULL);
     if (__wt_page_is_modified(ref->page))
         return (0);
 
     /*
      * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
-     * across correctly. That is we need the stop timestamp/transaction IDs to start as none,
-     * otherwise we'd never mark anything as obsolete.
+     * across correctly. That is why we need the stop timestamp/transaction IDs to start as
+     * none, otherwise we'd never mark anything as obsolete.
      */
     WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
 
@@ -715,12 +710,13 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &multi->addr.ta);
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
-        WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &mod->mod_replace.ta);
+        WT_TIME_AGGREGATE_COPY(&newest_ta, &mod->mod_replace.ta);
     else if (__wt_ref_addr_copy(session, ref, &addr))
-        WT_TIME_AGGREGATE_MERGE(session, &newest_ta, &addr.ta);
+        WT_TIME_AGGREGATE_COPY(&newest_ta, &addr.ta);
 
-    newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
-    if (newest_ts != WT_TS_NONE && __wt_txn_timestamp_visible_all(session, newest_ts)) {
+    if (newest_ta.newest_txn != WT_TXN_NONE &&
+      __wt_txn_visible_all(session, newest_ta.newest_txn,
+        WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
          * obsolete time window information.
