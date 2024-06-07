@@ -4,16 +4,6 @@ This page describes the current nested locks hierarchy of WiredTiger.
 
 @section arch-locks-cache-and-eviction Cache and Eviction locks
 
-<table>
-@hrow{Lock, Description}
-@row{\c cache->evict_pass_lock, Guarantees that only one eviction server is running at most.}
-@row{\c cache->evict_walk_lock, Locked when eviction walks a tree.}
-@row{\c cache->evict_queue_lock, Access to cache->evict_queues.}
-@row{\c queue->evict_lock, Access to a specific eviction queue.}
-</table>
-
-<b>Locks hierarchy</b>:
-
 <table class=lock-hierarchy>
 @row{\c cache->evict_pass_lock, &rarr;, TRY \c cache->evict_walk_lock, &rarr;, \c cache->evict_queue_lock, &rarr;, \c queue->evict_lock}
 </table>
@@ -29,19 +19,6 @@ This page describes the current nested locks hierarchy of WiredTiger.
 NOTE: A different locking order is used for \c evict_pass_lock and \c evict_walk_lock.
 
 @section arch-locks-log Log locks
-
-<table>
-@hrow{Lock, Description}
-@row{\c log_lock, Logging fields}
-@row{\c log_fs_lock, tmp\, prep and log files}
-@row{\c log_slot_lock, Consolidation array}
-@row{\c log_sync_lock, Single-thread fsync}
-@row{\c log_writelsn_lock, Write LSN}
-@row{\c log_remove_lock, Remove and log cursors\, R/W Lock}
-@row{\c debug_log_retention_lock, Log retention reconfiguration lock\, R/W Lock}
-</table>
-
-<b>Locks hierarchy</b>:
 
 <table class=lock-hierarchy>
 @row{\c log_slot_lock, &rarr;, \c log_fs_lock}
