@@ -630,8 +630,8 @@ struct __wt_page {
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
         WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)                                       \
-    do {                                                                 \
+#define WT_INTL_INDEX_SET(page, v)                                        \
+    do {                                                                  \
         __atomic_store_n(&(page)->u.intl.__index, (v), __ATOMIC_RELEASE); \
     } while (0)
 #else
