@@ -14,8 +14,6 @@ static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs
 static int __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t ts, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw,
   bool *non_ts_updates);
-static int __hs_insert_pos_counter(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, uint64_t *counter);
 
 /*
  * __hs_verbose_cache_stats --
@@ -226,15 +224,13 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                              error_on_ts_ordering, tw, &non_ts_updates),
           true);
 
-        if (ret == 0) {
-            /* For non-timestamped updates we only need the counter, skip reinsert. */
-            if (non_ts_updates)
-                __hs_insert_pos_counter(session, cursor, btree->id, key, &counter);
-            else
-                WT_ERR(
-                  __hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-                    true, false, non_ts_updates, error_on_ts_ordering, &counter, tw));
-        }
+        /*
+         * Skip reinsert for non-timestamped updates. Only proceed when a valid cursor position is
+         * found, otherwise there is nothing to do, skip this function.
+         */
+        if (!non_ts_updates && ret == 0)
+            WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
+              true, false, non_ts_updates, error_on_ts_ordering, &counter, tw));
     }
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -945,44 +941,6 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
 }
 
 /*
- * __hs_insert_pos_counter --
- *     Get the count for the insert position for zero timestamped records.
- */
-static int
-__hs_insert_pos_counter(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, uint64_t *counter)
-{
-    WT_DECL_RET;
-    WT_ITEM hs_key, hs_value;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t hs_btree_id;
-#ifdef HAVE_DIAGNOSTIC
-    int cmp;
-#endif
-    WT_CLEAR(hs_key);
-    WT_CLEAR(hs_value);
-    WT_UNUSED(btree_id);
-#ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(key);
-#endif
-
-    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        /* We shouldn't have crossed the btree and user key search space. */
-        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
-        WT_ASSERT(session, hs_btree_id == btree_id);
-#ifdef HAVE_DIAGNOSTIC
-        WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
-        WT_ASSERT(session, cmp == 0);
-#endif
-        ++(*counter);
-    }
-    if (ret == WT_NOTFOUND)
-        ret = 0;
-    return (ret);
-}
-
-/*
  * __hs_delete_reinsert_from_pos --
  *     Delete updates in the history store if the start timestamp of the update is larger or equal
  *     to the specified timestamp and optionally reinsert them with ts-1 timestamp.
@@ -1021,7 +979,11 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     /*
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
      * cannot modify the history store to fix the update's timestamps as it may make the history
-     * store checkpoint inconsistent. We are not reinserting for non-timestamped updates, continue.
+     * store checkpoint inconsistent.
+     *
+     * It is still possible for a scenario where we have non-timestamped updates but reinsert is
+     * false, this is the case for non-timestamped deletes only. We still enter the function for
+     * removal and skip reinserting. We do not want to return EBUSY here.
      */
     if (error_on_ts_ordering && !non_ts_updates) {
         ret = EBUSY;
