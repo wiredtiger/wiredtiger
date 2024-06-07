@@ -616,11 +616,15 @@ struct __wt_page {
  * but it's not always required: for example, if a page is locked for splitting, or being created or
  * destroyed.
  */
-#define WT_INTL_INDEX_GET_SAFE(page) __wt_atomic_load_pointer(&(page)->u.intl.__index)
+#define WT_INTL_INDEX_GET_SAFE(page, pindex)                          \
+    do {                                                              \
+        WT_ACQUIRE_BARRIER();                                         \
+        (pindex) = __wt_atomic_load_pointer(&(page)->u.intl.__index); \
+    } while (0)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
-        (pindex) = WT_INTL_INDEX_GET_SAFE(page);                          \
+        WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
 #define WT_INTL_INDEX_SET(page, v)                               \
     do {                                                         \
