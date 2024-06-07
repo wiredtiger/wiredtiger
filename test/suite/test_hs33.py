@@ -31,8 +31,8 @@ from wtscenario import make_scenarios
 
 # test_hs_log_config.py
 #    Check log disabled for the history store table in metadata.
-class test_hs_log_config(wttest.WiredTigerTestCase):
-    name = "test_hs_log_config"
+class test_hs33(wttest.WiredTigerTestCase):
+    name = "test_hs33"
     logging = [
         ('log-enabled', dict(logenabled=True)),
         ('log-disabled', dict(logenabled=False)),
@@ -40,35 +40,30 @@ class test_hs_log_config(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(logging)
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
-    def verify_metadata(self, metastr):
-        c = self.session.open_cursor('metadata:', None, None)
-
-        # We must find a file type entry for this object and its value
-        # should contain the provided file meta string.
-        c.set_key('file:WiredTigerHS.wt')
-        self.assertNotEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        value = c.get_value()
-        self.assertTrue(value.find(metastr) != -1)
-
-        c.close()
-
-    def test_hs_log_config(self):
-        uri = "file:" + self.name
-        entries = 100
-        create_params = 'key_format=i,value_format=i,'
-
+    # Setup custom connection config.
+    def conn_config(self):
         if self.logenabled:
             log_param = "log=(enabled=true)"
         else:
             log_param = "log=(enabled=false)"
+        return log_param
 
-        self.session.create(uri, create_params + log_param)
+    def verify_metadata(self, metastr):
+        c = self.session.open_cursor('metadata:', None, None)
+        # We must find a file type entry of the history store table in the
+        # metadata and its value should contain the provided file meta string.
+        c.set_key('file:WiredTigerHS.wt')
+        self.assertNotEqual(c.search(), wiredtiger.WT_NOTFOUND)
+        value = c.get_value()
+        self.assertTrue(value.find(metastr) != -1)
+        c.close()
+
+    def test_hs33(self):
+        uri = "file:" + self.name
+        entries = 100
+        create_params = 'key_format=i,value_format=i,'
+
+        self.session.create(uri, create_params)
 
         # Put some data in table.
         self.session.begin_transaction()
@@ -80,5 +75,5 @@ class test_hs_log_config(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
-        # Verify the string in the metadata.
+        # Verify the string for the history store in the metadata.
         self.verify_metadata('log=(enabled=false)')
