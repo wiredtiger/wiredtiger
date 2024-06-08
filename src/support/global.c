@@ -53,34 +53,6 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
 
 /*
- * __endian_check --
- *     Check the build matches the machine.
- */
-static int
-__endian_check(void)
-{
-    uint64_t v;
-    const char *e;
-    bool big;
-
-    v = 1;
-    big = *((uint8_t *)&v) == 0;
-
-#ifdef WORDS_BIGENDIAN
-    if (big)
-        return (0);
-    e = "big-endian";
-#else
-    if (!big)
-        return (0);
-    e = "little-endian";
-#endif
-    fprintf(stderr,
-      "This is a %s build of the WiredTiger data engine, incompatible with this system\n", e);
-    return (EINVAL);
-}
-
-/*
  * __global_calibrate_ticks --
  *     Calibrate a ratio from rdtsc ticks to nanoseconds.
  */
@@ -181,9 +153,6 @@ __wt_library_init(void)
 {
     static bool first = true;
     WT_DECL_RET;
-
-    /* Check the build matches the machine. */
-    WT_RET(__endian_check());
 
     /*
      * Do per-process initialization once, before anything else, but only once. I don't know how
