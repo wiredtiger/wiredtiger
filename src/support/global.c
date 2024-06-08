@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+#include "hw.h"
+
 WT_PROCESS __wt_process;             /* Per-process structure */
 static int __wt_pthread_once_failed; /* If initialization failed */
 
@@ -81,11 +83,62 @@ __endian_check(void)
 }
 
 /*
- * __global_calibrate_ticks --
+ * __global_calibrate_tick_ratio --
  *     Calibrate a ratio from rdtsc ticks to nanoseconds.
  */
 static void
-__global_calibrate_ticks(void)
+__global_calibrate_tick_ratio(void)
+{
+    struct timespec start, stop;
+    double ratio;
+    uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
+    uint64_t tries, tsc_start, tsc_stop;
+    volatile uint64_t i;
+
+    /*
+     * Run this calibration loop a few times to make sure we get a reading that does not have a
+     * potential scheduling shift in it. The inner loop is CPU intensive but a scheduling change in
+     * the middle could throw off calculations. Take the minimum amount of time and compute the
+     * ratio.
+     */
+    min_nsec = min_tsc = UINT64_MAX;
+    for (tries = 0; tries < 3; ++tries) {
+        /* This needs to be CPU intensive and large enough. */
+        __wt_epoch(NULL, &start);
+        tsc_start = __wt_rdtsc();
+        for (i = 0; i < 100 * WT_MILLION; i++)
+            ;
+        tsc_stop = __wt_rdtsc();
+        __wt_epoch(NULL, &stop);
+        diff_nsec = WT_TIMEDIFF_NS(stop, start);
+        diff_tsc = tsc_stop - tsc_start;
+
+        /* If the clock didn't tick over, we don't have a sample. */
+        if (diff_nsec == 0 || diff_tsc == 0)
+            continue;
+        min_nsec = WT_MIN(min_nsec, diff_nsec);
+        min_tsc = WT_MIN(min_tsc, diff_tsc);
+    }
+
+    /*
+     * Only use rdtsc if we got a good reading. One reason this might fail is that the system's
+     * clock granularity is not fine-grained enough.
+     */
+    if (min_nsec != UINT64_MAX) {
+        ratio = (double)min_tsc / (double)min_nsec;
+        if (ratio > DBL_EPSILON) {
+            __wt_process.tsc_nsec_ratio = ratio;
+            __wt_process.use_epochtime = false;
+        }
+    }
+}
+
+/*
+ * __global_config_tsc_nsec_ratio --
+ *     Configure the tick to nsec ratio.
+ */
+static void
+__global_config_tsc_nsec_ratio(void)
 {
     /*
      * Default to using __wt_epoch until we have a good value for the ratio.
@@ -93,49 +146,16 @@ __global_calibrate_ticks(void)
     __wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
     __wt_process.use_epochtime = true;
 
-#if defined(__amd64) || defined(__aarch64__)
+#if defined(__amd64)
+    __global_calibrate_tick_ratio();
+#elif defined(__aarch64__)
     {
-        struct timespec start, stop;
-        double ratio;
-        uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
-        uint64_t tries, tsc_start, tsc_stop;
-        volatile uint64_t i;
-
-        /*
-         * Run this calibration loop a few times to make sure we get a reading that does not have a
-         * potential scheduling shift in it. The inner loop is CPU intensive but a scheduling change
-         * in the middle could throw off calculations. Take the minimum amount of time and compute
-         * the ratio.
-         */
-        min_nsec = min_tsc = UINT64_MAX;
-        for (tries = 0; tries < 3; ++tries) {
-            /* This needs to be CPU intensive and large enough. */
-            __wt_epoch(NULL, &start);
-            tsc_start = __wt_rdtsc();
-            for (i = 0; i < 100 * WT_MILLION; i++)
-                ;
-            tsc_stop = __wt_rdtsc();
-            __wt_epoch(NULL, &stop);
-            diff_nsec = WT_TIMEDIFF_NS(stop, start);
-            diff_tsc = tsc_stop - tsc_start;
-
-            /* If the clock didn't tick over, we don't have a sample. */
-            if (diff_nsec == 0 || diff_tsc == 0)
-                continue;
-            min_nsec = WT_MIN(min_nsec, diff_nsec);
-            min_tsc = WT_MIN(min_tsc, diff_tsc);
-        }
-
-        /*
-         * Only use rdtsc if we got a good reading. One reason this might fail is that the system's
-         * clock granularity is not fine-grained enough.
-         */
-        if (min_nsec != UINT64_MAX) {
-            ratio = (double)min_tsc / (double)min_nsec;
-            if (ratio > DBL_EPSILON) {
-                __wt_process.tsc_nsec_ratio = ratio;
-                __wt_process.use_epochtime = false;
-            }
+        double nsec_per_tick = __wti_hw_nsec_per_tick();
+        if (nsec_per_tick > 0.0) {
+            __wt_process.tsc_nsec_ratio = nsec_per_tick;
+            __wt_process.use_epochtime = false;
+        } else {
+            __global_calibrate_tick_ratio();
         }
     }
 #endif
@@ -164,7 +184,7 @@ __global_once(void)
     __wt_process.checksum = wiredtiger_crc32c_func();
     __wt_process.checksum_with_seed = wiredtiger_crc32c_with_seed_func();
 
-    __global_calibrate_ticks();
+    __global_config_tsc_nsec_ratio();
 
     /* Run-time configuration. */
 #ifdef WT_STANDALONE_BUILD

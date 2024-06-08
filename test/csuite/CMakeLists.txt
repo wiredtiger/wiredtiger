@@ -426,3 +426,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET tsc_ratio
+    SOURCES tsc_ratio/main.c
+    DIR_NAME tsc_ratio
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
