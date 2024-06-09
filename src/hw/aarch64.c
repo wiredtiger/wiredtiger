@@ -32,4 +32,4 @@ __aarch64_nsec_per_tick(void)
     return (freq / NSEC_PER_SEC);
 }
 
-void __wti_hw_nsec_per_tick(void) __attribute__((weak, alias("__aarch64_nsec_per_tick")));
+double __wti_hw_nsec_per_tick(void) __attribute__((weak, alias("__aarch64_nsec_per_tick")));
