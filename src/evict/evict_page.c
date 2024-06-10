@@ -680,7 +680,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 /*
  * __evict_review_obsolete_time_window --
  *     Check whether the ref has obsolete time window information and mark it for dirty eviction to
- *     remove those obsolete data. An exclusive lock on the page has already been obtained by the caller.
+ *     remove those obsolete data. An exclusive lock on the page has already been obtained by the
+ *     caller.
  */
 static int
 __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -699,8 +700,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Initialize the time aggregate via the merge initialization, so that stop visibility is copied
-     * across correctly. That is why we need the stop timestamp/transaction IDs to start as
-     * none, otherwise we'd never mark anything as obsolete.
+     * across correctly. That is why we need the stop timestamp/transaction IDs to start as none,
+     * otherwise we'd never mark anything as obsolete.
      */
     WT_TIME_AGGREGATE_INIT_MERGE(&newest_ta);
 
