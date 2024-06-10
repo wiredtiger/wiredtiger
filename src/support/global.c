@@ -140,7 +140,6 @@ __global_calibrate_tick_ratio(void)
 static void
 __global_config_tsc_nsec_ratio(void)
 {
-    static const double NSEC_PER_SEC = 1.e9;
     /*
      * Default to using __wt_epoch until we have a good value for the ratio.
      */
@@ -151,6 +150,7 @@ __global_config_tsc_nsec_ratio(void)
     __global_calibrate_tick_ratio();
 #elif defined(__aarch64__)
     {
+        static const double NSEC_PER_SEC = 1.e9;
         uint64_t hz;
         hz = __wti_hw_proc_freq_hz();
         if (hz != 0) {
