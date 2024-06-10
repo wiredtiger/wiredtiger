@@ -8,8 +8,8 @@
 #pragma once
 
 /*
- * -- __wti_hw_nsec_per_tick
+ * -- __wti_hw_proc_freq_hz
  *      Return the number of nanoseconds per cpu "tick". If the value is unknown
  *      the function returns 0.
  */
-double __wti_hw_nsec_per_tick(void);
+uint64_t __wti_hw_proc_freq_hz(void);

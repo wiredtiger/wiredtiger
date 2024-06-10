@@ -12,24 +12,17 @@
  * __aarch64_nsec_per_tick --
  *     Return the nsec/tick calculated using the cntfrq_el0 register.
  */
-static double
-__aarch64_nsec_per_tick(void)
+static uint64_t
+__aarch64_proc_freq_hz(void)
 {
-    static const double NSEC_PER_SEC = 1.e9;
     uint64_t freq;
-
-    __asm__ volatile("\tmrs\t%0, cntfrq_el0\n" : "=r"(freq));
-
     /*
      * The Armv8-A documentation warns that on a WARM reset the register is set to "an
      * architecturally UNKNOWN value". We assume the OS will take care of that scenario, but protect
      * against div 0 out of an abundance of caution.
      */
-    if (freq == 0)
-        return (0.0);
-
-    /* The reported frequency is in Hz. */
-    return (freq / NSEC_PER_SEC);
+    __asm__ volatile("\tmrs\t%0, cntfrq_el0\n" : "=r"(freq));
+    return (freq);
 }
 
-double __wti_hw_nsec_per_tick(void) __attribute__((weak, alias("__aarch64_nsec_per_tick")));
+uint64_t __wti_hw_proc_freq_hz(void) __attribute__((weak, alias("__aarch64_proc_freq_hz")));
