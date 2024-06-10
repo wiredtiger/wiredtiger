@@ -775,10 +775,21 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
+    /*
+     * It is possible for both RTS and the eviction thread to remove entries from the history store
+     * at the same time: When we evict a key with a tombstone with durable timestamp "none,"
+     * __wti_rec_hs_clear_on_tombstone also removes the corresponding entries from the history
+     * store, which is necessary for correctness. If the two threads try to remove the same history
+     * store key at around the same time, we could get a WT_NOTFOUND here.
+     */
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
+        WT_ERR_NOTFOUND_OK(__rts_btree_row_modify(session, ref, &upd, key), true);
     else
-        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
+        WT_ERR_NOTFOUND_OK(__rts_btree_col_modify(session, ref, &upd, recno), true);
+    if (ret == WT_NOTFOUND && WT_IS_HS(session->dhandle))
+        ret = 0;
+    else
+        WT_ERR(ret);
 
     if (S2C(session)->rts->dryrun) {
 err:
