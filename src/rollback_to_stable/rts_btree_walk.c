@@ -124,8 +124,8 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
     WT_DECL_RET;
     WT_REF *ref;
     WT_TIMER timer;
-    uint32_t flags;
     uint64_t msg_count;
+    uint32_t flags;
 
     __wt_timer_start(session, &timer);
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
