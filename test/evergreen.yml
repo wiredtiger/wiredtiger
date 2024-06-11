@@ -1460,8 +1460,6 @@ variables:
         export DYLD_LIBRARY_PATH=$WT_BUILDDIR
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
       ENABLE_TCMALLOC: 0
-      # Disable cppsuite as it only runs on linux.
-      ENABLE_CPPSUITE: 0
     tasks:
       - name: compile
       - name: make-check-test
