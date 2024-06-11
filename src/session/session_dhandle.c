@@ -561,8 +561,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * to read the metadata with the checkpoint transaction.
      */
     if (is_hs && session->hs_checkpoint != NULL) {
-        WT_WITHOUT_DHANDLE(session,
-          ret = __wt_session_get_dhandle(session, uri, session->hs_checkpoint, cfg, flags));
+        ret = __wt_session_get_dhandle(session, uri, session->hs_checkpoint, cfg, flags);
         /*
          * We have already pinned the history store checkpoint dhandle. Therefore, we should be able
          * to lock it here.
