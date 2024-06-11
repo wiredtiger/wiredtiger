@@ -179,6 +179,6 @@ the @ref cursor_log page.
 
 @section log_related Related pages
 
-- @ref arch-locks-log
+- @ref arch-locking-hierarchy-log
 
 */

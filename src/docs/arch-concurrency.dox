@@ -26,7 +26,7 @@ A correctly used lock takes the lock for each access to the shared memory it gua
 sometimes deviates from this model and reads variables outside the context of the relevant lock.
 Such instances are only permitted if reading inconsistent data is sufficient for the use case.
 
-More details on lock hierarchy and usage can be found in the @ref arch-locks.
+More details on lock hierarchy and usage can be found in the @ref arch-locking-hierarchy.
 
 @section generations Generations
 

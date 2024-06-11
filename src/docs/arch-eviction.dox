@@ -88,6 +88,6 @@ than its trigger size counterpart.
 
 @section eviction_related Related pages
 
-- @ref arch-locks-cache-and-eviction
+- @ref arch-locking-hierarchy-cache-and-eviction
 
 */

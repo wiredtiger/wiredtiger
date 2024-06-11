@@ -92,7 +92,7 @@ arch_doc_pages = [
     ArchDocPage('arch-hs',
         ['WT_CURSOR_HS'],
         ['src/history/']),
-    ArchDocPage('arch-locks',
+    ArchDocPage('arch-locking-hierarchy',
         [],
         []),
     ArchDocPage('arch-log-file',
