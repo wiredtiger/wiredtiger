@@ -102,6 +102,7 @@ src/cursor/cur_join.c
 src/cursor/cur_json.c
 src/cursor/cur_log.c
 src/cursor/cur_metadata.c
+src/cursor/cur_oligarch.c
 src/cursor/cur_stat.c
 src/cursor/cur_std.c
 src/cursor/cur_table.c

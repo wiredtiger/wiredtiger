@@ -234,3 +234,23 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
 
     return (ret);
 }
+
+/*
+ * __wt_schema_close_oligarch --
+ *     Close an oligarch handle.
+ */
+void
+__wt_schema_close_oligarch(WT_SESSION_IMPL *session, WT_OLIGARCH *oligarch, bool final)
+{
+    /* Free copies of copied configuration items. */
+    __wt_free(session, oligarch->key_format);
+    __wt_free(session, oligarch->value_format);
+    __wt_free(session, oligarch->ingest_uri);
+    __wt_free(session, oligarch->stable_uri);
+
+    /* Release our reference to the member handles so they can be cleaned up */
+    if (!final) {
+        (void)__wt_atomic_subi32(&oligarch->ingest->session_inuse, 1);
+        (void)__wt_atomic_subi32(&oligarch->stable->session_inuse, 1);
+    }
+}

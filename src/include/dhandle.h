@@ -108,6 +108,7 @@ struct __wt_data_handle {
 
     enum {
         WT_DHANDLE_TYPE_BTREE,
+        WT_DHANDLE_TYPE_OLIGARCH,
         WT_DHANDLE_TYPE_TABLE,
         WT_DHANDLE_TYPE_TIERED,
         WT_DHANDLE_TYPE_TIERED_TREE

@@ -104,6 +104,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_config_merge(session, cfg, strip, &base));
         __wt_free(session, tmp);
         break;
+    case WT_DHANDLE_TYPE_OLIGARCH:
+        WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, oligarch_meta), &dhandle->cfg[0]));
+        break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
         break;
@@ -143,6 +146,9 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
     case WT_DHANDLE_TYPE_BTREE:
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
         break;
+    case WT_DHANDLE_TYPE_OLIGARCH:
+        __wt_schema_close_oligarch(session, (WT_OLIGARCH *)dhandle, final);
+        break;
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
         break;
@@ -175,6 +181,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    WT_OLIGARCH *oligarch;
     WT_TABLE *table;
     WT_TIERED *tiered;
     WT_TIERED_TREE *tiered_tree;
@@ -189,6 +196,10 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     if (WT_PREFIX_MATCH(uri, "file:")) {
         WT_RET(__wt_calloc_one(session, &dhandle));
         dhandle->type = WT_DHANDLE_TYPE_BTREE;
+    } else if (WT_PREFIX_MATCH(uri, "oligarch:")) {
+        WT_RET(__wt_calloc_one(session, &oligarch));
+        dhandle = (WT_DATA_HANDLE *)oligarch;
+        dhandle->type = WT_DHANDLE_TYPE_OLIGARCH;
     } else if (WT_PREFIX_MATCH(uri, "table:")) {
         WT_RET(__wt_calloc_one(session, &table));
         dhandle = (WT_DATA_HANDLE *)table;
@@ -409,6 +420,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         WT_TRET(__wt_btree_close(session));
         F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
         break;
+    case WT_DHANDLE_TYPE_OLIGARCH:
+        __wt_schema_close_oligarch(session, (WT_OLIGARCH *)dhandle, final);
+        break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
@@ -559,6 +573,9 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
             WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
         WT_ERR(__wt_btree_open(session, cfg));
+        break;
+    case WT_DHANDLE_TYPE_OLIGARCH:
+        WT_ERR(__wt_schema_open_oligarch(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_schema_open_table(session));
