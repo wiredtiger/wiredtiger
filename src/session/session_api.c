@@ -631,6 +631,10 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
         else if (WT_PREFIX_MATCH(uri, "log:"))
             WT_RET(__wt_curlog_open(session, uri, cfg, cursorp));
         break;
+    case 'o':
+        if (WT_PREFIX_MATCH(uri, "oligarch:"))
+            WT_RET(__wt_coligarch_open(session, uri, owner, cfg, cursorp));
+        break;
 
     /*
      * Less common cursor types.

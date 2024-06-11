@@ -1463,7 +1463,7 @@ __clsm_insert(WT_CURSOR *cursor)
 
     clsm = (WT_CURSOR_LSM *)cursor;
 
-    CURSOR_UPDATE_API_CALL(cursor, session, ret, insert);
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, NULL);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clsm_enter(clsm, false, true));
@@ -1511,7 +1511,7 @@ __clsm_update(WT_CURSOR *cursor)
 
     clsm = (WT_CURSOR_LSM *)cursor;
 
-    CURSOR_UPDATE_API_CALL(cursor, session, ret, update);
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, update, NULL);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__clsm_enter(clsm, false, true));
@@ -1613,7 +1613,7 @@ __clsm_reserve(WT_CURSOR *cursor)
 
     clsm = (WT_CURSOR_LSM *)cursor;
 
-    CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve);
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, NULL);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));

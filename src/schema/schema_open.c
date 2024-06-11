@@ -579,3 +579,90 @@ __wt_schema_open_table(WT_SESSION_IMPL *session)
 
     return (ret);
 }
+
+/*
+ * __schema_open_oligarch_member --
+ *     Open the stable or ingest table for an oligarch table - save a reference in the oligarch
+ *     handle.
+ */
+static int
+__schema_open_oligarch_member(
+  WT_SESSION_IMPL *session, WT_OLIGARCH *oligarch, const char *uri, bool ingest)
+{
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+
+    /* Reference the dhandle and set it in the tier array. */
+    (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+    if (ingest)
+        oligarch->ingest = session->dhandle;
+    else
+        oligarch->stable = session->dhandle;
+
+    WT_RET(__wt_session_release_dhandle(session));
+    return (0);
+}
+
+/*
+ * __schema_open_oligarch --
+ *     Open the data handle for an oligarch table (internal version).
+ */
+static int
+__schema_open_oligarch(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_OLIGARCH *oligarch;
+    const char **oligarch_cfg;
+    const char *oligarchname;
+
+    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
+      "handle type doesn't match oligarch");
+    oligarch = (WT_OLIGARCH *)session->dhandle;
+    oligarch_cfg = oligarch->iface.cfg;
+    oligarchname = oligarch->iface.name;
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
+
+    /* TODO: Setup collator information */
+    oligarch->collator = NULL;
+    oligarch->collator_owned = 0;
+
+    WT_RET(__wt_config_gets(session, oligarch_cfg, "key_format", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->key_format));
+    WT_RET(__wt_config_gets(session, oligarch_cfg, "value_format", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->value_format));
+
+    WT_RET(__wt_config_gets(session, oligarch_cfg, "ingest", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->ingest_uri));
+    WT_RET(__wt_config_gets(session, oligarch_cfg, "stable", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->stable_uri));
+
+    return (0);
+}
+
+/*
+ * __wt_schema_open_oligarch --
+ *     Open an oligarch table.
+ */
+int
+__wt_schema_open_oligarch(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_OLIGARCH *oligarch;
+
+    /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
+    WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_oligarch(session));
+    WT_RET(ret);
+
+    oligarch = (WT_OLIGARCH *)session->dhandle;
+    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
+      "Handle type doesn't match oligarch");
+    /*
+     * Open the ingest and stable tables after releasing the table write lock. That is safe, since
+     * if multiple threads are opening an oligarch table, the regular handle open scheme handles
+     * races of getting these sub-handles into the connection.
+     */
+    WT_RET(__schema_open_oligarch_member(session, oligarch, oligarch->ingest_uri, true));
+    WT_RET(__schema_open_oligarch_member(session, oligarch, oligarch->stable_uri, false));
+
+    return (ret);
+}

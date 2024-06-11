@@ -72,6 +72,28 @@ struct __wt_table {
     u_int ncolgroups, nindices, nkey_columns;
 };
 
+/*
+ * WT_OLIGARCH --
+ *	Handle for an oligarch table. An oligarch table consists of a pair of
+ *	btree handles, one for ingest the other for "stable" data. There is a
+ *	background process that copies content from the ingest table via
+ *	monitoring and application of write ahead log entries. Once that content is included
+ *	in a checkpoint of the stable table it can be garbage collected from the
+ *	ingest table.
+ */
+struct __wt_oligarch {
+    WT_DATA_HANDLE iface;
+
+    WT_DATA_HANDLE *ingest;
+    WT_DATA_HANDLE *stable;
+
+    WT_COLLATOR *collator; /* Custom collator */
+    int collator_owned;
+
+    const char *key_format, *value_format;
+    const char *ingest_uri, *stable_uri;
+};
+
 /* Holds metadata entry name and the associated config string. */
 struct __wt_import_entry {
 

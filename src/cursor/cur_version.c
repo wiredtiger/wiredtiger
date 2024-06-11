@@ -432,7 +432,8 @@ __curversion_next(WT_CURSOR *cursor)
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
 
-    CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(version_cursor->file_cursor));
+    CURSOR_API_CALL(
+      cursor, session, ret, next, ((WT_CURSOR_BTREE *)version_cursor->file_cursor)->dhandle);
     WT_ERR(__curversion_next_int(cursor));
 
 err:
@@ -496,7 +497,7 @@ __curversion_search(WT_CURSOR *cursor)
     file_cursor = version_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
 
-    CURSOR_API_CALL(cursor, session, ret, search, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, search, cbt->dhandle);
     txn = session->txn;
 
     /*

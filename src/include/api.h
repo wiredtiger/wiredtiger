@@ -268,25 +268,24 @@
     TXN_API_CALL(s, WT_SESSION, func_name, NULL, config, cfg); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
 
-#define CURSOR_API_CALL(cur, s, ret, func_name, bt)                                                \
-    (s) = CUR2S(cur);                                                                              \
-    API_CALL_NOCONF(s, WT_CURSOR, func_name, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
-    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                                       \
-    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                            \
+#define CURSOR_API_CALL(cur, s, ret, func_name, dh)          \
+    (s) = CUR2S(cur);                                        \
+    API_CALL_NOCONF(s, WT_CURSOR, func_name, dh);            \
+    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name); \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                      \
     WT_ERR(__wt_cursor_cached(cur))
 
-#define CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, bt)                             \
-    (s) = CUR2S(cur);                                                                             \
-    API_CALL(                                                                                     \
-      s, WT_CURSOR, func_name, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle, config, cfg); \
-    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                                      \
-    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                           \
+#define CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, dh) \
+    (s) = CUR2S(cur);                                                 \
+    API_CALL(s, WT_CURSOR, func_name, (dh), config, cfg);             \
+    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);          \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                               \
     WT_ERR(__wt_cursor_cached(cur))
 
-#define CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, bt)                                     \
-    (s) = CUR2S(cur);                                                                              \
-    API_CALL_NOCONF(s, WT_CURSOR, func_name, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
-    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                            \
+#define CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, dh) \
+    (s) = CUR2S(cur);                                          \
+    API_CALL_NOCONF(s, WT_CURSOR, func_name, (dh));            \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                        \
     WT_ERR(__wt_cursor_cached(cur))
 
 /*
@@ -310,26 +309,25 @@
     if (F_ISSET(cur, WT_CURSTD_JOINED)) \
     WT_ERR(__wt_curjoin_joined(cur))
 
-#define JOINABLE_CURSOR_API_CALL(cur, s, ret, func_name, bt) \
-    CURSOR_API_CALL(cur, s, ret, func_name, bt);             \
+#define JOINABLE_CURSOR_API_CALL(cur, s, ret, func_name, dh) \
+    CURSOR_API_CALL(cur, s, ret, func_name, dh);             \
     JOINABLE_CURSOR_CALL_CHECK(cur)
 
-#define JOINABLE_CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, bt) \
-    CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, bt);             \
+#define JOINABLE_CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, dh) \
+    CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, dh);             \
     JOINABLE_CURSOR_CALL_CHECK(cur)
 
-#define JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, bt) \
-    CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, bt);             \
+#define JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, dh) \
+    CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, dh);             \
     JOINABLE_CURSOR_CALL_CHECK(cur)
 
-#define CURSOR_REMOVE_API_CALL(cur, s, ret, bt)                                   \
-    (s) = CUR2S(cur);                                                             \
-    TXN_API_CALL_NOCONF(                                                          \
-      s, WT_CURSOR, remove, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
+#define CURSOR_REMOVE_API_CALL(cur, s, ret, dh)      \
+    (s) = CUR2S(cur);                                \
+    TXN_API_CALL_NOCONF(s, WT_CURSOR, remove, (dh)); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, remove)
 
-#define JOINABLE_CURSOR_REMOVE_API_CALL(cur, s, ret, bt) \
-    CURSOR_REMOVE_API_CALL(cur, s, ret, bt);             \
+#define JOINABLE_CURSOR_REMOVE_API_CALL(cur, s, ret, dh) \
+    CURSOR_REMOVE_API_CALL(cur, s, ret, dh);             \
     JOINABLE_CURSOR_CALL_CHECK(cur)
 
 #define CURSOR_UPDATE_API_CALL_BTREE(cur, s, ret, func_name)                                  \
@@ -340,13 +338,13 @@
       __wt_cache_full(s))                                                                     \
         WT_ERR(WT_CACHE_FULL);
 
-#define CURSOR_UPDATE_API_CALL(cur, s, ret, func_name)  \
-    (s) = CUR2S(cur);                                   \
-    TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, NULL); \
+#define CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh) \
+    (s) = CUR2S(cur);                                      \
+    TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, dh);      \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name)
 
-#define JOINABLE_CURSOR_UPDATE_API_CALL(cur, s, ret, func_name) \
-    CURSOR_UPDATE_API_CALL(cur, s, ret, func_name);             \
+#define JOINABLE_CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh) \
+    CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh);             \
     JOINABLE_CURSOR_CALL_CHECK(cur)
 
 #define CURSOR_UPDATE_API_END_RETRY(s, ret, retry) \

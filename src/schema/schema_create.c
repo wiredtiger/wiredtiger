@@ -1036,6 +1036,111 @@ err:
 }
 
 /*
+ * __create_oligarch --
+ *     Create an oligarch tree - such a tree is a pair of underlying btrees, one that holds recently
+ *     ingested data, the other a full set of stable data.
+ */
+static int
+__create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(ingest_uri_buf);
+    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    char *meta_value;
+    char *tablecfg;
+    const char *constituent_cfg;
+    const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
+    const char *ingest_uri, *stable_uri, *tablename;
+    const char *metadata;
+    const char *oligarch_cfg[4] = {WT_CONFIG_BASE(session, oligarch_meta), config, NULL, NULL};
+    const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
+
+    conn = S2C(session);
+    metadata = NULL;
+    tablecfg = NULL;
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+
+    /* Check if the oligarch table already exists. */
+    if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
+        if (exclusive)
+            WT_TRET(EEXIST);
+        goto err;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    tablename = uri;
+    WT_PREFIX_SKIP_REQUIRED(session, tablename, "oligarch:");
+    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "table:%s.wt_ingest", tablename));
+    ingest_uri = ingest_uri_buf->data;
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "table:%s.wt_stable", tablename));
+    stable_uri = stable_uri_buf->data;
+
+    /*
+     * We're creating an oligarch table. Set the initial tiers list to empty. Opening the table will
+     * cause us to create our first file or tiered object.
+     */
+    WT_ASSERT_ALWAYS(session, !F_ISSET(conn, WT_CONN_READONLY),
+      "Can't create an oligarch table on a read only connection");
+
+    /*
+     * By default use the connection level bucket and prefix. Then we add in any user configuration
+     * that may override the system one.
+     */
+    WT_ERR(__wt_buf_fmt(session, tmp, "ingest=\"%s\",stable=\"%s\"", ingest_uri, stable_uri));
+    oligarch_cfg[2] = tmp->data;
+
+    WT_ERR(__wt_config_collapse(session, oligarch_cfg, &tablecfg));
+
+    WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+
+    /*
+     * Create a pair of constituent tables. The ingest table has WAL enabled (in the future in a
+     * special mode that allows for it to be ignored by recovery, but for now just regular logging.
+     * That logging will allow for WAL replay into the stable table.
+     */
+    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=true,oligarch_constituent=true)"));
+    ingest_cfg[2] = tmp->data;
+    /* 
+     * Since oligarch constituents use table URIs, pass the full merged configuration string
+     * through - otherwise file-specific metadata will be stripped out.
+     */
+    WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
+    WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
+    stable_cfg[2] = tmp->data;
+    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+    WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+#if 0
+    /*
+     * Open the table to check that it was setup correctly. Keep the handle exclusive until it is
+     * released at the end of the call. TODO: Is this necessary/right?
+     */
+    WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
+    if (WT_META_TRACKING(session)) {
+        WT_WITH_DHANDLE(session, &table->iface, ret = __wt_meta_track_handle_lock(session, true));
+        WT_ERR(ret);
+        table = NULL;
+    }
+
+err:
+    WT_TRET(__wt_schema_release_table(session, &table));
+#else
+err:
+#endif
+    __wt_scr_free(session, &tmp);
+    __wt_scr_free(session, &ingest_uri_buf);
+    __wt_scr_free(session, &stable_uri_buf);
+    __wt_free(session, meta_value);
+    __wt_free(session, tablecfg);
+
+    return (ret);
+}
+
+/*
  * __tiered_metadata_insert --
  *     Wrapper function to insert the tiered object metadata entry.
  */
@@ -1433,6 +1538,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
         ret = __create_index(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "object:"))
         ret = __create_object(session, uri, exclusive, config);
+    else if (WT_PREFIX_MATCH(uri, "oligarch:"))
+        ret = __create_oligarch(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __create_table(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "tier:"))

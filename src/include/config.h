@@ -154,13 +154,14 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_index_meta 46
 #define WT_CONFIG_ENTRY_lsm_meta 47
 #define WT_CONFIG_ENTRY_object_meta 48
-#define WT_CONFIG_ENTRY_table_meta 49
-#define WT_CONFIG_ENTRY_tier_meta 50
-#define WT_CONFIG_ENTRY_tiered_meta 51
-#define WT_CONFIG_ENTRY_wiredtiger_open 52
-#define WT_CONFIG_ENTRY_wiredtiger_open_all 53
-#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 54
-#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 55
+#define WT_CONFIG_ENTRY_oligarch_meta 49
+#define WT_CONFIG_ENTRY_table_meta 50
+#define WT_CONFIG_ENTRY_tier_meta 51
+#define WT_CONFIG_ENTRY_tiered_meta 52
+#define WT_CONFIG_ENTRY_wiredtiger_open 53
+#define WT_CONFIG_ENTRY_wiredtiger_open_all 54
+#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 55
+#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 56
 
 extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */
 extern const char __WT_CONFIG_CHOICE_DRAM[];

@@ -1280,7 +1280,7 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
-    CURSOR_API_CALL(cursor, session, ret, largest_key, CUR2BT(cbt));
+    CURSOR_API_CALL(cursor, session, ret, largest_key, cbt->dhandle);
 
     if (WT_CURSOR_BOUNDS_SET(cursor))
         WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with cursor largest key");

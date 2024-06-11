@@ -243,6 +243,9 @@ file_runtime_config = common_runtime_config + [
         Config('enabled', 'true', r'''
             if false, this object has checkpoint-level durability''',
             type='boolean'),
+        Config('oligarch_constituent', 'false', r'''
+            this is an oligarch constituent table that requires runtime log replay''',
+            type='boolean', undoc=True),
         ]),
     Config('os_cache_max', '0', r'''
         maximum system buffer cache usage, in bytes. If non-zero, evict object blocks from
@@ -472,6 +475,20 @@ index_meta = format_meta + source_meta + index_only_config + [
 ]
 
 table_meta = format_meta + table_only_config
+
+oligarch_config = [
+    Config('oligarch_test_config', '', r'''
+        placeholder for oligarch config options''',
+        type='int', undoc=True),
+    Config('ingest', '', r'''
+        URI for ingest table''',
+        type='string', undoc=True),
+    Config('stable', '', r'''
+        URI for stable table''',
+        type='string', undoc=True),
+]
+
+oligarch_meta = format_meta + oligarch_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
@@ -1383,6 +1400,8 @@ methods = {
 
 'object.meta' : Method(object_meta),
 
+'oligarch.meta' : Method(oligarch_meta),
+
 'table.meta' : Method(table_meta),
 
 'tier.meta' : Method(tier_meta),
@@ -1434,7 +1453,7 @@ methods = {
 ]),
 
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
-        source_meta + index_only_config + table_only_config + [
+        source_meta + index_only_config + table_only_config + oligarch_config + [
     Config('exclusive', 'false', r'''
         fail if the object exists. When false (the default), if the object exists, check that its
         settings match the specified configuration''',
