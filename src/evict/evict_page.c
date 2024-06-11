@@ -700,6 +700,10 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     if (WT_READING_CHECKPOINT(session))
         return (0);
 
+    /* Ignore metadata pages. */
+    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
+        return (0);
+
     /* We are only interested in clean pages. */
     WT_ASSERT(session, ref->page != NULL);
     if (__wt_page_is_modified(ref->page))
