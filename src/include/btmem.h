@@ -635,6 +635,7 @@ struct __wt_page {
         __atomic_store_n(&(page)->u.intl.__index, (v), __ATOMIC_RELEASE); \
     } while (0)
 #else
+/* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
 #define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
