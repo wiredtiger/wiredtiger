@@ -635,11 +635,7 @@ struct __wt_page {
         __atomic_store_n(&(page)->u.intl.__index, (v), __ATOMIC_RELEASE); \
     } while (0)
 #else
-#define WT_INTL_INDEX_GET_SAFE(page, pindex)                          \
-    do {                                                              \
-        WT_ACQUIRE_BARRIER();                                         \
-        (pindex) = __wt_atomic_load_pointer(&(page)->u.intl.__index); \
-    } while (0)
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
