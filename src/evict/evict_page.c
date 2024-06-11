@@ -693,6 +693,13 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
 
+    /*
+     * Ignore if we are operating on a checkpoint cursor. No page modifications are allowed on a
+     * read-only checkpoint.
+     */
+    if (WT_READING_CHECKPOINT(session))
+        return (0);
+
     /* We are only interested in clean pages. */
     WT_ASSERT(session, ref->page != NULL);
     if (__wt_page_is_modified(ref->page))
