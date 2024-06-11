@@ -701,8 +701,15 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     if (WT_READING_CHECKPOINT(session))
         return (0);
 
-    /* We are only interested in clean pages. */
+    /*
+     * Rewriting internal pages doesn't clean the obsolete time window until the leaf pages are
+     * cleared from the obsolete time window.
+     */
     WT_ASSERT(session, ref->page != NULL);
+    if (WT_PAGE_IS_INTERNAL(ref->page))
+        return (0);
+
+    /* We are only interested in clean pages. */
     if (__wt_page_is_modified(ref->page))
         return (0);
 
