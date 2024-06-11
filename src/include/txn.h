@@ -178,9 +178,9 @@ struct __wt_txn_global {
      */
     wt_shared volatile bool checkpoint_running; /* Checkpoint running */
     wt_shared volatile bool
-      checkpoint_running_hs;             /* Checkpoint running and processing history store file */
-    volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
+      checkpoint_running_hs;         /* Checkpoint running and processing history store file */
+    volatile uint32_t checkpoint_id; /* Checkpoint's session ID */
+    wt_shared WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
     wt_shared wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
 
     wt_shared volatile uint64_t debug_ops;       /* Debug mode op counter */

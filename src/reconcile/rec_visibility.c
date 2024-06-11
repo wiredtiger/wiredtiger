@@ -798,6 +798,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
+    WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
     size_t upd_memsize;
     bool has_newer_updates, supd_restore, upd_saved;
@@ -812,6 +813,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
     first_txn_upd = onpage_upd = upd = NULL;
     upd_memsize = 0;
     has_newer_updates = supd_restore = upd_saved = false;
+    txn_global = &S2C(session)->txn_global;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -841,11 +843,12 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
      */
+    __wt_readlock(session, &txn_global->rwlock);
     WT_ASSERT_ALWAYS(session,
       !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
-        upd->txnid != __wt_atomic_loadv64(&S2C(session)->txn_global.checkpoint_txn_shared.id) ||
-        WT_SESSION_IS_CHECKPOINT(session),
+        upd->txnid != txn_global->checkpoint_txn_shared.id || WT_SESSION_IS_CHECKPOINT(session),
       "Metadata updates written from a checkpoint in a concurrent session");
+    __wt_readunlock(session, &txn_global->rwlock);
 
     /* If all of the updates were aborted, quit. */
     if (first_txn_upd == NULL) {

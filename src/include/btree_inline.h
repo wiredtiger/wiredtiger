@@ -537,6 +537,7 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_CACHE *cache;
     WT_PAGE_MODIFY *modify;
+    size_t bytes_dirty;
 
     cache = S2C(session)->cache;
 
@@ -547,8 +548,11 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
         __wt_cache_decr_check_uint64(session, &cache->pages_dirty_leaf, 1, "dirty leaf page count");
 
     modify = page->modify;
-    if (modify != NULL && modify->bytes_dirty != 0)
-        __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
+    if (modify != NULL) {
+        bytes_dirty = __wt_atomic_loadsize(&modify->bytes_dirty);
+        if (bytes_dirty != 0)
+            __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
+    }
 }
 
 /*

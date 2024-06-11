@@ -823,7 +823,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     __wt_writelock(session, &txn_global->rwlock);
     txn_global->checkpoint_txn_shared = *txn_shared;
-    __wt_atomic_storev64(&txn_global->checkpoint_txn_shared.pinned_id, txn->snapshot_data.snap_min);
+    txn_global->checkpoint_txn_shared.pinned_id = txn->snapshot_data.snap_min;
 
     /*
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
@@ -1431,7 +1431,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
      * the checkpoint_pinned flag.
      */
-    __wt_atomic_storev64(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
+    __wt_writelock(session, &txn_global->rwlock);
+    txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
+    __wt_writeunlock(session, &txn_global->rwlock);
 
     if (full) {
         __checkpoint_stats(session);

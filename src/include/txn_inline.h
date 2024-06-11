@@ -615,7 +615,9 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
          * active checkpoint, keep changes until checkpoint is finished.
          */
-        checkpoint_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id);
+        __wt_readlock(session, &txn_global->rwlock);
+        checkpoint_pinned = txn_global->checkpoint_txn_shared.pinned_id;
+        __wt_readunlock(session, &txn_global->rwlock);
         if (checkpoint_pinned == WT_TXN_NONE || WT_TXNID_LT(oldest_id, checkpoint_pinned))
             return (oldest_id);
         return (checkpoint_pinned);

@@ -139,7 +139,9 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
     /* Clear a checkpoint's pinned ID and timestamp. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
-        __wt_atomic_storev64(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
+        __wt_writelock(session, &txn_global->rwlock);
+        txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
+        __wt_writeunlock(session, &txn_global->rwlock);
         txn_global->checkpoint_timestamp = WT_TS_NONE;
     }
 
@@ -241,7 +243,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      * We can assume that if a function calls without intention to publish then it is the special
      * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
-    if ((id = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.id)) != WT_TXN_NONE) {
+    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
         if (txn->id != id)
             txn->snapshot_data.snapshot[n++] = id;
         if (update_shared_state)
@@ -394,7 +396,8 @@ __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session)
 
 /*
  * __txn_oldest_scan --
- *     Sweep the running transactions to calculate the oldest ID required.
+ *     Sweep the running transactions to calculate the oldest ID required. This happens within the
+ *     txn_global readlock.
  */
 static void
 __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last_runningp,
@@ -414,8 +417,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     /* The oldest ID cannot change while we are holding the scan lock. */
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
     last_running = oldest_id = __wt_atomic_loadv64(&txn_global->current);
-    if ((metadata_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.id)) ==
-      WT_TXN_NONE)
+    if ((metadata_pinned = txn_global->checkpoint_txn_shared.id) == WT_TXN_NONE)
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
@@ -783,15 +785,17 @@ __txn_release(WT_SESSION_IMPL *session)
 
     /* Clear the transaction's ID from the global table. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
+        __wt_writelock(session, &txn_global->rwlock);
         WT_ASSERT(session, __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id) == WT_TXN_NONE);
         txn->id = WT_TXN_NONE;
-        __wt_atomic_storev64(&txn_global->checkpoint_txn_shared.id, WT_TXN_NONE);
+        txn_global->checkpoint_txn_shared.id = WT_TXN_NONE;
 
         /*
          * Be extra careful to cleanup everything for checkpoints: once the global checkpoint ID is
          * cleared, we can no longer tell if this session is doing a checkpoint.
          */
         __wt_atomic_storev32(&txn_global->checkpoint_id, 0);
+        __wt_writeunlock(session, &txn_global->rwlock);
     } else if (F_ISSET(txn, WT_TXN_HAS_ID)) {
         /*
          * If transaction is prepared, this would have been done in prepare.
@@ -2486,7 +2490,9 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     conn = S2C(session);
     txn_global = &conn->txn_global;
     stats = conn->stats;
-    checkpoint_pinned = __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id);
+    __wt_readlock(session, &txn_global->rwlock);
+    checkpoint_pinned = txn_global->checkpoint_txn_shared.pinned_id;
+    __wt_readunlock(session, &txn_global->rwlock);
 
     WT_STATP_CONN_SET(session, stats, txn_pinned_range,
       __wt_atomic_loadv64(&txn_global->current) - __wt_atomic_loadv64(&txn_global->oldest_id));
@@ -2928,10 +2934,11 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       __wt_atomic_loadvbool(&txn_global->checkpoint_running) ? "yes" : "no"));
     WT_RET(
       __wt_msg(session, "checkpoint generation: %" PRIu64, __wt_gen(session, WT_GEN_CHECKPOINT)));
-    WT_RET(__wt_msg(session, "checkpoint pinned ID: %" PRIu64,
-      __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.pinned_id)));
-    WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64,
-      __wt_atomic_loadv64(&txn_global->checkpoint_txn_shared.id)));
+    __wt_readlock(session, &txn_global->rwlock);
+    WT_RET(__wt_msg(
+      session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_txn_shared.pinned_id));
+    WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txn_shared.id));
+    __wt_readunlock(session, &txn_global->rwlock);
 
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
