@@ -3840,12 +3840,6 @@ tasks:
             # Keep repeating the model test for 30 minutes
             ./model_test -l 2000-3000 -t 1800
 
-            # Print the reduced failed workload to make it easy to grab from the logs:
-            if [ -f WT_TEST/reduced.workload ]; then
-              echo "Failed workload:"
-              cat WT_TEST/reduced.workload
-            fi
-
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
     commands:
@@ -3874,12 +3868,6 @@ tasks:
 
             # Keep repeating the model test for 600 seconds
             ./model_test -l 2000-3000 -t 600
-
-            # Print the reduced failed workload to make it easy to grab from the logs:
-            if [ -f WT_TEST/reduced.workload ]; then
-              echo "Failed workload:"
-              cat WT_TEST/reduced.workload
-            fi
 
             # Record the end time, in seconds
             date +%s >> ../../../../time.txt
