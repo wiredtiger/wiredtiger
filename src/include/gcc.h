@@ -185,6 +185,11 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 #if defined(x86_64) || defined(__x86_64__)
 /* Pause instruction to prevent excess processor bus usage */
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
+#ifdef TSAN_BUILD
+#define WT_FULL_BARRIER() __atomic_thread_fence(__ATOMIC_SEQ_CST);
+#define WT_ACQUIRE_BARRIER() __atomic_thread_fence(__ATOMIC_ACQUIRE);
+#define WT_RELEASE_BARRIER() __atomic_thread_fence(__ATOMIC_RELEASE);
+#else
 #define WT_FULL_BARRIER()                        \
     do {                                         \
         __asm__ volatile("mfence" ::: "memory"); \
@@ -192,6 +197,7 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 /* We only need compiler barriers on x86 due to Total Store Ordering (TSO). */
 #define WT_ACQUIRE_BARRIER() WT_COMPILER_BARRIER()
 #define WT_RELEASE_BARRIER() WT_COMPILER_BARRIER()
+#endif
 
 #elif defined(__mips64el__) || defined(__mips__) || defined(__mips64__) || defined(__mips64)
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
@@ -249,6 +255,11 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
  * the ordering requirements are CPUs and ordering with respect to other devices or memory-types
  * isn't required.
  */
+#ifdef TSAN_BUILD
+#define WT_FULL_BARRIER() __atomic_thread_fence(__ATOMIC_SEQ_CST);
+#define WT_ACQUIRE_BARRIER() __atomic_thread_fence(__ATOMIC_ACQUIRE);
+#define WT_RELEASE_BARRIER() __atomic_thread_fence(__ATOMIC_RELEASE);
+#else
 #define WT_FULL_BARRIER()                         \
     do {                                          \
         __asm__ volatile("dmb ish" ::: "memory"); \
@@ -266,7 +277,7 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
  * most expensive reordering to prevent.
  */
 #define WT_RELEASE_BARRIER() __asm__ volatile("dmb ishst; dmb ishld" ::: "memory");
-
+#endif
 #elif defined(__s390x__)
 #define WT_PAUSE() __asm__ volatile("lr 0,0" ::: "memory")
 #define WT_FULL_BARRIER()                            \
