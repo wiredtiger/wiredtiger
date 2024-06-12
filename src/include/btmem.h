@@ -222,9 +222,11 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
+/* Disable logging for history store in the metadata. */
 #define WT_HS_CONFIG                                                   \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
+    ",log=(enabled=false)"                                             \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
