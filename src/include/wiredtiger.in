@@ -5934,31 +5934,31 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY_FAIL	1193
 /*! cache: modified pages evicted */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1194
-/*! cache: modified pages evicted due to obsolete time window */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_OBSOLETE_TW	1195
 /*! cache: multi-block reconciliation blocked whilst checkpoint is running */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILATION_DURING_CHECKPOINT	1196
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILATION_DURING_CHECKPOINT	1195
 /*! cache: operations timed out waiting for space in cache */
-#define	WT_STAT_CONN_CACHE_TIMED_OUT_OPS		1197
+#define	WT_STAT_CONN_CACHE_TIMED_OUT_OPS		1196
 /*!
  * cache: overflow keys on a multiblock row-store page blocked its
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	1198
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	1197
 /*! cache: overflow pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1199
+#define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1198
 /*! cache: page evict attempts by application threads */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_ATTEMPT		1200
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_ATTEMPT		1199
 /*! cache: page evict failures by application threads */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_FAIL		1201
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_FAIL		1200
 /*! cache: page split during eviction deepened the tree */
-#define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1202
+#define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1201
 /*! cache: page written requiring history store records */
-#define	WT_STAT_CONN_CACHE_WRITE_HS			1203
+#define	WT_STAT_CONN_CACHE_WRITE_HS			1202
 /*! cache: pages considered for eviction that were brought in by pre-fetch */
-#define	WT_STAT_CONN_CACHE_EVICTION_CONSIDER_PREFETCH	1204
+#define	WT_STAT_CONN_CACHE_EVICTION_CONSIDER_PREFETCH	1203
 /*! cache: pages currently held in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1205
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1204
+/*! cache: pages dirtied due to obsolete time window */
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_OBSOLETE_TW	1205
 /*! cache: pages evicted in parallel with checkpoint */
 #define	WT_STAT_CONN_CACHE_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT	1206
 /*! cache: pages queued for eviction */
@@ -7446,21 +7446,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	2105
 /*! cache: modified pages evicted */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2106
-/*! cache: modified pages evicted due to obsolete time window */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2107
 /*! cache: multi-block reconciliation blocked whilst checkpoint is running */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILATION_DURING_CHECKPOINT	2108
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILATION_DURING_CHECKPOINT	2107
 /*!
  * cache: overflow keys on a multiblock row-store page blocked its
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	2109
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	2108
 /*! cache: overflow pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2110
+#define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2109
 /*! cache: page split during eviction deepened the tree */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2111
+#define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2110
 /*! cache: page written requiring history store records */
-#define	WT_STAT_DSRC_CACHE_WRITE_HS			2112
+#define	WT_STAT_DSRC_CACHE_WRITE_HS			2111
+/*! cache: pages dirtied due to obsolete time window */
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2112
 /*! cache: pages read into cache */
 #define	WT_STAT_DSRC_CACHE_READ				2113
 /*! cache: pages read into cache after truncate */
