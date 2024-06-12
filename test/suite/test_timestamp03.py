@@ -28,7 +28,7 @@
 #
 # test_timestamp03.py
 #   Timestamps: checkpoints
-#   Verify loggging configurations of all the URI's and history store file
+#   Verify logging configurations of all the URI's and history store file
 #   in the metadata file.
 #
 
