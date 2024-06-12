@@ -27,7 +27,6 @@ static int
 __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PREFETCH_QUEUE_ENTRY *pe;
 
@@ -38,10 +37,8 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /* Mark the session as a prefetch thread session. */
     F_SET(session, WT_SESSION_PREFETCH_THREAD);
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-
     if (F_ISSET(conn, WT_CONN_PREFETCH_RUN))
-        __wt_cond_wait(session, conn->prefetch_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+        __wt_cond_wait(session, conn->prefetch_threads.wait_cond, WT_THOUSAND * WT_THOUSAND, NULL);
 
     while (!TAILQ_EMPTY(&conn->pfqh)) {
         /* Encourage races. */
@@ -107,7 +104,6 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     }
 
 err:
-    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
