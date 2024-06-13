@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import concurrent.futures
+import logging
 import os
 import subprocess
 import sys
@@ -36,12 +37,9 @@ from datetime import datetime
 def run_task_list(task_list_info):
     build_dir = task_list_info["build_dir"]
     task_list = task_list_info["task_bucket"]
-    verbose = task_list_info['verbose']
-    copy_dir = task_list_info.get('copy_dir')
     list_start_time = datetime.now()
     for task in task_list:
-        if verbose:
-            print("Running task {} in {}".format(task, build_dir))
+        logging.debug("Running task {} in {}".format(task, build_dir))
 
         start_time = datetime.now()
         try:
@@ -49,20 +47,17 @@ def run_task_list(task_list_info):
             split_command = task.split()
             subprocess.run(split_command, check=True)
         except subprocess.CalledProcessError as exception:
-            print(f'Command {exception.cmd} failed with error {exception.returncode}')
+            logging.error(f'Command {exception.cmd} failed with error {exception.returncode}')
         end_time = datetime.now()
         diff = end_time - start_time
 
-        if verbose:
-            print("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+        logging.debug("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
 
     list_end_time = datetime.now()
     diff = list_end_time - list_start_time
 
     return_value = "Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds())
-
-    if verbose:
-        print(return_value)
+    logging.debug(return_value)
 
     return return_value
 
@@ -70,23 +65,19 @@ def run_task_list(task_list_info):
 # Execute each list of tasks in parallel
 def run_task_lists_in_parallel(label, task_bucket_info):
     parallel = len(task_bucket_info)
-    verbose = task_bucket_info[0]['verbose']
     task_start_time = datetime.now()
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
         for e in executor.map(run_task_list, task_bucket_info):
-             if verbose:
-                print(e)
+             logging.debug(e)
 
     task_end_time = datetime.now()
     task_diff = task_end_time - task_start_time
-
-    if verbose:
-        print("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
+    logging.debug("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
 
 
 # Check the relevant build directories exist and have the correct status
-def check_build_dirs(build_dir_base, parallel, setup, verbose):
+def check_build_dirs(build_dir_base, parallel, setup):
     build_dirs = list()
 
     for build_num in range(parallel):
@@ -108,18 +99,16 @@ def check_build_dirs(build_dir_base, parallel, setup, verbose):
                 if filename.endswith('.gcda'):
                     found_run_time_coverage_files = True
 
-        if verbose:
-            print('Found compile time coverage files in {} = {}'.
-                  format(this_build_dir, found_compile_time_coverage_files))
-            print('Found run time coverage files in {}     = {}'.
-                  format(this_build_dir, found_run_time_coverage_files))
+        logging.debug('Found compile time coverage files in {} = {}'.
+              format(this_build_dir, found_compile_time_coverage_files))
+        logging.debug('Found run time coverage files in {}     = {}'.
+              format(this_build_dir, found_run_time_coverage_files))
 
         if not setup and not found_compile_time_coverage_files:
             sys.exit('No compile time coverage files found within {}. Please build for code coverage.'
                      .format(this_build_dir))
 
-    if verbose:
-        print("Build dirs: {}".format(build_dirs))
+    logging.debug("Build dirs: {}".format(build_dirs))
 
     return build_dirs
 

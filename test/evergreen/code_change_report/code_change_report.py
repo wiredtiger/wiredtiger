@@ -29,6 +29,7 @@
 
 import argparse
 import json
+import logging
 import html
 import requests
 import textwrap
@@ -593,6 +594,7 @@ def main():
     args = parser.parse_args()
 
     verbose = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
     leave_pr_comment = bool(args.github_pr_number and args.github_token)
 
     if verbose:

@@ -27,12 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-import concurrent.futures
 import json
+import logging
 import os
-import subprocess
 import sys
-from datetime import datetime
 from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
 
 
@@ -52,14 +50,13 @@ def main():
     parallel_tests = args.parallel
     setup = args.setup
 
-    if verbose:
-        print('Code Coverage')
-        print('=============')
-        print('Configuration:')
-        print('  Config file                      {}'.format(config_path))
-        print('  Base name for build directories: {}'.format(build_dir_base))
-        print('  Number of parallel tests:        {}'.format(parallel_tests))
-        print('  Perform setup actions:           {}'.format(setup))
+    logging.debug('Code Coverage')
+    logging.debug('=============')
+    logging.debug('Configuration:')
+    logging.debug('  Config file                      {}'.format(config_path))
+    logging.debug('  Base name for build directories: {}'.format(build_dir_base))
+    logging.debug('  Number of parallel tests:        {}'.format(parallel_tests))
+    logging.debug('  Perform setup actions:           {}'.format(setup))
 
     if parallel_tests < 1:
         sys.exit("Number of parallel tests must be >= 1")
@@ -68,9 +65,8 @@ def main():
     with open(config_path) as json_file:
         config = json.load(json_file)
 
-    if verbose:
-        print('  Configuration:')
-        print(config)
+    logging.debug('  Configuration:')
+    logging.debug(config)
 
     if len(config['test_tasks']) < 1:
         sys.exit("No test tasks")
@@ -80,10 +76,9 @@ def main():
     if setup and len(setup_actions) < 1:
         sys.exit("No setup actions")
 
-    if verbose:
-        print('  Setup actions: {}'.format(setup_actions))
+    logging.debug('  Setup actions: {}'.format(setup_actions))
 
-    build_dirs = check_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests, setup=setup, verbose=verbose)
+    build_dirs = check_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests, setup=setup)
 
     setup_bucket_info = []
     task_bucket_info = []
@@ -91,9 +86,8 @@ def main():
         if setup:
             if len(os.listdir(build_dir)) > 0:
                 sys.exit("Directory {} is not empty".format(build_dir))
-            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions'],
-                                      'verbose': verbose})
-        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': [], 'verbose': verbose})
+            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions']})
+        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': []})
 
     if setup:
         # Perform setup operations
@@ -103,14 +97,10 @@ def main():
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
         build_dir_number = test_num % parallel_tests
-
-        if verbose:
-            print("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
-
+        logging.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
         task_bucket_info[build_dir_number]['task_bucket'].append(test)
 
-    if verbose:
-        print("task_bucket_info: {}".format(task_bucket_info))
+    logging.debug("task_bucket_info: {}".format(task_bucket_info))
 
     # Perform task operations in parallel across the build directories
     run_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)

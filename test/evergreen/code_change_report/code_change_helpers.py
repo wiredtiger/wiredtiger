@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 import csv
+import logging
 from pygit2 import Diff
 from change_info import ChangeInfo
 
@@ -39,21 +40,19 @@ def is_useful_line(content: str) -> bool:
     return useful_line
 
 
-def diff_to_change_list(diff: Diff, verbose: bool) -> dict:
+def diff_to_change_list(diff: Diff) -> dict:
     change_list = dict()
     for patch in diff:
-        if verbose:
-            print('    {}: {}'.format(patch.delta.status_char(), patch.delta.new_file.path))
-            if patch.delta.new_file.path != patch.delta.old_file.path:
-                print('      (was {})'.format(patch.delta.old_file.path))
+        logging.debug('    {}: {}'.format(patch.delta.status_char(), patch.delta.new_file.path))
+        if patch.delta.new_file.path != patch.delta.old_file.path:
+            logging.debug('      (was {})'.format(patch.delta.old_file.path))
 
         hunks = patch.hunks
         hunk_list = list()
         for hunk in hunks:
-            if verbose:
-                print('      Hunk:')
-                print('        old_start: {}, old_lines: {}'.format(hunk.old_start, hunk.old_lines))
-                print('        new_start: {}, new_lines: {}'.format(hunk.new_start, hunk.new_lines))
+            logging.debug('      Hunk:')
+            logging.debug('        old_start: {}, old_lines: {}'.format(hunk.old_start, hunk.old_lines))
+            logging.debug('        new_start: {}, new_lines: {}'.format(hunk.new_start, hunk.new_lines))
 
             change = ChangeInfo(status=patch.delta.status_char(),
                                 new_file_path=patch.delta.new_file.path,

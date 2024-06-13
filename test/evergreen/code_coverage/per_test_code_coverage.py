@@ -50,14 +50,14 @@ class PushWorkingDirectory:
 
 
 # Clean up the run-time code coverage files ready to run another test
-def delete_runtime_coverage_files(build_dir_base: str, logger) -> None:
+def delete_runtime_coverage_files(build_dir_base: str) -> None:
     for root, dirs, files in os.walk(build_dir_base):
         for filename in files:
             if filename.endswith('.gcda'):
                 file_path = os.path.join(root, filename)
-                logger.debug(f"Deleting: {file_path}")
+                logging.debug(f"Deleting: {file_path}")
                 os.remove(file_path)
-                logger.debug(f"Deleted: {file_path}")
+                logging.debug(f"Deleted: {file_path}")
 
 
 # Run a series of tests with code coverage, copying the results and cleaning up
@@ -204,7 +204,7 @@ def main():
         if not Path(gcovr_dir).is_absolute():
             sys.exit("gcovr_dir must be an absolute path")
 
-    build_dirs = check_build_dirs(build_dir_base, parallel_tests, setup, verbose)
+    build_dirs = check_build_dirs(build_dir_base, parallel_tests, setup)
 
     setup_bucket_info = []
     task_bucket_info = []
@@ -212,8 +212,7 @@ def main():
         if setup:
             if len(os.listdir(build_dir)) > 0:
                 sys.exit("Directory {} is not empty".format(build_dir))
-            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions'],
-                                      'verbose': verbose})
+            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions']})
         task_bucket_info.append({'build_dir': build_dir, 'task_bucket': []})
 
     if setup:

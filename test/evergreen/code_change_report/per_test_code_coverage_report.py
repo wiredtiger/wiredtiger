@@ -28,6 +28,7 @@
 
 import argparse
 import json
+import logging
 import os
 from pygit2 import Diff
 from code_change_helpers import diff_to_change_list, read_complexity_data, preprocess_complexity_data
@@ -41,12 +42,11 @@ def read_json(json_file_path: str) -> dict:
 
 # Collate the code coverage data from a directory full of build directory copies
 # into a dict. Be careful with memory usage as the resulting dict may be large.
-def collate_coverage_data(gcovr_dir: str, verbose: bool) -> dict:
+def collate_coverage_data(gcovr_dir: str) -> dict:
     filenames_in_dir = os.listdir(gcovr_dir)
     filenames_in_dir.sort()
-    if verbose:
-        print(f"Starting collate_coverage_data({gcovr_dir})")
-        print(f"filenames_in_dir {filenames_in_dir}")
+    logging.debug(f"Starting collate_coverage_data({gcovr_dir})")
+    logging.debug(f"filenames_in_dir {filenames_in_dir}")
     collated_coverage_data = {}
     for file_name in filenames_in_dir:
         if file_name.startswith('build_') and file_name.endswith("copy"):
@@ -54,8 +54,7 @@ def collate_coverage_data(gcovr_dir: str, verbose: bool) -> dict:
             build_coverage_path = os.path.join(gcovr_dir, build_coverage_name)
             task_info_path = os.path.join(build_coverage_path, "task_info.json")
             full_coverage_path = os.path.join(build_coverage_path, "full_coverage_report.json")
-            if verbose:
-                print(f"task_info_path = {task_info_path}, full_coverage_path = {full_coverage_path}")
+            logging.debug(f"task_info_path = {task_info_path}, full_coverage_path = {full_coverage_path}")
             task_info = read_json(json_file_path=task_info_path)
             coverage_info = read_json(json_file_path=full_coverage_path)
             task = task_info["task"]
@@ -65,8 +64,7 @@ def collate_coverage_data(gcovr_dir: str, verbose: bool) -> dict:
                 "full_coverage": coverage_info
             }
             collated_coverage_data[task] = dict_entry
-    if verbose:
-        print(f"Ending collate_coverage_data({gcovr_dir})")
+    logging.debug(f"Ending collate_coverage_data({gcovr_dir})")
     return collated_coverage_data
 
 
@@ -138,8 +136,7 @@ def create_report_info(change_list: dict,
 
 
 # Report on which tests reach a particular changed function
-def get_function_coverage(coverage_data: dict, changed_function: str, file_name: str, start_line: int, end_line: int,
-                          verbose: bool):
+def get_function_coverage(coverage_data: dict, changed_function: str, file_name: str, start_line: int, end_line: int):
     for test in coverage_data:
         test_info = coverage_data[test]
         file_coverage_data = test_info['full_coverage']['files']
@@ -152,26 +149,23 @@ def get_function_coverage(coverage_data: dict, changed_function: str, file_name:
                     if start_line <= line_number <= end_line and line_count > 0:
                         code_is_reached = True
                 if code_is_reached:
-                    print(f"        Reached by test: {test}")
+                    logging.debug(f"        Reached by test: {test}")
 
 
 # Generate a report to stdout listing changed functions and which tests reach those functions
-def generate_report(coverage_data: dict, change_list: dict, preprocessed_complexity_data: dict, verbose: bool):
-    if verbose:
-        print("Generating report...")
+def generate_report(coverage_data: dict, change_list: dict, preprocessed_complexity_data: dict):
+    logging.debug("Generating report...")
     report_info = create_report_info(change_list=change_list, preprocessed_complexity_data=preprocessed_complexity_data)
     for changed_file in report_info['changed_functions']:
-        print(f'  Changed file: {changed_file}')
+        logging.debug(f'  Changed file: {changed_file}')
         for changed_function in report_info['changed_functions'][changed_file]:
-            print(f'    Changed function: {changed_function}')
+            logging.debug(f'    Changed function: {changed_function}')
             function_info = report_info['changed_functions'][changed_file][changed_function]
             start_line = function_info['line start']
             end_line = function_info['line end']
             get_function_coverage(coverage_data=coverage_data, changed_function=changed_function,
-                                  file_name=changed_file, start_line=start_line, end_line=end_line,
-                                  verbose=verbose)
-    if verbose:
-        print("Generated report")
+                                  file_name=changed_file, start_line=start_line, end_line=end_line)
+    logging.debug("Generated report")
 
 
 def main():
@@ -184,31 +178,31 @@ def main():
     args = parser.parse_args()
 
     verbose = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
     coverage_data_path = args.coverage_data_path
     git_diff_file = args.git_diff_file
     complexity_data_file = args.metrix_complexity_data
 
-    if verbose:
-        print('Per-Test Code Coverage Report')
-        print('=============================')
-        print('Configuration:')
-        print(f'  Coverage data file path: {coverage_data_path}')
-        print(f'  Complexity data file:    {complexity_data_file}')
-        print(f'  Git diff file path:      {git_diff_file}')
-        print()
+    logging.debug('Per-Test Code Coverage Report')
+    logging.debug('=============================')
+    logging.debug('Configuration:')
+    logging.debug(f'  Coverage data path:   {coverage_data_path}')
+    logging.debug(f'  Complexity data file: {complexity_data_file}')
+    logging.debug(f'  Git diff file path:   {git_diff_file}')
+    logging.debug("")
 
     with open(git_diff_file, "r") as diff_file:
         diff_data = diff_file.read()
         diff = Diff.parse_diff(diff_data)
-        change_list = diff_to_change_list(diff=diff, verbose=verbose)
+        change_list = diff_to_change_list(diff=diff)
 
         complexity_data = read_complexity_data(complexity_data_file)
         preprocessed_complexity_data = preprocess_complexity_data(complexity_data=complexity_data)
 
-        coverage_data = collate_coverage_data(gcovr_dir=coverage_data_path, verbose=verbose)
+        coverage_data = collate_coverage_data(gcovr_dir=coverage_data_path)
 
         generate_report(coverage_data=coverage_data, change_list=change_list,
-                        preprocessed_complexity_data=preprocessed_complexity_data, verbose=verbose)
+                        preprocessed_complexity_data=preprocessed_complexity_data)
 
 
 if __name__ == '__main__':
