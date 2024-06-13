@@ -310,6 +310,12 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
         if ((ret = check_timing("DROP", last_interval)) != 0)
             THROW_ERRNO(ret, "WT_SESSION->drop timeout.");
     }
+
+    ret = session->close(session, nullptr);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error closing a session.");
+    }
+
     return 0;
 }
 
@@ -571,6 +577,11 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
                 ++retries;
         }
         sleep(_workload->options.create_interval);
+    }
+
+    ret = session->close(session, nullptr);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error closing a session.");
     }
 
     return 0;
