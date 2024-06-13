@@ -1,4 +1,6 @@
 #! /usr/bin/env bash
+set -o errexit
+set -o verbose
 
 echo "=== Starting Code Coverage Per Test script ==="
 
@@ -9,12 +11,8 @@ if test "$#" -ne 2; then
 fi
 is_patch=$1
 num_jobs=$2
-
 echo "is_patch = ${is_patch}, and num_jobs = ${num_jobs}"
 
-#set -o errexit
-#set -o verbose
-#${PREPARE_TEST_ENV}
 test/evergreen/find_cmake.sh
 
 echo "Disk usage and free space for the current drive (pre-test):"
@@ -59,7 +57,9 @@ if [ "${is_patch}" = true ]; then
   # Generate an HTML friendly version of the diff for
   sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
   # Logging for debugging
+  echo "ls -l coverage_report"
   ls -l coverage_report
+  echo "cat coverage_report/diff.txt"
   cat coverage_report/diff.txt
   python3 test/evergreen/code_change_report/per_test_code_coverage_report.py -v -c coverage_data -d coverage_report/diff.txt -m coverage_report/metrixpp.csv
 fi
