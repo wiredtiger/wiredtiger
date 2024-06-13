@@ -10,10 +10,9 @@
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
-  bool non_ts_updates, bool error_on_ts_ordering, uint64_t *hs_counter, WT_TIME_WINDOW *upd_tw);
+  bool error_on_ts_ordering, uint64_t *hs_counter);
 static int __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw,
-  bool *non_ts_updates);
+  const WT_ITEM *key, wt_timestamp_t ts, WT_TIME_WINDOW *upd_tw, bool *non_ts_updates);
 
 /*
  * __hs_verbose_cache_stats --
@@ -220,8 +219,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     if (ret == 0) {
         WT_ASSERT(session, tw->start_ts + 1 > WT_TS_NONE);
         /* Get the history store cursor position. */
-        WT_ERR_NOTFOUND_OK(__hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-                             error_on_ts_ordering, tw, &non_ts_updates),
+        WT_ERR_NOTFOUND_OK(
+          __hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1, tw, &non_ts_updates),
           true);
 
         /*
@@ -230,7 +229,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
          */
         if (!non_ts_updates && ret == 0)
             WT_ERR(__hs_delete_reinsert_from_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-              true, false, non_ts_updates, error_on_ts_ordering, &counter, tw));
+              true, false, error_on_ts_ordering, &counter));
     }
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -811,19 +810,20 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
         ++hs_counter;
     }
     /* Get the history store cursor position */
-    WT_ERR_NOTFOUND_OK(__hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE,
-                         error_on_ts_ordering, NULL, &non_ts_updates),
-      true);
+    WT_ERR_NOTFOUND_OK(
+      __hs_cursor_pos(session, hs_cursor, btree_id, key, WT_TS_NONE, NULL, &non_ts_updates), true);
 
     /*
-     * If we have non-timestamped updates, skip the reinserts as we do not need to zero the
-     * timestamps already at zero. If we have non-timestamped deletes (then reinsert is false)
-     * continue into the function to delete only. If we do not have a valid cursor position then
-     * nothing is found, return.
+     * If we have non-timestamped updates, skip the reinserts as we do not need to zero timestamps
+     * already set to zero. If we have non-timestamped deletes, we do not need to perform any
+     * removals either as the tombstone is globally visible, and will be removed anyways. If we did
+     * not find a valid cursor position, there is nothing to do, set return to success.
      */
-    if (!(reinsert && non_ts_updates) && ret == 0)
+    if (non_ts_updates)
+        goto done;
+    if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE,
-          reinsert, true, non_ts_updates, error_on_ts_ordering, &hs_counter, NULL));
+          reinsert, true, error_on_ts_ordering, &hs_counter));
     else
         ret = 0;
 
@@ -840,8 +840,7 @@ err:
  */
 static int
 __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool error_on_ts_ordering, WT_TIME_WINDOW *upd_tw,
-  bool *non_ts_updates)
+  const WT_ITEM *key, wt_timestamp_t ts, WT_TIME_WINDOW *upd_tw, bool *non_ts_updates)
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
@@ -853,8 +852,6 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
     int cmp;
 #endif
     WT_CLEAR(hs_key);
-    WT_UNUSED(btree_id);
-    WT_UNUSED(error_on_ts_ordering);
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
 #endif
@@ -924,7 +921,7 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
          * globally visible.
          */
         if (hs_start_ts >= ts || twp->stop_ts >= ts) {
-            if (hs_start_ts == 0 && twp->stop_ts == 0 && ts == 0)
+            if (hs_start_ts == WT_TS_NONE && twp->stop_ts == WT_TS_NONE && ts == WT_TS_NONE)
                 *non_ts_updates = true;
             break;
         }
@@ -943,12 +940,13 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
 /*
  * __hs_delete_reinsert_from_pos --
  *     Delete updates in the history store if the start timestamp of the update is larger or equal
- *     to the specified timestamp and optionally reinsert them with ts-1 timestamp.
+ *     to the specified timestamp from a given cursor position (cursor position should be passed in)
+ *     and optionally reinsert them with ts-1 timestamp.
  */
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone, bool non_ts_updates,
-  bool error_on_ts_ordering, uint64_t *counter, WT_TIME_WINDOW *upd_tw)
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool no_ts_tombstone,
+  bool error_on_ts_ordering, uint64_t *counter)
 {
     WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -968,8 +966,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     hs_cbt = __wt_curhs_get_cbt(hs_cursor);
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
-    WT_UNUSED(upd_tw);
-    WT_UNUSED(error_on_ts_ordering);
 
     cache_hs_order_lose_durable_timestamp = cache_hs_order_reinsert = cache_hs_order_remove = 0;
 #ifndef HAVE_DIAGNOSTIC
@@ -985,7 +981,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * false, this is the case for non-timestamped deletes only. We still enter the function for
      * removal and skip reinserting. We do not want to return EBUSY here.
      */
-    if (error_on_ts_ordering && !non_ts_updates) {
+    if (error_on_ts_ordering) {
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
         goto err;
