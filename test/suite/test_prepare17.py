@@ -36,7 +36,7 @@ class test_prepare17(wttest.WiredTigerTestCase):
     trigger = 39
     target = 35
 
-    conn_config = f'cache_size=1MB,' + \
+    conn_config = 'cache_size=1MB,' + \
         f'eviction_trigger={trigger}, eviction_target={target},' + \
         f'eviction_dirty_trigger={trigger}, eviction_dirty_target={target},' + \
         f'eviction_updates_trigger={trigger}, eviction_updates_target={target},'
