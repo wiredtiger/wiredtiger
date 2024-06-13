@@ -170,13 +170,13 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
 
     /* The target size must be lower than the trigger size or we will never get any work done. */
     if (cache->eviction_target >= cache->eviction_trigger)
-        WT_RET_MSG(session, EINVAL, "eviction_target must be lower than the eviction_trigger");
+        WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
     if (cache->eviction_dirty_target >= cache->eviction_dirty_trigger)
         WT_RET_MSG(session, EINVAL,
-          "eviction_dirty_target must be lower than the eviction_dirty_trigger");
+          "eviction dirty target must be lower than the eviction dirty trigger");
     if (cache->eviction_updates_target >= cache->eviction_updates_trigger)
         WT_RET_MSG(session, EINVAL,
-          "eviction_updates_target must be lower than the eviction_updates_trigger");
+          "eviction updates target must be lower than the eviction updates trigger");
 
     return (0);
 }
