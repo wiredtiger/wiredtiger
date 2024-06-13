@@ -15,6 +15,7 @@ post:
   - func: "dump stacktraces"
   - func: "upload stacktraces"
   - func: "upload test/format config"
+  - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
@@ -396,6 +397,19 @@ functions:
       aws_key: ${aws_key}
       local_files_include_filter:
         - wiredtiger/cmake_build/test/format/RUNDIR*/CONFIG
+      bucket: build_external
+      permissions: public-read
+      content_type: text/plain
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
+      preserve_path: true
+  "upload test/model workloads":
+    command: s3.put
+    type: setup
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter:
+        - wiredtiger/cmake_build/test/model/tools/WT_TEST*/*.workload
       bucket: build_external
       permissions: public-read
       content_type: text/plain
