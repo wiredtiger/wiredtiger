@@ -36,8 +36,7 @@ from code_change_helpers import diff_to_change_list, read_complexity_data, prepr
 # Read a json file into a dict
 def read_json(json_file_path: str) -> dict:
     with open(json_file_path) as json_file:
-        info = json.load(json_file)
-        return info
+        return json.load(json_file)
 
 
 # Collate the code coverage data from a directory full of build directory copies
@@ -105,22 +104,12 @@ def create_report_info(change_list: dict,
         this_patch = change_list[new_file]
         change_info_list = list()
         for hunk in this_patch:
-            change_info = dict()
-            change_info['status'] = hunk.status
-            change_info['new_start'] = hunk.new_start
-            change_info['new_lines'] = hunk.new_lines
-            change_info['old_start'] = hunk.old_start
-            change_info['old_lines'] = hunk.old_lines
-
+            change_info = {'status': hunk.status, 'new_start': hunk.new_start, 'new_lines': hunk.new_lines,
+                           'old_start': hunk.old_start, 'old_lines': hunk.old_lines}
             lines_info = list()
             for line in hunk.lines:
-                line_info = dict()
-                line_info['content'] = line.content
-                line_info['new_lineno'] = line.new_lineno
-                line_info['old_lineno'] = line.old_lineno
-
+                line_info = {'content': line.content, 'new_lineno': line.new_lineno, 'old_lineno': line.old_lineno}
                 if line.new_lineno > 0:
-
                     # Added lines of code don't have a 'old_lineno' value (ie the value will be < 0).
                     # Changed lines of code appear as two entries: (1) a deleted line and (2) an added line.
                     # This means that added or changed lines of code will have an 'old_lineno' < 0.
@@ -143,9 +132,7 @@ def create_report_info(change_list: dict,
 
             file_change_list[new_file] = change_info_list
 
-    report = dict()
-    report['change_info_list'] = file_change_list
-    report['changed_functions'] = changed_function_info
+    report = {'change_info_list': file_change_list, 'changed_functions': changed_function_info}
 
     return report
 
@@ -210,18 +197,18 @@ def main():
         print(f'  Git diff file path:      {git_diff_file}')
         print()
 
-    diff_file = open(git_diff_file, mode="r")
-    diff_data = diff_file.read()
-    diff = Diff.parse_diff(diff_data)
-    change_list = diff_to_change_list(diff=diff, verbose=verbose)
+    with open(git_diff_file, "r") as diff_file:
+        diff_data = diff_file.read()
+        diff = Diff.parse_diff(diff_data)
+        change_list = diff_to_change_list(diff=diff, verbose=verbose)
 
-    complexity_data = read_complexity_data(complexity_data_file)
-    preprocessed_complexity_data = preprocess_complexity_data(complexity_data=complexity_data)
+        complexity_data = read_complexity_data(complexity_data_file)
+        preprocessed_complexity_data = preprocess_complexity_data(complexity_data=complexity_data)
 
-    coverage_data = collate_coverage_data(gcovr_dir=coverage_data_path, verbose=verbose)
+        coverage_data = collate_coverage_data(gcovr_dir=coverage_data_path, verbose=verbose)
 
-    generate_report(coverage_data=coverage_data, change_list=change_list,
-                    preprocessed_complexity_data=preprocessed_complexity_data, verbose=verbose)
+        generate_report(coverage_data=coverage_data, change_list=change_list,
+                        preprocessed_complexity_data=preprocessed_complexity_data, verbose=verbose)
 
 
 if __name__ == '__main__':

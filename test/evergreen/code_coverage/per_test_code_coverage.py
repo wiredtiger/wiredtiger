@@ -39,12 +39,6 @@ from pathlib import Path
 from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
 
 
-def get_logger(verbose: bool) -> logging.Logger:
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
-    return logger
-
-
 class PushWorkingDirectory:
     def __init__(self, new_working_directory: str) -> None:
         self.original_working_directory = os.getcwd()
@@ -71,21 +65,19 @@ def delete_runtime_coverage_files(build_dir_base: str, logger) -> None:
 def run_coverage_task_list(task_list_info):
     build_dir = task_list_info["build_dir"]
     task_list = task_list_info["task_bucket"]
-    verbose = task_list_info['verbose']
-    logger = get_logger(verbose)
     list_start_time = datetime.now()
     for index in range(len(task_list)):
         task = task_list[index]
-        logger.debug("Running task {} in {}".format(task, build_dir))
+        logging.debug("Running task {} in {}".format(task, build_dir))
 
         start_time = datetime.now()
         try:
-            delete_runtime_coverage_files(build_dir_base=build_dir, logger=logger)
+            delete_runtime_coverage_files(build_dir_base=build_dir)
             os.chdir(build_dir)
             split_command = task.split()
             subprocess.run(split_command, check=True)
             copy_dest_dir = f"{build_dir}_{index}_copy"
-            logger.debug(f"Copying directory {build_dir} to {copy_dest_dir}")
+            logging.debug(f"Copying directory {build_dir} to {copy_dest_dir}")
             shutil.copytree(src=build_dir, dst=copy_dest_dir)
 
             task_info = {"task": task}
@@ -99,13 +91,13 @@ def run_coverage_task_list(task_list_info):
         end_time = datetime.now()
         diff = end_time - start_time
 
-        logger.debug("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+        logging.debug("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
 
     list_end_time = datetime.now()
     diff = list_end_time - list_start_time
 
     return_value = "Completed task list in {} : took {} seconds".format(build_dir, diff.total_seconds())
-    logger.debug(return_value)
+    logging.debug(return_value)
 
     return return_value
 
@@ -113,21 +105,19 @@ def run_coverage_task_list(task_list_info):
 # Execute each list of code coverage tasks in parallel
 def run_coverage_task_lists_in_parallel(label, task_bucket_info):
     parallel = len(task_bucket_info)
-    verbose = task_bucket_info[0]['verbose']
-    logger = get_logger(verbose)
     task_start_time = datetime.now()
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
         for e in executor.map(run_coverage_task_list, task_bucket_info):
-            logger.debug(e)
+            logging.debug(e)
 
     task_end_time = datetime.now()
     task_diff = task_end_time - task_start_time
-    logger.debug("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
+    logging.debug("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
 
 
 # Run gcovr on each copy of a build directory that contains run-time coverage data
-def run_gcovr(build_dir_base: str, gcovr_dir: str, logger):
+def run_gcovr(build_dir_base: str, gcovr_dir: str):
     print(f"Starting run_gcovr({build_dir_base}, {gcovr_dir})")
     dir_name = os.path.dirname(build_dir_base)
     filenames_in_dir = os.listdir(dir_name)
@@ -138,7 +128,7 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, logger):
             build_copy_path = os.path.join(dir_name, build_copy_name)
             task_info_path = os.path.join(build_copy_path, "task_info.json")
             coverage_output_dir = os.path.join(gcovr_dir, build_copy_name)
-            logger.debug(
+            logging.debug(
                 f"build_copy_name = {build_copy_name}, build_copy_path = {build_copy_path}, "
                 f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
             os.mkdir(coverage_output_dir)
@@ -149,15 +139,15 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str, logger):
                              f"--json {coverage_output_dir}/full_coverage_report.json")
             split_command = gcovr_command.split()
             env = os.environ.copy()
-            logger.debug(f'env: {env}')
-            logger.debug(f'gcovr_command: {gcovr_command}')
+            logging.debug(f'env: {env}')
+            logging.debug(f'gcovr_command: {gcovr_command}')
             try:
                 completed_process = subprocess.run(split_command, env=env, check=True)
                 output = completed_process.stdout
                 print(f'Command returned {output}')
             except subprocess.CalledProcessError as exception:
                 print(f'Command {exception.cmd} failed with error {exception.returncode} "{exception.output}"')
-            logger.debug(f'Completed a run of gcovr on {build_copy_name}')
+            logging.debug(f'Completed a run of gcovr on {build_copy_name}')
     print(f"Ending run_gcovr({build_dir_base}, {gcovr_dir})")
 
 
@@ -179,16 +169,16 @@ def main():
     parallel_tests = args.parallel
     setup = args.setup
 
-    logger = get_logger(verbose)
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
 
-    logger.debug('Per-Test Code Coverage')
-    logger.debug('======================')
-    logger.debug('Configuration:')
-    logger.debug(f'  Config file                      {config_path}')
-    logger.debug(f'  Base name for build directories: {build_dir_base}')
-    logger.debug(f'  Number of parallel tests:        {parallel_tests}')
-    logger.debug(f'  Perform setup actions:           {setup}')
-    logger.debug(f'  Gcovr output directory:          {gcovr_dir}')
+    logging.debug('Per-Test Code Coverage')
+    logging.debug('======================')
+    logging.debug('Configuration:')
+    logging.debug(f'  Config file                      {config_path}')
+    logging.debug(f'  Base name for build directories: {build_dir_base}')
+    logging.debug(f'  Number of parallel tests:        {parallel_tests}')
+    logging.debug(f'  Perform setup actions:           {setup}')
+    logging.debug(f'  Gcovr output directory:          {gcovr_dir}')
 
     if parallel_tests < 1:
         sys.exit("Number of parallel tests must be >= 1")
@@ -197,8 +187,8 @@ def main():
     with open(config_path) as json_file:
         config = json.load(json_file)
 
-    logger.debug('  Configuration:')
-    logger.debug(config)
+    logging.debug('  Configuration:')
+    logging.debug(config)
 
     if len(config['test_tasks']) < 1:
         sys.exit("No test tasks")
@@ -208,7 +198,7 @@ def main():
     if setup and len(setup_actions) < 1:
         sys.exit("No setup actions")
 
-    logger.debug('  Setup actions: {}'.format(setup_actions))
+    logging.debug('  Setup actions: {}'.format(setup_actions))
 
     if gcovr_dir:
         if not Path(gcovr_dir).is_absolute():
@@ -224,7 +214,7 @@ def main():
                 sys.exit("Directory {} is not empty".format(build_dir))
             setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions'],
                                       'verbose': verbose})
-        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': [], 'verbose': verbose})
+        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': []})
 
     if setup:
         # Perform setup operations
@@ -234,17 +224,17 @@ def main():
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
         build_dir_number = test_num % parallel_tests
-        logger.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
+        logging.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
         task_bucket_info[build_dir_number]['task_bucket'].append(test)
 
-    logger.debug("task_bucket_info: {}".format(task_bucket_info))
+    logging.debug("task_bucket_info: {}".format(task_bucket_info))
 
     # Perform code coverage task operations in parallel across the build directories
     run_coverage_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
 
     # Run gcovr if required
     if gcovr_dir:
-        run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir, logger=logger)
+        run_gcovr(build_dir_base=build_dir_base, gcovr_dir=gcovr_dir)
 
 
 if __name__ == '__main__':
