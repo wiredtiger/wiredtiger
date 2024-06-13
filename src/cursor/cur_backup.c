@@ -377,7 +377,8 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
-     * view when creating a copy.
+     * view when creating a copy. We only need the locks when opening the top-level backup cursor.
+     * We do not need them when opening a duplicate backup cursor.
      */
     WT_STAT_CONN_SET(session, backup_start, 1);
     if (othercb == NULL) {
