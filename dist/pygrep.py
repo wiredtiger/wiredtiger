@@ -10,7 +10,8 @@ import re, sys, argparse
 def matchLine(regex, line):
     global args
     match = regex.search(line)
-    if bool(match) != bool(args.inverse): print(line, end='')
+    if bool(match) != bool(args.inverse):
+        print(line, end='')
 
 def matchSearch(regex, line):
     for match in regex.finditer(line):
