@@ -101,8 +101,9 @@ struct __wt_cache {
 
     wt_shared uint64_t evict_max_page_size; /* Largest page seen at eviction */
     wt_shared uint64_t evict_max_ms;        /* Longest milliseconds spent at a single eviction */
-    uint64_t reentry_hs_eviction_ms;        /* Total milliseconds spent inside a nested eviction */
-    struct timespec stuck_time;             /* Stuck time */
+    wt_shared uint64_t
+      reentry_hs_eviction_ms;   /* Total milliseconds spent inside a nested eviction */
+    struct timespec stuck_time; /* Stuck time */
 
     /*
      * Read information.

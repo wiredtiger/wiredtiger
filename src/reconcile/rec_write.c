@@ -367,16 +367,16 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
 
-    if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
-        conn->rec_maximum_hs_wrapup_milliseconds = rec_hs_wrapup;
-    if (rec_img_build > conn->rec_maximum_image_build_milliseconds)
-        conn->rec_maximum_image_build_milliseconds = rec_img_build;
-    if (rec > conn->rec_maximum_milliseconds)
-        conn->rec_maximum_milliseconds = rec;
+    if (rec_hs_wrapup > __wt_atomic_load64(&conn->rec_maximum_hs_wrapup_milliseconds))
+        __wt_atomic_store64(&conn->rec_maximum_hs_wrapup_milliseconds, rec_hs_wrapup);
+    if (rec_img_build > __wt_atomic_load64(&conn->rec_maximum_image_build_milliseconds))
+        __wt_atomic_store64(&conn->rec_maximum_image_build_milliseconds, rec_img_build);
+    if (rec > __wt_atomic_load64(&conn->rec_maximum_milliseconds))
+        __wt_atomic_store64(&conn->rec_maximum_milliseconds, rec);
     if (session->reconcile_timeline.total_reentry_hs_eviction_time >
-      conn->cache->reentry_hs_eviction_ms)
-        conn->cache->reentry_hs_eviction_ms =
-          session->reconcile_timeline.total_reentry_hs_eviction_time;
+      __wt_atomic_load64(&conn->cache->reentry_hs_eviction_ms))
+        __wt_atomic_store64(&conn->cache->reentry_hs_eviction_ms,
+          session->reconcile_timeline.total_reentry_hs_eviction_time);
 
 err:
     if (ret != 0)

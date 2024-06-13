@@ -50,3 +50,10 @@ race:__wt_tree_modify_set
 race:__wt_cond_auto_wait_signal
 race:__wt_ref_addr_copy
 
+# All of the races detected in these functions involve split.
+race:__evict_force_check
+race:__wt_lex_compare_skip
+race:__wt_row_leaf_key_info
+race:__wt_row_leaf_key
+race:__search_insert_append
+race:__wt_row_search

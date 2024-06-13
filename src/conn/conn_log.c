@@ -394,10 +394,9 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WT_LOG *log, uint32_t backup_file
      * backup or the checkpoint LSN. Otherwise we want the minimum of the last log file written to
      * disk and the checkpoint LSN.
      */
+    __wt_readlock(session, &conn->debug_log_retention_lock);
     min_lognum = backup_file == 0 ? WT_MIN(log->ckpt_lsn.l.file, log->sync_lsn.l.file) :
                                     WT_MIN(log->ckpt_lsn.l.file, backup_file);
-
-    __wt_readlock(session, &conn->debug_log_retention_lock);
 
     /* Adjust the number of log files to retain based on debugging options. */
 
