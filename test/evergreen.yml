@@ -3003,7 +3003,7 @@ tasks:
 
   - name: coverage-report-per-test
     # This task will measure code coverage across a range of tests, including, but not limited to,
-    # the Catch2-based unit tests. The tests are run in parallel, and data is captured seperately per test.
+    # the Catch2-based unit tests. Code coverage results are captured on a per-test basis so we can determine which tests hit which code paths.
     commands:
       - func: "get project"
       - command: shell.exec
