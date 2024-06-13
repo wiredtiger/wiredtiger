@@ -410,10 +410,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and
      * maximum timestamp.
      */
-    if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
-        btree->rec_max_txn = r->max_txn;
-    if (btree->rec_max_timestamp < r->max_ts)
-        btree->rec_max_timestamp = r->max_ts;
+    __wt_set_shared_maximum64(&btree->rec_max_txn, r->max_txn);
+    __wt_set_shared_maximum64(&btree->rec_max_timestamp, r->max_ts);
 
     /*
      * Set the page's status based on whether or not we cleaned the page.
