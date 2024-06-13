@@ -1,10 +1,11 @@
-conn_config="cache_size=40G,log=(enabled=false),verbose=[block, checkpoint,evict, evictserver, evict_stuck, mutex]"
+conn_config="cache_size=40G,log=(enabled=false)"
 pareto=20
 table_config="type=file"
 key_sz=100
 value_sz=1024
+icount=6000000
 #icount=120000000
-icount=12000000
+#13 GB: icount=12000000
 run_time=10
 threads=((count=20,reads=1))
 #warmup=120

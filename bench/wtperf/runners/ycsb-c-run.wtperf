@@ -1,10 +1,13 @@
-conn_config="cache_size=4G,log=(enabled=false),verbose=[cache_trace]"
+conn_config="cache_size=2G,log=(enabled=false),verbose=[cache_trace]"
 pareto=20
 table_config="type=file"
 key_sz=100
 value_sz=1024
 #icount=120000000
-run_time=360
+#13 GB: icount=12000000  
+icount=6000000
+#13GB: run_time=360
+run_time=120
 threads=((count=20,reads=1))
 #warmup=120
 sample_interval=5
