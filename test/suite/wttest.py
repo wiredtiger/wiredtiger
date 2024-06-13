@@ -326,11 +326,11 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             config = self.conn_config()
 
         # Collect all statistics for Python tests by default unless configured otherwise.
-        if not("statistics" in config):
+        if "statistics" not in config:
             config += ',statistics=(all)'
 
         # Enable statistics logging if we haven't already.
-        if ("statistics=(all)" in config or "statistics=(fast)" in config) and not("statistics_log" in config):
+        if ("statistics=(all)" in config or "statistics=(fast)" in config) and "statistics_log" not in config:
             config += ',statistics_log=(wait=1,json=true,on_close=true)'
 
         config += self.extensionsConfig()
@@ -535,7 +535,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         # Connections left open (as a result of a test failure)
         # can result in cascading errors.  We also make sure
         # self.conn is on the list of active connections.
-        if not self.conn in self._connections:
+        if self.conn not in self._connections:
             self._connections.append(self.conn)
         for conn in self._connections:
             try:

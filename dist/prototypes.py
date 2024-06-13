@@ -19,7 +19,7 @@ def clean_function_name(filename, fn):
     ret = ret.replace("\n", " ", 1)
 
     # If there's no CPP syntax, join everything.
-    if not '#endif' in ret:
+    if '#endif' not in ret:
         ret = " ".join(ret.split())
 
     # If it's not an inline function, prefix with "extern".

@@ -265,7 +265,7 @@ def evg_cfg(action, test_type):
     #   - 'ssh://git@github.com/wiredtiger/wiredtiger.git' (if run through SSH)
     #   - 'git://github.com/wiredtiger/wiredtiger' (if cloned anonymously)
     output = run('git config remote.origin.url')
-    if not 'github.com' in output or not 'wiredtiger/wiredtiger' in output:
+    if 'github.com' not in output or 'wiredtiger/wiredtiger' not in output:
         sys.exit(("ERROR [{prog}]: need to run this script inside a wiredtiger repo\n" +
         "\t`git config remote.origin.url` returned \"{output}\""
         ).format(prog=prog, output=output))

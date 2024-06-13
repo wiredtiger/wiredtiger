@@ -153,7 +153,7 @@ def getColorForFunction(function):
     global lastColorUsed
     global funcToColor
 
-    if not function in funcToColor:
+    if function not in funcToColor:
         funcToColor[function] = colorList[lastColorUsed % len(colorList)]
         lastColorUsed += 1
 
@@ -959,7 +959,7 @@ def processFile(fname, dumpCleanDataBool):
         funcDF = iDF.loc[lambda iDF: iDF.function == func, :]
         funcDF = funcDF.drop(columns = ['function'])
 
-        if not func in perFuncDF:
+        if func not in perFuncDF:
             perFuncDF[func] = funcDF
         else:
             perFuncDF[func] = pd.concat([perFuncDF[func], funcDF])

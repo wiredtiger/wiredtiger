@@ -250,9 +250,9 @@ class test_join07(wttest.WiredTigerTestCase):
 
             # Duplicates may be returned when the disjunctions are used,
             # so we ignore them.
-            if not i in gotkeys:
+            if i not in gotkeys:
                 self.assertEquals(self.gen_values(i), values)
-                if not i in mbr:
+                if i not in mbr:
                     self.tty('ERROR: result ' + str(i) + ' is not in: ' +
                              str(mbr))
                     self.assertTrue(i in mbr)

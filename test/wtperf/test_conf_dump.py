@@ -214,7 +214,7 @@ def run_test(conf_file, option_C = "", option_T = "", option_o = ""):
         match_itr = True
 
         # Check if we see this config key in the dumped file
-        if not key in key_val_dict_op:
+        if key not in key_val_dict_op:
             print("Key '" + key + "' not found in dumped file " + OP_FILE)
             match = match_itr = False
             continue

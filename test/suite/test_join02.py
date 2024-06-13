@@ -148,7 +148,7 @@ class test_join02(wttest.WiredTigerTestCase):
             #self.tty('  iteration got values: ' + str([v0,v1,v2,v3,v4]))
             #self.tty('  iteration expects values: ' + str(self.gen_values(i)))
             self.assertEquals(self.gen_values(i), [v0,v1,v2,v3,v4])
-            if not i in mbr:
+            if i not in mbr:
                 self.tty('  result ' + str(i) + ' is not in: ' + str(mbr))
             self.assertTrue(i in mbr)
             mbr.remove(i)

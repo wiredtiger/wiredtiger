@@ -48,7 +48,7 @@ class KeyNumber:
         self.numbering = dict()
 
     def add(self, name):
-        if not name in self.numbering:
+        if name not in self.numbering:
             self.numbering[name] = len(self.numbering)
 
     def get(self, name):
@@ -200,7 +200,7 @@ def getcompstr(c, keynumber):
 
         for raw_choice in choices:
             choice = gen_choice_name(raw_choice)
-            if not choice in choices_values:
+            if choice not in choices_values:
                 tfile.write('const char __WT_CONFIG_CHOICE_{}[] = "{}";\n'.format(
                     choice, raw_choice))
                 choices_values.add(choice)
@@ -279,7 +279,7 @@ def add_keys(keynumber, configs, prefix):
         ty = gettype(c)
         idname = gen_id_name(c.name, ty)
         keynumber.add(idname)
-        if not c.name in config_key:
+        if c.name not in config_key:
             config_names[c.name] = c.name
         config_long_names[prefix + c.name] = -1
         if ty == 'category':

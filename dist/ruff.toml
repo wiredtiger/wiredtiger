@@ -11,7 +11,6 @@ ignore = [
     "E701", # multiple-statements-on-one-line-colon
     "E711", # none-comparison
     "E712", # true-false-comparison
-    "E713", # not-in-test
     "E721", # type-comparison
     "E722", # bare-except
     "E731", # lambda-assignment

@@ -36,7 +36,7 @@ def validate_tag(tag, filename):
 
     # Walk the pieces of the tag and ensure they exist in test_tags.ok.
     for sub_tag in split_tag:
-        if not sub_tag in valid_tags:
+        if sub_tag not in valid_tags:
             print(
                 "Invalid sub tag found: " + sub_tag + " in tag: " + tag + " filename: " + filename)
             exit(1)

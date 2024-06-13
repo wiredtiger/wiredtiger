@@ -313,7 +313,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         # There's a race condition with multiple threads,
         # but we won't worry about it.  We err on the side
         # of printing the message too many times.
-        if not msg in AbstractWiredTigerTestCase._printOnceSeen:
+        if msg not in AbstractWiredTigerTestCase._printOnceSeen:
             AbstractWiredTigerTestCase._printOnceSeen[msg] = msg
             AbstractWiredTigerTestCase.prout(msg)
 
