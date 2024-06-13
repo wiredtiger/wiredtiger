@@ -140,6 +140,7 @@ struct Stats {
     Track rts;
     Track truncate;
     Track update;
+    Track verify;
 
     Stats(bool latency = false);
     Stats(const Stats &other);
@@ -293,7 +294,7 @@ struct Value {
 struct Operation {
     enum OpType {
 	OP_CHECKPOINT, OP_INSERT, OP_LOG_FLUSH, OP_NONE, OP_NOOP,
-	OP_REMOVE, OP_SEARCH, OP_SLEEP, OP_UPDATE, OP_RTS };
+	OP_REMOVE, OP_SEARCH, OP_SLEEP, OP_UPDATE, OP_RTS , OP_VERIFY };
     OpType _optype;
     OperationInternal *_internal;
 

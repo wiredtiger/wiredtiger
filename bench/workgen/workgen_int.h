@@ -313,6 +313,12 @@ struct SleepOperationInternal : OperationInternal {
     virtual uint64_t sync_time_us() const;
 };
 
+struct VerifyOperationInternal : OperationInternal {
+    VerifyOperationInternal() : OperationInternal() {}
+    VerifyOperationInternal(const VerifyOperationInternal &other) : OperationInternal(other) {}
+    virtual int run(ThreadRunner *runner, WT_SESSION *session, const std::string &uri);
+};
+
 struct TableInternal {
     tint_t _tint;
     uint32_t _context_count;

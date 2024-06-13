@@ -1789,6 +1789,9 @@ ThreadRunner::op_run(Operation *op)
         break;
     case Operation::OP_SLEEP:
         break;
+    case Operation::OP_VERIFY:
+        track = &_stats.verify;
+        break;
     }
 
     if (op->_random_table || ((op->_internal->_flags & WORKGEN_OP_REOPEN) != 0)) {
@@ -2303,6 +2306,12 @@ Operation::init_internal(OperationInternal *other)
         else
             _internal = new RTSOperationInternal(*static_cast<RTSOperationInternal *>(other));
         break;
+    case OP_VERIFY:
+        if (other == nullptr)
+            _internal = new VerifyOperationInternal();
+        else
+            _internal = new VerifyOperationInternal(*static_cast<VerifyOperationInternal *>(other));
+        break;
     default:
         ASSERT(false);
     }
@@ -2385,6 +2394,8 @@ Operation::get_static_counts(Stats &stats, int multiplier)
         stats.checkpoint.ops += multiplier;
     else if (_optype == OP_RTS)
         stats.rts.ops += multiplier;
+    else if (_optype == OP_VERIFY)
+        stats.verify.ops += multiplier;
 
     if (_group != nullptr)
         for (std::vector<Operation>::iterator i = _group->begin(); i != _group->end(); i++)
@@ -2595,6 +2606,13 @@ SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
         now_us = ns_to_us(now);
     }
     return (0);
+}
+
+int
+VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session, const std::string &uri)
+{
+    (void)runner; /* not used */
+    return (session->verify(session, uri.c_str(), nullptr));
 }
 
 uint64_t
@@ -2900,14 +2918,14 @@ Track::_get_sec(long *result)
 
 Stats::Stats(bool latency)
     : checkpoint(latency), insert(latency), not_found(latency), read(latency), remove(latency),
-      rts(latency), update(latency), truncate(latency)
+      rts(latency), update(latency), truncate(latency), verify(latency)
 {
 }
 
 Stats::Stats(const Stats &other)
     : checkpoint(other.checkpoint), insert(other.insert), not_found(other.not_found),
       read(other.read), remove(other.remove), rts(other.rts), update(other.update),
-      truncate(other.truncate)
+      truncate(other.truncate), verify(other.verify)
 {
 }
 
@@ -2922,6 +2940,7 @@ Stats::add(Stats &other, bool reset)
     rts.add(other.rts, reset);
     update.add(other.update, reset);
     truncate.add(other.truncate, reset);
+    verify.add(other.verify, reset);
 }
 
 void
@@ -2935,6 +2954,7 @@ Stats::assign(const Stats &other)
     rts.assign(other.rts);
     update.assign(other.update);
     truncate.assign(other.truncate);
+    verify.assign(other.verify);
 }
 
 void
@@ -2948,6 +2968,7 @@ Stats::clear()
     rts.clear();
     update.clear();
     truncate.clear();
+    verify.clear();
 }
 
 void
@@ -2963,6 +2984,7 @@ Stats::describe(std::ostream &os) const
     os << ", removes " << remove.ops;
     os << ", RTSes " << rts.ops;
     os << ", checkpoints " << checkpoint.ops;
+    os << ", verifies " << verify.ops;
 }
 
 void
@@ -2977,6 +2999,7 @@ Stats::final_report(std::ostream &os, timespec &totalsecs) const
     ops += truncate.ops;
     ops += remove.ops;
     ops += rts.ops;
+    ops += verify.ops;
 
 #define FINAL_OUTPUT(os, field, singular, ops, totalsecs)                                   \
     os << "Executed " << field << " " #singular " operations (" << PCT(field, ops) << "%) " \
@@ -2990,6 +3013,7 @@ Stats::final_report(std::ostream &os, timespec &totalsecs) const
     FINAL_OUTPUT(os, remove.ops, remove, ops, totalsecs);
     FINAL_OUTPUT(os, checkpoint.ops, checkpoint, ops, totalsecs);
     FINAL_OUTPUT(os, rts.ops, checkpoint, ops, totalsecs);
+    FINAL_OUTPUT(os, verify.ops, verify, ops, totalsecs);
 }
 
 void
@@ -3005,6 +3029,7 @@ Stats::report(std::ostream &os) const
     os << remove.ops << " removes, ";
     os << rts.ops << " RTSes, ";
     os << checkpoint.ops << " checkpoints";
+    os << verify.ops << " verifies";
 }
 
 void
@@ -3018,6 +3043,7 @@ Stats::subtract(const Stats &other)
     rts.subtract(other.truncate);
     update.subtract(other.update);
     truncate.subtract(other.truncate);
+    verify.subtract(other.verify);
 }
 
 void
@@ -3031,6 +3057,7 @@ Stats::track_latency(bool latency)
     rts.track_latency(latency);
     update.track_latency(latency);
     truncate.track_latency(latency);
+    verify.track_latency(latency);
 }
 
 TableOptions::TableOptions()
