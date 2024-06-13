@@ -152,7 +152,7 @@ def function_declaration():
                     if re.search('^{$', line):
                         list = [[] for i in range(len(types))]
                         static_list = [[] for i in range(len(types))]
-                        tracking = True;
+                        tracking = True
                     continue
 
                 found,n = function_args(name, line)
@@ -169,7 +169,7 @@ def function_declaration():
                     if re.search(r"\s=\s[-\w]", line):
                         print(name + ": assignment in string: " + line.strip(),\
                               file=sys.stderr)
-                        sys.exit(1);
+                        sys.exit(1)
 
                     list[n].append(line)
                 else:

@@ -31,7 +31,7 @@ def validate_tag(tag, filename):
     split_tag = tag.split(":")
     # Ensure the array isn't too long.
     if (len(split_tag) > 3):
-        print("Tag contains too many sub tags: " + tag + " filename: " + filename);
+        print("Tag contains too many sub tags: " + tag + " filename: " + filename)
         exit(1)
 
     # Walk the pieces of the tag and ensure they exist in test_tags.ok.

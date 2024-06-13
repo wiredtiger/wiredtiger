@@ -378,7 +378,7 @@ def checkstr(c):
     checks = c.flags
     cfunc = str(checks.get('func', ''))
     if not cfunc:
-        cfunc = 'NULL';
+        cfunc = 'NULL'
     cmin = str(checks.get('min', ''))
     cmax = str(checks.get('max', ''))
     choices = checks.get('choices', [])

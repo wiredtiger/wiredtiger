@@ -9,7 +9,6 @@ ignore = [
     "E401", # multiple-imports-on-one-line
     "E402", # module-import-not-at-top-of-file
     "E701", # multiple-statements-on-one-line-colon
-    "E703", # useless-semicolon
     "E711", # none-comparison
     "E712", # true-false-comparison
     "E713", # not-in-test

@@ -268,7 +268,7 @@ __wt_stat_''' + name + '''_aggregate(
         for l in statlist:
             if 'max_aggregate' in l.flags:
                 f.write('\tint64_t v;\n\n')
-                break;
+                break
         for l in statlist:
             if 'max_aggregate' in l.flags:
                 o = '\tif ((v = WT_STAT_' + capname + '_READ(from, ' + l.name + ')) > ' +\
