@@ -939,6 +939,7 @@ __wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message, WT_I
     addr_str = NULL;
     page = ref->page;
 
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (root_addr)
         addr_str = (char *)root_addr->data;
 
@@ -955,4 +956,6 @@ __wt_page_trace(WT_SESSION_IMPL *session, WT_REF *ref, const char *message, WT_I
       WT_PAGE_IS_INTERNAL(page) ? "intl" : "leaf", page->read_gen, (void *)ref->home);
     if (tmp != NULL)
         __wt_scr_free(session, &tmp);
+
+    WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
 }

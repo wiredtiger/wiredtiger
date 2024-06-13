@@ -3,9 +3,9 @@ pareto=20
 table_config="type=file"
 key_sz=100
 value_sz=1024
-icount=6000000
+# 6.5GB icount=6000000
 #icount=120000000
-#13 GB: icount=12000000
+icount=12000000 #13GB
 run_time=10
 threads=((count=20,reads=1))
 #warmup=120
