@@ -66,11 +66,6 @@ struct __wt_config_entry {
     bool compilable;
 };
 
-#define WT_CONFIG_DEBUG(session, debug_flag, category, fmt, ...) \
-    if (FLD_ISSET(S2C(session)->debug_flags, debug_flag)){ \
-      __wt_verbose_warning(session, category, fmt, __VA_ARGS__); \
-    } \
-
 struct __wt_config_parser_impl {
     WT_CONFIG_PARSER iface;
 
