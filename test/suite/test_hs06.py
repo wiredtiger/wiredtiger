@@ -97,7 +97,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check the checkpoint wrote the expected values. We should get the stable data by
-        # default. 
+        # default.
         cursor2 = self.session.open_cursor(uri, None, 'checkpoint=WiredTigerCheckpoint')
         for key, value in cursor2:
             self.assertEqual(value, value1)
@@ -587,6 +587,3 @@ class test_hs06(wttest.WiredTigerTestCase):
         for i in range(1, 11):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
-
-if __name__ == '__main__':
-    wttest.run()

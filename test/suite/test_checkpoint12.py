@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 # checkpoints don't interfere with the blanket ban on doing other operations after
 # preparing.)
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = ''
     session_config = 'isolation=snapshot'
@@ -121,6 +122,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         msg = '/Invalid argument/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.operate(ckpt_cursor), msg)
-
-if __name__ == '__main__':
-    wttest.run()

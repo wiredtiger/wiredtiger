@@ -12,7 +12,7 @@
  * __key_return --
  *     Change the cursor to reference an internal return key.
  */
-static inline int
+static WT_INLINE int
 __key_return(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
@@ -76,11 +76,11 @@ __read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, W
 }
 
 /*
- * __wt_read_row_time_window --
+ * __wti_read_row_time_window --
  *     Retrieve the time window from a row.
  */
 void
-__wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw)
+__wti_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw)
 {
     WT_CELL_UNPACK_KV unpack;
 
@@ -98,12 +98,11 @@ __wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
 }
 
 /*
- * __wt_col_fix_get_time_window --
+ * __col_fix_get_time_window --
  *     Look for a time window on a fixed-length column page.
  */
 static bool
-__wt_col_fix_get_time_window(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw)
+__col_fix_get_time_window(WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
@@ -173,7 +172,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
     case WT_PAGE_ROW_LEAF:
         if (page->pg_row == NULL)
             return (false);
-        __wt_read_row_time_window(session, page, &page->pg_row[cbt->slot], tw);
+        __wti_read_row_time_window(session, page, &page->pg_row[cbt->slot], tw);
         break;
     case WT_PAGE_COL_VAR:
         if (page->pg_var == NULL)
@@ -181,7 +180,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
         __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
         break;
     case WT_PAGE_COL_FIX:
-        return (__wt_col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));
+        return (__col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));
     }
     return (true);
 }
@@ -191,7 +190,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
  *     Helper function to copy the time window and set a buffer to reference the data from an
  *     unpacked key value cell. Return WT_RESTART if the cell is an overflow removed value.
  */
-static inline int
+static WT_INLINE int
 __read_page_cell_data_ref_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *unpack,
   WT_ITEM *buf, WT_TIME_WINDOW *tw)
 {
@@ -199,7 +198,7 @@ __read_page_cell_data_ref_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UN
         WT_TIME_WINDOW_COPY(tw, &unpack->tw);
     WT_RET(__wt_page_cell_data_ref_kv(session, page, unpack, buf));
     if (unpack->cell != NULL && __wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM) {
-        WT_STAT_CONN_DATA_INCR(session, txn_read_overflow_remove);
+        WT_STAT_CONN_DSRC_INCR(session, txn_read_overflow_remove);
         return (WT_RESTART);
     }
     return (0);
@@ -257,7 +256,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
     case WT_PAGE_COL_FIX:
         /* Take the value from the original page. */
         if (tw != NULL) {
-            found = __wt_col_fix_get_time_window(session, ref, cbt->recno, tw);
+            found = __col_fix_get_time_window(session, ref, cbt->recno, tw);
             if (!found)
                 WT_TIME_WINDOW_INIT(tw);
         }

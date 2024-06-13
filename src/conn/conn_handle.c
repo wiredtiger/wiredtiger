@@ -9,26 +9,29 @@
 #include "wt_internal.h"
 
 /*
- * __wt_connection_init --
+ * __wti_connection_init --
  *     Structure initialization for a just-created WT_CONNECTION_IMPL handle.
  */
 int
-__wt_connection_init(WT_CONNECTION_IMPL *conn)
+__wti_connection_init(WT_CONNECTION_IMPL *conn)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = conn->default_session;
 
-    TAILQ_INIT(&conn->dhqh);         /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);        /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);       /* Data source list */
-    TAILQ_INIT(&conn->fhqh);         /* File list */
-    TAILQ_INIT(&conn->collqh);       /* Collator list */
-    TAILQ_INIT(&conn->compqh);       /* Compressor list */
-    TAILQ_INIT(&conn->encryptqh);    /* Encryptor list */
-    TAILQ_INIT(&conn->extractorqh);  /* Extractor list */
-    TAILQ_INIT(&conn->storagesrcqh); /* Storage source list */
-    TAILQ_INIT(&conn->tieredqh);     /* Tiered work unit list */
+    TAILQ_INIT(&conn->chunkcache_metadataqh); /* Chunk cache metadata work unit list */
+    TAILQ_INIT(&conn->dhqh);                  /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);                 /* Library list */
+    TAILQ_INIT(&conn->dsrcqh);                /* Data source list */
+    TAILQ_INIT(&conn->fhqh);                  /* File list */
+    TAILQ_INIT(&conn->collqh);                /* Collator list */
+    TAILQ_INIT(&conn->compqh);                /* Compressor list */
+    TAILQ_INIT(&conn->encryptqh);             /* Encryptor list */
+    TAILQ_INIT(&conn->extractorqh);           /* Extractor list */
+    TAILQ_INIT(&conn->storagesrcqh);          /* Storage source list */
+    TAILQ_INIT(&conn->tieredqh);              /* Tiered work unit list */
+    TAILQ_INIT(&conn->pfqh);                  /* Pre-fetch reference list */
 
     TAILQ_INIT(&conn->lsmqh); /* WT_LSM_TREE list */
 
@@ -50,6 +53,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->api_lock, "api"));
     WT_SPIN_INIT_TRACKED(session, &conn->checkpoint_lock, checkpoint);
     WT_RET(__wt_spin_init(session, &conn->background_compact.lock, "background compact"));
+    WT_RET(__wt_spin_init(session, &conn->chunkcache_metadata_lock, "chunk cache metadata"));
     WT_RET(__wt_spin_init(session, &conn->encryptor_lock, "encryptor"));
     WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &conn->flush_tier_lock, "flush tier"));
@@ -59,6 +63,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
     WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
+    WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
 
     /* Read-write locks */
     WT_RET(__wt_rwlock_init(session, &conn->debug_log_retention_lock));
@@ -84,16 +89,18 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 
     conn->ckpt_prep_min = UINT64_MAX;
     conn->ckpt_time_min = UINT64_MAX;
+    conn->ckpt_scrub_min = UINT64_MAX;
 
-    return (0);
+err:
+    return (ret);
 }
 
 /*
- * __wt_connection_destroy --
+ * __wti_connection_destroy --
  *     Destroy the connection's underlying WT_CONNECTION_IMPL structure.
  */
 void
-__wt_connection_destroy(WT_CONNECTION_IMPL *conn)
+__wti_connection_destroy(WT_CONNECTION_IMPL *conn)
 {
     WT_SESSION_IMPL *session;
 
@@ -117,6 +124,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->background_compact.lock);
     __wt_spin_destroy(session, &conn->block_lock);
     __wt_spin_destroy(session, &conn->checkpoint_lock);
+    __wt_spin_destroy(session, &conn->chunkcache_metadata_lock);
     __wt_rwlock_destroy(session, &conn->debug_log_retention_lock);
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
     __wt_spin_destroy(session, &conn->encryptor_lock);
@@ -130,6 +138,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
+    __wt_spin_destroy(session, &conn->prefetch_lock);
 
     /* Free LSM serialization resources. */
     __wt_spin_destroy(session, &conn->lsm_manager.switch_lock);
@@ -151,7 +160,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_free(session, conn->debug_ckpt);
     __wt_free(session, conn->error_prefix);
     __wt_free(session, conn->home);
-    __wt_free(session, conn->sessions);
+    __wt_free(session, WT_CONN_SESSIONS_GET(conn));
     __wt_stat_connection_discard(session, conn);
 
     __wt_free(NULL, conn);

@@ -9,24 +9,26 @@
 #include "wt_internal.h"
 
 /*
- * __wt_rts_visibility_has_stable_update --
+ * __wti_rts_visibility_has_stable_update --
  *     Check if an update chain has a stable update on it. Assume the update chain has already been
  *     processed so all we need to do is look for a valid, non-aborted entry.
  */
 bool
-__wt_rts_visibility_has_stable_update(WT_UPDATE *upd)
+__wti_rts_visibility_has_stable_update(WT_UPDATE *upd)
 {
-    while (upd != NULL && (upd->type == WT_UPDATE_INVALID || upd->txnid == WT_TXN_ABORTED))
+    while (upd != NULL &&
+      (upd->type == WT_UPDATE_INVALID || upd->txnid == WT_TXN_ABORTED ||
+        F_ISSET(upd, WT_UPDATE_RTS_DRYRUN_ABORT)))
         upd = upd->next;
     return (upd != NULL);
 }
 
 /*
- * __wt_rts_visibility_txn_visible_id --
+ * __wti_rts_visibility_txn_visible_id --
  *     Check if the transaction id is visible or not.
  */
 bool
-__wt_rts_visibility_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
+__wti_rts_visibility_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -66,18 +68,19 @@ __rts_visibility_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME
 }
 
 /*
- * __wt_rts_visibility_page_needs_abort --
+ * __wti_rts_visibility_page_needs_abort --
  *     Check whether the page needs rollback, returning true if the page has modifications newer
  *     than the given timestamp.
  */
 bool
-__wt_rts_visibility_page_needs_abort(
+__wti_rts_visibility_page_needs_abort(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK_ADDR vpack;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    WT_TIME_AGGREGATE *ta;
     wt_timestamp_t durable_ts;
     uint64_t newest_txn;
     uint32_t i;
@@ -132,9 +135,11 @@ __wt_rts_visibility_page_needs_abort(
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
-        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, &vpack.ta);
-        prepared = vpack.ta.prepare;
-        newest_txn = vpack.ta.newest_txn;
+        /* Retrieve the time aggregate from the unpacked address cell. */
+        __wt_cell_get_ta(&vpack, &ta);
+        durable_ts = __rts_visibility_get_ref_max_durable_timestamp(session, ta);
+        prepared = ta->prepare;
+        newest_txn = ta->newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (addr != NULL) {

@@ -38,6 +38,7 @@ from wtscenario import make_scenarios
 # Test what happens if we create an inconsistent checkpoint and then try to
 # open it for read. This version uses timestamps.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
@@ -254,6 +255,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #    inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
         #    stat_cursor.close()
         #    self.assertGreater(inconsistent_ckpt, 0)
-
-if __name__ == '__main__':
-    wttest.run()

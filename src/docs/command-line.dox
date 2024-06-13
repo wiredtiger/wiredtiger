@@ -412,18 +412,6 @@ The \c read command exits non-zero if a specified record is not found.
 The \c read command has no command-specific options.
 
 <hr>
-@section util_rename wt rename
-Rename a table.
-
-The \c rename command renames the specified table.
-
-@subsection util_rename_synopsis Synopsis
-`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] rename uri new-uri`
-
-@subsection util_rename_options Options
-The \c rename command has no command-specific options.
-
-<hr>
 @section util_salvage wt salvage
 Recover data from a corrupted table.
 
@@ -473,20 +461,6 @@ call to WT_SESSION::truncate with no start or stop specified.
 The \c truncate command has no command-specific options.
 
 <hr>
-@section util_upgrade wt upgrade
-Upgrade a table.
-
-The \c upgrade command upgrades the specified table, exiting success if
-the data source is up-to-date, and failure if the data source cannot be
-upgraded.
-
-@subsection util_upgrade_synopsis Synopsis
-`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] upgrade uri`
-
-@subsection util_upgrade_options Options
-The \c upgrade command has no command-specific options.
-
-<hr>
 @section util_verify wt verify
 Check the structural integrity of a table.
 
@@ -498,12 +472,12 @@ process if one of the tables is damaged. Currently, the verify operation is not 
 tiered tables and the history store file.
 
 @subsection util_verify_synopsis Synopsis
-`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] verify [-acstu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [uri]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] verify [-acSstu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [uri]`
 
 @subsection util_verify_options Options
 The following are command-specific options for the \c verify command:
 
-\a -a
+\c -a
 Abort immediately if verify encounters a damaged table instead of continuing to
 verify the rest of the tables in the database.
 
@@ -513,6 +487,13 @@ Continue to the next page after encountering error during verification.
 \c -d [config]
 This option allows you to specify values which you want to be displayed
 when verification is run. See the WT_SESSION::verify configuration options.
+
+\c -k
+Display only the \c key data when dumping with configuration \c dump_blocks
+or \c dump_page.
+
+\c -S
+This option enables strict mode and treats any verification problem as an error.
 
 \c -s
 This option allows you to verify against the stable timestamp, valid only after a

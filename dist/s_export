@@ -1,13 +1,14 @@
-#! /bin/sh
+#!/bin/bash
 
 # Check for illegal external symbols.
 #
-t=__wt.$$
-trap 'rm -f $t' 0 1 2 3 13 15
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_dist
 
 case `uname` in
 Darwin)
-    NM='nm -gUo $f | egrep " T | D " | sed "s/ _/ /"'
+    NM='nm -gUo $f | grep -E " T | D " | sed "s/ _/ /"'
     ;;
 *)
     # We require GNU nm, which may not be installed.
@@ -16,7 +17,7 @@ Darwin)
         echo "$0 skipped: GNU nm not found"
         exit 0
     }
-    NM='nm --extern-only --defined-only --print-file-name $f | egrep -v "__bss_start|_edata|_end|_fini|_init"'
+    NM='nm --extern-only --defined-only --print-file-name $f | grep -E -v "__bss_start|_edata|_end|_fini|_init"'
     ;;
 esac
 
@@ -27,13 +28,13 @@ check()
     sed 's/.* //' |
     # Functions beginning with __ut are intentionally exposed to support unit testing when
     # Wiredtiger is compiled with HAVE_UNITTEST=1.
-    egrep -v '^__ut' |
+    grep -E -v '^__ut' |
     # MSan injected symbol present when origin tracking is enabled.
-    egrep -v '^__msan_track_origins' |
-    egrep -v '^__wt') |
+    grep -E -v '^__msan_track_origins' |
+    grep -E -vi '^__wt') |
     sort |
     uniq -u |
-    egrep -v \
+    grep -E -v \
         'lz4_extension_init|snappy_extension_init|zlib_extension_init|zstd_extension_init' > $t
 
     test -s $t && {

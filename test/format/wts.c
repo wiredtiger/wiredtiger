@@ -314,7 +314,7 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 
 /*
  * configure_chunkcache --
- *     Configure chunkcache settings for opening a connection.
+ *     Configure chunk cache settings for opening a connection.
  */
 static void
 configure_chunkcache(char **p, size_t max)
@@ -334,6 +334,18 @@ configure_chunkcache(char **p, size_t max)
           GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
           chunkcache_ext_cfg);
     }
+}
+
+/*
+ * configure_prefetch --
+ *     Configure prefetch settings for opening a connection. When enabled, this allows sessions to
+ *     use the prefetch feature.
+ */
+static void
+configure_prefetch(char **p, size_t max)
+{
+    if (GV(PREFETCH))
+        CONFIG_APPEND(*p, ",prefetch=(available=true,default=false)");
 }
 
 /*
@@ -440,8 +452,11 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional tiered storage. */
     configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
-    /* Optional chunkcache. */
+    /* Optional chunk cache. */
     configure_chunkcache(&p, max);
+
+    /* Optional prefetch. */
+    configure_prefetch(&p, max);
 
 #define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
@@ -529,8 +544,6 @@ create_object(TABLE *table, void *arg)
             CONFIG_APPEND(p, ",collator=reverse");
     /* FALLTHROUGH */
     case VAR:
-        if (TV(BTREE_HUFFMAN_VALUE))
-            CONFIG_APPEND(p, ",huffman_value=english");
         if (TV(BTREE_DICTIONARY))
             CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(&g.extra_rnd, 123, 517));
         break;
@@ -583,7 +596,7 @@ create_object(TABLE *table, void *arg)
      * Create the underlying store.
      */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     testutil_checkfmt(session->create(session, table->uri, config), "%s", table->uri);
     wt_wrap_close_session(session);
 }
@@ -652,6 +665,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
+
+    /* Optional prefetch. */
+    configure_prefetch(&p, max);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
@@ -775,7 +791,7 @@ wts_stats(void)
     testutil_assert(fprintf(fp, "====== Connection statistics:\n") >= 0);
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     stats_data_print(session, "statistics:", fp);
 
     args.fp = fp;

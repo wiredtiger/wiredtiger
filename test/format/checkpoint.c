@@ -75,7 +75,7 @@ checkpoint(void *arg)
     counter = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
 
     named_checkpoints = !g.lsm_config;
     /* FIXME-WT-10771 Named checkpoints are not yet allowed with tiered storage. */
@@ -158,11 +158,11 @@ checkpoint(void *arg)
             lock_writeunlock(session, &g.backup_lock);
 
         /* Verify the checkpoints. */
-        wts_verify_checkpoint(conn, ckpt_vrfy_name);
+        wts_verify_mirrors(conn, ckpt_vrfy_name, NULL);
 
         secs = mmrand(&g.extra_rnd, 5, 40);
     }
 
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     return (WT_THREAD_RET_VALUE);
 }

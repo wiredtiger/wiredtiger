@@ -27,16 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_compact05.py
-#   Test compaction through the background compaction server.
+#   Test if foreground compaction proceeds depending on the free_space_target field.
 #
 
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
+from compact_util import compact_util
 
-# Test if compaction proceeds depending on the free_space_target field used by the background
-# compaction server.
-class test_compact05(wttest.WiredTigerTestCase):
+class test_compact05(compact_util):
 
     free_space_target = [
         # The threshold is smaller than the number of available bytes, compaction should proceed.
@@ -57,7 +56,6 @@ class test_compact05(wttest.WiredTigerTestCase):
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4
-    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
 
     # Create the table in a way that it creates a mostly empty file.
     def test_compact05(self):
@@ -68,10 +66,7 @@ class test_compact05(wttest.WiredTigerTestCase):
 
         # Create the table and populate it with a lot of data.
         self.session.create(self.table_uri, self.create_params)
-        c = self.session.open_cursor(self.table_uri, None)
-        for k in range(self.table_numkv):
-            c[k] = ('%07d' % k) + '_' + 'abcd' * ((self.value_size // 4) - 2)
-        c.close()
+        self.populate(self.table_uri, 0, self.table_numkv)
         self.session.checkpoint()
 
         # Now let's delete a lot of data ranges. Create enough space so that compact runs in more
@@ -107,6 +102,3 @@ class test_compact05(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(pages_rewritten, 0)
             self.assertEqual(pages_rewritten_expected, 0)
-
-if __name__ == '__main__':
-    wttest.run()

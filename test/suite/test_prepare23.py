@@ -124,8 +124,5 @@ class test_prepare23(wttest.WiredTigerTestCase):
                     cursor.set_key(i)
                     self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
                 self.session.rollback_transaction()
-            
-            ts += 40
 
-if __name__ == '__main__':
-    wttest.run()
+            ts += 40

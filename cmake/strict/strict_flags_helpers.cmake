@@ -39,6 +39,9 @@ function(get_gnu_base_flags flags)
     list(APPEND gnu_flags "-Winit-self")
     list(APPEND gnu_flags "-Wmissing-declarations")
     list(APPEND gnu_flags "-Wmissing-field-initializers")
+    # FIXME-WT-11788: Remove the following flag once the violation of the standard C11 7.1.3 has
+    # been addressed.
+    list(APPEND gnu_flags "-Wno-reserved-identifier")
     list(APPEND gnu_flags "-Wpacked")
     list(APPEND gnu_flags "-Wpointer-arith")
     list(APPEND gnu_flags "-Wredundant-decls")
@@ -65,7 +68,7 @@ function(get_gnu_base_flags flags)
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 6)
         list(APPEND gnu_flags "-Wduplicated-cond")
         list(APPEND gnu_flags "-Wlogical-op")
-        list(APPEND gnu_flags "-Wunused-const-variable=2")
+        list(APPEND gnu_flags "-Wunused-const-variable=1")
     endif()
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 7)
         list(APPEND gnu_flags "-Walloca")
@@ -121,6 +124,10 @@ function(get_clang_base_flags flags)
     list(APPEND clang_flags "-Wno-packed")
     list(APPEND clang_flags "-Wno-padded")
     list(APPEND clang_flags "-Wno-reserved-id-macro")
+    # FIXME-WT-11788: Remove the following flag once the violation of the standard C11 7.1.3 has
+    # been addressed.
+    list(APPEND clang_flags "-Wno-reserved-identifier")
+    list(APPEND clang_flags "-Wno-unsafe-buffer-usage")
     list(APPEND clang_flags "-Wno-zero-length-array")
 
     # We should turn on cast-qual, but not as a fatal error: see WT-2690.
@@ -161,12 +168,12 @@ function(get_clang_base_flags flags)
         list(APPEND clang_flags "-Wno-unused-command-line-argument")
     endif()
 
-    # FIXME-WT-8052: Figure out whether we want to disable these or change the code.
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 10)
         # Clang 10+ has added additional on-by-default diagnostics that isn't
         # compatible with some of the code patterns in WiredTiger.
         list(APPEND clang_flags "-Wno-implicit-fallthrough")
         list(APPEND clang_flags "-Wno-implicit-int-float-conversion")
+        list(APPEND clang_flags "-Wno-maybe-uninitialized")
     endif()
 
     set(${flags} ${clang_flags} PARENT_SCOPE)

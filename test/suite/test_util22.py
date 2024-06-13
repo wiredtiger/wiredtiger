@@ -38,8 +38,7 @@ class test_util22(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Skip 'copyright', which does not process options
     commands = ['alter', 'backup', 'compact', 'create', 'downgrade', 'drop', 'dump', 'list', 'load',
-                'loadtext', 'printlog', 'read', 'rename', 'salvage', 'stat', 'truncate', 'upgrade',
-                'verify', 'write']
+                'loadtext', 'printlog', 'read', 'salvage', 'stat', 'truncate', 'verify', 'write']
 
     def test_help_option(self):
         errfilename = "errfile.txt"
@@ -71,6 +70,3 @@ class test_util22(wttest.WiredTigerTestCase, suite_subprocess):
             self.runWt([cmd, '-^'], errfilename=errfilename, failure=True)
             self.check_file_contains(errfilename, 'wt: illegal option -- ^')
             self.check_file_contains(errfilename, 'options:')
-
-if __name__ == '__main__':
-    wttest.run()

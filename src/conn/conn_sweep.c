@@ -8,9 +8,10 @@
 
 #include "wt_internal.h"
 
-#define WT_DHANDLE_CAN_DISCARD(dhandle)                                                            \
-    (!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) && (dhandle)->session_inuse == 0 && \
-      (dhandle)->references == 0)
+#define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
+    (!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) && \
+      __wt_atomic_loadi32(&(dhandle)->session_inuse) == 0 &&      \
+      __wt_atomic_load32(&(dhandle)->references) == 0)
 
 /*
  * __sweep_mark --
@@ -33,15 +34,15 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
          * handles alive because of those cases, but if we see multiple cursors open, clear the time
          * of death.
          */
-        if (dhandle->session_inuse > 1)
+        if (__wt_atomic_loadi32(&dhandle->session_inuse) > 1)
             dhandle->timeofdeath = 0;
 
         /*
          * If the handle is open exclusive or currently in use, or the time of death is already set,
          * move on.
          */
-        if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) || dhandle->session_inuse > 0 ||
-          dhandle->timeofdeath != 0)
+        if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
+          __wt_atomic_loadi32(&dhandle->session_inuse) > 0 || dhandle->timeofdeath != 0)
             continue;
 
         /*
@@ -82,7 +83,7 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
      * For btree handles, closing the handle decrements the open file count, meaning the close loop
      * won't overrun the configured minimum.
      */
-    return (__wt_conn_dhandle_close(session, false, true));
+    return (__wt_conn_dhandle_close(session, false, true, false));
 }
 
 /*
@@ -129,18 +130,18 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         /*
          * Ignore open files once the btree file count is below the minimum number of handles.
          */
-        if (conn->open_btree_count < conn->sweep_handles_min)
+        if (__wt_atomic_load32(&conn->open_btree_count) < conn->sweep_handles_min)
             break;
 
         if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          dhandle->session_inuse != 0 || dhandle->timeofdeath == 0 ||
+          __wt_atomic_loadi32(&dhandle->session_inuse) != 0 || dhandle->timeofdeath == 0 ||
           now - dhandle->timeofdeath <= conn->sweep_idle_time)
             continue;
 
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
          */
-        if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(
               session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session)));
         else
@@ -174,7 +175,8 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
             continue;
 
         /* If the handle is marked dead, flush it from cache. */
-        WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_close(session, false, false));
+        WT_WITH_DHANDLE(
+          session, dhandle, ret = __wt_conn_dhandle_close(session, false, false, false));
 
         /* We closed the btree handle. */
         if (ret == 0) {
@@ -207,7 +209,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session)
     if (!WT_DHANDLE_CAN_DISCARD(session->dhandle))
         WT_ERR(EBUSY);
 
-    ret = __wt_conn_dhandle_discard_single(session, false, true);
+    ret = __wti_conn_dhandle_discard_single(session, false, true);
 
     /*
      * If the handle was not successfully discarded, unlock it and don't retry the discard until it
@@ -241,7 +243,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
         if (!WT_DHANDLE_CAN_DISCARD(dhandle))
             continue;
 
-        if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(session,
               WT_WITH_HANDLE_LIST_WRITE_LOCK(
                 session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_remove_one(session))));
@@ -269,69 +271,76 @@ __sweep_server_run_chk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __sweep_check_session_callback --
+ *     Check if a given session hasn't swept. Callback from the session array walk.
+ */
+static int
+__sweep_check_session_callback(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
+{
+    WT_SWEEP_COOKIE *cookie;
+    uint64_t last, last_sweep;
+
+    cookie = (WT_SWEEP_COOKIE *)cookiep;
+    WT_UNUSED(exit_walkp);
+
+    last = array_session->last_cursor_big_sweep;
+    last_sweep = __wt_atomic_load64(&array_session->last_sweep);
+
+    /*
+     * Get the earlier of the two timestamps, as they refer to sweeps of two different data
+     * structures that reference data handles
+     */
+    if (last_sweep != 0 && (last == 0 || last_sweep < last))
+        last = last_sweep;
+    if (last == 0)
+        return (0);
+
+    /*
+     * Check if the session did not run a sweep in 5 minutes. Handle the issue only once per
+     * violation.
+     */
+    if (last + 5 * 60 < cookie->now) {
+        if (!array_session->sweep_warning_5min) {
+            array_session->sweep_warning_5min = 1;
+            WT_STAT_CONN_INCR(session, no_session_sweep_5min);
+        }
+    } else {
+        array_session->sweep_warning_5min = 0;
+    }
+
+    /*
+     * The same for 60 minutes.
+     */
+    if (last + 60 * 60 < cookie->now) {
+        if (!array_session->sweep_warning_60min) {
+            array_session->sweep_warning_60min = 1;
+            WT_STAT_CONN_INCR(session, no_session_sweep_60min);
+            __wt_verbose_warning(session, WT_VERB_DEFAULT,
+              "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
+              array_session->id, (void *)array_session,
+              array_session->name == NULL ? "EMPTY" : array_session->name);
+        }
+    } else {
+        array_session->sweep_warning_60min = 0;
+    }
+
+    return (0);
+}
+
+/*
  * __sweep_check_session_sweep --
  *     Check for any "rogue" sessions, which did not run a session sweep in a long time.
  */
 static void
 __sweep_check_session_sweep(WT_SESSION_IMPL *session, uint64_t now)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *s;
-    uint64_t last, last_cursor_big_sweep, last_sweep;
-    uint32_t i;
+    WT_SWEEP_COOKIE cookie;
 
-    conn = S2C(session);
+    WT_CLEAR(cookie);
+    cookie.now = now;
 
-    for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
-        /*
-         * Ignore inactive and internal sessions.
-         */
-        if (!s->active)
-            continue;
-        if (F_ISSET(s, WT_SESSION_INTERNAL))
-            continue;
-
-        last_cursor_big_sweep = s->last_cursor_big_sweep;
-        last_sweep = s->last_sweep;
-
-        /*
-         * Get the earlier of the two timestamps, as they refer to sweeps of two different data
-         * structures that reference data handles
-         */
-        last = last_cursor_big_sweep;
-        if (last_sweep != 0 && (last == 0 || last_sweep < last))
-            last = last_sweep;
-        if (last == 0)
-            continue;
-
-        /*
-         * Check if the session did not run a sweep in 5 minutes. Handle the issue only once per
-         * violation.
-         */
-        if (last + 5 * 60 < now) {
-            if (!s->sweep_warning_5min) {
-                s->sweep_warning_5min = 1;
-                WT_STAT_CONN_INCR(session, no_session_sweep_5min);
-            }
-        } else {
-            s->sweep_warning_5min = 0;
-        }
-
-        /*
-         * The same for 60 minutes.
-         */
-        if (last + 60 * 60 < now) {
-            if (!s->sweep_warning_60min) {
-                s->sweep_warning_60min = 1;
-                WT_STAT_CONN_INCR(session, no_session_sweep_60min);
-                __wt_verbose_warning(session, WT_VERB_DEFAULT,
-                  "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.", i,
-                  (void *)s, s->name == NULL ? "EMPTY" : s->name);
-            }
-        } else {
-            s->sweep_warning_60min = 0;
-        }
-    }
+    WT_IGNORE_RET(__wt_session_array_walk(session, __sweep_check_session_callback, true, &cookie));
 }
 
 /*
@@ -397,7 +406,8 @@ __sweep_server(void *arg)
          * Close handles if we have reached the configured limit. If sweep_idle_time is 0, handles
          * never become idle.
          */
-        if (conn->sweep_idle_time != 0 && conn->open_btree_count >= conn->sweep_handles_min)
+        if (conn->sweep_idle_time != 0 &&
+          __wt_atomic_load32(&conn->open_btree_count) >= conn->sweep_handles_min)
             WT_ERR(__sweep_expire(session, now));
 
         WT_ERR(__sweep_discard_trees(session, &dead_handles));
@@ -422,11 +432,11 @@ err:
 }
 
 /*
- * __wt_sweep_config --
+ * __wti_sweep_config --
  *     Pull out sweep configuration settings
  */
 int
-__wt_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -454,11 +464,11 @@ __wt_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_sweep_create --
+ * __wti_sweep_create --
  *     Start the handle sweep thread.
  */
 int
-__wt_sweep_create(WT_SESSION_IMPL *session)
+__wti_sweep_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
@@ -486,11 +496,11 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_sweep_destroy --
+ * __wti_sweep_destroy --
  *     Destroy the handle-sweep thread.
  */
 int
-__wt_sweep_destroy(WT_SESSION_IMPL *session)
+__wti_sweep_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

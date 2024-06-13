@@ -80,6 +80,8 @@
  * The difference between CONFIG_STRING and STRING is that CONFIG_STRING
  * options are appended to existing content, whereas STRING options overwrite.
  */
+DEF_OPT_AS_UINT32(backup_complete, 0,
+  "when doing backups, either just perform source-side reading or take a complete backup")
 DEF_OPT_AS_UINT32(backup_interval, 0,
   "backup the database every interval seconds during the workload phase, 0 to disable")
 DEF_OPT_AS_UINT32(
@@ -88,8 +90,6 @@ DEF_OPT_AS_UINT32(checkpoint_stress_rate, 0,
   "checkpoint every rate operations during the populate phase in the populate thread(s), 0 to "
   "disable")
 DEF_OPT_AS_UINT32(checkpoint_threads, 0, "number of checkpoint threads")
-DEF_OPT_AS_CONFIG_STRING(
-  chunk_cache_config, "", "extra configuration options for chunk cache. Applied only after restart")
 DEF_OPT_AS_CONFIG_STRING(conn_config, "create,statistics=(fast),statistics_log=(json,wait=1)",
   "connection configuration string")
 DEF_OPT_AS_BOOL(close_conn, 1,
@@ -115,7 +115,8 @@ DEF_OPT_AS_UINT32(max_idle_table_cycle, 0,
   "setting.")
 DEF_OPT_AS_BOOL(max_idle_table_cycle_fatal, 0,
   "print warning (false) or abort (true) of max_idle_table_cycle failure.")
-DEF_OPT_AS_BOOL(index, 0, "Whether to create an index on the value field.")
+DEF_OPT_AS_BOOL(index, 0, "Whether to create a WiredTiger index on the value field.")
+DEF_OPT_AS_BOOL(index_like_table, 0, "Add an index-like modification to another shared table.")
 DEF_OPT_AS_BOOL(insert_rmw, 0, "execute a read prior to each insert in workload phase")
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")
 DEF_OPT_AS_BOOL(log_partial, 0, "perform partial logging on first table only.")
@@ -190,8 +191,8 @@ DEF_OPT_AS_STRING(threads, "",
   "operations done by each worker thread; If a throttle value is provided each thread will do a "
   "maximum of that number of operations per second; multiple workload configurations may be "
   "specified per threads configuration; for example, a more complex threads configuration might be "
-  "'threads=((count=2,reads=1)(count=8,reads=1,inserts=2,updates=1))' which would create 2 threads "
-  "doing nothing but reads and 8 threads each doing 50% inserts and 25% reads and updates.  "
+  "'threads=((count=2,reads=1),(count=8,reads=1,inserts=2,updates=1))' which would create 2 "
+  "threads doing only reads and 8 threads each doing 50% inserts and 25% reads and updates. "
   "Allowed configuration values are 'count', 'throttle', 'inserts', 'reads', 'read_range', "
   "'modify', 'modify_delta', 'modify_distribute', 'modify_force_update', 'updates', "
   "'update_delta', 'truncate', 'truncate_pct' and 'truncate_count'. There are also behavior "
@@ -203,6 +204,7 @@ DEF_OPT_AS_STRING(threads, "",
  */
 DEF_OPT_AS_STRING(
   tiered, "none", "tiered extension.  Allowed configuration values are: 'none', 'dir_store', 's3'")
+DEF_OPT_AS_STRING(tiered_bucket, "none", "Create this bucket directory before beginning the test.")
 DEF_OPT_AS_UINT32(tiered_flush_interval, 0,
   "Call flush_tier every interval seconds during the workload phase. "
   "We recommend this value be larger than the checkpoint_interval. 0 to disable. The "

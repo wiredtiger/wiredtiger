@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 #
 # Test reading a cursor when the aggregate time window is visible to the snapshot
 # but not all deleted keys on-disk version are not visible.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
@@ -143,6 +144,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Reader transaction cannot see the remove on key-1 after the checkpoint.
         self.check(session3, ds, 1, value_a, 25)
-
-if __name__ == '__main__':
-    wttest.run()

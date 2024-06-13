@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_blkcache_tiered_open --
+ * __wti_blkcache_tiered_open --
  *     Open a tiered object.
  */
 int
-__wt_blkcache_tiered_open(
+__wti_blkcache_tiered_open(
   WT_SESSION_IMPL *session, const char *uri, uint32_t objectid, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
@@ -39,12 +39,22 @@ __wt_blkcache_tiered_open(
      * in the local database for awhile. If we're passed a name to open, then by definition it's a
      * local file.
      *
-     * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
-     * This can be called at any time, because we are opening the objects lazily.
+     * It is possible for another thread to race with us and increment the current ID field. But
+     * this can't happen in the cases we care about.
      */
     if (uri != NULL)
         objectid = tiered->current_id;
     if (objectid == tiered->current_id) {
+        /*
+         * Assert that we are safe from racing with another thread changing the current ID.
+         *
+         * We only open the newest local file when we are in the process of opening a tiered table,
+         * or if we are opening a new file during a tiered switch. In the latter case we hold the
+         * checkpoint lock, preventing other threads from incrementing the current ID.
+         */
+        WT_ASSERT(session,
+          !F_ISSET(session->dhandle, WT_DHANDLE_OPEN) ||
+            __wt_spin_owned(session, &S2C(session)->checkpoint_lock));
         local_only = true;
         object_uri = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         object_name = object_uri;
@@ -82,6 +92,7 @@ __wt_blkcache_tiered_open(
         bstorage = tiered->bstorage;
         WT_WITH_BUCKET_STORAGE(bstorage, session,
           ret = __wt_block_open(session, tmp->mem, objectid, cfg, false, true, true, 0, &block));
+        block->remote = true;
         WT_ERR(ret);
     }
 
@@ -122,7 +133,7 @@ __blkcache_find_open_handle(WT_BM *bm, uint32_t objectid, bool reading, WT_BLOCK
             }
 
     if (reading && *blockp != NULL)
-        __wt_atomic_add32(&(*blockp)->read_count, 1);
+        __wti_blkcache_get_read_handle(*blockp);
 }
 
 /*
@@ -150,7 +161,7 @@ __wt_blkcache_get_handle(
         return (0);
 
     /* Open a handle for the object. */
-    WT_RET(__wt_blkcache_tiered_open(session, NULL, objectid, &new_handle));
+    WT_RET(__wti_blkcache_tiered_open(session, NULL, objectid, &new_handle));
 
     /* We need a write lock to add a new entry to the handle array. */
     __wt_writelock(session, &bm->handle_array_lock);
@@ -168,7 +179,7 @@ __wt_blkcache_get_handle(
           session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
 
         if (reading)
-            __wt_atomic_add32(&new_handle->read_count, 1);
+            __wti_blkcache_get_read_handle(new_handle);
 
         bm->handle_array[bm->handle_array_next++] = new_handle;
         *blockp = new_handle;
@@ -179,9 +190,19 @@ err:
     __wt_writeunlock(session, &bm->handle_array_lock);
 
     if (new_handle != NULL)
-        WT_TRET(__wt_bm_close_block(session, new_handle));
+        WT_TRET(__wti_bm_close_block(session, new_handle));
 
     return (ret);
+}
+
+/*
+ * __wti_blkcache_get_read_handle --
+ *     Update block handle when a read operation begins.
+ */
+void
+__wti_blkcache_get_read_handle(WT_BLOCK *block)
+{
+    __wt_atomic_add32(&block->read_count, 1);
 }
 
 /*
@@ -189,8 +210,10 @@ err:
  *     Update block handle when a read operation completes.
  */
 void
-__wt_blkcache_release_handle(WT_SESSION_IMPL *session, WT_BLOCK *block)
+__wt_blkcache_release_handle(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *last_release)
 {
     WT_ASSERT(session, block->read_count > 0);
-    __wt_atomic_sub32(&block->read_count, 1);
+    *last_release = false;
+    if (__wt_atomic_sub32(&block->read_count, 1) == 0)
+        *last_release = true;
 }

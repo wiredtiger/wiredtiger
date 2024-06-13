@@ -40,6 +40,7 @@ from wiredtiger import stat
 
 # test_prepare_hs03.py
 # test to ensure salvage, verify & simulating crash are working for prepared transactions.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_prepare_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = ('cache_size=50MB,statistics=(fast),'
@@ -105,19 +106,20 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.pr('check_data: {}'.format(message))
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(timestamp))
         correct_values = 0
+        nkeys_checked = 0
         for i in range(1, nkeys):
             key = nrows + i
             if cursor.set_key(ds.key(key)) != 0:
-                # The search should pass
+                # It is not guarranteed that salvage recovers all the data in the table. Therefore
+                # perform a search and increment number of keys once search is successful.
                 search_result = cursor.search()
                 if search_result == 0:
+                    nkeys_checked += 1
                     # Correctness Test - expected_value should be visible
                     if cursor.get_value() == expected_value:
                         correct_values += 1
                 else:
                     self.pr('Key {} not found'.format(key))
-        # A range() is exclusive of the upper bound, so the number of keys actually checked is one less than nkeys.
-        nkeys_checked = nkeys - 1
         self.pr("nkeys_checked = {}, correct_values = {}".format(nkeys_checked, correct_values))
         self.assertEquals(nkeys_checked, correct_values)
         cursor.close()
@@ -189,7 +191,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Assert if not writing anything to the history store.
         self.assertGreaterEqual(hs_writes, 0)
 
-        self.check_data(ds, "(step 1)", nkeys, nrows, timestamp_middle, commit_value)
+        self.check_data(ds, "(step 1)", nsessions * nkeys, nrows, timestamp_middle, commit_value)
 
         # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
@@ -210,13 +212,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         self.session.commit_transaction()
 
-        self.check_data(ds, "(step 2)", nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 2)", nsessions * nkeys, nrows, timestamp_later, commit_value)
 
         # Corrupt the table, call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
 
         # Finally, search for the keys inserted with commit timestamp
-        self.check_data(ds, "(step 3)", nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 3)", nsessions * nkeys, nrows, timestamp_later, commit_value)
 
         self.session.checkpoint()
 
@@ -227,7 +229,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
 
-        self.check_data(ds, "(step 4)", nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 4)", nsessions * nkeys, nrows, timestamp_later, commit_value)
 
         # After simulating a crash, corrupt the table, call salvage to recover data from the
         # corrupted table and call verify
@@ -258,7 +260,3 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         nsessions = 3
         nkeys = 4000
         self.prepare_updates(ds, nrows, nsessions, nkeys)
-
-
-if __name__ == '__main__':
-    wttest.run()

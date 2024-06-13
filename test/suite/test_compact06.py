@@ -27,54 +27,79 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
-import wiredtiger, wttest
+import wiredtiger
+from compact_util import compact_util
 from wiredtiger import stat
 
 # test_compact06.py
 # Test background compaction API usage.
-class test_compact06(wttest.WiredTigerTestCase):
-    def get_bg_compaction_running(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        compact_running = stat_cursor[stat.conn.background_compact_running][2]
-        stat_cursor.close()
-        return compact_running
-    
+class test_compact06(compact_util):
+    configuration_items = ['exclude=["table:a.wt"]', 'free_space_target=10MB', 'timeout=60']
+
     def test_background_compact_api(self):
-        #   1. We cannot trigger the background compaction on a specific API. Note that the URI is
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("Compaction isn't supported on tiered tables")
+
+        # We cannot trigger the background compaction on a specific API. Note that the URI is
         # not relevant here, the corresponding table does not need to exist for this check.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact("file:123", 'background=true'), '/Background compaction does not work on specific URIs/')
-            
-        #   2. We cannot set other configurations while turning off the background server.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact(None, 'background=false,free_space_target=10MB'), '/free_space_target configuration cannot be set when disabling the background compaction server/')
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact(None, 'background=false,timeout=60'), '/timeout configuration cannot be set when disabling the background compaction server/')
+            self.session.compact("file:123", 'background=true'),
+            '/Background compaction does not work on specific URIs/')
 
-        #   3. We cannot disable the background server when it is already disabled.
+        # We cannot set other configurations while turning off the background server.
+        for item in self.configuration_items:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, f'background=false,{item}'),
+                '/configuration cannot be set when disabling the background compaction server/')
+
+        # We cannot exclude invalid URIs when enabling background compaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact(None, 'background=false'), '/Background compaction is already disabled/')
+            self.session.compact(None, 'background=true,exclude=["file:a"]'),
+            '/can only exclude objects of type "table"/')
 
-        #   4. Enable the background compaction server.
-        self.session.compact(None, 'background=true')
+        # Enable the background compaction server.
+        self.turn_on_bg_compact()
 
-        # Wait for the background server to wake up.
-        compact_running = self.get_bg_compaction_running()
-        while not compact_running:
+        # We cannot reconfigure the background server.
+        for item in self.configuration_items:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, f'background=true,{item}'),
+                '/Cannot reconfigure background compaction while it\'s already running/')
+
+        # Wait for background compaction to start and skip the HS.
+        while self.get_bg_compaction_files_skipped() == 0:
             time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 1)
 
-        #   5. We cannot reconfigure the background server.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact(None, 'background=true,free_space_target=10MB'), '/Background compaction is already enabled/')
+        # Disable the background compaction server.
+        self.turn_off_bg_compact()
 
-        #   6. We cannot enable the background server when it is already enabled.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.compact(None, 'background=true'), '/Background compaction is already enabled/')
+        # Background compaction should have skipped the HS file as it is less than 1MB.
+        assert self.get_bg_compaction_files_skipped() == 1
 
-        #   7. Disable the background compaction server.
-        self.session.compact(None, 'background=false')
+        # Enable background and configure it to run once. Don't use the helper function as the
+        # server may go to sleep before we have the time to check it is actually running.
+        self.session.compact(None, 'background=true,run_once=true')
 
-if __name__ == '__main__':
-    wttest.run()
+        # Wait for background compaction to start and skip the HS file again.
+        while self.get_bg_compaction_files_skipped() == 1:
+            time.sleep(1)
+
+        # Ensure background compaction stops by itself.
+        while self.get_bg_compaction_running():
+            time.sleep(1)
+
+        # Background compact should only skip the HS file once.
+        assert self.get_bg_compaction_files_skipped() == 2
+
+        # Enable the server again but with default options, the HS should be skipped.
+        self.turn_on_bg_compact()
+
+        while self.get_bg_compaction_files_skipped() == 2:
+            time.sleep(1)
+
+        self.turn_off_bg_compact()
+
+        # Background compaction may have been inspecting a table when disabled, which is considered
+        # as an interruption, ignore that message.
+        self.ignoreStdoutPatternIfExists('background compact interrupted by application')

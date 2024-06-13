@@ -77,7 +77,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
-    
+
     # Test sharing data between a primary and a secondary
     def test_sharing(self):
         # FIXME: WT-8235 Enable the test once file containing transaction ids is supported.
@@ -126,6 +126,3 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
         # Check that we can see the new data
         cursor2 = session2.open_cursor(uri2)
         newds.check_cursor(cursor2)
-
-if __name__ == '__main__':
-    wttest.run()

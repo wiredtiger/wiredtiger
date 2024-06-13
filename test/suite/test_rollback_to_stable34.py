@@ -31,9 +31,11 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+import wttest
 
 # test_rollback_to_stable34.py
 # Test interaction between fast-delete and RTS.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_rollback_to_stable34(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=50MB,statistics=(all),log=(enabled=false),verbose=(rts:5)'
@@ -58,8 +60,14 @@ class test_rollback_to_stable34(test_rollback_to_stable_base):
         ('recovery', dict(crash=True)),
     ]
 
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+
     scenarios = make_scenarios(format_values, prepare_values, second_checkpoint_values,
-        rollback_modes)
+        rollback_modes, worker_thread_values)
 
     # Make all the values different so it's easier to see what happens if ranges go missing.
     def mkdata(self, basevalue, i):
@@ -188,7 +196,7 @@ class test_rollback_to_stable34(test_rollback_to_stable_base):
         if self.crash:
             simulate_crash_restart(self, ".", "RESTART")
         else:
-            self.conn.rollback_to_stable()
+            self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # We should see the original data at read-ts 20 and 30.
         self.checkx(ds, nrows, 20, valuea)

@@ -44,7 +44,7 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_params_rd = 'readonly=true,operation_tracking=(enabled=false),'
 
     session_ops = [ 'alter', 'create', 'compact', 'drop', 'flush_tier', 'log_flush',
-        'log_printf', 'rename', 'salvage', 'truncate', 'upgrade', ]
+        'log_printf', 'salvage', 'truncate', ]
     cursor_ops = [ 'insert', 'remove', 'update', ]
 
     def setUpConnectionOpen(self, dir):
@@ -108,9 +108,6 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
             elif op == 'log_printf':
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.log_printf("test"), msg)
-            elif op == 'rename':
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.session.rename(self.uri, self.uri2, None), msg)
             elif op == 'salvage':
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.salvage(self.uri, None), msg)
@@ -118,11 +115,5 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.truncate(self.uri, None, None, None),
                     msg)
-            elif op == 'upgrade':
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.session.upgrade(self.uri, None), msg)
             else:
                 self.fail('Unknown session method: ' + op)
-
-if __name__ == '__main__':
-    wttest.run()

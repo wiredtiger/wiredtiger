@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Supported btree formats: the "current" version is the maximum supported major/minor versions.
  */
@@ -82,8 +84,8 @@ typedef enum {
 } WT_BTREE_CHECKSUM;
 
 typedef enum { /* Start position for eviction walk */
-    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_PREV,
+    WT_EVICT_WALK_NEXT,
     WT_EVICT_WALK_RAND_NEXT,
     WT_EVICT_WALK_RAND_PREV
 } WT_EVICT_WALK_TYPE;
@@ -112,16 +114,14 @@ struct __wt_btree {
 
     uint32_t id; /* File ID, for logging */
 
-    uint32_t allocsize;        /* Allocation size */
-    uint32_t maxintlpage;      /* Internal page max size */
-    uint32_t maxleafpage;      /* Leaf page max size */
-    uint32_t maxleafkey;       /* Leaf page max key size */
-    uint32_t maxleafvalue;     /* Leaf page max value size */
-    uint64_t maxmempage;       /* In-memory page max size */
-    uint32_t maxmempage_image; /* In-memory page image max size */
-    uint64_t splitmempage;     /* In-memory split trigger size */
-
-    void *huffman_value; /* Value huffman encoding */
+    uint32_t allocsize;             /* Allocation size */
+    wt_shared uint32_t maxintlpage; /* Internal page max size */
+    uint32_t maxleafpage;           /* Leaf page max size */
+    uint32_t maxleafkey;            /* Leaf page max key size */
+    uint32_t maxleafvalue;          /* Leaf page max value size */
+    uint64_t maxmempage;            /* In-memory page max size */
+    uint32_t maxmempage_image;      /* In-memory page image max size */
+    uint64_t splitmempage;          /* In-memory split trigger size */
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
@@ -160,9 +160,9 @@ struct __wt_btree {
 
     uint64_t last_recno; /* Column-store last record number */
 
-    WT_REF root;      /* Root page reference */
-    bool modified;    /* If the tree ever modified */
-    uint8_t original; /* Newly created: bulk-load possible
+    WT_REF root;                /* Root page reference */
+    wt_shared bool modified;    /* If the tree ever modified */
+    wt_shared uint8_t original; /* Newly created: bulk-load possible
                          (want a bool but needs atomic cas) */
 
     bool hs_entries;  /* Has entries in the history store table */
@@ -177,9 +177,9 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
 
-    uint64_t checkpoint_gen;       /* Checkpoint generation */
-    WT_SESSION_IMPL *sync_session; /* Syncing session */
-    WT_BTREE_SYNC syncing;         /* Sync status */
+    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
+    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
+    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -188,17 +188,21 @@ struct __wt_btree {
  * WT_SESSION_BTREE_SYNC_SAFE checks whether it is safe to perform an operation that would conflict
  * with a sync.
  */
-#define WT_BTREE_SYNCING(btree) ((btree)->syncing != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) (S2BT(session)->sync_session == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree) \
-    ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
+#define WT_BTREE_SYNCING(btree) (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
+#define WT_SESSION_BTREE_SYNC(session) \
+    (__wt_atomic_load_pointer(&S2BT(session)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                        \
+    (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
+      __wt_atomic_load_pointer(&(btree)->sync_session) == (session))
 
-    uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
-    uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
-    uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
-    uint64_t bytes_inmem;       /* Cache bytes in memory. */
-    uint64_t bytes_internal;    /* Bytes in internal pages. */
-    uint64_t bytes_updates;     /* Bytes in updates. */
+    wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
+    wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
+    wt_shared uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
+    wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
+
+    uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
     /*
      * The maximum bytes allowed to be used for the table on disk. This is currently only used for
@@ -214,7 +218,7 @@ struct __wt_btree {
 #define WT_BTREE_CLEAN_CKPT(session, btree, val)                          \
     do {                                                                  \
         (btree)->clean_ckpt_timer = (val);                                \
-        WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
+        WT_STAT_DSRC_SET((session), btree_clean_checkpoint_timer, (val)); \
     } while (0)
 /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
 #define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
@@ -225,7 +229,9 @@ struct __wt_btree {
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */
-    WT_SPINLOCK flush_lock; /* Lock to flush the tree's pages */
+    WT_SPINLOCK flush_lock;          /* Lock to flush the tree's pages */
+    uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
+    uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
@@ -237,16 +243,18 @@ struct __wt_btree {
      * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
      * code.
      */
-    WT_REF *evict_ref;            /* Eviction thread's location */
-    uint64_t evict_priority;      /* Relative priority of cached pages */
-    uint32_t evict_walk_progress; /* Eviction walk progress */
-    uint32_t evict_walk_target;   /* Eviction walk target */
-    u_int evict_walk_period;      /* Skip this many LRU walks */
-    u_int evict_walk_saved;       /* Saved walk skips for checkpoints */
-    u_int evict_walk_skips;       /* Number of walks skipped */
-    int32_t evict_disabled;       /* Eviction disabled count */
-    bool evict_disabled_open;     /* Eviction disabled on open */
-    volatile uint32_t evict_busy; /* Count of threads in eviction */
+    WT_REF *evict_ref;                         /* Eviction thread's location */
+    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
+    uint64_t evict_priority;                   /* Relative priority of cached pages */
+    uint32_t evict_walk_progress;              /* Eviction walk progress */
+    uint32_t evict_walk_target;                /* Eviction walk target */
+    wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
+    u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
+    u_int evict_walk_skips;                    /* Number of walks skipped */
+    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
+    bool evict_disabled_open;                  /* Eviction disabled on open */
+    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
+    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;
 
 /*
@@ -254,26 +262,24 @@ struct __wt_btree {
  * explanation.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 12 */
-#define WT_BTREE_ALTER 0x0001000u          /* Handle is for alter */
-#define WT_BTREE_BULK 0x0002000u           /* Bulk-load handle */
-#define WT_BTREE_CLOSED 0x0004000u         /* Handle closed */
-#define WT_BTREE_IGNORE_CACHE 0x0008000u   /* Cache-resident object */
-#define WT_BTREE_IN_MEMORY 0x0010000u      /* Cache-resident object */
-#define WT_BTREE_LOGGED 0x0020000u         /* Commit-level durability without timestamps */
-#define WT_BTREE_NO_CHECKPOINT 0x0040000u  /* Disable checkpoints */
-#define WT_BTREE_OBSOLETE_PAGES 0x0080000u /* Handle has obsolete pages */
-#define WT_BTREE_READONLY 0x0100000u       /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x0200000u        /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x0400000u      /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x0800000u        /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x1000000u         /* Handle is for verify */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_BTREE_ALTER 0x001000u          /* Handle is for alter */
+#define WT_BTREE_BULK 0x002000u           /* Bulk-load handle */
+#define WT_BTREE_CLOSED 0x004000u         /* Handle closed */
+#define WT_BTREE_IGNORE_CACHE 0x008000u   /* Cache-resident object */
+#define WT_BTREE_IN_MEMORY 0x010000u      /* Cache-resident object */
+#define WT_BTREE_LOGGED 0x020000u         /* Commit-level durability without timestamps */
+#define WT_BTREE_NO_CHECKPOINT 0x040000u  /* Disable checkpoints */
+#define WT_BTREE_OBSOLETE_PAGES 0x080000u /* Handle has obsolete pages */
+#define WT_BTREE_READONLY 0x100000u       /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x200000u        /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x400000u      /* Handle skipped checkpoint */
+#define WT_BTREE_VERIFY 0x800000u         /* Handle is for verify */
+                                          /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
-#define WT_BTREE_SPECIAL_FLAGS \
-    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
+#define WT_BTREE_SPECIAL_FLAGS (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)
 
 /*
  * WT_SALVAGE_COOKIE --

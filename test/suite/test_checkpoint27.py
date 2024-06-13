@@ -37,6 +37,7 @@ from wtscenario import make_scenarios
 # Check that nothing bad happens if we read in metadata pages while in the
 # middle of reading a checkpoint.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     format_values = [
@@ -157,6 +158,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.check(ds, self.first_checkpoint, nrows, value_b, 0) # no read ts
         self.check(ds, self.first_checkpoint, nrows, value_b, 25)
         self.check(ds, self.first_checkpoint, nrows, value_a, 15)
-
-if __name__ == '__main__':
-    wttest.run()

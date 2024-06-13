@@ -27,10 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import glob, os, shutil, string, subprocess
+import glob, os, shutil, subprocess
 import wiredtiger
-
-from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 
 # Python has a filecmp.cmp function, but different versions of python approach
 # file comparison differently.  To make sure we get byte for byte comparison,
@@ -96,6 +94,17 @@ def confirm_empty(testcase, uri):
             testcase.assertEqual(val, 0)
     else:
         testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+    cursor.close()
+
+# Confirm a URI exists and is not empty.
+def confirm_nonempty(testcase, uri):
+    testcase.pr('confirm_nonempty: ' + uri)
+    cursor = testcase.session.open_cursor(uri, None)
+    if cursor.value_format == '8t':
+        for key,val in cursor:
+            testcase.assertNotEqual(val, 0)
+    else:
+        testcase.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
 # Copy a WT home directory.

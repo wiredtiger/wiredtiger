@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * Helpers for calling a function with a data handle in session->dhandle then restoring afterwards.
  */
@@ -33,7 +35,7 @@
 
 /* Check if a handle could be reopened. */
 #define WT_DHANDLE_CAN_REOPEN(dhandle) \
-    (!F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED) && F_ISSET(dhandle, WT_DHANDLE_OPEN))
+    (F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN) == WT_DHANDLE_OPEN)
 
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
@@ -79,39 +81,41 @@ struct __wt_data_handle {
     TAILQ_ENTRY(__wt_data_handle) q;
     TAILQ_ENTRY(__wt_data_handle) hashq;
 
-    const char *name;         /* Object name as a URI */
-    uint64_t name_hash;       /* Hash of name */
-    const char *checkpoint;   /* Checkpoint name (or NULL) */
-    int64_t checkpoint_order; /* Checkpoint order number, when applicable */
-    const char **cfg;         /* Configuration information */
-    const char *meta_base;    /* Base metadata configuration */
-    size_t meta_base_length;  /* Base metadata length */
-#ifdef HAVE_DIAGNOSTIC
+    const char *name;           /* Object name as a URI */
+    uint64_t name_hash;         /* Hash of name */
+    const char *checkpoint;     /* Checkpoint name (or NULL) */
+    int64_t checkpoint_order;   /* Checkpoint order number, when applicable */
+    const char **cfg;           /* Configuration information */
+    const char *meta_base;      /* Base metadata configuration */
+    uint64_t meta_hash;         /* Base metadata hash */
+    struct timespec base_upd;   /* Time of last metadata update with meta base */
     const char *orig_meta_base; /* Copy of the base metadata configuration */
-#endif
+    uint64_t orig_meta_hash;    /* Copy of base metadata hash */
+    struct timespec orig_upd;   /* Time of original setup of meta base */
     /*
      * Sessions holding a connection's data handle and queued tiered storage work units will hold
      * references; sessions using a connection's data handle will have a non-zero in-use count.
      * Instances of cached cursors referencing the data handle appear in session_cache_ref.
      */
-    uint32_t references;           /* References to this handle */
-    int32_t session_inuse;         /* Sessions using this handle */
-    uint32_t excl_ref;             /* Refs of handle by excl_session */
-    uint64_t timeofdeath;          /* Use count went to 0 */
-    WT_SESSION_IMPL *excl_session; /* Session with exclusive use, if any */
+    wt_shared uint32_t references;   /* References to this handle */
+    wt_shared int32_t session_inuse; /* Sessions using this handle */
+    uint32_t excl_ref;               /* Refs of handle by excl_session */
+    uint64_t timeofdeath;            /* Use count went to 0 */
+    WT_SESSION_IMPL *excl_session;   /* Session with exclusive use, if any */
 
     WT_DATA_SOURCE *dsrc; /* Data source for this handle */
     void *handle;         /* Generic handle */
 
-    enum {
+    wt_shared enum {
         WT_DHANDLE_TYPE_BTREE,
         WT_DHANDLE_TYPE_TABLE,
         WT_DHANDLE_TYPE_TIERED,
         WT_DHANDLE_TYPE_TIERED_TREE
     } type;
 
-#define WT_DHANDLE_BTREE(dhandle) \
-    ((dhandle)->type == WT_DHANDLE_TYPE_BTREE || (dhandle)->type == WT_DHANDLE_TYPE_TIERED)
+#define WT_DHANDLE_BTREE(dhandle)                                        \
+    (__wt_atomic_load_enum(&(dhandle)->type) == WT_DHANDLE_TYPE_BTREE || \
+      __wt_atomic_load_enum(&(dhandle)->type) == WT_DHANDLE_TYPE_TIERED)
 
     bool compact_skip; /* If the handle failed to compact */
 
@@ -123,7 +127,7 @@ struct __wt_data_handle {
     WT_SPINLOCK close_lock; /* Lock to close the handle */
 
     /* Data-source statistics */
-    WT_DSRC_STATS *stats[WT_COUNTER_SLOTS];
+    WT_DSRC_STATS *stats[WT_STAT_DSRC_COUNTER_SLOTS];
     WT_DSRC_STATS *stat_array;
 
 /*

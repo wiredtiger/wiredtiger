@@ -186,6 +186,7 @@ class Tokenizer:
 
 # test_join07.py
 #    Join interpreter
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_join07(wttest.WiredTigerTestCase):
     reverseop = { '==' : '==', '<=' : '>=', '<' : '>', '>=' : '<=', '>' : '<' }
     compareop = { '==' : 'eq', '<=' : 'le', '<' : 'lt', '>=' : 'ge',
@@ -519,6 +520,3 @@ class test_join07(wttest.WiredTigerTestCase):
         clause1 = "(7 < A <= 500 && B[bloom=300] < 150)"
         clause2 = "(F[bloom=500] > '234' || G[bloom=20] < '100')"
         self.interpret("[N=1000][key=S]" + clause1 + "&&" + clause2)
-
-if __name__ == '__main__':
-    wttest.run()

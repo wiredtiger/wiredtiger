@@ -208,6 +208,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def getTierStorageSource(self):
         return self.platform_api.getTierStorageSource()
 
+    # Return the tier storage source configuration for this testcase, or None.
+    def getTierStorageSourceConfig(self):
+        return self.platform_api.getTierStorageSourceConfig()
+
     def buildDirectory(self):
         return self._builddir
 
@@ -548,7 +552,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             # always get back to original directory
             os.chdir(self.origcwd)
 
-        self.pr('passed=' + str(passed))
+        if not self.skipped:
+            self.pr('passed=' + str(passed))
         self.pr('skipped=' + str(self.skipped))
 
         # Clean up unless there's a failure
@@ -575,11 +580,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.pr('preserving directory ' + self.testdir)
         if WiredTigerTestCase._verbose > 2:
             self.prhead('TEST COMPLETED')
-
-    # Returns None if testcase is running.  If during (or after) tearDown,
-    # will return True or False depending if the test case failed.
-    def failed(self):
-        return self._failed
 
     def backup(self, backup_dir, session=None):
         if session is None:
@@ -717,8 +717,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
     # Some tests do table drops as a means to perform some test repeatedly in a loop.
     # These tests require that a name be completely removed before the next iteration
-    # can begin.  However, tiered storage does not always provide a way to remove or
-    # rename objects that have been stored to the cloud, as doing that is not the normal
+    # can begin.  However, tiered storage does not always provide a way to remove objects
+    # that have been stored to the cloud, as doing that is not the normal
     # part of a workflow (at this writing, GC is not yet implemented). Most storage sources
     # return ENOTSUP when asked to remove a cloud object, so we really don't have a way to
     # clear out the name space, and so we skip these tests under tiered storage.
@@ -756,26 +756,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         while True:
             try:
                 session.verify(uri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
-
-    def renameUntilSuccess(self, session, uri, newUri, config=None):
-        while True:
-            try:
-                session.rename(uri, newUri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
-
-    def upgradeUntilSuccess(self, session, uri, config=None):
-        while True:
-            try:
-                session.upgrade(uri, config)
                 return
             except wiredtiger.WiredTigerError as err:
                 if str(err) != os.strerror(errno.EBUSY):
@@ -829,6 +809,29 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return a recno key
         """
         return i
+
+@contextmanager
+def open_cursor(session, uri: str, **kwargs):
+    """
+    Open a cursor instance on a session.
+
+    Supports 'with' statements.
+
+    Args:
+        uri (str): URI.
+
+    Keyword Args:
+        config (str): Configuration.
+    """
+
+    config = None if "config" not in kwargs else str(kwargs["config"])
+
+    cursor = session.open_cursor(uri, None, config)
+    try:
+        yield cursor
+    finally:
+        cursor.close()
+
 
 def zstdtest(description):
     """
@@ -895,6 +898,14 @@ def skip_for_hook(hookname, description):
         return unittest.skip("because running with hook '{}': {}".format(hookname, description))
     else:
         return runit_decorator
+
+# Override a test's setUp function to instead skip and report the reason for skipping
+def register_skipped_test(test, hook, skip_reason):
+
+    def _skip_test(self):
+        raise unittest.SkipTest(f"{test} for hook {hook}: {skip_reason}")
+
+    setattr(test, "setUp", lambda: _skip_test(test))
 
 def islongtest():
     return WiredTigerTestCase._longtest

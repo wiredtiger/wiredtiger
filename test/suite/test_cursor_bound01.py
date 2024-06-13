@@ -40,7 +40,7 @@ class test_cursor_bound01(bound_base):
         ('table', dict(uri='table:', use_index = False, use_colgroup = False)),
         ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
         ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
-        ('index', dict(uri='table:', use_index = True, use_colgroup = False)), 
+        ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
     ]
 
     format_values = [
@@ -79,7 +79,7 @@ class test_cursor_bound01(bound_base):
             cursor = self.session.open_cursor(uri)
 
         # LSM format is not supported with range cursors.
-        if self.uri == 'lsm:': 
+        if self.uri == 'lsm:':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
                 '/Operation not supported/')
             return
@@ -131,35 +131,34 @@ class test_cursor_bound01(bound_base):
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
-        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
-        self.assertEqual(cursor.bound("action=setting, bound=lower"), 0)
+        # Giving a longer config doesn't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            cursor.bound("action=setting, bound=lower"), '/is not a valid choice/')
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
         cursor.bound("action=set,bound=lower")
-        # Giving a longer config string works, WT_PREFIX_MATCH will accept it.
-        self.assertEqual(cursor.bound("action=clearing"), 0)
+        # Giving a longer config doesn't work.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            cursor.bound("action=clearing"), '/is not a valid choice/')
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
         # Giving an invalid action like "dump" won't work.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=dump"),
-            '/an action of either "clear" or "set" should be specified when setting bounds/')
+            '/is not a valid choice/')
         cursor.reset()
 
         cursor.set_key(self.gen_key(1))
         # Giving a substring of the config string will not work.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=cl"),
-            '/an action of either "clear" or "set" should be specified when setting bounds/')
+            '/is not a valid choice/')
 
         # Check that setting bounds doesn't work with random cursors. Turn it off with column store as column
         # store doesn't support the next_random config.
         if (self.key_format != 'r'):
             cursor = self.session.open_cursor(uri, None, "next_random=true")
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 40, "lower"), 
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 40, "lower"),
                 '/Operation not supported/')
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 60, "upper"), 
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_bounds(cursor, 60, "upper"),
                 '/Operation not supported/')
-
-if __name__ == '__main__':
-    wttest.run()

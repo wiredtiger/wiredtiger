@@ -31,6 +31,7 @@ from wtscenario import make_scenarios
 
 # test_durable_ts03.py
 #    Check that the checkpoint honors the durable timestamp of updates.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Causes python crash")
 class test_durable_ts03(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=10MB'
 
@@ -143,6 +144,3 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
                                 ',oldest_timestamp=' + self.timestamp_str(250))
         for key, value in cursor:
             self.assertEqual(value, valueC)
-
-if __name__ == '__main__':
-    wttest.run()

@@ -63,7 +63,7 @@ __wt_page_alloc(
     WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    page->read_gen = WT_READGEN_NOTSET;
+    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 
     switch (type) {
     case WT_PAGE_COL_FIX:
@@ -90,7 +90,8 @@ __wt_page_alloc(
             }
         if (0) {
 err:
-            if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
+            WT_INTL_INDEX_GET_SAFE(page, pindex);
+            if (pindex != NULL) {
                 for (i = 0; i < pindex->entries; ++i)
                     __wt_free(session, pindex->index[i]);
                 __wt_free(session, pindex);
@@ -114,7 +115,7 @@ err:
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);
     (void)__wt_atomic_add64(&cache->pages_inmem, 1);
-    page->cache_create_gen = cache->evict_pass_gen;
+    page->cache_create_gen = __wt_atomic_load64(&cache->evict_pass_gen);
 
     *pagep = page;
     return (0);
@@ -206,11 +207,11 @@ __page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR
 }
 
 /*
- * __wt_page_inmem_prepare --
+ * __wti_page_inmem_prepare --
  *     Instantiate prepared updates.
  */
 int
-__wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -312,6 +313,11 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     }
 
+    /*
+     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
+     * updates to avoid reconciling the page every time.
+     */
+    __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
@@ -325,11 +331,11 @@ err:
 }
 
 /*
- * __wt_page_inmem --
+ * __wti_page_inmem --
  *     Build in-memory page information.
  */
 int
-__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
+__wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
   WT_PAGE **pagep, bool *preparedp)
 {
     WT_CELL_UNPACK_ADDR unpack_addr;
@@ -463,7 +469,7 @@ err:
 }
 
 /*
- * __wt_col_fix_read_auxheader --
+ * __wti_col_fix_read_auxheader --
  *     Read the auxiliary header following the bitmap data, if any. This code is used by verify and
  *     needs to be accordingly careful. It is also used by mainline reads so it must also not crash
  *     or print on behalf of verify, and it should not waste time on checks that inmem doesn't need.
@@ -473,7 +479,7 @@ err:
  *     needn't bother. Salvage is protected by verify and doesn't need to check any of it.
  */
 int
-__wt_col_fix_read_auxheader(
+__wti_col_fix_read_auxheader(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
 {
     WT_BTREE *btree;
@@ -549,7 +555,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
 
     page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
 
-    WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+    WT_RET(__wti_col_fix_read_auxheader(session, dsk, &auxhdr));
     WT_ASSERT(session, auxhdr.dataoffset <= dsk->mem_size);
 
     switch (auxhdr.version) {
@@ -687,7 +693,7 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
      * Walk the page, building references: the page contains value items. The value items are
      * on-page items (WT_CELL_VALUE).
      */
-    pindex = WT_INTL_INDEX_GET_SAFE(page);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
     refp = pindex->index;
     hint = 0;
     WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
@@ -834,7 +840,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
      * Walk the page, instantiating keys: the page contains sorted key and location cookie pairs.
      * Keys are on-page/overflow items and location cookies are WT_CELL_ADDR_XXX items.
      */
-    pindex = WT_INTL_INDEX_GET_SAFE(page);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
     refp = pindex->index;
     overflow_keys = false;
     hint = 0;
@@ -856,9 +862,6 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 
         switch (unpack.type) {
         case WT_CELL_KEY:
-            /*
-             * Note: we don't Huffman encode internal page keys, there's no decoding work to do.
-             */
             __wt_ref_key_onpage_set(page, ref, &unpack);
             break;
         case WT_CELL_KEY_OVFL:
@@ -868,7 +871,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
              */
             WT_ERR(__wt_dsk_cell_data_ref_addr(session, page->type, &unpack, current));
 
-            WT_ERR(__wt_row_ikey_incr(session, page, WT_PAGE_DISK_OFFSET(page, unpack.cell),
+            WT_ERR(__wti_row_ikey_incr(session, page, WT_PAGE_DISK_OFFSET(page, unpack.cell),
               current->data, current->size, ref));
 
             *sizep += sizeof(WT_IKEY) + current->size;
@@ -974,7 +977,6 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
 static int
 __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_ROW *rip;
@@ -983,7 +985,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
     uint8_t smallest_prefix;
     bool prepare;
 
-    btree = S2BT(session);
     last_slot = 0;
     prepare = false;
 
@@ -1074,8 +1075,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
              *
              * The visibility information is not referenced on the page so we need to ensure that
              * the value is globally visible at the point in time where we read the page into cache.
+             * Pages from checkpoint-related files that have been pushed onto the pre-fetch queue
+             * will be comprised of data that is globally visible, and so the reader thread which
+             * attempts to read the page into cache can skip the visible all check.
              */
-            if (!btree->huffman_value &&
+            if (!(WT_READING_CHECKPOINT(session) && F_ISSET(session, WT_SESSION_PREFETCH_THREAD)) &&
               (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
                 (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
                   __wt_txn_tw_start_visible_all(session, &unpack.tw))))

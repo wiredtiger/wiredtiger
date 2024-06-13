@@ -530,6 +530,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         self.run_wt_and_check(newdir, not self.is_openable())
 
         for salvagedir in [ newdir, newdir2 ]:
+            # FIXME-WT-11995
             # Removing the 'WiredTiger.turtle' file has weird behavior:
             #  Immediately doing wiredtiger_open (without salvage) succeeds.
             #  Following that, wiredtiger_open w/ salvage also succeeds.
@@ -551,6 +552,3 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(salvagedir, salvage_config),
                     '/.*/')
-
-if __name__ == '__main__':
-    wttest.run()

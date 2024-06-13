@@ -9,7 +9,9 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
+AREALLSET
 ARG
 ARGS
 ASAN
@@ -34,7 +36,7 @@ BBBBBBBBBBBBBBBB
 BBBBBBBBBBBBBBBBBB
 BCcLlsvz
 BLKCACHE
-BLmRrSVv
+BLmpRrSVv
 BOOL
 BSR
 BTREE
@@ -58,6 +60,7 @@ CHUNKCACHE
 CKPT
 CLOEXEC
 CMP
+CONF
 CONFIG
 CPP
 CPUs
@@ -70,9 +73,9 @@ Castagnoli
 Cclmpv
 Ceil
 CentOS
+Charset
 Checkpointing
 Checksums
-Chunkcache
 CityHash
 ClmSvxz
 CloseHandle
@@ -95,7 +98,6 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
-DeadStores
 Decrypt
 DeleteFileW
 Deterministically
@@ -114,6 +116,7 @@ ENCRYPTOR
 ENDIAN
 ENOENT
 ENOMEM
+ENOSPC
 ENOTSUP
 ENUM
 EOF
@@ -141,6 +144,7 @@ FORALL
 FOREACH
 FS
 FULLFSYNC
+FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -154,6 +158,7 @@ FreeLibrary
 Fsync
 Fuerst
 GBR
+GC
 GCP
 GCP's
 GF
@@ -187,6 +192,7 @@ INTRINSICS
 INUSE
 INVL
 ISA
+ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
@@ -202,6 +208,7 @@ Kounavis
 LANGID
 LF
 LLVMFuzzerTestOneInput
+LOGOP
 LOGREC
 LOGSCAN
 LRU
@@ -217,6 +224,7 @@ LazyFS's
 LeafGreen
 LibFuzzer
 LoadLoad
+LoadStore
 LockFile
 LogBackend
 LogSink
@@ -225,7 +233,6 @@ MADV
 MALLOC
 MEM
 MEMALIGN
-MEMORDER
 MERCHANTABILITY
 MONGODB
 MOVEFILE
@@ -241,7 +248,6 @@ MapViewOfFile
 Marsaglia
 Marsaglia's
 Mellor
-Mewhort
 Mitzenmacher
 MongoDB
 MoveFileExW
@@ -282,6 +288,7 @@ PID
 POS
 POSIX
 PPC
+PREFETCH
 PRId
 PRIu
 PRNG
@@ -295,6 +302,8 @@ Podir
 Posix
 PostgreSQL
 Pre
+Precompiled
+Prefetch
 Preload
 Prepend
 Prepending
@@ -304,7 +313,9 @@ Px
 QQQS
 QSQ
 Qsort
+RCPC
 RCS
+RCpc
 RDNOLOCK
 READONLY
 REALLOC
@@ -338,6 +349,7 @@ SMT
 SPINLOCK
 SSHH
 SSq
+STATP
 STR
 STRUCT
 SYSCALL
@@ -356,17 +368,21 @@ Spinlock
 Spinlocks
 StoreLoad
 StoreStore
+Strobed
 Su
 Subdirectory
+Subprocess
 TAILQ
-TCMalloc
 TESTUTIL
 TID
 TMP
 TODO
 TORTIOUS
+TRET
 TRYLOCK
+TSAN
 TSO
+TSan
 TW
 TXN
 ThreadList
@@ -374,6 +390,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+UBSAN
 UDF
 UID
 UIDs
@@ -391,6 +408,7 @@ Unbuffered
 Unencrypted
 Unhandled
 UnixLib
+Unlink
 UnlockFile
 Unmap
 UnmapViewOfFile
@@ -408,6 +426,7 @@ Vixie
 VloaY
 Vo
 VxWorks
+WCHAR
 WILLNEED
 WIREDTIGER
 WRLSN
@@ -424,6 +443,7 @@ WideCharToMultiByte
 WinNT
 WiredTiger
 WiredTiger's
+WiredTigerCC
 WiredTigerCheckpoint
 WiredTigerChunkCache
 WiredTigerHS
@@ -434,10 +454,10 @@ WiredTigerTmplog
 WithSeeds
 Wmissing
 WriteFile
-Wundef
 Wuninitialized
 Wunused
 XP
+XXXXXX
 Xorshift
 YCSB
 ZSTD
@@ -448,8 +468,8 @@ aa
 aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
-acstu
-addl
+ackSstu
+acqrel
 addr
 addrs
 addtw
@@ -470,6 +490,7 @@ argv
 asdf
 assertfmt
 atomicity
+atomics
 atou
 auth
 autocommit
@@ -489,18 +510,20 @@ bbuilddir
 bcr
 bd
 beginthreadex
-bigram
+benchmarking
 binutils
 bitcnt
 bitfield
 bitfields
-bitpos
+bitflip
 bitstr
 bitstring
 bitwise
 blk
 blkcache
+blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -512,6 +535,7 @@ breakpoint
 bs
 bstorage
 bswap
+bt
 btcur
 btmem
 btree
@@ -543,6 +567,7 @@ cerr
 cfg
 cfko
 chacha
+charset
 chdir
 checkfmt
 checkkey
@@ -560,6 +585,7 @@ ciphertext
 ckpt
 ckptfrag
 ckptlist
+cksum
 cloexec
 closedir
 clsm
@@ -574,6 +600,7 @@ comparator
 comparators
 comparep
 compat
+compilable
 cond
 conditionalize
 conf
@@ -588,9 +615,9 @@ cookiep
 copydoc
 countp
 cp
-cplusplus
 cpp
 cppsuite
+cpu
 cpuid
 crc
 crypto
@@ -602,6 +629,7 @@ csv
 ctime
 ctype
 curbackup
+curbt
 curbulk
 curconfig
 curdump
@@ -616,12 +644,13 @@ cursoring
 cursorp
 curstartrecno
 curstat
-curstd
 curtable
 curversion
 cust
+customizable
 customp
 cv
+cval
 cx
 cxa
 dT
@@ -633,7 +662,6 @@ dbar
 dbs
 dcalloc
 ddd
-deadcode
 decile
 deciles
 decl
@@ -647,7 +675,6 @@ decrypts
 deflateEnd
 deflateInit
 del
-dequeue
 dequeued
 der
 dereference
@@ -697,8 +724,6 @@ encodings
 encryptor
 encryptors
 endian
-english
-enqueue
 enum
 env
 eof
@@ -727,9 +752,14 @@ fclose
 fcntl
 fd
 fdatasync
+fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -785,6 +815,7 @@ getone
 getones
 getopt
 getraw
+getter
 getters
 gettime
 gettimeofday
@@ -798,6 +829,7 @@ gostring
 gostruct
 goto
 goutf
+groupd
 gte
 handleops
 handlep
@@ -808,6 +840,7 @@ hashval
 havesize
 hdr
 hhh
+hijinx
 hpp
 hs
 html
@@ -823,6 +856,7 @@ icount
 idlems
 idx
 ie
+iface
 ifdef's
 iiSii
 iiiS
@@ -830,6 +864,7 @@ iiii
 iiu
 ikey
 im
+img
 impl
 incr
 incrementals
@@ -843,6 +878,7 @@ initn
 initsize
 initval
 inlined
+inlining
 inmem
 inmemory
 inserters
@@ -891,6 +927,9 @@ lazyfs
 lbrace
 lbracket
 ld
+ldapr
+ldaprb
+ldaprh
 le
 len
 lengthp
@@ -899,7 +938,6 @@ lex
 lexically
 lexicographically
 lf
-lfence
 libdatasource
 libmemkind
 libs
@@ -910,7 +948,9 @@ linux
 llll
 llu
 llvm
+loadbool
 loadtext
+loadvbool
 loc
 localTime
 localkey
@@ -927,7 +967,6 @@ logsize
 logtest
 lookaside
 lookups
-loongarch
 lossy
 lr
 lru
@@ -967,6 +1006,7 @@ metafile
 mfence
 minSnapshotHistoryWindowInSeconds
 minorp
+misalignments
 mkdir
 mmap
 mmrand
@@ -1000,9 +1040,9 @@ nentries
 nentriesp
 newbar
 newfile
-newuri
 newv
 nextprev
+nf
 nfilename
 nhex
 nlohmann
@@ -1010,6 +1050,7 @@ nlpo
 nocase
 noclear
 nocrypto
+noexcept
 nolock
 nonces
 nonliteral
@@ -1027,8 +1068,8 @@ nrecs
 nsec
 nset
 nul
+nullptr
 num
-numSymbols
 numbare
 nvram
 offpage
@@ -1059,6 +1100,7 @@ packv
 pageref
 pagesize
 param
+params
 pareto
 parserp
 patchp
@@ -1080,6 +1122,10 @@ pre
 pread
 prealloc
 precomp
+precompilation
+precompiled
+precompiling
+prefetch
 preload
 prepend
 prepended
@@ -1118,6 +1164,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readgen
 readlock
 readonly
 readunlock
@@ -1142,25 +1189,27 @@ repositions
 requeue
 resizable
 ret
-retp
 revint
 rf
 risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
 rpc
 rts
 ru
+runnable
 runone
 runtime
 rw
 rwlock
 sH
 sHQ
+sXXXXXX
 sanitizer
 sanitizers
 scalable
@@ -1168,15 +1217,18 @@ scr
 sd
 sdk
 secretkey
+sempty
+sencrypted
 sessionp
 setkv
 setname
 setstr
 setv
 setvbuf
-sfence
+sfast
 shareability
 sig
+sigchld
 signalled
 sii
 sizeof
@@ -1193,7 +1245,6 @@ snapsort
 snprintf
 sortable
 sp
-sparc
 spinlock
 spinlocks
 src
@@ -1206,6 +1257,11 @@ stderr
 stdin
 stdout
 stepp
+stlr
+stlrb
+stlrh
+storebool
+storevbool
 str
 strace
 strcat
@@ -1214,9 +1270,11 @@ strdup
 strerror
 strftime
 strlen
+strncmp
 strncpy
 strndup
 strnlen
+strobed
 strtoll
 strtouq
 struct
@@ -1236,6 +1294,7 @@ subtest
 subtree
 sumv
 sunique
+sunused
 supd
 superset
 sw
@@ -1280,21 +1339,22 @@ trylock
 tryrdlock
 trywrlock
 tupdate
-tvalue
 tw
 txn
 txnid
 txp
 txt
 typedef
+typeof
 uS
 ui
 uint
+uintAny
 umount
 unallocated
 unbare
 unbuffered
-uncompressing
+uncached
 unconfigured
 uncustomized
 undef
@@ -1314,6 +1374,8 @@ unmodify
 unmount
 unpackv
 unpositioned
+unredact
+unredacts
 unreferenced
 unsized
 unterminated
@@ -1347,6 +1409,7 @@ vd
 vdata
 vec
 vectorized
+verifier
 vfprintf
 vh
 vm
@@ -1386,6 +1449,7 @@ xX
 xdeadbeef
 xff
 xfff
+xxd
 xxpermdi
 xxxx
 xxxxx

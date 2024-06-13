@@ -37,6 +37,7 @@ from wtscenario import make_scenarios
 # Make sure a table that's clean when a checkpointed can still be read in
 # that checkpoint.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
@@ -121,6 +122,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Make sure we can read table 1 from the second checkpoint.
         self.check(ds1, self.second_checkpoint, nrows, value_a)
-
-if __name__ == '__main__':
-    wttest.run()

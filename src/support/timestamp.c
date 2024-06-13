@@ -46,7 +46,7 @@ __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
     char ts_string[4][WT_TS_INT_STRING_SIZE];
 
     WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
-      "start: %s/%s/%" PRIu64 " stop: %s/%s/%" PRIu64 "%s",
+      "start: %s/%s/%" PRIu64 " | stop: %s/%s/%" PRIu64 "%s",
       __wt_timestamp_to_string(tw->durable_start_ts, ts_string[0]),
       __wt_timestamp_to_string(tw->start_ts, ts_string[1]), tw->start_txn,
       __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[2]),
@@ -65,7 +65,7 @@ __wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
     char ts_string[4][WT_TS_INT_STRING_SIZE];
 
     WT_IGNORE_RET(__wt_snprintf(ta_string, WT_TIME_STRING_SIZE,
-      "newest durable: %s/%s oldest start: %s/%" PRIu64 " newest stop %s/%" PRIu64 "%s",
+      "newest_durable: %s/%s | oldest_start: %s/%" PRIu64 " | newest_stop: %s/%" PRIu64 "%s",
       __wt_timestamp_to_string(ta->newest_start_durable_ts, ts_string[0]),
       __wt_timestamp_to_string(ta->newest_stop_durable_ts, ts_string[1]),
       __wt_timestamp_to_string(ta->oldest_start_ts, ts_string[2]), ta->newest_txn,
@@ -413,7 +413,7 @@ __time_value_validate_parent(
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (tw->start_txn > parent->newest_txn)
+    if (parent->newest_txn != WT_TXN_NONE && tw->start_txn > parent->newest_txn)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start transaction after its parent's newest transaction; "
           "time window %s, parent %s",
@@ -435,7 +435,7 @@ __time_value_validate_parent(
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (tw->stop_txn > parent->newest_stop_txn)
+    if (parent->newest_stop_txn != WT_TXN_NONE && tw->stop_txn > parent->newest_stop_txn)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a stop transaction after its parent's newest stop transaction; "
           "time window %s, parent %s",

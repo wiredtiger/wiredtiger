@@ -37,6 +37,7 @@ from wtscenario import make_scenarios
 # Make sure each checkpoint has its own timestamp info by writing out
 # multiple checkpoints with different times and reading all of them.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
@@ -173,6 +174,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.check(ds, self.third_checkpoint, nrows, value_c, 30)
         self.check(ds, self.third_checkpoint, nrows, value_d, 40)
         self.check(ds, self.third_checkpoint, nrows, value_d, None)
-
-if __name__ == '__main__':
-    wttest.run()

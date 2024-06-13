@@ -132,6 +132,8 @@ thread_runner_main(void *arg)
         runner->_errno = runner->run();
     } catch (WorkgenException &wge) {
         runner->_exception = wge;
+        std::cerr << "Exception in runner->run(): " << wge._str << std::endl;
+        ASSERT(false);
     }
     return (nullptr);
 }
@@ -148,6 +150,7 @@ thread_workload(void *arg)
         runner->increment_timestamp(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while incrementing timestamp: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -164,6 +167,7 @@ thread_idle_table_cycle_workload(void *arg)
         runner->start_table_idle_cycle(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while create/drop tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -180,6 +184,7 @@ thread_tables_create_workload(void *arg)
         runner->start_tables_create(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while creating tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -196,6 +201,7 @@ thread_tables_drop_workload(void *arg)
         runner->start_tables_drop(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while dropping tables: " << wge._str << std::endl;
+        ASSERT(false);
     }
 
     return (nullptr);
@@ -240,8 +246,9 @@ int
 WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
-    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
-        THROW("Error opening a session.");
+    int ret = conn->open_session(conn, nullptr, nullptr, &session);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error opening a session.");
     }
 
     for (int cycle_count = 0; !stopping; ++cycle_count) {
@@ -252,11 +259,11 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
         workgen_clock(&start);
 
         /* Create a table. */
-        int ret;
-        if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+        int ret = session->create(session, uri, "key_format=S,value_format=S");
+        if (ret != 0) {
             if (ret == EBUSY)
                 continue;
-            THROW("Table create failed in start_table_idle_cycle.");
+            THROW_ERRNO(ret, "Table create failed in start_table_idle_cycle.");
         }
 
         uint64_t stop;
@@ -270,11 +277,13 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
 
         /* Open and close cursor. */
         WT_CURSOR *cursor;
-        if ((ret = session->open_cursor(session, uri, nullptr, nullptr, &cursor)) != 0) {
-            THROW("Cursor open failed.");
+        ret = session->open_cursor(session, uri, nullptr, nullptr, &cursor);
+        if (ret != 0) {
+            THROW_ERRNO(ret, "Cursor open failed.");
         }
-        if ((ret = cursor->close(cursor)) != 0) {
-            THROW("Cursor close failed.");
+        ret = cursor->close(cursor);
+        if (ret != 0) {
+            THROW_ERRNO(ret, "Cursor close failed.");
         }
 
         workgen_clock(&stop);
@@ -294,7 +303,7 @@ WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn)
         }
 
         if (ret != 0) {
-            THROW("Table drop failed in cycle_idle_tables.");
+            THROW_ERRNO(ret, "Table drop failed in cycle_idle_tables.");
         }
         workgen_clock(&stop);
         last_interval = ns_to_sec(stop - start);
@@ -326,6 +335,19 @@ get_dir_size_mb(const std::string &dir)
     return result / WT_MEGABYTE;
 }
 
+/*
+ * Get the number of WiredTiger tables under the given directory.
+ */
+static uint32_t
+get_dir_num_files(const std::string &dir)
+{
+    auto dirIter = std::filesystem::directory_iterator(dir);
+    uint32_t fileCount = std::count_if(begin(dirIter), end(dirIter),
+      [](auto &entry) { return entry.is_regular_file() && entry.path().extension() == ".wt"; });
+
+    return fileCount;
+}
+
 // 5 random characters + Null terminator
 #define DYNAMIC_TABLE_LEN 6
 /*
@@ -353,40 +375,102 @@ gen_random_table_name(char *name, workgen_random_state volatile *rand_state)
  * fails.
  */
 int
-WorkloadRunner::create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
-  const std::string &mirror_uri, const bool is_base)
+WorkloadRunner::create_table(
+  WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled)
 {
-    // Check if a table with this name already exists. Return if it does. Use a shared lock to
-    // read the dynamic table structure.
+    const std::string mirror_uri(mirror_enabled ? uri + _workload->options.mirror_suffix : "");
+
+    // Return if a table with the same name already exists. If mirror is enabled, make sure it does
+    // not exist either.
     ContextInternal *icontext = _workload->_context->_internal;
     {
+        // Use a shared lock to read the dynamic table structure.
         const std::shared_lock lock(*icontext->_dyn_mutex);
         if (icontext->_tint.count(uri) > 0 || icontext->_dyn_tint.count(uri) > 0)
             return EEXIST;
+        if (mirror_enabled &&
+          (icontext->_tint.count(mirror_uri) > 0 || icontext->_dyn_tint.count(mirror_uri) > 0))
+            return EEXIST;
     }
 
-    // Create the table.
-    WT_DECL_RET;
-    if ((ret = session->create(session, uri.c_str(), config.c_str())) != 0) {
-        if (ret != EBUSY)
-            THROW("Failed to create table '" << uri << "'.");
+    /*
+     * When mirror is enabled, create the mirror first and then the base. If we create the base
+     * first, threads may start working on the base while the mirror is not fully created.
+     *
+     * The config has to be updated with the following information:
+     *  - The name of the table's mirror if mirroring is enabled.
+     *  - If this table is a base table or a mirror.
+     *
+     * See below an example when creating the table 'a' with mirror enabled:
+     *  - Configuration expected for the mirror:
+     * app_metadata="workgen_dynamic_table=true,workgen_table_mirror=table:a,workgen_base_table=false"
+     *  - Configuration expected for the base:
+     * app_metadata="workgen_dynamic_table=true,workgen_table_mirror=table:a_mirror,workgen_base_table=true"
+     *
+     * Without mirror enabled:
+     * app_metadata="workgen_dynamic_table=true,workgen_base_table=true"
+     *
+     */
+    std::string mirror_config;
+    if (mirror_enabled) {
+        mirror_config = config + "," + MIRROR_TABLE_APP_METADATA + uri + "," +
+          BASE_TABLE_APP_METADATA + "false\"";
+        int ret = session->create(session, mirror_uri.c_str(), mirror_config.c_str());
+        if (ret != 0) {
+            VERBOSE(*_workload, "Failed to create mirror table '" << mirror_uri << "'");
+            return ret;
+        }
+        // This will be used when creating the base table.
+        mirror_config = MIRROR_TABLE_APP_METADATA + mirror_uri + ",";
+    }
+
+    // If mirror is enabled, we don't want to fail when creating the base. Getting spurious EBUSY
+    // errors is ok though, retry in that case.
+    const std::string base_config(
+      config + "," + mirror_config + BASE_TABLE_APP_METADATA + "true\"");
+    int ret, retries = 0;
+
+    do {
+        ret = session->create(session, uri.c_str(), base_config.c_str());
+    } while (ret != 0 && ret == EBUSY && mirror_enabled && ++retries < TABLE_MAX_RETRIES);
+
+    if (ret != 0) {
+        const std::string err_msg("Failed to create table '" + uri + "'");
+        VERBOSE(*_workload, err_msg);
+        // Fail if we have failed at creating the base of a mirror.
+        if (mirror_enabled)
+            THROW_ERRNO(ret, err_msg);
         return ret;
     }
 
-    // The data structures for the dynamic table set are protected by a mutex.
+    // All the required tables have been created, update the data structures for the dynamic tables
+    // which are protected by a mutex.
     {
         const std::lock_guard<std::shared_mutex> lock(*icontext->_dyn_mutex);
-
-        // Add the table into the list of dynamic set.
-        tint_t tint = icontext->_dyn_tint_last;
-        icontext->_dyn_tint[uri] = tint;
-        icontext->_dyn_table_names[tint] = uri;
-        icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
-        ++icontext->_dyn_tint_last;
-        VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
+        update_dyn_struct_locked(uri, true, mirror_uri);
+        if (mirror_enabled)
+            update_dyn_struct_locked(mirror_uri, false, uri);
     }
 
     return 0;
+}
+
+/*
+ * Update the structures dedicated to tables that can be created or removed during the workload. The
+ * caller should hold the mutex that protects those structures.
+ */
+void
+WorkloadRunner::update_dyn_struct_locked(
+  const std::string &uri, bool is_base, const std::string &mirror_uri)
+{
+    ContextInternal *icontext = _workload->_context->_internal;
+
+    // This should be safe as we are supposed to be under a lock.
+    tint_t tint = icontext->_dyn_tint_last++;
+    icontext->_dyn_tint[uri] = tint;
+    icontext->_dyn_table_names[tint] = uri;
+    icontext->_dyn_table_runtime[tint] = TableRuntime(is_base, mirror_uri);
+    VERBOSE(*_workload, "Created table and added to the dynamic set: " << uri);
 }
 
 /*
@@ -399,64 +483,56 @@ int
 WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
-    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
-        THROW("Error opening a session.");
+    int ret = conn->open_session(conn, nullptr, nullptr, &session);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error opening a session.");
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
-    bool manage_db_size =
-      _workload->options.create_target > 0 && _workload->options.create_trigger > 0;
-    uint32_t db_size = 0;
+    int create_target = _workload->options.create_target;
+    int create_trigger = _workload->options.create_trigger;
+    int max_files = _workload->options.max_num_files;
+    bool manage_db_size = create_target > 0 && create_trigger > 0;
     bool creating = true;
 
     if (manage_db_size) {
-        db_size = get_dir_size_mb(_wt_home);
-        // Initially we start creating tables if the database size is less than the create target.
-        creating = db_size < _workload->options.create_target;
+        uint32_t db_size = get_dir_size_mb(_wt_home);
+        uint32_t num_files = get_dir_num_files(_wt_home);
+        /*
+         * Initially we start creating tables if:
+         *  - the database size is less than the create target and
+         *  - the number of files is below the limit.
+         */
+        creating = db_size < create_target && num_files < max_files;
     }
-
-    std::string uri;
-    std::string mirror_uri = std::string();
-    int creates, retries, status;
-    char rand_chars[DYNAMIC_TABLE_LEN];
-
-    /*
-     * Add app_metadata to the config to indicate the table was created dynamically (can be selected
-     * for random deletion), the name of the table's mirror if mirroring is enabled, and if this
-     * table is a base table or a mirror. We want these settings to persist over restarts.
-     */
-    std::string base_config =
-      "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA;
-    if (_workload->options.mirror_tables) {
-        base_config += "," + MIRROR_TABLE_APP_METADATA;
-    } else {
-        base_config += "," + BASE_TABLE_APP_METADATA + "true\"";
-    }
-    std::string config = base_config;
 
     while (!stopping) {
         /*
-         * When managing the database size: If we are creating tables, continue until we reach the
-         * create target size. If we are not creating tables, begin to do so if the database size
-         * falls below the create trigger.
+         * When managing the database size: if we are creating tables, continue until we reach the
+         * create target size or the number the number of files limit. If we are not creating
+         * tables, begin to do so if the database size falls below the create trigger and we are
+         * allowed to create more files.
          */
         if (manage_db_size) {
-            db_size = get_dir_size_mb(_wt_home);
+            uint32_t db_size = get_dir_size_mb(_wt_home);
+            uint32_t num_files = get_dir_num_files(_wt_home);
             if (creating) {
-                creating = db_size < _workload->options.create_target;
+                creating = db_size < create_target && num_files < max_files;
                 if (!creating) {
                     VERBOSE(*_workload,
-                      "Stopped creating new tables. db_size now "
-                        << db_size << " MB has reached the create target of "
-                        << _workload->options.create_target << " MB.");
+                      "Stopped creating new tables. Database size is now "
+                        << db_size << " MB (target: " << create_target
+                        << "MB) and the number of files is " << num_files
+                        << " (limit: " << max_files << ").");
                 }
             } else {
-                creating = db_size < _workload->options.create_trigger;
+                creating = db_size < create_trigger && num_files < max_files;
                 if (creating) {
                     VERBOSE(*_workload,
-                      "Started creating new tables. db_size now "
-                        << db_size << " MB has reached the create trigger of "
-                        << _workload->options.create_trigger << " MB.");
+                      "Started creating new tables. Database size is now "
+                        << db_size << " MB (trigger: " << create_trigger
+                        << " MB) and the number of files is " << num_files
+                        << " (limit: " << max_files << ").");
                 }
             }
         }
@@ -465,40 +541,34 @@ WorkloadRunner::start_tables_create(WT_CONNECTION *conn)
             continue;
         }
 
-        retries = 0;
-        creates = 0;
-        while (creates < _workload->options.create_count) {
+        // Add app_metadata to the config to indicate the table was created dynamically which means
+        // it can be selected for random deletion. We want this information to persist over restart.
+        const std::string config(
+          "key_format=S,value_format=S,app_metadata=\"" + DYN_TABLE_APP_METADATA);
 
+        uint32_t num_files = get_dir_num_files(_wt_home);
+        int creates = 0, retries = 0;
+        // Make sure not to exceed the maximum number of files that can exist in the database.
+        int num_files_to_create = 0;
+        if (num_files + _workload->options.create_count > max_files)
+            num_files_to_create = max_files - num_files;
+        else
+            num_files_to_create = _workload->options.create_count;
+
+        while (!stopping && creates < num_files_to_create && retries < TABLE_MAX_RETRIES) {
             // Generate a table name from the user specified prefix and a random alphanumeric
             // sequence.
+            char rand_chars[DYNAMIC_TABLE_LEN];
             gen_random_table_name(rand_chars, _rand_state);
-            uri = "table:";
-            uri += _workload->options.create_prefix;
-            uri += rand_chars;
+            const std::string uri("table:" + _workload->options.create_prefix + rand_chars);
 
-            if (_workload->options.mirror_tables) {
-                // The mirror table name is the table name with the user specified suffix.
-                mirror_uri = uri + _workload->options.mirror_suffix;
-                config = base_config + mirror_uri + "," + BASE_TABLE_APP_METADATA + "true\"";
-            }
-
-            // Create the table. Simply continue on failure.
-            if (create_table(session, config, uri, mirror_uri, true) == 0) {
-                VERBOSE(*_workload, "Created base table '" << uri << "'");
-                if (_workload->options.mirror_tables) {
-                    // Create the mirror. Retry on failure and throw an exception after
-                    // making too many retry attempts.
-                    config = base_config + uri + "," + BASE_TABLE_APP_METADATA + "false\"";
-                    do
-                        status = create_table(session, config, mirror_uri, uri, false);
-                    while (status == EBUSY && ++retries < TABLE_MAX_RETRIES);
-                    if (status != 0)
-                        THROW_ERRNO(
-                          status, "Failed to create mirror table '" << mirror_uri << "'.");
-                    VERBOSE(*_workload, "Created mirror table '" << mirror_uri << "'");
-                }
+            // Create the table and its mirror if enabled.
+            int ret = create_table(session, config, uri, _workload->options.mirror_tables);
+            ASSERT(ret == 0 || ret == EBUSY || ret == EEXIST);
+            if (ret == 0)
                 ++creates;
-            }
+            else
+                ++retries;
         }
         sleep(_workload->options.create_interval);
     }
@@ -558,8 +628,9 @@ int
 WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
-    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
-        THROW("Error opening a session.");
+    int ret = conn->open_session(conn, nullptr, nullptr, &session);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error opening a session.");
     }
 
     ContextInternal *icontext = _workload->_context->_internal;
@@ -653,7 +724,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
          * removed from the shared data structures, and we know no thread is operating on them.
          */
         for (auto uri : drop_files) {
-            WT_DECL_RET;
+            int ret;
             // Spin on EBUSY. We do not expect to get stuck.
             while ((ret = session->drop(session, uri.c_str(), "checkpoint_wait=false")) == EBUSY) {
                 if (stopping)
@@ -662,7 +733,7 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
                 sleep(1);
             }
             if (ret != 0)
-                THROW("Table drop failed for '" << uri << "' in start_tables_drop.");
+                THROW_ERRNO(ret, "Table drop failed for '" << uri << "' in start_tables_drop.");
 
             VERBOSE(*_workload, "Dropped table: " << uri);
         }
@@ -709,6 +780,8 @@ monitor_main(void *arg)
         monitor->_errno = monitor->run();
     } catch (WorkgenException &wge) {
         monitor->_exception = wge;
+        std::cerr << "Exception in monitor->run(): " << wge._str << std::endl;
+        ASSERT(false);
     }
     return (nullptr);
 }
@@ -872,28 +945,31 @@ ContextInternal::create_all(WT_CONNECTION *conn)
      * dynamic set of tables are marked separately during creation.
      */
     WT_SESSION *session;
-    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
-        THROW("Error opening a session.");
+    int ret = conn->open_session(conn, nullptr, nullptr, &session);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error opening a session.");
     }
 
-    WT_DECL_RET;
     WT_CURSOR *cursor;
-    if ((ret = session->open_cursor(session, "metadata:", NULL, NULL, &cursor)) != 0) {
+    ret = session->open_cursor(session, "metadata:", NULL, NULL, &cursor);
+    if (ret != 0) {
         /* If there is no metadata (yet), this will return ENOENT. */
         if (ret == ENOENT) {
-            THROW("No metadata found while extracting dynamic set of tables.");
+            THROW_ERRNO(ret, "No metadata found while extracting dynamic set of tables.");
         }
     }
 
     /* Walk the entries in the metadata and extract the dynamic set. */
     while ((ret = cursor->next(cursor)) == 0) {
         const char *key, *v;
-        if ((ret = cursor->get_key(cursor, &key)) != 0) {
-            THROW(
+        ret = cursor->get_key(cursor, &key);
+        if (ret != 0) {
+            THROW_ERRNO(ret,
               "Error getting the key for a metadata entry while extracting dynamic set of tables.");
         }
-        if ((ret = cursor->get_value(cursor, &v)) != 0) {
-            THROW(
+        ret = cursor->get_value(cursor, &v);
+        if (ret != 0) {
+            THROW_ERRNO(ret,
               "Error getting the value for a metadata entry while extracting dynamic set of "
               "tables.");
         }
@@ -936,7 +1012,7 @@ ContextInternal::create_all(WT_CONNECTION *conn)
         }
     }
     if (ret != WT_NOTFOUND) {
-        THROW("Error extracting dynamic set of tables from the metadata.");
+        THROW_ERRNO(ret, "Error extracting dynamic set of tables from the metadata.");
     }
 
     /* Make sure each base has its mirror and vice-versa. */
@@ -959,11 +1035,12 @@ ContextInternal::create_all(WT_CONNECTION *conn)
             sleep(1);
         }
         if (ret != 0)
-            THROW("Table drop failed for '" << uri << "' in create_all.");
+            THROW_ERRNO(ret, "Table drop failed for '" << uri << "' in create_all.");
     }
 
-    if ((ret = session->close(session, NULL)) != 0) {
-        THROW("Session close failed.");
+    ret = session->close(session, NULL);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Session close failed.");
     }
 
     return (0);
@@ -1321,7 +1398,7 @@ ThreadRunner::cross_check(std::vector<ThreadRunner> &runners)
 int
 ThreadRunner::run()
 {
-    WT_DECL_RET;
+    int ret = 0;
     ThreadOptions *options = &_thread->options;
     std::string name = options->name;
 
@@ -1435,6 +1512,14 @@ pareto_calculation(uint32_t randint, uint64_t recno_max, ParetoOptions &pareto)
     return testutil_pareto((uint64_t)r, recno_max, pareto.param);
 }
 
+bool
+ThreadRunner::op_has_mirror(tint_t tint) const
+{
+    const std::shared_lock lock(*_icontext->_dyn_mutex);
+    return _icontext->_dyn_table_runtime.count(tint) > 0 &&
+      _icontext->_dyn_table_runtime.at(tint).has_mirror();
+}
+
 uint64_t
 ThreadRunner::op_get_key_recno(Operation *op, uint64_t range, tint_t tint)
 {
@@ -1478,7 +1563,7 @@ ThreadRunner::op_get_table(Operation *op) const
 
     std::string uri = op->_tables[_number];
     tint_t tint = 0;
-    if (uri != std::string()) {
+    if (!uri.empty()) {
         const std::shared_lock lock(*_icontext->_dyn_mutex);
         tint = _icontext->_dyn_tint[uri];
     }
@@ -1560,7 +1645,7 @@ ThreadRunner::op_kv_gen(Operation *op, const tint_t tint)
 int
 ThreadRunner::op_run_setup(Operation *op)
 {
-    WT_DECL_RET;
+    int ret = 0;
 
     if (_throttle != nullptr) {
         while (_throttle_ops >= _throttle_limit && !_in_transaction && !_stop) {
@@ -1612,13 +1697,12 @@ ThreadRunner::op_run_setup(Operation *op)
             std::advance(itr, random_value() % num_tables);
 
             if (_icontext->_dyn_table_runtime[itr->second]._is_base &&
-              !_icontext->_dyn_table_runtime[itr->second]._pending_delete) {
+              !_icontext->_dyn_table_runtime[itr->second]._pending_delete)
                 break;
-            }
         }
-        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES) { // Try again next time.
+        // Try again next time.
+        if (num_tables == 0 || retries >= TABLE_MAX_RETRIES)
             return 0;
-        }
 
         std::string op_uri = itr->first; // Get the table name.
         tint_t op_tint = itr->second;    // Get the tint.
@@ -1666,7 +1750,7 @@ ThreadRunner::op_run(Operation *op)
     Track *track;
     WT_CURSOR *cursor;
     WT_ITEM item;
-    WT_DECL_RET;
+    int ret;
     bool measure_latency, own_cursor, retry_op;
     timespec start_time;
     uint64_t time_us;
@@ -1677,6 +1761,7 @@ ThreadRunner::op_run(Operation *op)
     track = nullptr;
     cursor = nullptr;
     own_cursor = false;
+    ret = 0;
     retry_op = true;
 
     switch (op->_optype) {
@@ -1756,7 +1841,8 @@ ThreadRunner::op_run(Operation *op)
             }
         }
     }
-    // Retry on rollback until success.
+
+    // We may retry on rollback errors.
     while (retry_op) {
         if (op->transaction != nullptr) {
             if (_in_transaction)
@@ -1777,6 +1863,9 @@ ThreadRunner::op_run(Operation *op)
             _in_transaction = true;
         }
         if (op->is_table_op()) {
+            bool has_mirror = op_has_mirror(tint);
+            // Ensure explicit transactions are used for mirrored operations.
+            ASSERT(!has_mirror || _in_transaction);
             switch (op->_optype) {
             case Operation::OP_INSERT:
                 ret = cursor->insert(cursor);
@@ -1809,11 +1898,22 @@ ThreadRunner::op_run(Operation *op)
             if (ret == 0)
                 cursor->reset(cursor);
             else {
-                retry_op = true;
+                /*
+                 * We don't retry on a WT_ROLLBACK error when it is a mirrored operation as Workgen
+                 * will create a new transaction.
+                 */
+                if (op->_random_table && has_mirror) {
+                    VERBOSE(*this,
+                      "The table "
+                        << table_uri
+                        << " faced a WT_ROLLBACK error, giving up on the mirrored operation");
+                } else
+                    retry_op = true;
                 track->rollbacks++;
-                WT_ERR(_session->rollback_transaction(_session, nullptr));
-                _in_transaction = false;
-                ret = 0;
+                if (_in_transaction) {
+                    _in_transaction = false;
+                    WT_ERR(_session->rollback_transaction(_session, nullptr));
+                }
             }
         } else {
             // Never retry on an internal op.
@@ -1838,14 +1938,25 @@ ThreadRunner::op_run(Operation *op)
             endtime = _op_time_us + secs_us(op->_timed);
 
         VERBOSE(
-          *this, "GROUP operation " << op->_timed << " secs, " << op->_repeatgroup << "times");
+          *this, "GROUP operation " << op->_timed << " secs, " << op->_repeatgroup << " times");
 
         do {
             // Wait for transactions to complete before stopping.
+            bool has_mirror;
             for (int count = 0; (!_stop || _in_transaction) && count < op->_repeatgroup; count++) {
                 for (std::vector<Operation>::iterator i = op->_group->begin();
                      i != op->_group->end(); i++) {
-                    WT_ERR(op_run_setup(&*i));
+                    auto [table_uri, tint] = op_get_table(&*i);
+                    has_mirror = op_has_mirror(tint);
+                    /*
+                     * If a mirrored operation has started and there is no active transaction, it
+                     * means it has been interrupted, quit.
+                     */
+                    if ((*i)._random_table && has_mirror && (i != op->_group->begin()) &&
+                      !_in_transaction)
+                        goto err;
+                    else
+                        WT_ERR(op_run_setup(&*i));
                 }
             }
             workgen_clock(&now);
@@ -2982,7 +3093,8 @@ WorkloadOptions::WorkloadOptions()
       timestamp_advance(0.0), max_idle_table_cycle_fatal(false), create_count(0),
       create_interval(0), create_prefix(""), create_target(0), create_trigger(0), drop_count(0),
       drop_interval(0), drop_target(0), drop_trigger(0), random_table_values(false),
-      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), _options()
+      mirror_tables(false), mirror_suffix("_mirror"), background_compact(0), max_num_files(INT_MAX),
+      _options()
 {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
@@ -3045,6 +3157,8 @@ WorkloadOptions::WorkloadOptions()
       "mirror_suffix", mirror_suffix, "the suffix to append to mirrored table names");
     _options.add_int("background_compact", background_compact,
       "minimum amount of space recoverable for compaction to proceed in MB, 0 to disable.");
+    _options.add_int("max_num_files", max_num_files,
+      "if specified, maximum number of files that can be present in the database.");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other)
@@ -3109,7 +3223,7 @@ WorkloadRunner::~WorkloadRunner()
 int
 WorkloadRunner::run(WT_CONNECTION *conn)
 {
-    WT_DECL_RET;
+    int ret = 0;
     WorkloadOptions *options = &_workload->options;
 
     _wt_home = conn->get_home(conn);
@@ -3241,7 +3355,7 @@ WorkloadRunner::final_report(timespec &totalsecs)
 int
 WorkloadRunner::run_all(WT_CONNECTION *conn)
 {
-    WT_DECL_RET;
+    int ret = 0;
 
     // Register signal handlers for SIGINT (Ctrl-C) and SIGTERM.
     std::signal(SIGINT, signal_handler);
@@ -3337,6 +3451,9 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
         if (options->create_count < 1) {
             std::cerr << "create_count needs to be greater than 0" << std::endl;
             stopping = true;
+        } else if (options->create_count > options->max_num_files) {
+            std::cerr << "create_count cannot be greater than max_num_files" << std::endl;
+            stopping = true;
         } else if (options->create_target > 0 && options->create_trigger <= 0) {
             std::cerr << "Need to specify a create_trigger when setting a create_target."
                       << std::endl;
@@ -3397,17 +3514,19 @@ WorkloadRunner::run_all(WT_CONNECTION *conn)
     if (options->background_compact > 0) {
         WT_SESSION *session;
 
-        if (conn->open_session(conn, nullptr, nullptr, &session) != 0)
-            THROW("Error opening a session.");
+        int ret = conn->open_session(conn, nullptr, nullptr, &session);
+        if (ret != 0)
+            THROW_ERRNO(ret, "Error opening a session.");
 
         const std::string bg_compact_cfg("background=true,free_space_target=" +
           std::to_string(options->background_compact) + "MB");
-        int ret = session->compact(session, nullptr, bg_compact_cfg.c_str());
+        ret = session->compact(session, nullptr, bg_compact_cfg.c_str());
         if (ret != 0)
             THROW_ERRNO(ret, "WT_SESSION->compact background compaction could not be enabled.");
 
-        if ((ret = session->close(session, NULL)) != 0)
-            THROW("Session close failed.");
+        ret = session->close(session, NULL);
+        if (ret != 0)
+            THROW_ERRNO(ret, "Session close failed.");
     }
 
     timespec now;

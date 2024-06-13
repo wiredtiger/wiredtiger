@@ -82,10 +82,7 @@ configuration::configuration(const std::string &test_config_name, const std::str
     logger::log_msg(LOG_INFO, "Full config: " + _config);
 
     int ret =
-      wiredtiger_test_config_validate(nullptr, nullptr, test_config_name.c_str(), _config.c_str());
-    if (ret != 0)
-        testutil_die(EINVAL, "failed to validate given config, ensure test config exists");
-    ret = wiredtiger_config_parser_open(nullptr, _config.c_str(), _config.size(), &_config_parser);
+      wiredtiger_config_parser_open(nullptr, _config.c_str(), _config.size(), &_config_parser);
     if (ret != 0)
         testutil_die(EINVAL, "failed to create configuration parser for provided config");
 }
@@ -168,7 +165,7 @@ T
 configuration::get(
   const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item))
 {
-    WT_DECL_RET;
+    int ret = 0;
     WT_CONFIG_ITEM value = {"", 0, 1, WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL};
 
     ret = _config_parser->get(_config_parser, key.c_str(), &value);

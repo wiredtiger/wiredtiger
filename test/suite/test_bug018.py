@@ -35,6 +35,8 @@ import wiredtiger, wttest
 #   JIRA WT-3590: if writing table data fails during close then tables
 # that were updated within the same transaction could get out of sync with
 # each other.
+@wttest.skip_for_hook("nonstandalone", "fails for nonstandalone")
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - fails on tiered")
 class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
     '''Test closing/reopening/recovering tables when writes fail'''
 
@@ -140,6 +142,3 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
             self.captureerr.checkAdditionalPattern(self, '.')
             results2 = []
         self.assertEqual(results1, results2)
-
-if __name__ == '__main__':
-    wttest.run()

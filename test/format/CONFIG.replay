@@ -4,15 +4,15 @@
 # A configuration for predictable replay.
 # Some things are locked down at the moment.
 backup=0
-btree.huffman_value=0
 cache.minimum=20
 format.abort=0
 format.independent_thread_rng=1
 import=0
 ops.alter=0
 ops.compaction=0
-ops.truncate=0
 ops.salvage=0
+ops.throttle=0
+ops.truncate=0
 quiet=0
 runs.in_memory=0
 runs.mirror=0

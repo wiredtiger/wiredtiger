@@ -1,8 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Generate WiredTiger function prototypes.
-import fnmatch, re
+import fnmatch, re, os, sys
 from dist import compare_srcfile, format_srcfile, source_files
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast(source_files(), prefix="../")]:
+    sys.exit(0)
 
 def clean_function_name(filename, fn):
     ret = fn.strip()
@@ -19,14 +23,14 @@ def clean_function_name(filename, fn):
         ret = " ".join(ret.split())
 
     # If it's not an inline function, prefix with "extern".
-    if not 'inline' in ret:
+    if 'inline' not in ret and 'WT_INLINE' not in ret:
         ret = 'extern ' + ret
 
     # Switch to the include file version of any gcc attributes.
     ret = ret.replace("WT_GCC_FUNC_ATTRIBUTE", "WT_GCC_FUNC_DECL_ATTRIBUTE")
 
     # Everything but void requires using any return value.
-    if not re.match(r'(static inline|extern) void', ret):
+    if not re.match(r'(static inline|static WT_INLINE|extern) void', ret):
         ret = ret + " WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))"
 
     # If a line ends in #endif, appending a semicolon results in an illegal
@@ -53,6 +57,9 @@ def fn_prototypes(fns, tests, name):
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wt_[^{]*'):
         fns.append(sig)
 
+    for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wti_[^{]*'):
+        fns.append(sig)
+
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__ut_[^{]*'):
         tests.append(sig)
 
@@ -60,8 +67,9 @@ def fn_prototypes(fns, tests, name):
 # Unit-testing functions are exposed separately in their own section to
 # allow them to be ifdef'd out.
 def output(fns, tests, f):
-    tmp_file = '__tmp'
+    tmp_file = '__tmp_prototypes' + str(os.getpid())
     tfile = open(tmp_file, 'w')
+    tfile.write("#pragma once\n\n")
     for e in sorted(list(set(fns))):
         tfile.write(e)
 

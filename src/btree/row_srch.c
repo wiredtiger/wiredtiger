@@ -8,14 +8,14 @@
 
 #include "wt_internal.h"
 
-static inline int __validate_next_stack(
+static WT_INLINE int __validate_next_stack(
   WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);
 
 /*
  * __search_insert_append --
  *     Fast append search of a row-store insert list, creating a skiplist stack as we go.
  */
-static inline int
+static WT_INLINE int
 __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head,
   WT_ITEM *srch_key, bool *donep)
 {
@@ -37,9 +37,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
      * move this assignment above within the loop below if it needs to (and may read a different
      * value on each loop due to other threads mutating the skip list).
      *
-     * Place a read barrier here to avoid this issue.
+     * Place an acquire barrier here to avoid this issue.
      */
-    WT_READ_BARRIER();
+    WT_ACQUIRE_BARRIER();
     key.data = WT_INSERT_KEY(ins);
     key.size = WT_INSERT_KEY_SIZE(ins);
 
@@ -113,9 +113,9 @@ __wt_search_insert(
          * In addition, a CPU with weak memory ordering, such as ARM, may reorder the reads and read
          * a stale value. It is not OK and the reason is explained in the following comment.
          *
-         * Place a read barrier here to avoid these issues.
+         * Place an acquire barrier here to avoid these issues.
          */
-        WT_ORDERED_READ_WEAK_MEMORDER(ins, *insp);
+        WT_ACQUIRE_READ_WITH_BARRIER(ins, *insp);
         if (ins == NULL) {
             cbt->next_stack[i] = NULL;
             cbt->ins_stack[i--] = insp--;
@@ -168,7 +168,7 @@ __wt_search_insert(
              * inserting the new key to the skip list from lower stack to upper stack using an
              * atomic compare and swap operation, which functions as a full barrier. However, it is
              * not enough on the architecture that has weaker memory ordering, such as ARM.
-             * Therefore, an extra read barrier is needed for these platforms.
+             * Therefore, an extra acquire barrier is needed for these platforms.
              */
             match = WT_MIN(skiplow, skiphigh);
             WT_RET(__wt_compare_skip(session, collator, srch_key, &key, &cmp, &match));
@@ -185,9 +185,9 @@ __wt_search_insert(
             for (; i >= 0; i--) {
                 /*
                  * It is possible that we read an old value down the stack due to read reordering on
-                 * CPUs with weak memory ordering. Add a read barrier to avoid this issue.
+                 * CPUs with weak memory ordering. Add an acquire barrier to avoid this issue.
                  */
-                WT_ORDERED_READ_WEAK_MEMORDER(cbt->next_stack[i], ins->next[i]);
+                WT_ACQUIRE_READ_WITH_BARRIER(cbt->next_stack[i], ins->next[i]);
                 cbt->ins_stack[i] = &ins->next[i];
             }
     }
@@ -217,14 +217,13 @@ __wt_search_insert(
  *     to larger inserts than lower levels, and all inserts are larger than the srch_key used in
  *     building the next_stack.
  */
-static inline int
+static WT_INLINE int
 __validate_next_stack(
   WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key)
 {
-
-    WT_ITEM upper_key, lower_key;
-    int32_t i, cmp;
     WT_COLLATOR *collator;
+    WT_ITEM lower_key, upper_key;
+    int32_t cmp, i;
 
     /*
      * Hide the flag check for non-diagnostics builds, too.
@@ -286,7 +285,7 @@ __validate_next_stack(
  * __check_leaf_key_range --
  *     Check the search key is in the leaf page's key range.
  */
-static inline int
+static WT_INLINE int
 __check_leaf_key_range(
   WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
 {
@@ -362,7 +361,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     WT_INSERT_HEAD *ins_head;
     WT_ITEM *item;
     WT_PAGE *page;
-    WT_PAGE_INDEX *pindex, *parent_pindex;
+    WT_PAGE_INDEX *parent_pindex, *pindex;
     WT_REF *current, *descent;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;

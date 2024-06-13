@@ -94,6 +94,7 @@ typedef struct {
 static volatile THREAD_TS th_ts[MAX_TH];
 
 static TEST_OPTS *opts, _opts;
+static WT_LAZY_FS lazyfs;
 
 #define ENV_CONFIG_DEF                                                                             \
     "create,"                                                                                      \
@@ -139,7 +140,6 @@ typedef struct {
 #define CREATE_UNQ "create_unique"
 #define CURSOR "cursor"
 #define DROP "drop"
-#define UPGRADE "upgrade"
 #define VERIFY "verify"
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -431,6 +431,13 @@ test_drop(THREAD_DATA *td, int force)
     WT_SESSION *session;
     char dropconf[128];
 
+    /*
+     * Until tiered schema operations are debugged thoroughly, for tiered storage skip dropping the
+     * standard URI. We can still test tiered drops with uniquely named tables.
+     */
+    if (opts->tiered_storage)
+        return;
+
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (use_txn)
@@ -456,28 +463,6 @@ test_drop(THREAD_DATA *td, int force)
         if (ret == EINVAL)
             testutil_die(ret, "session.commit drop");
     }
-    testutil_check(session->close(session, NULL));
-}
-
-/*
- * test_upgrade --
- *     Upgrade a tree.
- */
-static void
-test_upgrade(THREAD_DATA *td)
-{
-    WT_DECL_RET;
-    WT_SESSION *session;
-
-    /* FIXME-WT-11366 Remove this return when tiered storage supports upgrade. */
-    if (opts->tiered_storage)
-        return;
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
-    if ((ret = session->upgrade(session, uri, NULL)) != 0)
-        if (ret != ENOENT && ret != EBUSY)
-            testutil_die(ret, "session.upgrade");
-
     testutil_check(session->close(session, NULL));
 }
 
@@ -561,7 +546,7 @@ thread_ts_run(void *arg)
               "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, oldest_ts, oldest_ts);
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
             last_ts = oldest_ts;
-            stable_timestamp = oldest_ts;
+            WT_RELEASE_WRITE_WITH_BARRIER(stable_timestamp, oldest_ts);
             if (!stable_set) {
                 stable_set = true;
                 printf("SET STABLE: %" PRIx64 " %" PRIu64 "\n", oldest_ts, oldest_ts);
@@ -584,6 +569,7 @@ thread_ckpt_run(void *arg)
     WT_SESSION *session;
     uint64_t ts;
     uint64_t sleep_time;
+    uint64_t stable_ts_copy;
     int i;
     char ckpt_flush_config[128], ckpt_config[128];
     bool created_ready, flush_tier, ready_for_kill;
@@ -635,6 +621,14 @@ thread_ckpt_run(void *arg)
         flush_tier = false;
         testutil_tiered_sleep(opts, session, sleep_time, &flush_tier);
 
+        /*
+         * Read the stable timestamp before performing a checkpoint. Before we say we're ready, we
+         * need to perform a checkpoint that's at (or past) the stop timestamp. However, the stable
+         * timestamp could increment during (or after) the checkpoint, so if we read it later, we
+         * could prematurely wrap this thread up.
+         */
+        WT_ACQUIRE_READ_WITH_BARRIER(stable_ts_copy, stable_timestamp);
+
         /* Set the configuration based on whether we're flushing. */
         testutil_check(session->checkpoint(session, flush_tier ? ckpt_flush_config : ckpt_config));
 
@@ -644,7 +638,7 @@ thread_ckpt_run(void *arg)
          * first checkpoint, or if tiered storage, after the first flush_tier has been initiated.
          */
         if (stop_timestamp != 0) {
-            if (stable_timestamp >= stop_timestamp)
+            if (stable_ts_copy >= stop_timestamp)
                 ready_for_kill = true;
         } else if (!opts->tiered_storage)
             ready_for_kill = true;
@@ -762,7 +756,7 @@ thread_run(void *arg)
              * Set our timestamp to the stop timestamp to indicate we are done. Just stay in the
              * loop, waiting to be killed.
              */
-            WT_PUBLISH(th_ts[td->info].ts, stop_timestamp);
+            WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].ts, stop_timestamp);
             __wt_sleep(1, 0);
             continue;
         }
@@ -771,7 +765,7 @@ thread_run(void *arg)
          * Allow some threads to skip schema operations so that they are generating sufficient dirty
          * data.
          */
-        WT_PUBLISH(th_ts[td->info].op, NOOP);
+        WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, NOOP);
         if (td->info != 0 && td->info != 1)
             /*
              * Do a schema operation about 50% of the time by having a case for only about half the
@@ -779,35 +773,31 @@ thread_run(void *arg)
              */
             switch (__wt_random(&td->data_rnd) % 20) {
             case 0:
-                WT_PUBLISH(th_ts[td->info].op, BULK);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK);
                 test_bulk(td);
                 break;
             case 1:
-                WT_PUBLISH(th_ts[td->info].op, BULK_UNQ);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK_UNQ);
                 test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 2:
-                WT_PUBLISH(th_ts[td->info].op, CREATE);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, CREATE);
                 test_create(td);
                 break;
             case 3:
-                WT_PUBLISH(th_ts[td->info].op, CREATE_UNQ);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, CREATE_UNQ);
                 test_create_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 4:
-                WT_PUBLISH(th_ts[td->info].op, CURSOR);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, CURSOR);
                 test_cursor(td);
                 break;
             case 5:
-                WT_PUBLISH(th_ts[td->info].op, DROP);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, DROP);
                 test_drop(td, __wt_random(&td->data_rnd) & 1);
                 break;
             case 6:
-                WT_PUBLISH(th_ts[td->info].op, UPGRADE);
-                test_upgrade(td);
-                break;
-            case 7:
-                WT_PUBLISH(th_ts[td->info].op, VERIFY);
+                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, VERIFY);
                 test_verify(td);
                 break;
             }
@@ -874,7 +864,7 @@ thread_run(void *arg)
              * statement, if we were to race with the timestamp thread, it might see our thread
              * update before the commit.
              */
-            WT_PUBLISH(th_ts[td->info].ts, stable_ts);
+            WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].ts, stable_ts);
         } else {
             testutil_check(session->commit_transaction(session, NULL));
             if (use_prep)
@@ -1043,9 +1033,12 @@ sig_handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+
+    /* Clean up LazyFS. */
+    if (use_lazyfs)
+        testutil_lazyfs_cleanup(&lazyfs);
+
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -1062,7 +1055,6 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
     WT_DECL_RET;
-    WT_LAZY_FS lazyfs;
     WT_SESSION *session;
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;

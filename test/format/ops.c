@@ -241,7 +241,7 @@ rollback_to_stable(WT_SESSION *session)
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
      * debugging the race.
      */
-    timestamp_query("get=stable", &g.stable_timestamp);
+    testutil_check(timestamp_query("get=stable_timestamp", &g.stable_timestamp));
     trace_msg(session, "rollback-to-stable: stable timestamp %" PRIu64, g.stable_timestamp);
 
     /* Check the saved snap operations for consistency. */
@@ -318,7 +318,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
              */
             thread_ops = -1;
             ops_seconds = 0;
-            g.stop_timestamp = (GV(RUNS_OPS) * run_current) / run_total;
+            g.stop_timestamp = (GV(RUNS_OPS) * (uint64_t)run_current) / run_total;
         } else
             thread_ops = GV(RUNS_OPS) / GV(RUNS_THREADS);
     }
@@ -331,7 +331,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Get a session. */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
 
     /* Initialize and start the worker threads. */
     lanes_init();
@@ -483,7 +483,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     if (lastrun) {
         tinfo_teardown();
-        timestamp_teardown(session);
+        if (g.transaction_timestamps_config)
+            timestamp_teardown(session);
     }
 
     wt_wrap_close_session(session);
@@ -595,7 +596,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
      */
-    WT_PUBLISH(tinfo->commit_ts, ts);
+    WT_RELEASE_WRITE_WITH_BARRIER(tinfo->commit_ts, ts);
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
@@ -938,7 +939,7 @@ ops_session_open(TINFO *tinfo)
     tinfo->session = NULL;
     memset(tinfo->cursors, 0, WT_MAX(ntables, 1) * sizeof(tinfo->cursors[0]));
 
-    wt_wrap_open_session(conn, &tinfo->sap, NULL, &session);
+    wt_wrap_open_session(conn, &tinfo->sap, NULL, NULL, &session);
     tinfo->session = session;
 }
 
@@ -955,13 +956,14 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op;
+    uint64_t reset_op, session_op, throttle_delay, truncate_op;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i;
+    u_int i, throttle_delay_max;
     const char *iso_config;
-    bool greater_than, intxn, prepared;
+    bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
+    mirrored_truncate = false;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -981,6 +983,14 @@ ops(void *arg)
     tinfo->replay_again = false;
     tinfo->lane = LANE_NONE;
 
+    /*
+     * Calculate max delay so that per-table ops/sec is as set. We use 2* here as our random
+     * operation uses a flat distribution and the average delay will come out to
+     * OPS_THROTTLE_SLEEP_US.
+     */
+    throttle_delay_max =
+      2 * GV(OPS_THROTTLE_SLEEP_US) * GV(RUNS_THREADS) / (ntables > 0 ? ntables : 1);
+
     /* Set the first operation where we'll create a new session and cursors. */
     session = NULL;
     session_op = 0;
@@ -992,7 +1002,13 @@ ops(void *arg)
     truncate_op = mmrand(&tinfo->data_rnd, 100, 10 * WT_THOUSAND);
 
     for (intxn = false; !tinfo->quit;) {
+        if (GV(OPS_THROTTLE)) {
+            /* Sleep first to avoid burst when all threads start. */
+            throttle_delay = mmrand(&tinfo->extra_rnd, 0, throttle_delay_max);
+            __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
+        }
 rollback_retry:
+        mirrored_truncate = false;
         if (tinfo->quit)
             break;
 
@@ -1134,7 +1150,7 @@ rollback_retry:
          */
         max_rows = TV(RUNS_ROWS);
         if (table->type != ROW && !table->mirror)
-            WT_ORDERED_READ(max_rows, table->rows_current);
+            WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
         tinfo->keyno = mmrand(&tinfo->data_rnd, 1, (u_int)max_rows);
         if (TV(OPS_PARETO)) {
             tinfo->keyno = testutil_pareto(tinfo->keyno, (u_int)max_rows, TV(OPS_PARETO_SKEW));
@@ -1289,7 +1305,9 @@ rollback_retry:
                 goto rollback;
             skip2 = table;
         }
-        if (ret == 0 && table->mirror)
+        if (ret == 0 && table->mirror) {
+            if (op == TRUNCATE)
+                mirrored_truncate = true;
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2 && tables[i]->mirror) {
                     tinfo->table = tables[i];
@@ -1300,6 +1318,7 @@ rollback_retry:
                     if (ret == WT_ROLLBACK)
                         break;
                 }
+        }
 skip_operation:
         table = tinfo->table = NULL;
 
@@ -1394,6 +1413,9 @@ rollback:
             snap_repeat_update(tinfo, false);
             break;
         }
+
+        if (mirrored_truncate)
+            wts_verify_mirrored_truncate(tinfo);
 
         intxn = false;
     }
@@ -1514,7 +1536,7 @@ apply_bounds(WT_CURSOR *cursor, TABLE *table, WT_RAND_STATE *rnd)
 
     /* Set up the default key buffer. */
     key_gen_init(&key);
-    WT_ORDERED_READ(max_rows, table->rows_current);
+    WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
 
     /*
      * Generate a random lower key and apply to the lower bound or upper bound depending on the
@@ -1611,11 +1633,12 @@ wts_read_scan(TABLE *table, void *args)
 
     /* Open a session and cursor pair. */
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(
+      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */
-    WT_ORDERED_READ(max_rows, table->rows_current);
+    WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
     for (keyno = 0; keyno < max_rows;) {
         if (++keyno > 50)
             keyno += mmrand(rnd, 1, WT_THOUSAND);
@@ -2055,7 +2078,7 @@ col_insert_resolve(TABLE *table, void *arg)
      * Process the existing records and advance the last row count until we can't go further.
      */
     do {
-        WT_ORDERED_READ(max_rows, table->rows_current);
+        WT_ACQUIRE_READ_WITH_BARRIER(max_rows, table->rows_current);
         for (i = 0, p = cip->insert_list; i < WT_ELEMENTS(cip->insert_list); ++i, ++p) {
             /*
              * A thread may have allocated a record number that is now less than or equal to the

@@ -11,6 +11,15 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt10461_skip_list_stress/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt10461_skip_list_stress>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
+)
+
+define_c_test(
+    TARGET test_config
+    SOURCES config/main.c
+    DIR_NAME config
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_config>/WT_HOME>
+    DEPENDS "WT_POSIX"
 )
 
 define_c_test(
@@ -27,6 +36,8 @@ define_c_test(
     SOURCES random/main.c
     DIR_NAME random
     DEPENDS "WT_POSIX"
+    # This test takes over 20 minutes under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -35,16 +46,8 @@ define_c_test(
     DIR_NAME random_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_random_abort>
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke_lazyfs.sh
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_random_abort_lazyfs
-    SOURCES random_abort/main.c
-    DIR_NAME random_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke_lazyfs.sh
-    ARGUMENTS $<TARGET_FILE:test_random_abort_lazyfs>
-    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -74,16 +77,8 @@ define_c_test(
     DIR_NAME schema_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_schema_abort>
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke_lazyfs.sh
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_schema_abort_lazyfs
-    SOURCES schema_abort/main.c
-    DIR_NAME schema_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke_lazyfs.sh
-    ARGUMENTS $<TARGET_FILE:test_schema_abort_lazyfs>
-    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
 )
 
 define_c_test(
@@ -99,16 +94,19 @@ define_c_test(
     DIR_NAME timestamp_abort
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
+    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke_lazyfs.sh
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
-    TARGET test_timestamp_abort_lazyfs
+    TARGET test_timestamp_abort_stress
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
-    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke_lazyfs.sh
-    ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort_lazyfs>
-    DEPENDS "WT_POSIX" "ENABLE_LAZYFS"
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
+    ARGUMENTS -s -b $<TARGET_FILE:test_timestamp_abort>_stress
+    DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -134,7 +132,6 @@ define_c_test(
     DIR_NAME wt2403_lsm_workload
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -150,7 +147,6 @@ define_c_test(
     DIR_NAME wt2323_join_visibility
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -160,7 +156,6 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2535_insert_race/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt2535_insert_race>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -199,7 +194,6 @@ define_c_test(
     SOURCES wt2834_join_bloom_fix/main.c
     DIR_NAME wt2834_join_bloom_fix
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME>
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -212,6 +206,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2909_checkpoint_integrity/smoke.sh
     ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -252,6 +247,8 @@ define_c_test(
     DIR_NAME wt3338_partial_update
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt3338_partial_update>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over an hour under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -310,14 +307,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt4803_history_store_abort
-    SOURCES wt4803_history_store_abort/main.c
-    DIR_NAME wt4803_history_store_abort
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4803_history_store_abort>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET test_wt4891_meta_ckptlist_get_alloc
     SOURCES wt4891_meta_ckptlist_get_alloc/main.c
     DIR_NAME wt4891_meta_ckptlist_get_alloc
@@ -348,6 +337,17 @@ define_c_test(
     DIR_NAME wt7989_compact_checkpoint
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt7989_compact_checkpoint>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over 40 minutes under ASan testing
+    LABEL "long_running"
+)
+
+define_c_test(
+    TARGET test_wt9199_checkpoint_txn_commit_race
+    SOURCES wt9199_checkpoint_txn_commit_race/main.c
+    DIR_NAME wt9199_checkpoint_txn_commit_race
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt9199_checkpoint_txn_commit_race>/WT_HOME>
+    DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -364,6 +364,7 @@ define_c_test(
     DIR_NAME wt8246_compact_rts_data_correctness
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
     DEPENDS "WT_POSIX"
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -372,6 +373,8 @@ define_c_test(
     DIR_NAME wt8659_reconstruct_database_from_logs
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over 20 minutes under ASan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -380,6 +383,7 @@ define_c_test(
     DIR_NAME wt8963_insert_stress
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8963_insert_stress>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over an hour under ASan testing
     LABEL "long_running"
 )
 
@@ -400,9 +404,25 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_wt11126_compile_config
+    SOURCES wt11126_compile_config/main.c
+    DIR_NAME wt11126_compile_config
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt11440_config_check
     SOURCES wt11440_config_check/main.c
     DIR_NAME wt11440_config_check
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt12015_backup_corruption
+    SOURCES wt12015_backup_corruption/main.c
+    DIR_NAME wt12015_backup_corruption
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )

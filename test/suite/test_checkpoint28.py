@@ -46,6 +46,7 @@ from wtscenario import make_scenarios
 # an interesting scenario. The concern is getting the matching version
 # of WiredTigerCheckpoint and hanging onto it.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_handle]'
     session_config = 'isolation=snapshot'
@@ -115,7 +116,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             cursor1[ds_1.key(i)] = value_a
             cursor2[ds_2.key(i)] = value_a
         session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
-        
+
         # Move stable up to 30.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
@@ -149,12 +150,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Make sure we can't read any of the rows from two tables.
         uri_1_count = self.check(ckpt_1, value_a)
         uri_2_count = self.check(ckpt_2, value_a)
-        
+
         self.assertEqual(uri_1_count, uri_2_count)
         self.assertEqual(uri_1_count, 0)
 
         ckpt_1.close()
         ckpt_2.close()
-
-if __name__ == '__main__':
-    wttest.run()

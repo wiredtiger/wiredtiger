@@ -1,6 +1,5 @@
-extern BOOL CALLBACK __wt_init_once_callback(
-  _Inout_ PINIT_ONCE InitOnce, _Inout_opt_ PVOID Parameter, _Out_opt_ PVOID *Context)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+#pragma once
+
 extern DWORD __wt_getlasterror(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_absolute_path(const char *path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_has_priv(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -30,25 +29,25 @@ extern int __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_str(char *buf, size_t buflen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_to_utf16_string(WT_SESSION_IMPL *session, const char *utf8, WT_ITEM **outbuf)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_to_utf8_string(WT_SESSION_IMPL *session, const wchar_t *wide, WT_ITEM **outbuf)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_vsnprintf_len_incr(char *buf, size_t size, size_t *retsizep, const char *fmt,
   va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+extern int __wti_to_utf16_string(WT_SESSION_IMPL *session, const char *utf8, WT_ITEM **outbuf)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_to_utf8_string(WT_SESSION_IMPL *session, const wchar_t *wide, WT_ITEM **outbuf)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
   const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_directory_list_free(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+extern int __wti_win_directory_list_free(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
   char **dirlist, uint32_t count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+extern int __wti_win_directory_list_single(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
   const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_fs_size(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name,
+extern int __wti_win_fs_size(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name,
   wt_off_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void **mapped_regionp,
+extern int __wti_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void **mapped_regionp,
   size_t *lenp, void **mapped_cookiep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_region,
+extern int __wti_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_region,
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uintmax_t __wt_process_id(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp);

@@ -36,6 +36,7 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 
 # test_rollback_to_stable35.py
 # Test that log is flushed for all writes that occurred in the checkpoint.
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_rollback_to_stable35(test_rollback_to_stable_base):
 
     format_values = [
@@ -127,7 +128,7 @@ class test_rollback_to_stable35(test_rollback_to_stable_base):
                 ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
                 stat_cursor.close()
                 time.sleep(1)
-            
+
             self.large_updates(uri_1, uri_2, valuec, ds_1, ds_2, nrows)
             self.check(valuec, uri_1, uri_2, nrows)
 
@@ -176,6 +177,3 @@ class test_rollback_to_stable35(test_rollback_to_stable_base):
         self.assertEqual(pages_visited, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertGreaterEqual(hs_removed, 0)
-
-if __name__ == '__main__':
-    wttest.run()

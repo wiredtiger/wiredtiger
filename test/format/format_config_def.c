@@ -5,7 +5,7 @@
 CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0,
                                  V_GLOBAL_ASSERT_READ_TIMESTAMP},
 
-  {"background_compact", "configure background compaction", C_BOOL, 10, 0, 0,
+  {"background_compact", "configure background compaction", C_BOOL, 50, 0, 0,
     V_GLOBAL_BACKGROUND_COMPACT},
 
   {"background_compact.free_space_target", "free space target for background compaction (MB)", 0x0,
@@ -37,9 +37,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"btree.dictionary", "configure dictionary compressed values",
     C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0, V_TABLE_BTREE_DICTIONARY},
-
-  {"btree.huffman_value", "configure huffman encoded values",
-    C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0, V_TABLE_BTREE_HUFFMAN_VALUE},
 
   {"btree.internal_key_truncation", "truncate internal keys", C_BOOL | C_TABLE, 95, 0, 0,
     V_TABLE_BTREE_INTERNAL_KEY_TRUNCATION},
@@ -110,10 +107,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0, V_GLOBAL_CHUNK_CACHE},
 
-  {"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 10,
-    1024, 100 * 1024, V_GLOBAL_CHUNK_CACHE_CAPACITY},
+  {"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100,
+    5120, 100 * 1024, V_GLOBAL_CHUNK_CACHE_CAPACITY},
 
-  {"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 100, 100 * 1024,
+  {"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 5, 100 * 1024,
     V_GLOBAL_CHUNK_CACHE_CHUNK_SIZE},
 
   {"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE,
@@ -279,9 +276,16 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_SALVAGE},
 
+  {"ops.throttle", "enable delay between ops", C_BOOL, 10, 0, 0, V_GLOBAL_OPS_THROTTLE},
+
+  {"ops.throttle.sleep_us", "average duration of sleep between ops per table, us", 0x0, 0, M(1),
+    M(60), V_GLOBAL_OPS_THROTTLE_SLEEP_US},
+
   {"ops.truncate", "configure truncation", C_BOOL | C_TABLE, 100, 0, 0, V_TABLE_OPS_TRUNCATE},
 
   {"ops.verify", "configure verify", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_VERIFY},
+
+  {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
 
   {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_QUIET},
 
@@ -354,6 +358,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SEARCH},
 
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SWEEP},
+
+  {"stress.prefetch_delay", "stress prefetch delay", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_PREFETCH_DELAY},
 
   {"stress.prepare_resolution_1", "stress prepare resolution (#1)", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_PREPARE_RESOLUTION_1},

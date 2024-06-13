@@ -44,7 +44,8 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, table->track_prefix, &session);
+    wt_wrap_open_session(conn, &sap, table->track_prefix,
+      enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == EBUSY)
@@ -138,29 +139,74 @@ table_mirror_fail_msg_flcs(WT_SESSION *session, const char *checkpoint, TABLE *b
 }
 
 /*
- * table_verify_mirror --
- *     Verify a mirrored pair.
+ * position_cursor_before --
+ *     Place a cursor on the key directly preceding the target key.
  */
 static void
-table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *checkpoint)
+position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
+{
+    WT_DECL_RET;
+    WT_ITEM key;
+    int exact;
+
+    key_gen_init(&key);
+
+    switch (table->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, target_keyno);
+        break;
+    case ROW:
+        key_gen(table, &key, target_keyno);
+        cursor->set_key(cursor, &key);
+        break;
+    }
+
+    testutil_check(read_op(cursor, SEARCH_NEAR, &exact));
+
+    /* If we're on or past the target key then move backwards one key. */
+    if (exact >= 0) {
+        ret = read_op(cursor, PREV, NULL);
+        /*
+         * WT_NOTFOUND is ok here since any subsequent cursor->next calls will start from the
+         * beginning of the table.
+         */
+        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+    }
+
+    key_gen_teardown(&key);
+}
+
+/*
+ * table_verify_mirror --
+ *     Verify that a mirrored pair of tables contain the same mirrored entries. If a checkpoint is
+ *     provided compare the tables using checkpoint cursors. If thread info is provided validate
+ *     within its key range (inclusive).
+ */
+static void
+table_verify_mirror(
+  WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *checkpoint, TINFO *tinfo)
 {
     SAP sap;
-    WT_CURSOR *base_cursor, *table_cursor;
+    WT_CURSOR *base_cursor, *pinned_cursor, *table_cursor;
     WT_ITEM base_key, base_value, table_key, table_value;
     WT_SESSION *session;
     uint64_t base_id, base_keyno, last_match, table_id, table_keyno, rows;
     uint8_t base_bitv, table_bitv;
     u_int failures, i, last_failures;
-    int base_ret, table_ret;
+    int base_ret, pinned_ret, table_ret;
+    uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
 
     base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
     base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
     last_match = 0;
+    failures = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, NULL, &session);
+    wt_wrap_open_session(
+      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
 
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)
@@ -191,7 +237,44 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table, const char *
       table->id, checkpoint == NULL ? "" : checkpoint, checkpoint == NULL ? "" : " checkpoint ");
     trace_msg(session, "%s: start", buf);
 
-    for (failures = 0, rows = 1; rows <= TV(RUNS_ROWS); ++rows) {
+    /*
+     * If we're not reading from a checkpoint, start a cursor to pin a page. This cursor ensures the
+     * session never refreshes its snapshot in verification of the live tree. If we didn't open this
+     * cursor, we could get a WT_NOTFOUND return when placing the live cursor before the
+     * verification range. That WT_NOTFOUND return result would cause the session to release its
+     * snapshot if there are no other active cursors.
+     */
+    if (checkpoint == NULL) {
+        wt_wrap_open_cursor(session, base->uri, NULL, &pinned_cursor);
+        pinned_ret = read_op(pinned_cursor, NEXT, NULL);
+        testutil_snprintf(
+          buf, sizeof(buf), "open a pinned cursor to pin the snapshot for verification");
+        trace_msg(session, "%s", buf);
+        /* Nothing to verify. */
+        if (pinned_ret == WT_NOTFOUND)
+            goto done;
+        testutil_assert(pinned_ret == 0);
+    }
+
+    /*
+     * By default compare the entire range of keys, however if thread info is provided the start/end
+     * key ranges can be used instead. These ranges follow the same rules as truncate; If the
+     * provided value is zero treat that as the start/end of the table.
+     */
+    range_begin = 1;
+    range_end = TV(RUNS_ROWS);
+    if (tinfo != NULL) {
+        if (tinfo->keyno != 0) {
+            range_begin = tinfo->keyno;
+            position_cursor_before(base, base_cursor, range_begin);
+            position_cursor_before(table, table_cursor, range_begin);
+        }
+
+        if (tinfo->last != 0)
+            range_end = tinfo->last;
+    }
+
+    for (rows = range_begin; rows <= range_end; ++rows) {
         last_failures = failures;
         switch (base->type) {
         case FIX:
@@ -328,6 +411,8 @@ page_dump:
         if (last_failures == failures && (base->type == ROW || table->type == ROW))
             last_match = base_keyno;
     }
+
+done:
     testutil_assert(failures == 0);
 
     trace_msg(session, "%s: stop", buf);
@@ -371,15 +456,40 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
 
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
-            table_verify_mirror(conn, g.base_mirror, tables[i], NULL);
+            table_verify_mirror(conn, g.base_mirror, tables[i], NULL, NULL);
 }
 
 /*
- * wts_verify_checkpoint --
- *     Verify the database tables at a checkpoint.
+ * wts_verify_mirrored_truncate --
+ *     At the end of a mirrored truncate all tables must contain the same keys. It's ok if a
+ *     parallel insert has added keys back inside the truncated range as long as all mirror tables
+ *     have that same key. Verifies can be expensive so we limit them to smaller ranges and only
+ *     infrequently check larger ranges.
  */
 void
-wts_verify_checkpoint(WT_CONNECTION *conn, const char *checkpoint)
+wts_verify_mirrored_truncate(TINFO *tinfo)
+{
+    uint64_t range_begin, range_end;
+
+    testutil_assert(tinfo != NULL);
+    testutil_assert(g.base_mirror != NULL);
+
+    range_begin = tinfo->keyno != 0 ? tinfo->keyno : 1;
+    range_end = tinfo->last != 0 ? tinfo->last : NTV(g.base_mirror, RUNS_ROWS);
+
+    if ((range_end - range_begin) < 10000)
+        wts_verify_mirrors(g.wts_conn, NULL, tinfo);
+    else if (mmrand(&tinfo->data_rnd, 0, 10) == 1)
+        /* 10% of the time verify large ranges. */
+        wts_verify_mirrors(g.wts_conn, NULL, tinfo);
+}
+
+/*
+ * wts_verify_mirrors --
+ *     Verify all mirrored tables contain the same mirrored entries.
+ */
+void
+wts_verify_mirrors(WT_CONNECTION *conn, const char *checkpoint, TINFO *tinfo)
 {
     u_int i;
 
@@ -391,5 +501,5 @@ wts_verify_checkpoint(WT_CONNECTION *conn, const char *checkpoint)
 
     for (i = 1; i <= ntables; ++i)
         if (tables[i]->mirror && tables[i] != g.base_mirror)
-            table_verify_mirror(conn, g.base_mirror, tables[i], checkpoint);
+            table_verify_mirror(conn, g.base_mirror, tables[i], checkpoint, tinfo);
 }

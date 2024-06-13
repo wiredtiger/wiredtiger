@@ -26,8 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef DATABASE_OPERATION_H
-#define DATABASE_OPERATION_H
+#pragma once
 
 #include "database.h"
 #include "thread_worker.h"
@@ -68,10 +67,9 @@ public:
     /* Basic update operation that chooses a random key and updates it. */
     virtual void update_operation(thread_worker *tc);
 
-    virtual void validate(
-      const std::string &operation_table_name, const std::string &schema_table_name, database &db);
+    virtual void validate(bool tracking_enabled, const std::string &operation_table_name,
+      const std::string &schema_table_name, database &db);
 
     virtual ~database_operation() = default;
 };
 } // namespace test_harness
-#endif

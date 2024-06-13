@@ -209,10 +209,10 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "remove_files=false", NULL};
     bool exist;
 
-    file_len = 0;
     conn = S2C(session);
     filename = metadata_conf = tablename = NULL;
     exist = false;
+    WT_NOT_READ(file_len, 0);
 
     WT_CLEAR(meta_state);
     meta_state.backuphash = backuphash;
@@ -244,7 +244,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session, WT_BACKUPHASH *backuphash)
 
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(session,
-                ret = __wt_schema_drop(session, meta_state.partial_backup_names[i], drop_cfg)));
+                ret =
+                  __wt_schema_drop(session, meta_state.partial_backup_names[i], drop_cfg, false)));
             WT_ERR(ret);
             __wt_free(session, metadata_conf);
         }
@@ -333,7 +334,7 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
     version = WT_NO_VERSION;
 
     WT_WITH_TURTLE_LOCK(
-      session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
+      session, ret = __wti_turtle_read(session, WT_METADATA_VERSION, &version_string));
 
     if (ret != 0)
         WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
@@ -520,7 +521,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
          */
         if (F_ISSET(conn, WT_CONN_SALVAGE)) {
             WT_WITH_TURTLE_LOCK(
-              session, ret = __wt_turtle_read(session, WT_METAFILE_URI, &unused_value));
+              session, ret = __wti_turtle_read(session, WT_METAFILE_URI, &unused_value));
             __wt_free(session, unused_value);
         }
 
@@ -584,7 +585,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
     if (load || load_turtle) {
         /* Create the turtle file. */
         WT_ERR(__metadata_config(session, &metaconf));
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
+        WT_WITH_TURTLE_LOCK(session, ret = __wti_turtle_update(session, WT_METAFILE_URI, metaconf));
         __wt_free(session, metaconf);
         WT_ERR(ret);
     }
@@ -608,11 +609,11 @@ err:
 }
 
 /*
- * __wt_turtle_read --
+ * __wti_turtle_read --
  *     Read the turtle file.
  */
 int
-__wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
+__wti_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -672,11 +673,11 @@ err:
 }
 
 /*
- * __wt_turtle_update --
+ * __wti_turtle_update --
  *     Update the turtle file.
  */
 int
-__wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
+__wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -711,6 +712,10 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
       "%s\n%s\n%s\n"
       "major=%d,minor=%d,patch=%d\n%s\n%s\n",
       WT_METADATA_VERSION_STR, version, WT_METADATA_VERSION, vmajor, vminor, vpatch, key, value));
+
+    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
+    if (F_ISSET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE))
+        __wt_abort(session);
 
     /* Flush the stream and rename the file into place. */
     ret = __wt_sync_and_rename(session, &fs, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE);

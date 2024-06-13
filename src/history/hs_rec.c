@@ -52,7 +52,7 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
           "Page reconciliation triggered history store write: file ID %" PRIu32
           ". Current history store file size: %" PRId64
           ", cache dirty: %2.3f%% , cache use: %2.3f%%",
-          btree_id, WT_STAT_READ(conn->stats, cache_hs_ondisk), pct_dirty, pct_full);
+          btree_id, WT_STAT_CONN_READ(conn->stats, cache_hs_ondisk), pct_dirty, pct_full);
     }
 
     /* Never skip updating the tracked generation */
@@ -251,7 +251,7 @@ err:
  * __hs_next_upd_full_value --
  *     Get the next update and its full value.
  */
-static inline int
+static WT_INLINE int
 __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
   WT_ITEM *older_full_value, WT_ITEM *full_value, WT_UPDATE **updp)
 {
@@ -287,7 +287,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
  * __hs_pack_key --
  *     Pack the history store key
  */
-static inline int
+static WT_INLINE int
 __hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_ITEM *key)
 {
@@ -419,9 +419,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * The algorithm assumes the oldest update on the update chain in memory is either a full
          * update or a tombstone.
          *
-         * This is guaranteed by __wt_rec_upd_select appends the original onpage value at the end of
-         * the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the update
-         * newer than a TOMBSTONE must be a full update.
+         * This is guaranteed by __wti_rec_upd_select which appends the original onpage value at the
+         * end of the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the
+         * update newer than a TOMBSTONE must be a full update.
          *
          * The algorithm walks from the oldest update, or the most recently inserted into history
          * store update, to the newest update and builds full updates along the way. It sets the
@@ -548,7 +548,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             WT_ERR(
               __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
 
-            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate);
+            WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
 
             /* Reset the update without a timestamp if it is the last update in the chain. */
             if (oldest_upd == no_ts_upd)
@@ -723,13 +723,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         }
     }
 
-    WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     hs_btree = __wt_curhs_get_btree(hs_cursor);
     max_hs_size = hs_btree->file_max;
-    if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
-        WT_ERR_PANIC(session, WT_PANIC,
-          "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
-          max_hs_size);
+    /* Check the history store size if a limit is enforced. */
+    if (max_hs_size != 0) {
+        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+        if ((uint64_t)hs_size > max_hs_size)
+            WT_ERR_PANIC(session, WT_PANIC,
+              "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64,
+              (uint64_t)hs_size, max_hs_size);
+    }
 
 err:
     if (ret == 0 && insert_cnt > 0)
@@ -750,11 +753,11 @@ err:
     WT_TRET(hs_cursor->close(hs_cursor));
 
     /* Update the statistics. */
-    WT_STAT_CONN_DATA_INCRV(session, cache_hs_insert, insert_cnt);
-    WT_STAT_CONN_DATA_INCRV(session, cache_hs_insert_full_update, cache_hs_insert_full_update);
-    WT_STAT_CONN_DATA_INCRV(
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, insert_cnt);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert_full_update, cache_hs_insert_full_update);
+    WT_STAT_CONN_DSRC_INCRV(
       session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
-    WT_STAT_CONN_DATA_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
 
     return (ret);
 }
@@ -1066,10 +1069,10 @@ err:
     if (hs_insert_cursor != NULL)
         hs_insert_cursor->close(hs_insert_cursor);
 
-    WT_STAT_CONN_DATA_INCRV(
+    WT_STAT_CONN_DSRC_INCRV(
       session, cache_hs_order_lose_durable_timestamp, cache_hs_order_lose_durable_timestamp);
-    WT_STAT_CONN_DATA_INCRV(session, cache_hs_order_reinsert, cache_hs_order_reinsert);
-    WT_STAT_CONN_DATA_INCRV(session, cache_hs_order_remove, cache_hs_order_remove);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_order_reinsert, cache_hs_order_reinsert);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_order_remove, cache_hs_order_remove);
 
     return (ret);
 }

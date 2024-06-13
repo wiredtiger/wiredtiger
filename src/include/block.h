@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * WiredTiger's block manager interface.
  */
@@ -193,7 +195,7 @@ struct __wt_bm {
     int (*compact_page_rewrite)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*compact_page_skip)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
     int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
-    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *, u_int *);
+    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
@@ -207,6 +209,7 @@ struct __wt_bm {
     int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
     int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
+    int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -215,6 +218,8 @@ struct __wt_bm {
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
+    WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
+    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */
 
     void *map; /* Mapped region */
     size_t maplen;
@@ -231,6 +236,7 @@ struct __wt_bm {
     size_t handle_array_allocated; /* Size of handle array */
     WT_RWLOCK handle_array_lock;   /* Lock for block handle array */
     u_int handle_array_next;       /* Next open slot */
+    uint32_t max_flushed_objectid; /* Local objects at or below this id should be closed */
 
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.
@@ -257,12 +263,13 @@ struct __wt_block {
 
     bool created_during_backup; /* Created during incremental backup */
     bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
+    bool remote;                /* Handle references non-local object */
     bool readonly;              /* Underlying file was opened only for reading */
 
     /* Configuration information, set when the file is opened. */
-    uint32_t allocfirst; /* Allocation is first-fit */
-    uint32_t allocsize;  /* Allocation size */
-    size_t os_cache;     /* System buffer cache flush max */
+    wt_shared uint32_t allocfirst; /* Allocation is first-fit */
+    uint32_t allocsize;            /* Allocation size */
+    size_t os_cache;               /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
@@ -285,14 +292,18 @@ struct __wt_block {
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 
     /* Compaction support */
+    bool compact_estimated;                    /* If compaction work has been estimated */
     int compact_pct_tenths;                    /* Percent to compact */
     uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
     uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
+    uint64_t compact_bytes_rewritten_expected; /* The expected number of bytes to rewrite */
     uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */
     uint64_t compact_pages_reviewed;           /* Pages reviewed */
     uint64_t compact_pages_rewritten;          /* Pages rewritten */
     uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
     uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint64_t compact_prev_pages_rewritten;     /* Pages rewritten during the previous iteration */
+    wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
     uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
@@ -309,7 +320,7 @@ struct __wt_block {
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
 
     /* Multi-file support */
-    uint32_t read_count; /* Count of active read requests using this block handle */
+    wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
 };
 
 /*
@@ -339,7 +350,7 @@ struct __wt_block_desc {
  * __wt_block_desc_byteswap --
  *     Handle big- and little-endian transformation of a description block.
  */
-static inline void
+static WT_INLINE void
 __wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN
@@ -398,7 +409,7 @@ struct __wt_block_header {
  *     Handle big- and little-endian transformation of a header block, copying from a source to a
  *     target.
  */
-static inline void
+static WT_INLINE void
 __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
 {
     *to = *from;
@@ -412,7 +423,7 @@ __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
  * __wt_block_header_byteswap --
  *     Handle big- and little-endian transformation of a header block.
  */
-static inline void
+static WT_INLINE void
 __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
 {
 #ifdef WORDS_BIGENDIAN
@@ -446,10 +457,21 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
  * __wt_block_header --
  *     Return the size of the block-specific header.
  */
-static inline u_int
+static WT_INLINE u_int
 __wt_block_header(WT_BLOCK *block)
 {
     WT_UNUSED(block);
 
     return ((u_int)WT_BLOCK_HEADER_SIZE);
+}
+
+/*
+ * __wt_block_eligible_for_sweep --
+ *     Return true if the block meets requirements for sweeping. The check that read reference count
+ *     is zero is made elsewhere.
+ */
+static WT_INLINE bool
+__wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
+{
+    return (!block->remote && block->objectid <= bm->max_flushed_objectid);
 }

@@ -1,9 +1,20 @@
+#!/usr/bin/env python3
+
 # Read the source files and output the statistics #defines plus the
 # initialize and refresh code.
 
-import re, string, sys, textwrap
+import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast([
+            "../dist/dist.py",
+            "../src/include/stat.h",
+            "../src/include/wiredtiger.in",
+            "../src/support/stat.c",
+        ], prefix="../")]:
+    sys.exit(0)
 
 # Read the source files.
 from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
@@ -12,7 +23,7 @@ from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stat
 ##########################################
 # Check for duplicate stat descriptions:
 # Duplicate stat descpriptions within a category are not allowed.
-# The list must be sorted by description. 
+# The list must be sorted by description.
 ##########################################
 def check_unique_description(sorted_list):
     temp = ""
@@ -48,7 +59,7 @@ def print_struct(title, name, base, stats):
     f.write('};\n\n')
 
 # Update the #defines in the stat.h file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_stat' + str(os.getpid())
 f = open(tmp_file, 'w')
 skip = 0
 for line in open('../src/include/stat.h', 'r'):
@@ -94,7 +105,7 @@ def print_defines():
  * @name Connection statistics
  * @anchor statistics_keys
  * @anchor statistics_conn
- * Statistics are accessed through cursors with \c "statistics:" URIs.
+ * Statistics are accessed through cursors with \\c "statistics:" URIs.
  * Individual statistics can be queried through the cursor using the following
  * keys.  See @ref data_statistics for more information.
  * @{
@@ -131,7 +142,7 @@ def print_defines():
     f.write('/*! @} */\n')
 
 # Update the #defines in the wiredtiger.in file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_stat' + str(os.getpid())
 f = open(tmp_file, 'w')
 skip = 0
 for line in open('../src/include/wiredtiger.in', 'r'):
@@ -148,7 +159,7 @@ for line in open('../src/include/wiredtiger.in', 'r'):
 f.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
-def print_func(name, handle, statlist):
+def print_func(name, handle, statlist, capname=None):
     '''Print the structures/functions for the stat.c file.'''
     f.write('\n')
     f.write('static const char * const __stats_' + name + '_desc[] = {\n')
@@ -182,10 +193,10 @@ __wt_stat_''' + name + '''_init(
 {
 \tint i;
 
-\tWT_RET(__wt_calloc(session, (size_t)WT_COUNTER_SLOTS,
+\tWT_RET(__wt_calloc(session, (size_t)WT_STAT_''' + capname + '''_COUNTER_SLOTS,
 \t    sizeof(*handle->stat_array), &handle->stat_array));
 
-\tfor (i = 0; i < WT_COUNTER_SLOTS; ++i) {
+\tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i) {
 \t\thandle->stats[i] = &handle->stat_array[i];
 \t\t__wt_stat_''' + name + '''_init_single(handle->stats[i]);
 \t}
@@ -220,7 +231,7 @@ __wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats)
 {
 \tu_int i;
 
-\tfor (i = 0; i < WT_COUNTER_SLOTS; ++i)
+\tfor (i = 0; i < WT_STAT_''' + capname + '''_COUNTER_SLOTS; ++i)
 \t\t__wt_stat_''' + name + '''_clear_single(stats[i]);
 }
 ''')
@@ -260,13 +271,13 @@ __wt_stat_''' + name + '''_aggregate(
                 break;
         for l in statlist:
             if 'max_aggregate' in l.flags:
-                o = '\tif ((v = WT_STAT_READ(from, ' + l.name + ')) > ' +\
+                o = '\tif ((v = WT_STAT_' + capname + '_READ(from, ' + l.name + ')) > ' +\
                     'to->' + l.name + ')\n'
                 if len(o) > 72:             # Account for the leading tab.
                     o = o.replace(' > ', ' >\n\t    ')
                 o +='\t\tto->' + l.name + ' = v;\n'
             else:
-                o = '\tto->' + l.name + ' += WT_STAT_READ(from, ' + l.name +\
+                o = '\tto->' + l.name + ' += WT_STAT_' + capname + '_READ(from, ' + l.name +\
                     ');\n'
                 if len(o) > 72:             # Account for the leading tab.
                     o = o.replace(' += ', ' +=\n\t    ')
@@ -278,9 +289,10 @@ f = open(tmp_file, 'w')
 f.write('/* DO NOT EDIT: automatically built by dist/stat.py. */\n\n')
 f.write('#include "wt_internal.h"\n')
 
-print_func('dsrc', 'WT_DATA_HANDLE', sorted_dsrc_statistics)
-print_func('connection', 'WT_CONNECTION_IMPL', sorted_conn_stats)
-print_func('join', None, join_stats)
+print_func('dsrc', 'WT_DATA_HANDLE', sorted_dsrc_statistics, 'DSRC')
+print_func('connection', 'WT_CONNECTION_IMPL', sorted_conn_stats, 'CONN')
+# FIXME-WT-12937 Revise the join stats code. 
+print_func('join', None, join_stats, 'CONN')
 print_func('session', None, session_stats)
 f.close()
 format_srcfile(tmp_file)

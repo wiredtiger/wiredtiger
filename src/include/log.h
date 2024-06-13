@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LOGSCAN_FIRST 0x01u
 #define WT_LOGSCAN_FROM_CKP 0x02u
@@ -34,11 +36,11 @@ union __wt_lsn {
         uint32_t file;
         uint32_t offset;
 #else
-        uint32_t offset;
+        wt_shared uint32_t offset;
         uint32_t file;
 #endif
     } l;
-    uint64_t file_offset;
+    wt_shared uint64_t file_offset;
 };
 
 #define WT_LOG_FILENAME "WiredTigerLog"     /* Log file name */
@@ -53,8 +55,9 @@ union __wt_lsn {
  * least clang address sanitizer) does not do atomic 64-bit structure assignment so we need to
  * explicitly assign the 64-bit field. And WT_SET_LSN atomically sets the LSN given a file/offset.
  */
-#define WT_ASSIGN_LSN(dstl, srcl) (dstl)->file_offset = (srcl)->file_offset
-#define WT_SET_LSN(l, f, o) (l)->file_offset = (((uint64_t)(f) << 32) + (o))
+#define WT_ASSIGN_LSN(dstl, srcl) \
+    __wt_atomic_store64(&(dstl)->file_offset, __wt_atomic_load64(&(srcl)->file_offset))
+#define WT_SET_LSN(l, f, o) __wt_atomic_store64(&(l)->file_offset, (((uint64_t)(f) << 32) + (o)))
 
 #define WT_INIT_LSN(l) WT_SET_LSN((l), 1, 0)
 
@@ -65,7 +68,7 @@ union __wt_lsn {
 /*
  * Test for initial LSN. We only need to shift the 1 for comparison.
  */
-#define WT_IS_INIT_LSN(l) ((l)->file_offset == ((uint64_t)1 << 32))
+#define WT_IS_INIT_LSN(l) (__wt_atomic_load64(&(l)->file_offset) == ((uint64_t)1 << 32))
 /*
  * Original tested INT32_MAX. But if we read one from an older release we may see UINT32_MAX.
  */
@@ -74,7 +77,7 @@ union __wt_lsn {
 /*
  * Test for zero LSN.
  */
-#define WT_IS_ZERO_LSN(l) ((l)->file_offset == 0)
+#define WT_IS_ZERO_LSN(l) (__wt_atomic_load64(&(l)->file_offset) == 0)
 
 /*
  * Macro to print an LSN.
@@ -187,25 +190,25 @@ union __wt_lsn {
 
 struct __wt_logslot {
     WT_CACHE_LINE_PAD_BEGIN
-    volatile int64_t slot_state; /* Slot state */
-    int64_t slot_unbuffered;     /* Unbuffered data in this slot */
-    int slot_error;              /* Error value */
-    wt_off_t slot_start_offset;  /* Starting file offset */
-    wt_off_t slot_last_offset;   /* Last record offset */
-    WT_LSN slot_release_lsn;     /* Slot release LSN */
-    WT_LSN slot_start_lsn;       /* Slot starting LSN */
-    WT_LSN slot_end_lsn;         /* Slot ending LSN */
-    WT_FH *slot_fh;              /* File handle for this group */
-    WT_ITEM slot_buf;            /* Buffer for grouped writes */
+    wt_shared volatile int64_t slot_state; /* Slot state */
+    wt_shared int64_t slot_unbuffered;     /* Unbuffered data in this slot */
+    wt_shared int slot_error;              /* Error value */
+    wt_shared wt_off_t slot_start_offset;  /* Starting file offset */
+    wt_shared wt_off_t slot_last_offset;   /* Last record offset */
+    WT_LSN slot_release_lsn;               /* Slot release LSN */
+    WT_LSN slot_start_lsn;                 /* Slot starting LSN */
+    WT_LSN slot_end_lsn;                   /* Slot ending LSN */
+    WT_FH *slot_fh;                        /* File handle for this group */
+    WT_ITEM slot_buf;                      /* Buffer for grouped writes */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_SLOT_CLOSEFH 0x01u    /* Close old fh on release */
-#define WT_SLOT_FLUSH 0x02u      /* Wait for write */
-#define WT_SLOT_SYNC 0x04u       /* Needs sync on release */
-#define WT_SLOT_SYNC_DIR 0x08u   /* Directory sync on release */
-#define WT_SLOT_SYNC_DIRTY 0x10u /* Sync system buffers on release */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
+#define WT_SLOT_CLOSEFH 0x01u        /* Close old fh on release */
+#define WT_SLOT_FLUSH 0x02u          /* Wait for write */
+#define WT_SLOT_SYNC 0x04u           /* Needs sync on release */
+#define WT_SLOT_SYNC_DIR 0x08u       /* Directory sync on release */
+#define WT_SLOT_SYNC_DIRTY 0x10u     /* Sync system buffers on release */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    wt_shared uint16_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_16 */
     WT_CACHE_LINE_PAD_END
 };
 
@@ -235,20 +238,20 @@ struct __wt_myslot {
 #define WT_LOG_END_HEADER log->allocsize
 
 struct __wt_log {
-    uint32_t allocsize;    /* Allocation alignment size */
-    uint32_t first_record; /* Offset of first record in file */
-    wt_off_t log_written;  /* Amount of log written this period */
-                           /*
-                            * Log file information
-                            */
-    uint32_t fileid;       /* Current log file number */
-    uint32_t prep_fileid;  /* Pre-allocated file number */
-    uint32_t tmp_fileid;   /* Temporary file number */
-    uint32_t prep_missed;  /* Pre-allocated file misses */
-    WT_FH *log_fh;         /* Logging file handle */
-    WT_FH *log_dir_fh;     /* Log directory file handle */
-    WT_FH *log_close_fh;   /* Logging file handle to close */
-    WT_LSN log_close_lsn;  /* LSN needed to close */
+    uint32_t allocsize;             /* Allocation alignment size */
+    uint32_t first_record;          /* Offset of first record in file */
+    wt_off_t log_written;           /* Amount of log written this period */
+                                    /*
+                                     * Log file information
+                                     */
+    uint32_t fileid;                /* Current log file number */
+    uint32_t prep_fileid;           /* Pre-allocated file number */
+    wt_shared uint32_t tmp_fileid;  /* Temporary file number */
+    uint32_t prep_missed;           /* Pre-allocated file misses */
+    WT_FH *log_fh;                  /* Logging file handle */
+    WT_FH *log_dir_fh;              /* Log directory file handle */
+    wt_shared WT_FH *log_close_fh;  /* Logging file handle to close */
+    wt_shared WT_LSN log_close_lsn; /* LSN needed to close */
 
     uint16_t log_version; /* Version of log file */
 
@@ -289,10 +292,10 @@ struct __wt_log {
  * arrays.
  */
 #define WT_SLOT_POOL 128
-    WT_LOGSLOT *active_slot;            /* Active slot */
-    WT_LOGSLOT slot_pool[WT_SLOT_POOL]; /* Pool of all slots */
-    int32_t pool_index;                 /* Index into slot pool */
-    size_t slot_buf_size;               /* Buffer size for slots */
+    wt_shared WT_LOGSLOT *active_slot;            /* Active slot */
+    wt_shared WT_LOGSLOT slot_pool[WT_SLOT_POOL]; /* Pool of all slots */
+    int32_t pool_index;                           /* Index into slot pool */
+    size_t slot_buf_size;                         /* Buffer size for slots */
 #ifdef HAVE_DIAGNOSTIC
     uint64_t write_calls; /* Calls to log_write */
 #endif
@@ -328,7 +331,7 @@ struct __wt_log_record {
  * __wt_log_record_byteswap --
  *     Handle big- and little-endian transformation of the log record header block.
  */
-static inline void
+static WT_INLINE void
 __wt_log_record_byteswap(WT_LOG_RECORD *record)
 {
 #ifdef WORDS_BIGENDIAN
@@ -379,7 +382,7 @@ struct __wt_log_desc {
  * __wt_log_desc_byteswap --
  *     Handle big- and little-endian transformation of the log file description block.
  */
-static inline void
+static WT_INLINE void
 __wt_log_desc_byteswap(WT_LOG_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN

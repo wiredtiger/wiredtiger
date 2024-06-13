@@ -62,9 +62,9 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
             os.mkdir(self.bucket)
             os.mkdir(self.bucket1)
         self.saved_conn = get_conn_config(self) + 'local_retention=%d)'\
-             % self.retention 
+             % self.retention
         return self.saved_conn
-   
+
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         TieredConfigMixin.conn_extensions(self, extlist)
@@ -156,16 +156,20 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # the internal thread to process the work units.
         self.session.checkpoint('flush_tier=(enabled,force=true)')
         flush += 1
+        # We called a forced flush, even though the flush before switched the files, and no new
+        # data has been written, we should do a switch
+        skip = self.get_stat(stat.conn.flush_tier_skipped, None)
+        self.assertEqual(skip, 2)
+        switch = self.get_stat(stat.conn.flush_tier_switched, None)
+        self.assertEqual(switch, 4)
         # We still sleep to give the internal thread a chance to run. Some slower
         # systems can fail here if we don't give them time.
-        time.sleep(1)
+        time.sleep(self.retention + 1)
         self.pr("Check removal of ")
         self.pr(self.obj1file)
-        # FIXME-WT-10953: We can't remove files from open tables because we don't know whether
-        # there are active read requests to those files.
-        # self.assertFalse(os.path.exists(self.obj1file))
-        # remove2 = self.get_stat(stat.conn.local_objects_removed, None)
-        # self.assertTrue(remove2 > remove1)
+        self.assertFalse(os.path.exists(self.obj1file))
+        remove2 = self.get_stat(stat.conn.local_objects_removed, None)
+        self.assertTrue(remove2 > remove1)
 
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
@@ -298,6 +302,3 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         # values should increase by one.
         self.assertEqual(skip2, skip1 + 1)
         self.assertEqual(switch2, switch1 + 1)
-
-if __name__ == '__main__':
-    wttest.run()

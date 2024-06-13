@@ -25,6 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+
+#pragma once
+
 #include <map>
 #include <memory>
 #include <shared_mutex>
@@ -167,6 +170,7 @@ struct ThreadRunner {
     uint64_t op_get_key_recno(Operation *, uint64_t range, tint_t tint);
     void op_get_static_counts(Operation *, Stats &, int);
     std::tuple<std::string, tint_t> op_get_table(Operation *op) const;
+    bool op_has_mirror(tint_t tint) const;
     bool op_has_table(Operation *op) const;
     void op_kv_gen(Operation *op, const tint_t tint);
     int op_run(Operation *);
@@ -341,8 +345,8 @@ struct WorkloadRunner {
 private:
     int close_all();
     int create_all(WT_CONNECTION *conn, Context *context);
-    int create_table(WT_SESSION *session, const std::string &config, const std::string &uri,
-      const std::string &mirror_uri, const bool is_base);
+    int create_table(
+      WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled);
     void final_report(timespec &);
     void schedule_table_for_drop(const std::map<std::string, tint_t>::iterator &itr,
       std::vector<std::string> &pending_delete);
@@ -352,6 +356,7 @@ private:
     void report(time_t, time_t, Stats *stats);
     int run_all(WT_CONNECTION *conn);
     int select_table_for_drop(std::vector<std::string> &pending_delete);
+    void update_dyn_struct_locked(const std::string &uri, bool is_base, const std::string &mirror_uri);
 
     WorkloadRunner(const WorkloadRunner &);                 // disallowed
     WorkloadRunner& operator=(const WorkloadRunner &other); // disallowed

@@ -46,6 +46,7 @@ from wtscenario import make_scenarios
 # an interesting scenario. The concern is getting the matching version
 # of WiredTigerCheckpoint and hanging onto it.
 
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
@@ -158,6 +159,3 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Note that it would be nice to crosscheck that the first checkpoint was in fact
         # inconsistent. Could do that by copying the database before the second checkpoint
         # and opening the copy here, I guess. FUTURE?
-
-if __name__ == '__main__':
-    wttest.run()

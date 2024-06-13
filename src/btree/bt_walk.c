@@ -12,11 +12,11 @@
  * __ref_index_slot --
  *     Return the page's index and slot for a reference.
  */
-static inline void
+static WT_INLINE void
 __ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
 {
     WT_PAGE_INDEX *pindex;
-    WT_REF **start, **stop, **p, **t;
+    WT_REF **p, **start, **stop, **t;
     uint64_t sleep_usecs, yield_count;
     uint32_t entries, slot;
 
@@ -76,7 +76,7 @@ found:
  * __ref_ascend --
  *     Ascend the tree one level.
  */
-static inline void
+static WT_INLINE void
 __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
 {
     WT_REF *parent_ref, *ref;
@@ -147,7 +147,7 @@ __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, u
  * __split_prev_race --
  *     Check for races when descending the tree during a previous-cursor walk.
  */
-static inline bool
+static WT_INLINE bool
 __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp)
 {
     WT_PAGE_INDEX *pindex;
@@ -234,9 +234,11 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
 
 /*
  * __tree_walk_internal --
- *     Move to the next/previous page in the tree.
+ *     Move to the next/previous page in the tree, skipping pages in the WT_REF_DELETED state and
+ *     for other reasons. Those other reasons are generally controlled by the flags passed in to
+ *     this function.
  */
-static inline int
+static WT_INLINE int
 __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp,
   int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool, bool *), void *func_cookie,
   uint32_t flags)
@@ -245,9 +247,9 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_DECL_RET;
     WT_PAGE_INDEX *pindex;
     WT_REF *couple, *ref, *ref_orig;
+    WT_REF_STATE current_state;
     uint64_t restart_sleep, restart_yield;
     uint32_t slot;
-    uint8_t current_state;
     bool empty_internal, prev, skip;
 
     btree = S2BT(session);
@@ -259,12 +261,17 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_ASSERT(session, LF_ISSET(WT_READ_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
-     * All tree walks except for rollback-to-stable skip deleted pages. We set read-skip-deleted
-     * here because we didn't want to add a flag to all of the tree-walk callers, and we make it
-     * worse because we don't want to add a flag that turns the read-skip-deleted flag off, so we
-     * test the RTS flag itself.
+     * Historically, all tree walks skipped deleted pages. There are now some exceptions to this:
+     * Rollback to stable, and column store append. Rather than add the read-see-deleted flag to
+     * every single tree walk call, we hide these pages unless:
+     *
+     * 1. We detect that rollback to stable is in progress
+     * 2. Callers opt into seeing these pages with the read-see-deleted flag.
+     *
+     * Ideally, rollback to stable would also use the read-see-deleted flag but it uses cursor->next
+     * and cursor->prev, which don't have flags.
      */
-    if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+    if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) && !LF_ISSET(WT_READ_SEE_DELETED))
         LF_SET(WT_READ_SKIP_DELETED);
 
     /*
@@ -312,7 +319,6 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
 
     /*
      * Tree walks are special: they look inside page structures that splits may want to free.
-     * Publish the tree is active during this window.
      */
     WT_ENTER_PAGE_INDEX(session);
 
@@ -395,6 +401,10 @@ restart:
                 couple = NULL;
                 *refp = ref;
                 WT_ASSERT(session, ref != ref_orig);
+
+                if (__wt_session_prefetch_check(session, ref))
+                    WT_ERR(__wti_btree_prefetch(session, ref));
+
                 goto done;
             }
 
@@ -422,7 +432,7 @@ descend:
             /*
              * If we see any child states other than deleted, the page isn't empty.
              */
-            current_state = ref->state;
+            current_state = WT_REF_GET_STATE(ref);
             if (current_state != WT_REF_DELETED && !LF_ISSET(WT_READ_TRUNCATE))
                 empty_internal = false;
 
@@ -437,7 +447,7 @@ descend:
                  * If deleting a range, try to delete the page without instantiating it. (Note this
                  * test follows the check to skip the page entirely if it's already deleted.)
                  */
-                WT_ERR(__wt_delete_page(session, ref, &skip));
+                WT_ERR(__wti_delete_page(session, ref, &skip));
                 if (skip)
                     break;
                 empty_internal = false;
@@ -445,7 +455,7 @@ descend:
                 /*
                  * Try to skip deleted pages visible to us.
                  */
-                if (__wt_delete_page_skip(session, ref, LF_ISSET(WT_READ_VISIBLE_ALL)))
+                if (__wti_delete_page_skip(session, ref, LF_ISSET(WT_READ_VISIBLE_ALL)))
                     break;
             }
 
@@ -461,6 +471,9 @@ descend:
             if (ret == 0) {
                 /* Success, so "couple" has been released. */
                 couple = NULL;
+
+                if (__wt_session_prefetch_check(session, ref))
+                    WT_ERR(__wti_btree_prefetch(session, ref));
 
                 /* Return leaf pages to our caller. */
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
@@ -571,7 +584,8 @@ __tree_walk_skip_count_callback(
     /*
      * Skip deleted pages visible to us.
      */
-    if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, visible_all))
+    if (WT_REF_GET_STATE(ref) == WT_REF_DELETED &&
+      __wti_delete_page_skip(session, ref, visible_all))
         *skipp = true;
     else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         --*skipleafcntp;
@@ -582,12 +596,12 @@ __tree_walk_skip_count_callback(
 }
 
 /*
- * __wt_tree_walk_skip --
+ * __wti_tree_walk_skip --
  *     Move to the next/previous page in the tree, skipping a certain number of leaf pages before
  *     returning.
  */
 int
-__wt_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
+__wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
 {
     /*
      * Optionally skip leaf pages, the second half. The tree-walk function didn't have an on-page

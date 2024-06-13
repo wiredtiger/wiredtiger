@@ -235,9 +235,35 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     __wt_free(session, page->modify->ovfl_track);
     __wt_free(session, page->modify->inst_updates);
+    __wt_free(session, page->modify->stop_ta);
     __wt_spin_destroy(session, &page->modify->page_lock);
 
     __wt_free(session, page->modify);
+}
+
+/*
+ * __wti_ref_addr_safe_free --
+ *     Any thread that is reviewing the address in a WT_REF, must also be holding a split generation
+ *     to ensure that the page index they are using remains valid. Utilize the same generation type
+ *     to safely free the address once all users of it have left the generation.
+ */
+void
+__wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
+{
+    WT_DECL_RET;
+    uint64_t split_gen;
+
+    /*
+     * The reading thread is always inside a split generation when it reads the ref, so we make use
+     * of WT_GEN_SPLIT type generation mechanism to protect the address in a WT_REF rather than
+     * creating a whole new generation counter. There are no page splits taking place.
+     */
+    split_gen = __wt_gen(session, WT_GEN_SPLIT);
+    WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, len));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
+
+    if (ret != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during ref address free"));
 }
 
 /*
@@ -258,17 +284,17 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
      *
      * However as we could be the child of a page being split the ref->home pointer which tells us
      * whether the addr is on or off page could change concurrently. To avoid this we save the home
-     * pointer before we do the compare and swap. While the second ordered read should be sufficient
-     * we use an ordered read on the ref->home pointer as that is the standard mechanism to
+     * pointer before we do the compare and swap. While the second acquire read should be sufficient
+     * we use an acquire read on the ref->home pointer as that is the standard mechanism to
      * guarantee we read the current value.
      *
      * We don't reread this value inside loop as if it was to change then we would be pointing at a
      * new parent, which would mean that our ref->addr must have been instantiated and thus we are
      * safe to free it at the end of this function.
      */
-    WT_ORDERED_READ(home, ref->home);
+    WT_ACQUIRE_READ_WITH_BARRIER(home, ref->home);
     do {
-        WT_ORDERED_READ(ref_addr, ref->addr);
+        WT_ACQUIRE_READ_WITH_BARRIER(ref_addr, ref->addr);
         if (ref_addr == NULL)
             return;
     } while (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, NULL));
@@ -280,18 +306,17 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     if (home == NULL || __wt_off_page(home, ref_addr)) {
-        ((WT_ADDR *)ref_addr)->size = 0;
-        __wt_free(session, ((WT_ADDR *)ref_addr)->addr);
-        __wt_free(session, ref_addr);
+        __wti_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size);
+        __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
     }
 }
 
 /*
- * __wt_free_ref --
+ * __wti_free_ref --
  *     Discard the contents of a WT_REF structure (optionally including the pages it references).
  */
 void
-__wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
+__wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
 {
     WT_IKEY *ikey;
 
@@ -351,18 +376,20 @@ __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_PAGE_INDEX *pindex;
     uint32_t i;
 
-    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
-        __wt_free_ref(session, pindex->index[i], page->type, false);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
+    for (i = 0; i < pindex->entries; ++i)
+        __wti_free_ref(session, pindex->index[i], page->type, false);
 
     __wt_free(session, pindex);
 }
 
 /*
- * __wt_free_ref_index --
+ * __wti_free_ref_index --
  *     Discard a page index and its references.
  */
 void
-__wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
+__wti_free_ref_index(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
 {
     WT_REF *ref;
     uint32_t i;
@@ -384,7 +411,7 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
           __wt_hazard_check_assert(session, ref, false),
           "Attempting to discard ref to a page with hazard pointers");
 
-        __wt_free_ref(session, ref, page->type, free_pages);
+        __wti_free_ref(session, ref, page->type, free_pages);
     }
     __wt_free(session, pindex);
 }

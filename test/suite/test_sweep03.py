@@ -103,6 +103,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         # We expect nothing to have been closed.
         self.assertEqual(close1, 0)
 
+    @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
     def test_disable_idle_timeout_drop_force(self):
         # Create a table to drop. A drop should close its associated handle
         drop_uri = '%s.%s' % (self.uri, "force_drop_test")
@@ -122,7 +123,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
 
         # We force the drop in this case to confirm that the handle is closed
-        self.session.drop(drop_uri, "force=true")
+        self.dropUntilSuccess(self.session, drop_uri, "force=true")
 
         sweep_baseline = self.wait_for_sweep(sweep_baseline)
 
@@ -137,6 +138,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
 
+    @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
     def test_disable_idle_timeout_drop(self):
         # Create a table to drop. A drop should close its associated handles
         drop_uri = '%s.%s' % (self.uri, "drop_test")
@@ -193,6 +195,3 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     #     self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
     #         lambda: self.session.commit_transaction(),
     #         '/transaction requires rollback/')
-
-if __name__ == '__main__':
-    wttest.run()

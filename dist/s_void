@@ -1,9 +1,9 @@
-#! /bin/sh
+#!/bin/bash
 
-t=__wt.$$
-trap 'rm -f $t' 0 1 2 3 13 15
-
-cd ..
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_top
+check_fast_mode_flag
 
 # Parse a C file, discarding functions that don't return an int, and formatting
 # the remaining functions as a single line.
@@ -39,6 +39,8 @@ func_ok()
         -e '/int __curlog_reset$/d' \
         -e '/int __cursor_fix_implicit$/d' \
         -e '/int __delete_redo_window_cleanup_skip$/d' \
+        -e '/int __gen_active_callback$/d' \
+        -e '/int __gen_oldest_callback$/d' \
         -e '/int __handle_close_default$/d' \
         -e '/int __handle_general_default$/d' \
         -e '/int __handle_progress_default$/d' \
@@ -53,6 +55,8 @@ func_ok()
         -e '/int __page_write_gen_wrapped_check$/d' \
         -e '/int __posix_terminate$/d' \
         -e '/int __rec_destroy_session$/d' \
+        -e '/int __rts_check_callback$/d' \
+        -e '/int __rts_thread_stop$/d' \
         -e '/int __time_aggregate_validate_parent$/d' \
         -e '/int __time_aggregate_validate_parent_stable$/d' \
         -e '/int __time_value_validate_parent$/d' \
@@ -69,15 +73,16 @@ func_ok()
         -e '/int __wt_buf_catfmt$/d' \
         -e '/int __wt_buf_fmt$/d' \
         -e '/int __wt_count_birthmarks$/d' \
+        -e '/int __wt_conn_prefetch_clear_tree$/d' \
         -e '/int __wt_curjoin_joined$/d' \
-        -e '/int __wt_cursor_noop$/d' \
+        -e '/int __wti_cursor_noop$/d' \
         -e '/int __wt_epoch$/d' \
         -e '/int __wt_errno$/d' \
         -e '/int __wt_get_vm_pagesize$/d' \
         -e '/int __wt_lex_compare_skip$/d' \
-        -e '/int __wt_lsm_manager_pop_entry$/d' \
+        -e '/int __wti_lsm_manager_pop_entry$/d' \
         -e '/int __wt_once$/d' \
-        -e '/int __wt_posix_directory_list_free$/d' \
+        -e '/int __wti_posix_directory_list_free$/d' \
         -e '/int __wt_session_breakpoint$/d' \
         -e '/int __wt_set_return_func$/d' \
         -e '/int __wt_spin_init$/d' \
@@ -88,7 +93,7 @@ func_ok()
         -e '/int __wt_stat_session_desc/d' \
         -e '/int __wt_txn_read_upd_list$/d' \
         -e '/int __wt_txn_rollback_required$/d' \
-        -e '/int __wt_win_directory_list_free$/d' \
+        -e '/int __wti_win_directory_list_free$/d' \
         -e '/int __ut_ckpt_add_blkmod_entry$/d' \
         -e '/int __ut_ovfl_discard_verbose$/d' \
         -e '/int __ut_ovfl_discard_wrapup$/d' \
@@ -164,14 +169,39 @@ func_ok()
         -e '/int zstd_pre_size$/d' \
         -e '/int zstd_terminate$/d' \
         -e '/int __wt_curhs_search_near_after$/d' \
-        -e '/int __wt_curhs_search_near_before$/d'
+        -e '/int __wt_curhs_search_near_before$/d' \
+        -e '/int __wt_logrec_read$/d' \
+        -e '/int __wt_logop_read$/d' \
+        -e '/int __wt_logop_unpack$/d' \
+        -e '/int __wt_struct_unpack_col_modify$/d' \
+        -e '/int __wt_struct_unpack_col_put$/d' \
+        -e '/int __wt_struct_unpack_col_remove$/d' \
+        -e '/int __wt_struct_unpack_col_truncate$/d' \
+        -e '/int __wt_struct_unpack_row_modify$/d' \
+        -e '/int __wt_struct_unpack_row_put$/d' \
+        -e '/int __wt_struct_unpack_row_remove$/d' \
+        -e '/int __wt_struct_unpack_row_truncate$/d' \
+        -e '/int __wt_struct_pack_checkpoint_start$/d' \
+        -e '/int __wt_struct_unpack_checkpoint_start$/d' \
+        -e '/int __wt_struct_unpack_prev_lsn$/d' \
+        -e '/int __wt_struct_unpack_backup_id$/d' \
+        -e '/int __wt_struct_unpack_txn_timestamp$/d' \
+        ;
 }
 
-for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
-    if expr "$f" : '.*/windows_shim.c' > /dev/null; then
-        continue
-    fi
+SUBDIRS="bench ext src test"
 
+# Parallel execution: if it's the main onvocation of the script, collect the file names
+# to process and run them in subprocesses.
+is_main_run && {
+    find $SUBDIRS -name '*.c' -o -name '*_inline.h' | grep -Ev '/windows_shim\.c$' |
+    do_in_parallel
+    exit $?
+}
+
+# A list of files provided: process them one by one.
+
+for f in "$@"; do
     # Complain about functions which return an "int" but which don't return
     # except at the end of the function.
     #
@@ -214,6 +244,8 @@ for f in `find bench ext src test -name '*.c' -o -name '*_inline.h'`; do
         -e '/WT_CURSOR_NEEDVALUE/d' \
         -e '/WT_PAGE_ALLOC_AND_SWAP(/d' \
         -e '/WT_ERR/d' \
+        -e '/WT_PAGE_TRYLOCK.*parent/d' \
+        -e '/WT_SPIN_INIT_TRACKED/d' \
         -e '/WT_SYSCALL.*ret/d' \
         -e '/WT_TRET/d' \
         -e '/__wt_buf_catfmt/d' \

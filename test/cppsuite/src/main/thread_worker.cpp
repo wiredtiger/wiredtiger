@@ -79,7 +79,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
       txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
-      _sleep_time_ms(config->get_throttle_ms()), _barrier(barrier_ptr)
+      _sleep_time_ms(std::chrono::milliseconds(config->get_throttle_ms())), _barrier(barrier_ptr)
 {
     if (op_tracker->enabled())
         op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
@@ -105,7 +105,7 @@ bool
 thread_worker::update(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
-    WT_DECL_RET;
+    int ret = 0;
 
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
@@ -146,7 +146,7 @@ bool
 thread_worker::insert(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, const std::string &value)
 {
-    WT_DECL_RET;
+    int ret = 0;
 
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
@@ -186,7 +186,7 @@ thread_worker::insert(
 bool
 thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
 {
-    WT_DECL_RET;
+    int ret = 0;
     testutil_assert(op_tracker != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
@@ -230,7 +230,7 @@ bool
 thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start_key,
   std::optional<std::string> stop_key, const std::string &config)
 {
-    WT_DECL_RET;
+    int ret = 0;
 
     wt_timestamp_t ts = tsm->get_next_ts();
     ret = txn.set_commit_timestamp(ts);
@@ -268,7 +268,7 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
 void
 thread_worker::sleep()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(_sleep_time_ms));
+    std::this_thread::sleep_for(_sleep_time_ms);
 }
 
 void

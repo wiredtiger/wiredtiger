@@ -53,6 +53,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     # and without the patch number.  Test both.
     start_compat = [
         ('def', dict(compat1='none', logv1=5)),
+        ('113', dict(compat1='11.3', logv1=5)),
         ('112', dict(compat1='11.2', logv1=5)),
         ('111', dict(compat1='11.1', logv1=5)),
         ('110', dict(compat1='11.0', logv1=5)),
@@ -68,6 +69,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     restart_compat = [
         ('def2', dict(compat2='none', logv2=5)),
+        ('113_2', dict(compat2='11.3', logv2=5)),
         ('112_2', dict(compat2='11.2', logv2=5)),
         ('111_2', dict(compat2='11.1', logv2=5)),
         ('110_2', dict(compat2='11.0', logv2=5)),
@@ -219,6 +221,3 @@ class test_reconfig_fail(wttest.WiredTigerTestCase):
         msg = '/system must be quiescent/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.conn.reconfigure(compat_str), msg)
-
-if __name__ == '__main__':
-    wttest.run()

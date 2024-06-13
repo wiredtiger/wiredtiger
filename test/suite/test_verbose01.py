@@ -157,6 +157,7 @@ class test_verbose01(test_verbose_base):
     collection_cfg = 'key_format=S,value_format=S'
 
     # Test use cases passing single verbose categories, ensuring we only produce verbose output for the single category.
+    @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
     def test_verbose_single(self):
         # Close the initial connection. We will be opening new connections with different verbosity settings throughout
         # this test.
@@ -224,6 +225,3 @@ class test_verbose01(test_verbose_base):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
                 lambda:self.wiredtiger_open(self.home, 'verbose=[test_verbose_invalid]'),
                 '/\'test_verbose_invalid\' not a permitted choice for key \'verbose\'/')
-
-if __name__ == '__main__':
-    wttest.run()

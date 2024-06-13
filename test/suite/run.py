@@ -429,7 +429,7 @@ if __name__ == '__main__':
                 if verbose < 0:
                         verbose = 0
                 continue
-            if option == '--ignore-stdout' or option == 'i':
+            if option == '-ignore-stdout' or option == 'i':
                 ignoreStdout = True
                 continue
             if option == '-config' or option == 'c':
@@ -576,7 +576,7 @@ if __name__ == '__main__':
         for arg in testargs:
             testsFromArg(tests, loader, arg, scenario)
 
-    tests = hookmgr.filter_tests(tests)
+    hookmgr.register_skipped_tests(tests)
 
     # Shuffle the tests and create a new suite containing every Nth test from
     # the original suite

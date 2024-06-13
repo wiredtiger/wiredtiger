@@ -35,14 +35,14 @@ import os
 
 class test_config10(wttest.WiredTigerTestCase):
     uri = 'table:config10.'
-    
+
     def test_missing_version_file(self):
         self.conn.close()
         os.remove('WiredTiger')
         # Ensure error occurs when WiredTiger file is missing.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.setUpConnectionOpen('.'), '/WT_TRY_SALVAGE: database corruption detected/')
-    
+
     def test_empty_version_file(self):
         self.conn.close()
         # Ensure returns message when WiredTiger file is empty.
@@ -66,6 +66,3 @@ class test_config10(wttest.WiredTigerTestCase):
         self.conn = self.wiredtiger_open('.', salvage_config)
         # Check salvage populates file.
         self.assertNotEqual(os.stat('WiredTiger').st_size, 0)
-
-if __name__ == '__main__':
-    wttest.run()

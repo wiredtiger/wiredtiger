@@ -41,7 +41,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * the disk image size takes into account large values that have
      * already been written and should not trigger forced eviction.
      */
-    footprint = page->memory_footprint;
+    footprint = __wt_atomic_loadsize(&page->memory_footprint);
     if (page->dsk != NULL)
         footprint -= page->dsk->mem_size;
 
@@ -95,8 +95,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
+    WT_REF_STATE previous_state;
     uint32_t page_flags;
-    uint8_t previous_state;
     bool prepare;
 
     /*
@@ -106,7 +106,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_CLEAR(tmp);
 
     /* Lock the WT_REF. */
-    switch (previous_state = ref->state) {
+    switch (previous_state = WT_REF_GET_STATE(ref)) {
     case WT_REF_DISK:
     case WT_REF_DELETED:
         if (WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
@@ -126,7 +126,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * rare, so it's better to do the safe thing.)
      */
     if (previous_state == WT_REF_DISK)
-        F_SET(ref, WT_REF_FLAG_READING);
+        F_SET_ATOMIC_8(ref, WT_REF_FLAG_READING);
 
     /*
      * Get the address: if there is no address, the page was deleted and a subsequent search or
@@ -138,7 +138,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
         WT_ASSERT(session, ref->page_del == NULL);
-        WT_ERR(__wt_btree_new_leaf_page(session, ref));
+        WT_ERR(__wti_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
 
@@ -158,7 +158,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * special cases, use the same test as for skipping instantiation below.
      */
     if (previous_state == WT_REF_DELETED &&
-      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
@@ -172,7 +172,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_overwrite_and_free(session, ref->page_del);
 
         if (ref->page_del == NULL) {
-            WT_ERR(__wt_btree_new_leaf_page(session, ref));
+            WT_ERR(__wti_btree_new_leaf_page(session, ref));
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
             goto skip_read;
@@ -194,10 +194,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
+    if (LF_ISSET(WT_READ_PREFETCH))
+        FLD_SET(page_flags, WT_PAGE_PREFETCH);
+    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
     if (prepare)
-        WT_ERR(__wt_page_inmem_prepare(session, ref));
+        WT_ERR(__wti_page_inmem_prepare(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
@@ -217,15 +219,15 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
     if (previous_state == WT_REF_DELETED) {
-        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
         } else
-            WT_ERR(__wt_delete_page_instantiate(session, ref));
+            WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
 
 skip_read:
-    F_CLR(ref, WT_REF_FLAG_READING);
+    F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     WT_ASSERT(session, ret == 0);
@@ -239,7 +241,7 @@ err:
     if (ref->page != NULL)
         __wt_ref_out(session, ref);
 
-    F_CLR(ref, WT_REF_FLAG_READING);
+    F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 
     __wt_buf_free(session, &tmp);
@@ -263,9 +265,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_REF_STATE current_state;
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
-    uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
@@ -280,7 +282,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
      * dominate these statistics.
      */
     if (!LF_ISSET(WT_READ_CACHE))
-        WT_STAT_CONN_DATA_INCR(session, cache_pages_requested);
+        WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested);
+
+    if (LF_ISSET(WT_READ_PREFETCH))
+        WT_STAT_CONN_INCR(session, cache_pages_prefetch);
 
     /*
      * If configured, free stashed memory more aggressively to encourage finding bugs in generation
@@ -291,13 +296,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
-        switch (current_state = ref->state) {
+        switch (current_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DELETED:
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
-              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
+              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
@@ -323,26 +328,18 @@ read:
              * If configured to not trash the cache, leave the page generation unset, we'll set it
              * before returning to the oldest read generation, so the page is forcibly evicted as
              * soon as possible. We don't do that set here because we don't want to evict the page
-             * before we "acquire" it.
+             * before we "acquire" it. Also avoid queuing a pre-fetch page for forced eviction
+             * before it has a chance of being used. Otherwise the work we've just done is wasted.
              */
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
-              F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP);
-
-            if (wont_need) {
-                if (LF_ISSET(WT_READ_WONT_NEED))
-                    printf("WT_READ_WONT_NEED is set\n");
-                if (F_ISSET(session, WT_SESSION_READ_WONT_NEED))
-                    printf("WT_SESSION_READ_WONT_NEED is set\n");
-                if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP))
-                    printf("WT_CACHE_EVICT_NOKEEP is set\n");
-            }
+              (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP));
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
 
-            if (F_ISSET(ref, WT_REF_FLAG_READING)) {
+            if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING)) {
                 if (LF_ISSET(WT_READ_CACHE))
                     return (WT_NOTFOUND);
 
@@ -445,6 +442,25 @@ read:
             }
 
 skip_evict:
+            page = ref->page;
+            /*
+             * Keep track of whether a session is reading leaf pages into the cache. This allows for
+             * the session to decide whether pre-fetch would be helpful. It might not work if a
+             * session has multiple cursors on different tables open, since the operations on
+             * different tables get in the way of the heuristic. That isn't super likely - this is
+             * to catch traversals through a btree, not complex multi-table user transactions.
+             */
+            if (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+                /*
+                 * If the page was read by this retrieval or was pulled into the cache via the
+                 * pre-fetch mechanism, count that as a page read directly from disk.
+                 */
+                if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH) ||
+                  __wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
+                    ++session->pf.prefetch_disk_read_count;
+                else
+                    session->pf.prefetch_disk_read_count = 0;
+            }
             /*
              * If we read the page and are configured to not trash the cache, and no other thread
              * has already used the page, set the read generation so the page is evicted soon.
@@ -453,10 +469,9 @@ skip_evict:
              * generation and the page isn't already flagged for forced eviction, update the page
              * read generation.
              */
-            page = ref->page;
-            if (page->read_gen == WT_READGEN_NOTSET) {
+            if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
                 if (wont_need)
-                    page->read_gen = WT_READGEN_WONT_NEED;
+                    __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
                 else
                     __wt_cache_read_gen_new(session, page);
             } else if (!LF_ISSET(WT_READ_NO_GEN))

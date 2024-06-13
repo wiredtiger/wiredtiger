@@ -9,12 +9,12 @@
 #include "wt_internal.h"
 
 /*
- * __wt_rts_history_delete_hs --
+ * __wti_rts_history_delete_hs --
  *     Delete the updates for a key in the history store until the first update (including) that is
  *     larger than or equal to the specified timestamp.
  */
 int
-__wt_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
+__wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -90,11 +90,11 @@ err:
 }
 
 /*
- * __wt_rts_history_btree_hs_truncate --
+ * __wti_rts_history_btree_hs_truncate --
  *     Wipe all history store updates for the btree (non-timestamped tables)
  */
 int
-__wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
+__wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
     WT_DECL_ITEM(hs_key);
@@ -123,6 +123,10 @@ __wt_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
         ret = 0;
         goto done;
     }
+
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+      WT_RTS_VERB_TAG_HS_TRUNCATING "truncating history store entries for tree with id=%u",
+      btree_id);
 
     /* Open a history store stop cursor. */
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_stop));
@@ -173,12 +177,12 @@ err:
 }
 
 /*
- * __wt_rts_history_final_pass --
+ * __wti_rts_history_final_pass --
  *     Perform rollback to stable on the history store to remove any entries newer than the stable
  *     timestamp.
  */
 int
-__wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+__wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, durableval, key;
@@ -188,9 +192,11 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
     size_t i;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool release_dhandle;
 
     config = NULL;
     conn = S2C(session);
+    release_dhandle = false;
 
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
 
@@ -216,6 +222,7 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
     }
     max_durable_ts = WT_MAX(newest_stop_ts, newest_stop_durable_ts);
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
+    release_dhandle = true;
 
     /*
      * The rollback operation should be skipped if there is no stable timestamp. Otherwise, it
@@ -233,7 +240,7 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_ROLLBACK "tree rolled back with durable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
-        WT_TRET(__wt_rts_btree_walk_btree(session, rollback_timestamp));
+        WT_TRET(__wti_rts_btree_walk_btree(session, rollback_timestamp));
     } else
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_SKIP
@@ -248,9 +255,10 @@ __wt_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ti
      */
     if (F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE) && conn->partial_backup_remove_ids != NULL)
         for (i = 0; conn->partial_backup_remove_ids[i] != 0; ++i)
-            WT_ERR(__wt_rts_history_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
+            WT_ERR(
+              __wti_rts_history_btree_hs_truncate(session, conn->partial_backup_remove_ids[i]));
 err:
-    if (session->dhandle != NULL)
+    if (release_dhandle)
         WT_TRET(__wt_session_release_dhandle(session));
     __wt_free(session, config);
     return (ret);

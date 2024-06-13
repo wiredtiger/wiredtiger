@@ -1,7 +1,9 @@
-#! /bin/sh
+#!/bin/bash
 
-t=__wt.$$
-trap 'rm -f $t' 0 1 2 3 13 15
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+setup_trap
+cd_dist
+check_fast_mode_flag
 
 # Insulate against locale-specific sort order and IFS from the user's env
 LC_ALL=C
@@ -11,16 +13,25 @@ IFS=' ''	''
 export IFS
 
 build() {
+    set -o pipefail
+
+    [[ -z "$(
+        {
+            echo ../src/include/wt_internal.h
+            ls -1 ../src/include/*.h ../src/include/*.in
+        } | filter_if_fast ../
+    )" ]] && return
+
     # Build the standard typedefs.
     f=../src/include/wt_internal.h
     (sed -e '/Forward type declarations .*: BEGIN/{' \
         -e 'n' \
         -e 'q' \
-        -e '}' < $f
+        -e '}' < $f || exit $?
 
     l=`ls ../src/include/*.h ../src/include/*.in |
-        sed -e '/wiredtiger.*/d' -e '/queue.h/d'`
-    egrep -h \
+        sed -e '/wiredtiger.*/d' -e '/queue.h/d'` || exit $?
+    grep -E -h \
         '^[[:space:]]*(((struct|union)[[:space:]].*__wt_.*{)|WT_PACKED_STRUCT_BEGIN)' \
         $l |
         sed -e 's/WT_PACKED_STRUCT_BEGIN(\(.*\))/struct \1 {/' \
@@ -30,7 +41,7 @@ build() {
         upper=`echo $n | sed -e 's/^__//' | tr '[a-z]' '[A-Z]'`
         echo "$t $n;"
         echo "    typedef $t $n $upper;"
-    done
+    done || exit $?
 
     # Fixed types we use.
     echo
@@ -42,10 +53,10 @@ build() {
     sed -e '/Forward type declarations .*: END/,${' \
         -e 'p' \
         -e '}' \
-        -e 'd' < $f) > $t
-    ./s_clang_format "${PWD}/$t"
+        -e 'd' < $f) > $t || exit $?
+    ./s_clang_format "${PWD}/$t" || exit $?
     cmp $t $f > /dev/null 2>&1 ||
-        (echo "Building $f" && rm -f $f && cp $t $f)
+        { echo "Building $f" ; cp -f $t $f; }
 }
 
 check() {
@@ -62,7 +73,7 @@ check() {
             -e d |
         sort -u`
     echo "$search"
-    fgrep -who "$search" $l
+    grep -F -who "$search" $l
     ) | sort | uniq -u > $t
 
     test -s $t && cat $t

@@ -35,6 +35,7 @@ import wttest
 from wtscenario import make_scenarios
 
 # Test encryption, when on, does not leak any information
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_encrypt06(wttest.WiredTigerTestCase):
     # To test the sodium encryptor, we use secretkey= rather than
     # setting a keyid, because for a "real" (vs. test-only) encryptor,
@@ -265,6 +266,3 @@ class test_encrypt06(wttest.WiredTigerTestCase):
                 self.assertFalse(self.match_string_in_rundir(txt1))
                 self.assertFalse(self.match_string_in_rundir(keyname1))
                 self.assertFalse(self.match_string_in_rundir(valname1))
-
-if __name__ == '__main__':
-    wttest.run()

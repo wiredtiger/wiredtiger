@@ -71,6 +71,8 @@ struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
 struct __wt_background_compact;
 typedef struct __wt_background_compact WT_BACKGROUND_COMPACT;
+struct __wt_background_compact_exclude;
+typedef struct __wt_background_compact_exclude WT_BACKGROUND_COMPACT_EXCLUDE;
 struct __wt_background_compact_stat;
 typedef struct __wt_background_compact_stat WT_BACKGROUND_COMPACT_STAT;
 struct __wt_backup_target;
@@ -115,6 +117,8 @@ struct __wt_cell_unpack_common;
 typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
 struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
+struct __wt_checkpoint_cleanup;
+typedef struct __wt_checkpoint_cleanup WT_CHECKPOINT_CLEANUP;
 struct __wt_chunkcache;
 typedef struct __wt_chunkcache WT_CHUNKCACHE;
 struct __wt_chunkcache_bucket;
@@ -125,6 +129,8 @@ struct __wt_chunkcache_hashid;
 typedef struct __wt_chunkcache_hashid WT_CHUNKCACHE_HASHID;
 struct __wt_chunkcache_intermediate_hash;
 typedef struct __wt_chunkcache_intermediate_hash WT_CHUNKCACHE_INTERMEDIATE_HASH;
+struct __wt_chunkcache_metadata_work_unit;
+typedef struct __wt_chunkcache_metadata_work_unit WT_CHUNKCACHE_METADATA_WORK_UNIT;
 struct __wt_chunkcache_pinned_list;
 typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
 struct __wt_ckpt;
@@ -149,6 +155,14 @@ struct __wt_compact_state;
 typedef struct __wt_compact_state WT_COMPACT_STATE;
 struct __wt_condvar;
 typedef struct __wt_condvar WT_CONDVAR;
+struct __wt_conf;
+typedef struct __wt_conf WT_CONF;
+struct __wt_conf_bind_desc;
+typedef struct __wt_conf_bind_desc WT_CONF_BIND_DESC;
+struct __wt_conf_bindings;
+typedef struct __wt_conf_bindings WT_CONF_BINDINGS;
+struct __wt_conf_value;
+typedef struct __wt_conf_value WT_CONF_VALUE;
 struct __wt_config;
 typedef struct __wt_config WT_CONFIG;
 struct __wt_config_check;
@@ -231,8 +245,16 @@ struct __wt_file_handle_win;
 typedef struct __wt_file_handle_win WT_FILE_HANDLE_WIN;
 struct __wt_fstream;
 typedef struct __wt_fstream WT_FSTREAM;
+struct __wt_generation_cookie;
+typedef struct __wt_generation_cookie WT_GENERATION_COOKIE;
+struct __wt_generation_drain_cookie;
+typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
+struct __wt_hazard_array;
+typedef struct __wt_hazard_array WT_HAZARD_ARRAY;
+struct __wt_hazard_cookie;
+typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
 struct __wt_import_entry;
@@ -315,6 +337,12 @@ struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
+struct __wt_page_walk_skip_stats;
+typedef struct __wt_page_walk_skip_stats WT_PAGE_WALK_SKIP_STATS;
+struct __wt_prefetch;
+typedef struct __wt_prefetch WT_PREFETCH;
+struct __wt_prefetch_queue_entry;
+typedef struct __wt_prefetch_queue_entry WT_PREFETCH_QUEUE_ENTRY;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
 struct __wt_rec_chunk;
@@ -337,6 +365,10 @@ struct __wt_rollback_to_stable;
 typedef struct __wt_rollback_to_stable WT_ROLLBACK_TO_STABLE;
 struct __wt_row;
 typedef struct __wt_row WT_ROW;
+struct __wt_rts_cookie;
+typedef struct __wt_rts_cookie WT_RTS_COOKIE;
+struct __wt_rts_work_unit;
+typedef struct __wt_rts_work_unit WT_RTS_WORK_UNIT;
 struct __wt_rwlock;
 typedef struct __wt_rwlock WT_RWLOCK;
 struct __wt_salvage_cookie;
@@ -361,10 +393,14 @@ struct __wt_split_page_hist;
 typedef struct __wt_split_page_hist WT_SPLIT_PAGE_HIST;
 struct __wt_stash;
 typedef struct __wt_stash WT_STASH;
+struct __wt_sweep_cookie;
+typedef struct __wt_sweep_cookie WT_SWEEP_COOKIE;
 struct __wt_table;
 typedef struct __wt_table WT_TABLE;
 struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
+struct __wt_thread_check;
+typedef struct __wt_thread_check WT_THREAD_CHECK;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
 struct __wt_tiered;
@@ -393,12 +429,16 @@ struct __wt_txn_printlog_args;
 typedef struct __wt_txn_printlog_args WT_TXN_PRINTLOG_ARGS;
 struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
+struct __wt_txn_snapshot;
+typedef struct __wt_txn_snapshot WT_TXN_SNAPSHOT;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
 struct __wt_update_value;
 typedef struct __wt_update_value WT_UPDATE_VALUE;
 struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
+struct __wt_verbose_dump_cookie;
+typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
 struct __wt_verify_info;
@@ -417,6 +457,20 @@ typedef uint64_t wt_timestamp_t;
  * Forward type declarations for internal types: END
  * DO NOT EDIT: automatically built by dist/s_typedef.
  */
+
+/*
+ * Clang and gcc use different mechanisms to detect TSan, clang using __has_feature. Consolidate
+ * them into a single TSAN_BUILD pre-processor flag.
+ */
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define TSAN_BUILD 1
+#endif
+#endif
+
+#if defined(__SANITIZE_THREAD__)
+#define TSAN_BUILD 1
+#endif
 
 /*******************************************
  * WiredTiger internal include files.
@@ -450,11 +504,13 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"      /* required by dhandle.h */
-#include "dhandle.h"   /* required by btree.h */
-#include "timestamp.h" /* required by reconcile.h */
+#include "stat.h"         /* required by dhandle.h */
+#include "dhandle.h"      /* required by btree.h */
+#include "timestamp.h"    /* required by reconcile.h */
+#include "thread_group.h" /* required by rollback_to_stable.h */
 
 #include "api.h"
+#include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"
 #include "block_chunkcache.h"
@@ -466,10 +522,14 @@ typedef uint64_t wt_timestamp_t;
 #include "cell.h"
 #include "checkpoint.h"
 #include "compact.h"
+#include "conf_keys.h" /* required by conf.h */
+#include "conf.h"
 #include "config.h"
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
+#include "generation.h"
+#include "hazard.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */
@@ -478,7 +538,6 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
-#include "thread_group.h"
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
@@ -502,6 +561,7 @@ typedef uint64_t wt_timestamp_t;
 #include "misc_inline.h"    /* required by mutex_inline.h */
 
 #include "buf_inline.h"       /* required by cell_inline.h */
+#include "ref_inline.h"       /* required by btree_inline.h */
 #include "timestamp_inline.h" /* required by btree_inline.h */
 #include "cell_inline.h"      /* required by btree_inline.h */
 #include "mutex_inline.h"     /* required by btree_inline.h */
@@ -512,6 +572,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btree_inline.h" /* required by cursor_inline.h */
 #include "btree_cmp_inline.h"
 #include "column_inline.h"
+#include "conf_inline.h"
 #include "cursor_inline.h"
 #include "log_inline.h"
 #include "os_fhandle_inline.h"

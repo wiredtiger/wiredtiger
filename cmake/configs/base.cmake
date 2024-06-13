@@ -9,7 +9,6 @@ set(default_enable_snappy OFF)
 set(default_enable_zlib OFF)
 set(default_enable_zstd OFF)
 set(default_enable_iaa OFF)
-set(default_enable_tcmalloc ${HAVE_LIBTCMALLOC})
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
@@ -140,6 +139,18 @@ config_bool(
 )
 
 config_bool(
+    CODE_COVERAGE_MEASUREMENT
+    "Enable alternative code that is specifically used when measuring code coverage"
+    DEFAULT OFF
+)
+
+config_bool(
+    INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+    "Switch from macros to inline functions where available"
+    DEFAULT OFF
+)
+
+config_bool(
     HAVE_ATTACH
     "Enable to pause for debugger attach on failure"
     DEFAULT OFF
@@ -167,6 +178,12 @@ config_bool(
 config_bool(
     ENABLE_STRICT
     "Compile with strict compiler warnings enabled"
+    DEFAULT ON
+)
+
+config_bool(
+    ENABLE_COLORIZE_OUTPUT
+    "Compile with build error colors enabled"
     DEFAULT ON
 )
 
@@ -286,16 +303,6 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_TCMALLOC
-    "Use TCMalloc as the backend allocator"
-    DEFAULT ${default_enable_tcmalloc}
-    DEPENDS "HAVE_LIBTCMALLOC"
-    # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
-    # actually having the library available (as opposed to silently defaulting to OFF).
-    DEPENDS_ERROR ON "Failed to find tcmalloc library"
-)
-
-config_bool(
     ENABLE_CPPSUITE
     "Build the cppsuite"
     DEFAULT ON
@@ -305,6 +312,12 @@ config_bool(
     ENABLE_LAZYFS
     "Build LazyFS for testing"
     DEFAULT OFF
+)
+
+config_bool(
+    ENABLE_MODEL
+    "Build the model for lightweight formal verification"
+    DEFAULT ON
 )
 
 config_bool(
@@ -395,9 +408,9 @@ if(ENABLE_DEBUG_INFO)
         # Ensure a PDB file can be generated for debugging symbols.
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
-        # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including 
+        # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
         # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
-        # This needs to be in DWARF version 2 format or later - and should be by default - but 
+        # This needs to be in DWARF version 2 format or later - and should be by default - but
         # we'll specify version 4 here to be safe.
         add_compile_options(-g3)
         add_compile_options(-ggdb3)

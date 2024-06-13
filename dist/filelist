@@ -27,11 +27,11 @@ src/btree/bt_debug.c
 src/btree/bt_delete.c
 src/btree/bt_discard.c
 src/btree/bt_handle.c
-src/btree/bt_huffman.c
 src/btree/bt_import.c
 src/btree/bt_misc.c
 src/btree/bt_ovfl.c
 src/btree/bt_page.c
+src/btree/bt_prefetch.c
 src/btree/bt_random.c
 src/btree/bt_read.c
 src/btree/bt_ret.c
@@ -40,7 +40,6 @@ src/btree/bt_split.c
 src/btree/bt_stat.c
 src/btree/bt_sync.c
 src/btree/bt_sync_obsolete.c
-src/btree/bt_upgrade.c
 src/btree/bt_vrfy.c
 src/btree/bt_vrfy_dsk.c
 src/btree/bt_walk.c
@@ -60,6 +59,9 @@ src/checksum/x86/crc32-x86-alt.c                X86_HOST
 src/checksum/x86/crc32-x86.c                    X86_HOST
 src/checksum/zseries/crc32-s390x.c              ZSERIES_HOST
 src/checksum/zseries/crc32le-vx.sx              ZSERIES_HOST
+src/conf/conf_bind.c
+src/conf/conf_compile.c
+src/conf/conf_get.c
 src/config/config.c
 src/config/config_api.c
 src/config/config_check.c
@@ -74,12 +76,14 @@ src/conn/conn_api.c
 src/conn/conn_cache.c
 src/conn/conn_cache_pool.c
 src/conn/conn_capacity.c
+src/conn/conn_chunkcache.c
 src/conn/conn_ckpt.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
 src/conn/conn_log.c
 src/conn/conn_open.c
+src/conn/conn_prefetch.c
 src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
@@ -191,7 +195,6 @@ src/schema/schema_list.c
 src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
-src/schema/schema_rename.c
 src/schema/schema_stat.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
@@ -199,6 +202,8 @@ src/schema/schema_worker.c
 src/session/session_api.c
 src/session/session_compact.c
 src/session/session_dhandle.c
+src/session/session_helper.c
+src/session/session_prefetch.c
 src/rollback_to_stable/rts_api.c
 src/rollback_to_stable/rts_btree.c
 src/rollback_to_stable/rts_btree_walk.c
@@ -214,7 +219,6 @@ src/support/hash_city.c
 src/support/hash_fnv.c
 src/support/hazard.c
 src/support/hex.c
-src/support/huffman.c
 src/support/lock_ext.c
 src/support/modify.c
 src/support/mtx_rw.c

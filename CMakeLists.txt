@@ -15,6 +15,7 @@ include(cmake/configs/modes.cmake)
 # Import our helpers.
 include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
+include(cmake/gdb_autoloader_setup.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host. This is checked prior to the config option
@@ -23,7 +24,7 @@ if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
     # in that case map the architecture to x86.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64|)$")
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
         set(WT_ARCH "x86")
     elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
         set(WT_ARCH "aarch64")
@@ -51,7 +52,6 @@ include(cmake/configs/base.cmake)
 # Import our third party library definitions.
 include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gcp_sdk.cmake)
-include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lazyfs.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
@@ -75,11 +75,20 @@ endif()
 # as cmake is doing funny things with the versions we have (including setting -std on MSVC).
 if(MSVC)
     set(CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+    add_cmake_flag(CMAKE_CXX_FLAGS /std:c++17)
 else()
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
+if(ENABLE_COLORIZE_OUTPUT)
+    # Colorize the build error output
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+        add_compile_options(-fdiagnostics-color=always)
+    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        add_compile_options(-fcolor-diagnostics)
+    endif()
 endif()
 
 if(ENABLE_STRICT)
@@ -186,9 +195,6 @@ if(WITH_PIC OR ENABLE_SHARED)
     if(ENABLE_MEMKIND)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBMEMKIND_INCLUDES})
     endif()
-    if(ENABLE_TCMALLOC)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
-    endif()
     if(ENABLE_ANTITHESIS)
         target_include_directories(wt_objs PRIVATE ${CMAKE_SOURCE_DIR}/tools/voidstar/include)
     endif()
@@ -228,6 +234,8 @@ if(ENABLE_SHARED)
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
+
+    setup_gdb_autoloader()
 
     # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
     # WiredTiger library.
@@ -273,3 +281,6 @@ add_subdirectory(test)
 if(ENABLE_LLVM)
     add_subdirectory(tools/xray_to_optrack)
 endif()
+
+# Build other tools.
+add_subdirectory(tools/checksum_bitflip)

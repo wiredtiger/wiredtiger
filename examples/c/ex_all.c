@@ -538,6 +538,8 @@ static void
 cursor_statistics(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
+    uint64_t stat_value;
+    int ret, stat_key;
 
     /*! [Statistics cursor database] */
     error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
@@ -565,6 +567,18 @@ cursor_statistics(WT_SESSION *session)
     /*! [Statistics cursor session] */
     error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
     /*! [Statistics cursor session] */
+
+    /*! [Statistics cursor ignore column] */
+    error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        error_check(cursor->get_key(cursor, &stat_key));
+
+        /* Ignore the first two columns, only retrieve the statistics value. */
+        error_check(cursor->get_value(cursor, NULL, NULL, &stat_value));
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+    error_check(cursor->close(cursor));
+    /*! [Statistics cursor ignore column] */
 }
 
 static void
@@ -708,12 +722,6 @@ session_ops(WT_SESSION *session)
         error_check(session->compact(session, "table:mytable", NULL));
         /*! [Compact a table] */
 
-        error_check(
-          session->create(session, "table:old", "key_format=r,value_format=S,cache_resident=true"));
-        /*! [Rename a table] */
-        error_check(session->rename(session, "table:old", "table:new", NULL));
-        /*! [Rename a table] */
-
         /*! [Salvage a table] */
         error_check(session->salvage(session, "table:mytable", NULL));
         /*! [Salvage a table] */
@@ -760,10 +768,6 @@ session_ops(WT_SESSION *session)
         }
 
         error_check(session->checkpoint(session, NULL));
-
-        /*! [Upgrade a table] */
-        error_check(session->upgrade(session, "table:mytable", NULL));
-        /*! [Upgrade a table] */
 
         /*! [Verify a table] */
         error_check(session->verify(session, "table:mytable", NULL));
@@ -1128,8 +1132,6 @@ pack_ops(WT_SESSION *session)
 static void
 backup(WT_SESSION *session)
 {
-    char buf[1024];
-
     WT_CURSOR *dup_cursor;
     /*! [backup]*/
     WT_CURSOR *cursor;
@@ -1145,9 +1147,7 @@ backup(WT_SESSION *session)
     /* Copy the list of files. */
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &filename));
-        (void)snprintf(
-          buf, sizeof(buf), "cp /path/database/%s /path/database.backup/%s", filename, filename);
-        error_check(system(buf));
+        testutil_system("cp /path/database/%s /path/database.backup/%s", filename, filename);
     }
     scan_end_check(ret == WT_NOTFOUND);
 
@@ -1370,6 +1370,24 @@ main(int argc, char *argv[])
         func = wiredtiger_crc32c_func();
         crc32c = func(buffer, len);
         /*! [Checksum a buffer] */
+        (void)crc32c;
+    }
+
+    {
+        size_t chunk1, chunk2, chunk3;
+        /*! [Checksum a large buffer in smaller pieces] */
+        uint32_t crc32c, (*func_with_seed)(uint32_t, const void *, size_t);
+        const char *buffer = "some other larger string";
+
+        func_with_seed = wiredtiger_crc32c_with_seed_func();
+        chunk1 = strlen("some ");
+        chunk2 = strlen("other larger ");
+        chunk3 = strlen("string");
+        crc32c = 0;
+        crc32c = func_with_seed(crc32c, buffer, chunk1);
+        crc32c = func_with_seed(crc32c, buffer + chunk1, chunk2);
+        crc32c = func_with_seed(crc32c, buffer + chunk1 + chunk2, chunk3);
+        /*! [Checksum a large buffer in smaller pieces] */
         (void)crc32c;
     }
 

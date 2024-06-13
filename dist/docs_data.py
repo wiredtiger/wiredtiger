@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Create entries used by our doxygen filter to expand the arch_page
 # macros in the documentation.
 
@@ -37,11 +39,18 @@ arch_doc_pages = [
     ArchDocPage('arch-cloud-storage-extension',
         ['S3_FILE_HANDLE', 'S3_FILE_SYSTEM', 'S3_STORAGE', 'azure_file_handle', 'azure_file_sytem',
          'azure_store', 'gcp_file_handle', 'gcp_file_system', 'gcp_store',  ],
-        ['ext/storage_sources/azure_store/', 'ext/storage_sources/gcp_store/', 
+        ['ext/storage_sources/azure_store/', 'ext/storage_sources/gcp_store/',
          'ext/storage_sources/s3_store/']),
     ArchDocPage('arch-compact',
         ['WT_BLOCK'],
         ['src/block/block_compact.c', 'src/btree/bt_compact.c']),
+    ArchDocPage('arch-concurrency',
+        [],
+        []),
+    ArchDocPage('arch-config-compile',
+        ['WT_CONF'],
+        ['src/include/conf.h',
+         'src/conf/conf_bind.c', 'src/conf/conf_compile.c', 'src/conf/conf_get.c']),
     ArchDocPage('arch-connection',
         ['WT_CONNECTION'],
         ['src/include/connection.h']),
@@ -83,6 +92,9 @@ arch_doc_pages = [
     ArchDocPage('arch-hs',
         ['WT_CURSOR_HS'],
         ['src/history/']),
+    ArchDocPage('arch-locking-hierarchy',
+        [],
+        []),
     ArchDocPage('arch-log-file',
         ['WT_LOGSLOT', 'WT_LOG_RECORD', 'WT_LSN'],
         ['src/include/log.h', 'src/log/']),
@@ -112,6 +124,9 @@ arch_doc_pages = [
     ArchDocPage('arch-snapshot',
         ['WT_TXN'],
         ['src/include/txn.h']),
+    ArchDocPage('arch-tiered-storage',
+        ['WT_TIERED', 'WT_TIERED_TIERS' ],
+        ['src/include/tiered.h', 'src/tiered/']),
     ArchDocPage('arch-timestamp',
         ['WT_TIME_AGGREGATE', 'WT_TIME_WINDOW'],
         ['src/include/timestamp.h', 'src/include/timestamp_inline.h']),
