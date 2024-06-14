@@ -10,7 +10,7 @@
 
 #define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 
-/* 
+/*
  * Inactive should always be 0. Other states are roughly ordered by appearance in the checkpoint
  * life cycle.
  */
