@@ -551,7 +551,7 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (modify != NULL) {
         bytes_dirty = __wt_atomic_loadsize(&modify->bytes_dirty);
         if (bytes_dirty != 0)
-            __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
+            __wt_cache_page_byte_dirty_decr(session, page, bytes_dirty);
     }
 }
 
