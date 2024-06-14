@@ -58,13 +58,17 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM hs_key, recno_key;
+    WT_MODIFY mod;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd;
     WT_UPDATE_VECTOR modifies;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
+    size_t max_memsize, tmp;
+    const size_t *p_mod;
     uint64_t upd_type_full;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
+    int nentries;
     bool upd_found;
 
     hs_cursor = NULL;
@@ -74,6 +78,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     __wt_update_vector_init(session, &modifies);
     txn_shared = WT_SESSION_TXN_SHARED(session);
     upd_found = false;
+    max_memsize = 0;
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_search_hs);
 
@@ -165,6 +170,14 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
 
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
+            p_mod = (const size_t *)mod_upd->data;
+            memcpy(&tmp, p_mod++, sizeof(size_t));
+            nentries = (int)tmp;
+
+            WT_MODIFY_FOREACH_BEGIN (mod, p_mod, nentries, 0) {
+                max_memsize = WT_MAX(max_memsize, mod.offset + mod.data.size);
+            }
+            WT_MODIFY_FOREACH_END;
             WT_ERR(__wt_update_vector_push(&modifies, mod_upd));
             mod_upd = NULL;
 
@@ -193,6 +206,13 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
             upd_type = (uint8_t)upd_type_full;
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+        if (modifies.size > 0) {
+            if (value_format[0] == 'S')
+                ++max_memsize;
+            max_memsize = WT_MAX(max_memsize, hs_value->size);
+            WT_ERR(__wt_buf_set_and_grow(
+              session, hs_value, hs_value->data, hs_value->size, max_memsize));
+        }
         while (modifies.size > 0) {
             __wt_update_vector_pop(&modifies, &mod_upd);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
