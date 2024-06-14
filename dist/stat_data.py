@@ -291,6 +291,7 @@ conn_stats = [
     CacheStat('cache_eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     CacheStat('cache_eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     CacheStat('cache_eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
+    CacheStat('cache_eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_stable_state_workers', 'eviction worker thread stable number', 'no_clear'),
@@ -689,6 +690,7 @@ dsrc_stats = [
     # Btree statistics
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
+    BtreeStat('btree_checkpoint_pages_reconciled', 'btree number of pages reconciled during checkpoint', 'no_clear,no_scale'),
     BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
     BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,tree_walk'),

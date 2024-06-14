@@ -32,6 +32,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree compact pages reviewed",
   "btree: btree compact pages rewritten",
   "btree: btree compact pages skipped",
+  "btree: btree number of pages reconciled during checkpoint",
   "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
   "btree: column-store fixed-size time windows",
@@ -378,6 +379,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_reviewed */
     /* not clearing btree_compact_pages_rewritten */
     /* not clearing btree_compact_pages_skipped */
+    /* not clearing btree_checkpoint_pages_reconciled */
     /* not clearing btree_compact_skipped */
     stats->btree_column_fix = 0;
     stats->btree_column_tws = 0;
@@ -683,6 +685,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
     to->btree_compact_pages_rewritten += from->btree_compact_pages_rewritten;
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
+    to->btree_checkpoint_pages_reconciled += from->btree_checkpoint_pages_reconciled;
     to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
     to->btree_column_tws += from->btree_column_tws;
@@ -998,6 +1001,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += WT_STAT_READ(from, btree_compact_pages_reviewed);
     to->btree_compact_pages_rewritten += WT_STAT_READ(from, btree_compact_pages_rewritten);
     to->btree_compact_pages_skipped += WT_STAT_READ(from, btree_compact_pages_skipped);
+    to->btree_checkpoint_pages_reconciled += WT_STAT_READ(from, btree_checkpoint_pages_reconciled);
     to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
     to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);
     to->btree_column_tws += WT_STAT_READ(from, btree_column_tws);
@@ -1384,6 +1388,7 @@ static const char *const __stats_connection_desc[] = {
   "running",
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
+  "cache: eviction server skips tree that we do not want to evict",
   "cache: eviction server skips trees because there are too many active walks",
   "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
@@ -2047,6 +2052,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_server_skip_pages_last_running = 0;
     stats->cache_eviction_server_skip_pages_retry = 0;
     stats->cache_eviction_server_skip_unwanted_pages = 0;
+    stats->cache_eviction_server_skip_unwanted_tree = 0;
     stats->cache_eviction_server_skip_trees_too_many_active_walks = 0;
     stats->cache_eviction_server_skip_checkpointing_trees = 0;
     stats->cache_eviction_server_skip_trees_stick_in_cache = 0;
@@ -2676,6 +2682,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_server_skip_pages_retry);
     to->cache_eviction_server_skip_unwanted_pages +=
       WT_STAT_READ(from, cache_eviction_server_skip_unwanted_pages);
+    to->cache_eviction_server_skip_unwanted_tree +=
+      WT_STAT_READ(from, cache_eviction_server_skip_unwanted_tree);
     to->cache_eviction_server_skip_trees_too_many_active_walks +=
       WT_STAT_READ(from, cache_eviction_server_skip_trees_too_many_active_walks);
     to->cache_eviction_server_skip_checkpointing_trees +=
