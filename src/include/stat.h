@@ -444,6 +444,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
+    int64_t cache_eviction_walk_random_returns_null_position;
     int64_t cache_eviction_walks_ended;
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
@@ -501,6 +502,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
+    int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
     int64_t cache_eviction_maximum_milliseconds;
     int64_t cache_eviction_maximum_page_size;
@@ -1017,6 +1019,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
+    int64_t cache_eviction_walk_random_returns_null_position;
     int64_t cache_eviction_walks_ended;
     int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
@@ -1045,6 +1048,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_internal;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
+    int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
