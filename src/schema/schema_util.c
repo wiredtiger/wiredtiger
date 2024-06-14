@@ -73,11 +73,11 @@ __wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
 }
 
 /*
- * __wti_schema_internal_session --
+ * __wt_schema_internal_session --
  *     Create and return an internal schema session if necessary.
  */
 int
-__wti_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+__wt_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
 {
     /*
      * Open an internal session if a transaction is running so that the schema operations are not

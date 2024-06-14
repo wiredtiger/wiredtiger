@@ -17,6 +17,7 @@ set(sources
     util_misc.c
     util_printlog.c
     util_read.c
+    util_rename.c
     util_salvage.c
     util_stat.c
     util_truncate.c

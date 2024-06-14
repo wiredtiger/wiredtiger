@@ -327,11 +327,11 @@ err:
 }
 
 /*
- * __schema_colgroup_source --
+ * __wt_schema_colgroup_source --
  *     Get the URI of the data source for a column group.
  */
-static int
-__schema_colgroup_source(
+int
+__wt_schema_colgroup_source(
   WT_SESSION_IMPL *session, WT_TABLE *table, const char *cgname, const char *config, WT_ITEM *buf)
 {
     WT_CONFIG_ITEM cval;
@@ -594,7 +594,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
             WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
             *cfgp++ = confbuf.data;
         } else {
-            WT_ERR(__schema_colgroup_source(session, table, cgname, config, &namebuf));
+            WT_ERR(__wt_schema_colgroup_source(session, table, cgname, config, &namebuf));
             source = namebuf.data;
             WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
             *cfgp++ = confbuf.data;
@@ -647,11 +647,11 @@ err:
 }
 
 /*
- * __schema_index_source --
+ * __wti_schema_index_source --
  *     Get the URI of the data source for an index.
  */
-static int
-__schema_index_source(
+int
+__wti_schema_index_source(
   WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname, const char *config, WT_ITEM *buf)
 {
     WT_CONFIG_ITEM cval;
@@ -790,7 +790,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
         source = namebuf.data;
     } else {
-        WT_ERR(__schema_index_source(session, table, idxname, config, &namebuf));
+        WT_ERR(__wti_schema_index_source(session, table, idxname, config, &namebuf));
         source = namebuf.data;
 
         /* Add the source name to the index config before collapsing. */
@@ -1484,7 +1484,7 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_RET(__wti_schema_internal_session(session, &int_session));
+    WT_RET(__wt_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
