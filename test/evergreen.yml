@@ -3015,6 +3015,21 @@ tasks:
       - func: "code coverage publish main page"
       - func: "code coverage publish report"
 
+  - name: coverage-report-per-test
+    # This task will measure code coverage across a range of tests, including, but not limited to,
+    # the Catch2-based unit tests. Code coverage results are captured on a per-test basis so we can determine which tests hit which code paths.
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            test/evergreen/code_coverage/coverage-report-per-test.sh ${is_patch|false} ${num_jobs|1}
+      - func: "code coverage publish report"
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
     tags: ["pull_request_code_statistics"]
