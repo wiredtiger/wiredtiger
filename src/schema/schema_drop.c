@@ -402,7 +402,7 @@ __wt_schema_drop(
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_RET(__wt_schema_internal_session(session, &int_session));
+    WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);

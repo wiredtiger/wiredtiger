@@ -140,7 +140,7 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
     WT_ERR(__wt_scr_alloc(session, 0, &ns));
     table->iface.name = newuri;
     if (is_colgroup)
-        WT_ERR(__wt_schema_colgroup_source(session, table, suffix, value, ns));
+        WT_ERR(__wti_schema_colgroup_source(session, table, suffix, value, ns));
     else
         WT_ERR(__wti_schema_index_source(session, table, suffix, value, ns));
 
@@ -336,7 +336,7 @@ __wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->checkpoint_lock));
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_RET(__wt_schema_internal_session(session, &int_session));
+    WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_rename(int_session, uri, newuri, cfg, check_visibility);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
