@@ -114,7 +114,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
 #ifdef HAVE_DIAGNOSTIC
     item_offset = WT_PTRDIFF(value->data, value->mem);
 #endif
-
+    WT_ASSERT(session, value->mem_size > item_offset + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
     /*
      * Fast-path the common case, where we're overwriting a set of bytes that already exist in the
      * buffer.
