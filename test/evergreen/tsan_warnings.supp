@@ -57,3 +57,9 @@ race:__wt_row_leaf_key_info
 race:__wt_row_leaf_key
 race:__search_insert_append
 race:__wt_row_search
+
+# This function needs atomics of some kind.
+race:__wt_spin_lock_track
+
+# This is another hard race:
+race:__wt_log_ckpt
