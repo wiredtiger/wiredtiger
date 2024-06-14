@@ -10,8 +10,9 @@
 
 #define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 
-/* Checkpoint state ordered by appearance in txn_ckpt.c. Inactive should always be 0. */
-enum Checkpoint_State {
+/* Inactive should always be 0. Other states are roughly ordered by appearance in the checkpoint
+ * life cycle. */
+typedef enum {
     WT_CHECKPOINT_STATE_INACTIVE,
     WT_CHECKPOINT_STATE_APPLY_META,
     WT_CHECKPOINT_STATE_APPLY_BTREE,
@@ -32,7 +33,7 @@ enum Checkpoint_State {
     WT_CHECKPOINT_STATE_RUNNING,
     WT_CHECKPOINT_STATE_ESTABLISH,
     WT_CHECKPOINT_STATE_START_TXN
-};
+} WT_CHECKPOINT_STATE;
 
 struct __wt_checkpoint_cleanup {
     WT_SESSION_IMPL *session; /* checkpoint cleanup session */
