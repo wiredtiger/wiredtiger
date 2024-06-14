@@ -336,6 +336,7 @@ __wt_set_shared_maximum64(uint64_t *shared_value, uint64_t new_val)
               shared_value, &current, new_val, true, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
             break;
 #else
+        /* This section exists to handle compilers that aren't GCC, or clang. E.g. MSVC. */
         if (__wt_atomic_cas64(shared_value, current, new_val))
             break;
         else
