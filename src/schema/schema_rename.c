@@ -204,7 +204,8 @@ err:
  *     WT_SESSION::rename for a table.
  */
 static int
-__rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[], bool check_visibility)
+__rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[],
+  bool check_visibility)
 {
     WT_DECL_RET;
     WT_TABLE *table;
@@ -228,12 +229,14 @@ __rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, co
 
     /* Rename the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++)
-        WT_ERR(__rename_tree(session, table, newuri, table->cgroups[i]->name, cfg, check_visibility));
+        WT_ERR(
+          __rename_tree(session, table, newuri, table->cgroups[i]->name, cfg, check_visibility));
 
     /* Rename the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
     for (i = 0; i < table->nindices; i++)
-        WT_ERR(__rename_tree(session, table, newuri, table->indices[i]->name, cfg, check_visibility));
+        WT_ERR(
+          __rename_tree(session, table, newuri, table->indices[i]->name, cfg, check_visibility));
 
     /* Make sure the table data handle is closed. */
     WT_ERR(__wt_schema_release_table(session, &table));
@@ -273,7 +276,8 @@ __rename_tiered(WT_SESSION_IMPL *session, const char *olduri, const char *newuri
  *     WT_SESSION::rename.
  */
 static int
-__schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[], bool check_visibility)
+__schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[],
+  bool check_visibility)
 {
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
@@ -316,7 +320,8 @@ __schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, c
  *     WT_SESSION::rename.
  */
 int
-__wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[], bool check_visibility)
+__wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[],
+  bool check_visibility)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;

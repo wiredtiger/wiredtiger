@@ -1077,8 +1077,8 @@ extern int __wt_schema_get_table(WT_SESSION_IMPL *session, const char *name, siz
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_get_table_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
   uint32_t flags, WT_TABLE **tablep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_schema_index_source(WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname,
-  const char *config, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname,
   size_t len, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
@@ -1715,8 +1715,8 @@ extern int __wti_schema_get_index(WT_SESSION_IMPL *session, const char *uri, boo
   bool quiet, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, uint32_t flags,
   WT_TIERED **tieredp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_schema_index_source(WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname,
+  const char *config, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_schema_release_table_gen(WT_SESSION_IMPL *session, WT_TABLE **tablep,

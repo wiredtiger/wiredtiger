@@ -876,8 +876,8 @@ err:
  *     Rename an LSM tree.
  */
 int
-__wt_lsm_tree_rename(
-  WT_SESSION_IMPL *session, const char *olduri, const char *newuri, const char *cfg[], bool check_visibility)
+__wt_lsm_tree_rename(WT_SESSION_IMPL *session, const char *olduri, const char *newuri,
+  const char *cfg[], bool check_visibility)
 {
     WT_DECL_RET;
     WT_LSM_CHUNK *chunk;

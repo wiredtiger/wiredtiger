@@ -1180,7 +1180,8 @@ __session_rename(WT_SESSION *wt_session, const char *uri, const char *newuri, co
 
     WT_WITH_CHECKPOINT_LOCK(session,
       WT_WITH_SCHEMA_LOCK(session,
-        WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_rename(session, uri, newuri, cfg, true))));
+        WT_WITH_TABLE_WRITE_LOCK(
+          session, ret = __wt_schema_rename(session, uri, newuri, cfg, true))));
 err:
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_rename_fail);
