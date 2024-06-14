@@ -326,21 +326,21 @@ __wt_set_shared_maximum64(uint64_t *shared_value, uint64_t new_val)
 
     current = *shared_value;
     while (current < new_val) {
-        #if defined(__GNUC__) || defined(__clang__)
-            /*
-            * We can't use the WiredTiger compare and swap as it doesn't allow the second argument to
-            * be a pointer. This method automatically places the value of shared_value into current on
-            * failure.
-            */
-            if (__atomic_compare_exchange_n(
-                shared_value, &current, new_val, true, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
-                break;
-        #else
-            if (__wt_atomic_cas64(shared_value, current, new_val))
-                break;
-            else
-                current = *shared_value;
-        #endif
+#if defined(__GNUC__) || defined(__clang__)
+        /*
+         * We can't use the WiredTiger compare and swap as it doesn't allow the second argument to
+         * be a pointer. This method automatically places the value of shared_value into current on
+         * failure.
+         */
+        if (__atomic_compare_exchange_n(
+              shared_value, &current, new_val, true, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+            break;
+#else
+        if (__wt_atomic_cas64(shared_value, current, new_val))
+            break;
+        else
+            current = *shared_value;
+#endif
     }
 }
 
