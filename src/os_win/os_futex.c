@@ -35,12 +35,12 @@ __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUT
  *     Wake the futex.
  */
 int
-__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE whom, WT_FUTEX_WORD wake_val)
+__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
 {
-    WT_ASSERT(NULL, whom == WT_FUTEX_WAKE_ONE || whom == WT_FUTEX_WAKE_ALL);
+    WT_ASSERT(NULL, wake == WT_FUTEX_WAKE_ONE || wake == WT_FUTEX_WAKE_ALL);
 
     *addr = wake_val;
-    if (whom == WT_FUTEX_WAKE_ONE)
+    if (wake == WT_FUTEX_WAKE_ONE)
         WakeByAddressSingle(addr);
     else
         WakeByAddressAll(addr);

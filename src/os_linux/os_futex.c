@@ -36,14 +36,14 @@ __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUT
  *     Wake the futex.
  */
 int
-__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE whom, WT_FUTEX_WORD wake_val)
+__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
 {
     long sysret;
     int wake_op;
 
-    WT_ASSERT(NULL, whom == WT_FUTEX_WAKE_ONE || whom == WT_FUTEX_WAKE_ALL);
+    WT_ASSERT(NULL, wake == WT_FUTEX_WAKE_ONE || wake == WT_FUTEX_WAKE_ALL);
 
-    wake_op = (whom == WT_FUTEX_WAKE_ALL) ? INT_MAX : 1;
+    wake_op = (wake == WT_FUTEX_WAKE_ALL) ? INT_MAX : 1;
     __atomic_store_n(addr, wake_val, __ATOMIC_SEQ_CST);
     sysret = syscall(SYS_futex, addr, FUTEX_WAKE_PRIVATE, wake_op, NULL, 0);
 
