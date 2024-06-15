@@ -17,7 +17,8 @@
  *     Wait on the futex. The timeout is in microseconds and MUST be greater than zero.
  */
 int
-__wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
+__wt_futex_wait(
+  volatile WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
 {
     WT_DECL_RET;
     uint64_t nsec;
@@ -26,7 +27,7 @@ __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUT
     nsec = (uint64_t)usec * 1000;
 
     __atomic_store_n(wake_valp, expected, __ATOMIC_RELAXED);
-    ret = __ulock_wait2(UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO, addr, expected, nsec, 0);
+    ret = __ulock_wait2(UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO, (void *)addr, expected, nsec, 0);
     if (ret >= 0 || ret == -EFAULT) {
         *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
         ret = 0;
@@ -43,7 +44,7 @@ __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUT
  *     Wake the futex.
  */
 int
-__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
+__wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
 {
     WT_DECL_RET;
     uint32_t op;
@@ -52,7 +53,7 @@ __wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
     op =
       UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO | ((wake == WT_FUTEX_WAKE_ALL) ? ULF_WAKE_ALL : 0);
     __atomic_store_n(addr, wake_val, __ATOMIC_SEQ_CST);
-    ret = __ulock_wake(op, addr, wake_val);
+    ret = __ulock_wake(op, (void *)addr, wake_val);
     switch (ret) {
     case -ENOENT: /* No waiters were awoken.  */
         ret = 0;
