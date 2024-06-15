@@ -5810,6 +5810,7 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: ".lint"
     - name: compile
     - name: make-check-test
     - name: unit-test
