@@ -27,6 +27,7 @@ __wt_futex_wait(
     nsec = (uint64_t)usec * 1000;
 
     __atomic_store_n(wake_valp, expected, __ATOMIC_RELAXED);
+    /* Option ULF_NO_ERRNO will encode the errno code in the return value. */
     ret = __ulock_wait2(UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO, (void *)addr, expected, nsec, 0);
     if (ret >= 0 || ret == -EFAULT) {
         *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
@@ -50,6 +51,8 @@ __wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD 
     uint32_t op;
 
     WT_ASSERT(NULL, wake == WT_FUTEX_WAKE_ONE || wake == WT_FUTEX_WAKE_ALL);
+
+    /* Option ULF_NO_ERRNO will encode the errno code in the return value. */
     op =
       UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO | ((wake == WT_FUTEX_WAKE_ALL) ? ULF_WAKE_ALL : 0);
     __atomic_store_n(addr, wake_val, __ATOMIC_SEQ_CST);
