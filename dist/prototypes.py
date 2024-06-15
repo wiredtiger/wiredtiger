@@ -111,7 +111,7 @@ def prototypes_extern():
 def prototypes_os():
     """
     The operating system abstraction layer duplicates function names. So each 
-    os gets its own header file.
+    os gets its own extern header file.
     """
     ports = 'posix win linux darwin'.split()
     fns = {k:[] for k in ports}

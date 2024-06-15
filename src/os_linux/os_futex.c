@@ -9,14 +9,14 @@
 
 #include <linux/futex.h>
 #include <sys/syscall.h>
-#include <errno.h>
 
 /*
  * __wt_futex_wait --
  *     Wait on the futex. The timeout is in microseconds and MUST be greater than zero.
  */
 int
-__wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
+__wt_futex_wait(
+  volatile WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUTEX_WORD *wake_valp)
 {
     struct timespec timeout;
     long sysret;
@@ -36,7 +36,7 @@ __wt_futex_wait(WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec, WT_FUT
  *     Wake the futex.
  */
 int
-__wt_futex_wake(WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
+__wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
 {
     long sysret;
     int wake_op;

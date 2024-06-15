@@ -553,6 +553,11 @@ typedef uint64_t wt_timestamp_t;
 #include "extern_win.h"
 #else
 #include "extern_posix.h"
+#ifdef __linux__
+#include "extern_linux.h"
+#elif __APPLE__
+#include "extern_darwin.h"
+#endif
 #endif
 #include "verify_build.h"
 
