@@ -752,6 +752,11 @@ WorkloadRunner::start_tables_drop(WT_CONNECTION *conn)
         sleep(_workload->options.drop_interval);
     }
 
+    ret = session->close(session, nullptr);
+    if (ret != 0) {
+        THROW_ERRNO(ret, "Error closing a session.");
+    }
+
     return 0;
 }
 
@@ -3259,6 +3264,7 @@ WorkloadRunner::run(WT_CONNECTION *conn)
     WT_SESSION *session;
     WT_ERR(conn->open_session(conn, nullptr, nullptr, &session));
     WT_ERR(workgen_random_alloc(session, &_rand_state));
+    WT_ERR(session->close(session, nullptr));
 
     /* Initiate everything else, and start the workload. */
     WT_ERR(create_all(conn, _workload->_context));
