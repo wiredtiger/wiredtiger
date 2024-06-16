@@ -22,6 +22,16 @@ namespace {
 using futex_word = WT_FUTEX_WORD;
 using uint = unsigned int;
 
+void
+futex_atomic_store(futex_word *addr, futex_word value)
+{
+#ifdef _WIN32
+    InterlockedExchange(addr, value);
+#else
+    __atomic_store_n(addr, value, __ATOMIC_SEQ_CST);
+#endif
+}
+
 time_t
 msec_to_usec(time_t msec)
 {
@@ -55,6 +65,8 @@ struct Waiter {
     futex_word val_on_wake{0};
     int ret{0};
     int eno{0};
+
+    Waiter() = delete;
 
     explicit Waiter(futex_word expect) : expected(expect), val_on_wake(expect) {}
 
@@ -159,9 +171,9 @@ CheckOutcomes(
     unsigned int timedout = 0;
 
     /*
-     * Loop over the waiters looking for problems.
+     * Loop over the waiters and inspect their state.
      *
-     * Note: spurious wakeups (expected == wake up value, and no errors) are detected after the loop
+     * Note: spurious wakeups (no error and expected == wake up value) are detected after the loop
      * exits so there are is no test in the loop.
      */
     for (auto &&w : waiters) {
@@ -177,7 +189,6 @@ CheckOutcomes(
             return Outcome::UnexpectWakeNonSpuriousWakeup;
         else if (w.val_on_wake != w.expected) {
             /* This is a non-spurious wake up. */
-
             auto match = find(wake_values.begin(), wake_values.end(), w.val_on_wake);
             if (match == wake_values.end())
                 return Outcome::WakeWithUnexpectedValue;
@@ -193,13 +204,16 @@ CheckOutcomes(
         return Outcome::Expected;
 
     /*
-     * Spurious wake ups detected: while this is not an error, is not a successful test.
+     * Spurious wake ups detected: while this is not an error, is not a consider successful.
      */
     return Outcome::Acceptable;
 }
 
 } // namespace
 
+/*
+ * Instatiate a new copy for each test run: cannot be re-used.
+ */
 class FutexTester {
 public:
     chrono::duration<time_t, milli> WAKE_DELAY{100};
@@ -212,7 +226,7 @@ public:
     void
     start_waiters(futex_word expected, time_t timeout_usec)
     {
-        _futex = expected; // make atomic
+        futex_atomic_store(&_futex, expected);
         for (auto &w : _waiters)
             _threads.push_back(thread(&Waiter::wait_on, &w, &_futex, timeout_usec));
     }
@@ -247,95 +261,59 @@ public:
     }
 };
 
-class FutexTestFixture {
-    int RETRY_MAX = 3;
-
-public:
-    FutexTestFixture() {}
-
-    void
-    wake_one()
-    {
-        vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 1234}};
-
-        FutexTester tester;
-        tester._waiters.push_back(Waiter(4321));
-        tester.start_waiters(4321, msec_to_usec(300));
-        tester.delay_then_wake(wake_info);
-        tester.wait_and_check(wake_info);
-    }
-
-    void
-    timeout_one()
-    {
-        FutexTester tester;
-        tester._waiters.push_back(Waiter(0));
-        tester.start_waiters(0, msec_to_usec(200));
-        tester.wait_and_check({});
-    }
-
-    void
-    wake_one_of_two()
-    {
-        vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 1111}};
-        
-        FutexTester tester;
-        tester._waiters.push_back(Waiter(89349));
-        tester._waiters.push_back(Waiter(89349));
-        tester.start_waiters(89349, msec_to_usec(300));
-        tester.delay_then_wake(wake_info);
-        tester.wait_and_check(wake_info);
-    }
-
-    void
-    wake_two_of_two()
-    {
-        vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 6928374}};
-
-        FutexTester tester;
-        tester._waiters.push_back(Waiter(32234));
-        tester._waiters.push_back(Waiter(32234));
-        tester.start_waiters(32234, msec_to_usec(300));
-        tester.delay_then_wake(wake_info);
-        tester.wait_and_check(wake_info);
-    }
-
-    void
-    wake_three_individually()
-    {
-        vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{
-          {WT_FUTEX_WAKE_ONE, 234234}, {WT_FUTEX_WAKE_ONE, 45675}, {WT_FUTEX_WAKE_ONE, 239043820}};
-        FutexTester tester;
-        tester._waiters.push_back(Waiter(5644));
-        tester._waiters.push_back(Waiter(5644));
-        tester._waiters.push_back(Waiter(5644));
-        tester.start_waiters(5644, msec_to_usec(300));
-        tester.delay_then_wake(wake_info);
-        tester.wait_and_check(wake_info);
-    }
-};
-
-TEST_CASE_METHOD(FutexTestFixture, "Wake one", "[futex2]")
+TEST_CASE("Wake one", "[futex]")
 {
-    wake_one();
+    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 1234}};
+
+    FutexTester tester;
+    tester._waiters.push_back(Waiter(4321));
+    tester.start_waiters(4321, msec_to_usec(300));
+    tester.delay_then_wake(wake_info);
+    tester.wait_and_check(wake_info);
 }
 
-TEST_CASE_METHOD(FutexTestFixture, "Timeout one", "[futex2]")
+TEST_CASE("Timeout one", "[futex]")
 {
-    timeout_one();
+    FutexTester tester;
+    tester._waiters.push_back(Waiter(0));
+    tester.start_waiters(0, msec_to_usec(200));
+    tester.wait_and_check({});
 }
 
-TEST_CASE_METHOD(FutexTestFixture, "Wake one of two", "[futex2]")
+TEST_CASE("Wake one of two", "[futex]")
 {
-    wake_one_of_two();
+    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 1111}};
+
+    FutexTester tester;
+    tester._waiters.push_back(Waiter(89349));
+    tester._waiters.push_back(Waiter(89349));
+    tester.start_waiters(89349, msec_to_usec(300));
+    tester.delay_then_wake(wake_info);
+    tester.wait_and_check(wake_info);
 }
 
-TEST_CASE_METHOD(FutexTestFixture, "Wake two of two", "[futex2]")
+TEST_CASE("Wake two of two", "[futex]")
 {
-    wake_two_of_two();
+    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 6928374}};
+
+    FutexTester tester;
+    tester._waiters.push_back(Waiter(32234));
+    tester._waiters.push_back(Waiter(32234));
+    tester.start_waiters(32234, msec_to_usec(300));
+    tester.delay_then_wake(wake_info);
+    tester.wait_and_check(wake_info);
 }
 
-TEST_CASE_METHOD(FutexTestFixture, "Wake three individually", "[futex2]")
+TEST_CASE("Wake three separately", "[futex]")
 {
-    wake_three_individually();
+    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{
+      {WT_FUTEX_WAKE_ONE, 234234}, {WT_FUTEX_WAKE_ONE, 45675}, {WT_FUTEX_WAKE_ONE, 239043820}};
+
+    FutexTester tester;
+    tester._waiters.push_back(Waiter(5644));
+    tester._waiters.push_back(Waiter(5644));
+    tester._waiters.push_back(Waiter(5644));
+    tester.start_waiters(5644, msec_to_usec(300));
+    tester.delay_then_wake(wake_info);
+    tester.wait_and_check(wake_info);
 }
