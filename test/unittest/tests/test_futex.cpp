@@ -38,28 +38,6 @@ msec_to_usec(time_t msec)
     return (msec * 1000);
 }
 
-class IncreasingTimeout {
-    time_t _usec;
-
-public:
-    static const unsigned int DefaultInitialScaleup = 3;
-    float GrowthFactor = 1.5f;
-
-    IncreasingTimeout(const chrono::duration<time_t, milli> &wake_delay,
-      unsigned int scaleup = DefaultInitialScaleup)
-    {
-        auto tmp = chrono::duration_cast<chrono::microseconds>(wake_delay);
-        assert(tmp.count() * scaleup <= std::numeric_limits<time_t>::max());
-        _usec = tmp.count() * scaleup;
-    }
-
-    time_t
-    operator()(int iteration)
-    {
-        return _usec * (GrowthFactor * (iteration + 1));
-    }
-};
-
 struct Waiter {
     futex_word expected;
     futex_word val_on_wake{0};
@@ -252,7 +230,7 @@ public:
             const pair<WT_FUTEX_WAKE, futex_word> &info) { wake_vals.push_back(info.second); });
         CAPTURE(wake_vals);
 
-        uint expected_timeouts = _threads.size() - wake_vals.size();
+        size_t expected_timeouts = _threads.size() - wake_vals.size();
         auto result = check_outcomes(_waiters, expected_timeouts, wake_vals);
         CAPTURE(result);
         REQUIRE(OutcomeNotFailure(result));
