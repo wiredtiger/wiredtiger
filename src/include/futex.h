@@ -7,7 +7,7 @@
  */
 
 /*
- * Linux limits the futex size to 32 bits irrespective architecture word size.
+ * Linux limits the futex size to 32 bits irrespective of architecture word size.
  */
 typedef uint32_t WT_FUTEX_WORD;
 
