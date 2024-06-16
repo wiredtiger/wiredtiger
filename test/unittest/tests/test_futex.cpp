@@ -56,7 +56,7 @@ struct Waiter {
     int ret{0};
     int eno{0};
 
-    explicit Waiter(futex_word expect) : expected(expect) {}
+    explicit Waiter(futex_word expect) : expected(expect), val_on_wake(expect) {}
 
     void
     wait_on(futex_word *addr, time_t timeout)
