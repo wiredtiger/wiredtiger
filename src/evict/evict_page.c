@@ -730,14 +730,15 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     else if (__wt_ref_addr_copy(session, ref, &addr))
         WT_TIME_AGGREGATE_COPY(&newest_ta, &addr.ta);
 
-    if (newest_ta.newest_txn != WT_TXN_NONE &&
+    /*
+     * Mark the page as dirty to allow the page reconciliation to remove all information related to
+     * an obsolete time window if the page has not been fully removed. The pages that are totally
+     * removed are eliminated during the checkpoint cleanup procedure.
+     */
+    if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta) && newest_ta.newest_txn != WT_TXN_NONE &&
       __wt_txn_visible_all(session, newest_ta.newest_txn,
         WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
-        /*
-         * Dirty the page with an obsolete time window to let the page reconciliation remove all the
-         * obsolete time window information.
-         */
-        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose(session, WT_VERB_EVICT,
           "%p in-memory page obsolete time window: time aggregate %s", (void *)ref,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 
