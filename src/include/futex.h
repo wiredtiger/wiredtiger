@@ -7,6 +7,11 @@
  */
 
 /*
+ * Futex API is intended for building other synchronization mechanisms, and is not suitable for
+ * general use.
+ */
+
+/*
  * Linux limits the futex size to 32 bits irrespective of architecture word size.
  */
 typedef uint32_t WT_FUTEX_WORD;
