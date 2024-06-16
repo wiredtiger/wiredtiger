@@ -62,9 +62,9 @@ __wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD 
     __atomic_store_n(addr, wake_val, __ATOMIC_SEQ_CST);
 
     /*
-     * The wake value (last param) is uint64_t which feels unsafe because the futex word size
-     * is only uint32_t. Looking at Apple's pthread library this parameter is only used whe
-     * ULF_WAKE_THREAD option is specified.
+     * The wake value (last param) is uint64_t which feels unsafe because the futex word size is
+     * only uint32_t. Looking at Apple's pthread library this parameter is only used when
+     * ULF_WAKE_THREAD flag is specified.
      */
     ret = __ulock_wake(op, (void *)addr, 0);
     switch (ret) {

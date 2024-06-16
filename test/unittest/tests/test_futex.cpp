@@ -88,12 +88,12 @@ operator<<(ostream &out, const Waiter &w)
 
 enum Outcome {
     /*
-     * Wake ups and timeouts match the test expectations.
+     * Results are as expected so the test was successfully.
      */
     Expected,
 
     /*
-     * Spurious wakeups were detected, but any other results look valid. So don't fail the test, but
+     * Results contain spurious wakeups, but are otherwise valid. Don't fail the test, but prefer to
      * retry for an expected outcome.
      */
     Acceptable,
@@ -101,26 +101,25 @@ enum Outcome {
     /* Waiting on the futex returned an error. */
     Error,
 
-    /* Return value was zero, but errno is non-zero, which is unexpected. */
+    /* Return value was zero, but errno is non-zero. */
     RetZeroWithErrno,
 
     /*
-     * A thread timed out, but the futex value changed. This is an error because the tests
-     * are setup to specifically preclude this possibility. In practice there is nothing
-     * to stop another thread updating the futex value without calling wake.
+     * A waiter timed out, but the futex value changed. The tests do not change the futex value with
+     * out then calling wake so treat as an error.
      */
     TimeoutWithUnexpecedValue,
 
     /*
-     * The expected wake up value is not present. This could because there was no such
-     * value wakeup value list, or more waiters than expected were woken with the same value.
+     * This could because this value was never present in the wakeup value list, or more waiters
+     * than expected were awoken with the same value.
      */
     WakeWithUnexpectedValue,
 
-    /* An unexpected non-spurious wake up is present. */
+    /* An unexpected non-spurious wake up is present. This is almost certainly a bug in the test. */
     UnexpectWakeNonSpuriousWakeup,
 
-    /* Unlike spurious wakeups, consider unexpected timeouts as a test failure. */
+    /* Unexpected timeouts are a different type of soft failure to spurious wakeups. */
     UnexpectedTimeouts,
 };
 
@@ -157,14 +156,13 @@ operator<<(ostream &out, const Outcome &result)
     return out;
 }
 /*
- * CheckOutcomes --
- *      Check completed waiters to see if they meet expectations.
+ * check_outcomes --
+ *     Check completed waiters to see if they meet expectations.
  *
- * There must be a SEPARATE wake up value for each and every thread that is
- * expected to be awoken.
+ * There must be a SEPARATE wake up value for each and every waiter that is expected to be awoken.
  */
 Outcome
-CheckOutcomes(
+check_outcomes(
   const vector<Waiter> &waiters, const unsigned int timeouts, const vector<futex_word> &wake_vals)
 {
     list<futex_word> wake_values(wake_vals.begin(), wake_vals.end());
@@ -212,7 +210,7 @@ CheckOutcomes(
 } // namespace
 
 /*
- * Instatiate a new copy for each test run: cannot be re-used.
+ * Reify for each test run: do NOT reuse.
  */
 class FutexTester {
 public:
@@ -255,7 +253,7 @@ public:
         CAPTURE(wake_vals);
 
         uint expected_timeouts = _threads.size() - wake_vals.size();
-        auto result = CheckOutcomes(_waiters, expected_timeouts, wake_vals);
+        auto result = check_outcomes(_waiters, expected_timeouts, wake_vals);
         CAPTURE(result);
         REQUIRE(OutcomeNotFailure(result));
     }
