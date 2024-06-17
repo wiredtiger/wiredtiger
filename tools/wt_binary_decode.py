@@ -32,7 +32,7 @@
 # see "wt dump" for that.  But this is standalone (doesn't require linkage with any WT
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
-import binascii, codecs, io, os, string, sys, traceback
+import binascii, codecs, io, os, string, sys, traceback, pprint
 from dataclasses import dataclass
 import typing
 
@@ -49,6 +49,14 @@ have_snappy = False
 try:
     import snappy
     have_snappy = True
+except:
+    pass
+
+# Optional dependency: bson
+have_bson = False
+try:
+    import bson
+    have_bson = True
 except:
     pass
 
@@ -691,8 +699,9 @@ def block_decode(p, b, opts):
             return
         checksum = crc32c.crc32c(data)
         if checksum != blockhead.checksum:
-            p.rint('? the checksum does not match ' + hex(checksum))
-            return
+            p.rint(f'? the calculated checksum {hex(checksum)} does not match header checksum {blockhead.checksum}')
+            if (not opts.cont):
+                return
 
     # Skip the rest if we don't want to display the data
     if opts.skip_data:
@@ -870,8 +879,21 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
 
             try:
                 if s != '?':
-                    p.rint_v(f'{desc_str}{s}:')
-                    p.rint_v(raw_bytes(x))
+                    if (short == 0 and celltype == 'WT_CELL_VALUE' and opts.bson):
+                        if (not have_bson):
+                            return
+                        
+                        if (bson.is_valid(x)):
+                            p.rint_v("cell is valid BSON")
+                            decoded_data = bson.BSON(x).decode()
+                            pprint.pprint(decoded_data)
+                        else:
+                            p.rint_v("cannot decode cell as BSON")
+                            p.rint_v(f'{desc_str}{s}:')
+                            p.rint_v(raw_bytes(x))
+                    else:
+                        p.rint_v(f'{desc_str}{s}:')
+                        p.rint_v(raw_bytes(x))
                 else:
                     dumpraw(p, b, cellpos)
             except (IndexError, ValueError):
@@ -1002,6 +1024,8 @@ parser.add_argument('-p', '--pages', help="number of pages to decode", type=int,
 parser.add_argument('-s', '--split', help="split output to also show raw bytes", action='store_true')
 parser.add_argument('-V', '--version', help="print version number of this program", action='store_true')
 parser.add_argument("-c", "--csv", action='store', type=argparse.FileType('w'), dest='output', help="Directs the output to a name of your choice")
+parser.add_argument('--continue', help="continue on checksum failure", dest='cont', action='store_true')
+parser.add_argument('--bson', help="decode cell values as bson data", action='store_true')
 parser.add_argument('filename', help="file name or '-' for stdin")
 opts = parser.parse_args()
 
