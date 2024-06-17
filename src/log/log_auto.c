@@ -880,6 +880,54 @@ __wt_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const
 }
 
 /*
+ * get_uri_by_fileid --
+ *     get the uri by file id.
+ */
+static int
+get_uri_by_fileid(WT_SESSION *session, uint32_t fileid, const char** uri)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *key, *value;
+    const char *cfg[2];
+
+    *uri = NULL;
+
+    /* Open the metadata file. */
+    if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
+        /*
+         * If there is no metadata (yet), this will return ENOENT. Treat that the same as an empty
+         * metadata.
+         */
+        if (ret == ENOENT)
+            return (0);
+
+        return (WT_NOTFOUND);
+    }
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        if ((ret = cursor->get_key(cursor, &key)) != 0)
+            return (ret);
+
+        if ((ret = cursor->get_value(cursor, &value)) != 0)
+            return (ret);
+
+        cfg[0] = value;
+        cfg[1] = NULL;
+        if ((ret = __wt_config_gets((WT_SESSION_IMPL *)session, cfg, "id", &cval)) == WT_NOTFOUND)
+            continue;
+
+        if ((uint32_t)cval.val == fileid) {
+            *uri = key;
+            return (0);
+        }
+    }
+
+    return (WT_NOTFOUND);
+}
+
+/*
  * __wt_logop_row_modify_print --
  *     Print the log operation row_modify.
  */
@@ -887,18 +935,25 @@ int
 __wt_logop_row_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
+    WT_DECL_ITEM(escaped);
     WT_DECL_RET;
-    uint32_t fileid;
     WT_ITEM key;
     WT_ITEM value;
-    WT_DECL_ITEM(escaped);
+    const char* uri;
+    uint32_t fileid;
 
     WT_RET(__wt_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
+    if (FLD_ISSET(fileid, WT_LOGOP_IGNORE))
+        FLD_CLR(fileid, WT_LOGOP_IGNORE);
+    WT_RET(get_uri_by_fileid(&session->iface, fileid, &uri));
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_modify\",\n"));
+    if (uri)
+        WT_ERR(__wt_fprintf(session, args->fs, "        \"uri\": \"%s\",\n", uri));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &key));
@@ -1031,18 +1086,27 @@ int
 __wt_logop_row_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
+    WT_DECL_ITEM(escaped);
     WT_DECL_RET;
-    uint32_t fileid;
     WT_ITEM key;
     WT_ITEM value;
-    WT_DECL_ITEM(escaped);
+    const char* uri;
+    uint32_t fileid;
 
+    uri = NULL;
     WT_RET(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
+    if (FLD_ISSET(fileid, WT_LOGOP_IGNORE))
+        FLD_CLR(fileid, WT_LOGOP_IGNORE);
+
+    WT_RET(get_uri_by_fileid(&session->iface, fileid, &uri));
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_put\",\n"));
+    if (uri)
+        WT_ERR(__wt_fprintf(session, args->fs, "        \"uri\": \"%s\",\n", uri));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &key));
@@ -1173,16 +1237,24 @@ __wt_logop_row_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
-    uint32_t fileid;
-    WT_ITEM key;
     WT_DECL_ITEM(escaped);
+    WT_ITEM key;
+    const char* uri;
+    uint32_t fileid;
 
     WT_RET(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
+    if (FLD_ISSET(fileid, WT_LOGOP_IGNORE))
+        FLD_CLR(fileid, WT_LOGOP_IGNORE);
+
+    WT_RET(get_uri_by_fileid(&session->iface, fileid, &uri));
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_remove\",\n"));
+    if (uri)
+        WT_ERR(__wt_fprintf(session, args->fs, "        \"uri\": \"%s\",\n", uri));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &key));
@@ -1312,19 +1384,27 @@ int
 __wt_logop_row_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
+    WT_DECL_ITEM(escaped);
     WT_DECL_RET;
-    uint32_t fileid;
     WT_ITEM start;
     WT_ITEM stop;
+    const char* uri;
+    uint32_t fileid;
     uint32_t mode;
-    WT_DECL_ITEM(escaped);
 
     WT_RET(__wt_logop_row_truncate_unpack(session, pp, end, &fileid, &start, &stop, &mode));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
+    if (FLD_ISSET(fileid, WT_LOGOP_IGNORE))
+        FLD_CLR(fileid, WT_LOGOP_IGNORE);
+
+    WT_RET(get_uri_by_fileid(&session->iface, fileid, &uri));
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_truncate\",\n"));
+    if (uri)
+        WT_ERR(__wt_fprintf(session, args->fs, "        \"uri\": %s,\n", uri));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__logrec_make_json_str(session, &escaped, &start));
