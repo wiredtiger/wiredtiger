@@ -210,7 +210,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
                     max_memsize = WT_MAX(max_memsize, mod.offset) + mod.data.size;
                 }
                 WT_MODIFY_FOREACH_END;
-                WT_ERR(__wt_update_vector_push(&modifies, mod_upd));
             }
             if (value_format[0] == 'S')
                 ++max_memsize;
