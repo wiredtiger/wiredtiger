@@ -101,8 +101,13 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         __wt_free(session, pe);
 
-        if (ret == WT_NOTFOUND || ret == WT_RESTART)
+        /* 
+         * Fix specific errors that prevented prefetch from making progress, they are not harmful.
+         */
+        if (ret == WT_NOTFOUND || ret == WT_RESTART) {
+            WT_STAT_CONN_INCR(session, prefetch_skipped_error_ok);
             ret = 0;
+        }
         WT_ERR(ret);
     }
 

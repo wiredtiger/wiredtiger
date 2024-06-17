@@ -663,6 +663,7 @@ conn_stats = [
     PrefetchStat('prefetch_pages_read', 'pre-fetch pages read in background'),
     PrefetchStat('prefetch_skipped', 'pre-fetch not triggered by page read'),
     PrefetchStat('prefetch_skipped_disk_read_count', 'pre-fetch not triggered due to disk read count'),
+    PrefetchStat('prefetch_skipped_error_ok', 'pre-fetch skipped reading in a page due to harmless error'),
     PrefetchStat('prefetch_skipped_internal_page', 'could not perform pre-fetch on internal page'),
     PrefetchStat('prefetch_skipped_internal_session', 'pre-fetch not triggered due to internal session'),
     PrefetchStat('prefetch_skipped_no_flag_set', 'could not perform pre-fetch on ref without the pre-fetch flag set'),
