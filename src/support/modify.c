@@ -326,13 +326,10 @@ __wt_modify_apply_item(
   WT_SESSION_IMPL *session, const char *value_format, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
-    size_t datasz, destsz, tmp;
+    size_t datasz, destsz, item_offset, tmp;
     const size_t *p;
     int napplied, nentries;
     bool overlap, sformat;
-#ifdef HAVE_DIAGNOSTIC
-    size_t item_offset;
-#endif
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -350,9 +347,17 @@ __wt_modify_apply_item(
 
     WT_ASSERT(session, WT_DATA_IN_ITEM(value));
 
-#ifdef HAVE_DIAGNOSTIC
-    item_offset = WT_PTRDIFF(value->data, value->mem);
-#endif
+    /*
+     * Grow the buffer first. This function is often called using a cursor buffer referencing
+     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
+     * ensure the buffer's value is in buffer-local memory.
+     *
+     * Because the buffer may reference an overflow item, the data may not start at the start of the
+     * buffer's memory and we have to correct for that.
+     */
+    item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
+    WT_RET(__wt_buf_grow(session, value, item_offset + value->size));
+
     /*
      * Decrement the size to discard the trailing nul (done after growing the buffer to ensure it
      * can be restored without further checking).
@@ -369,8 +374,9 @@ __wt_modify_apply_item(
         goto done;
 
     if (!overlap) {
-        WT_ASSERT(
-          session, value->memsize >= item_offset + WT_MAX(destsz, value->size) + (sformat ? 1 : 0));
+        /* Grow the buffer first, correcting for the data offset. */
+        WT_RET(__wt_buf_grow(
+          session, value, item_offset + WT_MAX(destsz, value->size) + (sformat ? 1 : 0)));
 
         __modify_apply_no_overlap(session, value, p, nentries, napplied, datasz, destsz);
         goto done;
