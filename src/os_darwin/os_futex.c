@@ -23,19 +23,27 @@ __wt_futex_wait(
     WT_DECL_RET;
     uint64_t nsec;
 
-    /* Check for overflow? */
-    nsec = (uint64_t)usec * 1000;
+    WT_ASSERT(NULL, usec > 0);
 
+    nsec = (uint64_t)usec * WT_THOUSAND;
+
+    /*
+     * This is a private API in the Apple system library. It replaces __ulock_wait which is found in
+     * older MacOS releases. Documentation is non-existent, best reference is the Apple
+     * implementation of libpthread.
+     */
     ret = __ulock_wait2(UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO, (void *)addr, expected, nsec, 0);
-    if (ret >= 0) {
+    if (ret >= 0 || ret == -EFAULT) {
+        /*
+         * EFAULT indicates the page containing the futex had been paged out. So emulate the Linux
+         * semantics where a return value of zero indicates a spurious wakeup and the futex value
+         * itself should be consulted.
+         *
+         * As the futex value is returned to the caller in this API, block the caller until the VM
+         * fetches the errant page back.
+         */
         *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
         ret = 0;
-    } else if (ret == -EFAULT) {
-        /*
-         * Page containing futex was paged out. The value is unknown so assume it has not changed,
-         * and emulate a spurious wakeup to prompt the caller to retry.
-         */
-        *wake_valp = expected;
     } else {
         errno = -ret;
         ret = -1;
@@ -62,8 +70,8 @@ __wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD 
     __atomic_store_n(addr, wake_val, __ATOMIC_SEQ_CST);
 
     /*
-     * The wake value (last param) is uint64_t which feels unsafe because the futex word size is
-     * only uint32_t. Looking at Apple's pthread library this parameter is only used when
+     * The wake value (last param) is uint64_t which feels unsafe: as the futex word size is only
+     * uint32_t. Consulting Apple's pthread library, this parameter is only used when
      * ULF_WAKE_THREAD flag is specified.
      */
     ret = __ulock_wake(op, (void *)addr, 0);

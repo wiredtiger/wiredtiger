@@ -19,11 +19,13 @@ __wt_futex_wait(
     DWORD windows_error;
     bool retval;
 
+    WT_ASSERT(NULL, usec > 0);
+
     msec = (DWORD)WT_MAX(1, usec / 1000);
     retval = WaitOnAddress(addr, &expected, sizeof(WT_FUTEX_WORD), msec);
     if (retval == TRUE) {
         *wake_valp = *addr;
-        return 0;
+        return (0);
     }
 
     windows_error = __wt_getlasterror();

@@ -225,13 +225,12 @@ __wt_timer_evaluate_ms(WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t 
 }
 
 /*
- * __wt_usec_as_timespec --
+ * __wt_usec_to_timespec --
  *     Initialize to represent specified number of microseconds.
  */
-static WT_INLINE struct timespec *
-__wt_usec_as_timespec(time_t usec, struct timespec *tsp)
+static WT_INLINE void
+__wt_usec_to_timespec(time_t usec, struct timespec *tsp)
 {
     tsp->tv_sec = usec / WT_MILLION;
     tsp->tv_nsec = (usec % WT_MILLION) * WT_THOUSAND;
-    return (tsp);
 }

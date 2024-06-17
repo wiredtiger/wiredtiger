@@ -23,8 +23,8 @@ __wt_futex_wait(
 
     WT_ASSERT(NULL, usec > 0);
 
-    sysret = syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, expected,
-      __wt_usec_as_timespec(usec, &timeout), NULL, 0);
+    __wt_usec_to_timespec(usec, &timeout);
+    sysret = syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, expected, &timeout, NULL, 0);
     if (sysret == 0)
         *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
 

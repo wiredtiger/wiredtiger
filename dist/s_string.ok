@@ -109,6 +109,7 @@ EB
 EBUSY
 EDC
 EEXIST
+EFAULT
 EINTR
 EINVAL
 EMail
@@ -121,7 +122,6 @@ ENOTSUP
 ENUM
 EOF
 ERANGE
-ERRNO
 ETIME
 ETIMEDOUT
 EVICTSERVER
@@ -420,6 +420,7 @@ Unmount
 Uryyb
 VARCHAR
 VLCS
+VM
 VPM
 VR
 VRFY
@@ -439,7 +440,6 @@ WTPERF
 WaitForSingleObject
 WakeAll
 WakeOne
-Wakeup
 Wconditional
 Wduplicated
 WeakHashLen
@@ -950,6 +950,7 @@ lexicographically
 lf
 libdatasource
 libmemkind
+libpthread
 libs
 libsodium
 libwiredtiger
