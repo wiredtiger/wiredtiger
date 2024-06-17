@@ -64,7 +64,7 @@ operator<<(ostream &out, const Waiter &w)
     return out;
 }
 
-enum Outcome {
+enum outcome {
     /*
      * Results are as expected so the test was successfully.
      */
@@ -101,14 +101,8 @@ enum Outcome {
     UnexpectedTimeouts,
 };
 
-bool
-OutcomeNotFailure(Outcome result)
-{
-    return result == Outcome::Expected || result == Outcome::Acceptable;
-}
-
 ostream &
-operator<<(ostream &out, const Outcome &result)
+operator<<(ostream &out, const outcome &result)
 {
 #ifdef R_
 #error "R_ already defined"
@@ -133,64 +127,28 @@ operator<<(ostream &out, const Outcome &result)
 #undef R_
     return out;
 }
-/*
- * check_outcomes --
- *     Check completed waiters to see if they meet expectations.
- *
- * There must be a SEPARATE wake up value for each and every waiter that is expected to be awoken.
- */
-Outcome
-check_outcomes(
-  const vector<Waiter> &waiters, const unsigned int timeouts, const vector<futex_word> &wake_vals)
-{
-    list<futex_word> wake_values(wake_vals.begin(), wake_vals.end());
-    unsigned int timedout = 0;
 
-    /*
-     * Loop over the waiters and inspect their state.
-     *
-     * Note: spurious wakeups (no error and expected == wake up value) are detected after the loop
-     * exits so there are is no test in the loop.
-     */
-    for (auto &&w : waiters) {
-        if (w.ret == -1) {
-            if (w.eno != ETIMEDOUT)
-                return Outcome::Error;
-            else if (w.val_on_wake != w.expected)
-                return Outcome::TimeoutWithUnexpecedValue;
-            timedout++;
-        } else if (w.eno != 0)
-            return Outcome::RetZeroWithErrno;
-        else if (wake_values.empty() && w.val_on_wake != w.expected)
-            return Outcome::UnexpectWakeNonSpuriousWakeup;
-        else if (w.val_on_wake != w.expected) {
-            /* This is a non-spurious wake up. */
-            auto match = find(wake_values.begin(), wake_values.end(), w.val_on_wake);
-            if (match == wake_values.end())
-                return Outcome::WakeWithUnexpectedValue;
-            wake_values.erase(match);
-        }
-    }
+struct wake_signal {
+    WT_FUTEX_WAKE type;
+    futex_word value;
 
-    if (timedout > timeouts) {
-        return UnexpectedTimeouts;
-    }
+    wake_signal(WT_FUTEX_WAKE t, futex_word v) : type(t), value(v) {}
+};
 
-    if (wake_values.empty() && timedout == timeouts)
-        return Outcome::Expected;
+struct wake_one : public wake_signal {
+    wake_one(futex_word val) : wake_signal(WT_FUTEX_WAKE_ONE, val) {}
+};
 
-    /*
-     * Spurious wake ups detected: while this is not an error, is not a consider successful.
-     */
-    return Outcome::Acceptable;
-}
+struct wake_all : public wake_signal {
+    wake_all(futex_word val) : wake_signal(WT_FUTEX_WAKE_ALL, val) {}
+};
 
 } // namespace
 
 /*
  * Reify for each test run: do NOT reuse.
  */
-class FutexTester {
+class futex_tester {
 public:
     chrono::duration<time_t, milli> WAKE_DELAY{100};
     chrono::duration<time_t, milli> INTER_WAKE_DELAY{1};
@@ -198,6 +156,13 @@ public:
     futex_word _futex;
     vector<Waiter> _waiters;
     vector<thread> _threads;
+
+    void
+    create_waiters(size_t count, futex_word expected)
+    {
+        for (size_t i = 0; i < count; i++)
+            _waiters.push_back(Waiter(expected));
+    }
 
     void
     start_waiters(futex_word expected, time_t timeout_usec)
@@ -208,49 +173,107 @@ public:
     }
 
     void
-    delay_then_wake(const vector<pair<WT_FUTEX_WAKE, futex_word>> &wake_signals)
+    delay_then_wake(time_t wake_start_delay_usec, const vector<wake_signal> &wake_signals)
     {
+        chrono::duration<time_t, micro> WAKE_DELAY{wake_start_delay_usec};
         this_thread::sleep_for(WAKE_DELAY);
         for (auto &&sig : wake_signals) {
-            REQUIRE(__wt_futex_wake(&_futex, sig.first, sig.second) == 0);
+            REQUIRE(__wt_futex_wake(&_futex, sig.type, sig.value) == 0);
             this_thread::sleep_for(INTER_WAKE_DELAY);
         }
     }
 
     void
-    wait_and_check(const vector<pair<WT_FUTEX_WAKE, futex_word>> &wake_signals)
+    wait_and_check(const vector<wake_signal> &wake_signals)
     {
+        size_t expected_timeouts;
+
         for (auto &&t : _threads)
             t.join();
         CAPTURE(_waiters);
 
-        std::vector<futex_word> wake_vals;
-        std::for_each(wake_signals.begin(), wake_signals.end(),
-          [&wake_vals](
-            const pair<WT_FUTEX_WAKE, futex_word> &info) { wake_vals.push_back(info.second); });
-        CAPTURE(wake_vals);
+        /* Infer the number of expected timeouts. */
+        if (wake_signals.empty())
+            expected_timeouts = _threads.size();
+        else if (wake_signals.begin()->type == WT_FUTEX_WAKE_ALL)
+            expected_timeouts = 0;
+        else
+            expected_timeouts = _threads.size() - wake_signals.size();
 
-        size_t expected_timeouts = _threads.size() - wake_vals.size();
-        auto result = check_outcomes(_waiters, expected_timeouts, wake_vals);
+        auto result = check_outcomes(expected_timeouts, wake_signals);
         CAPTURE(result);
-        REQUIRE(OutcomeNotFailure(result));
+        REQUIRE((result == outcome::Expected || result == outcome::Acceptable));
+    }
+
+    /*
+     * check_outcomes --
+     *     Check completed waiters to see if they meet expectations.
+     *
+     * There must be either a WakeAll signal or a WakeOne signal for every waiter that is expected
+     *     to be awoken.
+     */
+    outcome
+    check_outcomes(const size_t timeouts, const vector<wake_signal> &wake_sigs)
+    {
+        list<wake_signal> wakes(wake_sigs.begin(), wake_sigs.end());
+        size_t timedout = 0;
+
+        /*
+         * Loop over the waiters and inspect their state.
+         *
+         * Note: spurious wakeups (no error and expected == wake up value) are detected after the
+         * loop exits so there are is no test in the loop.
+         */
+        for (auto &&w : _waiters) {
+            if (w.ret == -1) {
+                if (w.eno != ETIMEDOUT)
+                    return outcome::Error;
+                else if (w.val_on_wake != w.expected)
+                    return outcome::TimeoutWithUnexpecedValue;
+                timedout++;
+            } else if (w.eno != 0)
+                return outcome::RetZeroWithErrno;
+            else if (wakes.empty() && w.val_on_wake != w.expected)
+                return outcome::UnexpectWakeNonSpuriousWakeup;
+            else if (w.val_on_wake != w.expected) {
+                /* This is a non-spurious wake up. */
+                auto match = find_if(wakes.begin(), wakes.end(),
+                  [&w](const wake_signal &s) { return s.value == w.val_on_wake; });
+                if (match == wakes.end())
+                    return outcome::WakeWithUnexpectedValue;
+                if (match->type == WT_FUTEX_WAKE_ONE)
+                    wakes.erase(match);
+            }
+        }
+
+        if (timedout > timeouts) {
+            return UnexpectedTimeouts;
+        }
+
+        if (wakes.empty() && timedout == timeouts)
+            return outcome::Expected;
+
+        /*
+         * Spurious wake ups detected: while this is not an error, is not a consider successful.
+         */
+        return outcome::Acceptable;
     }
 };
 
 TEST_CASE("Wake one", "[futex]")
 {
-    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 1234}};
+    vector<wake_signal> wake_info{{WT_FUTEX_WAKE_ONE, 1234}};
 
-    FutexTester tester;
+    futex_tester tester;
     tester._waiters.push_back(Waiter(4321));
     tester.start_waiters(4321, msec_to_usec(300));
-    tester.delay_then_wake(wake_info);
+    tester.delay_then_wake(msec_to_usec(100), wake_info);
     tester.wait_and_check(wake_info);
 }
 
 TEST_CASE("Timeout one", "[futex]")
 {
-    FutexTester tester;
+    futex_tester tester;
     tester._waiters.push_back(Waiter(0));
     tester.start_waiters(0, msec_to_usec(200));
     tester.wait_and_check({});
@@ -258,38 +281,33 @@ TEST_CASE("Timeout one", "[futex]")
 
 TEST_CASE("Wake one of two", "[futex]")
 {
-    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 1111}};
+    vector<wake_signal> wake_info{wake_one(1111)};
 
-    FutexTester tester;
-    tester._waiters.push_back(Waiter(89349));
-    tester._waiters.push_back(Waiter(89349));
+    futex_tester tester;
+    tester.create_waiters(2, 89349);
     tester.start_waiters(89349, msec_to_usec(300));
-    tester.delay_then_wake(wake_info);
+    tester.delay_then_wake(msec_to_usec(100), wake_info);
     tester.wait_and_check(wake_info);
 }
 
 TEST_CASE("Wake two of two", "[futex]")
 {
-    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{{WT_FUTEX_WAKE_ONE, 6928374}};
+    vector<wake_signal> wake_info{wake_all(6928374)};
 
-    FutexTester tester;
-    tester._waiters.push_back(Waiter(32234));
-    tester._waiters.push_back(Waiter(32234));
-    tester.start_waiters(32234, msec_to_usec(300));
-    tester.delay_then_wake(wake_info);
+    futex_tester tester;
+    tester.create_waiters(2, 32234);
+    tester.start_waiters(32234, msec_to_usec(450));
+    tester.delay_then_wake(msec_to_usec(100), wake_info);
     tester.wait_and_check(wake_info);
 }
 
 TEST_CASE("Wake three separately", "[futex]")
 {
-    vector<pair<WT_FUTEX_WAKE, futex_word>> wake_info{
-      {WT_FUTEX_WAKE_ONE, 234234}, {WT_FUTEX_WAKE_ONE, 45675}, {WT_FUTEX_WAKE_ONE, 239043820}};
+    vector<wake_signal> wake_info{wake_one(234234), wake_one(45675), wake_one(239043820)};
 
-    FutexTester tester;
-    tester._waiters.push_back(Waiter(5644));
-    tester._waiters.push_back(Waiter(5644));
-    tester._waiters.push_back(Waiter(5644));
+    futex_tester tester;
+    tester.create_waiters(3, 5644);
     tester.start_waiters(5644, msec_to_usec(300));
-    tester.delay_then_wake(wake_info);
+    tester.delay_then_wake(msec_to_usec(100), wake_info);
     tester.wait_and_check(wake_info);
 }

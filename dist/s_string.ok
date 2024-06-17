@@ -437,6 +437,8 @@ WRLSN
 WRNOLOCK
 WTPERF
 WaitForSingleObject
+WakeAll
+WakeOne
 Wakeup
 Wconditional
 Wduplicated
