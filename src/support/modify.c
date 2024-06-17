@@ -345,8 +345,6 @@ __wt_modify_apply_item(
     WT_ASSERT(session, value_format[1] == '\0');
     sformat = value_format[0] == 'S';
 
-    WT_ASSERT(session, WT_DATA_IN_ITEM(value));
-
     /*
      * Grow the buffer first. This function is often called using a cursor buffer referencing
      * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
