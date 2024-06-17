@@ -572,11 +572,14 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
         /* Output a verbose message about long-running transactions,
          * but only when some progress is being made. */
+        current_id = __wt_atomic_loadv64(&txn_global->current);
+        WT_ASSERT(session, WT_TXNID_LE(prev_oldest_id, current_id));
         if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
           current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
-              "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
-              oldest_id, oldest_session->id, oldest_session->lastop,
+              "current snapshot %" PRIu64 "old snapshot %" PRIu64 " pinned in session %" PRIu32
+              " [%s] with snap_min %" PRIu64,
+              current_id, oldest_id, oldest_session->id, oldest_session->lastop,
               oldest_session->txn->snapshot_data.snap_min);
         }
     }
