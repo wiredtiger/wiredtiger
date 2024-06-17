@@ -58,6 +58,15 @@ struct __wt_rwlock { /* Read/write lock */
 
     WT_CONDVAR *cond_readers; /* Blocking readers */
     WT_CONDVAR *cond_writers; /* Blocking writers */
+
+#ifdef TSAN_BUILD
+    /*
+     * Our read/write locks provide thread safety but TSan reports false data races for fields
+     * protected by these locks. To help TSan we perform dummy atomic reads and writes to this field
+     * with acquire/release semantics. This lets TSan know lock protected accesses are safe.
+     */
+    uint64_t tsan_sync;
+#endif
 };
 
 /*
