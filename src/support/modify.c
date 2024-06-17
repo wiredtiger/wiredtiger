@@ -114,7 +114,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
 #ifdef HAVE_DIAGNOSTIC
     item_offset = WT_PTRDIFF(value->data, value->mem);
 #endif
-    WT_ASSERT(session, value->memsize >= item_offset + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0));
+    WT_ASSERT(session,
+      value->memsize >= item_offset + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0));
     /*
      * Fast-path the common case, where we're overwriting a set of bytes that already exist in the
      * buffer.
@@ -397,7 +398,13 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     max_memsize = cursor->value.size;
     for (i = 0; i < nentries; ++i)
-        max_memsize = WT_MAX(max_memsize, entries->offset + entries->data.size);
+        max_memsize = WT_MAX(max_memsize, entries[i].offset) + entries[i].data.size;
+
+    if (cursor->value_format[0] == 'S')
+        ++max_memsize;
+
+    WT_ERR(__wt_buf_set_and_grow(
+      CUR2S(cursor), &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
 
     WT_ERR(
       __wt_modify_apply_item(CUR2S(cursor), cursor->value_format, &cursor->value, modify->data));
@@ -419,11 +426,11 @@ __wt_modify_reconstruct_from_upd_list(
     WT_DECL_RET;
     WT_MODIFY mod;
     WT_TIME_WINDOW tw;
-    WT_UPDATE *upd;
+    WT_UPDATE *upd, *mod_upd;
     WT_UPDATE_VECTOR modifies;
     size_t item_offset, max_memsize, tmp;
     const size_t *p;
-    int nentries;
+    int i, nentries;
     bool onpage_retry;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
@@ -435,7 +442,6 @@ __wt_modify_reconstruct_from_upd_list(
     onpage_retry = true;
 
 retry:
-    max_memsize = 0;
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
     /* Find a complete update. */
@@ -446,21 +452,9 @@ retry:
         if (WT_UPDATE_DATA_VALUE(upd))
             break;
 
-        if (upd->type == WT_UPDATE_MODIFY) {
-            p = (const size_t *)upd->data;
-            memcpy(&tmp, p++, sizeof(size_t));
-            nentries = (int)tmp;
-
-            WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
-                max_memsize = WT_MAX(max_memsize, mod.offset + mod.data.size);
-            }
-            WT_MODIFY_FOREACH_END;
+        if (upd->type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_update_vector_push(&modifies, upd));
-        }
     }
-
-    if (cursor->value_format[0] == 'S')
-        ++max_memsize;
 
     /*
      * If there's no full update, the base item is the on-page item. If the update is a tombstone,
@@ -498,15 +492,37 @@ retry:
         item_offset = WT_DATA_IN_ITEM(&upd_value->buf) ?
           WT_PTRDIFF(upd_value->buf.data, upd_value->buf.mem) :
           0;
-        max_memsize = WT_MAX(max_memsize, upd_value->buf.size + item_offset);
-        WT_ERR(__wt_buf_set_and_grow(
-          session, &upd_value->buf, upd_value->buf.data, upd_value->buf.size, max_memsize));
+        max_memsize = upd_value->buf.size + item_offset;
     } else {
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-        max_memsize = WT_MAX(max_memsize, upd->size);
-        WT_ERR(__wt_buf_set_and_grow(session, &upd_value->buf, upd->data, upd->size, max_memsize));
+        max_memsize = upd->size;
     }
+
+    if (modifies.size > 0) {
+        for (i = (int)modifies.size - 1; i >= 0; --i) {
+            mod_upd = modifies.listp[i];
+            p = (const size_t *)mod_upd->data;
+            memcpy(&tmp, p++, sizeof(size_t));
+            nentries = (int)tmp;
+
+            WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
+                max_memsize = WT_MAX(max_memsize, mod.offset) + mod.data.size;
+            }
+            WT_MODIFY_FOREACH_END;
+        }
+
+        if (cursor->value_format[0] == 'S')
+            ++max_memsize;
+
+        if (upd == NULL)
+            WT_ERR(__wt_buf_set_and_grow(
+              session, &upd_value->buf, upd_value->buf.data, upd_value->buf.size, max_memsize));
+        else
+            WT_ERR(
+              __wt_buf_set_and_grow(session, &upd_value->buf, upd->data, upd->size, max_memsize));
+    }
+
     /* Once we have a base item, roll forward through any visible modify updates. */
     while (modifies.size > 0) {
         __wt_update_vector_pop(&modifies, &upd);

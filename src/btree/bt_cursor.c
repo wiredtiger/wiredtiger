@@ -1798,7 +1798,8 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t new, orig;
+    size_t max_memsize, new, orig;
+    int i;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -1835,6 +1836,16 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR(__wt_btcur_search(cbt));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
+
+    max_memsize = cursor->value.size;
+    for (i = 0; i < nentries; ++i)
+        max_memsize = WT_MAX(max_memsize, entries[i].offset) + entries[i].data.size;
+
+    if (cursor->value_format[0] == 'S')
+        ++max_memsize;
+
+    WT_ERR(__wt_buf_set_and_grow(
+      session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
 
     orig = cursor->value.size;
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
