@@ -99,23 +99,30 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
 static int
 __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, bool sformat)
 {
-    size_t data_size, offset, size;
+    size_t data_size, item_offset, offset, size;
     uint8_t *to;
     const uint8_t *data, *from;
-#ifdef HAVE_DIAGNOSTIC
-    size_t item_offset;
-#endif
 
     data = modify->data.data;
     data_size = modify->data.size;
     offset = modify->offset;
     size = modify->size;
 
-#ifdef HAVE_DIAGNOSTIC
-    item_offset = WT_PTRDIFF(value->data, value->mem);
-#endif
-    WT_ASSERT(session,
-      value->memsize >= item_offset + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0));
+    /*
+     * Grow the buffer to the maximum size we'll need. This is pessimistic because it ignores
+     * replacement bytes, but it's a simpler calculation.
+     *
+     * Grow the buffer first. This function is often called using a cursor buffer referencing
+     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
+     * ensure the buffer's value is in buffer-local memory.
+     *
+     * Because the buffer may reference an overflow item, the data may not start at the start of the
+     * buffer's memory and we have to correct for that.
+     */
+    item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
+    WT_RET(__wt_buf_grow(
+      session, value, item_offset + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
+
     /*
      * Fast-path the common case, where we're overwriting a set of bytes that already exist in the
      * buffer.
