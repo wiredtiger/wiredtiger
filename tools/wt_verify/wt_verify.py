@@ -364,7 +364,7 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
             prev_tuple = all_addr[i - 1]
             prev_tuple_end = prev_tuple[0] + prev_tuple[1]
             gap = current_tuple[0] - prev_tuple_end
-            assert gap >= 0, "Data is not sorted correctly"
+            assert gap >= 0, f"Data is not sorted correctly"
             if gap == 0:
                 continue
             # If the size of the free block is large enough, we may not have interest in it.

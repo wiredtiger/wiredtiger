@@ -73,19 +73,19 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', prefix='test-script-',
                                          dir=self._test_dir, delete=False) as f:
             script_path = f.name
-            f.write('#!/usr/bin/env python\n')
-            f.write('\n')
+            f.write(f'#!/usr/bin/env python\n')
+            f.write(f'\n')
 
             # Set up paths and libraries.
-            f.write('import os, pickle, sys\n')
+            f.write(f'import os, pickle, sys\n')
             f.write(f'sys.path[0] = "{this_script_dir}"\n')
             f.write(f'sys.path.insert(1, "{build_python_path}")\n')
-            f.write('\n')
-            f.write('import wiredtiger\n')
+            f.write(f'\n')
+            f.write(f'import wiredtiger\n')
             f.write(f'import {module_name}\n')
-            f.write('\n')
+            f.write(f'\n')
             f.write(f'os.chdir("{cwd}")\n')
-            f.write('\n')
+            f.write(f'\n')
 
             # Set up the class attributes. This is hard, because (1) we need to skip several kinds
             # of attributes, and (2) we need to set up the attributes at the right level of class
@@ -118,7 +118,7 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     f.write(f"setattr({full_class_name}, '{k}', pickle.loads({pickle.dumps(v)}))\n")
 
             export_class_attributes(self.__class__)
-            f.write('\n')
+            f.write(f'\n')
 
             # Set up the test class instance.
             f.write(f'test = {module_name}.{class_name}()\n')
@@ -129,11 +129,11 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     continue
                 already_exported[k] = True
                 f.write(f"setattr(test, '{k}', pickle.loads({pickle.dumps(v)}))\n")
-            f.write('\n')
+            f.write(f'\n')
 
             # We just copied a lot of internal state; now finish the relevant setup that could not
             # be simply copied, e.g., opening the results file.
-            f.write('test.finishSetupIO()\n')
+            f.write(f'test.finishSetupIO()\n')
 
             # Run the test.
             f.write(f'sys.exit(test.{method})\n')
@@ -157,7 +157,7 @@ class CompatibilityTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.current_test_id()
 
         if CompatibilityTestCase._verbose > 2:
-            self.prhead('Starting the test', True)
+            self.prhead(f'Starting the test', True)
 
         # Set up the test directory.
         test_dir = os.path.join(self._parentTestdir, self.sanitized_shortid())
