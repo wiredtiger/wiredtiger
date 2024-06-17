@@ -35,6 +35,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     bm = btree->bm;
     fail_msg = NULL; /* -Wuninitialized */
 
+    WT_ASSERT(session, !(F_ISSET(btree, WT_BTREE_CLOSED_DEBUG) || F_ISSET(btree, WT_BTREE_CLOSED)));
     /*
      * If anticipating a compressed or encrypted block, read into a scratch buffer and decompress
      * into the caller's buffer. Else, read directly into the caller's buffer.

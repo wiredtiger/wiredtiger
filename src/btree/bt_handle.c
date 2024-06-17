@@ -240,7 +240,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     /* Discard any underlying block manager resources. */
     if ((bm = btree->bm) != NULL) {
         btree->bm = NULL;
-
+        F_SET(btree, WT_BTREE_CLOSED_DEBUG);
+        __wt_sleep(0, 50);
         /* Unload the checkpoint, unless it's a special command. */
         if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
             WT_TRET(bm->checkpoint_unload(bm, session));

@@ -392,6 +392,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     if (discard && is_mapped)
         WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
 
+    //WT_ASSERT(session, dhandle->session_inuse == 0);
     /* Close the underlying handle. */
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
