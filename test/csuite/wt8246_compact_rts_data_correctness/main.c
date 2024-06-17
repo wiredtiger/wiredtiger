@@ -338,6 +338,7 @@ large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
         while (((ret = cursor->insert(cursor)) == WT_ROLLBACK) && retry_attempts++ < MAX_RETRIES) {
             printf("Rollback transaction for key %d\n", i);
             testutil_check(session->rollback_transaction(session, NULL));
+            __wt_yield();
             testutil_check(session->begin_transaction(session, NULL));
         }
 
