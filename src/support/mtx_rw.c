@@ -359,7 +359,7 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_RET(__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
 
 #ifdef TSAN_BUILD
-    /* Perform a dummy write to inform TSan this function does in fact have release semantics. */
+    /* Perform a dummy write to inform TSan this function does in fact have acquire semantics. */
     (void)__atomic_load_n(&l->tsan_sync, __ATOMIC_ACQUIRE);
 #endif
 
