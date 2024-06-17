@@ -20,7 +20,6 @@ set(sources
     util_salvage.c
     util_stat.c
     util_truncate.c
-    util_upgrade.c
     util_verbose.c
     util_verify.c
     util_write.c

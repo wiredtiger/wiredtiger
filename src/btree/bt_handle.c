@@ -132,7 +132,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * Open the specified checkpoint unless it's a special command (special commands are responsible
      * for loading their own checkpoints, if any).
      */
-    if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+    if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * There are two reasons to load an empty tree rather than a checkpoint: either there is no
          * checkpoint (the file is being created), or the load call returns no root page (the
@@ -167,7 +167,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * configuration when finished so that handle close behaves correctly.
      */
     if (btree->original ||
-      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
         btree->evict_disabled_open = true;
     }
@@ -232,7 +232,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         btree->bm = NULL;
 
         /* Unload the checkpoint, unless it's a special command. */
-        if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
+        if (!F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY))
             WT_TRET(bm->checkpoint_unload(bm, session));
 
         /* Close the underlying block manager reference. */
@@ -728,7 +728,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         WT_ERR(__wt_page_alloc(session, WT_PAGE_COL_INT, 1, true, &root));
         root->pg_intl_parent_ref = &btree->root;
 
-        pindex = WT_INTL_INDEX_GET_SAFE(root);
+        WT_INTL_INDEX_GET_SAFE(root, pindex);
         ref = pindex->index[0];
         ref->home = root;
         ref->page = NULL;
@@ -741,7 +741,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         WT_ERR(__wt_page_alloc(session, WT_PAGE_ROW_INT, 1, true, &root));
         root->pg_intl_parent_ref = &btree->root;
 
-        pindex = WT_INTL_INDEX_GET_SAFE(root);
+        WT_INTL_INDEX_GET_SAFE(root, pindex);
         ref = pindex->index[0];
         ref->home = root;
         ref->page = NULL;
