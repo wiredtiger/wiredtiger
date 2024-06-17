@@ -316,32 +316,20 @@ __wt_read_shared_double(double *to_read)
 }
 
 /*
- * __wt_set_shared_maximum64 --
- *     Given an integer in memory overwrite it with a new value if it is larger.
+ * __wt_set_shared_maximum_u64 --
+ *     Given an unsigned integer in memory overwrite it with a new value if it is larger.
  */
 static WT_INLINE void
-__wt_set_shared_maximum64(uint64_t *shared_value, uint64_t new_val)
+__wt_set_shared_maximum_u64(uint64_t *shared_value, uint64_t new_val)
 {
     uint64_t current;
 
     current = *shared_value;
     while (current < new_val) {
-#if defined(__GNUC__) || defined(__clang__)
-        /*
-         * We can't use the WiredTiger compare and swap as it doesn't allow the second argument to
-         * be a pointer. This method automatically places the value of shared_value into current on
-         * failure.
-         */
-        if (__atomic_compare_exchange_n(
-              shared_value, &current, new_val, true, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
-            break;
-#else
-        /* This section exists to handle compilers that aren't GCC, or clang. E.g. MSVC. */
         if (__wt_atomic_cas64(shared_value, current, new_val))
             break;
         else
             current = *shared_value;
-#endif
     }
 }
 
