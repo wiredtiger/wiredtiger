@@ -1481,7 +1481,7 @@ variables:
     tasks:
       - name: compile
       - name: make-check-test
-        # Using a special version of unit test for macOS to reduce the concurrency level.
+        # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
       - name: fops
       - name: memory-model-test-mac
