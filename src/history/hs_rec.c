@@ -363,8 +363,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
     uint32_t i;
     int nentries;
-    bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed;
+    bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed, hs_flag_set;
 
+    hs_flag_set = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
     prev_upd = NULL;
@@ -536,6 +537,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 break;
 
             /*
+             * If we have an update in the history store that is not a full update, we save the flag
+             * state to deal with this later. We cannot break here as there are scenarios we need to
+             * finish the loop to construct the full update.
+             */
+            if F_ISSET (upd, WT_UPDATE_HS)
+                hs_flag_set = true;
+
+            /*
              * Save the first update without a timestamp in the update chain. This is used to remove
              * all the following updates' timestamps in the chain.
              */
@@ -556,9 +565,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         /*
          * Fix the history store record here if the oldest update is a tombstone without a
          * timestamp. This situation is possible only when the tombstone is globally visible. Delete
-         * all the updates of the key in the history store with timestamps.
+         * all the updates of the key in the history store with timestamps. In the rare case we have
+         * a modify update already written to the history store (we saved the state in hs_flag_set),
+         * deal with it here and skip the deletion as there is nothing to do
          */
-        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd->start_ts == WT_TS_NONE) {
+        if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
+          oldest_upd->start_ts == WT_TS_NONE) {
             WT_ERR(
               __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
 
@@ -854,6 +866,7 @@ __hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
     WT_CLEAR(hs_key);
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
+    WT_UNUSED(btree_id);
 #endif
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
