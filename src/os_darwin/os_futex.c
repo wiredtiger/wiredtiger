@@ -35,12 +35,11 @@ __wt_futex_wait(
     ret = __ulock_wait2(UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO, (void *)addr, expected, nsec, 0);
     if (ret >= 0 || ret == -EFAULT) {
         /*
-         * EFAULT indicates the page containing the futex had been paged out. So emulate the Linux
-         * semantics where a return value of zero indicates a spurious wakeup and the futex value
-         * itself should be consulted.
+         * EFAULT indicates the page containing the futex had been paged out. Returning from wait
+         * may still indicate indicate a spurious wakeup, so the futex word value must be consulted
+         * to detect this case.
          *
-         * As the futex value is returned to the caller in this API, block the caller until the VM
-         * fetches the errant page back.
+         * So block the caller until the VM fetches the errant page back.
          */
         *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
         ret = 0;
