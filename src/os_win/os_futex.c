@@ -24,6 +24,13 @@ __wt_futex_wait(
     msec = (DWORD)WT_MAX(1, usec / 1000);
     retval = WaitOnAddress(addr, &expected, sizeof(WT_FUTEX_WORD), msec);
     if (retval == TRUE) {
+        /*
+         * Currently we only support Windows on x86. That processor's TSO memory model
+         * ensures we will see the write (or possibly a later write) to the futex prior to the call
+         * to wake.
+         * 
+         * If we move to support Windows ARM this should be reviewed.
+         */
         *wake_valp = *addr;
         return (0);
     }
@@ -42,7 +49,7 @@ __wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD 
 {
     WT_ASSERT(NULL, wake == WT_FUTEX_WAKE_ONE || wake == WT_FUTEX_WAKE_ALL);
 
-    *addr = wake_val;
+    InterlockedExchange(addr, wake_val);
     if (wake == WT_FUTEX_WAKE_ONE)
         WakeByAddressSingle(addr);
     else
