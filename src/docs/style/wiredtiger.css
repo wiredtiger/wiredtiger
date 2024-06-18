@@ -6,7 +6,8 @@ html {
 
 body, table, div, p, dl {
 	font-family: "Calibri","Helvetica Neue", Helvetica, Arial, sans-serif;
-	line-height: 1.5;
+    color: #373737;
+    line-height: 1.5;
 }
 
 h1 {
@@ -68,6 +69,14 @@ div.arch_toc h1 {
 }
 
 /* @group Link Styling */
+
+a {
+    color: #3D578C;
+}
+
+.contents a:visited {
+    color: #4665A2;
+}
 
 img {
 	display: block;
