@@ -81,7 +81,6 @@ __validate_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool shared
         conn->cache_size = (uint64_t)cval.val;
     }
 
-    /* Resetting values for reconfiguration. */
     WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
     cache->eviction_target = (double)cval.val;
     WT_RET(
