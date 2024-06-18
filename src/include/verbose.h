@@ -40,6 +40,7 @@
     "WT_VERB_LSM_MANAGER", \
     "WT_VERB_MUTEX", \
     "WT_VERB_METADATA", \
+    "WT_VERB_OLIGARCH", \
     "WT_VERB_OUT_OF_ORDER", \
     "WT_VERB_OVERFLOW", \
     "WT_VERB_PREFETCH", \

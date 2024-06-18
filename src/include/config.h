@@ -252,6 +252,7 @@ extern const char __WT_CONFIG_CHOICE_off[];
 extern const char __WT_CONFIG_CHOICE_oldest[];
 extern const char __WT_CONFIG_CHOICE_oldest_reader[];
 extern const char __WT_CONFIG_CHOICE_oldest_timestamp[];
+extern const char __WT_CONFIG_CHOICE_oligarch[];
 extern const char __WT_CONFIG_CHOICE_on[];
 extern const char __WT_CONFIG_CHOICE_or[];
 extern const char __WT_CONFIG_CHOICE_ordered[];

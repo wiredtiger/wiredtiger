@@ -248,6 +248,9 @@ __wt_schema_close_oligarch(WT_SESSION_IMPL *session, WT_OLIGARCH *oligarch, bool
     __wt_free(session, oligarch->ingest_uri);
     __wt_free(session, oligarch->stable_uri);
 
+    /* Remove the ingest handle from oligarch table manager list */
+    __wt_oligarch_manager_remove_table(session, ((WT_BTREE *)oligarch->ingest->handle)->id);
+
     /* Release our reference to the member handles so they can be cleaned up */
     if (!final) {
         (void)__wt_atomic_subi32(&oligarch->ingest->session_inuse, 1);

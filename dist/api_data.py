@@ -891,6 +891,7 @@ connection_runtime_config = [
             'metadata',
             'mutex',
             'out_of_order',
+            'oligarch',
             'overflow',
             'read',
             'reconcile',

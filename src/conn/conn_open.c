@@ -117,6 +117,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     /* Shut down the block cache */
     __wt_blkcache_destroy(session);
 
+    /* Shut down oligarch manager - this should be done after closing out data handles. */
+    WT_TRET(__wt_oligarch_manager_destroy(session, true));
+
     /*
      * Now that all data handles are closed, tell logging that a checkpoint has completed then shut
      * down the log manager (only after closing data handles). The call to destroy the log manager

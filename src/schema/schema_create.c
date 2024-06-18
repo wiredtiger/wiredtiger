@@ -1074,9 +1074,9 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
 
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "oligarch:");
-    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "table:%s.wt_ingest", tablename));
+    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
     ingest_uri = ingest_uri_buf->data;
-    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "table:%s.wt_stable", tablename));
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
     /*
@@ -1104,9 +1104,9 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      */
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=true,oligarch_constituent=true)"));
     ingest_cfg[2] = tmp->data;
-    /* 
-     * Since oligarch constituents use table URIs, pass the full merged configuration string
-     * through - otherwise file-specific metadata will be stripped out.
+    /*
+     * Since oligarch constituents use table URIs, pass the full merged configuration string through
+     * - otherwise file-specific metadata will be stripped out.
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));

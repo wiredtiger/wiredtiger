@@ -112,6 +112,56 @@ struct __wt_background_compact {
 };
 
 /*
+ * WT_OLIGARCH_MANAGER_ENTRY --
+ *      Structure containing information about a tracked oligarch table
+ */
+struct __wt_oligarch_manager_entry {
+    uint32_t ingest_id;
+    uint32_t stable_id;
+    const char *ingest_uri;
+    const char *stable_uri;
+    WT_CURSOR *stable_cursor;
+    WT_OLIGARCH *oligarch_table;
+
+    uint64_t accumulated_write_bytes;
+    uint64_t checkpoint_txn_id;
+};
+
+/*
+ * WT_OLIGARCH_MANAGER --
+ *      Structure containing information related to running the oligarch table manager.
+ */
+struct __wt_oligarch_manager {
+
+#define WT_OLIGARCH_MANAGER_OFF 0      /* The oligarch manager is not running */
+#define WT_OLIGARCH_MANAGER_RUNNING 1  /* The oligarch manager is running */
+#define WT_OLIGARCH_MANAGER_STARTING 2 /* The oligarch manager is being started */
+#define WT_OLIGARCH_MANAGER_STOPPING 3 /* The oligarch manager is being shut down */
+    wt_shared uint32_t state; /* Atomic: Indicating whether the manager is already running */
+
+    wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
+
+    WT_SPINLOCK oligarch_lock; /* Lock used for managing changes to global oligarch state */
+
+    /* Set the checkpoint threshold tiny for now - we just want to know the process is working */
+#define WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD 1024
+    uint32_t open_oligarch_table_count;
+    /*
+     * This is a sparsely populated array of oligarch tables - each fileid in the system gets an
+     * entry in this table. Lookups happen via checking for a valid manager entry at the file ID
+     * offset for the ingest constituent in an oligarch table. It's done that way so that we can
+     * cheaply check whether a log record belongs to an oligarch table and should be applied.
+     */
+    WT_OLIGARCH_MANAGER_ENTRY **entries;
+
+#define WT_OLIGARCH_THREAD_COUNT 2
+    WT_THREAD_GROUP threads;
+
+    WT_LSN max_replay_lsn;
+    uint64_t max_applied_txnid;
+};
+
+/*
  * WT_BUCKET_STORAGE --
  *	A list entry for a storage source with a unique name (bucket, prefix).
  */
@@ -583,6 +633,8 @@ struct __wt_connection_impl {
     bool prefetch_auto_on;
     bool prefetch_available;
 
+    WT_OLIGARCH_MANAGER oligarch_manager;
+
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
     wt_thread_t stat_tid;          /* Statistics log thread */
@@ -828,9 +880,10 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_COMPACT 0x010u
 #define WT_CONN_SERVER_LOG 0x020u
 #define WT_CONN_SERVER_LSM 0x040u
-#define WT_CONN_SERVER_STATISTICS 0x080u
-#define WT_CONN_SERVER_SWEEP 0x100u
-#define WT_CONN_SERVER_TIERED 0x200u
+#define WT_CONN_SERVER_OLIGARCH 0x080u
+#define WT_CONN_SERVER_STATISTICS 0x100u
+#define WT_CONN_SERVER_SWEEP 0x200u
+#define WT_CONN_SERVER_TIERED 0x400u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 
