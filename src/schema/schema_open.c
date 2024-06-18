@@ -648,7 +648,9 @@ __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_OLIGARCH *oligarch;
+    uint32_t ingest_id, stable_id;
 
+    ingest_id = stable_id = 0;
     /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
     WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_oligarch(session));
     WT_RET(ret);
@@ -661,8 +663,23 @@ __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
      * if multiple threads are opening an oligarch table, the regular handle open scheme handles
      * races of getting these sub-handles into the connection.
      */
-    WT_RET(__schema_open_oligarch_member(session, oligarch, oligarch->ingest_uri, true));
-    WT_RET(__schema_open_oligarch_member(session, oligarch, oligarch->stable_uri, false));
+    WT_SAVE_DHANDLE(
+      session, __schema_open_oligarch_member(session, oligarch, oligarch->ingest_uri, true));
+    WT_RET(ret);
+    WT_SAVE_DHANDLE(
+      session, __schema_open_oligarch_member(session, oligarch, oligarch->stable_uri, false));
+    WT_RET(ret);
 
+    /* Start the oligarch manager thread if it isn't running. */
+    WT_RET(__wt_oligarch_manager_start(session));
+
+    /* Add the ingest table file identifer into the oligarch managers list of tracked tables */
+    ingest_id = ((WT_BTREE *)oligarch->ingest->handle)->id;
+    stable_id = ((WT_BTREE *)oligarch->stable->handle)->id;
+
+    /* Flag the ingest btree as participating in automatic garbage collection */
+    F_SET(((WT_BTREE *)oligarch->ingest->handle), WT_BTREE_GARBAGE_COLLECT);
+
+    WT_RET(__wt_oligarch_manager_add_table(session, ingest_id, stable_id));
     return (ret);
 }

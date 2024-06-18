@@ -1218,6 +1218,14 @@ err:
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY, NULL));
 
+    /*
+     * Shut down the oligarch manager thread, ideally this would be taken care of in connection
+     * close below, but it needs to preceed global transaction state shutdown, so do it here as
+     * well. It also needs to happen prior to draining transaction activity - since the manager
+     * artificially pins transaction state to allow for garbage collection in ingest tables.
+     */
+    WT_TRET(__wt_oligarch_manager_destroy(session, true));
+
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
@@ -2306,11 +2314,11 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
       {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
       {"lsm", WT_VERB_LSM}, {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
+      {"mutex", WT_VERB_MUTEX}, {"oligarch", WT_VERB_OLIGARCH},
       {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
-      {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
-      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
-      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"prefetch", WT_VERB_PREFETCH}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
+      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
+      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},

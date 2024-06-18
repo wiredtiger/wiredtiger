@@ -1131,9 +1131,7 @@ __coligarch_close_int(WT_CURSOR *cursor)
      * cursors in the session. It might be better to keep them out of the session cursor list, but I
      * don't know how to do that? Probably opening a file cursor directly instead of a table cursor?
      */
-    if (!F_ISSET(S2C(session), WT_CONN_CLOSING)) {
-        WT_TRET(__coligarch_close_cursors(coligarch));
-    }
+    WT_TRET(__coligarch_close_cursors(coligarch));
 
     /* In case we were somehow left positioned, clear that. */
     __coligarch_leave(coligarch);

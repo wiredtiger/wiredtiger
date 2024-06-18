@@ -83,6 +83,7 @@ src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
 src/conn/conn_log.c
+src/conn/conn_oligarch.c
 src/conn/conn_open.c
 src/conn/conn_prefetch.c
 src/conn/conn_reconfig.c

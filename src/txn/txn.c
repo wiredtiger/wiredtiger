@@ -404,7 +404,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_SESSION_IMPL *oldest_session;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
+    uint64_t id, last_running, metadata_pinned, oldest_id, oligarch_pinned_id, prev_oldest_id;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
@@ -467,6 +467,16 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
+    /*
+     * Kludge: oligarch tables need to keep transaction IDs alive to manage garbage collection in
+     * the ingest table. If the oligarch server is running, retrieve the oldest ID necessary in all
+     * oligarch ingest tables and use that as the oldest reader.
+     */
+    if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH)) {
+        __wt_oligarch_manager_get_pinned_id(session, &oligarch_pinned_id);
+        if (WT_TXNID_LT(oligarch_pinned_id, last_running))
+            last_running = oligarch_pinned_id;
+    }
     if (WT_TXNID_LT(last_running, oldest_id))
         oldest_id = last_running;
 

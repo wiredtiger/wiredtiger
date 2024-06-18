@@ -2512,10 +2512,11 @@ struct __wt_connection {
      * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
      * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
      * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
-     * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "prefetch"\, \c "read"\, \c
-     * "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
-     * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c
-     * "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
+     * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c "prefetch"\,
+     * \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c
+     * "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
+     * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
+     * default \c [].}
      * @configend
      * @errors
      */
@@ -3430,8 +3431,8 @@ struct __wt_connection {
  * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
  * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
  * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
- * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "prefetch"\, \c "read"\, \c
- * "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
+ * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c "prefetch"\, \c
+ * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
  * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\,
  * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
@@ -8168,6 +8169,7 @@ typedef enum {
     WT_VERB_LSM_MANAGER,
     WT_VERB_MUTEX,
     WT_VERB_METADATA,             /*!< Metadata messages. */
+    WT_VERB_OLIGARCH,             /*!< Oligarch manager messages. */
     WT_VERB_OUT_OF_ORDER,
     WT_VERB_OVERFLOW,
     WT_VERB_PREFETCH,
