@@ -36,7 +36,7 @@ from py_common import binary_data
 # Block File Header
 #
 
-class BlockFileHeader:
+class BlockFileHeader(object):
     '''
     A .wt block file header (WT_BLOCK_DESC).
     '''
@@ -51,7 +51,6 @@ class BlockFileHeader:
     WT_BLOCK_MAJOR_VERSION: typing.Final[int] = 1
     WT_BLOCK_MINOR_VERSION: typing.Final[int] = 0
 
-
     def __init__(self) -> None:
         '''
         Initialize the instance with default values.
@@ -61,7 +60,6 @@ class BlockFileHeader:
         self.minor = 0
         self.checksum = 0
         self.unused = 0
-
 
     @staticmethod
     def parse(b: binary_data.BinaryFile) -> 'BlockFileHeader':
@@ -96,7 +94,7 @@ class PageType(enum.Enum):
     WT_PAGE_ROW_LEAF = 7
 
 
-class PageHeader:
+class PageHeader(object):
     '''
     A page header (WT_PAGE_HEADER).
     '''
@@ -117,7 +115,6 @@ class PageHeader:
     WT_PAGE_UNUSED: typing.Final[int] = 0x10
     WT_PAGE_FT_UPDATE: typing.Final[int] = 0x20
 
-
     def __init__(self) -> None:
         '''
         Initialize the instance with default values.
@@ -130,7 +127,6 @@ class PageHeader:
         self.flags = 0
         self.unused = 0
         self.version = 0
-
 
     @staticmethod
     def parse(b: binary_data.BinaryFile) -> 'PageHeader':
@@ -154,7 +150,7 @@ class PageHeader:
 # Block
 #
 
-class BlockHeader:
+class BlockHeader(object):
     '''
     A block header (WT_BLOCK_HEADER).
     '''
@@ -166,7 +162,6 @@ class BlockHeader:
     # Flags
     WT_BLOCK_DATA_CKSUM: typing.Final[int] = 0x1
 
-
     def __init__(self) -> None:
         '''
         Initialize the instance with default values.
@@ -175,7 +170,6 @@ class BlockHeader:
         self.checksum = 0
         self.flags = 0
         self.unused = 0
-
 
     @staticmethod
     def parse(b: binary_data.BinaryFile) -> 'BlockHeader':
@@ -214,7 +208,7 @@ class CellType(enum.Enum):
     WT_CELL_VALUE_OVFL_RM = 11
 
 
-class Cell:
+class Cell(object):
     '''
     A cell in a WiredTiger table.
     '''
@@ -274,7 +268,6 @@ class Cell:
     WT_CELL_TXN_START: typing.Final[int] = 0x20
     WT_CELL_TXN_STOP: typing.Final[int] = 0x40
 
-
     def __init__(self) -> None:
         '''
         Initialize the instance with default values.
@@ -302,7 +295,6 @@ class Cell:
         self.start_txn = None
         self.stop_txn = None
 
-
     def _parse_timestamps(self, b: binary_data.BinaryFile):
         '''
         Parse timestamps.
@@ -323,7 +315,6 @@ class Cell:
             self.stop_txn, self.size_stop_txn = b.read_packed_uint64_with_size()
         if self.extra_descriptor & 0x80:
             raise ValueError('Junk in extra descriptor: ' + hex(self.extra_descriptor))
-
 
     @staticmethod
     def parse(b: binary_data.BinaryFile, ignore_unsupported: bool = False) -> 'Cell':
@@ -409,7 +400,6 @@ class Cell:
 
         cell.data = b.read(l)
         return cell
-
 
     @property
     def prepared(self) -> bool:

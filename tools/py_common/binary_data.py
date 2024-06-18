@@ -127,7 +127,7 @@ def decode_esc_hex(s: str) -> bytes:
     return bytes(b)
 
 
-class FileAsArray:
+class FileAsArray(object):
     '''
     A wrapper class around a file-like object that allows it to be treated as an array.
     '''
@@ -177,7 +177,6 @@ class BinaryFile(object):
         self.fileobj = fileobj
         self.saved = bytearray()
 
-
     def read(self, n: int) -> bytes:
         '''
         Read the next n bytes.
@@ -188,13 +187,11 @@ class BinaryFile(object):
         self.saved += result
         return result
 
-
     def read_uint8(self) -> int:
         '''
         Read the next little-endian integer.
         '''
         return int.from_bytes(self.read(1), byteorder='little')
-
 
     def read_uint16(self) -> int:
         '''
@@ -202,20 +199,17 @@ class BinaryFile(object):
         '''
         return int.from_bytes(self.read(2), byteorder='little')
 
-
     def read_uint32(self) -> int:
         '''
         Read the next little-endian integer.
         '''
         return int.from_bytes(self.read(4), byteorder='little')
 
-
     def read_uint64(self) -> int:
         '''
         Read the next little-endian integer.
         '''
         return int.from_bytes(self.read(8), byteorder='little')
-
 
     def read_packed_uint64(self) -> int:
         '''
@@ -224,7 +218,6 @@ class BinaryFile(object):
         arr = FileAsArray(self)
         val, arr = unpack_int(arr)
         return val
-
 
     def read_packed_uint64_with_size(self) -> typing.Tuple[int, int]:
         '''
@@ -235,7 +228,6 @@ class BinaryFile(object):
         val, arr = unpack_int(arr)
         sz = self.tell() - start
         return (val, sz)
-
 
     def read_long_length(self) -> int:
         '''
@@ -248,7 +240,6 @@ class BinaryFile(object):
             raise ValueError('Negative length: ' + str(l))
         return l
 
-
     def seek(self, n: int) -> int:
         '''
         Seek to a different position within the file.
@@ -257,13 +248,11 @@ class BinaryFile(object):
         self.saved = bytearray()
         return self.fileobj.seek(n)
 
-
     def tell(self) -> int:
         '''
         Tell the position within the file.
         '''
         return self.fileobj.tell()
-
 
     def saved_bytes(self) -> bytes:
         '''

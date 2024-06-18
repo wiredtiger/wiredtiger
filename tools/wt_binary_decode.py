@@ -32,8 +32,8 @@
 # see "wt dump" for that.  But this is standalone (doesn't require linkage with any WT
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
-import binascii, codecs, io, os, string, sys, traceback
-from py_common import binary_data, binary_format
+import codecs, io, os, sys, traceback
+from py_common import binary_data, btree_format
 from dataclasses import dataclass
 import typing
 
@@ -294,18 +294,18 @@ def dumpraw(p, b, pos):
 
 def file_header_decode(p, b):
     # block.h
-    h = binary_format.BlockFileHeader.parse(b)
+    h = btree_format.BlockFileHeader.parse(b)
     p.rint('magic: ' + str(h.magic))
     p.rint('major: ' + str(h.major))
     p.rint('minor: ' + str(h.minor))
     p.rint('checksum: ' + str(h.checksum))
-    if h.magic != binary_format.BlockFileHeader.WT_BLOCK_MAGIC:
+    if h.magic != btree_format.BlockFileHeader.WT_BLOCK_MAGIC:
         p.rint('bad magic number')
         return
-    if h.major != binary_format.BlockFileHeader.WT_BLOCK_MAJOR_VERSION:
+    if h.major != btree_format.BlockFileHeader.WT_BLOCK_MAJOR_VERSION:
         p.rint('bad major number')
         return
-    if h.minor != binary_format.BlockFileHeader.WT_BLOCK_MINOR_VERSION:
+    if h.minor != btree_format.BlockFileHeader.WT_BLOCK_MINOR_VERSION:
         p.rint('bad minor number')
         return
     if h.unused != 0:
@@ -313,7 +313,7 @@ def file_header_decode(p, b):
         return
     p.rint('')
 
-def process_timestamps(p, cell: binary_format.Cell, pagestats: PageStats):
+def process_timestamps(p, cell: btree_format.Cell, pagestats: PageStats):
     if cell.extra_descriptor == 0:
         return
 
@@ -359,11 +359,11 @@ def block_decode(p, b, opts):
     p = Printer(b_page, opts.split, opts.verbose)
 
     # WT_PAGE_HEADER in btmem.h (28 bytes)
-    pagehead = binary_format.PageHeader.parse(b_page)
+    pagehead = btree_format.PageHeader.parse(b_page)
     if pagehead.unused != 0:
         p.rint('? garbage in unused bytes')
         return
-    if pagehead.type == binary_format.PageType.WT_PAGE_INVALID:
+    if pagehead.type == btree_format.PageType.WT_PAGE_INVALID:
         p.rint('? invalid page')
         return
 
@@ -377,7 +377,7 @@ def block_decode(p, b, opts):
     p.rint('  version: ' + str(pagehead.version))
 
     # WT_BLOCK_HEADER in block.h (12 bytes)
-    blockhead = binary_format.BlockHeader.parse(b_page)
+    blockhead = btree_format.BlockHeader.parse(b_page)
     if blockhead.unused != 0:
         p.rint('garbage in unused bytes')
         return
@@ -400,7 +400,7 @@ def block_decode(p, b, opts):
     if have_crc32c:
         savepos = b.tell()
         b.seek(disk_pos)
-        if blockhead.flags & binary_format.BlockHeader.WT_BLOCK_DATA_CKSUM != 0:
+        if blockhead.flags & btree_format.BlockHeader.WT_BLOCK_DATA_CKSUM != 0:
             check_size = blockhead.disk_size
         else:
             check_size = 64
@@ -424,7 +424,7 @@ def block_decode(p, b, opts):
     # Read the block contents
     payload_pos = b.tell()
     header_length = payload_pos - disk_pos
-    if pagehead.flags & binary_format.PageHeader.WT_PAGE_COMPRESSED != 0:
+    if pagehead.flags & btree_format.PageHeader.WT_PAGE_COMPRESSED != 0:
         if not have_snappy:
             p.rint('? the page is compressed (install python-snappy to parse)')
             return
@@ -454,18 +454,18 @@ def block_decode(p, b, opts):
     p = Printer(b_page, opts.split, opts.verbose)
 
     # Parse the block contents
-    if pagehead.type == binary_format.PageType.WT_PAGE_INVALID:
+    if pagehead.type == btree_format.PageType.WT_PAGE_INVALID:
         pass    # a blank page: TODO maybe should check that it's all zeros?
-    elif pagehead.type == binary_format.PageType.WT_PAGE_BLOCK_MANAGER:
+    elif pagehead.type == btree_format.PageType.WT_PAGE_BLOCK_MANAGER:
         p.rint_v('? unimplemented decode for page type WT_PAGE_BLOCK_MANAGER')
         p.rint_v(binary_to_pretty_string(payload_data))
-    elif pagehead.type == binary_format.PageType.WT_PAGE_COL_VAR:
+    elif pagehead.type == btree_format.PageType.WT_PAGE_COL_VAR:
         p.rint_v('? unimplemented decode for page type WT_PAGE_COLUMN_VARIABLE')
         p.rint_v(binary_to_pretty_string(payload_data))
-    elif pagehead.type == binary_format.PageType.WT_PAGE_ROW_INT or \
-        pagehead.type == binary_format.PageType.WT_PAGE_ROW_LEAF:
+    elif pagehead.type == btree_format.PageType.WT_PAGE_ROW_INT or \
+        pagehead.type == btree_format.PageType.WT_PAGE_ROW_LEAF:
         row_decode(p, b_page, pagehead, blockhead, pagestats)
-    elif pagehead.type == binary_format.PageType.WT_PAGE_OVFL:
+    elif pagehead.type == btree_format.PageType.WT_PAGE_OVFL:
         # Use b_page.read() so that we can also print the raw bytes in the split mode
         p.rint_v(raw_bytes(b_page.read(len(payload_data))))
     else:
@@ -484,7 +484,7 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
         p.begin_cell(cellnum)
 
         try:
-            cell = binary_format.Cell.parse(b, True)
+            cell = btree_format.Cell.parse(b, True)
 
             desc_str = f'desc: 0x{cell.descriptor:x} '
             if cell.extra_descriptor != 0:
