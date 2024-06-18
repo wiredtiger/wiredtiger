@@ -314,6 +314,8 @@ struct Operation {
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
     Operation(OpType optype, Table table, Key key);
+    // Constructor with string and table applies to VERIFY
+    Operation(OpType optype, Table table, std::string config);
     Operation(OpType optype, Table table);
     // Operation working on random tables.
     Operation(OpType optype, Key key, Value value);

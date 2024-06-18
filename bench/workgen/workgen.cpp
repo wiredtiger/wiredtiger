@@ -2237,6 +2237,14 @@ Operation::Operation(OpType optype, const std::string &config)
     init_internal(nullptr);
 }
 
+Operation::Operation(OpType optype, Table table, std::string config)
+    : _optype(optype), _internal(nullptr), _table(table), _config(config), transaction(nullptr),
+      _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
+{
+    init_internal(nullptr);
+    size_check();
+}
+
 Operation::~Operation()
 {
     // Creation and destruction of _group, transaction is managed by Python.
@@ -2609,10 +2617,17 @@ SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 }
 
 int
-VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session, const std::string &uri)
+VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
-    (void)runner; /* not used */
-    return (session->verify(session, uri.c_str(), nullptr));
+    WT_SESSION *verify_session;
+    // Open a new session for verify as we may want to enable pre-fetching.
+    int ret = session->connection->open_session(
+      session->connection, nullptr, verify_session_config.c_str(), &verify_session);
+    if (ret != 0)
+        THROW_ERRNO(ret, "Error opening a session.");
+
+    std::string verify_uri = runner->_thread->_op._table._uri;
+    return (session->verify(session, verify_uri.c_str(), nullptr));
 }
 
 uint64_t
@@ -2637,6 +2652,13 @@ TableOperationInternal::parse_config(const std::string &config)
         else
             THROW("table operation has illegal config: \"" << config << "\"");
     }
+}
+
+void
+VerifyOperationInternal::parse_config(const std::string &config)
+{
+    if (!config.empty())
+        verify_session_config = config;
 }
 
 Track::Track(bool latency_tracking)
