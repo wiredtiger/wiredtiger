@@ -958,6 +958,7 @@ struct __wt_connection_stats {
     int64_t prefetch_pages_fail;
     int64_t prefetch_pages_queued;
     int64_t prefetch_pages_read;
+    int64_t prefetch_skipped_error_ok;
     int64_t prefetch_attempts;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
