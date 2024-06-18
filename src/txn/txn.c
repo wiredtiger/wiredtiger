@@ -2948,6 +2948,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         if ((id = __wt_atomic_loadv64(&s->id)) == WT_TXN_NONE &&
           __wt_atomic_loadv64(&s->pinned_id) == WT_TXN_NONE)
             continue;
+
+        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+            continue;
+
         sess = &WT_CONN_SESSIONS_GET(conn)[i];
         WT_RET(__wt_msg(session,
           "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
