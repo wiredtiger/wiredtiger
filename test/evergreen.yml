@@ -5866,6 +5866,7 @@ buildvariants:
     - name: format-failure-configs-test
       distros: amazon2-arm64-large
     - name: format-smoke-test
+    - name: format-stress-pull-request-test
     - name: linux-directio
       distros: amazon2-arm64-large
     - name: long-test
