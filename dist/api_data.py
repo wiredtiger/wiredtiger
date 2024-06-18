@@ -875,6 +875,7 @@ connection_runtime_config = [
             'mutex',
             'out_of_order',
             'overflow',
+            'prefetch',
             'read',
             'reconcile',
             'recovery',
