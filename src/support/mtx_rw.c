@@ -269,11 +269,7 @@ stall:
      * our ticket comes up and whatever data we are protecting may have changed in the meantime.
      */
     WT_ACQUIRE_BARRIER();
-#ifdef TSAN_BUILD
-    uint32_t temp;
 
-    temp = __atomic_load_n(&session->id, __ATOMIC_ACQUIRE);
-#endif
     /* Sanity check that we (still) have the lock. */
     WT_ASSERT(session,
       ticket == __wt_atomic_loadv8(&l->u.s.current) &&
@@ -442,11 +438,6 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      * our ticket comes up and whatever data we are protecting may have changed in the meantime.
      */
     WT_ACQUIRE_BARRIER();
-#ifdef TSAN_BUILD
-    uint32_t temp;
-
-    temp = __atomic_load_n(&session->id, __ATOMIC_ACQUIRE);
-#endif
 
     /* Sanity check that we (still) have the lock. */
     WT_ASSERT(session,
