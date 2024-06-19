@@ -135,7 +135,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     if (previous_state != WT_REF_DISK)
         return (0);
 
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
         return (0);
 
     /*
@@ -196,7 +196,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* Allocate and initialize the page-deleted structure. */
     WT_ERR(__wt_calloc_one(session, &ref->page_del));
-    ref->page_del->previous_ref_state = previous_state;
+    ref->page_del->previous_ref_state = WT_REF_DISK;
 
     /* History store truncation is non-transactional. */
     if (!WT_IS_HS(session->dhandle))
@@ -213,7 +213,7 @@ err:
     __wt_free(session, ref->page_del);
 
     /* Return the page to its previous state. */
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_SET_STATE(ref, WT_REF_DISK);
     return (ret);
 }
 
