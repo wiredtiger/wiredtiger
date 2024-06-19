@@ -55,7 +55,6 @@ class test_txn29(wttest.WiredTigerTestCase):
                 msg1 = '/conflict between concurrent operations/'
                 msg2 = '/transaction rolled back because of big transaction/'
                 self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.insert(), msg1)
-                #print(session.get_rollback_reason())
                 self.assertEquals('/' + session.get_rollback_reason() + '/', msg2)
             else:
                 cursor.insert()
