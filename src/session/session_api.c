@@ -529,6 +529,11 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    ret = __wt_config_getones(session, config, "max_transaction_modify_count", &cval);
+    if (ret == 0 && cval.val)
+        session->max_transaction_modify_count = (uint64_t)(cval.val);
+    WT_ERR_NOTFOUND_OK(ret, false);
+
     if (S2C(session)->prefetch_auto_on)
         F_SET(session, WT_SESSION_PREFETCH_ENABLED);
     else

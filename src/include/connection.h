@@ -574,6 +574,8 @@ struct __wt_connection_impl {
     uint32_t evict_threads_min; /* Min eviction threads */
     bool evict_sample_inmem;
 
+    uint64_t max_transaction_modify_count; /* Maximum number of modify count in a big trasaction */
+
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
 #define WT_PREFETCH_THREAD_COUNT 8

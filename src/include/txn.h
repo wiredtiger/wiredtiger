@@ -25,6 +25,7 @@
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "oldest pinned transaction ID rolled back for eviction"
+#define WT_TXN_ROLLBACK_REASON_BIG_TRANSACTION "transaction rolled back because of big transaction"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u

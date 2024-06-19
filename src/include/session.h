@@ -246,9 +246,10 @@ struct __wt_session_impl {
     void *salvage_track;
 
     /* Sessions have an associated statistics bucket based on its ID. */
-    u_int stat_conn_bucket;     /* Statistics connection bucket offset */
-    u_int stat_dsrc_bucket;     /* Statistics data source bucket offset */
-    uint64_t cache_max_wait_us; /* Maximum time an operation waits for space in cache */
+    u_int stat_conn_bucket;                /* Statistics connection bucket offset */
+    u_int stat_dsrc_bucket;                /* Statistics data source bucket offset */
+    uint64_t cache_max_wait_us;            /* Maximum time an operation waits for space in cache */
+    uint64_t max_transaction_modify_count; /* Maximum number of modify count in a big trasaction */
 
 #ifdef HAVE_DIAGNOSTIC
     uint8_t dump_raw; /* Configure debugging page dump */

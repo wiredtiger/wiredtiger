@@ -246,6 +246,8 @@ test_config = [
         Enables write ahead logs''', type='boolean'),
     Config('in_memory', 'false', r'''
         Enables WiredTiger's in memory mode.''', type='boolean'),
+    Config('max_transaction_modify_count', 0, r'''
+        The strict equivalent of big_transaction_modify_count defined in wiredtiger.''', min=0),
     Config('reverse_collator', 'false', r'''
         Configure the database files to use the reverse collator.''', type='boolean'),
     Config('statistics_config', '', r'''

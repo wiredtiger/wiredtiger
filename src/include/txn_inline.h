@@ -238,14 +238,24 @@ static WT_INLINE int
 __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
     WT_TXN_OP *op;
-    uint64_t btree_txn_id_prev, txn_id;
+    uint64_t max_transaction_modify_count, btree_txn_id_prev, txn_id;
 
     *opp = NULL;
 
+    conn = S2C(session);
     txn = session->txn;
+    if (session->max_transaction_modify_count != 0)
+        max_transaction_modify_count = session->max_transaction_modify_count;
+    else
+        max_transaction_modify_count = conn->max_transaction_modify_count;
 
+    if (txn->mod_count + 1 >= max_transaction_modify_count) {
+        WT_STAT_CONN_DSRC_INCR(session, txn_big_transaction_rollback);
+        return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_BIG_TRANSACTION));
+    }
     /*
      * We're about to perform an update. Make sure we have allocated a transaction ID.
      */

@@ -774,6 +774,10 @@ connection_runtime_config = [
             merge LSM chunks where possible''',
             type='boolean')
         ]),
+    Config('max_transaction_modify_count', '0', r'''
+        the maximum number of modify count in a big trasaction, If exceeds this value,
+        the transaction should be rolled back. Default not limit''',
+        min=0),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -1143,6 +1147,11 @@ session_config = [
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
+    Config('max_transaction_modify_count', '0', r'''
+        the maximum number of modify count in a big trasaction, If exceeds this value,
+        the transaction should be rolled back. Default value will be the global setting of the
+        connection config''',
+        min=0),
     Config('prefetch', '', r'''
         Enable automatic detection of scans by applications, and attempt to pre-fetch future
         content into the cache''',
