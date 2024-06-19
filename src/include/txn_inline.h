@@ -252,13 +252,11 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
     else
         max_transaction_modify_count = conn->max_transaction_modify_count;
 
-    //max_transaction_modify_count = 16;
-    //printf("yang test 111111111111111111111111  txn:%p  txn id:%lu, __txn_next_op num:%d\r\n", 
-    //    txn, txn->id, (int)txn->mod_count);
-    if (max_transaction_modify_count > 0 && txn->mod_count + 1 >= max_transaction_modify_count) {
+    if (max_transaction_modify_count > 0 && txn->mod_count >= max_transaction_modify_count) {
         WT_STAT_CONN_DSRC_INCR(session, txn_big_transaction_rollback);
         return (__wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_BIG_TRANSACTION));
     }
+
     /*
      * We're about to perform an update. Make sure we have allocated a transaction ID.
      */

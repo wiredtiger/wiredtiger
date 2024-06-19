@@ -27,23 +27,39 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest, time
+from wiredtiger import stat
 
 # test_txn27.py
 #   Test that the API returning a rollback error sets the reason for the rollback.
-class test_txn27(wttest.WiredTigerTestCase):
+class test_txn29(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB, max_transaction_modify_count=1000'
 
+    def get_stat(self, stat_name):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        value = stat_cursor[stat_name][2]
+        stat_cursor.close()
+        return value
+
     def test_rollback_reason(self):
-        uri = "table:txn28"
+        uri = "table:test_txn29"
         # Create and populate a table.
         table_params = 'key_format=i,value_format=S'
         session = self.session
         session.create(uri, table_params)
+        session.begin_transaction()
         cursor = session.open_cursor(uri, None)
-        for i in range(1, 1000):
+        for i in range(0, 1001):
+            cursor.set_key(i)
+            cursor.set_value("xxxx")
             if i == 1000:
-                msg = '/transaction rolled back because of big transaction/'
-                self.assertEquals('/' + session.get_rollback_reason() + '/', msg)
+                msg1 = '/conflict between concurrent operations/'
+                msg2 = '/transaction rolled back because of big transaction/'
+                self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.insert(), msg1)
+                #print(session.get_rollback_reason())
+                self.assertEquals('/' + session.get_rollback_reason() + '/', msg2)
             else:
-                cursor[i] = str(i)
+                cursor.insert()
+
+        self.assertEquals(self.get_stat(stat.conn.txn_big_transaction_rollback), 1)
+        session.rollback_transaction()
         cursor.close()
