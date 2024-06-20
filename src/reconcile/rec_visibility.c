@@ -581,13 +581,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             continue;
         }
 
-        /* Ignore prepared updates if it is checkpoint. */
+        /* Is the update prepared? */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
+            /* Ignore prepared updates if it is checkpoint. */
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 seen_prepare = true;
@@ -642,8 +644,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
         r->max_ts = max_ts;
 
     /*
-     * We should never select an update that has been written to the history store except checkpoint
-     * writes the update that is older than a prepared update or we need to first delete the update
+     * We should never select an update that has been written to the history store except when checkpoint
+     * writes the update that is older than a prepared update or alternatively we need to first delete the update
      * from the history store.
      */
     WT_ASSERT_ALWAYS(session,

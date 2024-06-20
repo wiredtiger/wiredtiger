@@ -1515,7 +1515,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          *
          * Resolve the prepared update to be committed update.
          */
-        __txn_resolve_prepared_update(session, upd);
+
+
+        /* Resolve the prepared update to be a committed update. */
+        __txn_apply_prepare_state_update(session, upd, true);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
     }
 
