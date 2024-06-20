@@ -28,7 +28,7 @@
 #include "test_util.h"
 
 /*
- * JIRA ticket reference: WT-2323
+ * JIRA ticket reference: WT-2324
  *
  * Test case description: We create two kinds of threads that race: One kind
  * is populating/updating records in a table with a few indices, the other
