@@ -49,7 +49,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val != 0)
         cap->fsync_maximum_wait_period = (uint64_t)cval.val;
 
-    if (cap->total == 0 && cap->fsync_maximum_wait_period != 0) {
+    if (total == 0 && cap->fsync_maximum_wait_period != 0) {
         WT_RET_MSG(session, EINVAL,
           "io_capacity.fsync_maximum_wait_period is valid only when io_capacity.total is greater "
           "than 0");
