@@ -107,7 +107,7 @@ class test_io_capacity01(wttest.WiredTigerTestCase):
         # Take a checkpoint to ensure that the data is written to the disk
         self.session.checkpoint('force=true')
 
-        if os.name != 'posix':
+        if os.name != 'posix' or os.uname()[0] != 'Linux':
             self.skipTest('only surport linux, skipped on other platforms as the capacity server will not run for background fsync')
 
         # Background fsync statistics
