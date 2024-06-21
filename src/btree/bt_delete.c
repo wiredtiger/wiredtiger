@@ -194,9 +194,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
-    /* Allocate and initialize the page-deleted structure. */
+    /*
+     * Allocate and initialize the page-deleted structure. Note previous_ref_state, not stored, ==
+     * WT_REF_DISK as always.
+     */
     WT_ERR(__wt_calloc_one(session, &ref->page_del));
-    ref->page_del->previous_ref_state = WT_REF_DISK;
 
     /* History store truncation is non-transactional. */
     if (!WT_IS_HS(session->dhandle))
@@ -267,7 +269,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * the update list to be null to be conservative.
      */
     if (current_state == WT_REF_DELETED) {
-        current_state = ref->page_del->previous_ref_state;
+        current_state = WT_REF_DISK;
         /*
          * Don't set the WT_PAGE_DELETED transaction ID to aborted; instead, just discard the
          * structure. This avoids having to check for an aborted delete in other situations.
