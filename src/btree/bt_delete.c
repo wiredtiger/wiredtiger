@@ -194,10 +194,6 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
-    /*
-     * Allocate and initialize the page-deleted structure. Note previous_ref_state, not stored, ==
-     * WT_REF_DISK as always.
-     */
     WT_ERR(__wt_calloc_one(session, &ref->page_del));
 
     /* History store truncation is non-transactional. */
@@ -269,6 +265,10 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * the update list to be null to be conservative.
      */
     if (current_state == WT_REF_DELETED) {
+        /*
+         * When fast truncate succeeds it moves a WT_REF from WT_REF_DISK to WT_REF_DELETED. Thus
+         * the reverse operation is to return the state to WT_REF_DISK.
+         */
         current_state = WT_REF_DISK;
         /*
          * Don't set the WT_PAGE_DELETED transaction ID to aborted; instead, just discard the

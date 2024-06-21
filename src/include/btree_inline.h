@@ -1566,7 +1566,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
             copy->del.txnid = WT_TXN_NONE;
             copy->del.timestamp = copy->del.durable_timestamp = WT_TS_NONE;
             copy->del.prepare_state = 0;
-            /* copy_del->previous_ref_state, not stored, = WT_REF_DISK as always. */
             copy->del.committed = true;
         }
         /* FALLTHROUGH */

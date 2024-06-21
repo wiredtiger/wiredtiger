@@ -332,7 +332,6 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
      * evicted.
      */
     WT_ASSERT(session, unpack->page_del.prepare_state == 0);
-    /* unpack->page_del->previous_ref_state, not stored, == WT_REF_DISK as always. */
     WT_ASSERT(session, unpack->page_del.committed == true);
 
     return (0);
