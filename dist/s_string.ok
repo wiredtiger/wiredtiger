@@ -438,6 +438,7 @@ WRLSN
 WRNOLOCK
 WTPERF
 WaitForSingleObject
+WaitOn
 WakeAll
 WakeOne
 Wconditional

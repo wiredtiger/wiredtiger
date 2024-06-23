@@ -7,6 +7,9 @@
 
 #include "wt_internal.h"
 
+/* Not linked by default, and required for WaitOn functionality. */
+#pragma comment(lib, "Synchronization.Lib")
+
 /*
  * __wt_futex_wait --
  *     Wait on the futex. The timeout is in microseconds and MUST be greater than zero.
@@ -25,10 +28,9 @@ __wt_futex_wait(
     retval = WaitOnAddress(addr, &expected, sizeof(WT_FUTEX_WORD), msec);
     if (retval == TRUE) {
         /*
-         * Currently we only support Windows on x86. That processor's TSO memory model
-         * ensures we will see the write (or possibly a later write) to the futex prior to the call
-         * to wake.
-         * 
+         * Currently we only support Windows on x86. That processor's TSO memory model ensures we
+         * will see the write (or possibly a later write) to the futex prior to the call to wake.
+         *
          * If we move to support Windows ARM this should be reviewed.
          */
         *wake_valp = *addr;

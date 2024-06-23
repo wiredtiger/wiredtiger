@@ -35,11 +35,13 @@ __wt_futex_wait(
     ret = __ulock_wait2(UL_COMPARE_AND_WAIT_SHARED | ULF_NO_ERRNO, (void *)addr, expected, nsec, 0);
     if (ret >= 0 || ret == -EFAULT) {
         /*
-         * EFAULT indicates the page containing the futex had been paged out. Returning from wait
-         * may still indicate indicate a spurious wakeup, so the futex word value must be consulted
-         * to detect this case.
+         * Apparently a return value of -EFAULT may indicate the page containing the futex has been
+         * paged out. On Linux this error only indicates one or more of the arguments is an invalid
+         * user space address.
          *
-         * So block the caller until the VM fetches the errant page back.
+         * There is no way to validate that futex address is valid, so reading from the address
+         * should either block the caller until the page is available, or possibly (but less likely)
+         * result in a crash.
          */
         *wake_valp = __atomic_load_n(addr, __ATOMIC_SEQ_CST);
         ret = 0;
