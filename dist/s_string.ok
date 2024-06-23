@@ -420,7 +420,6 @@ Unmount
 Uryyb
 VARCHAR
 VLCS
-VM
 VPM
 VR
 VRFY
@@ -439,8 +438,6 @@ WRNOLOCK
 WTPERF
 WaitForSingleObject
 WaitOn
-WakeAll
-WakeOne
 Wconditional
 Wduplicated
 WeakHashLen
