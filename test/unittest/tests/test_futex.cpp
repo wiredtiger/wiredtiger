@@ -187,19 +187,9 @@ public:
     void
     wait_and_check(const vector<wake_signal> &wake_signals)
     {
-        size_t expected_timeouts;
-
         for (auto &&t : _threads)
             t.join();
         CAPTURE(_waiters);
-
-        /* Infer the number of expected timeouts. */
-        if (wake_signals.empty())
-            expected_timeouts = _threads.size();
-        else if (wake_signals.begin()->_type == WT_FUTEX_WAKE_ALL)
-            expected_timeouts = 0;
-        else
-            expected_timeouts = _threads.size() - wake_signals.size();
 
         auto result = inspect_waiters(wake_signals);
         CAPTURE(result);
