@@ -321,7 +321,7 @@ read:
             time_start = __wt_clock(session);
             WT_RET(__page_read(session, ref, flags));
             time_stop = __wt_clock(session);
-            WT_STAT_SESSION_INCRV(session, page_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
+            WT_STAT_SESSION_INCRV(session, page_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;

@@ -199,7 +199,7 @@ err:
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_next);
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -233,7 +233,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 err:
     API_END_RET_STAT(session, ret, cursor_next_random);
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -259,8 +259,6 @@ __curfile_prev(WT_CURSOR *cursor)
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_prev(cbt, false));
     WT_ERR(ret);
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Prev maintains a position, key and value. */
     WT_ASSERT(session,
@@ -271,6 +269,8 @@ err:
     API_RETRYABLE_END(session, ret);
     CURSOR_REPOSITION_END(cursor, session);
     API_END_RET_STAT(session, ret, cursor_prev);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -331,9 +331,6 @@ __curfile_search(WT_CURSOR *cursor)
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search(cbt));
     WT_ERR(ret);
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -344,6 +341,9 @@ err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_search);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -370,9 +370,6 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search_near(cbt, exact));
     WT_ERR(ret);
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Search-near maintains a position, key and value. */
     WT_ASSERT(session,
@@ -383,6 +380,9 @@ err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_search_near);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 }
 
 /*
@@ -424,7 +424,7 @@ err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_insert);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }
 
@@ -493,7 +493,7 @@ err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }
 
@@ -528,7 +528,7 @@ err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_update);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }
 
@@ -583,7 +583,7 @@ err:
       session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT), cursor_remove);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_MS(time_stop, time_start));
     return (ret);
 }
 

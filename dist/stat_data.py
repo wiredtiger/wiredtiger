@@ -376,6 +376,11 @@ conn_stats = [
     CacheStat('cache_overhead', 'percentage overhead', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
+    CacheStat('cache_page_insert_wait_pagelock_time', 'page insert wait pagelock time (msecs)', 'no_clear,no_scale'),
+    CacheStat('cache_page_split_insert_time', 'page split insert time (msecs)', 'no_clear,no_scale'),
+    CacheStat('cache_page_split_multi_time', 'page split multi time (msecs)', 'no_clear,no_scale'),
+    CacheStat('cache_page_split_reverse_time', 'page split reverse time (msecs)', 'no_clear,no_scale'),
+    CacheStat('cache_page_split_rewrite_time', 'page split rewrite time (msecs)', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
     CacheStat('cache_timed_out_ops', 'operations timed out waiting for space in cache'),
@@ -605,6 +610,7 @@ conn_stats = [
     LogStat('log_write_lsn', 'log server thread advances write LSN'),
     LogStat('log_write_lsn_skip', 'log server thread write LSN walk skipped'),
     LogStat('log_writes', 'log write operations'),
+    LogStat('log_writes_time', 'log write time (msec)'),
     LogStat('log_zero_fills', 'log files manually zero-filled'),
 
     ##########################################

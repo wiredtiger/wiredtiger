@@ -2101,7 +2101,9 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_insert_lock(session, ref));
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, page_split_insert_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, page_split_insert_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCRV(
+      session, cache_page_split_insert_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     return (ret);
 }
@@ -2218,7 +2220,10 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, page_split_multi_time, WT_CLOCKDIFF_US(time_stop, time_start));
+
+    WT_STAT_CONN_INCRV(
+      session, cache_page_split_multi_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, page_split_multi_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     return (ret);
 }
@@ -2259,7 +2264,9 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_reverse(session, ref));
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, page_split_reverse_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, page_split_reverse_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCRV(
+      session, cache_page_split_reverse_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     return (ret);
 }
@@ -2326,14 +2333,18 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     __wt_free(session, new);
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, page_split_rewrite_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, page_split_rewrite_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCRV(
+      session, cache_page_split_rewrite_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     return (0);
 
 err:
     __split_multi_inmem_fail(session, page, multi, new);
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, page_split_rewrite_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, page_split_rewrite_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCRV(
+      session, cache_page_split_rewrite_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     return (ret);
 }

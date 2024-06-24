@@ -1594,7 +1594,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: overflow pages read into cache",
   "cache: page evict attempts by application threads",
   "cache: page evict failures by application threads",
+  "cache: page insert wait pagelock time (msecs)",
   "cache: page split during eviction deepened the tree",
+  "cache: page split insert time (msecs)",
+  "cache: page split multi time (msecs)",
+  "cache: page split reverse time (msecs)",
+  "cache: page split rewrite time (msecs)",
   "cache: page written requiring history store records",
   "cache: pages considered for eviction that were brought in by pre-fetch",
   "cache: pages currently held in the cache",
@@ -1875,6 +1880,7 @@ static const char *const __stats_connection_desc[] = {
   "log: log sync_dir operations",
   "log: log sync_dir time duration (usecs)",
   "log: log write operations",
+  "log: log write time (msec)",
   "log: logging bytes consolidated",
   "log: maximum log file size",
   "log: number of pre-allocated log files to create",
@@ -2347,7 +2353,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_overflow = 0;
     stats->cache_eviction_app_attempt = 0;
     stats->cache_eviction_app_fail = 0;
+    /* not clearing cache_page_insert_wait_pagelock_time */
     stats->cache_eviction_deepen = 0;
+    /* not clearing cache_page_split_insert_time */
+    /* not clearing cache_page_split_multi_time */
+    /* not clearing cache_page_split_reverse_time */
+    /* not clearing cache_page_split_rewrite_time */
     stats->cache_write_hs = 0;
     /* not clearing cache_eviction_consider_prefetch */
     /* not clearing cache_pages_inuse */
@@ -2624,6 +2635,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_sync_dir = 0;
     /* not clearing log_sync_dir_duration */
     stats->log_writes = 0;
+    stats->log_writes_time = 0;
     stats->log_slot_consolidated = 0;
     /* not clearing log_max_filesize */
     /* not clearing log_prealloc_max */
@@ -3121,7 +3133,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_overflow += WT_STAT_CONN_READ(from, cache_read_overflow);
     to->cache_eviction_app_attempt += WT_STAT_CONN_READ(from, cache_eviction_app_attempt);
     to->cache_eviction_app_fail += WT_STAT_CONN_READ(from, cache_eviction_app_fail);
+    to->cache_page_insert_wait_pagelock_time +=
+      WT_STAT_CONN_READ(from, cache_page_insert_wait_pagelock_time);
     to->cache_eviction_deepen += WT_STAT_CONN_READ(from, cache_eviction_deepen);
+    to->cache_page_split_insert_time += WT_STAT_CONN_READ(from, cache_page_split_insert_time);
+    to->cache_page_split_multi_time += WT_STAT_CONN_READ(from, cache_page_split_multi_time);
+    to->cache_page_split_reverse_time += WT_STAT_CONN_READ(from, cache_page_split_reverse_time);
+    to->cache_page_split_rewrite_time += WT_STAT_CONN_READ(from, cache_page_split_rewrite_time);
     to->cache_write_hs += WT_STAT_CONN_READ(from, cache_write_hs);
     to->cache_eviction_consider_prefetch +=
       WT_STAT_CONN_READ(from, cache_eviction_consider_prefetch);
@@ -3433,6 +3451,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_sync_dir += WT_STAT_CONN_READ(from, log_sync_dir);
     to->log_sync_dir_duration += WT_STAT_CONN_READ(from, log_sync_dir_duration);
     to->log_writes += WT_STAT_CONN_READ(from, log_writes);
+    to->log_writes_time += WT_STAT_CONN_READ(from, log_writes_time);
     to->log_slot_consolidated += WT_STAT_CONN_READ(from, log_slot_consolidated);
     to->log_max_filesize += WT_STAT_CONN_READ(from, log_max_filesize);
     to->log_prealloc_max += WT_STAT_CONN_READ(from, log_prealloc_max);

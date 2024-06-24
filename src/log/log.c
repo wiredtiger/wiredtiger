@@ -2598,7 +2598,8 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
     }
     ret = __log_write_internal(session, ip, lsnp, flags);
     time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, log_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, log_write_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCRV(session, log_writes_time, WT_CLOCKDIFF_MS(time_stop, time_start));
 err:
     __wt_scr_free(session, &citem);
     __wt_scr_free(session, &eitem);

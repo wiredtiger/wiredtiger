@@ -613,7 +613,12 @@ struct __wt_connection_stats {
     int64_t cache_read_overflow;
     int64_t cache_eviction_app_attempt;
     int64_t cache_eviction_app_fail;
+    int64_t cache_page_insert_wait_pagelock_time;
     int64_t cache_eviction_deepen;
+    int64_t cache_page_split_insert_time;
+    int64_t cache_page_split_multi_time;
+    int64_t cache_page_split_reverse_time;
+    int64_t cache_page_split_rewrite_time;
     int64_t cache_write_hs;
     int64_t cache_eviction_consider_prefetch;
     int64_t cache_pages_inuse;
@@ -890,6 +895,7 @@ struct __wt_connection_stats {
     int64_t log_sync_dir;
     int64_t log_sync_dir_duration;
     int64_t log_writes;
+    int64_t log_writes_time;
     int64_t log_slot_consolidated;
     int64_t log_max_filesize;
     int64_t log_prealloc_max;
