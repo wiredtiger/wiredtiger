@@ -2090,6 +2090,8 @@ int
 __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
+    uint64_t time_start, time_stop;
+    time_start = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
 
@@ -2098,6 +2100,9 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * eviction, then proceed with the insert split.
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_insert_lock(session, ref));
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, page_split_insert_time, WT_CLOCKDIFF_US(time_stop, time_start));
+
     return (ret);
 }
 
@@ -2202,6 +2207,8 @@ int
 __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
     WT_DECL_RET;
+    uint64_t time_start, time_stop;
+    time_start = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
@@ -2210,6 +2217,9 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
      * eviction, then proceed with the split.
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, page_split_multi_time, WT_CLOCKDIFF_US(time_stop, time_start));
+
     return (ret);
 }
 
@@ -2238,6 +2248,8 @@ int
 __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
+    uint64_t time_start, time_stop;
+    time_start = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
 
@@ -2246,6 +2258,9 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
      * eviction, then proceed with the reverse split.
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_reverse(session, ref));
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, page_split_reverse_time, WT_CLOCKDIFF_US(time_stop, time_start));
+
     return (ret);
 }
 
@@ -2259,7 +2274,9 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *new;
+    uint64_t time_start, time_stop;
 
+    time_start = __wt_clock(session);
     page = ref->page;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
@@ -2308,9 +2325,15 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     __wt_free(session, new);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, page_split_rewrite_time, WT_CLOCKDIFF_US(time_stop, time_start));
+
     return (0);
 
 err:
     __split_multi_inmem_fail(session, page, multi, new);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, page_split_rewrite_time, WT_CLOCKDIFF_US(time_stop, time_start));
+
     return (ret);
 }

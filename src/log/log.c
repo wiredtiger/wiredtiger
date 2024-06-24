@@ -2506,9 +2506,11 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
     WT_LOG *log;
     WT_LOG_RECORD *newlrp;
     size_t dst_len, len, new_size, result_len, src_len;
+    uint64_t time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed;
 
+    time_start = __wt_clock(session);
     conn = S2C(session);
     log = conn->log;
     /*
@@ -2595,7 +2597,8 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t
         WT_ASSERT(session, new_size < UINT32_MAX && ip->size < UINT32_MAX);
     }
     ret = __log_write_internal(session, ip, lsnp, flags);
-
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, log_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
 err:
     __wt_scr_free(session, &citem);
     __wt_scr_free(session, &eitem);

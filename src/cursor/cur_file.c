@@ -175,6 +175,7 @@ __curfile_next(WT_CURSOR *cursor)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
@@ -182,6 +183,7 @@ __curfile_next(WT_CURSOR *cursor)
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
 
+    time_start = __wt_clock(session);
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_next(cbt, false));
@@ -196,6 +198,8 @@ err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_next);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
@@ -209,6 +213,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
@@ -216,6 +221,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
+    time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_next_random(cbt));
     WT_ERR(ret);
 
@@ -226,6 +232,8 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
 err:
     API_END_RET_STAT(session, ret, cursor_next_random);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
@@ -238,6 +246,7 @@ __curfile_prev(WT_CURSOR *cursor)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, CUR2BT(cbt));
@@ -247,8 +256,11 @@ __curfile_prev(WT_CURSOR *cursor)
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
+    time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_prev(cbt, false));
     WT_ERR(ret);
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Prev maintains a position, key and value. */
     WT_ASSERT(session,
@@ -321,6 +333,7 @@ __curfile_search(WT_CURSOR *cursor)
     WT_ERR(ret);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Search maintains a position, key and value. */
     WT_ASSERT(session,
@@ -359,6 +372,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     WT_ERR(ret);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Search-near maintains a position, key and value. */
     WT_ASSERT(session,
@@ -383,6 +397,7 @@ __curfile_insert(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
 
+    time_start = 0;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
     WT_ERR(__cursor_copy_release(cursor));
@@ -393,8 +408,6 @@ __curfile_insert(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_insert(cbt));
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /*
      * Insert maintains no position, key or value (except for column-store appends, where we are
@@ -409,6 +422,9 @@ __curfile_insert(WT_CURSOR *cursor)
 
 err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_insert);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
     return (ret);
 }
 
@@ -453,6 +469,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
 
+    time_start = 0;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
     WT_ERR(__cursor_copy_release(cursor));
@@ -464,8 +481,6 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_modify(cbt, entries, nentries));
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
@@ -476,6 +491,9 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
     return (ret);
 }
 
@@ -491,6 +509,7 @@ __curfile_update(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
 
+    time_start = 0;
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, update);
     WT_ERR(__cursor_copy_release(cursor));
@@ -499,8 +518,6 @@ __curfile_update(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_update(cbt));
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* Update maintains a position, key and value. */
     WT_ASSERT(session,
@@ -509,6 +526,9 @@ __curfile_update(WT_CURSOR *cursor)
 
 err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_update);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
     return (ret);
 }
 
@@ -525,6 +545,7 @@ __curfile_remove(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
     bool positioned;
 
+    time_start = 0;
     /*
      * WT_CURSOR.remove has a unique semantic, the cursor stays positioned if it starts positioned,
      * otherwise clear the cursor on completion. Track if starting with a positioned cursor and pass
@@ -541,8 +562,6 @@ __curfile_remove(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_remove(cbt, positioned));
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* If we've lost an initial position, we must fail. */
     if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
@@ -562,6 +581,9 @@ err:
     /* If we've lost an initial position, we must fail. */
     CURSOR_UPDATE_API_END_RETRY_STAT(
       session, ret, !positioned || F_ISSET(cursor, WT_CURSTD_KEY_INT), cursor_remove);
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_write_time, WT_CLOCKDIFF_US(time_stop, time_start));
     return (ret);
 }
 

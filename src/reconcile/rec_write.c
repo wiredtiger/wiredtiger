@@ -377,7 +377,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       conn->cache->reentry_hs_eviction_ms)
         conn->cache->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
-
+    WT_STAT_SESSION_INCRV(session, reconcile_time, WT_CLOCKDIFF_US(rec_finish, rec_start));
 err:
     if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");

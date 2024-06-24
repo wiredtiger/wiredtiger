@@ -1215,11 +1215,22 @@ join_stats = sorted(join_stats, key=attrgetter('desc'))
 session_stats = [
     SessionStat('bytes_read', 'bytes read into cache'),
     SessionStat('bytes_write', 'bytes written from cache'),
+    SessionStat('cursor_read_time', 'cursor read time (usecs)'),
+    SessionStat('cursor_write_time', 'cursor write time (usecs)'),
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
+    SessionStat('log_write_time', 'log write time (usecs)'),
+    SessionStat('page_insert_wait_pagelock_time', 'page insert wait pagelock time (usecs)'),
+    SessionStat('page_read_time', 'page read time (usecs)'),
+    SessionStat('page_split_insert_time', 'page split insert time (usecs)'),
+    SessionStat('page_split_multi_time', 'page split multi time (usecs)'),
+    SessionStat('page_split_reverse_time', 'page split reverse time (usecs)'),
+    SessionStat('page_split_rewrite_time', 'page split rewrite time (usecs)'),
+    SessionStat('ref_locked_and_yield_time', 'ref locked and yiled time (usecs)'),
     SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
+    SessionStat('reconcile_time', 'reconcile time (usecs)'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]
 

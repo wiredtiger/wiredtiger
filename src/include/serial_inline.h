@@ -197,6 +197,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 {
     WT_DECL_RET;
     WT_INSERT *new_ins;
+    uint64_t start, stop;
     u_int i;
     bool simple;
 
@@ -212,8 +213,13 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     if (simple)
         ret = __insert_simple_func(session, ins_stack, new_ins, skipdepth);
     else {
-        if (!exclusive)
+        if (!exclusive) {
+            start = __wt_clock(session);
             WT_PAGE_LOCK(session, page);
+            stop = __wt_clock(session);
+            WT_STAT_SESSION_INCRV(
+              session, page_insert_wait_pagelock_time, WT_CLOCKDIFF_US(stop, start));
+        }
         ret = __insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth);
         if (!exclusive)
             WT_PAGE_UNLOCK(session, page);
