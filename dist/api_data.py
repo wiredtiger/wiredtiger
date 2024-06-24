@@ -875,6 +875,7 @@ connection_runtime_config = [
             'mutex',
             'out_of_order',
             'overflow',
+            'prefetch',
             'read',
             'reconcile',
             'recovery',
@@ -1635,6 +1636,7 @@ methods = {
 ]),
 
 'WT_SESSION.reset_snapshot' : Method([]),
+'WT_SESSION.rename' : Method([]),
 'WT_SESSION.reset' : Method([]),
 'WT_SESSION.salvage' : Method([
     Config('force', 'false', r'''

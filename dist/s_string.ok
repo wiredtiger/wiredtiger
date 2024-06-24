@@ -1032,6 +1032,7 @@ nentries
 nentriesp
 newbar
 newfile
+newuri
 newv
 nextprev
 nf
@@ -1297,6 +1298,7 @@ sz
 t's
 tIf
 tV
+tablename
 td
 teardown
 tempdir
