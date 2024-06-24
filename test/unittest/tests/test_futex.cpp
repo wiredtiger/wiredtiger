@@ -151,8 +151,7 @@ is_wake_all(const wake_signal &wsig)
  */
 class futex_tester {
 public:
-    chrono::duration<time_t, milli> WAKE_DELAY{100};
-    chrono::duration<time_t, milli> INTER_WAKE_DELAY{1};
+    const chrono::duration<time_t, milli> INTER_WAKE_DELAY{1};
 
     futex_word _futex;
     vector<waiter> _waiters;
