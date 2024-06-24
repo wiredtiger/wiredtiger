@@ -1577,6 +1577,7 @@ int
 __wt_session_range_truncate(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop)
 {
+    WT_CURSOR *start_file_cursor, *stop_file_cursor;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(orig_start_key);
     WT_DECL_ITEM(orig_stop_key);
@@ -1668,14 +1669,25 @@ __wt_session_range_truncate(
     trunc_info->orig_stop_key = orig_stop_key;
     trunc_info->uri = actual_uri;
 
+    if (start != NULL && strcmp(start->uri, WT_HS_URI) == 0)
+        start_file_cursor = ((WT_CURSOR_HS *)start)->file_cursor;
+    else
+        start_file_cursor = start;
+
+    if (stop != NULL && strcmp(stop->uri, WT_HS_URI) == 0)
+        stop_file_cursor = ((WT_CURSOR_HS *)stop)->file_cursor;
+    else
+        stop_file_cursor = stop;
+
     /*
      * Don't use bounded cursors for FLCS as it isn't supported, additionally skip using them for
      * complex types such as column groups and indexes. We can't check support for those complex
      * types at this abstraction level.
      */
-    if (CUR2BT(start) == NULL || CUR2BT(start)->type == BTREE_COL_FIX)
+    if (CUR2BT(start_file_cursor) == NULL || CUR2BT(start_file_cursor)->type == BTREE_COL_FIX)
         supports_bounds = false;
-    if (stop != NULL && (CUR2BT(stop) == NULL || CUR2BT(stop)->type == BTREE_COL_FIX))
+    if (stop_file_cursor != NULL &&
+      (CUR2BT(stop_file_cursor) == NULL || CUR2BT(stop_file_cursor)->type == BTREE_COL_FIX))
         supports_bounds = false;
 
     /*
