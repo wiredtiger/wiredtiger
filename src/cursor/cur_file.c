@@ -187,6 +187,8 @@ __curfile_next(WT_CURSOR *cursor)
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
 
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_next(cbt, false));
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
     WT_ERR(ret);
 
     /* Next maintains a position, key and value. */
@@ -198,8 +200,6 @@ err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_next);
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
@@ -223,6 +223,8 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_next_random(cbt));
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
     WT_ERR(ret);
 
     /* Next-random maintains a position, key and value. */
@@ -232,8 +234,6 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
 err:
     API_END_RET_STAT(session, ret, cursor_next_random);
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
@@ -258,6 +258,8 @@ __curfile_prev(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_prev(cbt, false));
+    time_stop = __wt_clock(session);
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
     WT_ERR(ret);
 
     /* Prev maintains a position, key and value. */
@@ -269,8 +271,6 @@ err:
     API_RETRYABLE_END(session, ret);
     CURSOR_REPOSITION_END(cursor, session);
     API_END_RET_STAT(session, ret, cursor_prev);
-    time_stop = __wt_clock(session);
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
@@ -330,6 +330,9 @@ __curfile_search(WT_CURSOR *cursor)
 
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search(cbt));
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
     WT_ERR(ret);
 
     /* Search maintains a position, key and value. */
@@ -341,9 +344,6 @@ err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_search);
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
@@ -369,6 +369,9 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 
     time_start = __wt_clock(session);
     WT_WITH_CHECKPOINT(session, cbt, ret = __wt_btcur_search_near(cbt, exact));
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
+    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
     WT_ERR(ret);
 
     /* Search-near maintains a position, key and value. */
@@ -380,9 +383,6 @@ err:
     CURSOR_REPOSITION_END(cursor, session);
     API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_search_near);
-    time_stop = __wt_clock(session);
-    __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
-    WT_STAT_SESSION_INCRV(session, cursor_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 }
 
 /*
