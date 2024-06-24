@@ -577,6 +577,9 @@ connection_runtime_config = [
             adjust log removal to retain the log records of this number of checkpoints. Zero
             or one means perform normal removal.''',
             min='0', max='1024'),
+        Config('configuration', 'false', r'''
+               if true, display invalid cache configuration warnings.''',
+               type='boolean'),
         Config('cursor_copy', 'false', r'''
             if true, use the system allocator to make a copy of any data returned by a cursor
             operation and return the copy instead. The copy is freed on the next cursor
@@ -875,6 +878,7 @@ connection_runtime_config = [
             'mutex',
             'out_of_order',
             'overflow',
+            'prefetch',
             'read',
             'reconcile',
             'recovery',
@@ -1681,6 +1685,7 @@ methods = {
 ]),
 
 'WT_SESSION.reset_snapshot' : Method([]),
+'WT_SESSION.rename' : Method([]),
 'WT_SESSION.reset' : Method([]),
 'WT_SESSION.salvage' : Method([
     Config('force', 'false', r'''
