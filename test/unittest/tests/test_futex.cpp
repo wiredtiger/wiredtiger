@@ -90,8 +90,14 @@ operator<<(ostream &out, const waiter &w)
 }
 
 enum outcome {
-    AsExpected,         /* Wake ups and timeouts are as expected. */
-    SpuriousWakeups,    /* Spurious timeouts were present. */
+    /*
+     * The wake ups (including spurious wake ups) and timeouts match the test expectations.
+     *
+     * Spurious wake ups are possible but entirely unpredictable, and retrying multiple times could
+     * still result in intermittent failures.
+     */
+    AsExpected,
+
     Error,              /* One or more waiters encountered an error other than timeout. */
     UnexpectedTimeouts, /* More timeouts than expected. */
 
@@ -113,7 +119,6 @@ operator<<(ostream &out, const outcome &result)
 
     switch (result) {
         R_(AsExpected);
-        R_(SpuriousWakeups);
         R_(Error);
         R_(UnexpectedTimeouts);
         R_(LostWakeup);
@@ -188,11 +193,13 @@ public:
     {
         for (auto &&t : _threads)
             t.join();
+
         CAPTURE(_waiters);
+        CAPTURE(wake_signals);
 
         auto result = inspect_waiters(wake_signals);
         CAPTURE(result);
-        REQUIRE((result == outcome::AsExpected || result == outcome::SpuriousWakeups));
+        REQUIRE(result == outcome::AsExpected);
     }
 
     outcome
@@ -220,7 +227,7 @@ public:
             auto wake_cnt = count_if(wbeg, wend, bind(&waiter::awoken, _1, sig._value));
             auto spurious_cnt = count_if(wbeg, wend, bind(&waiter::spurious, _1, sig._value));
             REQUIRE(((wake_cnt + spurious_cnt) == _waiters.size()));
-            return (spurious_cnt > 0) ? outcome::SpuriousWakeups : outcome::AsExpected;
+            return (outcome::AsExpected);
         }
 
         /* Account for any expected timeouts. */
@@ -267,7 +274,7 @@ public:
         /* Test validation check. */
         REQUIRE((rem_waiters.empty() && rem_sigs.empty()));
 
-        return ((spurious_wakeups) ? outcome::SpuriousWakeups : outcome::AsExpected);
+        return (outcome::AsExpected);
     }
 };
 
