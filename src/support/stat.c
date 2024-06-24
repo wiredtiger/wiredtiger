@@ -1949,10 +1949,36 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: fast-path pages deleted",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: maximum milliseconds spent in a",
   "reconciliation: maximum milliseconds spent in a reconciliation call",
+  "reconciliation: maximum milliseconds spent in b",
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
+  "reconciliation: maximum milliseconds spent in c",
+  "reconciliation: maximum milliseconds spent in d",
+  "reconciliation: maximum milliseconds spent in e",
+  "reconciliation: maximum milliseconds spent in f",
+  "reconciliation: maximum milliseconds spent in g",
+  "reconciliation: maximum milliseconds spent in h",
+  "reconciliation: maximum milliseconds spent in i",
+  "reconciliation: maximum milliseconds spent in j",
+  "reconciliation: maximum milliseconds spent in k",
+  "reconciliation: maximum milliseconds spent in l",
+  "reconciliation: maximum milliseconds spent in m",
   "reconciliation: maximum milliseconds spent in moving updates to the history store in a "
   "reconciliation",
+  "reconciliation: maximum milliseconds spent in n",
+  "reconciliation: maximum milliseconds spent in o",
+  "reconciliation: maximum milliseconds spent in p",
+  "reconciliation: maximum milliseconds spent in q",
+  "reconciliation: maximum milliseconds spent in r",
+  "reconciliation: maximum milliseconds spent in s",
+  "reconciliation: maximum milliseconds spent in t",
+  "reconciliation: maximum milliseconds spent in u",
+  "reconciliation: maximum milliseconds spent in v",
+  "reconciliation: maximum milliseconds spent in w",
+  "reconciliation: maximum milliseconds spent in x",
+  "reconciliation: maximum milliseconds spent in y",
+  "reconciliation: maximum milliseconds spent in z",
   "reconciliation: overflow values written",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
@@ -2695,9 +2721,35 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_overflow_key_leaf = 0;
+    /* not clearing rec_maximum_a_milliseconds */
     /* not clearing rec_maximum_milliseconds */
+    /* not clearing rec_maximum_b_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
+    /* not clearing rec_maximum_c_milliseconds */
+    /* not clearing rec_maximum_d_milliseconds */
+    /* not clearing rec_maximum_e_milliseconds */
+    /* not clearing rec_maximum_f_milliseconds */
+    /* not clearing rec_maximum_g_milliseconds */
+    /* not clearing rec_maximum_h_milliseconds */
+    /* not clearing rec_maximum_i_milliseconds */
+    /* not clearing rec_maximum_j_milliseconds */
+    /* not clearing rec_maximum_k_milliseconds */
+    /* not clearing rec_maximum_l_milliseconds */
+    /* not clearing rec_maximum_m_milliseconds */
     /* not clearing rec_maximum_hs_wrapup_milliseconds */
+    /* not clearing rec_maximum_n_milliseconds */
+    /* not clearing rec_maximum_o_milliseconds */
+    /* not clearing rec_maximum_p_milliseconds */
+    /* not clearing rec_maximum_q_milliseconds */
+    /* not clearing rec_maximum_r_milliseconds */
+    /* not clearing rec_maximum_s_milliseconds */
+    /* not clearing rec_maximum_t_milliseconds */
+    /* not clearing rec_maximum_u_milliseconds */
+    /* not clearing rec_maximum_v_milliseconds */
+    /* not clearing rec_maximum_w_milliseconds */
+    /* not clearing rec_maximum_x_milliseconds */
+    /* not clearing rec_maximum_y_milliseconds */
+    /* not clearing rec_maximum_z_milliseconds */
     stats->rec_overflow_value = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
@@ -3515,11 +3567,37 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_overflow_key_leaf += WT_STAT_CONN_READ(from, rec_overflow_key_leaf);
+    to->rec_maximum_a_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_a_milliseconds);
     to->rec_maximum_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_milliseconds);
+    to->rec_maximum_b_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_b_milliseconds);
     to->rec_maximum_image_build_milliseconds +=
       WT_STAT_CONN_READ(from, rec_maximum_image_build_milliseconds);
+    to->rec_maximum_c_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_c_milliseconds);
+    to->rec_maximum_d_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_d_milliseconds);
+    to->rec_maximum_e_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_e_milliseconds);
+    to->rec_maximum_f_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_f_milliseconds);
+    to->rec_maximum_g_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_g_milliseconds);
+    to->rec_maximum_h_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_h_milliseconds);
+    to->rec_maximum_i_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_i_milliseconds);
+    to->rec_maximum_j_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_j_milliseconds);
+    to->rec_maximum_k_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_k_milliseconds);
+    to->rec_maximum_l_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_l_milliseconds);
+    to->rec_maximum_m_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_m_milliseconds);
     to->rec_maximum_hs_wrapup_milliseconds +=
       WT_STAT_CONN_READ(from, rec_maximum_hs_wrapup_milliseconds);
+    to->rec_maximum_n_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_n_milliseconds);
+    to->rec_maximum_o_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_o_milliseconds);
+    to->rec_maximum_p_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_p_milliseconds);
+    to->rec_maximum_q_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_q_milliseconds);
+    to->rec_maximum_r_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_r_milliseconds);
+    to->rec_maximum_s_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_s_milliseconds);
+    to->rec_maximum_t_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_t_milliseconds);
+    to->rec_maximum_u_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_u_milliseconds);
+    to->rec_maximum_v_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_v_milliseconds);
+    to->rec_maximum_w_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_w_milliseconds);
+    to->rec_maximum_x_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_x_milliseconds);
+    to->rec_maximum_y_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_y_milliseconds);
+    to->rec_maximum_z_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_z_milliseconds);
     to->rec_overflow_value += WT_STAT_CONN_READ(from, rec_overflow_value);
     to->rec_pages += WT_STAT_CONN_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_CONN_READ(from, rec_pages_eviction);

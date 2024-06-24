@@ -221,7 +221,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
-    uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start;
+    uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start, a_start, a_finish, a_time;
     void *addr;
 
     btree = S2BT(session);
@@ -268,7 +268,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          * pointing into the internal page's memory. We want to prevent eviction of the internal
          * page for the duration.
          */
+        a_start = __wt_clock(session);
         WT_WITH_PAGE_INDEX(session, ret = __wti_rec_row_leaf(session, r, ref, salvage));
+        a_finish = __wt_clock(session);
+        a_time = WT_CLOCKDIFF_MS(a_finish, a_start);
+        if (a_time > conn->a_maximum_milliseconds)
+            conn->a_maximum_milliseconds = a_time;
+
         break;
     default:
         ret = __wt_illegal_value(session, page->type);
@@ -868,10 +874,11 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     size_t result_len;
+    uint64_t x_start, x_finish, x_time, y_start, y_finish, y_time;
 
     btree = S2BT(session);
     result_len = 0;
-
+    x_start = __wt_clock(session);
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_DISK_VALIDATE)) {
         /* Checkpoint calls are different than standard calls. */
         WT_ASSERT_ALWAYS(session,
@@ -919,9 +926,19 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
         }
         WT_RET(ret);
     }
+    x_finish = __wt_clock(session);
+    x_time = WT_CLOCKDIFF_MS(x_finish, x_start);
+    if (x_time > S2C(session)->x_maximum_milliseconds)
+        S2C(session)->x_maximum_milliseconds = x_time;
 
-    return (__wt_blkcache_write(
+    y_start = __wt_clock(session);
+    WT_RET(__wt_blkcache_write(
       session, buf, addr, addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
+    y_finish = __wt_clock(session);
+    y_time = WT_CLOCKDIFF_MS(y_finish, y_start);
+    if (y_time > S2C(session)->y_maximum_milliseconds)
+        S2C(session)->y_maximum_milliseconds = y_time;
+    return (0);
 }
 
 /*
@@ -1723,6 +1740,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 int
 __wti_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
+    uint64_t q_start, q_finish, q_time, r_start, r_finish, r_time;
     /*
      * We're done reconciling, write the final page. We may arrive here with no entries to write if
      * the page was entirely empty or if nothing on the page was visible to us.
@@ -1762,15 +1780,25 @@ __wti_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * mergeable (though more likely not) but we can't see them on this code path. So instead just
      * write the previous chunk out.
      */
+    q_start = __wt_clock(session);
     if (r->prev_ptr != NULL) {
         if (r->page->type != WT_PAGE_COL_FIX)
             WT_RET(__rec_split_finish_process_prev(session, r));
         else
             WT_RET(__rec_split_write(session, r, r->prev_ptr, NULL, false));
     }
-
+    q_finish = __wt_clock(session);
+    q_time = WT_CLOCKDIFF_MS(q_finish, q_start);
+    if (q_time > S2C(session)->q_maximum_milliseconds)
+        S2C(session)->q_maximum_milliseconds = q_time;
     /* Write the remaining data/last page. */
-    return (__rec_split_write(session, r, r->cur_ptr, NULL, true));
+    r_start = __wt_clock(session);
+    WT_RET(__rec_split_write(session, r, r->cur_ptr, NULL, true));
+    r_finish = __wt_clock(session);
+    r_time = WT_CLOCKDIFF_MS(r_finish, r_start);
+    if (r_time > S2C(session)->r_maximum_milliseconds)
+        S2C(session)->r_maximum_milliseconds = r_time;
+    return (0);
 }
 
 /*
@@ -2039,6 +2067,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_MULTI *multi;
     WT_PAGE *page;
     size_t addr_size, compressed_size;
+    uint64_t s_start, s_finish, s_time, t_start, t_finish, t_time, u_start, u_finish, u_time;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
@@ -2089,10 +2118,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_RET(__wt_row_ikey_alloc(session, 0, chunk->key.data, chunk->key.size, &multi->key.ikey));
     else
         multi->key.recno = chunk->recno;
-
+    s_start = __wt_clock(session);
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
+    s_finish = __wt_clock(session);
+    s_time = WT_CLOCKDIFF_MS(s_finish, s_start);
+    if (s_time > S2C(session)->s_maximum_milliseconds)
+        S2C(session)->s_maximum_milliseconds = s_time;
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -2146,11 +2179,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
-
+    t_start = __wt_clock(session);
     /* Write the disk image and get an address. */
     WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
+    t_finish = __wt_clock(session);
+    t_time = WT_CLOCKDIFF_MS(t_finish, t_start);
+    if (t_time > S2C(session)->t_maximum_milliseconds)
+        S2C(session)->t_maximum_milliseconds = t_time;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = false;
 #endif
@@ -2170,6 +2207,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
 copy_image:
 #ifdef HAVE_DIAGNOSTIC
+    u_start = __wt_clock(session);
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
      * don't do I/O. Verify those images, too.
@@ -2178,6 +2216,10 @@ copy_image:
       verify_image == false ||
         __wt_verify_dsk_image(session, "[reconcile-image]", chunk->image.data, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
+    u_finish = __wt_clock(session);
+    u_time = WT_CLOCKDIFF_MS(u_finish, u_start);
+    if (u_time > S2C(session)->u_maximum_milliseconds)
+        S2C(session)->u_maximum_milliseconds = u_time;
 #endif
     /*
      * If re-instantiating this page in memory (either because eviction wants to, or because we

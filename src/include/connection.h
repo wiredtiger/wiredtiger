@@ -547,6 +547,32 @@ struct __wt_connection_impl {
     /* Connection statistics */
     uint64_t rec_maximum_hs_wrapup_milliseconds; /* Maximum milliseconds moving updates to history
                                                     store took. */
+    uint64_t a_maximum_milliseconds;
+    uint64_t b_maximum_milliseconds;
+    uint64_t c_maximum_milliseconds;
+    uint64_t d_maximum_milliseconds;
+    uint64_t e_maximum_milliseconds;
+    uint64_t f_maximum_milliseconds;
+    uint64_t g_maximum_milliseconds;
+    uint64_t h_maximum_milliseconds;
+    uint64_t i_maximum_milliseconds;
+    uint64_t j_maximum_milliseconds;
+    uint64_t k_maximum_milliseconds;
+    uint64_t l_maximum_milliseconds;
+    uint64_t m_maximum_milliseconds;
+    uint64_t n_maximum_milliseconds;
+    uint64_t o_maximum_milliseconds;
+    uint64_t p_maximum_milliseconds;
+    uint64_t q_maximum_milliseconds;
+    uint64_t r_maximum_milliseconds;
+    uint64_t s_maximum_milliseconds;
+    uint64_t t_maximum_milliseconds;
+    uint64_t u_maximum_milliseconds;
+    uint64_t v_maximum_milliseconds;
+    uint64_t w_maximum_milliseconds;
+    uint64_t x_maximum_milliseconds;
+    uint64_t y_maximum_milliseconds;
+    uint64_t z_maximum_milliseconds;
     uint64_t
       rec_maximum_image_build_milliseconds; /* Maximum milliseconds building disk image took. */
     uint64_t rec_maximum_milliseconds;      /* Maximum milliseconds reconciliation took. */

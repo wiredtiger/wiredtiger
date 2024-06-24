@@ -684,7 +684,12 @@ __wti_rec_row_leaf(
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
     size_t key_size;
-    uint64_t slvg_skip;
+    uint64_t slvg_skip, b_start, b_finish, b_time, c_start, c_finish, c_time, d_start, d_finish,
+      d_time, e_start, e_finish, e_time, f_start, f_finish, f_time, g_start, g_finish, g_time,
+      h_start, h_finish, h_time, i_start, i_finish, i_time, j_start, j_finish, j_time, k_start,
+      k_finish, k_time, l_start, l_finish, l_time, m_start, m_finish, m_time, n_start, n_finish,
+      n_time, o_start, o_finish, o_time, p_start, p_finish, p_time, v_start, v_finish, v_time,
+      w_start, w_finish, w_time;
     uint32_t i;
     uint8_t key_prefix;
     bool dictionary, key_onpage_ovfl, ovfl_key;
@@ -704,14 +709,22 @@ __wti_rec_row_leaf(
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
 
+    b_start = __wt_clock(session);
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
-
+    b_finish = __wt_clock(session);
+    b_time = WT_CLOCKDIFF_MS(b_finish, b_start);
+    if (b_time > S2C(session)->b_maximum_milliseconds)
+        S2C(session)->b_maximum_milliseconds = b_time;
     /*
      * Write any K/V pairs inserted into the page before the first from-disk key on the page.
      */
+    c_start = __wt_clock(session);
     if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page))) != NULL)
         WT_RET(__rec_row_leaf_insert(session, r, ins));
-
+    c_finish = __wt_clock(session);
+    c_time = WT_CLOCKDIFF_MS(c_finish, c_start);
+    if (c_time > S2C(session)->c_maximum_milliseconds)
+        S2C(session)->c_maximum_milliseconds = c_time;
     /*
      * When we walk the page, we store each key we're building for the disk image in the last-key
      * buffer. There's trickiness because it's significantly faster to use a previously built key
@@ -725,7 +738,7 @@ __wti_rec_row_leaf(
 
     /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need. */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
-
+    p_start = __wt_clock(session);
     /* For each entry in the page... */
     WT_ROW_FOREACH (page, rip, i) {
         /*
@@ -745,6 +758,7 @@ __wti_rec_row_leaf(
          * Figure out if the key is an overflow key, and in that case unpack the cell, we'll need it
          * later.
          */
+        d_start = __wt_clock(session);
         copy = WT_ROW_KEY_COPY(rip);
         __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
         kpack = NULL;
@@ -755,7 +769,12 @@ __wti_rec_row_leaf(
 
         /* Unpack the on-page value cell. */
         __wt_row_leaf_value_cell(session, page, rip, vpack);
+        d_finish = __wt_clock(session);
+        d_time = WT_CLOCKDIFF_MS(d_finish, d_start);
+        if (d_time > S2C(session)->d_maximum_milliseconds)
+            S2C(session)->d_maximum_milliseconds = d_time;
 
+        e_start = __wt_clock(session);
         /* Look for an update. */
         WT_ERR(__wti_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
@@ -772,9 +791,14 @@ __wti_rec_row_leaf(
          */
         if (upd == NULL && __wt_txn_tw_stop_visible_all(session, twp))
             upd = &upd_tombstone;
+        e_finish = __wt_clock(session);
+        e_time = WT_CLOCKDIFF_MS(e_finish, e_start);
+        if (e_time > S2C(session)->e_maximum_milliseconds)
+            S2C(session)->e_maximum_milliseconds = e_time;
 
         /* Build value cell. */
         if (upd == NULL) {
+            f_start = __wt_clock(session);
             /* Clear the on-disk cell time window if it is obsolete. */
             __wt_rec_time_window_clear_obsolete(session, NULL, vpack, r);
 
@@ -820,7 +844,12 @@ __wti_rec_row_leaf(
                 if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW))
                     r->ovfl_items = true;
             }
+            f_finish = __wt_clock(session);
+            f_time = WT_CLOCKDIFF_MS(f_finish, f_start);
+            if (f_time > S2C(session)->f_maximum_milliseconds)
+                S2C(session)->f_maximum_milliseconds = f_time;
         } else {
+            g_start = __wt_clock(session);
             /*
              * If we've selected an update, it should be flagged as being destined for the data
              * store.
@@ -836,22 +865,36 @@ __wti_rec_row_leaf(
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
                 WT_ERR(__wt_ovfl_remove(session, page, vpack));
-
+            g_finish = __wt_clock(session);
+            g_time = WT_CLOCKDIFF_MS(g_finish, g_start);
+            if (g_time > S2C(session)->g_maximum_milliseconds)
+                S2C(session)->g_maximum_milliseconds = g_time;
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
+                h_start = __wt_clock(session);
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
                 __wt_value_return(cbt, cbt->upd_value);
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0));
                 dictionary = true;
+                h_finish = __wt_clock(session);
+                h_time = WT_CLOCKDIFF_MS(h_finish, h_start);
+                if (h_time > S2C(session)->h_maximum_milliseconds)
+                    S2C(session)->h_maximum_milliseconds = h_time;
                 break;
             case WT_UPDATE_STANDARD:
+                i_start = __wt_clock(session);
                 /* Take the value from the update. */
                 WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, twp, 0));
                 dictionary = true;
+                i_finish = __wt_clock(session);
+                i_time = WT_CLOCKDIFF_MS(i_finish, i_start);
+                if (i_time > S2C(session)->i_maximum_milliseconds)
+                    S2C(session)->i_maximum_milliseconds = i_time;
                 break;
             case WT_UPDATE_TOMBSTONE:
+                j_start = __wt_clock(session);
                 /*
                  * If this key/value pair was deleted, we're done.
                  *
@@ -874,11 +917,15 @@ __wti_rec_row_leaf(
 
                 /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
+                j_finish = __wt_clock(session);
+                j_time = WT_CLOCKDIFF_MS(j_finish, j_start);
+                if (j_time > S2C(session)->j_maximum_milliseconds)
+                    S2C(session)->j_maximum_milliseconds = j_time;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
-
+            k_start = __wt_clock(session);
             /*
              * When a tombstone without a timestamp is written to disk, remove any historical
              * versions that are greater in the history store for this key.
@@ -888,6 +935,11 @@ __wti_rec_row_leaf(
                 WT_ERR(__wti_rec_hs_clear_on_tombstone(session, r, WT_RECNO_OOB, tmpkey,
                   upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
+
+            k_finish = __wt_clock(session);
+            k_time = WT_CLOCKDIFF_MS(k_finish, k_start);
+            if (k_time > S2C(session)->k_maximum_milliseconds)
+                S2C(session)->k_maximum_milliseconds = k_time;
 
             /* Proceed with appended key/value pairs. */
             if (upd->type == WT_UPDATE_TOMBSTONE)
@@ -914,6 +966,7 @@ __wti_rec_row_leaf(
             /* Track if page has overflow items. */
             r->ovfl_items = true;
         } else {
+            l_start = __wt_clock(session);
             /*
              * Get the key from the page or an instantiated key, or inline building the key from a
              * previous key (it's a fast path for simple, prefix-compressed keys), or by building
@@ -955,8 +1008,13 @@ slow:
             }
 
             WT_ERR(__rec_cell_build_leaf_key(session, r, lastkey->data, lastkey->size, &ovfl_key));
-        }
 
+            l_finish = __wt_clock(session);
+            l_time = WT_CLOCKDIFF_MS(l_finish, l_start);
+            if (l_time > S2C(session)->l_maximum_milliseconds)
+                S2C(session)->l_maximum_milliseconds = l_time;
+        }
+        m_start = __wt_clock(session);
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len)) {
             /*
@@ -967,7 +1025,7 @@ slow:
                 WT_ERR(__wt_dsk_cell_data_ref_kv(session, WT_PAGE_ROW_LEAF, kpack, r->cur));
                 WT_NOT_READ(key_onpage_ovfl, false);
             }
-
+            w_start = __wt_clock(session);
             /*
              * Turn off prefix compression until a full key written to the new page, and (unless
              * already working with an overflow key), rebuild the key without compression.
@@ -978,10 +1036,19 @@ slow:
                 if (!ovfl_key)
                     WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
+            w_finish = __wt_clock(session);
+            w_time = WT_CLOCKDIFF_MS(w_finish, w_start);
+            if (w_time > S2C(session)->w_maximum_milliseconds)
+                S2C(session)->w_maximum_milliseconds = w_time;
 
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
         }
+        m_finish = __wt_clock(session);
+        m_time = WT_CLOCKDIFF_MS(m_finish, m_start);
+        if (m_time > S2C(session)->m_maximum_milliseconds)
+            S2C(session)->m_maximum_milliseconds = m_time;
 
+        v_start = __wt_clock(session);
         /* Copy the key/value pair onto the page. */
         __wt_rec_image_copy(session, r, key);
         if (val->len == 0 && __rec_row_zero_len(session, twp))
@@ -996,15 +1063,32 @@ slow:
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
+        v_finish = __wt_clock(session);
+        v_time = WT_CLOCKDIFF_MS(v_finish, v_start);
+        if (v_time > S2C(session)->v_maximum_milliseconds)
+            S2C(session)->v_maximum_milliseconds = v_time;
 
 leaf_insert:
+        n_start = __wt_clock(session);
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
+        n_finish = __wt_clock(session);
+        n_time = WT_CLOCKDIFF_MS(n_finish, n_start);
+        if (n_time > S2C(session)->n_maximum_milliseconds)
+            S2C(session)->n_maximum_milliseconds = n_time;
     }
-
+    p_finish = __wt_clock(session);
+    p_time = WT_CLOCKDIFF_MS(p_finish, p_start);
+    if (p_time > S2C(session)->p_maximum_milliseconds)
+        S2C(session)->p_maximum_milliseconds = p_time;
+    o_start = __wt_clock(session);
     /* Write the remnant page. */
     ret = __wti_rec_split_finish(session, r);
+    o_finish = __wt_clock(session);
+    o_time = WT_CLOCKDIFF_MS(o_finish, o_start);
+    if (o_time > S2C(session)->o_maximum_milliseconds)
+        S2C(session)->o_maximum_milliseconds = o_time;
 
 err:
     __wt_scr_free(session, &lastkey);

@@ -359,6 +359,32 @@ __wti_cache_stats_update(WT_SESSION_IMPL *session)
 
     WT_STATP_CONN_SET(
       session, stats, rec_maximum_hs_wrapup_milliseconds, conn->rec_maximum_hs_wrapup_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_a_milliseconds, conn->a_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_b_milliseconds, conn->b_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_c_milliseconds, conn->c_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_d_milliseconds, conn->d_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_e_milliseconds, conn->e_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_f_milliseconds, conn->f_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_g_milliseconds, conn->g_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_h_milliseconds, conn->h_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_i_milliseconds, conn->i_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_j_milliseconds, conn->j_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_k_milliseconds, conn->k_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_l_milliseconds, conn->l_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_m_milliseconds, conn->m_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_n_milliseconds, conn->n_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_o_milliseconds, conn->o_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_p_milliseconds, conn->p_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_q_milliseconds, conn->q_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_r_milliseconds, conn->r_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_s_milliseconds, conn->s_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_t_milliseconds, conn->t_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_u_milliseconds, conn->u_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_v_milliseconds, conn->v_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_w_milliseconds, conn->w_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_x_milliseconds, conn->x_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_y_milliseconds, conn->y_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_z_milliseconds, conn->z_maximum_milliseconds);
     WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
       conn->rec_maximum_image_build_milliseconds);
     WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);

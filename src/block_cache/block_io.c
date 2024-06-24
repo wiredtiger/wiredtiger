@@ -247,10 +247,10 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
     size_t compression_ratio, dst_len, len, result_len, size, src_len;
-    uint64_t time_diff, time_start, time_stop;
+    uint64_t time_diff, time_start, time_stop, z_start, z_finish, z_time;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
-    bool data_checksum, encrypted, timer;
+    bool data_checksum, encrypted;
 
     if (compressed_sizep != NULL)
         *compressed_sizep = 0;
@@ -270,6 +270,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
     } else {
+        z_start = __wt_clock(session);
         /* Skip the header bytes of the source data. */
         src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
         src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
@@ -330,6 +331,10 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
             if (compressed_sizep != NULL)
                 *compressed_sizep = result_len;
         }
+        z_finish = __wt_clock(session);
+        z_time = WT_CLOCKDIFF_MS(z_finish, z_start);
+        if (z_time > S2C(session)->z_maximum_milliseconds)
+            S2C(session)->z_maximum_milliseconds = z_time;
     }
 
     /*
@@ -374,17 +379,15 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     }
 
     /* Call the block manager to write the block. */
-    timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
-    time_start = timer ? __wt_clock(session) : 0;
+    time_start = __wt_clock(session);
     WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, btree->ckpt, data_checksum) :
                         bm->write(bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));
-    if (timer) {
-        time_stop = __wt_clock(session);
-        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        WT_STAT_CONN_INCR(session, cache_write_app_count);
-        WT_STAT_CONN_INCRV(session, cache_write_app_time, time_diff);
-        WT_STAT_SESSION_INCRV(session, write_time, time_diff);
-    }
+
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCR(session, cache_write_app_count);
+    WT_STAT_CONN_INCRV(session, cache_write_app_time, time_diff);
+    WT_STAT_SESSION_INCRV(session, write_time, time_diff);
 
     /*
      * The page image must have a proper write generation number before writing it to disk. The page
