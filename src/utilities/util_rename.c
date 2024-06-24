@@ -10,27 +10,27 @@
 
 /*
  * usage --
- *     Display a usage message for the upgrade command.
+ *     Display a usage message for the rename command.
  */
 static int
 usage(void)
 {
     static const char *options[] = {"-?", "show this message", NULL, NULL};
 
-    util_usage("upgrade uri", "options:", options);
+    util_usage("rename uri newuri", "options:", options);
     return (1);
 }
 
 /*
- * util_upgrade --
- *     The upgrade command.
+ * util_rename --
+ *     The rename command.
  */
 int
-util_upgrade(WT_SESSION *session, int argc, char *argv[])
+util_rename(WT_SESSION *session, int argc, char *argv[])
 {
     WT_DECL_RET;
     int ch;
-    char *uri;
+    char *uri, *newuri;
 
     uri = NULL;
     while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
@@ -44,21 +44,15 @@ util_upgrade(WT_SESSION *session, int argc, char *argv[])
     argc -= __wt_optind;
     argv += __wt_optind;
 
-    /* The remaining argument is the table name. */
-    if (argc != 1)
+    /* The remaining arguments are the object uri and new name. */
+    if (argc != 2)
         return (usage());
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
+    newuri = argv[1];
 
-    if ((ret = session->upgrade(session, uri, NULL)) != 0)
-        (void)util_err(session, ret, "session.upgrade: %s", uri);
-    else {
-        /*
-         * Verbose configures a progress counter, move to the next line.
-         */
-        if (verbose)
-            printf("\n");
-    }
+    if ((ret = session->rename(session, uri, newuri, NULL)) != 0)
+        (void)util_err(session, ret, "session.rename: %s, %s", uri, newuri);
 
     util_free(uri);
     return (ret);
