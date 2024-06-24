@@ -481,11 +481,27 @@ worker(void *arg)
         if (opts->index_like_table)
             generate_index_key(thread, false, index_buf, next_val);
 
-        if (workload->table_index == INT32_MAX)
+        if (workload->table_index == INT32_MAX) {
             /*
              * Spread the data out around the multiple databases.
              */
-            cursor = cursors[map_key_to_table(wtperf->opts, next_val)];
+            i = map_key_to_table(wtperf->opts, next_val);
+            if (workload->reopen_cursor) {
+                if ((ret = session->open_cursor(session, wtperf->uris[i], NULL, NULL, &cursor)) !=
+                  0) {
+                    lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s", wtperf->uris[i]);
+                    goto err;
+                }
+            } else
+                cursor = cursors[i];
+        } else if (workload->reopen_cursor) {
+            if ((ret = session->open_cursor(
+                   session, wtperf->uris[workload->table_index], NULL, NULL, &cursor)) != 0) {
+                lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s",
+                  wtperf->uris[workload->table_index]);
+                goto err;
+            }
+        }
 
         /*
          * Skip the first time we do an operation, when trk->ops is 0, to avoid first time latency
@@ -757,6 +773,14 @@ op_err:
         if (opts->table_count > 1 && ret == 0 && *op != WORKER_INSERT && *op != WORKER_INSERT_RMW) {
             if ((ret = cursor->reset(cursor)) != 0) {
                 lprintf(wtperf, ret, 0, "Cursor reset failed");
+                goto err;
+            }
+        }
+
+        /* Close the cursor if we own the cursor. */
+        if (workload->reopen_cursor) {
+            if ((ret = cursor->close(cursor)) != 0) {
+                lprintf(wtperf, ret, 0, "Cursor close failed");
                 goto err;
             }
         }
