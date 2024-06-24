@@ -5815,39 +5815,40 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".lint"
+    - name: ".workgen-test"
+      batchtime: 1440 # 24 hours
+    - name: checkpoint-filetypes-test
+    - name: chunkcache-test
     - name: compile
-    - name: make-check-test
-    - name: unit-test
+    - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
       distros: ubuntu2004-arm64-large
+    - name: format-smoke-test
+    - name: format-stress-pull-request-test
     - name: linux-directio
       distros: ubuntu2004-arm64-large
-    - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
-    - name: unit-test-extra-long
-      distros: ubuntu2004-arm64-large
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
-      distros: ubuntu2004-arm64-large
-    - name: wtperf-test
     - name: long-test
       distros: ubuntu2004-arm64-large
-    - name: configure-combinations
-    - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
-    - name: chunkcache-test
+    - name: make-check-test
     - name: memory-model-test
       batchtime: 40320 # 28 days
-    - name: ".workgen-test"
-      batchtime: 1440 # 24 hours
-    - name: model-unit-test
     - name: model-test-failure-workloads
       batchtime: 1440 # 24 hours
     - name: model-test-long
       batchtime: 1440 # once a day
     - name: model-test-long-with-coverage
       batchtime: 1440 # once a day
+    - name: model-unit-test
+    - name: s3-tiered-storage-extensions-test
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+      distros: ubuntu2004-arm64-large
+    - name: unit-test
+    - name: unit-test-extra-long
+      distros: ubuntu2004-arm64-large
+    - name: unit-test-zstd
+    - name: wtperf-test
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
@@ -5860,27 +5861,28 @@ buildvariants:
     cmake_generator: "Unix Makefiles"
   # Using large distro for a few tests here as more memory is required.
   tasks:
+    - name: checkpoint-filetypes-test
     - name: compile
-    - name: make-check-test
-      distros: amazon2-arm64-large
-    - name: unit-test
     - name: fops
     - name: format-failure-configs-test
       distros: amazon2-arm64-large
+    - name: format-smoke-test
+    - name: format-stress-pull-request-test
     - name: linux-directio
       distros: amazon2-arm64-large
-    - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
-    - name: unit-test-extra-long
+    - name: long-test
       distros: amazon2-arm64-large
+    - name: make-check-test
+      distros: amazon2-arm64-large
+    - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: amazon2-arm64-large
-    - name: wtperf-test
-    - name: long-test
+    - name: unit-test
+    - name: unit-test-extra-long
       distros: amazon2-arm64-large
-    - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
+    - name: unit-test-zstd
+    - name: wtperf-test
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
