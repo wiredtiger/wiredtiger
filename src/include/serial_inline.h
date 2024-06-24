@@ -218,7 +218,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
             WT_PAGE_LOCK(session, page);
             stop = __wt_clock(session);
             WT_STAT_SESSION_INCRV(
-              session, page_insert_wait_pagelock_time, WT_CLOCKDIFF_MS(stop, start));
+              session, page_insert_wait_pagelock_time, WT_CLOCKDIFF_US(stop, start));
             WT_STAT_CONN_INCRV(
               session, cache_page_insert_wait_pagelock_time, WT_CLOCKDIFF_MS(stop, start));
         }

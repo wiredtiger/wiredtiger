@@ -321,7 +321,7 @@ read:
             time_start = __wt_clock(session);
             WT_RET(__page_read(session, ref, flags));
             time_stop = __wt_clock(session);
-            WT_STAT_SESSION_INCRV(session, page_read_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+            WT_STAT_SESSION_INCRV(session, page_read_time, WT_CLOCKDIFF_US(time_stop, time_start));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
@@ -498,7 +498,6 @@ skip_evict:
             return (__wt_illegal_value(session, current_state));
         }
 
-        time_start = __wt_clock(session);
         /*
          * We failed to get the page -- yield before retrying, and if we've yielded enough times,
          * start sleeping so we don't burn CPU to no purpose.
@@ -524,8 +523,6 @@ skip_evict:
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
-        time_stop = __wt_clock(session);
-        WT_STAT_SESSION_INCRV(
-          session, ref_locked_and_yield_time, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_SESSION_INCRV(session, ref_locked_and_yield_time, sleep_usecs);
     }
 }
