@@ -246,7 +246,6 @@ public:
         }
 
         /* Match remaining explicit wake ups with remaining waiters. */
-        bool spurious_wakeups = false;
         list<wake_signal> rem_sigs{wake_sigs.begin(), wake_sigs.end()};
         while (!rem_sigs.empty() && !rem_waiters.empty()) {
             auto sig = rem_sigs.front();
@@ -264,7 +263,6 @@ public:
                     return (outcome::LostWakeup);
                 }
                 rem_waiters.erase(spurious);
-                spurious_wakeups = true;
             } else {
                 rem_waiters.erase(match);
             }
