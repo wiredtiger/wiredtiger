@@ -1,38 +1,13 @@
-@media (prefers-color-scheme: dark) {
-  body, table, div, p, dl {
-    color: #CCC;
-  }
-  a {
-    color: #88F;
-  }
-  .contents a:visited {
-    color: #BBF;
-  }
-  img, .image object {
-    filter: invert(100%) hue-rotate(180deg);
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  body, table, div, p, dl {
-       color: #373737;
-  }
-  a {
-       color: #3D578C;
-  }
-  .contents a:visited {
-       color: #4665A2;
-  }
-}
-
 /* WiredTiger-specific styling. */
+
 html {
     font-size: small;
 }
 
 body, table, div, p, dl {
 	font-family: "Calibri","Helvetica Neue", Helvetica, Arial, sans-serif;
-	line-height: 1.5;
+    color: #373737;
+    line-height: 1.5;
 }
 
 h1 {
@@ -95,6 +70,14 @@ div.arch_toc h1 {
 
 /* @group Link Styling */
 
+a {
+    color: #3D578C;
+}
+
+.contents a:visited {
+    color: #4665A2;
+}
+
 img {
 	display: block;
 	max-width: 100%;
@@ -103,7 +86,7 @@ img {
 
 div.arch_diagram {
     display: block;
-    background: radial-gradient(var(--header-separator-color),var(--page-background-color));
+    background: radial-gradient(#FFDDAA,#FFFFFF);
     margin-top: 2em;
     margin-bottom: 2em;
 }
@@ -116,7 +99,6 @@ img[src="wt_diagram.png"] {
 }
 
 .arch_head table {
-    color: #000;
     background-color: #FFDDAA;
     border-color: #624D32;
     /*border: solid 1px;*/
