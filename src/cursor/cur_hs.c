@@ -1184,7 +1184,11 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_SESSION_IMPL *session;
 
     session = trunc_info->session;
-    start_file_cursor = ((WT_CURSOR_HS *)trunc_info->start)->file_cursor;
+    /*
+     * Special case: trunc_info typically stores the top level cursor, but for hs_cursors we store
+     * their backing file cursor instead.
+     */
+    start_file_cursor = trunc_info->start;
     stop_file_cursor = NULL;
 
     WT_STAT_DSRC_INCR(session, cursor_truncate);
@@ -1192,7 +1196,11 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
     WT_RET(__wt_cursor_localkey(start_file_cursor));
     if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP)) {
-        stop_file_cursor = ((WT_CURSOR_HS *)trunc_info->stop)->file_cursor;
+        /*
+         * Special case: trunc_info typically stores the top level cursor, but for hs_cursors we
+         * store their backing file cursor instead.
+         */
+        stop_file_cursor = trunc_info->stop;
         WT_ASSERT(session, F_ISSET(stop_file_cursor, WT_CURSTD_KEY_INT));
         WT_RET(__wt_cursor_localkey(stop_file_cursor));
     }
@@ -1210,13 +1218,14 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 int
 __wt_curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 {
-    WT_CURSOR *start_file_cursor;
     WT_DECL_RET;
 
-    start_file_cursor = ((WT_CURSOR_HS *)trunc_info->start)->file_cursor;
-
+    /*
+     * Special case: trunc_info typically stores the top level cursor, but for hs_cursors we store
+     * their backing file cursor instead.
+     */
     WT_WITH_BTREE(
-      trunc_info->session, CUR2BT(start_file_cursor), ret = __curhs_range_truncate(trunc_info));
+      trunc_info->session, CUR2BT(trunc_info->start), ret = __curhs_range_truncate(trunc_info));
 
     return (ret);
 }

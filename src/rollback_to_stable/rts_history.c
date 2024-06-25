@@ -154,9 +154,13 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     } while (hs_btree_id != btree_id);
 
-    if (!dryrun)
-        WT_ERR(truncate_session->truncate(
-          truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
+    if (!dryrun) {
+        WT_ASSERT(session, hs_cursor_start != NULL);
+        WT_ASSERT(session, hs_cursor_stop != NULL);
+        WT_ERR(truncate_session->truncate(truncate_session, NULL,
+          ((WT_CURSOR_HS *)hs_cursor_start)->file_cursor,
+          ((WT_CURSOR_HS *)hs_cursor_stop)->file_cursor, NULL));
+    }
 
     WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
 
