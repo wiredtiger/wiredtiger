@@ -533,16 +533,17 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * If we've reached a full update and it's in the history store we don't need to
              * continue as anything beyond this point won't help with calculating deltas.
              */
-            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
-                break;
+            if (F_ISSET(upd, WT_UPDATE_HS)) {
+                if (upd->type == WT_UPDATE_STANDARD)
+                    break;
 
-            /*
-             * If we have an update in the history store that is not a full update, we save the flag
-             * state to deal with this later. We cannot break here as there are scenarios we need to
-             * finish the loop to construct the full update.
-             */
-            if F_ISSET (upd, WT_UPDATE_HS)
+                /*
+                 * If we have an update in the history store that is not a full update, we save the
+                 * flag state to deal with this later. We cannot break here as there are scenarios
+                 * we need to finish the loop to construct the full update.
+                 */
                 hs_flag_set = true;
+            }
 
             /*
              * Save the first update without a timestamp in the update chain. This is used to remove
@@ -989,10 +990,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * Fail the eviction if we detect any timestamp ordering issue and the error flag is set. We
      * cannot modify the history store to fix the update's timestamps as it may make the history
      * store checkpoint inconsistent.
-     *
-     * It is still possible for a scenario where we have non-timestamped updates but reinsert is
-     * false, this is the case for non-timestamped deletes only. We still enter the function for
-     * removal and skip reinserting. We do not want to return EBUSY here.
      */
     if (error_on_ts_ordering) {
         ret = EBUSY;
