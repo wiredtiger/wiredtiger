@@ -255,6 +255,10 @@ struct __wt_name_flag {
         TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);                              \
         ++(conn)->dh_bucket_count[bucket];                                                       \
         ++(conn)->dhandle_count;                                                                 \
+        if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
+            ++(conn)->dhandle_checkpoint_count;                                                  \
+        WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
+        ++(conn)->dhandle_types_count[(dhandle)->type];                                          \
     } while (0)
 
 #define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
@@ -264,6 +268,10 @@ struct __wt_name_flag {
         TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \
         --(conn)->dh_bucket_count[bucket];                                                       \
         --(conn)->dhandle_count;                                                                 \
+        if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
+            --(conn)->dhandle_checkpoint_count;                                                  \
+        WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
+        --(conn)->dhandle_types_count[(dhandle)->type];                                          \
     } while (0)
 
 /*
@@ -428,9 +436,11 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
     WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
-    /* Locked: handles in each bucket */
-    uint64_t *dh_bucket_count;
-    uint64_t dhandle_count;                  /* Locked: handles in the queue */
+    uint64_t *dh_bucket_count;         /* Locked: handles in each bucket */
+    uint64_t dhandle_count;            /* Locked: handles in the queue */
+    uint64_t dhandle_checkpoint_count; /* Locked: checkpoint handles in the queue */
+    /* Locked: handles by type in the queue */
+    uint64_t dhandle_types_count[WT_DHANDLE_TYPE_NUM];
     wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
@@ -734,18 +744,19 @@ struct __wt_connection_impl {
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x001u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x002u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x004u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x008u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x010u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x020u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x040u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x080u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x100u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x200u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x400u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x800u
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x0002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0008u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0010u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0020u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0040u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0080u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0100u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0200u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x0400u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x0800u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x1000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 
