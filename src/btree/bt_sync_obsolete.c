@@ -338,7 +338,7 @@ __checkpoint_cleanup_page_skip(
      * checks to verify the cache can handle it.
      */
     if (__wt_cache_aggressive(session) || __wt_cache_full(session) || __wt_cache_stuck(session) ||
-      __wt_eviction_needed(session, false, false, NULL)) {
+      __wt_eviction_clean_needed(session, NULL)) {
         *skipp = true;
         return (0);
     }
