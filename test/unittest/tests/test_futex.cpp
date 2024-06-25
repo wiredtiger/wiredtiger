@@ -213,9 +213,8 @@ public:
 
         /* Presence of any error other than timeout is failure. */
         auto err_cnt = count_if(wbeg, wend, bind(&waiter::error, _1));
-        if (err_cnt > 0) {
+        if (err_cnt > 0)
             return (outcome::Error);
-        }
 
         /*
          * If "wake all" is being tested it is expected to be the only signal: use a simplified
@@ -238,9 +237,9 @@ public:
              * The timeout count should match the difference in the number of explicit wake up
              * signals and waiters.
              */
-            if (timeout_cnt != (_waiters.size() - wake_sigs.size())) {
+            if (timeout_cnt != (_waiters.size() - wake_sigs.size()))
                 return (outcome::UnexpectedTimeouts);
-            }
+
             /* Now that timeouts are accounted for, they are no longer of interest. */
             rem_waiters.remove_if(bind(&waiter::timedout, _1));
         }
@@ -259,13 +258,12 @@ public:
                  */
                 auto spurious = find_if(
                   rem_waiters.begin(), rem_waiters.end(), bind(&waiter::spurious, _1, sig._value));
-                if (spurious == rem_waiters.end()) {
+                if (spurious == rem_waiters.end())
                     return (outcome::LostWakeup);
-                }
+
                 rem_waiters.erase(spurious);
-            } else {
+            } else
                 rem_waiters.erase(match);
-            }
             rem_sigs.pop_front();
         }
 
