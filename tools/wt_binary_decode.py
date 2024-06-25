@@ -533,21 +533,18 @@ def row_decode(p, b, pagehead, blockhead, pagestats):
 
             try:
                 if s != '?':
-                    if (short == 0 and celltype == 'WT_CELL_VALUE' and opts.bson):
-                        if (not have_bson):
-                            return
-                        
-                        if (bson.is_valid(x)):
+                    if (cell.is_value and opts.bson and have_bson):
+                        if (bson.is_valid(cell.data)):
                             p.rint_v("cell is valid BSON")
-                            decoded_data = bson.BSON(x).decode()
-                            pprint.pprint(decoded_data)
+                            decoded_data = bson.BSON(cell.data).decode()
+                            p.rint_v(pprint.pformat(decoded_data, indent=2))
                         else:
                             p.rint_v("cannot decode cell as BSON")
                             p.rint_v(f'{desc_str}{s}:')
-                            p.rint_v(raw_bytes(x))
+                            p.rint_v(raw_bytes(cell.data))
                     else:
                         p.rint_v(f'{desc_str}{s}:')
-                        p.rint_v(raw_bytes(x))
+                        p.rint_v(raw_bytes(cell.data))
                 else:
                     dumpraw(p, b, cellpos)
             except (IndexError, ValueError):
