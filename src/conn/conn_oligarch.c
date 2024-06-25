@@ -646,5 +646,5 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 
     __wt_atomic_store32(&manager->state, WT_OLIGARCH_MANAGER_OFF);
 
-    return (ret);
+    return (0);
 }
