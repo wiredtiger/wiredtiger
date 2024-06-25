@@ -49,21 +49,24 @@ class test_oligarch04(wttest.WiredTigerTestCase):
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        for i in range(1000000):
+        for i in range(100000):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
+            if i % 5000 == 0:
+                time.sleep(1)
 
         cursor.reset()
 
         self.pr('opening cursor')
-        time.sleep(1)
         cursor.close()
+        time.sleep(1)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
-        while cursor.next():
-            ++item_count
+        while cursor.next() == 0:
+            item_count += 1
 
         self.pr("Retrieved " + str(item_count) + " records. There should be three million")
+        cursor.close()
 

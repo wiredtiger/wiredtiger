@@ -37,13 +37,14 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     uri_base = "test_oligarch1"
+    conn_config = 'log=(enabled),verbose=[oligarch]'
 
     uri = "oligarch:" + uri_base
 
     metadata_uris = [
             (uri, ''),
-            ("table:" + uri_base + ".wt_ingest", ''),
-            ("table:" + uri_base + ".wt_stable", '')
+            ("file:" + uri_base + ".wt_ingest", ''),
+            ("file:" + uri_base + ".wt_stable", '')
             ]
 
     # Load the storage store extension.

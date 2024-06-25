@@ -1098,9 +1098,9 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /*
-     * Create a pair of constituent tables. The ingest table has WAL enabled (in the future in a
-     * special mode that allows for it to be ignored by recovery, but for now just regular logging.
-     * That logging will allow for WAL replay into the stable table.
+     * Create a pair of constituent tables. The ingest table has write ahead log enabled (in the
+     * future in a special mode that allows for it to be ignored by recovery, but for now just
+     * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=true,oligarch_constituent=true)"));
     ingest_cfg[2] = tmp->data;

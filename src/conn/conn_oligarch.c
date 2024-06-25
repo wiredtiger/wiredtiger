@@ -26,7 +26,7 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
     /* It's possible to race - only start the manager if we are the winner */
     if (!__wt_atomic_cas32(
           &manager->state, WT_OLIGARCH_MANAGER_OFF, WT_OLIGARCH_MANAGER_STARTING)) {
-        /* This isn't optimal, but it'll do. It's uncommong for multiple threads to be trying to
+        /* This isn't optimal, but it'll do. It's uncommon for multiple threads to be trying to
          * start the oligarch manager at the same time.
          * It's probably fine for any "loser" to proceed without waiting, but be conservative
          * and have a semantic where a return from this function indicates a running oligarch
@@ -386,7 +386,7 @@ __oligarch_log_replay_op_apply(
 
     case WT_LOGOP_ROW_REMOVE:
         /*
-         * TODO: There should not be any remove operations logged - we turn them into tombston
+         * TODO: There should not be any remove operations logged - we turn them into tombstone
          * writes.
          */
         WT_ERR(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
@@ -526,17 +526,23 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
  *     group code so it does not need to loop itself.
  */
 int
-__wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
+__wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
 {
     WT_DECL_RET;
     WT_OLIGARCH_MANAGER *manager;
+    WT_SESSION_IMPL *session;
 
-    WT_UNUSED(thread);
+    WT_UNUSED(session_shared);
+    session = thread->session;
     WT_ASSERT(session, session->id != 0);
     manager = &S2C(session)->oligarch_manager;
 
-    /* There are two threads: let one do log replay and the other checkpoints. */
-    if (__wt_atomic_load32(&manager->log_applying) == 0 &&
+    /*
+     * There are two threads: let one do log replay and the other checkpoints. For now use just the
+     * first thread in the group for log application, otherwise the way cursors are saved in the
+     * manager queue gets confused (since they are associated with sessions).
+     */
+    if (thread->id == 0 && __wt_atomic_load32(&manager->log_applying) == 0 &&
       __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
         if (WT_IS_MAX_LSN(&manager->max_replay_lsn))
             ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __oligarch_log_replay, NULL);
@@ -558,7 +564,7 @@ __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             ret = 0;
         }
         __wt_atomic_store32(&manager->log_applying, 0);
-    } else
+    } else if (thread->id == 1)
         WT_RET(__oligarch_manager_checkpoint_one(session));
 
     /* Sometimes the logging subsystem is still getting started and ENOENT is expected */
@@ -598,7 +604,6 @@ int
 __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
     uint32_t i;
