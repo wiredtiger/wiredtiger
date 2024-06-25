@@ -714,6 +714,12 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /*
+     * Limit the number of obsolete time window pages that are marked as dirty to reduce the load.
+     */
+    if (S2BT(session)->obsolete_tw_pages >= WT_BTREE_OBSOLETE_TW_PAGES_MAX)
+        return (0);
+
+    /*
      * Rewriting internal pages doesn't clean the obsolete time window until the leaf pages are
      * cleared from the obsolete time window.
      */
@@ -757,6 +763,11 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_modify_init(session, ref->page));
         __wt_page_modify_set(session, ref->page);
 
+        /*
+         * To prevent the race while incrementing this variable, no atomic functions are required.
+         * More clean pages may become dirty as a result of an outdated value.
+         */
+        S2BT(session)->obsolete_tw_pages++;
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
     }
 

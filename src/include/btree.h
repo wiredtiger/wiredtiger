@@ -225,6 +225,9 @@ struct __wt_btree {
 #define WT_BTREE_CLEAN_MINUTES 10
     uint64_t clean_ckpt_timer;
 
+#define WT_BTREE_OBSOLETE_TW_PAGES_MAX 100
+    uint32_t obsolete_tw_pages;
+
     /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
