@@ -382,7 +382,13 @@ __wt_update_obsolete_check(
           upd->next->txnid == WT_TXN_ABORTED && upd->next->prepare_state == WT_PREPARE_INPROGRESS)
             continue;
 
-        if (__wt_txn_upd_visible_all(session, upd)) {
+        /*
+         * If a table has garbage collection enabled, then trim updates as possible. We should check
+         * the logic here - it might be possible to do something more aggressive?
+         */
+        if (__wt_txn_upd_visible_all(session, upd) ||
+          (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
+            WT_TXNID_LT(upd->txnid, CUR2BT(cbt)->oldest_live_txnid))) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else

@@ -880,6 +880,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
       upd_select->upd;
 
     /*
+     * If the table is being garbage collected and the selected update is obsolete then don't write
+     * it out. Use the same mechanism as if a tombstone was found.
+     */
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
+      WT_TXNID_LT(upd_select->tw.start_txn, S2BT(session)->oldest_live_txnid)) {
+        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_2, "%s",
+          "oligarch table record garbage collected 1");
+        onpage_upd = NULL;
+    }
+
+    /*
      * If we have done a prepared rollback, we may have restored a history store value to the update
      * chain but the same value is left in the history store. Save it to delete it from the history
      * store later.

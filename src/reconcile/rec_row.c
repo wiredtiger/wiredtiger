@@ -776,8 +776,8 @@ __wt_rec_row_leaf(
             (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
               WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)))) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
-                  "oligarch table record garbage collected");
+                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_2, "%s",
+                  "oligarch table record garbage collected 2");
             upd = &upd_tombstone;
         }
 
