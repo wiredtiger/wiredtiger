@@ -768,14 +768,16 @@ __wt_rec_row_leaf(
 
         /*
          * If we reconcile an on disk key with a globally visible stop time point and there are no
-         * new updates for that key, skip writing that key. Or if garbage collection is enabled
-         * for the table, and the value has become obsolete.
+         * new updates for that key, skip writing that key. Or if garbage collection is enabled for
+         * the table, and the value has become obsolete.
          */
-        if (upd == NULL && (__wt_txn_tw_stop_visible_all(session, twp) ||
-            (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)))) {
+        if (upd == NULL &&
+          (__wt_txn_tw_stop_visible_all(session, twp) ||
+            (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+              WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)))) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
-                  "%s", "oligarch table record garbage collected");
+                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
+                  "oligarch table record garbage collected");
             upd = &upd_tombstone;
         }
 

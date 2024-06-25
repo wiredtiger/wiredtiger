@@ -148,9 +148,9 @@ struct __wt_oligarch_manager {
     uint32_t open_oligarch_table_count;
     /*
      * This is a sparsely populated array of oligarch tables - each fileid in the system gets an
-     * entry in this table. Lookups happen via checking for a valid manager entry at the file ID
-     * offset for the ingest constituent in an oligarch table. It's done that way so that we can
-     * cheaply check whether a log record belongs to an oligarch table and should be applied.
+     * entry in this table. A lookups checks for a valid manager entry at the file ID offset for the
+     * ingest constituent in an oligarch table. It's done that way so that we can cheaply check
+     * whether a log record belongs to an oligarch table and should be applied.
      */
     WT_OLIGARCH_MANAGER_ENTRY **entries;
 

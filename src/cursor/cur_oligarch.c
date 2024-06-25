@@ -256,7 +256,7 @@ __coligarch_open_cursors(WT_CURSOR_OLIGARCH *coligarch, bool update)
         ckpt_cfg[2] = NULL;
 
         /*
-         * We may have a stable chunk with no checkpoint yet. If that's the case then open a cusror
+         * We may have a stable chunk with no checkpoint yet. If that's the case then open a cursor
          * on stable without a checkpoint. It will never return an invalid result (it's content is
          * by definition trailing the ingest cursor. It is just slightly less efficient, and also
          * not an accurate reflection of what we want in terms of sharing checkpoint across
@@ -319,14 +319,16 @@ __coligarch_get_current(
     if (ingest_positioned && stable_positioned) {
         WT_RET(__wt_compare(
           session, collator, &coligarch->ingest_cursor->key, &coligarch->stable_cursor->key, &cmp));
-        if (cmp == 0 || smallest ? cmp < 0 : cmp > 0)
+        if (smallest ? cmp < 0 : cmp > 0)
+            current = coligarch->ingest_cursor;
+        else if (cmp == 0)
             current = coligarch->ingest_cursor;
         else
             current = coligarch->stable_cursor;
 
         /*
          * If the cursors are equal, choose the ingest cursor to return the result but remember not
-         * to later return the same result from the stable curor.
+         * to later return the same result from the stable cursor.
          */
         if (cmp == 0)
             F_SET(coligarch, WT_COLIGARCH_MULTIPLE);
@@ -435,7 +437,7 @@ __coligarch_iterate_constituent(WT_CURSOR_OLIGARCH *coligarch, WT_CURSOR *consti
     WT_DECL_RET;
     int cmp;
 
-    /* To iteate an oligarch cursor, which has two constituent cursors, we are in one of a few
+    /* To iterate an oligarch cursor, which has two constituent cursors, we are in one of a few
      * states:
      * * Neither constituent is positioned - in which case both cursors need to be moved to the
      * start (or end) of the tree.
@@ -668,7 +670,7 @@ __coligarch_lookup(WT_CURSOR_OLIGARCH *coligarch, WT_ITEM *value)
             ret = WT_NOTFOUND;
         /*
          * Even a tombstone is considered found here - the delete overrides any remaining record in
-         * the stbale constituent.
+         * the stable constituent.
          */
         found = true;
     }

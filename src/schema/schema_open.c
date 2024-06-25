@@ -673,7 +673,7 @@ __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
     /* Start the oligarch manager thread if it isn't running. */
     WT_RET(__wt_oligarch_manager_start(session));
 
-    /* Add the ingest table file identifer into the oligarch managers list of tracked tables */
+    /* Add the ingest table file identifier into the oligarch managers list of tracked tables */
     ingest_id = ((WT_BTREE *)oligarch->ingest->handle)->id;
     stable_id = ((WT_BTREE *)oligarch->stable->handle)->id;
 

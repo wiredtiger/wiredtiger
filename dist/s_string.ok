@@ -591,6 +591,7 @@ cntvct
 colcheck
 colgroup
 colgroups
+coligarch
 collatorp
 comparator
 comparators
@@ -657,6 +658,7 @@ dbar
 dbs
 dcalloc
 ddd
+debuggable
 decile
 deciles
 decl
@@ -872,6 +874,7 @@ initsize
 initval
 inlined
 inlining
+inlock
 inmem
 inmemory
 inserters
@@ -1100,6 +1103,7 @@ patchp
 pathname
 pathnames
 perf
+performant
 pfx
 pid
 pmem

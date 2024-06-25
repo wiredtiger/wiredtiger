@@ -26,7 +26,7 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
     /* It's possible to race - only start the manager if we are the winner */
     if (!__wt_atomic_cas32(
           &manager->state, WT_OLIGARCH_MANAGER_OFF, WT_OLIGARCH_MANAGER_STARTING)) {
-        /* This isn't optimal, but it'll do. It's uncommong for multiple threads to be trying to
+        /* This isn't optimal, but it'll do. It's uncommon for multiple threads to be trying to
          * start the oligarch manager at the same time.
          * It's probably fine for any "loser" to proceed without waiting, but be conservative
          * and have a semantic where a return from this function indicates a running oligarch
@@ -108,7 +108,8 @@ __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, ui
     entry->oligarch_table = (WT_OLIGARCH *)session->dhandle;
 
     /*
-     * There is a bootstrapping problem. Use the global oldest ID as a starting point. Nothing can have been written into the ingest table, so it will be a conservative choice.
+     * There is a bootstrapping problem. Use the global oldest ID as a starting point. Nothing can
+     * have been written into the ingest table, so it will be a conservative choice.
      */
     entry->checkpoint_txn_id = __wt_atomic_loadv64(&S2C(session)->txn_global.oldest_id);
 
@@ -225,9 +226,9 @@ __oligarch_manager_checkpoint_locked(WT_SESSION_IMPL *session)
 
 /*
  * __oligarch_manager_checkpoint_one --
- *     Review the oligarch tables and checkpoint one if it has enough accumulated content. For
- *     now this just checkpoints the first table that meets the threshold. In the future it should
- *     be more fair in selecting a table.
+ *     Review the oligarch tables and checkpoint one if it has enough accumulated content. For now
+ *     this just checkpoints the first table that meets the threshold. In the future it should be
+ *     more fair in selecting a table.
  */
 static int
 __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
@@ -238,31 +239,30 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
     WT_TXN_ISOLATION saved_isolation;
-    uint32_t i;
     uint64_t satisfied_txn_id;
+    uint32_t i;
 
     manager = &S2C(session)->oligarch_manager;
 
     /* The table count never shrinks, so this is safe. It probably needs the oligarch lock */
     for (i = 0; i < manager->open_oligarch_table_count; i++) {
         if ((entry = manager->entries[i]) != NULL &&
-                entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
+          entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
             __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
               "oligarch table %s being checkpointed", entry->stable_uri);
 
             /*
-             * Retrieve the current tranasaction ID - ensure it actually gets read from
-             * the shared variable here, it would lead to data loss if it was read later
-             * and included transaction IDs that aren't included in the checkpoint.
-             * It's OK for it to miss IDs - this requires an "at least as much" guarantee, not
-             * an exact match guarantee.
+             * Retrieve the current transaction ID - ensure it actually gets read from the shared
+             * variable here, it would lead to data loss if it was read later and included
+             * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs -
+             * this requires an "at least as much" guarantee, not an exact match guarantee.
              */
             WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
 
             WT_RET(__oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
             /*
-             * Clear out the byte count before checkpointing - otherwise any writes done
-             * during the checkpoint won't count towards the next threshold.
+             * Clear out the byte count before checkpointing - otherwise any writes done during the
+             * checkpoint won't count towards the next threshold.
              */
             entry->accumulated_write_bytes = 0;
 
@@ -278,13 +278,14 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
              */
             WT_RET(__wt_meta_track_on(session));
             WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
-                   ret = __oligarch_manager_checkpoint_locked(session));
+              ret = __oligarch_manager_checkpoint_locked(session));
             WT_TRET(__wt_meta_track_off(session, false, ret != 0));
             session->txn->isolation = saved_isolation;
             if (ret == 0) {
                 entry->checkpoint_txn_id = satisfied_txn_id;
                 ingest_btree = (WT_BTREE *)entry->oligarch_table->ingest->handle;
-                WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT), "Ingest table not setup for garbage collection");
+                WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
+                  "Ingest table not setup for garbage collection");
                 ingest_btree->oldest_live_txnid = satisfied_txn_id;
             }
 
@@ -357,8 +358,8 @@ __oligarch_log_replay_op_apply(
                  * Build/insert a complete value during recovery rather than using cursor modify to
                  * create a partial update (for no particular reason than simplicity).
                  */
-                WT_ERR(__wt_modify_apply_item(
-                  CUR2S(stable_cursor), stable_cursor->value_format, &stable_cursor->value, value.data));
+                WT_ERR(__wt_modify_apply_item(CUR2S(stable_cursor), stable_cursor->value_format,
+                  &stable_cursor->value, value.data));
                 WT_ERR(stable_cursor->insert(stable_cursor));
                 entry->accumulated_write_bytes += (key.size + stable_cursor->value.size);
                 applied = true;
@@ -369,25 +370,25 @@ __oligarch_log_replay_op_apply(
     case WT_LOGOP_ROW_PUT:
         WT_ERR(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
         if ((entry = manager->entries[fileid]) != NULL) {
-		/*
-            __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
-              "oligarch log application row store put applying to stable table %s", entry->ingest_uri);
-	      */
+            /*
+        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
+          "oligarch log application row store put applying to stable table %s", entry->ingest_uri);
+          */
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
             __wt_cursor_set_raw_value(stable_cursor, &value);
             WT_ERR(stable_cursor->insert(stable_cursor));
 
-	    entry->accumulated_write_bytes += (key.size + value.size);
+            entry->accumulated_write_bytes += (key.size + value.size);
             applied = true;
         }
         break;
 
     case WT_LOGOP_ROW_REMOVE:
-	/*
-	 * TODO: There should not be any remove operations logged - we turn them into tombston
-	 * writes.
-	 */
+        /*
+         * TODO: There should not be any remove operations logged - we turn them into tombstone
+         * writes.
+         */
         WT_ERR(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
         if ((entry = manager->entries[fileid]) != NULL) {
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
@@ -398,7 +399,7 @@ __oligarch_log_replay_op_apply(
              * recovery still processing the log record of the remove.
              */
             WT_ERR_NOTFOUND_OK(stable_cursor->remove(stable_cursor), false);
-	    entry->accumulated_write_bytes += (key.size + value.size);
+            entry->accumulated_write_bytes += (key.size + value.size);
             applied = true;
         }
         break;
@@ -452,7 +453,7 @@ static int
 __oligarch_log_replay_commit_apply(
   WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
 {
-	/*
+    /*
      * __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
      *   "oligarch log application commit applying");
      */
@@ -525,30 +526,37 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
  *     group code so it does not need to loop itself.
  */
 int
-__wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
+__wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
 {
     WT_DECL_RET;
     WT_OLIGARCH_MANAGER *manager;
+    WT_SESSION_IMPL *session;
 
-    WT_UNUSED(thread);
+    WT_UNUSED(session_shared);
+    session = thread->session;
     WT_ASSERT(session, session->id != 0);
     manager = &S2C(session)->oligarch_manager;
 
-    /* There are two threads: let one do log replay and the other checkpoints. */
-    if (__wt_atomic_load32(&manager->log_applying) == 0 &&
-        __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
+    /*
+     * There are two threads: let one do log replay and the other checkpoints. For now use just the
+     * first thread in the group for log application, otherwise the way cursors are saved in the
+     * manager queue gets confused (since they are associated with sessions).
+     */
+    if (thread->id == 0 && __wt_atomic_load32(&manager->log_applying) == 0 &&
+      __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
         if (WT_IS_MAX_LSN(&manager->max_replay_lsn))
             ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __oligarch_log_replay, NULL);
         else
-            ret =
-              __wt_log_scan(session, &manager->max_replay_lsn, NULL, 0, __oligarch_log_replay, NULL);
+            ret = __wt_log_scan(
+              session, &manager->max_replay_lsn, NULL, 0, __oligarch_log_replay, NULL);
 
-        /* Ignore errors at startup or attempting to read more log record when no additional content has been generated */
+        /* Ignore errors at startup or attempting to read more log record when no additional content
+         * has been generated */
         if (ret == ENOENT || ret == WT_NOTFOUND)
             ret = 0;
         /*
-         * The log scan interface returns a generic error if the LSN is past the end of the log file. In that case bump
-         * the LSN to be the first record in the next file.
+         * The log scan interface returns a generic error if the LSN is past the end of the log
+         * file. In that case bump the LSN to be the first record in the next file.
          */
         if (ret == WT_ERROR) {
             manager->max_replay_lsn.l.file++;
@@ -556,7 +564,7 @@ __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             ret = 0;
         }
         __wt_atomic_store32(&manager->log_applying, 0);
-    } else
+    } else if (thread->id == 1)
         WT_RET(__oligarch_manager_checkpoint_one(session));
 
     /* Sometimes the logging subsystem is still getting started and ENOENT is expected */
@@ -566,24 +574,23 @@ __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 }
 
 /*
- * __wt_oligarch_manager_get_pinned_id  --
+ * __wt_oligarch_manager_get_pinned_id --
  *     Retrieve the oldest checkpoint ID that's relevant to garbage collection
  */
 void
 __wt_oligarch_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
 {
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
     WT_OLIGARCH_MANAGER *manager;
-    uint32_t i;
+    WT_OLIGARCH_MANAGER_ENTRY *entry;
     uint64_t pinned;
+    uint32_t i;
 
     manager = &S2C(session)->oligarch_manager;
 
     /* If no tables are being managed, then don't pin anything */
     pinned = WT_TXN_MAX;
     for (i = 0; i < manager->open_oligarch_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL &&
-            WT_TXNID_LT(entry->checkpoint_txn_id, pinned))
+        if ((entry = manager->entries[i]) != NULL && WT_TXNID_LT(entry->checkpoint_txn_id, pinned))
             pinned = entry->checkpoint_txn_id;
     }
     *pinnedp = pinned;
@@ -597,7 +604,6 @@ int
 __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
     uint32_t i;

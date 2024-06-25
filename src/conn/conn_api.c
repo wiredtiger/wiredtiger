@@ -1220,7 +1220,7 @@ err:
 
     /*
      * Shut down the oligarch manager thread, ideally this would be taken care of in connection
-     * close below, but it needs to preceed global transaction state shutdown, so do it here as
+     * close below, but it needs to precede global transaction state shutdown, so do it here as
      * well. It also needs to happen prior to draining transaction activity - since the manager
      * artificially pins transaction state to allow for garbage collection in ingest tables.
      */

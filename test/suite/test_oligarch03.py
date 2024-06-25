@@ -58,17 +58,22 @@ class test_oligarch03(wttest.WiredTigerTestCase):
         cursor.search()
         value = cursor.get_value()
         value = cursor["Hello"]
-        print("Search retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+        self.pr("Search retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
         cursor.reset()
         while cursor.next() == 0:
-            print("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
         cursor.reset()
         while cursor.prev() == 0:
-            print("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
-        self.pr('opening cursor')
+        self.pr('closing cursor')
         time.sleep(0.5)
         cursor.close()
+
+        self.pr('closing cursor')
+        cursor = self.session.open_cursor(self.uri, None, None)
+        while cursor.next() == 0:
+            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
