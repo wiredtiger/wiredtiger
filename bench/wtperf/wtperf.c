@@ -156,10 +156,10 @@ update_value_delta(WTPERF_THREAD *thread, int64_t delta)
         delta = __wt_random(&thread->rnd) % (opts->value_sz_max - opts->value_sz);
 
     /* Ensure we aren't changing across boundaries */
-    if (delta > 0 && len + delta > opts->value_sz_max)
-        delta = opts->value_sz_max - len;
-    else if (delta < 0 && len + delta < opts->value_sz_min)
-        delta = opts->value_sz_min - len;
+    if (delta > 0 && len + delta + 1 > opts->value_sz_max)
+        delta = opts->value_sz_max - 1 - len;
+    else if (delta < 0 && len + delta + 1 < opts->value_sz_min)
+        delta = opts->value_sz_min - 1 - len;
 
     /* Bail if there isn't anything to do */
     if (delta == 0)
@@ -169,8 +169,9 @@ update_value_delta(WTPERF_THREAD *thread, int64_t delta)
         value[len + delta] = '\0';
     else {
         /* Extend the value by the configured amount. */
-        for (new_len = len; new_len < opts->value_sz_max && new_len - len < delta; new_len++)
+        for (new_len = len; new_len <= len + delta; ++new_len)
             value[new_len] = 'a';
+        value[new_len] = '\0';
     }
 }
 
