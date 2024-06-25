@@ -885,8 +885,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      */
     if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
       WT_TXNID_LT(upd_select->tw.start_txn, S2BT(session)->oldest_live_txnid)) {
-        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_2, "%s",
-          "oligarch table record garbage collected 1");
+        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
+          "oligarch table record garbage collected 3");
         onpage_upd = NULL;
     }
 
