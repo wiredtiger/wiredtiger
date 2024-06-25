@@ -781,6 +781,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
      * __wti_rec_hs_clear_on_tombstone also removes the corresponding entries from the history
      * store, which is necessary for correctness. If the two threads try to remove the same history
      * store key at around the same time, we could get a WT_NOTFOUND here.
+     *
+     * FIXME-WT-13198: Check if this race can be avoided, in which case we can remove the check for
+     * WT_NOTFOUND and treat it like other errors.
      */
     if (rip != NULL)
         WT_ERR_NOTFOUND_OK(__rts_btree_row_modify(session, ref, &upd, key), true);

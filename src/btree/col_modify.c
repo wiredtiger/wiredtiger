@@ -311,7 +311,10 @@ err:
         }
     }
 
-    /* If upd was freed, set the update argument to NULL to prevent use after free. */
+    /*
+     * If upd was freed or if we know that its ownership was moved to a page, set the update
+     * argument to NULL to prevent future use by the caller.
+     */
     if (upd == NULL && updp_arg != NULL)
         *updp_arg = NULL;
 
