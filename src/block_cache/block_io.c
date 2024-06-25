@@ -270,7 +270,6 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
     } else {
-        z_start = __wt_clock(session);
         /* Skip the header bytes of the source data. */
         src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
         src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
@@ -295,11 +294,15 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
         /* Skip the header bytes of the destination data. */
         dst = (uint8_t *)ctmp->mem + WT_BLOCK_COMPRESS_SKIP;
         dst_len = len;
-
+        z_start = __wt_clock(session);
         compression_failed = 0;
         WT_ERR(btree->compressor->compress(btree->compressor, &session->iface, src, src_len, dst,
           dst_len, &result_len, &compression_failed));
         result_len += WT_BLOCK_COMPRESS_SKIP;
+        z_finish = __wt_clock(session);
+        z_time = WT_CLOCKDIFF_MS(z_finish, z_start);
+        if (z_time > S2C(session)->z_maximum_milliseconds)
+            S2C(session)->z_maximum_milliseconds = z_time;
 
         /*
          * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
@@ -331,10 +334,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
             if (compressed_sizep != NULL)
                 *compressed_sizep = result_len;
         }
-        z_finish = __wt_clock(session);
-        z_time = WT_CLOCKDIFF_MS(z_finish, z_start);
-        if (z_time > S2C(session)->z_maximum_milliseconds)
-            S2C(session)->z_maximum_milliseconds = z_time;
+
     }
 
     /*
