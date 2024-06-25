@@ -309,14 +309,14 @@ err:
             if (last_upd != NULL)
                 last_upd->next = NULL;
         }
-    }
 
-    /*
-     * If upd was freed or if we know that its ownership was moved to a page, set the update
-     * argument to NULL to prevent future use by the caller.
-     */
-    if (upd == NULL && updp_arg != NULL)
-        *updp_arg = NULL;
+        /*
+         * If upd was freed or if we know that its ownership was moved to a page, set the update
+         * argument to NULL to prevent future use by the caller.
+         */
+        if (upd == NULL && updp_arg != NULL)
+            *updp_arg = NULL;
+    }
 
     return (ret);
 }
