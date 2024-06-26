@@ -939,7 +939,9 @@ __btcur_search_neighboring(
             if (*exact <= 0)
                 return (ret);
         }
-    } else if (prepare_conflict && compare > 0) {
+    } else {
+        WT_ASSERT(session, prepare_conflict && compare > 0);
+
         /*
          * We didn't find an exact match: try after the search key, then before. We have to loop
          * here because at low isolation levels, new records could appear as we are stepping through
