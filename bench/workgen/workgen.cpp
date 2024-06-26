@@ -2622,8 +2622,8 @@ VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
     WT_CONNECTION *connection = session->connection;
     WT_SESSION *verify_session;
     // Open a new session for verify as we may want to enable pre-fetching.
-    int ret = connection->open_session(
-      connection, nullptr, verify_session_config.c_str(), &verify_session);
+    int ret =
+      connection->open_session(connection, nullptr, verify_session_config.c_str(), &verify_session);
     if (ret != 0)
         THROW_ERRNO(ret, "Error opening a session.");
 
