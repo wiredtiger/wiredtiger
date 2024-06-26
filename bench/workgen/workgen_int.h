@@ -318,7 +318,7 @@ struct VerifyOperationInternal : OperationInternal {
 
     VerifyOperationInternal() : OperationInternal(), verify_session_config() {}
     VerifyOperationInternal(const VerifyOperationInternal &other) :
-    OperationInternal(other), verify_session_config(other.verify_session_config) {}
+        OperationInternal(other), verify_session_config(other.verify_session_config) {}
     virtual void parse_config(const std::string &config);
     virtual int run(ThreadRunner *runner, WT_SESSION *session);
 };

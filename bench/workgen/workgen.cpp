@@ -2619,15 +2619,16 @@ SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 int
 VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
+    WT_CONNECTION *connection = session->connection;
     WT_SESSION *verify_session;
     // Open a new session for verify as we may want to enable pre-fetching.
-    int ret = session->connection->open_session(
-      session->connection, nullptr, verify_session_config.c_str(), &verify_session);
+    int ret = connection->open_session(
+      connection, nullptr, verify_session_config.c_str(), &verify_session);
     if (ret != 0)
         THROW_ERRNO(ret, "Error opening a session.");
 
     std::string uri = runner->_thread->_op._table._uri;
-    return (session->verify(session, uri.c_str(), nullptr));
+    return (verify_session->verify(verify_session, uri.c_str(), nullptr));
 }
 
 uint64_t
