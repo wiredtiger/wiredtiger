@@ -5541,6 +5541,7 @@ buildvariants:
 # variant will be deleted.
 - name: ubuntu2004-tsan-no-throw
   display_name: "~ Ubuntu 20.04 TSAN (No throw)"
+  batchtime: 1440 # 24 hours
   run_on:
   - ubuntu2004-test
   expansions:
@@ -5589,9 +5590,6 @@ buildvariants:
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
-    - name: chunkcache-test
-    - name: ".workgen-test"
-      batchtime: 1440 # 24 hours
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
