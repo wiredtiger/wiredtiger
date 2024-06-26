@@ -901,8 +901,6 @@ __btcur_search_neighboring(
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
-    WT_ASSERT(session, !prepare_conflict || (prepare_conflict && compare != 0));
-
     /*
      * If we are blocked on prepared conflict on the key that is smaller, walk forwards first. If we
      * are blocked on prepared conflict on the key that is larger, walk backwards first.
