@@ -884,6 +884,64 @@ err:
 }
 
 /*
+ * __btcur_search_walk_next --
+ *     Search for a valid record next to the cursor location.
+ */
+static WT_INLINE int
+__btcur_search_walk_next(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact)
+{
+    WT_BTREE *btree;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    btree = CUR2BT(cbt);
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+
+    while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
+        WT_RET(ret);
+        if (btree->type == BTREE_ROW)
+            WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+        else
+            *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+        if (*exact >= 0)
+            return (ret);
+    }
+
+    return (ret);
+}
+
+/*
+ * __btcur_search_walk_prev --
+ *     Search for a valid record previous to the cursor location.
+ */
+static WT_INLINE int
+__btcur_search_walk_prev(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact)
+{
+    WT_BTREE *btree;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    btree = CUR2BT(cbt);
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+
+    while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+        WT_RET(ret);
+        if (btree->type == BTREE_ROW)
+            WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
+        else
+            *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
+        if (*exact <= 0)
+            return (ret);
+    }
+
+    return (ret);
+}
+
+/*
  * __btcur_search_neighboring --
  *     Search for a valid record around the cursor location.
  *
@@ -902,78 +960,37 @@ __btcur_search_neighboring(
     session = CUR2S(cbt);
 
     /*
-     * If we are blocked on prepared conflict on the key that is smaller, walk forwards first. If we
-     * are blocked on prepared conflict on the key that is larger, walk backwards first.
+     * If we haven't seen a prepared conflict, walk forwards and then walk backwards.
+     *
+     * If we have seen a prepared conflict error, we must be reading with a snapshot. Therefore, no
+     * need to worry about the keys concurrently inserted and prepared as they are not visible to
+     * us.
      */
-    if (!prepare_conflict || (prepare_conflict && compare < 0)) {
+    if (!prepare_conflict) {
         /*
          * We didn't find an exact match: try after the search key, then before. We have to loop
          * here because at low isolation levels, new records could appear as we are stepping through
          * the tree.
          */
-        while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-            /*
-             * We are blocked by a prepared conflict, walk the other direction next. If we have seen
-             * a prepared conflict in a key that is smaller than the search key, directly return
-             * prepared conflict. If we get a prepared conflict error, we must be reading with a
-             * snapshot. Therefore, no need to worry about the keys concurrently inserted and
-             * prepared as they are not visible to us.
-             */
-            if (ret == WT_PREPARE_CONFLICT && !prepare_conflict)
-                break;
-            WT_RET(ret);
-            if (btree->type == BTREE_ROW)
-                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
-            else
-                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-            if (*exact >= 0)
-                return (ret);
-        }
+        ret = __btcur_search_walk_next(cbt, state, exact);
+
+        /* We walked to the end of the tree without finding a match. Walk backwards instead. */
+        if (ret == WT_NOTFOUND || ret == WT_PREPARE_CONFLICT)
+            ret = __btcur_search_walk_prev(cbt, state, exact);
+    } else if (compare < 0)
+        /*
+         * We have seen a prepared conflict in a key that is smaller than the search key, walk
+         * forwards in this case.
+         */
+        ret = __btcur_search_walk_next(cbt, state, exact);
+    else {
+        WT_ASSERT(session, compare > 0);
 
         /*
-         * We walked to the end of the tree without finding a match. Walk backwards instead. If we
-         * hit prepared conflict, return it as we have tried the other direction already.
+         * We have seen a prepared conflict in a key that is larger than the search key, walk
+         * backwards in this case.
          */
-        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
-            WT_RET(ret);
-            if (btree->type == BTREE_ROW)
-                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
-            else
-                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-            if (*exact <= 0)
-                return (ret);
-        }
-    } else {
-        WT_ASSERT(session, prepare_conflict && compare > 0);
-
-        /*
-         * We didn't find an exact match: try after the search key, then before. We have to loop
-         * here because at low isolation levels, new records could appear as we are stepping through
-         * the tree.
-         */
-        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
-            WT_RET(ret);
-            if (btree->type == BTREE_ROW)
-                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
-            else
-                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-            if (*exact <= 0)
-                return (ret);
-        }
-
-        /*
-         * We walked to the end of the tree without finding a match. Walk forwards instead. If we
-         * hit prepared conflict, return it as we have tried the other direction already.
-         */
-        while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-            WT_RET(ret);
-            if (btree->type == BTREE_ROW)
-                WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
-            else
-                *exact = cbt->recno < state->recno ? -1 : cbt->recno == state->recno ? 0 : 1;
-            if (*exact >= 0)
-                return (ret);
-        }
+        ret = __btcur_search_walk_prev(cbt, state, exact);
     }
 
     return (ret);
