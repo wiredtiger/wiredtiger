@@ -950,14 +950,7 @@ static int
 __btcur_search_neighboring(
   WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, bool prepare_conflict, int compare, int *exact)
 {
-    WT_BTREE *btree;
-    WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    btree = CUR2BT(cbt);
-    cursor = &cbt->iface;
-    session = CUR2S(cbt);
 
     /*
      * If we haven't seen a prepared conflict error, walk forwards and then walk backwards.
@@ -974,7 +967,10 @@ __btcur_search_neighboring(
          */
         ret = __btcur_search_walk_next(cbt, state, exact);
 
-        /* We walked to the end of the tree without finding a match. Walk backwards instead. */
+        /*
+         * We walked to the end of the tree without finding a match or hit a prepared conflict
+         * error. Walk backwards instead.
+         */
         if (ret == WT_NOTFOUND || ret == WT_PREPARE_CONFLICT)
             ret = __btcur_search_walk_prev(cbt, state, exact);
     } else if (compare < 0)
@@ -984,7 +980,7 @@ __btcur_search_neighboring(
          */
         ret = __btcur_search_walk_next(cbt, state, exact);
     else {
-        WT_ASSERT(session, compare > 0);
+        WT_ASSERT(CUR2S(cbt), compare > 0);
 
         /*
          * We have seen a prepared conflict error in a key that is larger than the search key, walk
