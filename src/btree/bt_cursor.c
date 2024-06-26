@@ -899,6 +899,10 @@ __btcur_search_walk_next(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exa
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+    /* We have to loop
+     * here because at low isolation levels, new records could appear as we are stepping through
+     * the tree.
+     */
     while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
         WT_RET(ret);
         if (btree->type == BTREE_ROW)
@@ -928,6 +932,10 @@ __btcur_search_walk_prev(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exa
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+    /*
+     * We have to loop here because at low isolation levels, new records could appear as we are
+     * stepping through the tree.
+     */
     while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
         WT_RET(ret);
         if (btree->type == BTREE_ROW)
@@ -960,16 +968,12 @@ __btcur_search_neighboring(
      * us.
      */
     if (!prepare_conflict) {
-        /*
-         * We didn't find an exact match: try after the search key, then before. We have to loop
-         * here because at low isolation levels, new records could appear as we are stepping through
-         * the tree.
-         */
+        /* We didn't find an exact match, try walk forwards first. */
         ret = __btcur_search_walk_next(cbt, state, exact);
 
         /*
-         * We walked to the end of the tree without finding a match or hit a prepared conflict
-         * error. Walk backwards instead.
+         * If we walked to the end of the tree without finding a match or hit a prepared conflict
+         * error, walk backwards.
          */
         if (ret == WT_NOTFOUND || ret == WT_PREPARE_CONFLICT)
             ret = __btcur_search_walk_prev(cbt, state, exact);
