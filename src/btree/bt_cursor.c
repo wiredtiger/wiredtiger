@@ -890,7 +890,7 @@ err:
  */
 static int
 __btcur_search_neighboring(
-  WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exact, int previous_ret, int compare)
+  WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int previous_ret, int compare, int *exact)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
@@ -1098,7 +1098,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 search_neighbour:
         /* We didn't find an exact match, try to find the nearest one. */
         WT_WITHOUT_EVICT_REPOSITION(
-          ret = __btcur_search_neighboring(cbt, &state, &exact, ret, cbt->compare));
+          ret = __btcur_search_neighboring(cbt, &state, ret, cbt->compare, &exact));
         WT_ERR(ret);
     }
 
