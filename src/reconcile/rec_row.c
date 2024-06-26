@@ -489,6 +489,89 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __rec_row_garbage_collect_fixup_update_list --
+ *     Insert a tombstone at the start of an update list if all entries are eligible for
+ *     garbage collection.
+ *     There is duplication between the update list and insert list versions of these functions
+ *     but my head explodes trying to keep the data structures involved mapped in my head, so
+ *     the duplication feels warranted.
+ *     Don't bother tracking the additional memory associated with these tombstones - it is
+ *     about to be freed anyway.
+ */
+static int
+__rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip)
+{
+	WT_BTREE *btree;
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    WT_UPDATE *first_upd, *tombstone, **upd_entry;
+
+	btree = S2BT(session);
+    page = r->page;
+    mod = page->modify;
+
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
+        return (0);
+    if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
+        return (0);
+
+    if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
+        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
+          "oligarch table record garbage collected 5");
+        WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+        /*
+         * Use the transaction ID of the prior update to avoid out-of-order IDs,
+         * we know that update selection further into reconciliation will choose this
+         * tombstone and cause the record to be skipped when creating a page image.
+        */
+        tombstone->txnid = first_upd->txnid;
+        tombstone->next = first_upd;
+        upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
+        *upd_entry = tombstone;
+    }
+    return (0);
+}
+
+/*
+ * __rec_row_garbage_collect_fixup_insert_list --
+ *     Insert a tombstone at the start of an insert list if all entries are eligible for
+ *     garbage collection.
+ */
+static int
+__rec_row_garbage_collect_fixup_insert_list(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
+{
+	WT_BTREE *btree;
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    WT_UPDATE *first_upd, *tombstone;
+
+	btree = S2BT(session);
+    page = r->page;
+    mod = page->modify;
+
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
+        return (0);
+    /* The insert list should have an update, but be paranoid */
+    if ((first_upd = ins->upd) == NULL)
+        return (0);
+
+    if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
+        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
+          "oligarch table record garbage collected 4");
+        WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+        /*
+         * Use the transaction ID of the prior update to avoid out-of-order IDs,
+         * we know that update selection further into reconciliation will choose this
+         * tombstone and cause the record to be skipped when creating a page image.
+        */
+        tombstone->txnid = first_upd->txnid;
+        tombstone->next = first_upd;
+        ins->upd = tombstone;
+    }
+    return (0);
+}
+
+/*
  * __rec_row_leaf_insert --
  *     Walk an insert chain, writing K/V pairs.
  */
@@ -519,6 +602,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+        WT_ERR(__rec_row_garbage_collect_fixup_insert_list(session, r, ins));
         WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
             /*
@@ -756,6 +840,9 @@ __wt_rec_row_leaf(
         /* Unpack the on-page value cell. */
         __wt_row_leaf_value_cell(session, page, rip, vpack);
 
+        /* Give garbage collected tables a change to mark obsolete content for cleanup */
+        WT_ERR(__rec_row_garbage_collect_fixup_update_list(session, r, rip));
+
         /* Look for an update. */
         WT_ERR(__wt_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
@@ -839,7 +926,9 @@ __wt_rec_row_leaf(
              */
             WT_ASSERT(session,
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
-                __wt_txn_tw_start_visible_all(session, twp));
+                __wt_txn_tw_start_visible_all(session, twp) ||
+                (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+                WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
