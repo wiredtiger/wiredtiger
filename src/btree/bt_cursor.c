@@ -914,9 +914,6 @@ __btcur_search_neighboring(
          * the tree.
          */
         while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-            /* We are blocked by a prepared conflict, walk the other direction next keys. */
-            if (ret == WT_PREPARE_CONFLICT)
-                break;
             WT_RET(ret);
             if (btree->type == BTREE_ROW)
                 WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
@@ -946,9 +943,6 @@ __btcur_search_neighboring(
          * the tree.
          */
         while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
-            /* We are blocked by a prepared conflict, walk the other direction next. */
-            if (ret == WT_PREPARE_CONFLICT)
-                break;
             WT_RET(ret);
             if (btree->type == BTREE_ROW)
                 WT_RET(__wt_compare(session, btree->collator, &cursor->key, &state->key, exact));
