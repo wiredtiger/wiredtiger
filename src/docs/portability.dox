@@ -33,8 +33,9 @@ location after the first 8 bits were written but before the subsequent 24 bits, 
 state. If two threads of control attempt to write to the same location simultaneously, the result
 must be one of the two values, not some combination of the both.
 
-As WiredTiger uses unmarked atomic reads it requires that the compiler does not insert synthetic
-writes to memory, even if that write matches the value recently loaded. WiredTiger does not rely on
-unaligned reads and writes being atomic, nor any writes greater than 8 bytes.
+As WiredTiger uses unmarked atomic reads it requires that the compiler does not insert additional
+writes to memory, even if that write matches the value recently loaded. These writes are often
+referred to as invented stores. WiredTiger does not rely on unaligned reads and writes being atomic,
+nor any writes greater than 8 bytes.
 
 */
