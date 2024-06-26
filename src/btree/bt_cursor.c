@@ -960,7 +960,7 @@ __btcur_search_neighboring(
     session = CUR2S(cbt);
 
     /*
-     * If we haven't seen a prepared conflict, walk forwards and then walk backwards.
+     * If we haven't seen a prepared conflict error, walk forwards and then walk backwards.
      *
      * If we have seen a prepared conflict error, we must be reading with a snapshot. Therefore, no
      * need to worry about the keys concurrently inserted and prepared as they are not visible to
@@ -979,7 +979,7 @@ __btcur_search_neighboring(
             ret = __btcur_search_walk_prev(cbt, state, exact);
     } else if (compare < 0)
         /*
-         * We have seen a prepared conflict in a key that is smaller than the search key, walk
+         * We have seen a prepared conflict in a key error that is smaller than the search key, walk
          * forwards in this case.
          */
         ret = __btcur_search_walk_next(cbt, state, exact);
@@ -987,7 +987,7 @@ __btcur_search_neighboring(
         WT_ASSERT(session, compare > 0);
 
         /*
-         * We have seen a prepared conflict in a key that is larger than the search key, walk
+         * We have seen a prepared conflict error in a key that is larger than the search key, walk
          * backwards in this case.
          */
         ret = __btcur_search_walk_prev(cbt, state, exact);
