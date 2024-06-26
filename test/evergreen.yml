@@ -5535,6 +5535,10 @@ buildvariants:
   tasks:
     - name: examples-c-tsan
 
+# This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
+# encounters. This allows us to check whether a TSan change may cause other unexpected failures
+# while also not having to fix every TSan issue discovered. At the conclusion of the TSan work this
+# variant will be deleted.
 - name: ubuntu2004-tsan-no-throw
   display_name: "~ Ubuntu 20.04 TSAN (No throw)"
   run_on:
@@ -5544,17 +5548,16 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
+      # These options are intended to not produce warnings.
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:verbosity=2:detect_deadlocks=0:report_bugs=0:report_atomic_races=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
       export LD_PRELOAD=$(/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0)
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
   # The pull request tag, which includes azure gcp, doesn't compile under clang
   #  - name: ".pull_request"
-    - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
     - name: compile
-    - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
     - name: syscall-linux
@@ -5569,10 +5572,6 @@ buildvariants:
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: ubuntu2004-large
-    - name: long-test
-      distros: ubuntu2004-large
-    - name: unit-test-extra-long
-      distros: ubuntu2004-large
     - name: static-wt-build-test
     - name: linux-directio
       distros: ubuntu2004-build
@@ -5583,8 +5582,6 @@ buildvariants:
     - name: ".data-validation-stress-test"
     - name: catch2-unittest-test
     - name: s3-tiered-storage-extensions-test
-    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
-    # - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: catch2-unittest-assertions
     # Azure gcp which falls under this label doesn't compile under clang.
@@ -5595,13 +5592,6 @@ buildvariants:
     - name: chunkcache-test
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
-    - name: model-unit-test
-    - name: model-test-failure-workloads
-      batchtime: 1440 # 24 hours
-    - name: model-test-long
-      batchtime: 1440 # once a day
-    - name: model-test-long-with-coverage
-      batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
