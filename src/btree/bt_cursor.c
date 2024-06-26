@@ -914,7 +914,7 @@ __btcur_search_neighboring(
          * the tree.
          */
         while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-            /* We are blocked by a prepared conflict, walk the other direction next keys. */
+            /* We are blocked by a prepared conflict, walk the other direction next. */
             if (ret == WT_PREPARE_CONFLICT && !prepare_conflict)
                 break;
             WT_RET(ret);
