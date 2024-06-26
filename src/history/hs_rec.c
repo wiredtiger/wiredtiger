@@ -522,9 +522,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
 
             prev_upd = upd;
-            WT_RET(__wt_msg(session, "upd id: %lu type: %d hs: %d ds: %d %lu %lu", upd->txnid,
-              upd->type, F_ISSET(upd, WT_UPDATE_HS), F_ISSET(upd, WT_UPDATE_DS), upd->flags,
-              S2C(session)->txn_global.oldest_id));
 
             /*
              * No need to continue if we found a first self contained value that is globally
@@ -995,8 +992,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * cannot modify the history store to fix the update's timestamps as it may make the history
      * store checkpoint inconsistent.
      */
-
-    WT_ERR(__wt_msg(session, "testing in func 2 %d\n", error_on_ts_ordering));
     if (error_on_ts_ordering) {
         ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
