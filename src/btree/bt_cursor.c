@@ -975,7 +975,7 @@ __btcur_search_neighboring(
             ret = __btcur_search_walk_prev(cbt, state, exact);
     } else if (cbt->compare < 0)
         /*
-         * We have seen a prepared conflict in a key error that is smaller than the search key, walk
+         * We have seen a prepared conflict error in a key that is smaller than the search key, walk
          * forwards in this case.
          */
         ret = __btcur_search_walk_next(cbt, state, exact);
@@ -1087,15 +1087,15 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     ret = __btcur_search_near_row_pinned_page(cbt, &valid);
     if (ret == WT_PREPARE_CONFLICT) {
         /*
-         * If we get prepared conflict on the exact key, we need to wait on the prepared conflict to
-         * ensure repeated read works correctly.
+         * If we get prepared conflict error on the exact key, we need to wait on the prepared
+         * conflict to ensure repeated read works correctly.
          */
         if (cbt->compare == 0)
             goto err;
 
         /*
-         * If we get prepared conflict on a neighboring key, we can search the other side of the key
-         * first.
+         * If we get prepared conflict error on a neighboring key, we can search the other side of
+         * the key first.
          */
         goto search_neighbor;
     }
@@ -1116,15 +1116,15 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         ret = __wti_cursor_valid(cbt, &valid, true);
         if (ret == WT_PREPARE_CONFLICT) {
             /*
-             * If we get prepared conflict on the exact key, we need to wait on the prepared
+             * If we get prepared conflict error on the exact key, we need to wait on the prepared
              * conflict to ensure repeated read works correctly.
              */
             if (cbt->compare == 0)
                 goto err;
 
             /*
-             * If we get prepared conflict on a neighboring key, we can search the other side of the
-             * key first.
+             * If we get prepared conflict error on a neighboring key, we can search the other side
+             * of the key first.
              */
             goto search_neighbor;
         }
