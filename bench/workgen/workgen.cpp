@@ -2237,7 +2237,7 @@ Operation::Operation(OpType optype, const std::string &config)
     init_internal(nullptr);
 }
 
-Operation::Operation(OpType optype, Table table, std::string config)
+Operation::Operation(OpType optype, Table table, const std::string &config)
     : _optype(optype), _internal(nullptr), _table(table), _config(config), transaction(nullptr),
       _group(nullptr), _repeatgroup(0), _timed(0.0), _random_table(false)
 {
