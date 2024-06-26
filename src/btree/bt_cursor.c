@@ -1070,10 +1070,18 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      */
     ret = __btcur_search_near_row_pinned_page(cbt, &valid);
     if (ret == WT_PREPARE_CONFLICT) {
+        /*
+         * If we get prepared conflict on the exact key, we need to wait on the prepared conflict to
+         * ensure repeated read works correctly.
+         */
         if (cbt->compare == 0)
             goto err;
 
-        goto search_neighbour;
+        /*
+         * If we get prepared conflict on a neighboring key, we can search the other side of the key
+         * first.
+         */
+        goto search_neighbor;
     }
     WT_ERR(ret);
 
@@ -1099,10 +1107,10 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
                 goto err;
 
             /*
-             * If we get prepared conflict on a neighboring key, we need to search the other side of
-             * the key.
+             * If we get prepared conflict on a neighboring key, we can search the other side of the
+             * key first.
              */
-            goto search_neighbour;
+            goto search_neighbor;
         }
         WT_ERR(ret);
     }
@@ -1135,7 +1143,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
-search_neighbour:
+search_neighbor:
         /* We didn't find an exact match, try to find the nearest one. */
         WT_WITHOUT_EVICT_REPOSITION(ret = __btcur_search_neighboring(cbt, &state,
                                       ret == WT_PREPARE_CONFLICT, cbt->compare, &exact));
