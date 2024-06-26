@@ -1478,14 +1478,20 @@ retry:
             ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else if (__cursor_fix_implicit(btree, cbt)) {
             /*
-             * Creating a record past the end of the tree in a fixed-length column-store implicitly
-             * fills the gap with empty records, delete the record.
+             * We are deleting an implicitly created record (which exists because creating a record
+             * past the end of the tree in a fixed-length column-store implicitly fills the gap with
+             * empty records). But because this record is empty, deleting it is a no-op. But keep
+             * the return value as 0, because the record exists implicitly.
+             *
+             * We don't want to add a tombstone to an empty record, because doing so could create a
+             * problem during reconciliation: If this is a part of a prepared transaction, we would
+             * need to save the update so that we can then put it into the history store, but in
+             * this case, there is nothing to save.
              *
              * Correct the btree cursor's location: the search will have pointed us at the
              * previous/next item, and that's not correct.
              */
             cbt->recno = cursor->recno;
-            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else
             WT_ERR(WT_NOTFOUND);
     }
