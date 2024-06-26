@@ -912,7 +912,13 @@ __btcur_search_neighboring(
          * the tree.
          */
         while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-            /* We are blocked by a prepared conflict, walk the other direction next. */
+            /*
+             * We are blocked by a prepared conflict, walk the other direction next. If we have seen
+             * a prepared conflict in a key that is smaller than the search key, directly return
+             * prepared conflict. If we get a prepared conflict error, we must be reading with a
+             * snapshot. Therefore, no need to worry about the keys concurrently inserted and
+             * prepared as they are not visible to us.
+             */
             if (ret == WT_PREPARE_CONFLICT && !prepare_conflict)
                 break;
             WT_RET(ret);
