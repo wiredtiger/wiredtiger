@@ -903,7 +903,10 @@ __btcur_search_neighboring(
 
     WT_ASSERT(session, !prepare_conflict || (prepare_conflict && compare != 0));
 
-    /* If we are blocked on prepared conflict on the key that is smaller, continue walk forwards. */
+    /*
+     * If we are blocked on prepared conflict on the key that is smaller, walk forwards first. If we
+     * are blocked on prepared conflict on the key that is larger, walk backwards first.
+     */
     if (!prepare_conflict || (prepare_conflict && compare < 0)) {
         /*
          * We didn't find an exact match: try after the search key, then before. We have to loop
@@ -936,8 +939,6 @@ __btcur_search_neighboring(
             if (*exact <= 0)
                 return (ret);
         }
-        /* If we are blocked on prepared conflict on the key that is larger, continue walk
-         * backwards. */
     } else if (prepare_conflict && compare > 0) {
         /*
          * We didn't find an exact match: try after the search key, then before. We have to loop
