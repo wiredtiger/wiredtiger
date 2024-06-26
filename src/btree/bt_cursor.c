@@ -948,7 +948,7 @@ __btcur_search_walk_prev(WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, int *exa
  */
 static int
 __btcur_search_neighboring(
-  WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, bool prepare_conflict, int compare, int *exact)
+  WT_CURSOR_BTREE *cbt, WT_CURFILE_STATE *state, bool prepare_conflict, int *exact)
 {
     WT_DECL_RET;
 
@@ -973,14 +973,14 @@ __btcur_search_neighboring(
          */
         if (ret == WT_NOTFOUND || ret == WT_PREPARE_CONFLICT)
             ret = __btcur_search_walk_prev(cbt, state, exact);
-    } else if (compare < 0)
+    } else if (cbt->compare < 0)
         /*
          * We have seen a prepared conflict in a key error that is smaller than the search key, walk
          * forwards in this case.
          */
         ret = __btcur_search_walk_next(cbt, state, exact);
     else {
-        WT_ASSERT(CUR2S(cbt), compare > 0);
+        WT_ASSERT(CUR2S(cbt), cbt->compare > 0);
 
         /*
          * We have seen a prepared conflict error in a key that is larger than the search key, walk
@@ -1161,8 +1161,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     } else {
 search_neighbor:
         /* We didn't find an exact match, try to find the nearest one. */
-        WT_WITHOUT_EVICT_REPOSITION(ret = __btcur_search_neighboring(cbt, &state,
-                                      ret == WT_PREPARE_CONFLICT, cbt->compare, &exact));
+        WT_WITHOUT_EVICT_REPOSITION(
+          ret = __btcur_search_neighboring(cbt, &state, ret == WT_PREPARE_CONFLICT, &exact));
         WT_ERR(ret);
     }
 
