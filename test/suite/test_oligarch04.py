@@ -49,11 +49,11 @@ class test_oligarch04(wttest.WiredTigerTestCase):
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        for i in range(100000):
+        for i in range(1000000):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 5000 == 0:
+            if i % 10000 == 0:
                 time.sleep(1)
 
         cursor.reset()
