@@ -137,7 +137,7 @@ class test_bug33(wttest.WiredTigerTestCase):
             cursor.set_key(str(i))
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction()
-        
+
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7))
 
         # Add in a update and a modify.
