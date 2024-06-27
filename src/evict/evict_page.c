@@ -716,7 +716,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Limit the number of obsolete time window pages that are marked as dirty to reduce the load.
      */
-    if (S2BT(session)->obsolete_tw_pages >= WT_BTREE_OBSOLETE_TW_PAGES_MAX)
+    if (S2BT(session)->obsolete_tw_pages >=
+      S2C(session)->heuristic_controls.obsolete_tw_pages_dirty)
         return (0);
 
     /*

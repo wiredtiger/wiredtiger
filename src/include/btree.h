@@ -225,7 +225,10 @@ struct __wt_btree {
 #define WT_BTREE_CLEAN_MINUTES 10
     uint64_t clean_ckpt_timer;
 
-#define WT_BTREE_OBSOLETE_TW_PAGES_MAX 500
+    /*
+     * Track the number of obsolete time window pages that are changed into dirty page
+     * reconciliation by the eviction.
+     */
     uint32_t obsolete_tw_pages;
 
     /*

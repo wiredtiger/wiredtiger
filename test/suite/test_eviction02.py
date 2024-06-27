@@ -33,7 +33,7 @@ import wttest
 # Verify evicting a clean page removes any obsolete time window information
 # present on the page.
 class test_eviction02(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),statistics_log=(json,wait=0,on_close=true)'
+    conn_config = 'cache_size=10MB,statistics=(all),statistics_log=(json,wait=1,on_close=true)'
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -79,6 +79,7 @@ class test_eviction02(wttest.WiredTigerTestCase):
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
         self.session.checkpoint()
+        self.session.breakpoint()
         self.evict_cursor(uri, nrows * 10)
 
         # Check statistics.
