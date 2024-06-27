@@ -30,6 +30,13 @@ __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
+    if (F_ISSET(session, WT_SESSION_DEBUG_CHECK_NO_ACTIVE_CURSOR)) {
+        if (session->ncursors > 0)
+            WT_RET_PANIC(session, WT_ERROR, "there are active cursors when resetting the session");
+
+        return (0);
+    }
+
     TAILQ_FOREACH (cursor, &session->cursors, q) {
         /* Stop when there are no positioned cursors. */
         if (session->ncursors == 0)
@@ -520,6 +527,14 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
             F_SET(session, WT_SESSION_DEBUG_RELEASE_EVICT);
         else
             F_CLR(session, WT_SESSION_DEBUG_RELEASE_EVICT);
+    }
+
+    if ((ret = __wt_config_getones(
+           session, config, "debug.check_active_cursor_when_reset", &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_CHECK_NO_ACTIVE_CURSOR);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_CHECK_NO_ACTIVE_CURSOR);
     }
 
     WT_ERR_NOTFOUND_OK(ret, false);

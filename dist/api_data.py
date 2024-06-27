@@ -1130,6 +1130,9 @@ session_config = [
         Config('release_evict_page', 'false', r'''
             Configure the session to evict the page when it is released and no longer needed.''',
             type='boolean'),
+        Config('check_active_cursor_when_reset', 'false', r'''
+            Check that there is no active cursor when resetting the session.''',
+            type='boolean'),
         ]),
     Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait for space to be
