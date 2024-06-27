@@ -73,7 +73,7 @@ class test_truncate20(wttest.WiredTigerTestCase):
                 evict_cursor.reset()
         evict_cursor.close()
         self.session.rollback_transaction()
-    
+
     def wait_for_cc_to_run(self):
         c = self.session.open_cursor( 'statistics:')
         cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
