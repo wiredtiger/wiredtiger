@@ -49,15 +49,15 @@ class test_bug33(wttest.WiredTigerTestCase):
         # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
         evict_cursor = s.open_cursor(uri, None, "debug=(release_evict)")
         for i in range(1, nrows + 1):
-            evict_cursor.set_key(self.create_key(i))
+            evict_cursor.set_key(str(i))
             evict_cursor.search()
             evict_cursor.reset()
         s.rollback_transaction()
         evict_cursor.close()
 
-    def test_non_ts(self):
-        uri = 'table:test_hs32'
-        create_params = 'key_format=S,value_format=S'.format(self.key_format, self.value_format)
+    def non_ts(self):
+        uri = 'table:test_bug033'
+        create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
         value1 = 'a' * 500
         value2 = 'b' * 500
@@ -92,7 +92,7 @@ class test_bug33(wttest.WiredTigerTestCase):
             cursor.set_key(str(i))
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
-        self.session.commit_transaction() # Upd chain : T -> U - > M
+        self.session.commit_transaction()
 
         # Apply update again to make sure that the update, modify and tombstome all go
         # to the HS.
@@ -109,4 +109,60 @@ class test_bug33(wttest.WiredTigerTestCase):
         for i in range(1, self.nrows):
             cursor[str(i)] = value1
         self.session.commit_transaction()
+        self.evict_cursor(uri, self.nrows)
+
+        session2.commit_transaction()
+
+    def test_ts(self):
+        uri = 'table:test_bug033'
+        create_params = 'key_format=S,value_format=S'
+        self.session.create(uri, create_params)
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        # Populate data in the data store table.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[str(i)] = value1
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+
+        # Write the data to disk.
+        self.session.checkpoint()
+
+        # Add in a globally visible tombstone.
+        self.session.begin_transaction('no_timestamp=true')
+        for i in range(1, self.nrows):
+            cursor.set_key(str(i))
+            self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction()
+        
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7))
+
+        # Add in a update and a modify.
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[str(i)] = value2
+
+            cursor.set_key(str(i))
+            mods = [wiredtiger.Modify("b", 0, 1)]
+            self.assertEquals(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(8))
+
+        # Apply update again to make sure that the update, modify and tombstome all go
+        # to the HS.
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[str(i)] = value1
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+
+        # Reconcile all data onto the disk.
+        self.session.checkpoint()
+
+        # Peform dirty eviction to trigger reconcilliation.
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[str(i)] = value1
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
         self.evict_cursor(uri, self.nrows)
