@@ -529,6 +529,8 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
             F_CLR(session, WT_SESSION_DEBUG_RELEASE_EVICT);
     }
 
+    WT_ERR_NOTFOUND_OK(ret, false);
+
     if ((ret = __wt_config_getones(
            session, config, "debug.check_active_cursor_when_reset", &cval)) == 0) {
         if (cval.val)
