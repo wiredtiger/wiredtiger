@@ -58,8 +58,9 @@ if "build/" in script_path:
     result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     is_tsan_instrumented = result.returncode == 0
 
-    # !!!!!! UPDATE ME: HARDCODED PATH !!!!!!!!!
-    os.environ["LD_PRELOAD"] = "/opt/mongodbtoolchain/revisions/11316f1e7b36f08dcdd2ad0640af18f9287876f4/stow/gcc-v4.XAW/lib/gcc/aarch64-mongodb-linux/11.3.0/../../../../lib64/libtsan.so.0"
+    command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"
+    tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
+    os.environ["LD_PRELOAD"] = tsan_so_path
 
     # Restart python to have LD_PRELOAD
     if os.environ.get("LD_PRELOAD_SET") != "1":
