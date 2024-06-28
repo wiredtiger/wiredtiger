@@ -31,8 +31,7 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
      * If we're not logging or incremental backup isn't turned on or this version doesn't support
      * the system log record, we're done.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      !FLD_ISSET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP))
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
         return (0);
     log = conn->log;
     if (log->log_version < WT_LOG_VERSION_SYSTEM)

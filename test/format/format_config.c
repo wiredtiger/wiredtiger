@@ -1063,14 +1063,14 @@ config_lsm_reset(TABLE *table)
     config_off(NULL, "transaction.timestamps");
 
     /*
-     * LSM does not work with block-based incremental backup, change the incremental backup
+     * LSM does not work with block-based incremental backup, disable the incremental backup
      * mechanism if configured to be block based.
      */
     if (GV(BACKUP)) {
         if (config_explicit(NULL, "backup.incremental"))
             testutil_die(
               EINVAL, "LSM (currently) incompatible with incremental backup configurations");
-        config_single(NULL, "backup.incremental=log", false);
+        config_single(NULL, "backup.incremental=off", false);
     }
 }
 
@@ -2180,7 +2180,7 @@ config_map_file_type(const char *s, u_int *vp)
 
 /*
  * config_map_backup_incr --
- *     Map a incremental backup configuration to a flag.
+ *     Map an incremental backup configuration to a flag.
  */
 static void
 config_map_backup_incr(const char *s, bool *vp)

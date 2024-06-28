@@ -298,7 +298,6 @@ struct __wt_name_flag {
 #define WT_CONN_SET_INCR_BACKUP(conn)                        \
     do {                                                     \
         F_SET((conn), WT_CONN_INCR_BACKUP);                  \
-        FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
         WT_STAT_CONN_SET(session, backup_incremental, 1);    \
     } while (0)
 
@@ -622,7 +621,6 @@ struct __wt_connection_impl {
 #define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
 #define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
 #define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
-#define WT_CONN_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
 #define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
 #define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
 #define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */

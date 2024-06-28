@@ -131,7 +131,6 @@ __txn_backup_post_recovery(WT_RECOVERY *r)
     }
     if (clear) {
         F_CLR(conn, WT_CONN_INCR_BACKUP);
-        FLD_CLR(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
         conn->incr_granularity = 0;
     }
     return;
