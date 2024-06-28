@@ -5560,7 +5560,8 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: configure-combinations
-    - name: syscall-linux
+  # This test doesn't forward our TSAN_OPTIONS variable, disabling until that is resolved.
+  #  - name: syscall-linux
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed

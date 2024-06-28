@@ -65,10 +65,12 @@ if "build/" in script_path:
     command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"
     tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
 
+    # This is a bit hacky but if LD_PRELOAD is already set then python has the required libraries.
+    # Clear it now so that ./wt doesn't get affected by it.
     if os.environ.get("LD_PRELOAD") is None:
         os.environ["LD_PRELOAD"] = tsan_so_path
     else:
-        os.environ["LD_PRELOAD"] += f":{tsan_so_path}"
+        os.environ["LD_PRELOAD"] = ""
 
     # Restart python to have LD_PRELOAD
     if os.environ.get("LD_PRELOAD_SET") != "1":
