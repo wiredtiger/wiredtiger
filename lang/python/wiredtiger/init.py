@@ -47,6 +47,26 @@ if sys.version_info[0] <= 2:
 me = sys.modules[__name__]
 sys.path.append(os.path.dirname(__file__))
 
+# Look for tsan symbols in the .so file in build and hardcode LD_PRELOAD
+script_path = os.path.dirname(__file__)
+if "build/" in script_path:
+    build_path = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
+    so_file = build_path + "/libwiredtiger.so.11.3.0"
+
+    import subprocess
+    command = f"nm -D {so_file} | grep tsan"
+    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    is_tsan_instrumented = result.returncode == 0
+
+    # !!!!!! UPDATE ME: HARDCODED PATH !!!!!!!!!
+    os.environ["LD_PRELOAD"] = "/opt/mongodbtoolchain/revisions/11316f1e7b36f08dcdd2ad0640af18f9287876f4/stow/gcc-v4.XAW/lib/gcc/aarch64-mongodb-linux/11.3.0/../../../../lib64/libtsan.so.0"
+
+    # Restart python to have LD_PRELOAD
+    if os.environ.get("LD_PRELOAD_SET") != "1":
+        os.environ["LD_PRELOAD_SET"] = "1"
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+
 # explicitly importing _wiredtiger in advance of SWIG allows us to not
 # use relative importing, as SWIG does.  It doesn't work for us with Python2.
 import _wiredtiger
