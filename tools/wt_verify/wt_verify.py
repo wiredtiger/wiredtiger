@@ -125,7 +125,8 @@ def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
     node = {}
     line = line[2:-1] # remove new node symbol
     page_type = line.split()[-1]
-    assert page_type == "internal" or page_type == "leaf"
+    if not page_type in ("internal", "leaf"):
+        raise Exception(f"page_type expected to be 'internal' or 'leaf' but found '{page_type}'")
     node_id = line.split(": ")[0]
     line = f.readline()
     while line and line != SEPARATOR and not line.startswith("- "):
@@ -148,7 +149,8 @@ def parse_chkpt_info(f):
     else:
         raise RuntimeError("Could not find checkpoint name")
     line = f.readline()
-    assert line.startswith("Root:")
+    if not line.startswith("Root:"):
+        raise Exception(f"Expected a line starts with 'Root:' but found '{line}'")
     line = f.readline()
     root_addr = parse_metadata(line[3:-1]) # remove metadata symbol
     line = f.readline()
@@ -177,8 +179,8 @@ def parse_dump_blocks():
         # (i.e > addr: [0: 4096-8192, 4096, 1421166157])
         if is_root:
             x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
-            assert x, f"Root information expected in '{line}"
-
+            if not x:
+                raise Exception(f"Root information expected in '{line}")
             addr_start = int(x.group(1))
             size = int(x.group(2))
 
@@ -208,7 +210,8 @@ def parse_dump_blocks():
             # If a cell type has an address, get its type.
             if page_type == 'cell_type':
                 x = re.search(r"^cell_type: (\w+).*", line)
-                assert x, f"Cell type not found in {line}"
+                if not x:
+                    raise Exception(f"Cell type not found in {line}")
                 page_type = x.group(1)
 
             if page_type not in data[checkpoint_name]:
@@ -232,12 +235,14 @@ def parse_dump_pages():
         output = {}
         line = f.readline()
         while line:
-            assert line == SEPARATOR
+            if line != SEPARATOR:
+                raise Exception(f"Expected a separator line but found '{line}'")
             [root_addr, line, chkpt_info] = parse_chkpt_info(f)
             output[chkpt_info] = {}
             is_root_node = True
             while line and line != SEPARATOR:
-                assert line.startswith("- ") 
+                if not line.startswith("- "):
+                    raise Exception(f"Expected a line with prefix '- ' but found '{line}'")
                 line = parse_node(f, line, output, chkpt_info, root_addr, is_root_node)
                 is_root_node = False
     return output
@@ -364,7 +369,8 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
             prev_tuple = all_addr[i - 1]
             prev_tuple_end = prev_tuple[0] + prev_tuple[1]
             gap = current_tuple[0] - prev_tuple_end
-            assert gap >= 0, f"Data is not sorted correctly"
+            if gap < 0:
+                raise Exception("Data is not sorted correctly")
             if gap == 0:
                 continue
             # If the size of the free block is large enough, we may not have interest in it.
@@ -586,12 +592,16 @@ def main():
 
     parsed_data = None
 
-    if "dump_pages" in command:
-        parsed_data = parse_dump_pages()
-    elif "dump_blocks" in command:
-        parsed_data = parse_dump_blocks()
-    else:
-        assert False, f"Unexpected command '{command}'"
+    try:
+        if "dump_pages" in command:
+            parsed_data = parse_dump_pages()
+        elif "dump_blocks" in command:
+            parsed_data = parse_dump_blocks()
+        else:
+            raise Exception(f"Unexpected command '{command}'")
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
 
     # If we don't have data, nothing to do.
     if not parsed_data:
@@ -614,10 +624,14 @@ def main():
         print(pretty_output)
 
     if "dump_blocks" in command:
-        imgs = show_block_distribution_broken_barh(args.filename, parsed_data)
-        imgs += show_block_distribution_hist(args.filename, parsed_data)
-        imgs += show_free_block_distribution(args.filename, parsed_data)
-        serve(imgs)
+        try:
+            imgs = show_block_distribution_broken_barh(args.filename, parsed_data)
+            imgs += show_block_distribution_hist(args.filename, parsed_data)
+            imgs += show_free_block_distribution(args.filename, parsed_data)
+            serve(imgs)
+        except Exception as e:
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
     else:
         if not args.visualize:
             args.visualize = ALL_VISUALIZATION_CHOICES
