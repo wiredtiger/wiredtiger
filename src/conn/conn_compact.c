@@ -620,8 +620,14 @@ __background_compact_server(void *arg)
         if (!running)
             continue;
 
-        /* Check if there is cache pressure. */
-        cache_pressure = __wt_cache_bytes_inuse(cache) >= cache_pressure_limit;
+        /*
+         * Throttle background compaction if one of the following conditions is met:
+         * - The dirty trigger threshold has been reached as compaction may generate more dirty
+         * content.
+         * - The cache is almost full.
+         */
+        cache_pressure = __wt_eviction_dirty_needed(session, NULL) ||
+          __wt_cache_bytes_inuse(cache) >= cache_pressure_limit;
         if (cache_pressure)
             continue;
 
