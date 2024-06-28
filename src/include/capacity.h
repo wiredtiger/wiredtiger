@@ -48,6 +48,7 @@ typedef enum {
 
 struct __wt_capacity {
     uint64_t chunkcache;      /* Bytes/sec chunk cache capacity */
+    uint64_t only_ckpt;       /* Bytes/sec only checkpoint capacity */
     uint64_t ckpt;            /* Bytes/sec checkpoint capacity */
     uint64_t evict;           /* Bytes/sec eviction capacity */
     uint64_t log;             /* Bytes/sec logging capacity */
