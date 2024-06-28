@@ -49,18 +49,26 @@ sys.path.append(os.path.dirname(__file__))
 
 # Look for tsan symbols in the .so file in build and hardcode LD_PRELOAD
 script_path = os.path.dirname(__file__)
+# FIXME - This assumes the script is in build. What happens when we pip isntall wiredtiger?
 if "build/" in script_path:
     build_path = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
-    so_file = build_path + "/libwiredtiger.so.11.3.0"
+    # FIXME - This assumes that we'll always use build/libwiredtiger.so
+    # What happens if we pip isntall wiredtiger instead?
+    so_file = build_path + "/libwiredtiger.so"
 
     import subprocess
     command = f"nm -D {so_file} | grep tsan"
     result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     is_tsan_instrumented = result.returncode == 0
 
+    # FIXME - can we assume that the tsan lib is always libtsan.so.0?
     command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"
     tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
-    os.environ["LD_PRELOAD"] = tsan_so_path
+
+    if os.environ.get("LD_PRELOAD") is None:
+        os.environ["LD_PRELOAD"] = tsan_so_path
+    else:
+        os.environ["LD_PRELOAD"] += f":{tsan_so_path}"
 
     # Restart python to have LD_PRELOAD
     if os.environ.get("LD_PRELOAD_SET") != "1":
