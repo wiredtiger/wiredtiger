@@ -5550,7 +5550,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
       # We intentionally suppress all TSan warnings.
-      export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0"
+      export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
   # The pull request tag, which includes azure gcp, doesn't compile under clang
