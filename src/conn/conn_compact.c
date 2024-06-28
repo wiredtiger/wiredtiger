@@ -557,7 +557,7 @@ __background_compact_server(void *arg)
          * Take a break or wait until signalled in the following conditions:
          * - Background compaction is not enabled.
          * - The entire metadata has been parsed.
-         * - There is cache pressure.
+         * - There is cache pressure and we don't want compaction to potentially add more.
          */
         if (!running || full_iteration || cache_pressure) {
             /*
@@ -573,10 +573,6 @@ __background_compact_server(void *arg)
                 __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
             }
 
-            /*
-             * In case of cache pressure, the thread waits for some time to give the system some
-             * time to recover.
-             */
             if (cache_pressure) {
                 WT_STAT_CONN_INCR(session, background_compact_sleep_cache_pressure);
                 cache_pressure = false;
