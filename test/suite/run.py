@@ -58,6 +58,7 @@ def usage():
 \n\
 Options:\n\
             --asan               run with an ASAN enabled shared library\n\
+            --tsan               run with an TSAN enabled shared library\n\
   -b K/N  | --batch K/N          run batch K of N, 0 <= K < N. The tests\n\
                                  are split into N batches and the Kth is run.\n\
   -C file | --configcreate file  create a config file for controlling tests\n\
@@ -301,6 +302,7 @@ if __name__ == '__main__':
     preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = extralongtest = False
     removeAtStart = True
     asan = False
+    tsan = False
     parallel = 0
     random_sample = 0
     batchtotal = batchnum = 0
@@ -327,6 +329,9 @@ if __name__ == '__main__':
             option = arg[1:]
             if option == '-asan':
                 asan = True
+                continue
+            if option == '-tsan':
+                tsan = True
                 continue
             if option == '-batch' or option == 'b':
                 if batchtotal != 0 or len(args) == 0:
@@ -534,7 +539,86 @@ if __name__ == '__main__':
         elif verbose >= 2:
             print('Python restarted for ASAN')
 
-    # We don't import wttest until after ASAN environment variables are set.
+    if tsan:
+        # To run TSAN, we need to ensure these environment variables are set:
+        #    TSAN_SYMBOLIZER_PATH    full path to the llvm-symbolizer program
+        #    LD_LIBRARY_PATH         includes path with wiredtiger shared object
+        #    LD_PRELOAD              includes the TSAN runtime library
+        #
+        # Note that LD_LIBRARY_PATH has already been set above. The trouble with
+        # simply setting these variables in the Python environment is that it's
+        # too late. LD_LIBRARY_PATH is commonly cached by the shared library
+        # loader at program startup, and that's already been done before Python
+        # begins execution. Likewise, any preloading indicated by LD_PRELOAD
+        # has already been done.
+        #
+        # Our solution is to set the variables as appropriate, and then restart
+        # Python with the same argument list. The shared library loader will
+        # have everything it needs on the second go round.
+        #
+        # Note: If the TSAN stops the program with the error:
+        #    Shadow memory range interleaves with an existing memory mapping.
+        #    TSan cannot proceed correctly.
+        #
+        # try rebuilding with the clang options:
+        #    "-mllvm -tsan-force-dynamic-shadow=1"
+        # and make sure that clang is used for all compiles.
+        #
+        # We'd like to show this as a message, but there's no good way to
+        # detect this error from here short of capturing/parsing all output
+        # from the test run.
+        TSAN_ENV = "__WT_TEST_SUITE_TSAN"    # if set, we've been here before
+        TSAN_SYMBOLIZER_PROG = "llvm-symbolizer"
+        TSAN_SYMBOLIZER_ENV = "TSAN_SYMBOLIZER_PATH"
+        LD_PRELOAD_ENV = "LD_PRELOAD"
+        SO_FILE_NAME = "libclang_rt.tsan-x86_64.so"
+        if not os.environ.get(TSAN_ENV):
+            if verbose >= 2:
+                print('Enabling TSAN environment and rerunning python')
+            os.environ[TSAN_ENV] = "1"
+            show_env(verbose, "LD_LIBRARY_PATH")
+            if not os.environ.get(TSAN_SYMBOLIZER_ENV):
+                os.environ[TSAN_SYMBOLIZER_ENV] = which(TSAN_SYMBOLIZER_PROG)
+            if not os.environ.get(TSAN_SYMBOLIZER_ENV):
+                error(TSAN_SYMBOLIZER_ENV,
+                      'symbolizer program not found in PATH')
+            show_env(verbose, TSAN_SYMBOLIZER_ENV)
+            if not os.environ.get(LD_PRELOAD_ENV):
+                symbolizer = follow_symlinks(os.environ[TSAN_SYMBOLIZER_ENV])
+                bindir = os.path.dirname(symbolizer)
+                sofiles = []
+
+                # BEGIN HACK. The rest of the new code is the --asan code above with /s/asan/tsan/
+                SO_FILE_NAME = "libtsan.so.0"
+                libdir = os.path.dirname(os.path.dirname(bindir))
+                # if os.path.basename(bindir) == 'bin':
+                #     libdir = os.path.join(os.path.dirname(bindir), 'lib')
+                sofiles = find(libdir, SO_FILE_NAME)
+                sofiles = [sofiles[1]]
+                # END HACK
+
+                if len(sofiles) != 1:
+
+                    if len(sofiles) == 0:
+                        fmt = 'TSAN shared library file not found.\n' + \
+                          'Set {} to the file location and rerun.'
+                        error(3, SO_FILE_NAME, fmt.format(LD_PRELOAD_ENV))
+                    else:
+                        print(sofiles)
+                        fmt = 'multiple TSAN shared library files found\n' + \
+                          'under {}, expected just one.\n' + \
+                          'Set {} to the correct file location and rerun.'
+                        error(3, SO_FILE_NAME, fmt.format(libdir, LD_PRELOAD_ENV))
+                os.environ[LD_PRELOAD_ENV] = sofiles[0]
+            show_env(verbose, LD_PRELOAD_ENV)
+
+            # Restart python!
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
+        elif verbose >= 2:
+            print('Python restarted for TSAN')
+
+    # We don't import wttest until after ASAN/TSAN environment variables are set.
     import wttest
     # Use the same version of unittest found by wttest.py
     unittest = wttest.unittest
