@@ -554,7 +554,7 @@ __background_compact_server(void *arg)
         }
 
         /*
-         * Take a break or wait until signalled in the following conditions:
+         * Take a break or wait until signalled in any of the following conditions:
          * - Background compaction is not enabled.
          * - The entire metadata has been parsed.
          * - There is cache pressure and we don't want compaction to potentially add more.
@@ -617,7 +617,7 @@ __background_compact_server(void *arg)
             continue;
 
         /*
-         * Throttle background compaction if one of the following conditions is met:
+         * Throttle background compaction if any of the following conditions is met:
          * - The dirty trigger threshold has been reached as compaction may generate more dirty
          * content.
          * - The cache is almost full.
