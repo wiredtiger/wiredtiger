@@ -619,7 +619,8 @@ __background_compact_server(void *arg)
         /*
          * Throttle background compaction if any of the following conditions is met:
          * - The dirty trigger threshold has been reached as compaction may generate more dirty
-         * content.
+         * content. Note that updates are not considered as compaction only marks pages dirty and
+         * does not generate additional updates.
          * - The cache is almost full.
          */
         cache_pressure = __wt_eviction_dirty_needed(session, NULL) ||

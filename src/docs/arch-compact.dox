@@ -84,7 +84,7 @@ where compaction is successful. Using those statistics, the service focuses on t
 is likely to reclaim space and avoids unnecessary attempts. Finally, the thread makes sure that the
 following conditions are met before processing the next table:
 
-- the dirty content in the cache is below the \c eviction_dirty_trigger threshold and,
+- the dirty content in the cache (without considering updates) is below the \c eviction_dirty_trigger threshold and,
 - the cache is not almost full.
 
 Background compaction can be enabled, configured, and disabled through the same API \c WT_SESSION::compact.
