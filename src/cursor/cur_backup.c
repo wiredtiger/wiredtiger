@@ -267,6 +267,9 @@ err:
         conn->modified = true;
         WT_TRET(__wt_txn_checkpoint(session, cfg, true));
     }
+    /* Clear the flag on force stop after the completion of the checkpoint. */
+    if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP))
+        FLD_CLR(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
 
     /*
      * When starting a hot backup, we serialize hot backup cursors and set the connection's
