@@ -375,27 +375,29 @@ worker(void *arg)
             goto err;
         }
     }
-    if (workload->table_index != INT32_MAX) {
-        if ((ret = session->open_cursor(
-               session, wtperf->uris[workload->table_index], NULL, NULL, &cursor)) != 0) {
-            lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s",
-              wtperf->uris[workload->table_index]);
-            goto err;
-        }
-        if ((ret = session->open_cursor(session, wtperf->uris[workload->table_index], NULL,
-               "next_random=true", &thread->rand_cursor)) != 0) {
-            lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: random %s",
-              wtperf->uris[workload->table_index]);
-            goto err;
-        }
-    } else {
-        total_table_count = opts->table_count + opts->scan_table_count;
-        cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
-        for (i = 0; i < total_table_count; i++) {
-            if ((ret = session->open_cursor(session, wtperf->uris[i], NULL, NULL, &cursors[i])) !=
-              0) {
-                lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s", wtperf->uris[i]);
+    if (!workload->reopen_cursor) {
+        if (workload->table_index != INT32_MAX) {
+            if ((ret = session->open_cursor(
+                   session, wtperf->uris[workload->table_index], NULL, NULL, &cursor)) != 0) {
+                lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s",
+                  wtperf->uris[workload->table_index]);
                 goto err;
+            }
+            if ((ret = session->open_cursor(session, wtperf->uris[workload->table_index], NULL,
+                   "next_random=true", &thread->rand_cursor)) != 0) {
+                lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: random %s",
+                  wtperf->uris[workload->table_index]);
+                goto err;
+            }
+        } else {
+            total_table_count = opts->table_count + opts->scan_table_count;
+            cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
+            for (i = 0; i < total_table_count; i++) {
+                if ((ret = session->open_cursor(
+                       session, wtperf->uris[i], NULL, NULL, &cursors[i])) != 0) {
+                    lprintf(wtperf, ret, 0, "worker: WT_SESSION.open_cursor: %s", wtperf->uris[i]);
+                    goto err;
+                }
             }
         }
     }
