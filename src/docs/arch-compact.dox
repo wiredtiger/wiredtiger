@@ -85,7 +85,7 @@ is likely to reclaim space and avoids unnecessary attempts. Finally, the thread 
 following conditions are met before processing the next table:
 
 - the dirty content in the cache (without considering updates) is below the \c eviction_dirty_trigger threshold and,
-- the cache is not almost full.
+- the overall cache content is less than the \c eviction_trigger threshold.
 
 Background compaction can be enabled, configured, and disabled through the same API \c WT_SESSION::compact.
 When disabled, background compaction turns off as soon as possible and when re-enabled, it starts

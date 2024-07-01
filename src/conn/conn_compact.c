@@ -518,7 +518,6 @@ err:
 static WT_THREAD_RET
 __background_compact_server(void *arg)
 {
-    WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(config);
     WT_DECL_ITEM(next_uri);
@@ -526,13 +525,10 @@ __background_compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    double cache_pressure_limit;
     bool cache_pressure, full_iteration, running;
 
     session = arg;
     conn = S2C(session);
-    cache = conn->cache;
-    cache_pressure_limit = WT_EVICT_PRESSURE_THRESHOLD * conn->cache_size;
     wt_session = (WT_SESSION *)session;
     cache_pressure = full_iteration = running = false;
 
@@ -621,10 +617,10 @@ __background_compact_server(void *arg)
          * - The dirty trigger threshold has been reached as compaction may generate more dirty
          * content. Note that updates are not considered as compaction only marks pages dirty and
          * does not generate additional updates.
-         * - The cache is almost full.
+         * - The cache content is almost at the eviction_trigger threshold.
          */
-        cache_pressure = __wt_eviction_dirty_needed(session, NULL) ||
-          __wt_cache_bytes_inuse(cache) >= cache_pressure_limit;
+        cache_pressure =
+          __wt_eviction_dirty_needed(session, NULL) || __wt_eviction_clean_needed(session, NULL);
         if (cache_pressure)
             continue;
 
