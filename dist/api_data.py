@@ -749,7 +749,7 @@ connection_runtime_config = [
             Config('obsolete_tw_pages_dirty', '500', r'''
                 eviction to mark the number of obsolete time window pages that are marked as dirty
                 per btree in a single checkpoint''',
-                min=1, max=100000),
+                min=0, max=100000),
         ]),
     Config('io_capacity', '', r'''
         control how many bytes per second are written and read. Exceeding the capacity results

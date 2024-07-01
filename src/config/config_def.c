@@ -325,8 +325,8 @@ static const uint8_t
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_heuristic_controls_subconfigs[] = {
-  {"obsolete_tw_pages_dirty", "int", NULL, "min=1,max=100000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 235, 1, 100000, NULL},
+  {"obsolete_tw_pages_dirty", "int", NULL, "min=0,max=100000", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 235, 0, 100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t

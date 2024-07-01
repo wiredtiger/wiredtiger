@@ -695,14 +695,13 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Pages that the application threads are evicting should not be included. Reconciliation must
-     * be performed when converting a clean page to a dirty page, which could lengthen the
-     * application thread's reconciliation process and increase latency.
+     * be performed when converting a clean page to a dirty page, which can increase latency.
      */
     if (!F_ISSET(session, WT_SESSION_EVICTION))
         return (0);
 
     /* Do not perform any obsolete time window cleanup during the startup or shutdown phase. */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING))
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
         return (0);
 
     /* If the file is being checkpointed, other threads can't evict dirty pages. */
