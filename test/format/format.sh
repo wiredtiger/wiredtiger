@@ -591,6 +591,8 @@ resolve()
 
 # Start a single job.
 count_jobs=0
+test_memory_max=$(free -m | grep -oP '\d+' | head -n 1)
+test_memory_max=$(( ($test_memory_max * 0.8) / $total_jobs ))
 format()
 {
 	count_jobs=$(($count_jobs + 1))
@@ -616,6 +618,7 @@ format()
 		done
 	fi
 	args+=" $format_args"
+	args+=" cache.maximum=$test_memory_max"
 	msg "starting job in $dir ($(date))"
 
 	# If we're using recording, append our default arguments.
