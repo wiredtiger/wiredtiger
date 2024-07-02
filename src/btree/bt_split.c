@@ -624,6 +624,10 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     /* Free the backing block and address. */
     WT_TRET(__wt_ref_block_free(session, ref));
 
+    /*
+     * We cannot discard any ref that has the prefetch flag. The prefetch thread would crash if it
+     * sees a freed ref.
+     */
     WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
 
     /*
@@ -702,7 +706,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * gap that produces causes search to fail. (For other gaps, search just takes the next
              * page to the left; but for the leftmost page in an internal page that doesn't work
              * unless we update the internal page's start recno on the fly and restart the search,
-             * which seems like asking for trouble.)
+             * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
+             * the prefetch thread would crash if it sees a freed ref.
              */
             if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&

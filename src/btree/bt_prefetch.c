@@ -76,15 +76,26 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
          * these deleted pages into the cache if the fast truncate information is visible in the
          * session transaction snapshot.
          */
-        if (WT_REF_GET_STATE(next_ref) == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
-          next_ref->page_del == NULL && !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
+        if (WT_REF_GET_STATE(next_ref) == WT_REF_DISK && next_ref->page_del == NULL &&
+          !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
+            WT_ASSERT(session, F_ISSET(next_ref, WT_REF_FLAG_LEAF));
+
+            /*
+             * The page can be read into memory and evicted currently. Eviction may split the page
+             * and free the ref. Lock the ref to ensure this doesn't happen. If we fail to lock the
+             * ref, someone else must have started to operate on it. Ignore this page without
+             * waiting.
+             */
             if (!WT_REF_CAS_STATE(session, next_ref, WT_REF_DISK, WT_REF_LOCKED))
                 continue;
 
+            /* The page can be fast truncated concurrently, check again. */
             if (next_ref->page_del != NULL)
                 continue;
 
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
+
+            /* Unlock the ref. */
             WT_REF_SET_STATE(next_ref, WT_REF_DISK);
             if (ret == EBUSY) {
                 ret = 0;
@@ -130,6 +141,7 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
+        /* Skip deleted pages that are globally visible. They are not interested to the readers. */
         WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH | WT_READ_SKIP_DELETED));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
     }
