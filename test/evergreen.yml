@@ -5583,7 +5583,9 @@ buildvariants:
     - name: static-wt-build-test
     - name: linux-directio
       distros: ubuntu2004-build
-    - name: format-mirror-test
+    # Disabled as we have a naming conflict with the `extra_args` expansion. It's used both for args into ctest (as in this variant) and also as args into format test (this test)
+    # We need to split this into two (ctest_extra_args, format_extra_args) fields in a separate ticket. 
+    # - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
       distros: ubuntu2004-large
