@@ -633,6 +633,7 @@ def main():
             serve(imgs)
         except Exception as e:
             print(str(e), file=sys.stderr)
+            print(traceback.format_exc(), file=sys.stderr)
             sys.exit(1)
     else:
         if not args.visualize:
