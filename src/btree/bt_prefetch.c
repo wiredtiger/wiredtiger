@@ -78,8 +78,6 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         if (WT_REF_GET_STATE(next_ref) == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
           next_ref->page_del == NULL && !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
-            WT_ASSERT(session, F_ISSET(next_ref, WT_REF_FLAG_LEAF));
-
             /* Encourage races. */
             __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
 
