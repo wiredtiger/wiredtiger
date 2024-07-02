@@ -2105,6 +2105,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_TEST_ENV}
 
             ./test_timestamp_abort -PT -Po s3_store
 
@@ -2972,6 +2973,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_TEST_ENV}
             WT_BUILDDIR=$(pwd)/../../cmake_build LD_LIBRARY_PATH=$WT_BUILDDIR ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
@@ -5564,8 +5566,7 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: configure-combinations
-  # This test doesn't forward our TSAN_OPTIONS variable, disabling until that is resolved.
-  #  - name: syscall-linux
+    - name: syscall-linux
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
