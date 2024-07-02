@@ -141,7 +141,7 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
-        /* Skip deleted pages that are globally visible. They are not interested to the readers. */
+        /* Skip deleted pages that are globally visible. They are not interesting to the readers. */
         WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH | WT_READ_SKIP_DELETED));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
     }
