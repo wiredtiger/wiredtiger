@@ -178,6 +178,8 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_eviction_clean_pressure(session))
         return (EBUSY);
 
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+
     WT_RET(__wt_calloc_one(session, &pe));
     pe->ref = ref;
     pe->first_home = ref->home;
@@ -190,6 +192,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(EBUSY);
     }
 
+    WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
      * guarantees the corresponding internal page cannot be evicted until prefetch has processed the
