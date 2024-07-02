@@ -81,9 +81,9 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT(session, F_ISSET(next_ref, WT_REF_FLAG_LEAF));
 
             /*
-             * The page can be read into memory and evicted currently. Eviction may split the page
-             * and free the ref. Lock the ref to ensure this doesn't happen. If we fail to lock the
-             * ref, someone else must have started to operate on it. Ignore this page without
+             * The page can be read into memory and evicted concurrently. Eviction may split the
+             * page and free the ref. Lock the ref to ensure this doesn't happen. If we fail to lock
+             * the ref, someone else must have started to operate on it. Ignore this page without
              * waiting.
              */
             if (!WT_REF_CAS_STATE(session, next_ref, WT_REF_DISK, WT_REF_LOCKED))
