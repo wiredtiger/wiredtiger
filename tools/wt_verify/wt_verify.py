@@ -47,6 +47,7 @@ import matplotlib
 matplotlib.use('WebAgg')
 import matplotlib.pyplot as plt
 import mpld3
+import traceback
 from mpld3._server import serve
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
@@ -601,6 +602,7 @@ def main():
             raise Exception(f"Unexpected command '{command}'")
     except Exception as e:
         print(str(e), file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         sys.exit(1)
 
     # If we don't have data, nothing to do.
