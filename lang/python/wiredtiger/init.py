@@ -48,11 +48,8 @@ me = sys.modules[__name__]
 sys.path.append(os.path.dirname(__file__))
 
 # Find the sanitizer environment variable.
-sanitizer = os.environ.get("WT_PYTHON_SANITIZER")
-if sanitizer == 'asan':
-    # FIXME: Implement asan code
-    pass
-elif sanitizer == 'tsan':
+# FIXME-WT-TBD: Rename these testutil flags
+if os.environ.get("TESTUTIL_TSAN") == "1":
     import subprocess
     # FIXME - can we assume that the tsan lib is always libtsan.so.0?
     command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"

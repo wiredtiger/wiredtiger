@@ -5557,9 +5557,8 @@ buildvariants:
     additional_env_vars: |
       # We intentionally suppress all TSan warnings.
       export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
-      export WT_PYTHON_SANITIZER="tsan"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    # TO CHECK We use these flags in the MSan variant because C++ testing produces false positives. 
+    # TO CHECK We use these flags in the MSan variant because C++ testing produces false positives.
     # Confirm that TSan is in the same boat
     extra_args: -LE "cppsuite|long_running"
   tasks:
