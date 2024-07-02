@@ -97,6 +97,8 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* Unlock the ref. */
             WT_REF_SET_STATE(next_ref, WT_REF_DISK);
+
+            /* If no more entries to prefetch, stop here. */
             if (ret == EBUSY) {
                 ret = 0;
                 break;

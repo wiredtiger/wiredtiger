@@ -625,8 +625,8 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     WT_TRET(__wt_ref_block_free(session, ref));
 
     /*
-     * We cannot discard any ref that has the prefetch flag. The prefetch thread would crash if it
-     * sees a freed ref.
+     * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
+     * invalid memory when processing it which can result in a crash.
      */
     WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
 
