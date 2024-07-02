@@ -5595,8 +5595,9 @@ buildvariants:
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
-    - name: csuite-long-running
-      batchtime: 1440 # once a day
+    # Disabling as some tests take over 2.5 hours with TSan instrumented
+    # - name: csuite-long-running
+    #   batchtime: 1440 # once a day
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
