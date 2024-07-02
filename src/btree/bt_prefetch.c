@@ -60,14 +60,6 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
-        /*
-         * If the home is the root page and the root page splits concurrently before we get the page
-         * index, we would see the internal pages instead of leaf pages. Abort the walk in this
-         * case.
-         */
-        if (F_ISSET(next_ref, WT_REF_FLAG_INTERNAL))
-            break;
-
         /* Don't let the pre-fetch queue get overwhelmed. */
         if (conn->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE ||
           block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
@@ -84,8 +76,8 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
          * these deleted pages into the cache if the fast truncate information is visible in the
          * session transaction snapshot.
          */
-        if (WT_REF_GET_STATE(next_ref) == WT_REF_DISK && next_ref->page_del == NULL &&
-          !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
+        if (WT_REF_GET_STATE(next_ref) == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
+          next_ref->page_del == NULL && !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
             WT_ASSERT(session, F_ISSET(next_ref, WT_REF_FLAG_LEAF));
 
             /* Encourage races. */
