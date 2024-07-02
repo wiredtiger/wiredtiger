@@ -47,7 +47,6 @@ import matplotlib
 matplotlib.use('WebAgg')
 import matplotlib.pyplot as plt
 import mpld3
-import traceback
 from mpld3._server import serve
 
 SEPARATOR = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n"
@@ -126,8 +125,9 @@ def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
     node = {}
     line = line[2:-1] # remove new node symbol
     page_type = line.split()[-1]
-    if not page_type in ["internal", "leaf"]:
-        raise Exception(f"page_type expected to be 'internal' or 'leaf' but found '{page_type}'")
+    expected_page_type = ["internal", "leaf"]
+    if not page_type in expected_page_type:
+        raise Exception(f"page_type expected to be one of {expected_page_type} but found '{page_type}'")
     node_id = line.split(": ")[0]
     line = f.readline()
     while line and line != SEPARATOR and not line.startswith("- "):
@@ -151,7 +151,7 @@ def parse_chkpt_info(f):
         raise RuntimeError("Could not find checkpoint name")
     line = f.readline()
     if not line.startswith("Root:"):
-        raise Exception(f"Expected a line starts with 'Root:' but found '{line}'")
+        raise Exception(f"Expected the line starts with 'Root:' but found '{line}'")
     line = f.readline()
     root_addr = parse_metadata(line[3:-1]) # remove metadata symbol
     line = f.readline()
@@ -181,7 +181,7 @@ def parse_dump_blocks():
         if is_root:
             x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
             if not x:
-                raise Exception(f"Root information expected in '{line}")
+                raise Exception(f"Root information expected in '{line}'")
             addr_start = int(x.group(1))
             size = int(x.group(2))
 
@@ -235,15 +235,15 @@ def parse_dump_pages():
     with open(WT_OUTPUT_FILE, "r") as f:
         output = {}
         line = f.readline()
-        while line:
+        while line: 
             if line != SEPARATOR:
-                raise Exception(f"Expected a separator line but found '{line}'")
+                raise Exception(f"Expected '{SEPARATOR}' but found '{line}'")
             [root_addr, line, chkpt_info] = parse_chkpt_info(f)
             output[chkpt_info] = {}
             is_root_node = True
             while line and line != SEPARATOR:
                 if not line.startswith("- "):
-                    raise Exception(f"Expected a line with prefix '- ' but found '{line}'")
+                    raise Exception(f"Expected the line starts with '- ' but found '{line}'")
                 line = parse_node(f, line, output, chkpt_info, root_addr, is_root_node)
                 is_root_node = False
     return output
@@ -593,17 +593,11 @@ def main():
 
     parsed_data = None
 
-    try:
-        if "dump_pages" in command:
-            parsed_data = parse_dump_pages()
-        elif "dump_blocks" in command:
-            parsed_data = parse_dump_blocks()
-        else:
-            raise Exception(f"Unexpected command '{command}'")
-    except Exception as e:
-        print(str(e), file=sys.stderr)
-        print(traceback.format_exc(), file=sys.stderr)
-        sys.exit(1)
+    if "dump_pages" in command:
+        parsed_data = parse_dump_pages()
+    else:
+        # If it's "dump_blocks" then do parse_dump_blocks()
+        parsed_data = parse_dump_blocks()
 
     # If we don't have data, nothing to do.
     if not parsed_data:
@@ -626,15 +620,10 @@ def main():
         print(pretty_output)
 
     if "dump_blocks" in command:
-        try:
-            imgs = show_block_distribution_broken_barh(args.filename, parsed_data)
-            imgs += show_block_distribution_hist(args.filename, parsed_data)
-            imgs += show_free_block_distribution(args.filename, parsed_data)
-            serve(imgs)
-        except Exception as e:
-            print(str(e), file=sys.stderr)
-            print(traceback.format_exc(), file=sys.stderr)
-            sys.exit(1)
+        imgs = show_block_distribution_broken_barh(args.filename, parsed_data)
+        imgs += show_block_distribution_hist(args.filename, parsed_data)
+        imgs += show_free_block_distribution(args.filename, parsed_data)
+        serve(imgs)
     else:
         if not args.visualize:
             args.visualize = ALL_VISUALIZATION_CHOICES
