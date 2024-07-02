@@ -235,7 +235,7 @@ def parse_dump_pages():
     with open(WT_OUTPUT_FILE, "r") as f:
         output = {}
         line = f.readline()
-        while line: 
+        while line:
             if line != SEPARATOR:
                 raise Exception(f"Expected '{SEPARATOR}' but found '{line}'")
             [root_addr, line, chkpt_info] = parse_chkpt_info(f)
