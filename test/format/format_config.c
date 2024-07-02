@@ -326,8 +326,7 @@ config_table(TABLE *table, void *arg)
     if (GV(RUNS_IN_MEMORY)) {
         /*
          * Always limit the row count if it's greater than one million and in memory wasn't
-         * explicitly set. Direct IO is always explicitly set, never limit the row count because the
-         * user has taken control.
+         * explicitly set.
          */
         if (GV(RUNS_IN_MEMORY) && TV(RUNS_ROWS) > WT_MILLION &&
           config_explicit(NULL, "runs.in_memory")) {
