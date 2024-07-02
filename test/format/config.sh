@@ -139,7 +139,7 @@ CONFIG configuration_list[] = {
 
 {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
 
-{"cache.maximum", "minimum cache size (MB)", C_IGNORE, 0, 100 * 1024, 100 * 1024}
+{"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
 
 {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0}
 

@@ -713,16 +713,15 @@ config_cache(void)
         goto dirty_eviction_config;
     }
 
-    /* 
-     * Check if both min and max cache sizes have been specified, that minimum is set less
-     * than maximum. Otherwise if max lower than min, set max to min.
+    /*
+     * Check if both min and max cache sizes have been specified, that minimum is set less than
+     * maximum.
      */
-    if (config_explicit(NULL, "cache.minimum") && config_explicit(NULL, "cache.maximum") && GV(CACHE_MINIMUM) > GV(CACHE_MAXIMUM))
+    if (config_explicit(NULL, "cache.minimum") && config_explicit(NULL, "cache.maximum") &&
+      GV(CACHE_MINIMUM) > GV(CACHE_MAXIMUM))
         testutil_die(EINVAL,
           "configured minimum cache set larger than cache maximum (%" PRIu32 " > %" PRIu32 ")",
           GV(CACHE_MINIMUM), GV(CACHE_MAXIMUM));
-    else if (GV(CACHE_MINIMUM) > GV(CACHE_MAXIMUM))
-        GV(CACHE_MAXIMUM) = GV(CACHE_MINIMUM);
 
     GV(CACHE) = GV(CACHE_MINIMUM);
 
@@ -771,7 +770,7 @@ config_cache(void)
             GV(CACHE) = (uint32_t)cache;
     }
 
-    if (GV(CACHE) > GV(CACHE_MAXIMUM))
+    if (config_explicit(NULL, "cache.maximum") && GV(CACHE) > GV(CACHE_MAXIMUM))
         GV(CACHE) = GV(CACHE_MAXIMUM);
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
