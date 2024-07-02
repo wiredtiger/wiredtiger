@@ -47,20 +47,13 @@ if sys.version_info[0] <= 2:
 me = sys.modules[__name__]
 sys.path.append(os.path.dirname(__file__))
 
-# Look for tsan symbols in the .so file in build and hardcode LD_PRELOAD
-script_path = os.path.dirname(__file__)
-# FIXME - This assumes the script is in build. What happens when we pip isntall wiredtiger?
-if "build/" in script_path:
-    build_path = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
-    # FIXME - This assumes that we'll always use build/libwiredtiger.so
-    # What happens if we pip isntall wiredtiger instead?
-    so_file = build_path + "/libwiredtiger.so"
-
+# Find the sanitizer environment variable.
+sanitizer = os.environ.get("WT_PYTHON_SANITIZER")
+if sanitizer == 'asan':
+    # FIXME: Implement asan code
+    pass
+elif sanitizer == 'tsan':
     import subprocess
-    command = f"nm -D {so_file} | grep tsan"
-    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    is_tsan_instrumented = result.returncode == 0
-
     # FIXME - can we assume that the tsan lib is always libtsan.so.0?
     command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"
     tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
@@ -69,14 +62,10 @@ if "build/" in script_path:
     # Clear it now so that ./wt doesn't get affected by it.
     if os.environ.get("LD_PRELOAD") is None:
         os.environ["LD_PRELOAD"] = tsan_so_path
-    else:
-        os.environ["LD_PRELOAD"] = ""
-
-    # Restart python to have LD_PRELOAD
-    if os.environ.get("LD_PRELOAD_SET") != "1":
-        os.environ["LD_PRELOAD_SET"] = "1"
         python = sys.executable
         os.execl(python, python, *sys.argv)
+    else:
+        os.environ["LD_PRELOAD"] = ""
 
 # explicitly importing _wiredtiger in advance of SWIG allows us to not
 # use relative importing, as SWIG does.  It doesn't work for us with Python2.
