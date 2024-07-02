@@ -3,7 +3,9 @@
 set -e
 
 cache_max=$(free -m | grep -oP '\d+' | head -n 1)
-cache_max=$((($cache_max * 0.2)))
+# Use special command to perform floating point number arithmetic and remove all decimals.
+cache_max=$(echo "0.2 * $cache_max" | bc | cut -d. -f1)
+
 # Smoke-test format as part of running "make check".
 args="-c . "
 args="$args btree.compression=off "
