@@ -1,5 +1,12 @@
 /*! @page tune_system_buffer_cache System buffer cache
 
+@section write_through
+
+The \c write_through configuration string controls whether the
+disk is allowed to cache the writes. Enabling this flag increases write
+latency as the drive must ensure all writes are persisted to disk, but it
+ensures write durability.
+
 @section tuning_system_buffer_cache_os_cache_dirty_max os_cache_dirty_max
 
 WiredTiger supports two  configuration options related to the system buffer cache:
@@ -16,9 +23,6 @@ as part of a durability operation.
 An example of configuring \c os_cache_dirty_max:
 
 @snippet ex_all.c os_cache_dirty_max configuration
-
-The \c os_cache_dirty_max configuration may not be used in combination
-with direct I/O.
 
 The \c os_cache_dirty_max configuration is based on the non-standard
 Linux \c sync_file_range system call and will be ignored if set

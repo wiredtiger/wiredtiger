@@ -1293,7 +1293,8 @@ wiredtiger_open_common =\
         type='boolean'),
     Config('write_through', '', r'''
         Use \c FILE_FLAG_WRITE_THROUGH on Windows to write to files. Ignored on non-Windows
-        systems. Options are given as a list, such as <code>"write_through=[data]"</code>.
+        systems. Options are given as a list, such as <code>"write_through=[data]"</code>. 
+        Configuring \c write_through requires care; see @ref write_through
         Including \c "data" will cause WiredTiger data files to write through cache, including 
         \c "log" will cause WiredTiger log files to write through
         cache.''',

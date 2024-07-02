@@ -297,7 +297,7 @@ __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
-    /* Use a scratch buffer to get correct alignment for direct I/O. */
+    /* Use a scratch buffer to get correct alignment. */
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
     memset(buf->mem, 0, allocsize);
 
@@ -379,7 +379,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
           block->name, block->size, allocsize);
     }
 
-    /* Use a scratch buffer to get correct alignment for direct I/O. */
+    /* Use a scratch buffer to get correct alignment. */
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
     /* Read the first allocation-sized block and verify the file format. */
