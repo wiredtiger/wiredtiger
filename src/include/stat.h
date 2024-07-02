@@ -835,11 +835,17 @@ struct __wt_connection_stats {
     int64_t cursor_update_bytes_changed;
     int64_t cursor_reopen;
     int64_t cursor_open_count;
+    int64_t dh_conn_handle_table_count;
+    int64_t dh_conn_handle_tiered_count;
+    int64_t dh_conn_handle_tiered_tree_count;
+    int64_t dh_conn_handle_btree_count;
+    int64_t dh_conn_handle_checkpoint_count;
     int64_t dh_conn_handle_size;
     int64_t dh_conn_handle_count;
     int64_t dh_sweep_ref;
-    int64_t dh_sweep_close;
+    int64_t dh_sweep_dead_close;
     int64_t dh_sweep_remove;
+    int64_t dh_sweep_expired_close;
     int64_t dh_sweep_tod;
     int64_t dh_sweeps;
     int64_t dh_sweep_skip_ckpt;
@@ -958,6 +964,7 @@ struct __wt_connection_stats {
     int64_t prefetch_pages_fail;
     int64_t prefetch_pages_queued;
     int64_t prefetch_pages_read;
+    int64_t prefetch_skipped_error_ok;
     int64_t prefetch_attempts;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
@@ -1024,6 +1031,8 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
+    int64_t session_table_rename_fail;
+    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
