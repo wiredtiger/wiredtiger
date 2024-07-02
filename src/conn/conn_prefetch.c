@@ -26,6 +26,7 @@ __prefetch_thread_chk(WT_SESSION_IMPL *session)
 static int
 __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
+    struct timespec ts;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PREFETCH_QUEUE_ENTRY *pe;
@@ -42,7 +43,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     while (!TAILQ_EMPTY(&conn->pfqh)) {
         /* Encourage races. */
-        __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_DELAY, NULL);
+        __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_1, NULL);
 
         __wt_spin_lock(session, &conn->prefetch_lock);
         pe = TAILQ_FIRST(&conn->pfqh);
@@ -69,6 +70,11 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             __wt_free(session, pe);
             continue;
         }
+
+        /* Encourage races. */
+        ts.tv_sec = 1;
+        ts.tv_nsec = 0;
+        __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_2, &ts);
 
         /*
          * We increment this while in the prefetch lock as the thread reading from the queue expects

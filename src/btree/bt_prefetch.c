@@ -80,6 +80,9 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
           !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
             WT_ASSERT(session, F_ISSET(next_ref, WT_REF_FLAG_LEAF));
 
+            /* Encourage races. */
+            __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
+
             /*
              * The page can be read into memory and evicted concurrently. Eviction may split the
              * page and free the ref. Lock the ref to ensure this doesn't happen. If we fail to lock
