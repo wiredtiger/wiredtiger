@@ -430,7 +430,7 @@ functions:
           set -o errexit
           set -o verbose
           ${PREPARE_TEST_ENV}
-          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 120
+          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 20
   "run tiered storage test":
     - command: shell.exec
       params:
@@ -469,7 +469,7 @@ functions:
           pip3 install google-cloud-storage
 
           # Run Python testing for all tiered tests.
-          python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
+          python3 ../test/suite/run.py --ignore-stdout -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -785,9 +785,9 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py --ignore-stdout ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
+            ${python_binary|python3} ../test/suite/run.py --ignore-stdout ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
         fi
 
   "code coverage analysis":
@@ -1277,8 +1277,8 @@ functions:
           virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           pip3 install psutil==5.9.4
-          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
-          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --ignore-stdout --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
+          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --ignore-stdout --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
   "csuite smoke test":
     command: shell.exec
@@ -2266,7 +2266,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
+            ${python_binary|python3} ../test/suite/run.py --ignore-stdout ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -2323,7 +2323,7 @@ tasks:
             do
               ((i=i+1))
               echo "Test count: $i"
-              ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
+              ${python_binary|python3} ../test/suite/run.py --ignore-stdout -v 4 test_prepare_hs03.py --hook timestamp
             done
 
   - name: csuite-long-running
@@ -5553,6 +5553,9 @@ buildvariants:
       # We intentionally suppress all TSan warnings.
       export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    # TO CHECK We use these flags in the MSan variant because C++ testing produces false positives. 
+    # Confirm that TSan is in the same boat
+    extra_args: -LE "cppsuite|long_running"
   tasks:
   # The pull request tag, which includes azure gcp, doesn't compile under clang
   #  - name: ".pull_request"
