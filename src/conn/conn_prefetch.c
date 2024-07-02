@@ -193,7 +193,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(EBUSY);
     }
 
-    /* /* We should never add a ref that is already in the prefetch queue. */
+    /* We should never add a ref that is already in the prefetch queue. */
     WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
