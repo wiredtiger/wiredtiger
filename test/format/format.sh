@@ -591,8 +591,9 @@ resolve()
 
 # Start a single job.
 count_jobs=0
-test_memory_max=$(free -m | grep -oP '\d+' | head -n 1)
-test_memory_max=$(( ($test_memory_max * 0.8) / $parallel_jobs ))
+test_memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
+# Use only 80% of the machines total memory and make sure that memory is in MB.
+test_memory_max=$(( ($test_memory_max * 0.8) / ($parallel_jobs * 1024) ))
 format()
 {
 	count_jobs=$(($count_jobs + 1))

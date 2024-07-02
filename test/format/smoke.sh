@@ -2,9 +2,10 @@
 
 set -e
 
-cache_max=$(free -m | grep -oP '\d+' | head -n 1)
-# Use special command to perform floating point number arithmetic and remove all decimals.
-cache_max=$(echo "0.2 * $cache_max" | bc | cut -d. -f1)
+cache_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
+# Use special command to perform floating point number arithmetic, remove all decimals and
+# convert to MB
+cache_max=$(echo "0.2 * $cache_max / 1024" | bc | cut -d. -f1)
 
 # Smoke-test format as part of running "make check".
 args="-c . "
