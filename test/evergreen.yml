@@ -5572,9 +5572,10 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
-    - name: unit-test-hook-tiered
-    - name: unit-test-hook-tiered-with-delays
-    - name: unit-test-hook-tiered-timestamp
+    # These cache stuck under TSan.
+    #- name: unit-test-hook-tiered
+    #- name: unit-test-hook-tiered-with-delays
+    #- name: unit-test-hook-tiered-timestamp
     - name: unit-test-hook-timestamp
     - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
