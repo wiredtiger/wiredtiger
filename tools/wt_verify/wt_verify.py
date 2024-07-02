@@ -126,7 +126,7 @@ def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
     node = {}
     line = line[2:-1] # remove new node symbol
     page_type = line.split()[-1]
-    if not page_type in ("internal", "leaf"):
+    if not page_type in ["internal", "leaf"]:
         raise Exception(f"page_type expected to be 'internal' or 'leaf' but found '{page_type}'")
     node_id = line.split(": ")[0]
     line = f.readline()
