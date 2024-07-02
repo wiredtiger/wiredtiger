@@ -5586,7 +5586,8 @@ buildvariants:
     # We need to split this into two (ctest_extra_args, format_extra_args) fields in a separate ticket. 
     # - name: format-mirror-test
     - name: format-smoke-test
-    - name: format-failure-configs-test
+    # This gets OOM killed under TSan.
+    #- name: format-failure-configs-test
     - name: ".data-validation-stress-test"
     - name: catch2-unittest-test
     - name: s3-tiered-storage-extensions-test
@@ -5595,7 +5596,8 @@ buildvariants:
     # Azure gcp which falls under this label doesn't compile under clang.
     #- name: ".tiered_unittest"
     - name: bench-tiered-push-pull-s3
-    - name: csuite-timestamp-abort-test-s3
+    # This is too slow under TSan.
+    #- name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
     # Disabling as some tests take over 2.5 hours with TSan instrumented
     # - name: csuite-long-running
