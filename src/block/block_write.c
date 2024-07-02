@@ -234,7 +234,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /* Buffers should be aligned for writing. */
     if (!F_ISSET(buf, WT_ITEM_ALIGNED)) {
         WT_ASSERT(session, F_ISSET(buf, WT_ITEM_ALIGNED));
-        WT_RET_MSG(session, EINVAL, "direct I/O check: write buffer incorrectly allocated");
+        WT_RET_MSG(session, EINVAL, "Check: write buffer incorrectly allocated");
     }
 
     /*

@@ -35,9 +35,7 @@
  * the file system may not know that the data was written, so it may not flush the metadata
  * prior to data being written. Therefore, the block may be reallocated or lost upon crash.
  *
- * WiredTiger currently disallows using the mmap option with the direct I/O option. We are relying
- * on the user correctly specifying the direct I/O option if they mount a file system as DAX. If
- * we did not wish to rely on the user supplying the correct flags, we have two options:
+ * If we do not wish to rely on the user supplying the correct flags for mmap, we have two options:
  *
  * (1) Use MAP_SYNC flag available on some versions of Linux. The downside is being Linux-specific
  *     and not extensively tested (this is a recent flag).
