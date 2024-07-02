@@ -60,6 +60,14 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
+        /*
+         * If we are at the root page and the root page split concurrently before we get the page
+         * index, we would see the internal pages instead of leaf pages. Abort the walk in this
+         * case.
+         */
+        if (F_ISSET(next_ref, WT_REF_FLAG_INTERNAL))
+            break;
+
         /* Don't let the pre-fetch queue get overwhelmed. */
         if (conn->prefetch_queue_count > WT_MAX_PREFETCH_QUEUE ||
           block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
