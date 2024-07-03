@@ -851,10 +851,10 @@ config_compression(TABLE *table, const char *conf_name)
     /* Return if already specified and it's a current compression engine. */
     if (config_explicit(table, conf_name)) {
         cstr = "off";
-        // if (strcmp(conf_name, "logging.compression") == 0)
-        //     cstr = GVS(LOGGING_COMPRESSION);
-        // else if (strcmp(conf_name, "btree.compression") == 0)
-        //     cstr = TVS(BTREE_COMPRESSION);
+        if (strcmp(conf_name, "logging.compression") == 0)
+            cstr = GVS(LOGGING_COMPRESSION);
+        else if (strcmp(conf_name, "btree.compression") == 0)
+            cstr = TVS(BTREE_COMPRESSION);
         if (memcmp(cstr, "bzip", strlen("bzip")) != 0)
             return;
         WARN("%s: bzip compression no longer supported", conf_name);
@@ -865,46 +865,46 @@ config_compression(TABLE *table, const char *conf_name)
      * correct if all of the possible engines are compiled in.
      */
     cstr = "off";
-//     switch (mmrand(&g.extra_rnd, 1, 20)) {
-// #ifdef HAVE_BUILTIN_EXTENSION_LZ4
-//     case 1:
-//     case 2:
-//     case 3: /* 15% lz4 */
-//         cstr = "lz4";
-//         break;
-// #endif
-// #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
-//     case 4:
-//     case 5:
-//     case 6:
-//     case 7:
-//     case 8:
-//     case 9: /* 30% snappy */
-//         cstr = "snappy";
-//         break;
-// #endif
-// #ifdef HAVE_BUILTIN_EXTENSION_ZLIB
-//     case 10:
-//     case 11:
-//     case 12:
-//     case 13: /* 20% zlib */
-//         cstr = "zlib";
-//         break;
-// #endif
-// #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
-//     case 14:
-//     case 15:
-//     case 16:
-//     case 17: /* 20% zstd */
-//         cstr = "zstd";
-//         break;
-// #endif
-//     case 18:
-//     case 19:
-//     case 20: /* 15% no compression */
-//     default:
-//         break;
-//     }
+    switch (mmrand(&g.extra_rnd, 1, 20)) {
+#ifdef HAVE_BUILTIN_EXTENSION_LZ4
+    case 1:
+    case 2:
+    case 3: /* 15% lz4 */
+        cstr = "lz4";
+        break;
+#endif
+#ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9: /* 30% snappy */
+        cstr = "snappy";
+        break;
+#endif
+#ifdef HAVE_BUILTIN_EXTENSION_ZLIB
+    case 10:
+    case 11:
+    case 12:
+    case 13: /* 20% zlib */
+        cstr = "zlib";
+        break;
+#endif
+#ifdef HAVE_BUILTIN_EXTENSION_ZSTD
+    case 14:
+    case 15:
+    case 16:
+    case 17: /* 20% zstd */
+        cstr = "zstd";
+        break;
+#endif
+    case 18:
+    case 19:
+    case 20: /* 15% no compression */
+    default:
+        break;
+    }
 
     testutil_snprintf(confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr);
     config_single(table, confbuf, false);
