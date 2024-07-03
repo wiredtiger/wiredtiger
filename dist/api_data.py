@@ -746,7 +746,7 @@ connection_runtime_config = [
         rolling out changes to internal heuristics while providing a mechanism for quickly
         reverting to prior behavior in the field''',
         type='category', subconfig=[
-            Config('obsolete_tw_pages_dirty', '500', r'''
+            Config('obsolete_tw_pages_dirty', '100', r'''
                 eviction to mark the number of obsolete time window pages that are marked as dirty
                 per btree in a single checkpoint''',
                 min=0, max=100000),
