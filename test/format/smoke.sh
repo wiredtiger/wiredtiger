@@ -6,7 +6,6 @@ set -e
 args="-c . "
 args="$args btree.compression=off "
 args="$args cache.minimum=40 "
-args="$args cache.maximum=$cache_max "
 args="$args logging_compression=off"
 args="$args runs.rows=100000 "
 args="$args runs.source=table "
