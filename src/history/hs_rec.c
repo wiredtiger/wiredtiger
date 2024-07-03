@@ -363,9 +363,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
     uint32_t i;
     int nentries;
-    bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed, hs_flag_set;
+    bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed;
 
-    hs_flag_set = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
     prev_upd = NULL;
@@ -543,7 +542,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * flag state to deal with this later. We cannot break here as there are scenarios
                  * we need to finish the loop to construct the full update.
                  */
-                hs_flag_set = true;
+                // hs_flag_set = true;
             }
 
             /*
@@ -571,7 +570,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * a modify update already written to the history store (we saved the state in hs_flag_set),
          * deal with it here and skip the deletion as there is nothing to do
          */
-        if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
+        if (oldest_upd->type == WT_UPDATE_TOMBSTONE &&
           oldest_upd->start_ts == WT_TS_NONE) {
             WT_ERR(
               __wt_hs_delete_key(session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
@@ -833,8 +832,8 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btre
      * removals either as the tombstone is globally visible, and will be removed anyways. If we did
      * not find a valid cursor position, there is nothing to do, set return to success.
      */
-    if (non_ts_updates)
-        goto done;
+    // if (non_ts_updates)
+    //     goto done;
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, WT_TS_NONE,
           reinsert, true, error_on_ts_ordering, &hs_counter));
