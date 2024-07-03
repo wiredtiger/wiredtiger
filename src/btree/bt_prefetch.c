@@ -93,10 +93,6 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
             if (!WT_REF_CAS_STATE(session, next_ref, WT_REF_DISK, WT_REF_LOCKED))
                 continue;
 
-            /* The page can be fast truncated concurrently, check again. */
-            if (next_ref->page_del != NULL)
-                continue;
-
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
 
             /* Unlock the ref. */
