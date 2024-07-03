@@ -2376,7 +2376,7 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
      * obsolete_tw_pages_dirty, eviction to mark the number of obsolete time window pages that are
      * marked as dirty per btree in a single checkpoint., an integer between \c 0 and \c 100000;
-     * default \c 500.}
+     * default \c 100.}
      * @config{ ),,}
      * @config{history_store = (, history store configuration options., a set of related
      * configuration options defined as follows.}
@@ -3249,7 +3249,7 @@ struct __wt_connection {
  * defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_pages_dirty, eviction to mark
  * the number of obsolete time window pages that are marked as dirty per btree in a single
- * checkpoint., an integer between \c 0 and \c 100000; default \c 500.}
+ * checkpoint., an integer between \c 0 and \c 100000; default \c 100.}
  * @config{ ),,}
  * @config{history_store = (, history store configuration options., a set of related configuration
  * options defined as follows.}
