@@ -34,30 +34,13 @@ struct __wt_conf_bindings {
 };
 
 /*
- * WT_CONF_BIND_TYPE --
- *   These types are used for specifying configuration parameters to be bound.
- * We have a richer set of types for bindings than WT_CONFIG_ITEM_TYPE provides,
- * because using variable arguments for bindings demands it.
- */
-typedef enum {
-    WT_CONF_BIND_INT,
-    WT_CONF_BIND_L_INT,
-    WT_CONF_BIND_LL_INT,
-    WT_CONF_BIND_U_INT,
-    WT_CONF_BIND_UL_INT,
-    WT_CONF_BIND_ULL_INT,
-    WT_CONF_BIND_STRING
-} WT_CONF_BIND_TYPE;
-
-/*
  * WT_CONF_BIND_DESC --
  *	A descriptor about a value to be bound.
  */
 struct __wt_conf_bind_desc {
-    WT_CONFIG_ITEM_TYPE item_type; /* WT_CONFIG_ITEM.type */
-    WT_CONF_BIND_TYPE bind_type;   /* Type for bind argument */
-    const char **choices;          /* Choices for the value if applicable. */
-    u_int offset;                  /* offset into WT_SESSION::conf_bindings.values table */
+    WT_CONFIG_ITEM_TYPE type; /* WT_CONFIG_ITEM.type */
+    const char **choices;     /* Choices for the value if applicable. */
+    u_int offset;             /* offset into WT_SESSION::conf_bindings.values table */
 };
 
 /*
@@ -159,7 +142,7 @@ WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 7);
 WT_CONF_API_DECLARE(WT_CONNECTION, load_extension, 1, 4);
 WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 9);
 WT_CONF_API_DECLARE(WT_CONNECTION, query_timestamp, 1, 1);
-WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 17, 98);
+WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 18, 100);
 WT_CONF_API_DECLARE(WT_CONNECTION, rollback_to_stable, 1, 2);
 WT_CONF_API_DECLARE(WT_CONNECTION, set_timestamp, 1, 4);
 WT_CONF_API_DECLARE(WT_CURSOR, bound, 1, 3);
@@ -190,10 +173,10 @@ WT_CONF_API_DECLARE(object, meta, 5, 64);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
 WT_CONF_API_DECLARE(tier, meta, 5, 65);
 WT_CONF_API_DECLARE(tiered, meta, 5, 67);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 21, 161);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 21, 162);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 21, 156);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 21, 155);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 22, 163);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 22, 164);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 22, 158);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 22, 157);
 
 #define WT_CONF_API_ELEMENTS 56
 
