@@ -714,8 +714,8 @@ config_cache(void)
     }
 
     /*
-     * Check if both min and max cache sizes have been specified, that minimum is set less than
-     * maximum.
+     * If the min and max cache has been explicitly set, we need to check that the min cache size
+     * is less than or equal to max cache size.
      */
     if (config_explicit(NULL, "cache.minimum") && config_explicit(NULL, "cache.maximum") &&
       GV(CACHE_MINIMUM) > GV(CACHE_MAXIMUM))
