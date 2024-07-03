@@ -694,6 +694,10 @@ static void
 config_cache(void)
 {
     uint64_t cache, workers;
+    bool cache_maximum_explict;
+
+    /* The maximum cache is only set if it is non-zero and explicilty set. */
+    cache_maximum_explict = GV(CACHE_MINIMUM) != 0 && config_explicit(NULL, "cache.maximum");
 
     /* Sum the number of workers. */
     workers = GV(RUNS_THREADS);
@@ -707,17 +711,17 @@ config_cache(void)
         if (config_explicit(NULL, "cache.minimum") && GV(CACHE) < GV(CACHE_MINIMUM))
             testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE_MINIMUM), GV(CACHE));
-        if (config_explicit(NULL, "cache.maximum") && GV(CACHE) > GV(CACHE_MAXIMUM))
+        if (cache_maximum_explict && GV(CACHE) > GV(CACHE_MAXIMUM))
             testutil_die(EINVAL, "cache set larger than maximum cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE), GV(CACHE_MAXIMUM));
         goto dirty_eviction_config;
     }
 
     /*
-     * If the min and max cache has been explicitly set, we need to check that the min cache size
-     * is less than or equal to max cache size.
+     * If the min and max cache has been explicitly set, we need to check that the min cache size is
+     * less than or equal to max cache size.
      */
-    if (config_explicit(NULL, "cache.minimum") && config_explicit(NULL, "cache.maximum") &&
+    if (config_explicit(NULL, "cache.minimum") && cache_maximum_explict &&
       GV(CACHE_MINIMUM) > GV(CACHE_MAXIMUM))
         testutil_die(EINVAL,
           "configured minimum cache set larger than cache maximum (%" PRIu32 " > %" PRIu32 ")",
@@ -770,7 +774,7 @@ config_cache(void)
             GV(CACHE) = (uint32_t)cache;
     }
 
-    if (config_explicit(NULL, "cache.maximum") && GV(CACHE) > GV(CACHE_MAXIMUM))
+    if (cache_maximum_explict && GV(CACHE) > GV(CACHE_MAXIMUM))
         GV(CACHE) = GV(CACHE_MAXIMUM);
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
