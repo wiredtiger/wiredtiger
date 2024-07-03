@@ -85,7 +85,7 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
              * The page can be read into memory and evicted concurrently. Eviction may split the
              * page and add the ref to the stash to be freed later before the WT_REF_FLAG_PREFETCH
              * flag is set. In another case, the page can be fast truncated and become globally
-             * visible concurrently. This may also lead to the ref to be added to the stash before
+             * visible concurrently. This may also lead to the ref being added to the stash before
              * the WT_REF_FLAG_PREFETCH flag is set. Lock the ref to ensure those cases cannot
              * happen. If we fail to lock the ref, someone else must have started to operate on it.
              * Ignore this page without waiting.
