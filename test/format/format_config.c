@@ -846,8 +846,6 @@ config_compression(TABLE *table, const char *conf_name)
         return;
     }
 
-    /* FIXME - disable all compression. See if this fixes TSan */
-
     /* Return if already specified and it's a current compression engine. */
     if (config_explicit(table, conf_name)) {
         cstr = "off";
