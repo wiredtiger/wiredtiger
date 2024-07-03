@@ -30,7 +30,7 @@ import threading, time
 import wttest
 from wtthread import checkpoint_thread, named_checkpoint_thread
 from helper import simulate_crash_restart
-from wiredtiger import stat
+from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -49,20 +49,24 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
+
     overlap_values = [
         ('overlap', dict(do_overlap=True)),
         ('no-overlap', dict(do_overlap=False, long_only=True)),
     ]
+
     stable_ts_values = [
         ('5', dict(stable_ts=5)),
         ('15', dict(stable_ts=15, long_only=True)),
         ('25', dict(stable_ts=25)),
         # Cannot do 35: we need to commit at 30 after starting the checkpoint.
     ]
+
     advance_values = [
         ('no-advance', dict(do_advance=False)),
         ('advance', dict(do_advance=True)),
     ]
+
     name_values = [
         # Reopening and unnamed checkpoints will not work as intended because the reopen makes
         # a new checkpoint.
@@ -70,6 +74,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named_reopen', dict(second_checkpoint='second_checkpoint', do_reopen=True)),
         ('unnamed', dict(second_checkpoint=None, do_reopen=False, long_only=True)),
     ]
+
     scenarios = make_scenarios(format_values,
         overlap_values, stable_ts_values, advance_values, name_values)
 
@@ -121,9 +126,6 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         overlap = 5000 if self.do_overlap else 0
         morerows = 10000
 
-        # FIXME - Figure out with a rollback
-        return 0
-
         # Create a table.
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format=self.value_format,
@@ -157,10 +159,23 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Write some further data, and hold the transaction open. Eventually commit at time 30.
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
-        session2.begin_transaction()
         #for i in range(1, nrows + 1, 10):
-        for i in range(nrows - overlap + 1, nrows + morerows + 1):
-            cursor2[ds.key(i)] = value_c
+        insertions_complete = False
+        attempt_count = 1
+        while not insertions_complete:
+            try:
+                session2.begin_transaction()
+                for i in range(nrows - overlap + 1, nrows + int(morerows / attempt_count) + 1):
+                    cursor2[ds.key(i)] = value_c
+                insertions_complete = True
+            except WiredTigerError as e:
+                attempt_count = attempt_count + 1
+                assert(attempt_count < 10)
+                rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+                if rollback_str in str(e):
+                    session2.rollback_transaction()
+                    continue
+                raise(e)
 
         # Optionally move stable forward.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable_ts))

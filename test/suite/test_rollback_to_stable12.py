@@ -62,9 +62,6 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 1000000
 
-        # Possible out of mem issues when run with TSan?
-        return 0
-
         # Create a table.
         uri = "table:rollback_to_stable12"
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
