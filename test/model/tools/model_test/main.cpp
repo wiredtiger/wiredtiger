@@ -33,11 +33,9 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <set>
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "wiredtiger.h"
