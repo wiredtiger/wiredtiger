@@ -239,6 +239,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     WT_ITEM key, start_key, stop_key, value;
     WT_SESSION_IMPL *session;
     wt_timestamp_t commit, durable, first_commit, prepare, read;
+    size_t max_memsize;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, opsize, optype;
 
@@ -270,6 +271,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
+            max_memsize = cursor->value.size;
+            __wt_modify_max_memsize_format(value.data, cursor->value_format, &max_memsize);
             WT_ERR(__wt_modify_apply_item(
               CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -347,6 +350,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
+            max_memsize = cursor->value.size;
+            __wt_modify_max_memsize_format(value.data, cursor->value_format, &max_memsize);
             WT_ERR(__wt_modify_apply_item(
               CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));

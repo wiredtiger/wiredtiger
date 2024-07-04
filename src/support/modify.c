@@ -403,16 +403,11 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     size_t max_memsize;
-    int i;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
     max_memsize = cursor->value.size;
-    for (i = 0; i < nentries; ++i)
-        max_memsize = WT_MAX(max_memsize, entries[i].offset) + entries[i].data.size;
-
-    if (cursor->value_format[0] == 'S')
-        ++max_memsize;
+    __wt_modify_max_memsize_unpacked(entries, nentries, cursor->value_format, &max_memsize);
 
     WT_ERR(__wt_buf_set_and_grow(
       CUR2S(cursor), &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
@@ -435,13 +430,10 @@ __wt_modify_reconstruct_from_upd_list(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_MODIFY mod;
     WT_TIME_WINDOW tw;
-    WT_UPDATE *upd, *mod_upd;
+    WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
-    size_t item_offset, max_memsize, tmp;
-    const size_t *p;
-    int i, nentries;
+    size_t item_offset, max_memsize;
     bool onpage_retry;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
@@ -511,20 +503,7 @@ retry:
     }
 
     if (modifies.size > 0) {
-        for (i = (int)modifies.size - 1; i >= 0; --i) {
-            mod_upd = modifies.listp[i];
-            p = (const size_t *)mod_upd->data;
-            memcpy(&tmp, p++, sizeof(size_t));
-            nentries = (int)tmp;
-
-            WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
-                max_memsize = WT_MAX(max_memsize, mod.offset) + mod.data.size;
-            }
-            WT_MODIFY_FOREACH_END;
-        }
-
-        if (cursor->value_format[0] == 'S')
-            ++max_memsize;
+        __wt_modifies_max_memsize(&modifies, cursor->value_format, &max_memsize);
 
         if (upd == NULL)
             WT_ERR(__wt_buf_set_and_grow(
@@ -533,7 +512,6 @@ retry:
             WT_ERR(
               __wt_buf_set_and_grow(session, &upd_value->buf, upd->data, upd->size, max_memsize));
     }
-
     /* Once we have a base item, roll forward through any visible modify updates. */
     while (modifies.size > 0) {
         __wt_update_vector_pop(&modifies, &upd);

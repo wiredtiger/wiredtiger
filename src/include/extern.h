@@ -2527,6 +2527,13 @@ static WT_INLINE void __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_cursor_free_cached_memory(WT_CURSOR *cursor);
 static WT_INLINE void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
+static WT_INLINE void __wt_modifies_max_memsize(
+  WT_UPDATE_VECTOR *modifies, const char *value_format, size_t *max_memsize);
+static WT_INLINE void __wt_modify_max_memsize(const void *modify, size_t *max_memsize);
+static WT_INLINE void __wt_modify_max_memsize_format(
+  const void *modify, const char *value_format, size_t *max_memsize);
+static WT_INLINE void __wt_modify_max_memsize_unpacked(
+  WT_MODIFY *entries, int nentries, const char *value_format, size_t *max_memsize);
 static WT_INLINE void __wt_op_timer_start(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_op_timer_stop(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);

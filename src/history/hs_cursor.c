@@ -58,17 +58,14 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM hs_key, recno_key;
-    WT_MODIFY mod;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd;
     WT_UPDATE_VECTOR modifies;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
-    size_t max_memsize, tmp;
-    const size_t *p_mod;
+    size_t max_memsize;
     uint64_t upd_type_full;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
-    int i, nentries;
     bool upd_found;
 
     hs_cursor = NULL;
@@ -200,19 +197,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
 
         if (modifies.size > 0) {
             max_memsize = hs_value->size;
-            for (i = (int)modifies.size - 1; i >= 0; --i) {
-                mod_upd = modifies.listp[i];
-                p_mod = (const size_t *)mod_upd->data;
-                memcpy(&tmp, p_mod++, sizeof(size_t));
-                nentries = (int)tmp;
-
-                WT_MODIFY_FOREACH_BEGIN (mod, p_mod, nentries, 0) {
-                    max_memsize = WT_MAX(max_memsize, mod.offset) + mod.data.size;
-                }
-                WT_MODIFY_FOREACH_END;
-            }
-            if (value_format[0] == 'S')
-                ++max_memsize;
+            __wt_modifies_max_memsize(&modifies, value_format, &max_memsize);
             WT_ERR(__wt_buf_set_and_grow(
               session, hs_value, hs_value->data, hs_value->size, max_memsize));
         }
