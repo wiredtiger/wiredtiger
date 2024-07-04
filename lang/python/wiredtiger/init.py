@@ -56,7 +56,7 @@ me = sys.modules[__name__]
 sys.path.append(os.path.dirname(__file__))
 
 # Find the sanitizer environment variable.
-# FIXME-WT-TBD: Rename these testutil flags
+# FIXME-WT-13237: Rename these testutil flags
 if os.environ.get("TESTUTIL_TSAN") == "1":
     import subprocess
     # FIXME - can we assume that the tsan lib is always libtsan.so.0?
