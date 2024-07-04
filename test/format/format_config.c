@@ -697,7 +697,7 @@ config_cache(void)
     bool cache_maximum_explicit;
 
     /* The maximum cache is only set if it is non-zero and explicitly set. */
-    cache_maximum_explicit = GV(CACHE_MINIMUM) != 0 && config_explicit(NULL, "cache.maximum");
+    cache_maximum_explicit = GV(CACHE_MAXIMUM) != 0 && config_explicit(NULL, "cache.maximum");
 
     /* Sum the number of workers. */
     workers = GV(RUNS_THREADS);
