@@ -30,7 +30,7 @@ import threading, time
 import wttest
 from wtthread import checkpoint_thread, named_checkpoint_thread
 from helper import simulate_crash_restart
-from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -50,24 +50,20 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
-
     overlap_values = [
         ('overlap', dict(do_overlap=True)),
         ('no-overlap', dict(do_overlap=False, long_only=True)),
     ]
-
     stable_ts_values = [
         ('5', dict(stable_ts=5)),
         ('15', dict(stable_ts=15, long_only=True)),
         ('25', dict(stable_ts=25)),
         # Cannot do 35: we need to commit at 30 after starting the checkpoint.
     ]
-
     advance_values = [
         ('no-advance', dict(do_advance=False)),
         ('advance', dict(do_advance=True)),
     ]
-
     name_values = [
         # Reopening and unnamed checkpoints will not work as intended because the reopen makes
         # a new checkpoint.
@@ -75,7 +71,6 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named_reopen', dict(second_checkpoint='second_checkpoint', do_reopen=True)),
         ('unnamed', dict(second_checkpoint=None, do_reopen=False, long_only=True)),
     ]
-
     scenarios = make_scenarios(format_values,
         overlap_values, stable_ts_values, advance_values, name_values)
 
