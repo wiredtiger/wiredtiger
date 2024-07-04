@@ -42,6 +42,7 @@ from wtscenario import make_scenarios
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
+    rollbacks_allowed = 10
 
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t',
@@ -159,23 +160,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Write some further data, and hold the transaction open. Eventually commit at time 30.
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
+        session2.begin_transaction()
         #for i in range(1, nrows + 1, 10):
-        insertions_complete = False
-        attempt_count = 1
-        while not insertions_complete:
-            try:
-                session2.begin_transaction()
-                for i in range(nrows - overlap + 1, nrows + int(morerows / attempt_count) + 1):
-                    cursor2[ds.key(i)] = value_c
-                insertions_complete = True
-            except WiredTigerError as e:
-                attempt_count = attempt_count + 1
-                assert(attempt_count < 10)
-                rollback_str = wiredtiger_strerror(WT_ROLLBACK)
-                if rollback_str in str(e):
-                    session2.rollback_transaction()
-                    continue
-                raise(e)
+        for i in range(nrows - overlap + 1, nrows + morerows + 1):
+            cursor2[ds.key(i)] = value_c
 
         # Optionally move stable forward.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable_ts))

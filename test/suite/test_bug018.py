@@ -114,9 +114,6 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
     def test_bug018(self):
         '''Test closing multiple tables'''
 
-        # FIXME - This also fails on develop. Not obviously a TSan problem
-        return 0
-
         self.close_conn()
         subdir = 'SUBPROCESS'
         [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
