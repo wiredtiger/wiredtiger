@@ -104,7 +104,8 @@ __wt_modifies_max_memsize(WT_UPDATE_VECTOR *modifies, const char *value_format, 
     for (i = (int)modifies->size - 1; i >= 0; --i) {
         upd = modifies->listp[i];
         __wt_modify_max_memsize(upd->data, max_memsize);
-        if (value_format[0] == 'S')
-            ++(*max_memsize);
     }
+
+    if (value_format[0] == 'S')
+        ++(*max_memsize);
 }
