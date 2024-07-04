@@ -272,10 +272,10 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
         full_value->data = upd->data;
         full_value->size = upd->size;
     } else if (upd->type == WT_UPDATE_MODIFY) {
-        max_memsize = older_full_value->size;
+        max_memsize = full_value->size;
         __wt_modify_max_memsize_format(upd->data, S2BT(session)->value_format, &max_memsize);
         WT_RET(__wt_buf_set_and_grow(
-          session, full_value, older_full_value->data, older_full_value->size, max_memsize));
+          session, full_value, full_value->data, full_value->size, max_memsize));
         WT_RET(__wt_modify_apply_item(session, S2BT(session)->value_format, full_value, upd->data));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
