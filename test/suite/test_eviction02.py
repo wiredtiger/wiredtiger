@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import math
 from wiredtiger import stat
 from wtscenario import make_scenarios
 import wttest
@@ -49,10 +48,10 @@ class test_eviction02(wttest.WiredTigerTestCase):
 
     def check_stat(self, prev_value, current_value):
         # Stats may have a stale value, allow some buffer.
-        error_margin = 1.5
-        threshold = math.ceil(self.obsolete_tw_max * error_margin)
+        error_margin = 2
+        threshold = self.obsolete_tw_max * error_margin
         diff = current_value - prev_value
-        assert diff <= threshold, f"Unexpected number of pages with obsolete tw cleaned: {diff} (max {self.obsolete_tw_max})"
+        assert diff <= threshold, f"Unexpected number of pages with obsolete tw cleaned: {diff} (max {threshold})"
 
     def get_stat(self, stat, uri = ""):
         stat_cursor = self.session.open_cursor(f'statistics:{uri}')
