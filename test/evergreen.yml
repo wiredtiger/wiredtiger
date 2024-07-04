@@ -1277,8 +1277,8 @@ functions:
           virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           pip3 install psutil==5.9.4
-          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --ignore-stdout --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
-          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --ignore-stdout --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
+          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
+          ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
   "csuite smoke test":
     command: shell.exec
