@@ -273,6 +273,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              */
             max_memsize = cursor->value.size;
             __wt_modify_max_memsize_format(value.data, cursor->value_format, &max_memsize);
+            WT_ERR(__wt_buf_set_and_grow(
+              session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
               CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -352,6 +354,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              */
             max_memsize = cursor->value.size;
             __wt_modify_max_memsize_format(value.data, cursor->value_format, &max_memsize);
+            WT_ERR(__wt_buf_set_and_grow(
+              session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
               CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
