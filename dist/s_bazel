@@ -1,0 +1,22 @@
+#!/bin/bash
+
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_top
+
+echo $'package(default_visibility = ["//visibility:public"])\n' > dist/filelist.bzl
+
+cat dist/filelist | grep -E '^[^#]' | {
+    while :; do
+        read FILE PLATFORM
+        [[ -z "$FILE" ]] && break
+        eval "FILELIST_${PLATFORM}=\"\$FILELIST_${PLATFORM} \$FILE\""
+    done
+    set
+} | grep -F FILELIST_ | sed -E '
+    s/\x27//g;
+    s/"//g;
+    s/= /=[\n\t"/;
+    s/$/"]\n/;
+    s/ /",\n\t"/g
+' >> dist/filelist.bzl
+
