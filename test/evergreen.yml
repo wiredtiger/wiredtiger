@@ -5552,7 +5552,6 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
-    # TO CHECK: Without these flags the .data-validation-stress-test tests will fail. This is probably due to issues in the test and not TSan
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     additional_env_vars: |
       # We intentionally suppress all TSan warnings.
