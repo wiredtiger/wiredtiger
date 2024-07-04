@@ -31,6 +31,8 @@ from runner import *
 from workgen import *
 from wiredtiger import stat
 
+# This module contains common code used in performance benchmarking
+# workloads with and without the pre-fetch functionality enabled.
 class microbenchmark_prefetch:
     def __init__(self):
         self.context = Context()

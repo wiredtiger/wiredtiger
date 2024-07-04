@@ -26,6 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# This workload is used to measure the impact of disabling pre-fetch when
+# verifying a database. The statistics printed out by this workload can
+# be compared to the values printed out by the other workload with
+# pre-fetching enabled.
 
 from runner import *
 from workgen import *
