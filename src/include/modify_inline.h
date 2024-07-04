@@ -68,20 +68,7 @@ __wt_modify_max_memsize(const void *modify, size_t *max_memsize)
 static WT_INLINE void
 __wt_modify_max_memsize_format(const void *modify, const char *value_format, size_t *max_memsize)
 {
-    WT_MODIFY mod;
-    size_t tmp;
-    const size_t *p;
-    int nentries;
-
-    /* Get the number of modify entries. */
-    p = (const size_t *)modify;
-    memcpy(&tmp, p++, sizeof(size_t));
-    nentries = (int)tmp;
-
-    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
-        *max_memsize = WT_MAX(*max_memsize, mod.offset) + mod.data.size;
-    }
-    WT_MODIFY_FOREACH_END;
+    __wt_modify_max_memsize(modify, max_memsize);
 
     if (value_format[0] == 'S')
         ++(*max_memsize);
