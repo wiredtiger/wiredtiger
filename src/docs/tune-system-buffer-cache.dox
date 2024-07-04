@@ -9,7 +9,7 @@ ensures write durability.
 
 @section tuning_system_buffer_cache_os_cache_dirty_max os_cache_dirty_max
 
-WiredTiger supports two  configuration options related to the system buffer cache:
+WiredTiger supports two configuration options related to the system buffer cache:
 
 The first is \c os_cache_dirty_max, the maximum dirty bytes an object
 is allowed to have in the system buffer cache.  Once this many bytes
@@ -44,5 +44,8 @@ An example of configuring \c os_cache_max:
 
 The \c os_cache_max configuration is based on the POSIX 1003.1 standard
 \c posix_fadvise system call and may not available on all platforms.
+
+Configuring \c os_cache_dirty_max or \c os_cache_max both have the side
+effect of turning off memory-mapping of objects in WiredTiger.
 
  */
