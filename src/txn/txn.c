@@ -570,12 +570,16 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     if (WT_TXNID_LT(__wt_atomic_loadv64(&txn_global->last_running), last_running)) {
         __wt_atomic_storev64(&txn_global->last_running, last_running);
 
-        /* Output a verbose message about long-running transactions,
-         * but only when some progress is being made. */
+        /*
+         * Output a verbose message about long-running transactions, but only when some progress is
+         * being made.
+         */
+        current_id = __wt_atomic_loadv64(&txn_global->current);
+        WT_ASSERT(session, WT_TXNID_LE(oldest_id, current_id));
         if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
           current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
-              "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
+              "oldest id %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
               oldest_id, oldest_session->id, oldest_session->lastop,
               oldest_session->txn->snapshot_data.snap_min);
         }
@@ -1193,8 +1197,8 @@ __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
     WT_WITH_BTREE(session, op->btree,
       ret = btree->type == BTREE_ROW ?
-        __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
-        __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+        __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :
+        __wt_col_modify(cbt, cbt->recno, NULL, &tombstone, WT_UPDATE_INVALID, false, false));
     WT_ERR(ret);
     tombstone = NULL;
 
@@ -1212,25 +1216,18 @@ err:
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
-
-    /* If we've reached the end of the chain, we're done looking. */
-    if (upd == NULL)
-        return;
-
     /*
      * Aborted updates can exist in the update chain of our transaction. Generally this will occur
      * due to a reserved update. As such we should skip over these updates entirely.
      */
-    if (upd->txnid == WT_TXN_ABORTED) {
-        __txn_resolve_prepared_update_chain(session, upd->next, commit);
-        return;
-    }
+    while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+        upd = upd->next;
 
     /*
-     * If the transaction id is then different and not aborted we know we've reached the end of our
-     * update chain and don't need to look deeper.
+     * The previous loop exits on null, check that here. Additionally if the transaction id is then
+     * different we know we've reached the end of our update chain and don't need to look deeper.
      */
-    if (upd->txnid != session->txn->id)
+    if (upd == NULL || upd->txnid != session->txn->id)
         return;
 
     /* Go down the chain. Do the resolves on the way back up. */
