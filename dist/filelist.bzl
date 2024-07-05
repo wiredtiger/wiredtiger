@@ -1,3 +1,8 @@
+
+# DO NOT EDIT: automatically built by dist/api_config.py.
+
+# This file is only used by external projects building WiredTiger via Bazel.
+
 package(default_visibility = ["//visibility:public"])
 
 FILELIST_=[

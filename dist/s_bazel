@@ -2,8 +2,17 @@
 
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
 cd_top
+setup_trap
 
-echo $'package(default_visibility = ["//visibility:public"])\n' > dist/filelist.bzl
+cat << _E > $t
+
+# DO NOT EDIT: automatically built by dist/api_config.py.
+
+# This file is only used by external projects building WiredTiger via Bazel.
+
+package(default_visibility = ["//visibility:public"])
+
+_E
 
 cat dist/filelist | grep -E '^[^#]' | {
     while read FILE PLATFORM; do
@@ -16,5 +25,10 @@ cat dist/filelist | grep -E '^[^#]' | {
     s/= /=[\n\t"/;
     s/$/"]\n/;
     s/ /",\n\t"/g
-' >> dist/filelist.bzl
+' >> $t
+
+cmp $t dist/filelist.bzl > /dev/null || {
+    echo "Updated dist/filelist.bzl"
+    mv -f $t dist/filelist.bzl
+}
 
