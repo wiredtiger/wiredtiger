@@ -93,8 +93,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
      */
     if (stable_upd != NULL) {
         if (hs_update) {
-            /* If we have a stable tombstone at the end of the update chain, it may not be inserted
-             * to the history store. */
+            /*
+             * If we have a stable tombstone at the end of the update chain, it may not be inserted
+             * to the history store.
+             */
             WT_ASSERT(session,
               F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS) ||
                 stable_upd->type == WT_UPDATE_TOMBSTONE);
