@@ -132,7 +132,7 @@ define_c_test(
     DIR_NAME wt2403_lsm_workload
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
+    LABEL "sanitizer_long"
 )
 
 define_c_test(
@@ -140,7 +140,7 @@ define_c_test(
     SOURCES wt2246_col_append/main.c
     DIR_NAME wt2246_col_append
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2246_col_append>/WT_HOME>
-    LABEL "long_running"
+    LABEL "sanitizer_long"
 )
 
 define_c_test(
@@ -149,7 +149,7 @@ define_c_test(
     DIR_NAME wt2323_join_visibility
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
+    LABEL "sanitizer_long"
 )
 
 define_c_test(
@@ -159,7 +159,7 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2535_insert_race/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt2535_insert_race>
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
+    LABEL "sanitizer_long"
 )
 
 define_c_test(
@@ -198,7 +198,7 @@ define_c_test(
     SOURCES wt2834_join_bloom_fix/main.c
     DIR_NAME wt2834_join_bloom_fix
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME>
-    LABEL "long_running"
+    LABEL "sanitizer_long"
 )
 
 define_c_test(
@@ -430,5 +430,5 @@ define_c_test(
     DIR_NAME wt12015_backup_corruption
     ARGUMENTS
     DEPENDS "WT_POSIX"
-    LABEL "long_running"
+    LABEL "sanitizer_long"
 )

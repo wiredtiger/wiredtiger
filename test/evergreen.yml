@@ -5557,7 +5557,9 @@ buildvariants:
       # We intentionally suppress all TSan warnings.
       export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    extra_args: -LE "cppsuite|long_running"
+    # We don't run C++ memory sanitized testing as it creates false positives. TSan also significantly increases the runtime 
+    # of some csuite tests, so disable the already long tests as well as tests heavily impacted by TSan.
+    extra_args: -LE "cppsuite|long_running|sanitizer_long"
     # TSan slows down python testing enough that we start printing "operation took X seconds" warnings. 
     # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead. 
     ignore_stdout: --ignore-stdout
