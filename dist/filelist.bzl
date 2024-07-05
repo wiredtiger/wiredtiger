@@ -1,5 +1,5 @@
 
-# DO NOT EDIT: automatically built by dist/api_config.py.
+# DO NOT EDIT: automatically built by dist/s_bazel.
 
 # This file is only used by external projects building WiredTiger via Bazel.
 
