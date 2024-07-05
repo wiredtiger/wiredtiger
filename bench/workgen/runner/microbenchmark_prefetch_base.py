@@ -36,7 +36,7 @@ from wiredtiger import stat
 class microbenchmark_prefetch:
     def __init__(self):
         self.context = Context()
-        self.conn_config = "create,cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),session_max=600,statistics=(all),statistics_log=(wait=1,json),prefetch=(available=true,default=false)"
+        self.conn_config = "create,cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),session_max=600,statistics=(all),statistics_log=(wait=1,json=true),prefetch=(available=true,default=false)"
         self.conn = self.context.wiredtiger_open(self.conn_config)
         self.session = self.conn.open_session()
         self.nrows = 12000000
