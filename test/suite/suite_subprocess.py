@@ -206,14 +206,6 @@ class suite_subprocess:
         returncode = -1
         os.makedirs(directory)
 
-        # This hack fixes test_bug018. We set the LD_PRELOAD before opening another python instance.
-        # We probably need a hook available to skip tests that do funky things for TSan. This will
-        # work in the short term.
-        if os.environ.get("TESTUTIL_TSAN") == "1":
-            command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"
-            tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
-            os.environ["LD_PRELOAD"] = tsan_so_path
-
         # We cannot put the output/error files in the subdirectory, as
         # that will be cleared by the run.py script.
         with open("subprocess.err", "w") as wterr:
