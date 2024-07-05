@@ -5544,7 +5544,7 @@ buildvariants:
 # variant will be deleted.
 - name: ubuntu2004-tsan-no-throw
   display_name: "~ Ubuntu 20.04 TSAN (No throw)"
-  batchtime: 1440 # 24 hours
+  patch_only: true
   run_on:
   # Defaulting to ubuntu2004-large. We can move back to ubuntu2004-test as we ID which tests can fit on the smaller host
   - ubuntu2004-large
