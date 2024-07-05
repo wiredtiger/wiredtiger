@@ -2264,6 +2264,9 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_pages_dirty", &cval));
     conn->heuristic_controls.obsolete_tw_pages_dirty = (uint32_t)cval.val;
 
+    WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.cc_obsolete_tw_pages_dirty", &cval));
+    conn->heuristic_controls.cc_obsolete_tw_pages_dirty = (uint32_t)cval.val;
+
     return (0);
 }
 

@@ -152,6 +152,7 @@ struct __wt_bucket_storage {
  */
 struct __wt_heuristic_controls {
     uint32_t obsolete_tw_pages_dirty;
+    uint32_t cc_obsolete_tw_pages_dirty;
 };
 
 /*

@@ -242,6 +242,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * marking the clean obsolete time window pages as dirty once the checkpoint is finished.
          */
         btree->obsolete_tw_pages = 0;
+        btree->cc_obsolete_tw_pages = 0;
         is_hs = WT_IS_HS(btree->dhandle);
 
         /* Add in history store reconciliation for standard files. */
