@@ -1669,10 +1669,9 @@ __wt_session_range_truncate(
 
     /*
      * Truncate does not require keys actually exist so that applications can discard parts of the
-     * object's name space without knowing exactly what records currently appear in the object. When
-     * possible use bounded cursors to position the start and stop cursors, if they aren't available
-     * then use search-near. Search-near is suboptimal, because it may return prepare conflicts
-     * outside of the truncate key range, as it will walk beyond the end key.
+     * object's name space without knowing exactly what records currently appear in the object.
+     * Search-near is suboptimal, because it may return prepare conflicts outside of the truncate
+     * key range, as it will walk beyond the end key.
      *
      * No need to search the record again if it is already pointing to the btree.
      */
