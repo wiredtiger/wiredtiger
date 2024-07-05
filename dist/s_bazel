@@ -6,9 +6,7 @@ cd_top
 echo $'package(default_visibility = ["//visibility:public"])\n' > dist/filelist.bzl
 
 cat dist/filelist | grep -E '^[^#]' | {
-    while :; do
-        read FILE PLATFORM
-        [[ -z "$FILE" ]] && break
+    while read FILE PLATFORM; do
         eval "FILELIST_${PLATFORM}=\"\$FILELIST_${PLATFORM} \$FILE\""
     done
     set
