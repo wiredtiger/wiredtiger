@@ -430,7 +430,7 @@ functions:
           set -o errexit
           set -o verbose
           ${PREPARE_TEST_ENV}
-          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 20
+          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' ${validation_stress_num_runs|120}
   "run tiered storage test":
     - command: shell.exec
       params:
@@ -5561,6 +5561,8 @@ buildvariants:
     # TSan slows down python testing enough that we start printing "operation took X seconds" warnings. 
     # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead. 
     ignore_stdout: --ignore-stdout
+    # Reduce the number of test iterations in validation stressing as TSan increases runtime by a factor of roughly 10x
+    validation_stress_num_runs: 20
   tasks:
   # The pull request tag, which includes azure gcp, doesn't compile under clang
   #  - name: ".pull_request"
