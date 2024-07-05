@@ -1,0 +1,47 @@
+/*! @arch_page arch-usage-patterns Usage Patterns
+
+WiredTiger is a highly multi-threaded application which means that a large number of operations can
+happen in parallel. In order to be performant WiredTiger utilises a number of lock-free programming
+mechanisms, and atomic operations. Commonly used patterns are documented here. A pattern in this
+instance is a combination of one or more lock-free programming techniques.
+
+This architecture guide page aims to aid developers in understanding and using these patterns in the
+future.
+
+@subsection message-passing Message passing with acquire and release
+
+When a writer thread needs to share data with one or more reader threads concurrently the message
+passing pattern can be used. For this pattern to work two variables are required. A "payload" which
+is the data being shared. The payload could be a number of things, e.g:
+
+- A struct with any number of fields
+- A single variable in memory
+
+For the writer to share this payload with readers it needs to perform two steps in the correct
+order. Firstly it writes the payload, then writes a "signal" variable with a release write. The
+reader threads will read the signal variable to know if the payload is safe to read. The release
+write must use the \c WT_RELEASE_WRITE macro described in @ref rel-marked.
+
+The reader threads must read with the opposite order, they read the signal variable using the
+acquire read macro \c WT_ACQUIRE_READ. This is described in @ref acq-marked. Then if the signal
+variable indicates the payload is safe to read the reader thread can read the payload.
+
+This pattern is used in many places in WiredTiger.
+
+\b Example psuedocode:
+    
+    void write {
+        s->payload = 5;
+        WT_RELEASE_WRITE(s->ready, true);
+    }
+
+    void read {
+        bool ready;
+
+        WT_ACQUIRE_READ(ready, s->ready);
+        if (ready) {
+            var = s->payload;
+        }
+    }
+
+*/
