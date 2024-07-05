@@ -10,8 +10,6 @@ cat << _E > $t
 
 # This file is only used by external projects building WiredTiger via Bazel.
 
-package(default_visibility = ["//visibility:public"])
-
 _E
 
 cat dist/filelist | grep -E '^[^#]' | {

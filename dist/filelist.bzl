@@ -3,8 +3,6 @@
 
 # This file is only used by external projects building WiredTiger via Bazel.
 
-package(default_visibility = ["//visibility:public"])
-
 FILELIST_=[
 	"src/block/block_addr.c",
 	"src/block/block_ckpt.c",
