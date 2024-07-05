@@ -195,7 +195,7 @@ This is the underlying unit of allocation for the file. As the unit of file
 allocation, it sets the minimum page size and how much space is wasted when
 storing small amounts of data and overflow items.
  - an integer between 512B and 128 MB
- - must a power-of-two
+ - must be a power-of-two
  - default : 4 KB
  - Motivation to tune the value:
 \n Most applications should not need to tune the allocation size.
