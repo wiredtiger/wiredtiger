@@ -32,11 +32,8 @@
 # versions may be broken, see: https://github.com/swig/swig/issues/769 .
 # Importing indirectly seems to avoid these issues.
 
-def set_preload_and_restart(concat, path):
-    if concat:
-        os.environ["LD_PRELOAD"] += ":" + path
-    else:
-        os.environ["LD_PRELOAD"] = path
+# Restart this instance of python so it uses the most recent os.environ values
+def restart_python():
     python = sys.executable
     os.execl(python, python, *sys.argv)
 
@@ -64,22 +61,17 @@ if os.environ.get("TESTUTIL_TSAN") == "1":
     tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
 
     ld_preload = os.environ.get("LD_PRELOAD")
-    # This can be the empty string or None depending on the pre-existing state in the system.
     if not ld_preload:
-        set_preload_and_restart(False, tsan_so_path)
+        os.environ["LD_PRELOAD"] = tsan_so_path
+        restart_python()
+    elif tsan_so_path not in os.environ["LD_PRELOAD"]:
+        os.environ["LD_PRELOAD"] += f":{tsan_so_path}"
+        restart_python()
     else:
-        index = ld_preload.find(tsan_so_path)
-        if index != -1:
-            # We already have loaded the relevant library lets drop it now.
-            if index == 0:
-                # Our path is at the front
-                os.environ["LD_PRELOAD"] = os.environ["LD_PRELOAD"][(len(tsan_so_path) + 1):]
-            else:
-                # Our path is at the end, unless someone were to specify it manually but we're not
-                # going to handle that case.
-                os.environ["LD_PRELOAD"] = os.environ["LD_PRELOAD"][:index - 1]
-        else:
-            set_preload_and_restart(True, tsan_so_path)
+        # Python already has TSan linking, but if python calls ./wt in a subprocess this breaks ./wt
+        # Remove the TSan libs from LD_PRELOAD but *don't* restart python so we still have TSan linking in the current running process. 
+        paths = os.environ["LD_PRELOAD"].split(":")
+        os.environ["LD_PRELOAD"] = ":".join([p for p in paths if p != tsan_so_path])
 
 # explicitly importing _wiredtiger in advance of SWIG allows us to not
 # use relative importing, as SWIG does.  It doesn't work for us with Python2.
