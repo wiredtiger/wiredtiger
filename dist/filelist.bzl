@@ -3,7 +3,7 @@
 
 # This file is only used by external projects building WiredTiger via Bazel.
 
-WT_FILELIST_ALL = ['src/block/block_addr.c',
+WT_FILELIST = ['src/block/block_addr.c',
  'src/block/block_ckpt.c',
  'src/block/block_ckpt_scan.c',
  'src/block/block_compact.c',
