@@ -40,7 +40,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        if (F_ISSET(WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
             hs_update = true;
 
         /*
@@ -789,7 +789,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     if (rip != NULL)
         WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
     else
-        WT_ERR(__rts_btree_col_modify(session, ref, upd, recno));
+        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
     if (S2C(session)->rts->dryrun) {
 err:
