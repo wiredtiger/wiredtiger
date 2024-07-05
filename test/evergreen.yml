@@ -469,7 +469,7 @@ functions:
           pip3 install google-cloud-storage
 
           # Run Python testing for all tiered tests.
-          python3 ../test/suite/run.py --ignore-stdout -j $(nproc) ${tiered_storage_test_name}
+          python3 ../test/suite/run.py ${ignore_stdout|} -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -785,9 +785,9 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py --ignore-stdout ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout|} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py --ignore-stdout ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout|} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
         fi
 
   "code coverage analysis":
@@ -2267,7 +2267,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            ${python_binary|python3} ../test/suite/run.py --ignore-stdout ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout|} ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -2324,7 +2324,7 @@ tasks:
             do
               ((i=i+1))
               echo "Test count: $i"
-              ${python_binary|python3} ../test/suite/run.py --ignore-stdout -v 4 test_prepare_hs03.py --hook timestamp
+              ${python_binary|python3} ../test/suite/run.py ${ignore_stdout|} -v 4 test_prepare_hs03.py --hook timestamp
             done
 
   - name: csuite-long-running
@@ -5558,6 +5558,9 @@ buildvariants:
       export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     extra_args: -LE "cppsuite|long_running"
+    # TSan slows down python testing enough that we start printing "operation took X seconds" warnings. 
+    # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead. 
+    ignore_stdout: --ignore-stdout
   tasks:
   # The pull request tag, which includes azure gcp, doesn't compile under clang
   #  - name: ".pull_request"
