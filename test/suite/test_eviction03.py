@@ -116,7 +116,7 @@ class test_eviction03(wttest.WiredTigerTestCase, suite_subprocess):
             # Derive the average disk footprint.
             avg_disk_footprint = self.derive_avg_disk_footprint(filename)
             avg_disk_footprint_values.append(avg_disk_footprint)
-            
+
         # The new connection is configured in a way to maximise the number of pages that can be
         # cleaned up.
         self.reopen_conn(config="heuristic_controls=[obsolete_tw_pages_dirty=10000]")

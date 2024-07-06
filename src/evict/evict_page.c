@@ -696,9 +696,9 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Pages that the application threads are evicting should not be included. Reconciliation must
-     * be performed when converting a clean page to a dirty page, which can increase latency.
-     * This check is bypassed if the session is configured with a debug option to evict the page
-     * when it is released and no longer needed.
+     * be performed when converting a clean page to a dirty page, which can increase latency. This
+     * check is bypassed if the session is configured with a debug option to evict the page when it
+     * is released and no longer needed.
      */
     if (!F_ISSET(session, WT_SESSION_EVICTION) && !F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT))
         return (0);
@@ -752,19 +752,19 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_TIME_AGGREGATE_COPY(&newest_ta, &addr.ta);
 
     /* Pages that are totally removed are eliminated during the checkpoint cleanup procedure. */
-    if(WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+    if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
         return (0);
 
     /* If there is no transaction or timestamp information available, there is nothing to do. */
     max_durable_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
-    if(newest_ta.newest_txn == WT_TXN_NONE && max_durable_ts == WT_TS_NONE)
+    if (newest_ta.newest_txn == WT_TXN_NONE && max_durable_ts == WT_TS_NONE)
         return (0);
 
     /* Ensure the time window information has content that is globally visible. */
-    if(!__wt_txn_visible_all(session, newest_ta.newest_txn, max_durable_ts))
+    if (!__wt_txn_visible_all(session, newest_ta.newest_txn, max_durable_ts))
         return (0);
 
-    /* Mark the page dirty to remove any obsolete information during reconciliaiton. */
+    /* Mark the page dirty to remove any obsolete information during reconciliation. */
     __wt_verbose(session, WT_VERB_EVICT,
       "%p in-memory page obsolete time window: time aggregate %s", (void *)ref,
       __wt_time_aggregate_to_string(&newest_ta, time_string));
@@ -773,8 +773,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_page_modify_set(session, ref->page);
 
     /*
-     * To prevent the race while incrementing this variable, no atomic functions are required.
-     * More clean pages may become dirty as a result of an outdated value.
+     * To prevent the race while incrementing this variable, no atomic functions are required. More
+     * clean pages may become dirty as a result of an outdated value.
      */
     S2BT(session)->obsolete_tw_pages++;
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
