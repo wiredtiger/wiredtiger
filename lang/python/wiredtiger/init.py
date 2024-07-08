@@ -56,9 +56,14 @@ sys.path.append(os.path.dirname(__file__))
 # FIXME-WT-13237: Rename these testutil flags
 if os.environ.get("TESTUTIL_TSAN") == "1":
     import subprocess
-    # FIXME - can we assume that the tsan lib is always libtsan.so.0?
-    command = "/opt/mongodbtoolchain/v4/bin/clang --print-file-name libtsan.so.0"
-    tsan_so_path = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
+
+    # FIXME-WT-13143 We assume TSan is only compatible with clang here. This may change in the future.
+    command = "clang --print-file-name libtsan.so.0"
+    find_tsan_so = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    tsan_so_path = find_tsan_so.stdout.strip()
+    if not os.path.isfile(tsan_so_path):
+        print("Cannot find tsan lib")
+        exit(1)
 
     ld_preload = os.environ.get("LD_PRELOAD")
     if not ld_preload:
