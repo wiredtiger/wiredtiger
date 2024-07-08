@@ -5355,7 +5355,7 @@ tasks:
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: microbenchmark_prefetch_off_verify.py
           maxruns: 1
-          wtarg: -ops ['"block_read']
+          wtarg: -ops ['"block_read"']
       - func: "upload stats to atlas"
         vars:
           test-name: microbenchmark_prefetch_off_verify.py
@@ -5375,7 +5375,7 @@ tasks:
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: microbenchmark_prefetch_on_verify.py
           maxruns: 1
-          wtarg: -ops ['"block_read']
+          wtarg: -ops ['"block_read"']
       - func: "upload stats to atlas"
         vars:
           test-name: microbenchmark_prefetch_on_verify.py
