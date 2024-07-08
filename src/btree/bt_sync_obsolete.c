@@ -105,9 +105,22 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else if (S2BT(session)->cc_obsolete_tw_pages <
-        S2C(session)->heuristic_controls.cc_obsolete_tw_pages_dirty &&
-      !WT_TIME_AGGREGATE_HAS_STOP(&newest_ta)) {
+    } else {
+        /*
+         * Limit the number of obsolete time window pages that are marked as dirty to reduce the
+         * load.
+         */
+        if (S2BT(session)->cc_obsolete_tw_pages >=
+          S2C(session)->heuristic_controls.cc_obsolete_tw_pages_dirty)
+            return (0);
+
+        /*
+         * The pages that are completely removed are eliminated once they are obsolete. There is no
+         * point in clearing their on-disk time window information now.
+         */
+        if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+            return (0);
+
         newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
         if ((newest_ta.newest_txn != WT_TXN_NONE || newest_ts != WT_TS_NONE) &&
           __wt_txn_visible_all(session, newest_ta.newest_txn, newest_ts)) {
@@ -515,18 +528,27 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     }
     WT_RET_NOTFOUND_OK(ret);
 
+    /* Skip an empty or newly created table. */
+    if (addr_size == 0)
+        return (false);
+
+    /* The table has a durable stop timestamp. */
+    if (newest_stop_durable_ts != WT_TS_NONE)
+        return (true);
+
     /*
-     * The checkpoint cleanup eligibility is decided based on the following:
-     * 1. Not an empty or newly created table.
-     * 2. The table has a durable stop timestamp.
-     * 3. Logged table. The logged tables do not support timestamps, so we need
-     *    to check for obsolete pages in them.
-     * 4. History store table. This table contains the historical versions that
-     *    are needed to be removed regularly. This condition is required when
-     *    timestamps are not in use, otherwise, the first condition will be satisfied.
+     * Logged table. The logged tables do not support timestamps, so we need to check for obsolete
+     * pages in them.
      */
-    if ((addr_size != 0) &&
-      (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
+    if (logged)
+        return (true);
+
+    /*
+     * History store table. This table contains the historical versions that are needed to be
+     * removed regularly. This condition is required when timestamps are not in use, otherwise, the
+     * first condition will be satisfied.
+     */
+    if (strcmp(uri, WT_HS_URI) == 0)
         return (true);
 
     /*
