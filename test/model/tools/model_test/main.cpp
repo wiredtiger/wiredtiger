@@ -288,10 +288,10 @@ load_workload(const char *file)
  *     The context for counterexample reduction.
  */
 struct reduce_counterexample_context_t {
-    const std::string &conn_config;
-    const std::string &main_home;
-    const std::string &reduce_home;
-    const std::string &table_config;
+    const std::string conn_config;
+    const std::string main_home;
+    const std::string reduce_home;
+    const std::string table_config;
 
     size_t round;
 
@@ -319,7 +319,7 @@ struct reduce_counterexample_context_t {
 template <typename T>
 static std::shared_ptr<model::kv_workload>
 reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
-  std::shared_ptr<model::kv_workload> workload, const char *aspect_name_plural,
+  std::shared_ptr<model::kv_workload> workload, const std::string &aspect_name_plural,
   std::function<bool(const model::kv_workload_operation &, size_t)> has_aspect,
   std::function<T(const model::kv_workload_operation &, size_t)> aspect_value,
   std::function<bool(const model::kv_workload_operation &, size_t)> always_include)
