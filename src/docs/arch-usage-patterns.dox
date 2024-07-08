@@ -1,14 +1,14 @@
 /*! @arch_page arch-usage-patterns Usage Patterns
 
 WiredTiger is a highly multi-threaded application which means that a large number of operations can
-happen in parallel. In order to be performant WiredTiger utilises a number of lock-free programming
-mechanisms, and atomic operations. Commonly used patterns are documented here. A pattern in this
-instance is a combination of one or more lock-free programming techniques.
+happen in parallel. In order to be performant WiredTiger utilizes a number of lock-free programming
+mechanisms. Commonly used patterns are documented here. A pattern in this instance is a combination
+of one or more lock-free programming techniques.
 
 This architecture guide page aims to aid developers in understanding and using these patterns in the
 future.
 
-@subsection message-passing Message passing with acquire and release
+@section message-passing Message passing with acquire and release
 
 When a writer thread needs to share data with one or more reader threads concurrently the message
 passing pattern can be used. For this pattern to work two variables are required. A "payload" which
@@ -26,10 +26,11 @@ The reader threads must read with the opposite order, they read the signal varia
 acquire read macro \c WT_ACQUIRE_READ. This is described in @ref acq-marked. Then if the signal
 variable indicates the payload is safe to read the reader thread can read the payload.
 
-This pattern is used in many places in WiredTiger.
+This pattern is used in many places in WiredTiger. We won't list them here as inevitably the list
+will become stale.
 
 \b Example psuedocode:
-    
+
     void write {
         s->payload = 5;
         WT_RELEASE_WRITE(s->ready, true);
@@ -43,5 +44,80 @@ This pattern is used in many places in WiredTiger.
             var = s->payload;
         }
     }
+
+@section slotted-arrays Slotted arrays
+
+@subsection slotted-arrays-overview Overview
+
+Given an array of size \c Z, where objects within the array may be unused. The slot counter pattern
+provides a variable, which varies depending on implementation but we will refer to it here as, \c
+slot_count to readers to determine how many slots in that array need reviewing. That way the reader
+has to walk \c slot_count slots in the array instead of traversing the whole list. This allows for
+dynamic array growth and provides an optimization as readers would otherwise have to walk the full
+array.
+
+If the array count cannot go up then **no** ordering is defined for \c slot_count. If the array is
+allowed to grow, then additional ordering is defined for \c slot_count, see @ref growable-arrays for
+further details.
+
+@subsubsection slotted-arrays-use-cases Use cases
+This pattern should only be used if performance is critical in the read path, prior to usage of this
+pattern the following determinations should be made:
+ - Is walking the entire array too expensive?
+ - Is a read-write lock protecting both traversing and writing to the array too expensive?
+ - Does this array need to be growable?
+
+@subsubsection slotted-arrays-writing Writing
+When an algorithm writes to the array there are two outcomes with respect to \c slot_count:
+1. If a free slot is available which is at a position of less than \c slot_count the slot will be
+used and the object in the slot will be initialized.
+2. If there is no free slot available at a position less than \c slot_count then the slot equal to
+\c slot_count is used and the slot_count is incremented.
+
+Additionally the writers must follow the @ref message-passing pattern when initializing the slot.
+Firstly the object / slot must be initialized then a flag or pointer must be set in order for
+readers to safely read the object held in the slot itself.
+
+@subsubsection slotted-arrays-reading Reading
+Reading from this array requires readers to loop through the array, up until \c slot_count. Readers
+must read it **once** prior to entering the body of the loop and ensure a local copy of the value is
+used for the remainder of the loop.
+
+When reading a specific slot, readers must follow the @ref message-passing pattern by reading a flag
+or pointer indicating the slot is initialized prior to reading the contents of the object held in
+the slot.
+
+@subsubsection slotted-arrays-correctness-read-write Correctness of allowing reading while allowing writes
+Additional writes to the array can occur concurrently, and as a copy of \c slot_count is taken by
+readers prior to their traversal they will not see changes to the array after \c slot_count. The
+reader algorithm must take care to ensure that once it has entered the loop new slots being used
+in the array will not impact the outcome of the loop as it is not guaranteed to see those.
+
+@subsection growable-arrays Growable arrays
+A growable array is one that offer the user of it flexibility in terms of total capacity, that is
+the variable \c Z, which is the full size of the array is not fixed. Here we will discuss the
+additional semantics required to support a growable array.
+
+__Note:__ @ref generations handle the life cycle, creation and freeing of the growable array and that
+will not be covered here.
+
+@subsubsection growable-arrays-writing Writing
+If a new slot is required in the array, but all slots are in use and \c slot_count is equal to the
+size \c Z of the array then the array must grow. The variable \c slot_count has additional ordering
+defined when swapping in the array. The array pointer swap must happen before \c slot_count is
+incremented. This requires a @ref rel-marked.
+
+@subsubsection growable-arrays-reading Reading
+Readers must respect the writer side ordering. The \c slot_count must be read prior to reading the
+array pointer. This requires an @ref acq-marked. If this ordering is not respected the reader could
+read an old array pointer but a new \c slot_count and encounter an array index out of bounds
+exception.
+
+@subsubsection growable-arrays-further-details Further details
+The fixed size version of this pattern is used to maintain the connection's sessions array. The
+dynamically growing version of this pattern is used to maintain the hazard pointer array for a
+session.
+
+FIXME: add some references to the above section.
 
 */

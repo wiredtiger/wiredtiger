@@ -77,6 +77,7 @@ Gimpel
 GitHub
 Google
 Google's
+Growable
 HyperDex
 HyperLevelDB
 IAA
@@ -411,6 +412,7 @@ gid
 github
 gnuplot
 graphviz
+growable
 hashtable
 hb
 hotbackup
@@ -574,6 +576,7 @@ pareto
 pcoll
 pdf
 perf
+performant
 petabyte
 pget
 php
@@ -596,6 +599,7 @@ priv
 proc
 profdata
 profraw
+psuedocode
 pthread
 pthreads
 putKey
