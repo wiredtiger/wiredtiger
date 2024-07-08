@@ -101,7 +101,7 @@ API at the time of file creation.
 
 @subsection alloc_size Allocation size
 
-A block size must be a multiple of the underlying file allocation unit.
+A block's size must be a multiple of the underlying file allocation unit.
 This unit is controlled by the @ref allocation_size parameter.
 
 For example, if we specify an allocation_size of \c 4KB, blocks of size
