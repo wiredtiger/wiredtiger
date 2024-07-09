@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
+# This script generates a bazel-compatible list of files `filelist.bzl` from `filelist`.
+
 import pprint
+
+filelist_bzl = "filelist.bzl"
 
 platform2files = {}
 with open("filelist") as f:
@@ -18,14 +22,14 @@ for platform, files in platform2files.items():
     res += f"\n{platform} = " + pprint.pformat(files) + "\n"
 
 try:
-    with open("filelist.bzl") as f:
+    with open(filelist_bzl) as f:
         if res == f.read():
             exit()
 except OSError:
     pass
 
-print("Updated dist/filelist.bzl")
-
-with open("filelist.bzl", "w") as f:
+with open(filelist_bzl, "w") as f:
     f.write(res)
+
+print(f"Updated dist/{filelist_bzl}")
 
