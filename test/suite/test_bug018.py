@@ -112,12 +112,13 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
                 self.conn = None
 
     def test_bug018(self):
+        '''Test closing multiple tables'''
+
         # This test spawns another python instance but that circumvents the LD_PRELOAD logic in
         # init.py, which means that python instance crashes. We could fix that but it would require
         # some custom logic which is overkill for this single test.
         if os.environ.get("TESTUTIL_TSAN") == "1":
-            self.skipTest("Not compatibable with TSan")
-        '''Test closing multiple tables'''
+            self.skipTest("Not compatible with TSan")
 
         self.close_conn()
         subdir = 'SUBPROCESS'
