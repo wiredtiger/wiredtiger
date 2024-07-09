@@ -5567,7 +5567,6 @@ buildvariants:
   display_name: "~ Ubuntu 20.04 TSAN (No throw)"
   patch_only: true
   run_on:
-  # Defaulting to ubuntu2004-large. We can move back to ubuntu2004-test as we ID which tests can fit on the smaller host
   - ubuntu2004-large
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
