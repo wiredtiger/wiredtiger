@@ -53,10 +53,10 @@ class PerfStatCollection:
     def all_stats():
         return [
             PerfStat(short_label="block_read",
-                    stat_file='prefetch_stats.out',
-                    pattern=r'blocks read: \d',
-                    input_offset=2,
-                    output_label='Blocks read'),
+                     stat_file='prefetch_stats.out',
+                     pattern=r'blocks read: \d',
+                     input_offset=2,
+                     output_label='Blocks read'),
             PerfStat(short_label="load",
                      pattern='Load time:',
                      input_offset=2,
