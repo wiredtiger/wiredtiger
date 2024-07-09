@@ -5586,8 +5586,8 @@ buildvariants:
     # Reduce the number of test iterations in validation stressing as TSan increases runtime by a factor of roughly 10x
     validation_stress_num_runs: 20
   tasks:
-  # The pull request tag, which includes azure gcp, doesn't compile under clang
-  #  - name: ".pull_request"
+    # Skip the azure/gcp tests as they don't compile under clang
+    - name: ".pull_request !.azure-gcp-tiered-test-small"
     - name: ".unit_test_long"
     - name: compile
     - name: make-check-test
