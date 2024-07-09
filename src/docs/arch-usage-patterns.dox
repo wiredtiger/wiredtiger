@@ -12,22 +12,23 @@ future.
 
 When a writer thread needs to share data with one or more reader threads concurrently the message
 passing pattern can be used. For this pattern to work two variables are required. A "payload" which
-is the data being shared. The payload could be a number of things, e.g:
+is the data being shared, and a "signal" variable. The payload could be a number of things, e.g:
 
 - A struct with any number of fields
 - A single variable in memory
 
 For the writer to share this payload with readers it needs to perform two steps in the correct
-order. Firstly it writes the payload, then writes a "signal" variable with a release write. The
-reader threads will read the signal variable to know if the payload is safe to read. The release
-write must use the \c WT_RELEASE_WRITE macro described in @ref rel-marked.
+order. Firstly it writes the payload, then writes a signal variable with a release write. The reader
+threads will read the signal variable to know if the payload is safe to read. The release write must
+use the \c WT_RELEASE_WRITE macro described in @ref rel-marked.
 
-The reader threads must read with the opposite order, they read the signal variable using the
-acquire read macro \c WT_ACQUIRE_READ. This is described in @ref acq-marked. Then if the signal
+The reader threads must read with the opposite order, to do so they read the signal variable using
+the acquire read macro \c WT_ACQUIRE_READ. Then they read the payload, the \c WT_ACQUIRE_READ macro
+provides the required ordering semantics. The macro is described in @ref acq-marked. If the signal
 variable indicates the payload is safe to read the reader thread can read the payload.
 
-This pattern is used in many places in WiredTiger. We won't list them here as inevitably the list
-will become stale.
+This pattern is used in many places in WiredTiger but they are not listed here as the list will
+become stale.
 
 \b Example pseudocode:
 \code{.c}
@@ -45,18 +46,19 @@ will become stale.
         }
     }
 \endcode
+
 @section slotted-arrays Slotted arrays
 
 @subsection slotted-arrays-overview Overview
 
 Given an array of size \c Z, where objects within the array may be unused. The slot counter pattern
-provides a variable, which varies depending on implementation but we will refer to it here as, \c
-slot_count to readers to determine how many slots in that array need reviewing. That way the reader
-has to walk \c slot_count slots in the array instead of traversing the whole list. This allows for
-dynamic array growth and provides an optimization as readers would otherwise have to walk the full
-array.
+provides a variable, which varies depending on implementation but we will refer to it as
+\c slot_count, to readers to determine how many slots in that array need reviewing. That way the
+reader has to walk \c slot_count slots in the array instead of traversing the whole list. This
+allows for dynamic array growth and provides an optimization as readers would otherwise have to walk
+the full array.
 
-If the array count cannot go up then **no** ordering is defined for \c slot_count. If the array is
+If the array size is fixed then **no** ordering is defined for \c slot_count. If the array is
 allowed to grow, then additional ordering is defined for \c slot_count, see @ref growable-arrays for
 further details.
 
@@ -68,7 +70,8 @@ pattern the following determinations should be made:
  - Does this array need to be growable?
 
 @subsubsection slotted-arrays-writing Writing
-When an algorithm writes to the array there are two outcomes with respect to \c slot_count:
+When an algorithm initializes an object in the array there are two outcomes with respect to
+\c slot_count:
 1. If a free slot is available which is at a position of less than \c slot_count the slot will be
 used and the object in the slot will be initialized.
 2. If there is no free slot available at a position less than \c slot_count then the slot equal to
@@ -80,8 +83,8 @@ readers to safely read the object held in the slot itself.
 
 @subsubsection slotted-arrays-reading Reading
 Reading from this array requires readers to loop through the array, up until \c slot_count. Readers
-must read it **once** prior to entering the body of the loop and ensure a local copy of the value is
-used for the remainder of the loop.
+must readt \c slot_count **once** prior to entering the body of the loop and ensure a local copy of
+the value is used for the remainder of the loop.
 
 When reading a specific slot, readers must follow the @ref message-passing pattern by reading a flag
 or pointer indicating the slot is initialized prior to reading the contents of the object held in
@@ -89,12 +92,12 @@ the slot.
 
 @subsubsection slotted-arrays-correctness Correctness of allowing reading while allowing writes
 Additional writes to the array can occur concurrently, and as a copy of \c slot_count is taken by
-readers prior to their traversal they will not see changes to the array after \c slot_count. The
-reader algorithm must take care to ensure that once it has entered the loop new slots being used
-in the array will not impact the outcome of the loop as it is not guaranteed to see those.
+readers prior to their traversal they may miss objects being initialized concurrently. The reader
+algorithm must take care to ensure that once it has entered the loop new slots being used in the
+array will not impact the outcome of the loop as it is not guaranteed to see those.
 
 @subsection growable-arrays Growable arrays
-A growable array is one that offer the user of it flexibility in terms of total capacity, that is
+A growable array is one that offers the user of it flexibility in terms of total capacity, that is
 the variable \c Z, which is the full size of the array is not fixed. Here we will discuss the
 additional semantics required to support a growable array.
 
