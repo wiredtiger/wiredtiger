@@ -29,8 +29,8 @@ variable indicates the payload is safe to read the reader thread can read the pa
 This pattern is used in many places in WiredTiger. We won't list them here as inevitably the list
 will become stale.
 
-\b Example psuedocode:
-
+\b Example pseudocode:
+\code{.c}
     void write {
         s->payload = 5;
         WT_RELEASE_WRITE(s->ready, true);
@@ -44,7 +44,7 @@ will become stale.
             var = s->payload;
         }
     }
-
+\endcode
 @section slotted-arrays Slotted arrays
 
 @subsection slotted-arrays-overview Overview
@@ -120,4 +120,102 @@ session.
 
 FIXME: add some references to the above section.
 
+@section write-while-stable Write While stable (WwS)
+The Write while Stable (WwS) pattern performs a write to a memory location \c W, but only considers
+that write to be successful if the value of a *separate* memory location \c S has not changed by the
+time the write to \c W has become visible. As a result when the \c WwS pattern succeeds, by the next
+time the value of \c S changes all threads can see the update to \c W.
+
+In this pattern the write to \c W always takes place, however the writing thread will not consider
+the update to be valid until it has verified that \c S is unchanged. The writing thread is
+responsible for either retrying or rolling back the write to \c W on a failure. Threads reading from
+\c W must be able to handle or ignore these interim "failed" writes to \c W, and must perform a
+read-acquire on \c S before reading \c W.
+
+<img src="WwS.png" alt="" style="transform: scale(0.75,0.75);" />
+
+Generally speaking unless performance is critical locks can be used to control accesses for both
+reading and writing and thus this usage pattern should remain uncommon.
+
+@subsection write-while-stable-pseudocode Pseudocode
+\code{.c}
+    void example_WwS(int *W, int *S) {
+        int initial_s_value = *S;
+
+        // The initial read from S must take place before the write to W, however this
+        // doesn't always require a barrier to be enforced. The function could early
+        // exit based on the value of S (__wt_hazard_set_func), or W could have a data
+        // dependency on S (__wt_session_gen_enter).
+        *W = new_value;
+
+        // This full barrier ensures the write to W is visible to other threads *before*
+        // we re-read the contents of S to verify.
+        FULL_BARRIER();
+
+        if(*S != initial_s) {
+            // The write was unsuccessful. Rollback or retry.
+        }
+    }
+\endcode
+
+@subsection write-while-stable-wt-implementation Example WT implementation
+
+In the generation code the \c __wt_session_gen_enter function takes current value of the
+\c connection->generation \c S and writes it to \c session->generation \c W. Independently a second
+thread executing \c __gen_oldest will first read \c connection->generation and then walk all
+\c session->generations, reporting the smallest generation seen.
+
+Without this pattern \c __wt_session_gen_enter could enter a generation \c G, the
+\c connection->generation could be advanced to \c G+1, and the \c __gen_oldest thread would see the
+update to \c connection->generation \c G+1 but not the write to the \c session->generation \c G.
+Resulting in an incorrect value for the oldest generation \c G+1.
+
+On a successful \c WwS the write to \c session->generation must be visible before advancing the
+\c connection->generation. If the \c connection->generation has not been advanced the new
+\c session->generation is visible and the oldest generation will be equal to it.
+
+On a failed \c WwS \c __wt_session_gen_enter must retry and enter the new generation \c G+1. If
+\c __gen_oldest sees the "invalid" \c session->generation of \c G it will report an older generation
+that the actual oldest generation. This is considered acceptable as temporarily delays freeing a
+resource and has no impacts on correctness.
+
+This is the trimmed down version of the writing thread code in the generations logic:
+\code{.c}
+    do {
+        session->generations[which] = __wt_gen(session, which);
+        WT_FULL_BARRIER();
+    } while (session->generations[which] != __wt_gen(session, which));
+\endcode
+@section win-the-race Win the Race
+__Note:__ This usage pattern behaves like a lightweight version of a trylock. In non-critical code
+paths a trylock should be preferred as it also provides acquire/release semantics around the
+critical section, guaranteeing instructions inside the critical section take place within the lock.
+
+Multiple threads will often compete to enter a critical section or execute functions that should be
+limited to a single thread. For example in \c __wt_cache_pool_server all threads will attempt to
+become the pool manager but only one manager is allowed. Whichever thread comes first will become
+the manager.
+
+To implement this usage pattern all threads attempt to set some shared flag \c F via a \c compare_and_swap.
+On success the winning thread is allowed to continue into the critical section. When the thread
+leaves the critical section it unsets the flag for the other threads to claim. Threads that fail to
+claim the flag \c F must decide whether to continue, abort or retry.
+
+@subsection win-the-race-example Example
+In \c __wt_cache_pool_server all threads attempt to set the \c pool_managed flag with a call to
+\c __wt_atomic_cas8(&cp->pool_managed, 0, 1) and only the successful thread is allowed then to set
+the \c WT_CACHE_POOL_MANAGER flag and perform the duties of the pool manager.
+
+@subsection win-the-race-pseudocode Example Pseudocode
+
+\code{.c}
+    void win_the_race(int *F) {
+        if(__wt_atomic_int(&F, 0, 1)) {
+            // perform work that must be performed by a single thread
+
+            // unset the flag at the end of the section
+              *F = 0;
+        }
+    }
+\endcode
 */

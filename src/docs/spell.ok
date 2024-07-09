@@ -128,6 +128,7 @@ PPC
 PRELOAD
 PROFDATA
 Powershell
+Pseudocode
 README
 REFs
 RLE
@@ -176,6 +177,7 @@ WiredTigerRollbackException
 WiredTigerStat
 WiredTigerTestCase
 WiredTigerTmplog
+WwS
 XChaCha
 XRay
 Yann
@@ -235,6 +237,7 @@ cachesize
 calc
 callbk
 callgraph
+cas
 ccache
 cd
 cdb
@@ -599,7 +602,7 @@ priv
 proc
 profdata
 profraw
-psuedocode
+pseudocode
 pthread
 pthreads
 putKey
@@ -747,6 +750,7 @@ unicode
 uninstall
 unittest
 unpositioned
+unsets
 untyped
 uri
 usec
