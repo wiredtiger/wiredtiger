@@ -87,7 +87,7 @@ When reading a specific slot, readers must follow the @ref message-passing patte
 or pointer indicating the slot is initialized prior to reading the contents of the object held in
 the slot.
 
-@subsubsection slotted-arrays-correctness-read-write Correctness of allowing reading while allowing writes
+@subsubsection slotted-arrays-correctness Correctness of allowing reading while allowing writes
 Additional writes to the array can occur concurrently, and as a copy of \c slot_count is taken by
 readers prior to their traversal they will not see changes to the array after \c slot_count. The
 reader algorithm must take care to ensure that once it has entered the loop new slots being used
@@ -98,8 +98,8 @@ A growable array is one that offer the user of it flexibility in terms of total 
 the variable \c Z, which is the full size of the array is not fixed. Here we will discuss the
 additional semantics required to support a growable array.
 
-__Note:__ @ref generations handle the life cycle, creation and freeing of the growable array and that
-will not be covered here.
+__Note:__ @ref generations handle the life cycle, creation and freeing of the growable array and
+that will not be covered here.
 
 @subsubsection growable-arrays-writing Writing
 If a new slot is required in the array, but all slots are in use and \c slot_count is equal to the
@@ -196,10 +196,10 @@ limited to a single thread. For example in \c __wt_cache_pool_server all threads
 become the pool manager but only one manager is allowed. Whichever thread comes first will become
 the manager.
 
-To implement this usage pattern all threads attempt to set some shared flag \c F via a \c compare_and_swap.
-On success the winning thread is allowed to continue into the critical section. When the thread
-leaves the critical section it unsets the flag for the other threads to claim. Threads that fail to
-claim the flag \c F must decide whether to continue, abort or retry.
+To implement this usage pattern all threads attempt to set some shared flag \c F via a
+\c compare_and_swap. On success the winning thread is allowed to continue into the critical section.
+When the thread leaves the critical section it unsets the flag for the other threads to claim.
+Threads that fail to claim the flag \c F must decide whether to continue, abort or retry.
 
 @subsection win-the-race-example Example
 In \c __wt_cache_pool_server all threads attempt to set the \c pool_managed flag with a call to
