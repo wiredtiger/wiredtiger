@@ -52,6 +52,11 @@ class PerfStatCollection:
     @staticmethod
     def all_stats():
         return [
+            PerfStat(short_label="block_read",
+                    stat_file='prefetch_stats.out',
+                    pattern=r'blocks read: \d',
+                    input_offset=2,
+                    output_label='Blocks read'),
             PerfStat(short_label="load",
                      pattern='Load time:',
                      input_offset=2,
@@ -98,11 +103,6 @@ class PerfStatCollection:
                           stat_file='WiredTigerStat*',
                           pattern='[0-9].wt cache: pages seen by eviction',
                           output_label='Pages seen by eviction'),
-            PerfStat(short_label="block_read",
-                          stat_file='prefetch_stats.out',
-                          pattern=r'blocks read: \d',
-                          input_offset=2,
-                          output_label='Blocks read'),
             PerfStatLatency(short_label="max_latency_insert",
                             stat_file='monitor.json',
                             output_label='Latency(insert) Max',

@@ -27,9 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # This workload is used to measure the impact of disabling pre-fetch when
-# verifying a database. The statistics printed out by this workload can
-# be compared to the values printed out by the other workload with
-# pre-fetching enabled.
+# verifying a database. The test will continue verifying the database
+# until the specified run time has elapsed. The statistics printed out by
+# this workload can be compared to the values printed out by the other
+# workload with pre-fetching enabled, and it is expected that the system
+# will be able to read less blocks in this scenario.
 
 from runner import *
 from workgen import *
@@ -41,6 +43,7 @@ prefetch.populate()
 # Re-open the connection to flush the cache.
 prefetch.conn.close()
 prefetch.conn = prefetch.context.wiredtiger_open(prefetch.conn_config)
+# Re-open the session for collecting statistics after the workload has run.
 prefetch.session = prefetch.conn.open_session("")
 
 def run_workload():

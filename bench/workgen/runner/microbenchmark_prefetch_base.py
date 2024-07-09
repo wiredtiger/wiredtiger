@@ -54,11 +54,9 @@ class microbenchmark_prefetch:
     def populate(self):
         print("Populating database...")
         pop_icount = self.nrows
-        pop_threads = 1
         pop_ops = Operation(Operation.OP_INSERT, self.table)
         pop_thread = Thread(pop_ops * pop_icount)
-        pop_workload = Workload(self.context, pop_threads * pop_thread)
-        self.workload = pop_workload
+        pop_workload = Workload(self.context, pop_thread)
         ret = pop_workload.run(self.conn)
         assert ret == 0, ret
         print("Finished populating database.")
@@ -69,6 +67,8 @@ class microbenchmark_prefetch:
         cache_read_app_count = stat_cursor[stat.conn.cache_read_app_count][2]
         print("blocks_read: %d" % blocks_read)
         print("cache_read_app_count: %d" % cache_read_app_count)
+
+        # Write out the statistic to be plotted into a file.
         stat_filename = self.context.args.home + "/prefetch_stats.out"
         fh = open(stat_filename, 'w')
         fh.write("blocks read: %d" % blocks_read)
