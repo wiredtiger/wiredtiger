@@ -5521,6 +5521,9 @@ buildvariants:
     extra_args: -E "wt12015_backup_corruption"
   tasks:
     - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+      vars:
+        # We want to keep pull request testing short. Disable tests that are slow under ASan
+        extra_args: -E "wt12015_backup_corruption" -LE sanitizer_long
     - name: examples-c-test
     - name: format-asan-smoke-test
 
