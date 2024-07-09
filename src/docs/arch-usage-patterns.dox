@@ -83,7 +83,7 @@ readers to safely read the object held in the slot itself.
 
 @subsubsection slotted-arrays-reading Reading
 Reading from this array requires readers to loop through the array, up until \c slot_count. Readers
-must readt \c slot_count **once** prior to entering the body of the loop and ensure a local copy of
+must read \c slot_count **once** prior to entering the body of the loop and ensure a local copy of
 the value is used for the remainder of the loop.
 
 When reading a specific slot, readers must follow the @ref message-passing pattern by reading a flag
@@ -117,11 +117,9 @@ read an old array pointer but a new \c slot_count and encounter an array index o
 exception.
 
 @subsubsection growable-arrays-further-details Further details
-The fixed size version of this pattern is used to maintain the connection's sessions array. The
-dynamically growing version of this pattern is used to maintain the hazard pointer array for a
-session.
-
-FIXME: add some references to the above section.
+The fixed size version of this pattern is used to maintain the @ref arch-connection's sessions
+array. The dynamically growing version of this pattern is used to maintain the hazard pointer array
+for a @ref arch-session.
 
 @section write-while-stable Write While stable (WwS)
 The Write while Stable (WwS) pattern performs a write to a memory location \c W, but only considers
