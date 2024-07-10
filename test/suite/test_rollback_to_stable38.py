@@ -70,7 +70,7 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_rollback_to_stable38(self):
-        # TSan slows this test down enough to reliably produce "Cache stuck for too long" 
+        # TSan slows this test down enough to reliably produce "Cache stuck for too long"
         # messages in stderr which fails the test.
         if os.environ.get("TESTUTIL_TSAN") == "1":
             self.skipTest("Not compatible with TSan")
