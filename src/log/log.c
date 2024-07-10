@@ -2279,7 +2279,7 @@ advance:
                 break;
             }
             /*
-             * We need to round up and read in the full padded record.
+             * We need to round up, and read in the full padded record.
              */
             WT_ERR(__wt_buf_grow(session, buf, rdup_len));
             WT_ERR(
