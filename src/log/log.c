@@ -784,8 +784,7 @@ __log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn, bool pre
     log = conn->log;
 
     /*
-     * Set up the log descriptor record. Use a scratch buffer to get correct alignment for direct
-     * I/O.
+     * Set up the log descriptor record.
      */
     WT_ASSERT(session, sizeof(WT_LOG_DESC) < WT_LOG_ALIGN);
     WT_RET(__wt_scr_alloc(session, WT_LOG_ALIGN, &buf));
@@ -2280,7 +2279,7 @@ advance:
                 break;
             }
             /*
-             * We need to round up and read in the full padded record, especially for direct I/O.
+             * We need to round up, and read in the full padded record.
              */
             WT_ERR(__wt_buf_grow(session, buf, rdup_len));
             WT_ERR(
