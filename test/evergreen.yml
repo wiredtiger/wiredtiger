@@ -5588,7 +5588,7 @@ buildvariants:
     validation_stress_num_runs: 20
   tasks:
     # Skip the azure/gcp tests as they don't compile under clang
-    - name: ".pull_request !.tiered_unittest !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
+    - name: ".pull_request !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
     - name: compile
     - name: make-check-test
     - name: configure-combinations
