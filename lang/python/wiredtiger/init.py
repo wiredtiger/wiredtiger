@@ -32,11 +32,6 @@
 # versions may be broken, see: https://github.com/swig/swig/issues/769 .
 # Importing indirectly seems to avoid these issues.
 
-# Restart this instance of python so it uses the most recent os.environ values
-def restart_python():
-    python = sys.executable
-    os.execl(python, python, *sys.argv)
-
 import os, sys
 fname = os.path.basename(__file__)
 if fname != '__init__.py' and fname != '__init__.pyc':
@@ -46,6 +41,11 @@ if fname != '__init__.py' and fname != '__init__.pyc':
 if sys.version_info[0] <= 2:
     print('WiredTiger requires Python version 3.0 or above')
     sys.exit(1)
+
+# Restart this instance of python so it uses the most recent os.environ values
+def restart_python():
+    python = sys.executable
+    os.execl(python, os.path.abspath(__file__), *sys.argv)
 
 # After importing the SWIG-generated file, copy all symbols from it
 # to this module so they will appear in the wiredtiger namespace.
