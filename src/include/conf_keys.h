@@ -228,7 +228,7 @@
 #define WT_CONF_ID_no_timestamp 156ULL
 #define WT_CONF_ID_nvram_path 184ULL
 #define WT_CONF_ID_object_target_size 53ULL
-#define WT_CONF_ID_obsolete_tw_btree_array_size 236ULL
+#define WT_CONF_ID_obsolete_tw_btree_max 236ULL
 #define WT_CONF_ID_obsolete_tw_pages_dirty 235ULL
 #define WT_CONF_ID_old_chunks 84ULL
 #define WT_CONF_ID_oldest 88ULL
@@ -435,7 +435,7 @@ static const struct {
         uint64_t dhandle_buckets;
     } Hash;
     struct {
-        uint64_t obsolete_tw_btree_array_size;
+        uint64_t obsolete_tw_btree_max;
         uint64_t obsolete_tw_pages_dirty;
     } Heuristic_controls;
     struct {
@@ -807,7 +807,7 @@ static const struct {
     WT_CONF_ID_Hash | (WT_CONF_ID_dhandle_buckets << 16),
   },
   {
-    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_obsolete_tw_btree_array_size << 16),
+    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_obsolete_tw_btree_max << 16),
     WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_obsolete_tw_pages_dirty << 16),
   },
   {

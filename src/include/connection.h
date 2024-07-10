@@ -151,8 +151,8 @@ struct __wt_bucket_storage {
  *  Heuristic controls configuration.
  */
 struct __wt_heuristic_controls {
-    uint32_t *obsolete_tw_btree_array;
-    uint32_t obsolete_tw_btree_array_size;
+    uint32_t obsolete_tw_btree_count;
+    uint32_t obsolete_tw_btree_max;
     uint32_t obsolete_tw_pages_dirty;
 };
 

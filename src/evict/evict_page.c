@@ -693,7 +693,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
     wt_timestamp_t max_durable_ts;
-    uint32_t btree_index, i;
+    uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
 
     btree = S2BT(session);
@@ -736,23 +736,14 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_page_is_modified(ref->page))
         return (0);
 
-    /* Don't add more cache pressure. */
-    if (__wt_eviction_dirty_needed(session, NULL) || __wt_eviction_updates_needed(session, NULL))
+    /* Limit the number of btrees that can be cleaned up. */
+    if (btree->obsolete_tw_pages == 0 &&
+      conn->heuristic_controls.obsolete_tw_btree_count >=
+        conn->heuristic_controls.obsolete_tw_btree_max)
         return (0);
 
-    /* Limit the number of btrees that can be cleaned up. */
-    for (btree_index = 0; btree_index < conn->heuristic_controls.obsolete_tw_btree_array_size;
-         btree_index++) {
-        /* Free slot. */
-        if (conn->heuristic_controls.obsolete_tw_btree_array[btree_index] == 0)
-            break;
-        /* Btree already saved .*/
-        if (conn->heuristic_controls.obsolete_tw_btree_array[btree_index] == btree->id)
-            break;
-    }
-
-    /* The btree was not found in the array and it is full. */
-    if (btree_index >= conn->heuristic_controls.obsolete_tw_btree_array_size)
+    /* Don't add more cache pressure. */
+    if (__wt_eviction_dirty_needed(session, NULL) || __wt_eviction_updates_needed(session, NULL))
         return (0);
 
     /*
@@ -793,9 +784,9 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_RET(__wt_page_modify_init(session, ref->page));
     __wt_page_modify_set(session, ref->page);
 
-    /* Save the btree. */
-    if (conn->heuristic_controls.obsolete_tw_btree_array[btree_index] == 0)
-        conn->heuristic_controls.obsolete_tw_btree_array[btree_index] = btree->id;
+    /* Save that a new btree has been processed. */
+    if (btree->obsolete_tw_pages == 0)
+        conn->heuristic_controls.obsolete_tw_btree_count++;
 
     /*
      * To prevent the race while incrementing this variable, no atomic functions are required. More

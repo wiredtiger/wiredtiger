@@ -325,8 +325,8 @@ static const uint8_t
     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_heuristic_controls_subconfigs[] = {
-  {"obsolete_tw_btree_array_size", "int", NULL, "min=0,max=100000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 100000, NULL},
+  {"obsolete_tw_btree_max", "int", NULL, "min=0,max=500000", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 500000, NULL},
   {"obsolete_tw_pages_dirty", "int", NULL, "min=0,max=100000", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_INT, 235, 0, 100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
@@ -3785,7 +3785,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     ",eviction_updates_trigger=0,extra_diagnostics=[],"
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
-    "heuristic_controls=(obsolete_tw_btree_array_size=100,"
+    "heuristic_controls=(obsolete_tw_btree_max=100,"
     "obsolete_tw_pages_dirty=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,os_cache_dirty_pct=0,prealloc=true,"
@@ -4102,7 +4102,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_tw_btree_array_size=100,"
+    "heuristic_controls=(obsolete_tw_btree_max=100,"
     "obsolete_tw_pages_dirty=100),history_store=(file_max=0),"
     "in_memory=false,io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
@@ -4154,7 +4154,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_tw_btree_array_size=100,"
+    "heuristic_controls=(obsolete_tw_btree_max=100,"
     "obsolete_tw_pages_dirty=100),history_store=(file_max=0),"
     "in_memory=false,io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],log=(archive=true,compressor=,enabled=false,"
@@ -4207,7 +4207,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_tw_btree_array_size=100,"
+    "heuristic_controls=(obsolete_tw_btree_max=100,"
     "obsolete_tw_pages_dirty=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
@@ -4258,7 +4258,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "file_manager=(close_handle_minimum=250,close_idle_time=30,"
     "close_scan_interval=10),generation_drain_timeout_ms=240000,"
     "hash=(buckets=512,dhandle_buckets=512),hazard_max=1000,"
-    "heuristic_controls=(obsolete_tw_btree_array_size=100,"
+    "heuristic_controls=(obsolete_tw_btree_max=100,"
     "obsolete_tw_pages_dirty=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
