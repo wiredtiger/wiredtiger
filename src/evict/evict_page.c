@@ -700,7 +700,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
 
     /* Too many pages have been cleaned for this btree. */
-    if (btree->obsolete_tw_pages >= conn->heuristic_controls.obsolete_tw_pages_dirty)
+    if (btree->obsolete_tw_pages >= conn->heuristic_controls.obsolete_tw_pages_dirty_max)
         return (0);
 
     /*

@@ -151,9 +151,17 @@ struct __wt_bucket_storage {
  *  Heuristic controls configuration.
  */
 struct __wt_heuristic_controls {
+    /*
+     * Number of btrees processed in the current checkpoint due to obsolete time window information.
+     */
     uint32_t obsolete_tw_btree_count;
+    /* Maximum number of btrees that can be processed due to obsolete time window information. */
     uint32_t obsolete_tw_btree_max;
-    uint32_t obsolete_tw_pages_dirty;
+    /*
+     * Maximum number of pages that can be processed due to obsolete time window information per
+     * btree.
+     */
+    uint32_t obsolete_tw_pages_dirty_max;
 };
 
 /*
