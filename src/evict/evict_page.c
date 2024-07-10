@@ -695,6 +695,17 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     char time_string[WT_TIME_STRING_SIZE];
 
     /*
+     * Limit the number of obsolete time window pages that are marked as dirty to reduce the load.
+     */
+    if (S2BT(session)->obsolete_tw_pages >=
+      S2C(session)->heuristic_controls.obsolete_tw_pages_dirty)
+        return (0);
+
+    /* Don't add more cache pressure. */
+    if (__wt_eviction_dirty_needed(session, NULL) || __wt_eviction_updates_needed(session, NULL))
+        return (0);
+
+    /*
      * Pages that the application threads are evicting should not be included. Reconciliation must
      * be performed when converting a clean page to a dirty page, which can increase latency. This
      * check is bypassed if the session is configured with a debug option to evict the page when it
@@ -713,13 +724,6 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */
     if (WT_READING_CHECKPOINT(session))
-        return (0);
-
-    /*
-     * Limit the number of obsolete time window pages that are marked as dirty to reduce the load.
-     */
-    if (S2BT(session)->obsolete_tw_pages >=
-      S2C(session)->heuristic_controls.obsolete_tw_pages_dirty)
         return (0);
 
     /*
