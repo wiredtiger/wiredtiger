@@ -25,7 +25,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_TIME_AGGREGATE newest_ta;
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
-    const char *tag;
+    const char *tag = "unexpected page state";
     bool do_visibility_check, has_stop, obsolete, ovfl_items;
 
     /*
