@@ -233,8 +233,12 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 {
     int i;
 
+    /*
+     * Some elements of the cfg_list may be NULL while later ones are valid. So walk the entire list
+     * and free any entries.
+     */
     if (cb->cfg_list != NULL) {
-        for (i = 0; cb->cfg_list[i] != NULL; ++i)
+        for (i = 0; i < (int)cb->list_next; ++i)
             __wt_free(session, cb->cfg_list[i]);
         __wt_free(session, cb->cfg_list);
     }
