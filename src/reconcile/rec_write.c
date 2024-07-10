@@ -585,10 +585,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         /* Connect pointers/buffers. */
         r->cur = &r->_cur;
         r->last = &r->_last;
-
-        /* Disk buffers need to be aligned for writing. */
-        F_SET(&r->chunk_A.image, WT_ITEM_ALIGNED);
-        F_SET(&r->chunk_B.image, WT_ITEM_ALIGNED);
     }
 
     /* Remember the configuration. */
@@ -1943,7 +1939,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     }
 
     /* Set the fast-truncate proxy cell information flag. */
-    if (page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT)
+    if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT) &&
+      __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->unused = 0;

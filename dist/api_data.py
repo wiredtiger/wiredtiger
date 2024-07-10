@@ -741,6 +741,16 @@ connection_runtime_config = [
             # !!! Must match WT_HS_FILE_MIN
             min='0')
         ]),
+    Config('heuristic_controls', '', r'''
+        control the behavior of various optimizations. This is primarily used as a mechanism for
+        rolling out changes to internal heuristics while providing a mechanism for quickly
+        reverting to prior behavior in the field''',
+        type='category', subconfig=[
+            Config('obsolete_tw_pages_dirty', '100', r'''
+                eviction to mark the number of obsolete time window pages that are marked as dirty
+                per btree in a single checkpoint''',
+                min=0, max=100000),
+        ]),
     Config('io_capacity', '', r'''
         control how many bytes per second are written and read. Exceeding the capacity results
         in throttling.''',
@@ -835,10 +845,10 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prefetch_delay', 'prefix_compare',
-        'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
-        'sleep_before_read_overflow_onpage','split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2', 
+        'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
+        'prepare_resolution_2', 'sleep_before_read_overflow_onpage','split_1', 'split_2',
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as

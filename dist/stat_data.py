@@ -215,6 +215,7 @@ conn_stats = [
     BackgroundCompactStat('background_compact_interrupted', 'background compact interrupted', 'no_scale'),
     BackgroundCompactStat('background_compact_running', 'background compact running', 'no_scale'),
     BackgroundCompactStat('background_compact_skipped', 'background compact skipped file as not meeting requirements for compaction', 'no_scale'),
+    BackgroundCompactStat('background_compact_sleep_cache_pressure', 'background compact sleeps due to cache pressure', 'no_scale'),
     BackgroundCompactStat('background_compact_success', 'background compact successful calls', 'no_scale'),
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
 
@@ -306,7 +307,7 @@ conn_stats = [
     CacheStat('cache_eviction_force_dirty', 'forced eviction - pages evicted that were dirty count'),
     CacheStat('cache_eviction_force_dirty_time', 'forced eviction - pages evicted that were dirty time (usecs)'),
     CacheStat('cache_eviction_force_fail', 'forced eviction - pages selected unable to be evicted count'),
-    CacheStat('cache_eviction_force_fail_time', 'forced eviction - pages selected unable to be evicted time'),
+    CacheStat('cache_eviction_force_fail_time', 'forced eviction - pages selected unable to be evicted time (usecs)'),
     CacheStat('cache_eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     CacheStat('cache_eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
@@ -514,11 +515,20 @@ conn_stats = [
     ##########################################
     # Dhandle statistics
     ##########################################
+    DhandleStat('dh_conn_handle_btree_count', 'btree connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_checkpoint_count', 'checkpoint connection data handles currently active', 'no_clear,no_scale'),
+    # dh_conn_handle_count = The sum of dh_conn_handle_{btree,table,tiered,tiered_tree}_count.
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
+    DhandleStat('dh_conn_handle_table_count', 'Table connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_tiered_count', 'Tiered connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_tiered_tree_count', 'Tiered_Tree connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_session_handles', 'session dhandles swept'),
     DhandleStat('dh_session_sweeps', 'session sweep attempts'),
-    DhandleStat('dh_sweep_close', 'connection sweep dhandles closed'),
+    # dh_sweep_dead_close formerly called dh_sweep_close.
+    DhandleStat('dh_sweep_dead_close', 'connection sweep dead dhandles closed'),
+    DhandleStat('dh_sweep_expired_close', 'connection sweep expired dhandles closed'),
+    # Note dh_sweep_total_close = dh_sweep_dead_close + dh_sweep_expired_close
     DhandleStat('dh_sweep_ref', 'connection sweep candidate became referenced'),
     DhandleStat('dh_sweep_remove', 'connection sweep dhandles removed from hash list'),
     DhandleStat('dh_sweep_skip_ckpt', 'connection sweeps skipped due to checkpoint gathering handles'),
@@ -1007,6 +1017,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
+    CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_random_sample_inmem_root', 'locate a random in-mem ref by examining all entries on the root page'),

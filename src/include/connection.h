@@ -31,6 +31,7 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
+    bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
     bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
@@ -146,6 +147,14 @@ struct __wt_bucket_storage {
     } while (0)
 
 /*
+ * WT_HEURISTIC_CONTROLS --
+ *  Heuristic controls configuration.
+ */
+struct __wt_heuristic_controls {
+    uint32_t obsolete_tw_pages_dirty;
+};
+
+/*
  * WT_KEYED_ENCRYPTOR --
  *	A list entry for an encryptor with a unique (name, keyid).
  */
@@ -255,6 +264,10 @@ struct __wt_name_flag {
         TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);                              \
         ++(conn)->dh_bucket_count[bucket];                                                       \
         ++(conn)->dhandle_count;                                                                 \
+        if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
+            ++(conn)->dhandle_checkpoint_count;                                                  \
+        WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
+        ++(conn)->dhandle_types_count[(dhandle)->type];                                          \
     } while (0)
 
 #define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
@@ -264,6 +277,10 @@ struct __wt_name_flag {
         TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \
         --(conn)->dh_bucket_count[bucket];                                                       \
         --(conn)->dhandle_count;                                                                 \
+        if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
+            --(conn)->dhandle_checkpoint_count;                                                  \
+        WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
+        --(conn)->dhandle_types_count[(dhandle)->type];                                          \
     } while (0)
 
 /*
@@ -378,6 +395,8 @@ struct __wt_connection_impl {
 
     WT_BACKGROUND_COMPACT background_compact; /* Background compaction server */
 
+    WT_HEURISTIC_CONTROLS heuristic_controls; /* Heuristic controls configuration */
+
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
     const char *optrack_path;         /* Directory for operation logs */
@@ -428,9 +447,11 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
     WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
-    /* Locked: handles in each bucket */
-    uint64_t *dh_bucket_count;
-    uint64_t dhandle_count;                  /* Locked: handles in the queue */
+    uint64_t *dh_bucket_count;         /* Locked: handles in each bucket */
+    uint64_t dhandle_count;            /* Locked: handles in the queue */
+    uint64_t dhandle_checkpoint_count; /* Locked: checkpoint handles in the queue */
+    /* Locked: handles by type in the queue */
+    uint64_t dhandle_types_count[WT_DHANDLE_TYPE_NUM];
     wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
@@ -788,21 +809,23 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00001000ull
 #define WT_TIMING_STRESS_HS_SEARCH 0x00002000ull
 #define WT_TIMING_STRESS_HS_SWEEP 0x00004000ull
-#define WT_TIMING_STRESS_PREFETCH_DELAY 0x00008000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00010000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00020000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00040000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00080000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00100000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x00200000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x00400000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x00800000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x01000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x02000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x04000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x08000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x10000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x20000000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x00008000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x00010000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x00020000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00040000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00080000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00100000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00200000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00400000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x00800000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x01000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x02000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x04000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x08000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x10000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x20000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x40000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x80000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 

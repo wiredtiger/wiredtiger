@@ -1161,12 +1161,6 @@ backup(WT_SESSION *session)
     error_check(session->open_cursor(session, NULL, cursor, "target=(\"log:\")", &dup_cursor));
     /*! [backup log duplicate]*/
 
-    /*! [incremental backup]*/
-    /* Open the backup data source for log-based incremental backup. */
-    error_check(session->open_cursor(session, "backup:", NULL, "target=(\"log:\")", &cursor));
-    /*! [incremental backup]*/
-    error_check(cursor->close(cursor));
-
     /*! [incremental block backup]*/
     /* Open the backup data source for block-based incremental backup. */
     error_check(session->open_cursor(
