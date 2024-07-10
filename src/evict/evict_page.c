@@ -715,8 +715,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Limit the number of obsolete time window pages that are marked as dirty to reduce the load.
      */
-    if (S2BT(session)->obsolete_tw_pages >=
-      S2C(session)->heuristic_controls.obsolete_tw_pages_dirty)
+    if (S2BT(session)->eviction_obsolete_tw_pages >=
+      S2C(session)->heuristic_controls.eviction_obsolete_tw_pages_dirty)
         return (0);
 
     /*
@@ -748,14 +748,16 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     else if (__wt_ref_addr_copy(session, ref, &addr))
         WT_TIME_AGGREGATE_COPY(&newest_ta, &addr.ta);
 
+    /* The pages that are removed are eliminated during the checkpoint cleanup procedure. */
+    if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+        return (0);
+
     /*
      * Mark the page as dirty to allow the page reconciliation to remove all information related to
-     * an obsolete time window if the page has not been fully removed. The pages that are totally
-     * removed are eliminated during the checkpoint cleanup procedure.
+     * an obsolete time window.
      */
-    if (!WT_TIME_AGGREGATE_HAS_STOP(&newest_ta) && newest_ta.newest_txn != WT_TXN_NONE &&
-      __wt_txn_visible_all(session, newest_ta.newest_txn,
-        WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
+    if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn,
+          WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
         __wt_verbose(session, WT_VERB_EVICT,
           "%p in-memory page obsolete time window: time aggregate %s", (void *)ref,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
@@ -767,7 +769,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
          * To prevent the race while incrementing this variable, no atomic functions are required.
          * More clean pages may become dirty as a result of an outdated value.
          */
-        S2BT(session)->obsolete_tw_pages++;
+        S2BT(session)->eviction_obsolete_tw_pages++;
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
     }
 

@@ -238,11 +238,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
-         * Reset the number of obsolete time window pages to let the eviction threads continue
-         * marking the clean obsolete time window pages as dirty once the checkpoint is finished.
+         * Reset the number of obsolete time window pages to let the eviction threads and checkpoint
+         * cleanup operation to continue marking the clean obsolete time window pages as dirty once
+         * the checkpoint is finished.
          */
-        btree->obsolete_tw_pages = 0;
-        btree->cc_obsolete_tw_pages = 0;
+        btree->eviction_obsolete_tw_pages = 0;
+        btree->checkpoint_cleanup_obsolete_tw_pages = 0;
         is_hs = WT_IS_HS(btree->dhandle);
 
         /* Add in history store reconciliation for standard files. */

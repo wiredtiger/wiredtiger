@@ -2374,12 +2374,13 @@ struct __wt_connection {
      * a mechanism for quickly reverting to prior behavior in the field., a set of related
      * configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * cc_obsolete_tw_pages_dirty, checkpoint cleanup to mark the number of obsolete time window
-     * pages that are marked as dirty per btree in a single checkpoint., an integer between \c 0 and
-     * \c 100000; default \c 100.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_pages_dirty, eviction
-     * to mark the number of obsolete time window pages that are marked as dirty per btree in a
-     * single checkpoint., an integer between \c 0 and \c 100000; default \c 100.}
+     * checkpoint_cleanup_obsolete_tw_pages_dirty, checkpoint cleanup to mark the number of obsolete
+     * time window pages that are marked as dirty per btree in a single checkpoint., an integer
+     * between \c 0 and \c 100000; default \c 100.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * eviction_obsolete_tw_pages_dirty, eviction to mark the number of obsolete time window pages
+     * that are marked as dirty per btree in a single checkpoint., an integer between \c 0 and \c
+     * 100000; default \c 100.}
      * @config{ ),,}
      * @config{history_store = (, history store configuration options., a set of related
      * configuration options defined as follows.}
@@ -3250,12 +3251,12 @@ struct __wt_connection {
  * used as a mechanism for rolling out changes to internal heuristics while providing a mechanism
  * for quickly reverting to prior behavior in the field., a set of related configuration options
  * defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;cc_obsolete_tw_pages_dirty, checkpoint
- * cleanup to mark the number of obsolete time window pages that are marked as dirty per btree in a
- * single checkpoint., an integer between \c 0 and \c 100000; default \c 100.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_pages_dirty, eviction to mark the number of obsolete
- * time window pages that are marked as dirty per btree in a single checkpoint., an integer between
- * \c 0 and \c 100000; default \c 100.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup_obsolete_tw_pages_dirty,
+ * checkpoint cleanup to mark the number of obsolete time window pages that are marked as dirty per
+ * btree in a single checkpoint., an integer between \c 0 and \c 100000; default \c 100.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_obsolete_tw_pages_dirty, eviction to mark the number of
+ * obsolete time window pages that are marked as dirty per btree in a single checkpoint., an integer
+ * between \c 0 and \c 100000; default \c 100.}
  * @config{ ),,}
  * @config{history_store = (, history store configuration options., a set of related configuration
  * options defined as follows.}

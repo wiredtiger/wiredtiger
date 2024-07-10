@@ -23,11 +23,10 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
-    wt_timestamp_t newest_ts;
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
     const char *tag;
-    bool do_visibility_check, obsolete, ovfl_items;
+    bool do_visibility_check, has_stop, obsolete, ovfl_items;
 
     /*
      * Skip the modified pages as their reconciliation results are not valid any more. Check for the
@@ -48,8 +47,8 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      *  The obsolete information on a page is identified as follows:
-     *  1. If the ref is obsolete using the newest stop time. In this case, mark it
-     *     for urgent eviction.
+     *  1. The newest stop time indicates the entire content is deleted and if it is obsolete,
+     *     the page is therefore no longer needed by anyone and can be marked for urgent eviction.
      *  2. If the ref contains obsolete time window information using the newest durable
      *     time. In this case, mark the ref dirty so reconciliation removes the obsolete data.
      */
@@ -81,10 +80,10 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         if (addr.type == WT_ADDR_LEAF)
             ovfl_items = true;
         do_visibility_check = true;
-    } else
-        tag = "unexpected page state";
+    }
 
-    if (do_visibility_check && WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
+    has_stop = WT_TIME_AGGREGATE_HAS_STOP(&newest_ta);
+    if (do_visibility_check && has_stop)
         obsolete = __wt_txn_visible_all(
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
@@ -105,25 +104,17 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else {
+    } else if (!has_stop) {
         /*
          * Limit the number of obsolete time window pages that are marked as dirty to reduce the
          * load.
          */
-        if (S2BT(session)->cc_obsolete_tw_pages >=
-          S2C(session)->heuristic_controls.cc_obsolete_tw_pages_dirty)
+        if (S2BT(session)->checkpoint_cleanup_obsolete_tw_pages >=
+          S2C(session)->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty)
             return (0);
 
-        /*
-         * The pages that are completely removed are eliminated once they are obsolete. There is no
-         * point in clearing their on-disk time window information now.
-         */
-        if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
-            return (0);
-
-        newest_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
-        if ((newest_ta.newest_txn != WT_TXN_NONE || newest_ts != WT_TS_NONE) &&
-          __wt_txn_visible_all(session, newest_ta.newest_txn, newest_ts)) {
+        if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn,
+              WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
             /*
              * Dirty the page with an obsolete time window to let the page reconciliation remove all
              * the obsolete time window information.
@@ -135,7 +126,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_RET(__wt_page_modify_init(session, ref->page));
             __wt_page_modify_set(session, ref->page);
 
-            S2BT(session)->cc_obsolete_tw_pages++;
+            S2BT(session)->checkpoint_cleanup_obsolete_tw_pages++;
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
         }
     }
@@ -361,11 +352,12 @@ __checkpoint_cleanup_page_skip(
 
     /*
      * Reading any page that is not in the cache will increase the cache size. Perform a set of
-     * checks to verify the cache can handle it. Checkpoint cleanup leads to more clean pages in the
-     * cache, skip if clean eviction is needed.
+     * checks to verify the cache can handle it. Checkpoint cleanup reads clean pages into the cache
+     * and also it can dirty the already existing in-memory page in the cache, skip if eviction is
+     * needed.
      */
     if (__wt_cache_aggressive(session) || __wt_cache_full(session) || __wt_cache_stuck(session) ||
-      __wt_eviction_clean_needed(session, NULL)) {
+      __wt_eviction_needed(session, false, false, NULL)) {
         *skipp = true;
         return (0);
     }
@@ -486,7 +478,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_start_durable_ts, newest_stop_durable_ts, newest_ts;
+    wt_timestamp_t newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
     uint64_t newest_txn;
     bool logged;
@@ -555,9 +547,8 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * The checkpoint has some obsolete time window information that is no longer required to exist
      * in the btree. Remove the obsolete data to reduce the checkpoint size.
      */
-    newest_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-    if ((newest_txn != WT_TXN_NONE || newest_ts != WT_TS_NONE) &&
-      __wt_txn_visible_all(session, newest_txn, newest_ts))
+    if (__wt_txn_newest_visible_all(
+          session, newest_txn, WT_MAX(newest_start_durable_ts, newest_stop_durable_ts)))
         return (true);
 
     return (false);

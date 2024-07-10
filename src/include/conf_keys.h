@@ -84,10 +84,10 @@
 #define WT_CONF_ID_cache_size 189ULL
 #define WT_CONF_ID_cache_stuck_timeout_ms 190ULL
 #define WT_CONF_ID_capacity 279ULL
-#define WT_CONF_ID_cc_obsolete_tw_pages_dirty 236ULL
 #define WT_CONF_ID_checkpoint 56ULL
 #define WT_CONF_ID_checkpoint_backup_info 57ULL
 #define WT_CONF_ID_checkpoint_cleanup 163ULL
+#define WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty 236ULL
 #define WT_CONF_ID_checkpoint_fail_before_turtle_update 269ULL
 #define WT_CONF_ID_checkpoint_lsn 58ULL
 #define WT_CONF_ID_checkpoint_read_timestamp 123ULL
@@ -149,6 +149,7 @@
 #define WT_CONF_ID_eviction_checkpoint_target 221ULL
 #define WT_CONF_ID_eviction_dirty_target 222ULL
 #define WT_CONF_ID_eviction_dirty_trigger 223ULL
+#define WT_CONF_ID_eviction_obsolete_tw_pages_dirty 235ULL
 #define WT_CONF_ID_eviction_target 224ULL
 #define WT_CONF_ID_eviction_trigger 225ULL
 #define WT_CONF_ID_eviction_updates_target 226ULL
@@ -229,7 +230,6 @@
 #define WT_CONF_ID_no_timestamp 156ULL
 #define WT_CONF_ID_nvram_path 184ULL
 #define WT_CONF_ID_object_target_size 53ULL
-#define WT_CONF_ID_obsolete_tw_pages_dirty 235ULL
 #define WT_CONF_ID_old_chunks 84ULL
 #define WT_CONF_ID_oldest 88ULL
 #define WT_CONF_ID_oldest_timestamp 273ULL
@@ -435,8 +435,8 @@ static const struct {
         uint64_t dhandle_buckets;
     } Hash;
     struct {
-        uint64_t cc_obsolete_tw_pages_dirty;
-        uint64_t obsolete_tw_pages_dirty;
+        uint64_t checkpoint_cleanup_obsolete_tw_pages_dirty;
+        uint64_t eviction_obsolete_tw_pages_dirty;
     } Heuristic_controls;
     struct {
         uint64_t file_max;
@@ -807,8 +807,8 @@ static const struct {
     WT_CONF_ID_Hash | (WT_CONF_ID_dhandle_buckets << 16),
   },
   {
-    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_cc_obsolete_tw_pages_dirty << 16),
-    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_obsolete_tw_pages_dirty << 16),
+    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty << 16),
+    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_eviction_obsolete_tw_pages_dirty << 16),
   },
   {
     WT_CONF_ID_History_store | (WT_CONF_ID_file_max << 16),

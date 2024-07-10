@@ -39,9 +39,9 @@ class test_eviction02(wttest.WiredTigerTestCase):
     # These values set a limit to the number of pages that can be cleaned up per btree per
     # checkpoint.
     conn_config_values = [
-        ('50', dict(obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty=50]')),
-        ('100', dict(obsolete_tw_max=100, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty=100]')),
-        ('500', dict(obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty=500]')),
+        ('50', dict(obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[eviction_obsolete_tw_pages_dirty=50]')),
+        ('100', dict(obsolete_tw_max=100, conn_config=f'{conn_config_common},heuristic_controls=[eviction_obsolete_tw_pages_dirty=100]')),
+        ('500', dict(obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[eviction_obsolete_tw_pages_dirty=500]')),
     ]
 
     scenarios = make_scenarios(conn_config_values)
