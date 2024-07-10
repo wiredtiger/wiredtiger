@@ -2752,9 +2752,7 @@ struct __wt_connection {
      * Add a custom extractor for index keys or column groups.
      *
      * The application must first implement the WT_EXTRACTOR interface and
-     * then register the implementation with WiredTiger:
-     *
-     * @snippet ex_all.c WT_EXTRACTOR register
+     * then register the implementation with WiredTiger.
      *
      * @param connection the connection handle
      * @param name the name of the extractor to be used in calls to
@@ -4576,16 +4574,12 @@ struct __wt_encryptor {
  * Applications register implementations with WiredTiger by calling
  * WT_CONNECTION::add_extractor.  See @ref custom_extractors for more
  * information.
- *
- * @snippet ex_all.c WT_EXTRACTOR register
  */
 struct __wt_extractor {
     /*!
      * Callback to extract a value for an index or column group.
      *
      * @errors
-     *
-     * @snippet ex_all.c WT_EXTRACTOR
      *
      * @param extractor the WT_EXTRACTOR implementation
      * @param session the current WiredTiger session

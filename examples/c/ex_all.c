@@ -37,7 +37,6 @@
 static const char *home;
 
 static void add_collator(WT_CONNECTION *conn);
-static void add_extractor(WT_CONNECTION *conn);
 static void backup(WT_SESSION *session);
 static void checkpoint_ops(WT_SESSION *session);
 static void connection_ops(WT_CONNECTION *conn);
@@ -1000,31 +999,6 @@ add_collator(WT_CONNECTION *conn)
     /*! [WT_COLLATOR register] */
 }
 
-/*! [WT_EXTRACTOR] */
-static int
-my_extract(WT_EXTRACTOR *extractor, WT_SESSION *session, const WT_ITEM *key, const WT_ITEM *value,
-  WT_CURSOR *result_cursor)
-{
-    /* Unused parameters */
-    (void)extractor;
-    (void)session;
-    (void)key;
-
-    result_cursor->set_key(result_cursor, value);
-    return (result_cursor->insert(result_cursor));
-}
-/*! [WT_EXTRACTOR] */
-
-static void
-add_extractor(WT_CONNECTION *conn)
-{
-    /*! [WT_EXTRACTOR register] */
-    static WT_EXTRACTOR my_extractor = {my_extract, NULL, NULL};
-
-    error_check(conn->add_extractor(conn, "my_extractor", &my_extractor, NULL));
-    /*! [WT_EXTRACTOR register] */
-}
-
 static void
 connection_ops(WT_CONNECTION *conn)
 {
@@ -1038,7 +1012,6 @@ connection_ops(WT_CONNECTION *conn)
 #endif
 
     add_collator(conn);
-    add_extractor(conn);
 
     /*! [Reconfigure a connection] */
     error_check(conn->reconfigure(conn, "eviction_target=75"));

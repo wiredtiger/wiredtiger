@@ -190,13 +190,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt3135_search_near_collator
-    SOURCES wt3135_search_near_collator/main.c
-    DIR_NAME wt3135_search_near_collator
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt3135_search_near_collator>/WT_HOME>
-)
-
-define_c_test(
     TARGET test_wt3184_dup_index_collator
     SOURCES wt3184_dup_index_collator/main.c
     DIR_NAME wt3184_dup_index_collator
