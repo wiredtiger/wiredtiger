@@ -918,6 +918,7 @@ err:
     /* Close the hot backup file. */
     if (srcfs != NULL)
         WT_TRET(__wt_fclose(session, &srcfs));
+
     /*
      * Sync and rename the temp file into place.
      */
@@ -1046,7 +1047,7 @@ __backup_list_append(
     WT_RET(__wt_realloc_def(session, &cb->list_allocated, cb->list_next + 2, &cb->list));
     p = &cb->list[cb->list_next];
     p[0] = p[1] = NULL;
-    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP) && cfg_value != NULL) {
+    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
         /*
          * Add a copy of the metadata config string for tables for incremental backup if one is
          * available. Keep that list in parallel to the file list. Not all files will have the
@@ -1075,8 +1076,12 @@ __backup_list_append(
      * copying of files by applications.
      */
     WT_RET(__wt_strdup(session, name, p));
-    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP) && cfg_value != NULL)
-        WT_RET(__wt_strdup(session, cfg_value, c));
+    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
+        if (cfg_value != NULL)
+            WT_RET(__wt_strdup(session, cfg_value, c));
+        else
+            *c = NULL;
+    }
     ++cb->list_next;
 
     return (0);
