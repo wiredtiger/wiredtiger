@@ -687,22 +687,20 @@ static int
 __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
     wt_timestamp_t max_durable_ts;
-    uint32_t i;
+    uint32_t btree_index, i;
     char time_string[WT_TIME_STRING_SIZE];
 
-    /*
-     * Limit the number of obsolete time window pages that are marked as dirty to reduce the load.
-     */
-    if (S2BT(session)->obsolete_tw_pages >=
-      S2C(session)->heuristic_controls.obsolete_tw_pages_dirty)
-        return (0);
+    btree = S2BT(session);
+    conn = S2C(session);
 
-    /* Don't add more cache pressure. */
-    if (__wt_eviction_dirty_needed(session, NULL) || __wt_eviction_updates_needed(session, NULL))
+    /* Too many pages have been cleaned for this btree. */
+    if (btree->obsolete_tw_pages >= conn->heuristic_controls.obsolete_tw_pages_dirty)
         return (0);
 
     /*
@@ -715,7 +713,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Do not perform any obsolete time window cleanup during the startup or shutdown phase. */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
+    if (F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
         return (0);
 
     /* If the file is being checkpointed, other threads can't evict dirty pages. */
@@ -736,6 +734,25 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* We are only interested in clean pages. */
     if (__wt_page_is_modified(ref->page))
+        return (0);
+
+    /* Don't add more cache pressure. */
+    if (__wt_eviction_dirty_needed(session, NULL) || __wt_eviction_updates_needed(session, NULL))
+        return (0);
+
+    /* Limit the number of btrees that can be cleaned up. */
+    for (btree_index = 0; btree_index < conn->heuristic_controls.obsolete_tw_btree_array_size;
+         btree_index++) {
+        /* Free slot. */
+        if (conn->heuristic_controls.obsolete_tw_btree_array[btree_index] == 0)
+            break;
+        /* Btree already saved .*/
+        if (conn->heuristic_controls.obsolete_tw_btree_array[btree_index] == btree->id)
+            break;
+    }
+
+    /* The btree was not found in the array and it is full. */
+    if (btree_index >= conn->heuristic_controls.obsolete_tw_btree_array_size)
         return (0);
 
     /*
@@ -776,11 +793,15 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_RET(__wt_page_modify_init(session, ref->page));
     __wt_page_modify_set(session, ref->page);
 
+    /* Save the btree. */
+    if (conn->heuristic_controls.obsolete_tw_btree_array[btree_index] == 0)
+        conn->heuristic_controls.obsolete_tw_btree_array[btree_index] = btree->id;
+
     /*
      * To prevent the race while incrementing this variable, no atomic functions are required. More
      * clean pages may become dirty as a result of an outdated value.
      */
-    S2BT(session)->obsolete_tw_pages++;
+    btree->obsolete_tw_pages++;
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
 
     return (0);

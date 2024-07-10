@@ -152,6 +152,9 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_free(session, conn->dhhash);
     __wt_free(session, conn->fhhash);
 
+    /* Free allocated btree array. */
+    __wt_free(session, conn->heuristic_controls.obsolete_tw_btree_array);
+
     /* Free allocated recovered checkpoint snapshot memory */
     __wt_free(session, conn->recovery_ckpt_snapshot);
 

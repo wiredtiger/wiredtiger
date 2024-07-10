@@ -750,6 +750,10 @@ connection_runtime_config = [
                 eviction to mark the number of obsolete time window pages that are marked as dirty
                 per btree in a single checkpoint''',
                 min=0, max=100000),
+            Config('obsolete_tw_btree_array_size', '100', r'''
+                maximum number of btrees that can be checked for obsolete time window cleanup in a
+                single checkpoint''',
+                min=0, max=100000),
         ]),
     Config('io_capacity', '', r'''
         control how many bytes per second are written and read. Exceeding the capacity results

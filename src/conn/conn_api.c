@@ -2264,6 +2264,16 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_pages_dirty", &cval));
     conn->heuristic_controls.obsolete_tw_pages_dirty = (uint32_t)cval.val;
 
+    WT_RET(
+      __wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_btree_array_size", &cval));
+    conn->heuristic_controls.obsolete_tw_btree_array_size = (uint32_t)cval.val;
+    conn->heuristic_controls.obsolete_tw_btree_array_size = (uint32_t)1000;
+
+    /* TODO - during reconfigure, cleanup first? Free? */
+    WT_RET(__wt_calloc_def(session,
+      sizeof(uint32_t) * conn->heuristic_controls.obsolete_tw_btree_array_size,
+      &conn->heuristic_controls.obsolete_tw_btree_array));
+
     return (0);
 }
 
