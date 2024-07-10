@@ -5559,6 +5559,7 @@ buildvariants:
   tasks:
     - name: examples-c-tsan
 
+# FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
 # encounters. This allows us to check whether a TSan change may cause other unexpected failures
 # while also not having to fix every TSan issue discovered. At the conclusion of the TSan work this
