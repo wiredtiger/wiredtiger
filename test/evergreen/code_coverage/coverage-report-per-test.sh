@@ -19,7 +19,6 @@ echo "Disk usage and free space for the current drive (pre-test):"
 df -h .
 
 # Create directories for 8 builds and the output data
-mkdir build_0 build_1 build_2 build_3 build_4 build_5 build_6 build_7
 mkdir -p coverage_data
 mkdir -p coverage_report
 

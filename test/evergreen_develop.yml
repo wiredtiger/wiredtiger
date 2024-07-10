@@ -82,14 +82,17 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: 0
     database: WTCodeStatisticsDB
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: coverage-report
+    - name: coverage-report-python
+      distros: ubuntu2004-arm64-large
+    - name: coverage-report-csuite
       distros: ubuntu2004-arm64-large
     - name: coverage-report-per-test
       distros: ubuntu2004-arm64-large
       activate: false # Launch only manually for now
     - name: coverage-report-catch2
+    - name: generate-coverage-report
     - name: cyclomatic-complexity
     - name: code-change-report
 
