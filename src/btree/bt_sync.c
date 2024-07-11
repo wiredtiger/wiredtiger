@@ -238,11 +238,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
-         * Reset the variables associated with the clean up of obsolete time window information so
-         * we can resume the work in case the limits have been reached.
+         * Reset the number of obsolete time window pages to let the eviction threads continue
+         * marking the clean obsolete time window pages as dirty once the checkpoint is finished.
          */
         btree->obsolete_tw_pages = 0;
-        conn->heuristic_controls.obsolete_tw_btree_count = 0;
 
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;
