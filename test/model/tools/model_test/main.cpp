@@ -462,7 +462,7 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
 
     struct rlimit new_core_limit;
     memset(&new_core_limit, 0, sizeof(new_core_limit));
-    /* Preserve the maximum limit for the resetting the current value to work at cleanup. */
+    /* Preserve the maximum limit for resetting the current value to work at cleanup. */
     new_core_limit.rlim_max = prev_core_limit.rlim_max;
     r = setrlimit(RLIMIT_CORE, &new_core_limit);
     if (r != 0)
