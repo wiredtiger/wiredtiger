@@ -317,13 +317,13 @@ class Cell(object):
             self.durable_stop_ts, self.size_durable_stop_ts = b.read_packed_uint64_with_size()
 
         if self.durable_start_ts is not None:
-            self.durable_start_ts += self.start_ts
+            self.durable_start_ts += self.start_ts if self.start_ts is not None else 0
         if self.stop_ts is not None:
-            self.stop_ts += self.start_ts
+            self.stop_ts += self.start_ts if self.start_ts is not None else 0
         if self.stop_txn is not None:
-            self.stop_txn += self.start_txn
+            self.stop_txn += self.start_txn if self.start_txn is not None else 0
         if self.durable_stop_ts is not None:
-            self.durable_stop_ts += self.stop_ts
+            self.durable_stop_ts += self.stop_ts if self.stop_ts is not None else 0
 
         if self.extra_descriptor & 0x80:
             raise ValueError('Junk in extra descriptor: ' + hex(self.extra_descriptor))
