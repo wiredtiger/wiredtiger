@@ -87,7 +87,7 @@
 #define WT_CONF_ID_checkpoint 56ULL
 #define WT_CONF_ID_checkpoint_backup_info 57ULL
 #define WT_CONF_ID_checkpoint_cleanup 163ULL
-#define WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty 236ULL
+#define WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty_max 236ULL
 #define WT_CONF_ID_checkpoint_fail_before_turtle_update 269ULL
 #define WT_CONF_ID_checkpoint_lsn 58ULL
 #define WT_CONF_ID_checkpoint_read_timestamp 123ULL
@@ -435,7 +435,7 @@ static const struct {
         uint64_t dhandle_buckets;
     } Hash;
     struct {
-        uint64_t checkpoint_cleanup_obsolete_tw_pages_dirty;
+        uint64_t checkpoint_cleanup_obsolete_tw_pages_dirty_max;
         uint64_t eviction_obsolete_tw_pages_dirty;
     } Heuristic_controls;
     struct {
@@ -807,7 +807,8 @@ static const struct {
     WT_CONF_ID_Hash | (WT_CONF_ID_dhandle_buckets << 16),
   },
   {
-    WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty << 16),
+    WT_CONF_ID_Heuristic_controls |
+      (WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty_max << 16),
     WT_CONF_ID_Heuristic_controls | (WT_CONF_ID_eviction_obsolete_tw_pages_dirty << 16),
   },
   {

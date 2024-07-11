@@ -783,8 +783,11 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 static WT_INLINE bool
 __wt_txn_newest_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
-    if ((id != WT_TXN_NONE || timestamp != WT_TS_NONE) &&
-      __wt_txn_visible_all(session, id, timestamp))
+    /* If there is no transaction or timestamp information available, there is nothing to do. */
+    if (id == WT_TXN_NONE && timestamp == WT_TS_NONE)
+        return (false);
+
+    if (__wt_txn_visible_all(session, id, timestamp))
         return (true);
 
     return (false);

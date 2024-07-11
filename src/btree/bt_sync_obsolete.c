@@ -110,7 +110,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * load.
          */
         if (S2BT(session)->checkpoint_cleanup_obsolete_tw_pages >=
-          S2C(session)->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty)
+          S2C(session)->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
             return (0);
 
         if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn,

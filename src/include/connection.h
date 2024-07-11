@@ -152,7 +152,7 @@ struct __wt_bucket_storage {
  */
 struct __wt_heuristic_controls {
     uint32_t eviction_obsolete_tw_pages_dirty;
-    uint32_t checkpoint_cleanup_obsolete_tw_pages_dirty;
+    wt_shared uint32_t checkpoint_cleanup_obsolete_tw_pages_dirty_max;
 };
 
 /*
