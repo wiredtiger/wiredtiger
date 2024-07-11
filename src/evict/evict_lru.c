@@ -2646,6 +2646,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     }
 
     if (WT_UNLIKELY(ret != 0)) {
+		__wt_verbose(session, WT_VERB_CACHE_TRACE, "%s", "eviction failed");
         if (is_server)
             WT_STAT_CONN_INCR(session, cache_eviction_server_evict_fail);
         else if (F_ISSET(session, WT_SESSION_INTERNAL))
