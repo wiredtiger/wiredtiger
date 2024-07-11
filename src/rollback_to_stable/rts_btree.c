@@ -19,9 +19,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
 {
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dryrun, txn_id_visible;
+    bool dryrun, hs_update, txn_id_visible;
 
     dryrun = S2C(session)->rts->dryrun;
+    hs_update = false;
 
     stable_upd = tombstone = NULL;
     WT_NOT_READ(txn_id_visible, false);
@@ -38,6 +39,9 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         /* Skip the updates that are aborted. */
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
+
+        if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
+            hs_update = true;
 
         /*
          * An unstable update needs to be aborted if any of the following are true:
@@ -88,9 +92,20 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
      * store, it will have a different stop time point.
      */
     if (stable_upd != NULL) {
-        if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
-            /* Find the update following a stable tombstone. */
-            if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
+        if (hs_update) {
+            /*
+             * If we have a stable tombstone at the end of the update chain, it may not have been
+             * inserted to the history store.
+             */
+            WT_ASSERT(session,
+              F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS) ||
+                stable_upd->type == WT_UPDATE_TOMBSTONE);
+            /*
+             * Find the update following a stable tombstone that has been inserted to the history
+             * store.
+             */
+            if (stable_upd->type == WT_UPDATE_TOMBSTONE &&
+              F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
                 tombstone = stable_upd;
                 for (stable_upd = stable_upd->next; stable_upd != NULL;
                      stable_upd = stable_upd->next) {
@@ -199,7 +214,7 @@ err:
  *     Add the provided update to the head of the update list.
  */
 static WT_INLINE int
-__rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
+__rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, uint64_t recno)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -215,7 +230,7 @@ __rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, ui
 
     /* Apply the modification. */
     if (!dryrun)
-        WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
+        WT_ERR(__wt_col_modify(&cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, false));
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -229,7 +244,7 @@ err:
  *     Add the provided update to the head of the update list.
  */
 static WT_INLINE int
-__rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT_ITEM *key)
+__rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, WT_ITEM *key)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -245,7 +260,7 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, WT
 
     /* Apply the modification. */
     if (!dryrun)
-        WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
+        WT_ERR(__wt_row_modify(&cbt, key, NULL, updp, WT_UPDATE_INVALID, true, false));
 
 err:
     /* Free any resources that may have been cached in the cursor. */
@@ -572,9 +587,9 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     }
 
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, upd, key));
+        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
     else
-        WT_ERR(__rts_btree_col_modify(session, ref, upd, recno));
+        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
@@ -589,7 +604,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     if (0) {
 err:
-        WT_ASSERT(session, tombstone == NULL || upd == tombstone);
+        WT_ASSERT(session, tombstone == NULL || upd == tombstone || upd == NULL);
         __wt_free_update_list(session, &upd);
     }
     __wt_scr_free(session, &full_value);
@@ -776,9 +791,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, upd, key));
+        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
     else
-        WT_ERR(__rts_btree_col_modify(session, ref, upd, recno));
+        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
     if (S2C(session)->rts->dryrun) {
 err:

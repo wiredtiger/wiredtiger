@@ -30,6 +30,8 @@ variables:
       distros: ubuntu2004-wt-large
     - name: ".cppsuite-perf-test"
     - name: many-dhandle-stress
+    - name: prefetch-off-verify
+    - name: prefetch-on-verify
 
 # Build variants that need to be run only on the develop branch.
 buildvariants:
@@ -50,6 +52,18 @@ buildvariants:
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTestsARM64
+
+- <<: *perf-tasks-template
+  name: ubuntu2004-perf-tests-arm64-only
+  display_name: ~ Ubuntu 20.04 Performance tests (ARM64 only)
+  run_on:
+    - ubuntu2004-arm64-perf-testing
+  expansions:
+    <<: *ubuntu2004-perf-tests-expansions-template
+    collection: AllPerfTestsARM64
+  tasks:
+    - name: compile
+    - ".cppsuite-perf-test-arm"
 
 - name: documentation-update
   display_name: "~ Documentation update"
@@ -74,6 +88,9 @@ buildvariants:
   tasks:
     - name: coverage-report
       distros: ubuntu2004-arm64-large
+    - name: coverage-report-per-test
+      distros: ubuntu2004-arm64-large
+      activate: false # Launch only manually for now
     - name: coverage-report-catch2
     - name: cyclomatic-complexity
     - name: code-change-report

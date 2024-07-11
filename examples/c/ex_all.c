@@ -722,6 +722,12 @@ session_ops(WT_SESSION *session)
         error_check(session->compact(session, "table:mytable", NULL));
         /*! [Compact a table] */
 
+        error_check(
+          session->create(session, "table:old", "key_format=r,value_format=S,cache_resident=true"));
+        /*! [Rename a table] */
+        error_check(session->rename(session, "table:old", "table:new", NULL));
+        /*! [Rename a table] */
+
         /*! [Salvage a table] */
         error_check(session->salvage(session, "table:mytable", NULL));
         /*! [Salvage a table] */
@@ -768,10 +774,6 @@ session_ops(WT_SESSION *session)
         }
 
         error_check(session->checkpoint(session, NULL));
-
-        /*! [Upgrade a table] */
-        error_check(session->upgrade(session, "table:mytable", NULL));
-        /*! [Upgrade a table] */
 
         /*! [Verify a table] */
         error_check(session->verify(session, "table:mytable", NULL));
