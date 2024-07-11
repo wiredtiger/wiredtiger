@@ -452,7 +452,7 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
     int r = getrlimit(RLIMIT_CORE, &prev_core_limit);
     if (r != 0)
         throw std::runtime_error(
-          std::string("Could not get the current maximum size of core dumps: ") + strerror(errno));
+          std::string("Failed to get the current core dump limit: ") + strerror(errno));
 
     model::at_cleanup reset_core_limit([&prev_core_limit]() {
         int r = setrlimit(RLIMIT_CORE, &prev_core_limit);
