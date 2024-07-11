@@ -3,6 +3,8 @@
 # Read the source files and output the statistics #defines plus the
 # initialize and refresh code.
 
+from collections import defaultdict
+import re
 import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from operator import attrgetter
@@ -31,6 +33,39 @@ def check_unique_description(sorted_list):
         if temp == i.desc:
             print("ERROR: repeated stat description in - '%s'" % (i.desc))
         temp = i.desc
+
+##########################################
+# Remove trailing digits for a string.
+# Used as a lambda in sorting stats by name.
+##########################################
+def remove_suffix_digits(str):
+    return re.sub(r'\d+$', '', str)
+    
+##########################################
+# Check names are sorted:
+# For each Stat subclass check the names are sorted in alphabetical order
+##########################################
+def check_name_sorted(stat_list):
+    stat_dict = defaultdict(list)
+    for stat in stat_list:
+        stat_dict[type(stat)].append(stat)
+    for stat_type, stats in stat_dict.items():
+        sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
+        for i in range(len(stats)):
+            if (sorted_stats[i].name != stats[i].name):
+                print(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected" \
+                      f"'{sorted_stats[i].name}' but found '{stats[i].name}'")
+                return
+
+all_stat_list = [conn_stats, dsrc_stats, conn_dsrc_stats, join_stats, session_stats]
+for stat_list in all_stat_list:
+    check_name_sorted(stat_list)
+
+conn_stats.sort(key=attrgetter('desc'))
+dsrc_stats.sort(key=attrgetter('desc'))
+conn_dsrc_stats.sort(key=attrgetter('desc'))
+join_stats.sort(key=attrgetter('desc'))
+session_stats.sort(key=attrgetter('desc'))
 
 check_unique_description(conn_stats)
 check_unique_description(dsrc_stats)
