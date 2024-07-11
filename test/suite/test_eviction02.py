@@ -36,22 +36,28 @@ import wttest
 class test_eviction02(wttest.WiredTigerTestCase):
     conn_config_common = 'cache_size=10MB,statistics=(all),statistics_log=(json,wait=1,on_close=true)'
 
-    # These values set a limit to the number of pages that can be cleaned up per btree per
+    # These values set a limit to the number of btrees/pages that can be cleaned up per btree per
     # checkpoint.
     conn_config_values = [
-        ('50', dict(obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=50]')),
-        ('100', dict(obsolete_tw_max=100, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=100]')),
-        ('500', dict(obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=500]')),
+        ('no_btrees', dict(expected_cleanup=False, obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_btree_max=0]')),
+        ('no_pages', dict(expected_cleanup=False, obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=0]')),
+        ('50_pages', dict(expected_cleanup=True, obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=50]')),
+        ('100_pages', dict(expected_cleanup=True, obsolete_tw_max=100, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=100]')),
+        ('500_pages', dict(expected_cleanup=True, obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_pages_dirty_max=500]')),
     ]
 
     scenarios = make_scenarios(conn_config_values)
 
     def check_stat(self, prev_value, current_value):
-        # Stats may have a stale value, allow some buffer.
-        error_margin = 2
-        threshold = self.obsolete_tw_max * error_margin
-        diff = current_value - prev_value
-        assert diff <= threshold, f"Unexpected number of pages with obsolete tw cleaned: {diff} (max {threshold})"
+        if self.expected_cleanup:
+            # Stats may have a stale value, allow some buffer.
+            error_margin = 2
+            threshold = self.obsolete_tw_max * error_margin
+            diff = current_value - prev_value
+            assert diff <= threshold, f"Unexpected number of pages with obsolete tw cleaned: {diff} (max {threshold})"
+        else:
+            assert current_value == 0
+            assert prev_value == 0
 
     def get_stat(self, stat, uri = ""):
         stat_cursor = self.session.open_cursor(f'statistics:{uri}')
@@ -111,4 +117,7 @@ class test_eviction02(wttest.WiredTigerTestCase):
         current_obsolete_tw_value = self.get_stat(stat.dsrc.cache_eviction_dirty_obsolete_tw, uri)
         self.check_stat(prev_obsolete_tw_value, current_obsolete_tw_value)
         # Check also the connection level stat.
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_obsolete_tw), 0)
+        if self.expected_cleanup:
+            self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_obsolete_tw), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_obsolete_tw), 0)
