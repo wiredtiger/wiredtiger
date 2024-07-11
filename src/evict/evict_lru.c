@@ -2583,7 +2583,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     WT_TRACK_OP_DECL;
     uint64_t time_start, time_stop;
     uint32_t flags;
-    bool page_is_modified;
+    bool page_is_modified, reset_dhandle;
 
     WT_TRACK_OP_INIT(session);
 
@@ -2595,6 +2595,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     flags = 0;
     page_is_modified = false;
+	reset_dhandle = false;
 
     /*
      * An internal session flags either the server itself or an eviction worker thread.
@@ -2619,7 +2620,19 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
      * We used to bump the page's read generation only if eviction failed, but that isn't safe: at
      * that point, eviction has already unlocked the page and some other thread may have evicted it
      * by the time we look at it.
+	 *
+	 * Track eviction before we bump the read generation. The before-the-bump read generation
+	 * reflects the actual read generation that caused this page to be selected by eviction,
+	 * so it is more meaningful for analysis and cache simulation.
      */
+	/* We need a btree for tracing the page address */
+	if (session->dhandle == NULL) {
+		session->dhandle = btree->dhandle;
+		reset_dhandle = true;
+	}
+	__wt_page_trace(session, ref, "evict", 0);
+	if (reset_dhandle == true)
+		session->dhandle = NULL;
     __wt_cache_read_gen_bump(session, ref->page);
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));

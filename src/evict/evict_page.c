@@ -303,8 +303,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
     }
 
-    __wt_page_trace(session, ref, "evict", 0);
-
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
