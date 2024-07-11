@@ -550,9 +550,6 @@ __conn_add_extractor(
     WT_NAMED_EXTRACTOR *nextractor;
     WT_SESSION_IMPL *session;
 
-    if (wt_conn != NULL)
-        return (-1);
-
     nextractor = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
