@@ -743,7 +743,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_eviction_dirty_needed(session, NULL) || __wt_eviction_updates_needed(session, NULL))
+    if (__wt_eviction_needed(session, false, false, NULL) || __wt_cache_stuck(session))
         return (0);
 
     /*
