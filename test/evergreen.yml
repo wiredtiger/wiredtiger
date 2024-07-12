@@ -3012,12 +3012,19 @@ tasks:
 
             # Record the end time, in seconds
             date +%s >> time.txt
-
-            rm -rf build_*
       - func: "code coverage analysis"
         vars:
           generate_atlas_format: true
           working_dir: "wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            rm -rf build_*
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
@@ -3048,12 +3055,19 @@ tasks:
 
             # Record the end time, in seconds
             date +%s >> time.txt
-
-            rm -rf build_*
       - func: "code coverage analysis"
         vars:
           generate_atlas_format: true
           working_dir: "wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            rm -rf build_*
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
@@ -3089,7 +3103,6 @@ tasks:
             pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
             mkdir -p full_coverage_report
             gcovr -r coverage_report_csuite --add-tracefile coverage_report_csuite/coverage_report/full_coverage_report.json --add-tracefile coverage_report_python/coverage_report/full_coverage_report.json -j 4 --html-self-contained --html-details full_coverage_report/2_coverage_report.html --json-summary-pretty --json-summary full_coverage_report/1_coverage_report_summary.json
-            ${python_binary|python3} coverage_report_csuite/test/evergreen/code_coverage_analysis.py -s full_coverage_report/1_coverage_report_summary.json -t time.txt
       - func: "upload stats to atlas"
         vars:
           stats_dir: ./full_coverage_report
