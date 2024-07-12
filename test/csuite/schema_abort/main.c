@@ -607,7 +607,7 @@ thread_ckpt_run(void *arg)
             if (!stable_set) {
                 __wt_epoch(NULL, &now);
                 diff_sec = WT_TIMEDIFF_SEC(now, start);
-                if (diff_sec >= 1)
+                if (diff_sec >= 1 && (i % 100) == 0)
                     printf("CKPT: !stable_set time %" PRIu64 "\n", diff_sec);
                 if (diff_sec > MAX_STARTUP) {
                     fprintf(
