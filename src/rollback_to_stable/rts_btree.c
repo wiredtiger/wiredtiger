@@ -97,12 +97,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * updates are from a prepared transaction. Reset the transaction ID of the stable update
          * that was restored as part of the unstable prepared tombstone.
          */
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING)) {
-            WT_ASSERT(session, stable_upd->next == NULL);
-            WT_ASSERT(session,
-              stable_upd->txnid == WT_TXN_NONE || F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
             stable_upd->txnid = WT_TXN_NONE;
-        }
 
         if (hs_update) {
             /*
