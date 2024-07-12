@@ -701,7 +701,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Too many pages have been cleaned for this btree. */
     if (__wt_atomic_load32(&btree->obsolete_tw_pages) >=
-      __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_pages_dirty_max))
+      conn->heuristic_controls.obsolete_tw_pages_dirty_max)
         return (0);
 
     /*
@@ -740,7 +740,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Limit the number of btrees that can be cleaned up. */
     if (__wt_atomic_load32(&btree->obsolete_tw_pages) == 0 &&
       __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
-        __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_max))
+        conn->heuristic_controls.obsolete_tw_btree_max)
         return (0);
 
     /* Don't add more cache pressure. */

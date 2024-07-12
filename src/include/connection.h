@@ -156,12 +156,12 @@ struct __wt_heuristic_controls {
      */
     wt_shared uint32_t obsolete_tw_btree_count;
     /* Maximum number of btrees that can be processed due to obsolete time window information. */
-    wt_shared uint32_t obsolete_tw_btree_max;
+    uint32_t obsolete_tw_btree_max;
     /*
      * Maximum number of pages that can be processed due to obsolete time window information per
      * btree.
      */
-    wt_shared uint32_t obsolete_tw_pages_dirty_max;
+    uint32_t obsolete_tw_pages_dirty_max;
 };
 
 /*
