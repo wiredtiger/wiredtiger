@@ -88,6 +88,18 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
      * store, it will have a different stop time point.
      */
     if (stable_upd != NULL) {
+        /*
+         * During recovery, there shouldn't be any updates in the update chain except when the
+         * updates are from a prepared transaction. Reset the transaction ID of the stable update
+         * that was restored as part of the unstable prepared tombstone.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING)) {
+            WT_ASSERT(session, stable_upd->next == NULL);
+            WT_ASSERT(session,
+              stable_upd->txnid == WT_TXN_NONE || F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+            stable_upd->txnid = WT_TXN_NONE;
+        }
+
         if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
             /* Find the update following a stable tombstone. */
             if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
