@@ -90,8 +90,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         /*
          * During recovery, there shouldn't be any updates in the update chain except when the
          * updates are from a prepared transaction. Reset the transaction ID of the stable update
-         * that was restored as part of the unstable prepared tombstone.
-         * Ignore the history store as we cannot have a prepared transaction operating on it.
+         * that was restored as part of the unstable prepared tombstone. Ignore the history store as
+         * we cannot have a prepared transaction operating on it.
          */
         if (!WT_IS_HS(session->dhandle) && F_ISSET(S2C(session), WT_CONN_RECOVERING)) {
             WT_ASSERT(session, first_upd->type == WT_UPDATE_TOMBSTONE);
