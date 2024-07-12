@@ -36,25 +36,25 @@ def check_unique_description(sorted_list):
 
 ##########################################
 # Remove trailing digits for a string.
-# Used as a lambda in sorting stats by name.
 ##########################################
 def remove_suffix_digits(str):
     return re.sub(r'\d+$', '', str)
     
 ##########################################
-# Check names are sorted:
-# For each Stat subclass check the names are sorted in alphabetical order
+# For each Stat subclass check the names are sorted in alphabetical order.
 ##########################################
 def check_name_sorted(stat_list):
     stat_dict = defaultdict(list)
     for stat in stat_list:
         stat_dict[type(stat)].append(stat)
     for stat_type, stats in stat_dict.items():
+        # There're stats like hist_100 and hist_50 where alphabetically hist_100 comes first. 
+        # Thus we remove suffix digits and rely on the developer to order these stats correctly.
         sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
-        for i in range(len(stats)):
-            if (sorted_stats[i].name != stats[i].name):
-                print(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected" \
-                      f"'{sorted_stats[i].name}' but found '{stats[i].name}'")
+        for sorted_stat, stat in zip(sorted_stats, stats):
+            if sorted_stat.name != stat.name:
+                print(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
+                      f"'{sorted_stat.name}' but found '{stat.name}'")
                 return
 
 all_stat_list = [conn_stats, dsrc_stats, conn_dsrc_stats, join_stats, session_stats]
@@ -62,16 +62,16 @@ for stat_list in all_stat_list:
     check_name_sorted(stat_list)
 
 conn_stats.sort(key=attrgetter('desc'))
-dsrc_stats.sort(key=attrgetter('desc'))
 conn_dsrc_stats.sort(key=attrgetter('desc'))
+dsrc_stats.sort(key=attrgetter('desc'))
 join_stats.sort(key=attrgetter('desc'))
 session_stats.sort(key=attrgetter('desc'))
 
 check_unique_description(conn_stats)
-check_unique_description(dsrc_stats)
-check_unique_description(session_stats)
-check_unique_description(join_stats)
 check_unique_description(conn_dsrc_stats)
+check_unique_description(dsrc_stats)
+check_unique_description(join_stats)
+check_unique_description(session_stats)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats

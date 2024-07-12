@@ -89,15 +89,15 @@ class ConnStat(Stat):
     prefix = 'connection'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, ConnStat.prefix, desc, flags)
+class CursorErrorStat(Stat):
+    prefix = 'cursor'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
 class CursorStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CursorStat.prefix, desc, flags)
 class CursorSweepStat(Stat):
-    prefix = 'cursor'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, CursorStat.prefix, desc, flags)
-class CursorErrorStat(Stat):
     prefix = 'cursor'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CursorStat.prefix, desc, flags)
