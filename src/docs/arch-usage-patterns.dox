@@ -141,12 +141,8 @@ used as it provides a much simpler interface for developers when reading and deb
 @subsection write-while-stable-pseudocode Pseudocode
 \code{.c}
     void example_WwS(int *W, int *S) {
-        int initial_s_value = *S;
-
-        // The initial read from S must take place before the write to W, however this
-        // doesn't always require a barrier to be enforced. The function could early
-        // exit based on the value of S (__wt_hazard_set_func), or W could have a data
-        // dependency on S (__wt_session_gen_enter).
+        // The initial read from S must take place before the write to W.
+        WT_ACQUIRE_READ(initial_s_value, *S);
         *W = new_value;
 
         // This full barrier ensures the write to W is visible to other threads *before*
