@@ -29,24 +29,6 @@
 #include "wt_internal.h"
 
 /*
- * This LWN article (https://lwn.net/Articles/731706/) describes a potential problem when mmap is
- * used over a direct-access (DAX) file system. If a new block is created and then the file is
- * memory-mapped and the client writes to that block via mmap directly into storage (via DAX),
- * the file system may not know that the data was written, so it may not flush the metadata
- * prior to data being written. Therefore, the block may be reallocated or lost upon crash.
- *
- * If we do not wish to rely on the user supplying the correct flags for mmap, we have two options:
- *
- * (1) Use MAP_SYNC flag available on some versions of Linux. The downside is being Linux-specific
- *     and not extensively tested (this is a recent flag).
- *
- * (2) Always fsync when we unmap the file. In our implementation, if a session extends the file by
- *     writing a new block beyond the current file size, we always unmap the file and then re-map it
- *     before allowing any reads or writes via mmap into the new block. If we sync the file upon
- *     unmapping, we will be certain that the metadata is persistent.
- */
-
-/*
  * __posix_file_size --
  *     Get the size of a file in bytes, by file handle.
  */
