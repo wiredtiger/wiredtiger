@@ -18,7 +18,7 @@ test/evergreen/find_cmake.sh
 echo "Disk usage and free space for the current drive (pre-test):"
 df -h .
 
-# Create directories for 8 builds and the output data
+# Create the output data directory.
 mkdir -p coverage_data
 mkdir -p coverage_report
 

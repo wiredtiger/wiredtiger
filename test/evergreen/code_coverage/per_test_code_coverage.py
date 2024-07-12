@@ -35,18 +35,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel, setup_build_dirs
-
-
-class PushWorkingDirectory:
-    def __init__(self, new_working_directory: str) -> None:
-        self.original_working_directory = os.getcwd()
-        self.new_working_directory = new_working_directory
-        os.chdir(self.new_working_directory)
-
-    def pop(self):
-        os.chdir(self.original_working_directory)
-
+from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel, setup_build_dirs, PushWorkingDirectory
 
 # Clean up the run-time code coverage files ready to run another test
 def delete_runtime_coverage_files(build_dir_base: str) -> None:
@@ -65,16 +54,20 @@ def run_coverage_task_list(task_list_info):
     build_dir = task_list_info["build_dir"]
     task_list = task_list_info["task_bucket"]
     list_start_time = datetime.now()
+
+    env = os.environ.copy()
+    env["GCOV_PREFIX_STRIP"] = "4"
     for index in range(len(task_list)):
         task = task_list[index]
         logging.debug("Running task {} in {}".format(task, build_dir))
+        env["GCOV_PREFIX"] = build_dir
 
         start_time = datetime.now()
         try:
             delete_runtime_coverage_files(build_dir_base=build_dir)
-            os.chdir(build_dir)
+            p = PushWorkingDirectory(build_dir)
             split_command = task.split()
-            subprocess.run(split_command, check=True)
+            subprocess.run(split_command, check=True, env=env)
             copy_dest_dir = f"{build_dir}_{index}_copy"
             logging.debug(f"Copying directory {build_dir} to {copy_dest_dir}")
             shutil.copytree(src=build_dir, dst=copy_dest_dir)
@@ -84,7 +77,7 @@ def run_coverage_task_list(task_list_info):
             task_info_file_path = os.path.join(copy_dest_dir, "task_info.json")
             with open(task_info_file_path, "w") as output_file:
                 output_file.write(task_info_as_json_object)
-
+            p.pop()
         except subprocess.CalledProcessError as exception:
             print(f'Command {exception.cmd} failed with error {exception.returncode}')
         end_time = datetime.now()
@@ -116,8 +109,8 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str):
                 f"build_copy_name = {build_copy_name}, build_copy_path = {build_copy_path}, "
                 f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
             os.mkdir(coverage_output_dir)
-            shutil.copy(src=task_info_path, dst=coverage_output_dir)
-            gcovr_command = (f"gcovr {build_copy_name} -f src -j 4 --html-self-contained --html-details "
+            shutil.copy(src=task_info_path, dst=coverage_output_dir)      
+            gcovr_command = (f"gcovr {build_copy_name} -f src -j 16 --html-self-contained --html-details "
                              f"{coverage_output_dir}/2_coverage_report.html --json-summary-pretty "
                              f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json "
                              f"--json {coverage_output_dir}/full_coverage_report.json")

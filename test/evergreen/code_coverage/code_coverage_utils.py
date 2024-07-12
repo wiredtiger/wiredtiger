@@ -34,6 +34,15 @@ import subprocess
 import sys
 from datetime import datetime
 
+class PushWorkingDirectory:
+    def __init__(self, new_working_directory: str) -> None:
+        self.original_working_directory = os.getcwd()
+        self.new_working_directory = new_working_directory
+        os.chdir(self.new_working_directory)
+
+    def pop(self):
+        os.chdir(self.original_working_directory)
+
 # Execute each list of tasks in parallel
 def run_task_lists_in_parallel(label, task_bucket_info, run_func):
     parallel = len(task_bucket_info)
@@ -99,9 +108,10 @@ def setup_build_dirs(build_dir_base, parallel, setup_task_list):
     logging.debug("Compiling base build directory: {}".format(base_build_dir))
     for task in setup_task_list:
         try:
-            os.chdir(base_build_dir)
+            p = PushWorkingDirectory(base_build_dir)
             split_command = task.split()
             subprocess.run(split_command, check=True, capture_output=True)
+            p.pop()
         except subprocess.CalledProcessError as exception:
             logging.error(f'Command {exception.cmd} failed with error {exception.returncode}')
 
