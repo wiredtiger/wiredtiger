@@ -29,7 +29,7 @@
 import re
 from statistics import mean
 from suite_subprocess import suite_subprocess
-import wttest
+import wiredtiger, wttest
 
 # test_eviction03.py
 # Verify the disk footprint is reduced after eviction has removed obsolete time window information.
@@ -79,6 +79,9 @@ class test_eviction03(wttest.WiredTigerTestCase, suite_subprocess):
         return avg
 
     def test_eviction03(self):
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('requires a diagnostic build as the test uses verify -d dump_pages')
+
         create_params = 'key_format=i,value_format=S'
         nrows = 10000
         ntables = 3
