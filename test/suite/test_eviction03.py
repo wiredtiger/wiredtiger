@@ -27,36 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import re
+from eviction_util import eviction_util
 from statistics import mean
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wiredtiger
 
 # test_eviction03.py
 # Verify the disk footprint is reduced after eviction has removed obsolete time window information.
-class test_eviction03(wttest.WiredTigerTestCase, suite_subprocess):
-
-    def populate(self, uri, start_key, num_keys, value):
-        c = self.session.open_cursor(uri, None)
-        for k in range(start_key, num_keys):
-            self.session.begin_transaction()
-            c[k] = value
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k + 1))
-        c.close()
-
-    def evict_cursor(self, uri, nrows):
-        # Configure debug behavior at the session level to evict the page when released and trigger
-        # the time window cleanup code. Without this debug option, application threads are not
-        # allowed to do the cleanup.
-        session_evict = self.conn.open_session("debug=(release_evict_page=true)")
-        session_evict.begin_transaction("ignore_prepare=true")
-        cursor = session_evict.open_cursor(uri, None, None)
-        for i in range (nrows):
-            cursor.set_key(i)
-            cursor.search()
-            if i % 10 == 0:
-                cursor.reset()
-        cursor.close()
-        session_evict.rollback_transaction()
+class test_eviction03(eviction_util, suite_subprocess):
 
     def verify_dump_pages(self, uri):
         outfilename = f'dump_{uri}.out'

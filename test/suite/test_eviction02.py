@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from eviction_util import eviction_util
 from wiredtiger import stat
 from wtscenario import make_scenarios
-import wttest
 
 # test_eviction02.py
 # Verify evicting a clean page removes any obsolete time window information present on the page.
-class test_eviction02(wttest.WiredTigerTestCase):
+class test_eviction02(eviction_util):
     conn_config_common = 'cache_size=10MB,statistics=(all),statistics_log=(json,wait=1,on_close=true)'
 
     # These settings set a limit to the number of btrees/pages that can be cleaned up per btree per
@@ -46,36 +46,6 @@ class test_eviction02(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(conn_config_values)
-
-    def get_stat(self, stat, uri = ""):
-        stat_cursor = self.session.open_cursor(f'statistics:{uri}')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
-    def populate(self, uri, start_key, num_keys, value):
-        c = self.session.open_cursor(uri, None)
-        for k in range(start_key, num_keys):
-            self.session.begin_transaction()
-            c[k] = value
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k + 1))
-        c.close()
-
-    def evict_cursor(self, uri, nrows):
-        # Configure debug behavior at the session level to evict the page when released and trigger
-        # the time window cleanup code. Without this debug option, application threads are not
-        # allowed to do the cleanup.
-        session_evict = self.conn.open_session("debug=(release_evict_page=true)")
-        session_evict.begin_transaction("ignore_prepare=true")
-        evict_cursor = session_evict.open_cursor(uri, None, None)
-        for i in range (1, nrows + 1):
-            evict_cursor.set_key(i)
-            evict_cursor.search()
-            if i % 10 == 0:
-                evict_cursor.reset()
-        evict_cursor.close()
-        session_evict.rollback_transaction()
-        session_evict.close()
 
     def test_evict(self):
         create_params = 'key_format=i,value_format=S'
