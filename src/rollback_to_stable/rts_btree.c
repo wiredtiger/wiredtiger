@@ -100,8 +100,12 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             WT_ASSERT(session,
               F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS) ||
                 stable_upd->type == WT_UPDATE_TOMBSTONE);
-            /* Find the update following a stable tombstone. */
-            if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
+            /*
+             * Find the update following a stable tombstone that has been inserted to the history
+             * store.
+             */
+            if (stable_upd->type == WT_UPDATE_TOMBSTONE &&
+              F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
                 tombstone = stable_upd;
                 for (stable_upd = stable_upd->next; stable_upd != NULL;
                      stable_upd = stable_upd->next) {
