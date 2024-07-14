@@ -75,7 +75,7 @@ class test_eviction02(eviction_util):
 
             # Eviction should perform clean eviction here which triggers the assessement of obsolete
             # time window information.
-            self.evict_cursor(uri, num_keys)
+            self.evict_cursor_tw_cleanup(uri, num_keys)
 
             # Retrieve the number of pages we have cleaned up so far.
             current_obsolete_tw_value = self.get_stat(stat.dsrc.cache_eviction_dirty_obsolete_tw, uri)
