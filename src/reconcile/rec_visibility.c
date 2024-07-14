@@ -600,12 +600,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                  * there is still content for that key left in the history store, rollback to stable
                  * will bring it back to the data store. Otherwise, it removes the key.
                  */
-                WT_ASSERT(session,
+                WT_ASSERT_ALWAYS(session,
                   F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
-                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
+                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
+                  "Should never salvage a prepared update not from disk.");
                 /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
-                WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
+                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                  "Should never concurrenly resolve a prepared update during reconciliation if we "
+                  "are not in checkpoint.");
             }
         }
 
