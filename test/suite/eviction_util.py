@@ -26,9 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
 import wttest
-from wiredtiger import stat
 
 # eviction_util.py
 # Shared base class used by eviction tests.
