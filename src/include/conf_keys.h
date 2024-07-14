@@ -228,8 +228,8 @@
 #define WT_CONF_ID_no_timestamp 156ULL
 #define WT_CONF_ID_nvram_path 184ULL
 #define WT_CONF_ID_object_target_size 53ULL
-#define WT_CONF_ID_obsolete_tw_btree_max 236ULL
-#define WT_CONF_ID_obsolete_tw_pages_dirty_max 235ULL
+#define WT_CONF_ID_obsolete_tw_btree_max 235ULL
+#define WT_CONF_ID_obsolete_tw_pages_dirty_max 236ULL
 #define WT_CONF_ID_old_chunks 84ULL
 #define WT_CONF_ID_oldest 88ULL
 #define WT_CONF_ID_oldest_timestamp 273ULL
