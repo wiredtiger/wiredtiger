@@ -607,8 +607,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                   "Should never salvage a prepared update not from disk.");
                 /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
                 WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "Should never concurrenly resolve a prepared update during reconciliation if we "
-                  "are not in checkpoint.");
+                  "Should never concurrently resolve a prepared update during reconciliation if we "
+                  "are not in a checkpoint.");
             }
         }
 
