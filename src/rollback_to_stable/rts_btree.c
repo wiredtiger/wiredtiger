@@ -93,7 +93,6 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             WT_ASSERT(session, first_upd->type == WT_UPDATE_TOMBSTONE);
             WT_ASSERT(session, first_upd->prepare_state == WT_PREPARE_INPROGRESS);
             WT_ASSERT(session, F_ISSET(first_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-            WT_ASSERT(session, !hs_update);
             WT_ASSERT(session, stable_upd->next == NULL);
             WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS));
             stable_upd->txnid = WT_TXN_NONE;
