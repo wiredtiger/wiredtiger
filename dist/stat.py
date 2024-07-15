@@ -41,15 +41,16 @@ def remove_suffix_digits(str):
     return re.sub(r'\d+$', '', str)
     
 ##########################################
-# For each Stat subclass check the names are sorted in alphabetical order.
+# For each stat subclass check the names are sorted in alphabetical order.
 ##########################################
 def check_name_sorted(stat_list):
     stat_dict = defaultdict(list)
     for stat in stat_list:
         stat_dict[type(stat)].append(stat)
     for stat_type, stats in stat_dict.items():
-        # There're stats like hist_100 and hist_50 where alphabetically hist_100 comes first. 
-        # Thus we remove suffix digits and rely on the developer to order these stats correctly.
+        # In alphabetical order, stat_name_100 comes before stat_name_50. 
+        # For this reason, remove any numerical suffix before sorting the stats. 
+        # Print an error if the stats are not sorted correctly.
         sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
         for sorted_stat, stat in zip(sorted_stats, stats):
             if sorted_stat.name != stat.name:
@@ -57,18 +58,18 @@ def check_name_sorted(stat_list):
                       f"'{sorted_stat.name}' but found '{stat.name}'")
                 return
 
-all_stat_list = [conn_stats, dsrc_stats, conn_dsrc_stats, join_stats, session_stats]
+all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, join_stats, session_stats]
 for stat_list in all_stat_list:
     check_name_sorted(stat_list)
 
-conn_stats.sort(key=attrgetter('desc'))
 conn_dsrc_stats.sort(key=attrgetter('desc'))
+conn_stats.sort(key=attrgetter('desc'))
 dsrc_stats.sort(key=attrgetter('desc'))
 join_stats.sort(key=attrgetter('desc'))
 session_stats.sort(key=attrgetter('desc'))
 
-check_unique_description(conn_stats)
 check_unique_description(conn_dsrc_stats)
+check_unique_description(conn_stats)
 check_unique_description(dsrc_stats)
 check_unique_description(join_stats)
 check_unique_description(session_stats)
