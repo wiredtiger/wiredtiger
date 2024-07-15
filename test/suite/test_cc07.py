@@ -28,14 +28,27 @@
 
 from test_cc01 import test_cc_base
 from wiredtiger import stat
+from wtscenario import make_scenarios
 
 # test_cc07.py
 # Verify checkpoint cleanup removes the obsolete time window from the pages.
 class test_cc07(test_cc_base):
-    conn_config = 'cache_size=1GB,statistics=(all),statistics_log=(json,wait=0,on_close=true)'
+    conn_config_common = 'cache_size=1GB,statistics=(all),statistics_log=(json,wait=1,on_close=true)'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
+    # These settings set a limit to the number of btrees/pages that can be cleaned up per btree per
+    # checkpoint.
+    conn_config_values = [
+        ('no_btrees', dict(expected_cleanup=False, obsolete_tw_max=0, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_btree_max=0]')),
+        ('no_pages', dict(expected_cleanup=False, obsolete_tw_max=0, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=0]')),
+        ('50_pages', dict(expected_cleanup=True, obsolete_tw_max=50, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=50]')),
+        ('100_pages', dict(expected_cleanup=True, obsolete_tw_max=100, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=100]')),
+        ('500_pages', dict(expected_cleanup=True, obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=500]')),
+    ]
+
+    scenarios = make_scenarios(conn_config_values)
+
+    def get_stat(self, stat, uri = ""):
+        stat_cursor = self.session.open_cursor(f'statistics:{uri}')
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
@@ -62,12 +75,30 @@ class test_cc07(test_cc_base):
 
             # Checkpoint with cleanup.
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows * (i + 1)))
-            self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+            self.session.checkpoint()
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
+        prev_obsolete_tw_value = 0
         self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
 
-        # Check statistics.
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw), 0)
+        # Retrieve the number of pages we have cleaned up so far.
+        current_obsolete_tw_value = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_obsolete_tw, uri)
+        if self.expected_cleanup:
+            diff = current_obsolete_tw_value - prev_obsolete_tw_value
+            prev_obsolete_tw_value = current_obsolete_tw_value
+            assert diff <= self.obsolete_tw_max, f"Unexpected number of pages with obsolete tw cleaned: {diff} (max {self.obsolete_tw_max})"
+        else:
+            self.assertEqual(current_obsolete_tw_value, 0)
+
+        # Verify the btree and connection-level stat. If we expect some cleanup, by the end of the
+        # test, we must have done some work.
+        btree_stat = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_obsolete_tw, uri)
+        conn_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
+        if self.expected_cleanup:
+            self.assertGreater(btree_stat, 0)
+            self.assertGreater(conn_stat, 0)
+        else:
+            self.assertEqual(btree_stat, 0)
+            self.assertEqual(conn_stat, 0)
 
