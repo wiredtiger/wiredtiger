@@ -20,6 +20,8 @@ static int
 __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
@@ -27,6 +29,9 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
     char time_string[WT_TIME_STRING_SIZE];
     const char *tag = "unexpected page state";
     bool do_visibility_check, has_stop, obsolete, ovfl_items;
+
+    btree = S2BT(session);
+    conn = S2C(session);
 
     /*
      * Skip the modified pages as their reconciliation results are not valid any more. Check for the
@@ -109,8 +114,14 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * Limit the number of obsolete time window pages that are marked as dirty to reduce the
          * load.
          */
-        if (S2BT(session)->checkpoint_cleanup_obsolete_tw_pages >=
-          S2C(session)->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
+        if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
+          conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
+            return (0);
+
+        /* Limit the number of btrees that can be cleaned up. */
+        if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
+          __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
+            conn->heuristic_controls.obsolete_tw_btree_max)
             return (0);
 
         if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn,
@@ -126,7 +137,14 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_RET(__wt_page_modify_init(session, ref->page));
             __wt_page_modify_set(session, ref->page);
 
-            S2BT(session)->checkpoint_cleanup_obsolete_tw_pages++;
+            /*
+             * Save that another tree has been processed if that's the first time it gets cleaned
+             * and update the number of pages made dirty for that tree.
+             */
+            if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
+                __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+
+            __wt_atomic_addv32(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
         }
     }
