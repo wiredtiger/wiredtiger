@@ -177,7 +177,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
     case WT_PAGE_COL_VAR:
         /*
          * Only read the time window if we are on a matching slot. If we have an insert list, we may
-         * on the cell of a different record number.
+         * be on the cell of a different record number.
          */
         if (page->pg_var == NULL || (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH)))
             return (false);
