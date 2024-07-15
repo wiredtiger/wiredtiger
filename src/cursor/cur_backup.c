@@ -216,7 +216,7 @@ __curbackup_reset(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
     WT_CURSOR_BACKUP_CHECK_STOP(cb);
 
-    cb->cfg_current = 0;
+    cb->cfg_current = NULL;
     cb->next = 0;
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
