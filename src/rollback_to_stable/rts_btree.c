@@ -19,9 +19,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
 {
     WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool dryrun, txn_id_visible;
+    bool dryrun, hs_update, txn_id_visible;
 
     dryrun = S2C(session)->rts->dryrun;
+    hs_update = false;
 
     stable_upd = tombstone = NULL;
     WT_NOT_READ(txn_id_visible, false);
@@ -38,6 +39,9 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         /* Skip the updates that are aborted. */
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
+
+        if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
+            hs_update = true;
 
         /*
          * An unstable update needs to be aborted if any of the following are true:
@@ -82,15 +86,42 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         }
     }
 
-    /*
-     * Clear the history store flags for the stable update to indicate that this update should be
-     * written to the history store later. The next time when this update is moved into the history
-     * store, it will have a different stop time point.
-     */
     if (stable_upd != NULL) {
-        if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
-            /* Find the update following a stable tombstone. */
-            if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
+        /*
+         * During recovery, there shouldn't be any updates in the update chain except when the
+         * updates are from a prepared transaction. Reset the transaction ID of the stable update
+         * that was restored as part of the unstable prepared tombstone. Ignore the history store as
+         * we cannot have a prepared transaction operating on it.
+         */
+        if (!WT_IS_HS(session->dhandle) && F_ISSET(S2C(session), WT_CONN_RECOVERING)) {
+            WT_ASSERT(session, first_upd->type == WT_UPDATE_TOMBSTONE);
+            WT_ASSERT(session, first_upd->prepare_state == WT_PREPARE_INPROGRESS);
+            WT_ASSERT(session, F_ISSET(first_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+            WT_ASSERT(session, !hs_update);
+            WT_ASSERT(session, stable_upd->next == NULL);
+            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS));
+            stable_upd->txnid = WT_TXN_NONE;
+        }
+
+        /*
+         * Clear the history store flags for the stable update to indicate that this update should
+         * be written to the history store later. The next time when this update is moved into the
+         * history store, it will have a different stop time point.
+         */
+        if (hs_update) {
+            /*
+             * If we have a stable tombstone at the end of the update chain, it may not have been
+             * inserted to the history store.
+             */
+            WT_ASSERT(session,
+              F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS) ||
+                stable_upd->type == WT_UPDATE_TOMBSTONE);
+            /*
+             * Find the update following a stable tombstone that has been inserted to the history
+             * store.
+             */
+            if (stable_upd->type == WT_UPDATE_TOMBSTONE &&
+              F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
                 tombstone = stable_upd;
                 for (stable_upd = stable_upd->next; stable_upd != NULL;
                      stable_upd = stable_upd->next) {
@@ -775,24 +806,10 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
-    /*
-     * It is possible for both RTS and the eviction thread to remove entries from the history store
-     * at the same time: When we evict a key with a tombstone with durable timestamp "none,"
-     * __wti_rec_hs_clear_on_tombstone also removes the corresponding entries from the history
-     * store, which is necessary for correctness. If the two threads try to remove the same history
-     * store key at around the same time, we could get a WT_NOTFOUND here.
-     *
-     * FIXME-WT-13198: Check if this race can be avoided, in which case we can remove the check for
-     * WT_NOTFOUND and treat it like other errors.
-     */
     if (rip != NULL)
-        WT_ERR_NOTFOUND_OK(__rts_btree_row_modify(session, ref, &upd, key), true);
+        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
     else
-        WT_ERR_NOTFOUND_OK(__rts_btree_col_modify(session, ref, &upd, recno), true);
-    if (ret == WT_NOTFOUND && WT_IS_HS(session->dhandle))
-        ret = 0;
-    else
-        WT_ERR(ret);
+        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
     if (S2C(session)->rts->dryrun) {
 err:
