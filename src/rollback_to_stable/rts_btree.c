@@ -93,7 +93,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * that was restored as part of the unstable prepared tombstone. Ignore the history store as
          * we cannot have a prepared transaction operating on it.
          */
-        if (!WT_IS_HS(session->dhandle) && F_ISSET(S2C(session), WT_CONN_RECOVERING)) {
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && !WT_IS_HS(session->dhandle)) {
             WT_ASSERT(session, first_upd->type == WT_UPDATE_TOMBSTONE);
             WT_ASSERT(session, first_upd->prepare_state == WT_PREPARE_INPROGRESS);
             WT_ASSERT(session, F_ISSET(first_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
