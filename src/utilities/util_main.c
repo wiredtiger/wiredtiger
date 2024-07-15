@@ -241,6 +241,8 @@ main(int argc, char *argv[])
         if (strcmp(command, "printlog") == 0) {
             func = util_printlog;
             rec_config = REC_LOGOFF;
+            if (!readonly)
+                readonly_config = READONLY;
         }
         break;
     case 'r':
