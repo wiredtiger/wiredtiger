@@ -512,8 +512,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
 
     /*
      * History store table. This table contains the historical versions that are needed to be
-     * removed regularly. This condition is required when timestamps are not in use, otherwise, the
-     * first condition will be satisfied.
+     * removed regularly.
      */
     if (strcmp(uri, WT_HS_URI) == 0)
         return (true);
