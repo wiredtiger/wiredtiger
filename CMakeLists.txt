@@ -24,7 +24,7 @@ if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
     # in that case map the architecture to x86.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64|)$")
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
         set(WT_ARCH "x86")
     elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
         set(WT_ARCH "aarch64")
@@ -52,7 +52,6 @@ include(cmake/configs/base.cmake)
 # Import our third party library definitions.
 include(cmake/third_party/aws_sdk.cmake)
 include(cmake/third_party/gcp_sdk.cmake)
-include(cmake/third_party/gperftools.cmake)
 include(cmake/third_party/lazyfs.cmake)
 include(cmake/third_party/lz4.cmake)
 include(cmake/third_party/memkind.cmake)
@@ -76,7 +75,7 @@ endif()
 # as cmake is doing funny things with the versions we have (including setting -std on MSVC).
 if(MSVC)
     set(CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+    add_cmake_flag(CMAKE_CXX_FLAGS /std:c++17)
 else()
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -142,6 +141,11 @@ add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
+
+if("${CMAKE_BUILD_TYPE}" MATCHES "^MSan$")
+    list(APPEND wt_sources ${CMAKE_SOURCE_DIR}/src/support/msan_fstat_suppression_wrappers.c)
+endif()
+
 if(WT_WIN)
     list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)
     set_source_files_properties(${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
@@ -195,9 +199,6 @@ if(WITH_PIC OR ENABLE_SHARED)
     endif()
     if(ENABLE_MEMKIND)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBMEMKIND_INCLUDES})
-    endif()
-    if(ENABLE_TCMALLOC)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBTCMALLOC_INCLUDES})
     endif()
     if(ENABLE_ANTITHESIS)
         target_include_directories(wt_objs PRIVATE ${CMAKE_SOURCE_DIR}/tools/voidstar/include)

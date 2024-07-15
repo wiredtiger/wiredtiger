@@ -126,7 +126,7 @@
 # expression (as it appears in the output of dtruss on OS/X).
 
 from __future__ import print_function
-import argparse, distutils.spawn, fnmatch, os, platform, re, shutil, \
+import argparse, fnmatch, os, platform, re, shutil, \
     subprocess, sys
 
 # A class that represents a context in which predefined constants can be
@@ -147,7 +147,7 @@ class VariableContext(object):
 # Generally, system calls must be wrapped in an ASSERT_XX() "macro".
 # Exceptions are calls in this list that return 0 on success, or
 # those that are hardcoded in Runner.call_compare()
-calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync' ]
+calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync', 'rename' ]
 
 # Encapsulate all the defines we can use in our scripts.
 # When this program is run, we'll find out their actual values on
@@ -832,7 +832,7 @@ class SyscallCommand:
         else:
             msg("systype '" + args.systype + "' unsupported")
             return False
-        if not distutils.spawn.find_executable(straceexe):
+        if not shutil.which(straceexe):
             msg("strace: does not exist")
             return False
         self.args = args

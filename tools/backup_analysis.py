@@ -33,8 +33,7 @@ import fnmatch, glob, os, re, sys, time
 # This comparison size is a global and unchanging right now. It is the basic unit
 # to count differences between files.
 compare_size = 4096
-granularity = 0
-pct20 = granularity // 5
+pct20 = 0
 pct80 = pct20 * 4
 
 # There should be 1:1 matching between the names and types.
@@ -46,10 +45,10 @@ class TypeStats(object):
     def __init__(self, name):
         self.name = name
         self.bytes = 0
+        self.chg_blocks = 0
         self.files = 0
         self.files_changed = 0
         self.gran_blocks = 0
-        self.total_blocks = 0
         self.pct20 = 0
         self.pct80 = 0
 
@@ -148,21 +147,21 @@ def check_backup(mydir):
 
 # This is the core comparison function to compare a file common between the two
 # directories. 
-def compare_file(dir1, dir2, filename, cmp_size):
+def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     #
     # For now we're only concerned with changed blocks between backups.
     # So only compare the minimum size both files have in common.
     #
-    f1_size = os.stat(os.path.join(dir1, filename)).st_size
-    f2_size = os.stat(os.path.join(dir2, filename)).st_size
+    f1_size = os.stat(os.path.join(olderdir, filename)).st_size
+    f2_size = os.stat(os.path.join(newerdir, filename)).st_size
     min_size = min(f1_size, f2_size)
     #
     # Figure out what kind of table this file is. Get both files to verify they
     # are the same type in both directories.
     #
-    metadata1 = get_metadata(dir1, filename)
+    metadata1 = get_metadata(olderdir, filename)
     assert(metadata1 != None)
-    metadata2 = get_metadata(dir2, filename)
+    metadata2 = get_metadata(newerdir, filename)
     assert(metadata2 != None)
     count_type = compute_type(filename, metadata1)
     count_type2 = compute_type(filename, metadata2)
@@ -173,17 +172,19 @@ def compare_file(dir1, dir2, filename, cmp_size):
 
     # Initialize all of our per-file counters.
     bytes_gran = 0          # Number of bytes changed within a granularity block.
-    gran_blocks = 0         # Number of granularity blocks changed.
+    chg_blocks = 0         # Number of granularity blocks changed.
     num_cmp_blocks = min_size // cmp_size # Number of comparisons .
-    total_blocks = num_cmp_blocks
+    total_gran_blocks = min_size // opts.granularity
+    if min_size % opts.granularity != 0:
+        total_gran_blocks += 1
     offset = 0              # Current offset within the filel
     partial_cmp = min_size % cmp_size
     pct20_count = 0         # Number of granularity blocks that changed 20% or less.
     pct80_count = 0         # Number of granularity blocks that changed 80% or more.
     start_off = offset      # Starting offset of current granularity block.
     total_bytes_diff = 0    # Number of cmp_size bytes different in the file overall.
-    fp1 = open(os.path.join(dir1, filename), "rb")
-    fp2 = open(os.path.join(dir2, filename), "rb")
+    fp1 = open(os.path.join(olderdir, filename), "rb")
+    fp2 = open(os.path.join(newerdir, filename), "rb")
     # Time how long it takes to compare each file.
     start = time.asctime()
     # Compare the bytes in cmp_size blocks between both files.
@@ -196,16 +197,16 @@ def compare_file(dir1, dir2, filename, cmp_size):
             total_bytes_diff += cmp_size
             # Count how many granularity level blocks changed.
             if bytes_gran == 0:
-                gran_blocks += 1
-                ts.gran_blocks += 1
+                chg_blocks += 1
+                ts.chg_blocks += 1
             bytes_gran += cmp_size
             ts.bytes += cmp_size
         # Gather and report block information when we cross a granularity boundary or we're on
         # the last iteration.
         offset += cmp_size
-        if offset % granularity == 0 or b == num_cmp_blocks:
-            if bytes_gran != 0:
-                print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {granularity} bytes')
+        if offset % opts.granularity == 0 or b == num_cmp_blocks:
+            if bytes_gran != 0 and opts.verbose:
+                print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {opts.granularity} bytes')
             # Account for small or large block changes.
             if bytes_gran != 0:
                 if bytes_gran <= pct20:
@@ -222,18 +223,18 @@ def compare_file(dir1, dir2, filename, cmp_size):
     if partial_cmp != 0:
         buf1 = fp1.read(partial_cmp)
         buf2 = fp2.read(partial_cmp)
-        total_blocks += 1
         # If they're different, gather information.
         if buf1 != buf2:
             total_bytes_diff += partial_cmp
             bytes_gran += partial_cmp
             ts.bytes += partial_cmp
             part_bytes = offset + partial_cmp - start_off
-            print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {part_bytes} bytes')
+            if not opts.terse:
+                print(f'{filename}: offset {start_off}: {bytes_gran} bytes differ in {part_bytes} bytes')
     fp1.close()
     fp2.close()
     end = time.asctime()
-    ts.total_blocks = total_blocks
+    ts.gran_blocks += total_gran_blocks
 
     # Report for each file.
     if f1_size < f2_size:
@@ -245,86 +246,115 @@ def compare_file(dir1, dir2, filename, cmp_size):
     else:
         change = "remained equal"
         change_diff = 0
-    # Print the time even if no changes because we may want to know how long it took to not
-    # see any changes. Only print if the time is not identical.
-    if start != end:
-        print(f'{filename}: time: started {start} completed {end}')
-    if total_bytes_diff == 0:
-        # If the file is unchanged return now.
-        print(f'{filename}: is unchanged')
-        return
-
-    # Otherwise print out the change information.
-    if change_diff != 0:
-        print(f'{filename}: size: {f1_size} {f2_size} {change} by {change_diff} bytes')
-    else:
-        print(f'{filename}: size: {f1_size} {f2_size} {change}')
-    chg_blocks = round(abs(gran_blocks / total_blocks * 100))
-    print(f'{filename}: common: {min_size} differs by {total_bytes_diff} bytes in {gran_blocks} ({chg_blocks}%) changed granularity blocks out of {total_blocks} total')
-    if gran_blocks != 0:
+    chg_block_pct = round(abs(chg_blocks / total_gran_blocks * 100))
+    chg_byte_pct = round(abs(total_bytes_diff / min_size * 100))
+    pct20_blocks = 0
+    pct80_blocks = 0
+    if chg_blocks != 0:
         ts.files_changed += 1
-        pct20_blocks = round(abs(pct20_count / gran_blocks * 100))
-        pct80_blocks = round(abs(pct80_count / gran_blocks * 100))
-        print(f'{filename}: smallest 20%: {pct20_count} of {gran_blocks} blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
-        print(f'{filename}: largest 80%: {pct80_count} of {gran_blocks} blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
-    print("")
+        pct20_blocks = round(abs(pct20_count / chg_blocks * 100))
+        pct80_blocks = round(abs(pct80_count / chg_blocks * 100))
+    if not opts.terse:
+        # Print the time even if no changes because we may want to know how long it took to not
+        # see any changes.
+        print(f'{filename}: time: started {start} completed {end}')
+        if total_bytes_diff == 0:
+            # If the file is unchanged return now.
+            print(f'{filename}: is unchanged')
+            return
+
+        # Otherwise print out the change information.
+        if change_diff != 0:
+            print(f'{filename}: size: {f1_size} {f2_size} {change} by {change_diff} bytes')
+        else:
+            print(f'{filename}: size: {f1_size} {f2_size} {change}')
+        print(f'{filename}: {total_bytes_diff} of {min_size} overlapping bytes differ ({chg_byte_pct}%)')
+        print(f'{filename}: {chg_blocks} of {total_gran_blocks} granularity blocks changed ({chg_block_pct}%)')
+        if chg_blocks != 0:
+            print(f'{filename}: smallest 20%: {pct20_count} of {chg_blocks} changed blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {opts.granularity}')
+            print(f'{filename}: largest 80%: {pct80_count} of {chg_blocks} changed blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {opts.granularity}')
+        print("")
+    else:
+        # Print a terse summary all on one line.
+        print(
+            f'{filename}: bytes: {total_bytes_diff} of {min_size} {chg_byte_pct}%;'
+            f' blocks: {chg_blocks} of {total_gran_blocks} {chg_block_pct}%;'
+            f' {pct20_blocks}% <20%;'
+            f' {pct80_blocks}% 80>%')
 
 #
 # Print a detailed summary of all of the blocks and bytes over all of the files. We accumulated
 # the changes as we went through each of the files.
 #
-def print_summary():
-    print('SUMMARY')
+def print_summary(opts):
+    print('SUMMARY:')
     # Calculate overall totals from each of the different types first.
-    total_blocks = 0
-    total_bytes = 0
+    total_chg_bytes = 0
+    total_chg_blocks = 0
     total_files = 0
     total_files_changed = 0
     total_gran_blocks = 0
     for t in global_types:
         ts = typestats[t]
-        total_bytes += ts.bytes
+        total_chg_bytes += ts.bytes
+        total_chg_blocks += ts.chg_blocks
         total_files += ts.files
         total_files_changed += ts.files_changed
         total_gran_blocks += ts.gran_blocks
-        total_blocks += ts.total_blocks
-    chg_blocks = round(abs(total_gran_blocks / total_blocks * 100))
-    print(f'Total: {total_bytes} bytes changed in {total_gran_blocks} changed granularity-sized ({granularity}) blocks ({chg_blocks}%) of {total_blocks} blocks overall')
-    print(f'Total: {total_files_changed} {plural("file", total_files_changed)} changed out of {total_files} total files')
+    chg_blocks = round(abs(total_chg_blocks / total_gran_blocks * 100))
+    if not opts.terse:
+        print(f'Total: {total_chg_bytes} bytes changed in {total_chg_blocks} changed granularity-sized ({opts.granularity}) blocks ({chg_blocks}%) of {total_gran_blocks} blocks overall')
+        print(f'Total: {total_files_changed} {plural("file", total_files_changed)} changed out of {total_files} total files')
 
     # Walk through all the types printing out final information per type.
     for n, t in zip(global_names, global_types):
         ts = typestats[t]
         changed = plural('file', ts.files_changed)
         total = plural('file', ts.files)
-        print(f'{n}: {ts.files_changed} {changed} changed out of {ts.files} {total}')
+        if not opts.terse:
+            print(f'{n}: {ts.files_changed} {changed} changed out of {ts.files} {total}')
         if ts.gran_blocks != 0:
-            chg_blocks = round(abs(ts.gran_blocks / total_blocks * 100))
-            print(f'{ts.files_changed} changed {changed}: differs by {ts.gran_blocks} ({chg_blocks}%) granularity blocks in {ts.total_blocks} total granularity blocks')
-            print(f'{ts.files_changed} changed {changed}: differs by {ts.bytes} bytes in {ts.gran_blocks} changed granularity blocks')
+            chg_blocks = round(abs(ts.chg_blocks / ts.gran_blocks * 100))
             pct20_blocks = round(abs(ts.pct20 / ts.gran_blocks * 100))
             pct80_blocks = round(abs(ts.pct80 / ts.gran_blocks * 100))
-            print(f'{n}: smallest 20%: {pct20_blocks} of {ts.gran_blocks} changed blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {granularity}')
-            print(f'{n}: largest 80%: {pct80_blocks} of {ts.gran_blocks} changed blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {granularity}')
+            if not opts.terse:
+                print(f'{ts.files_changed} changed {changed}: differs by {ts.bytes} bytes in {ts.chg_blocks} changed granularity blocks')
+                print(f'{ts.files_changed} changed {changed}: differs by {ts.chg_blocks} ({chg_blocks}%) granularity blocks in {ts.gran_blocks} total granularity blocks')
+                print(f'{n}: smallest 20%: {ts.pct20} of {ts.chg_blocks} changed blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {opts.granularity}')
+                print(f'{n}: largest 80%: {ts.pct80} of {ts.chg_blocks} changed blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {opts.granularity}')
+            else:
+                # Print a terse summary all on one line.
+                all_bytes = opts.granularity * ts.gran_blocks
+                pct_bytes = round(abs(ts.bytes / all_bytes * 100))
+                print(
+                    f'{n}: files: {ts.files_changed} of {ts.files};'
+                    f' bytes: {ts.bytes} of {all_bytes} {pct_bytes}%;'
+                    f' blocks: {ts.chg_blocks} of {ts.gran_blocks} {chg_blocks}%;'
+                    f' 20-%: {pct20_blocks}%;'
+                    f' 80+%:{pct80_blocks}%')
 
 #
 # This is the wrapper function to compare two backup directories. This function
 # will then drill down and compare each common file individually. 
 #
-def compare_backups(dir1, dir2):
-    files1=set(fnmatch.filter(os.listdir(dir1), "*.wt"))
-    files2=set(fnmatch.filter(os.listdir(dir2), "*.wt"))
+def compare_backups(opts):
+    files1t=set(fnmatch.filter(os.listdir(opts.dir1), "*.wt"))
+    files1i=set(fnmatch.filter(os.listdir(opts.dir1), "*.wti"))
+    files1 = files1t.union(files1i)
+    files2t=set(fnmatch.filter(os.listdir(opts.dir2), "*.wt"))
+    files2i=set(fnmatch.filter(os.listdir(opts.dir2), "*.wti"))
+    files2 = files2t.union(files2i)
 
     # Determine which directory is older so that various messages make sense.
-    olderdir = older_dir(dir1, dir2)
-    if olderdir == dir1:
+    olderdir = older_dir(opts.dir1, opts.dir2)
+    if olderdir == opts.dir1:
         diff1 = 'dropped'
         diff2 = 'created'
-        newerdir = dir2
+        newerdir = opts.dir2
     else:
         diff1 = 'created'
         diff2 = 'dropped'
-        newerdir = dir1
+        newerdir = opts.dir1
 
     common = files1.intersection(files2)
     printed_diff = False
@@ -339,41 +369,41 @@ def compare_backups(dir1, dir2):
     #print(common)
     for f in sorted(common):
         # FIXME: More could be done here to report extra blocks added/removed.
-        compare_file(olderdir, newerdir, f, compare_size)
+        compare_file(olderdir, newerdir, opts, f, compare_size)
 
-def backup_analysis(args):
-    global granularity
+def backup_analysis(opts):
     global pct20
     global pct80
 
-    if len(args) < 2:
-        usage_exit()
-    dir1 = args[0]
-    dir2 = args[1]
     # FIXME: Right now the granularity must be an integer for the number of bytes.
     # It would be better if it could accept '8M' or '1024K', etc.
-    if len(args) > 2:
-        granularity = int(args[2])
-    else:
-        granularity = 16 * 1024 * 1024
-    pct20 = granularity // 5
+    pct20 = opts.granularity // 5
     pct80 = pct20 * 4
 
-    if dir1 == dir2:
-        print("Same directory specified. " + dir1)
+    if opts.dir1 == opts.dir2:
+        print("Same directory specified. " + opts.dir1)
         usage_exit()
 
     # Verify both directories are backups.
-    if check_backup(dir1) == False:
-        print(dir1 + " is not a backup directory")
+    if check_backup(opts.dir1) == False:
+        print(opts.dir1 + " is not a backup directory")
         usage_exit()
-    if check_backup(dir2) == False:
-        print(dir2 + " is not a backup directory")
+    if check_backup(opts.dir2) == False:
+        print(opts.dir2 + " is not a backup directory")
         usage_exit()
     # Find the files that are in common or dropped or created between the backups
     # and compare them.
-    compare_backups(dir1, dir2)
-    print_summary()
+    compare_backups(opts)
+    print_summary(opts)
 
-if __name__ == "__main__":
-    backup_analysis(sys.argv[1:])
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('-v', '--verbose', help="print more verbose output about each block", action='store_true', default=False)
+parser.add_argument('-t', '--terse', help="print very terse output about each table", action='store_true', default=False)
+parser.add_argument('dir1', help="first backup directory")
+parser.add_argument('dir2', help="second backup directory")
+parser.add_argument('granularity', nargs='?', help="optional granularity size", type=int, default=16*1024*1024)
+
+opts = parser.parse_args()
+backup_analysis(opts)
+sys.exit(0)

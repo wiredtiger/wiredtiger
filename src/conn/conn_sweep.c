@@ -8,9 +8,10 @@
 
 #include "wt_internal.h"
 
-#define WT_DHANDLE_CAN_DISCARD(dhandle)                                                            \
-    (!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) && (dhandle)->session_inuse == 0 && \
-      (dhandle)->references == 0)
+#define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
+    (!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) && \
+      __wt_atomic_loadi32(&(dhandle)->session_inuse) == 0 &&      \
+      __wt_atomic_load32(&(dhandle)->references) == 0)
 
 /*
  * __sweep_mark --
@@ -82,7 +83,7 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
      * For btree handles, closing the handle decrements the open file count, meaning the close loop
      * won't overrun the configured minimum.
      */
-    return (__wt_conn_dhandle_close(session, false, true));
+    return (__wt_conn_dhandle_close(session, false, true, false));
 }
 
 /*
@@ -129,7 +130,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         /*
          * Ignore open files once the btree file count is below the minimum number of handles.
          */
-        if (conn->open_btree_count < conn->sweep_handles_min)
+        if (__wt_atomic_load32(&conn->open_btree_count) < conn->sweep_handles_min)
             break;
 
         if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
@@ -140,11 +141,17 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
          */
-        if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(
               session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session)));
         else
             WT_WITH_DHANDLE(session, dhandle, ret = __sweep_expire_one(session));
+
+        if (ret == 0)
+            WT_STAT_CONN_INCR(session, dh_sweep_expired_close);
+        else
+            WT_STAT_CONN_INCR(session, dh_sweep_ref);
+
         WT_RET_BUSY_OK(ret);
     }
 
@@ -174,11 +181,12 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
             continue;
 
         /* If the handle is marked dead, flush it from cache. */
-        WT_WITH_DHANDLE(session, dhandle, ret = __wt_conn_dhandle_close(session, false, false));
+        WT_WITH_DHANDLE(
+          session, dhandle, ret = __wt_conn_dhandle_close(session, false, false, false));
 
         /* We closed the btree handle. */
         if (ret == 0) {
-            WT_STAT_CONN_INCR(session, dh_sweep_close);
+            WT_STAT_CONN_INCR(session, dh_sweep_dead_close);
             ++*dead_handlesp;
         } else
             WT_STAT_CONN_INCR(session, dh_sweep_ref);
@@ -207,7 +215,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session)
     if (!WT_DHANDLE_CAN_DISCARD(session->dhandle))
         WT_ERR(EBUSY);
 
-    ret = __wt_conn_dhandle_discard_single(session, false, true);
+    ret = __wti_conn_dhandle_discard_single(session, false, true);
 
     /*
      * If the handle was not successfully discarded, unlock it and don't retry the discard until it
@@ -241,7 +249,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
         if (!WT_DHANDLE_CAN_DISCARD(dhandle))
             continue;
 
-        if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+        if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TABLE)
             WT_WITH_TABLE_WRITE_LOCK(session,
               WT_WITH_HANDLE_LIST_WRITE_LOCK(
                 session, WT_WITH_DHANDLE(session, dhandle, ret = __sweep_remove_one(session))));
@@ -283,7 +291,7 @@ __sweep_check_session_callback(
     WT_UNUSED(exit_walkp);
 
     last = array_session->last_cursor_big_sweep;
-    last_sweep = array_session->last_sweep;
+    last_sweep = __wt_atomic_load64(&array_session->last_sweep);
 
     /*
      * Get the earlier of the two timestamps, as they refer to sweeps of two different data
@@ -404,7 +412,8 @@ __sweep_server(void *arg)
          * Close handles if we have reached the configured limit. If sweep_idle_time is 0, handles
          * never become idle.
          */
-        if (conn->sweep_idle_time != 0 && conn->open_btree_count >= conn->sweep_handles_min)
+        if (conn->sweep_idle_time != 0 &&
+          __wt_atomic_load32(&conn->open_btree_count) >= conn->sweep_handles_min)
             WT_ERR(__sweep_expire(session, now));
 
         WT_ERR(__sweep_discard_trees(session, &dead_handles));
@@ -429,11 +438,11 @@ err:
 }
 
 /*
- * __wt_sweep_config --
+ * __wti_sweep_config --
  *     Pull out sweep configuration settings
  */
 int
-__wt_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -461,11 +470,11 @@ __wt_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_sweep_create --
+ * __wti_sweep_create --
  *     Start the handle sweep thread.
  */
 int
-__wt_sweep_create(WT_SESSION_IMPL *session)
+__wti_sweep_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
@@ -493,11 +502,11 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_sweep_destroy --
+ * __wti_sweep_destroy --
  *     Destroy the handle-sweep thread.
  */
 int
-__wt_sweep_destroy(WT_SESSION_IMPL *session)
+__wti_sweep_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

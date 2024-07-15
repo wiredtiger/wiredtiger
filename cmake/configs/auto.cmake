@@ -12,7 +12,7 @@ test_type_size("uintmax_t" u_intmax_size)
 test_type_size("unsigned long long" u_long_long_size)
 set(default_uintmax_def " ")
 if(${u_intmax_size} STREQUAL "")
-    if(${unsigned long long} STREQUAL "")
+    if(${u_long_long_size} STREQUAL "")
         set(default_uintmax_def "typedef unsigned long uintmax_t\\;")
     else()
         set(default_uintmax_def "typedef unsigned long long uintmax_t\\;")
@@ -288,13 +288,6 @@ config_lib(
     "sodium library exists."
     LIB "sodium"
     HEADER "sodium.h"
-)
-
-config_lib(
-    HAVE_LIBTCMALLOC
-    "tcmalloc library exists."
-    LIB "tcmalloc"
-    HEADER "gperftools/tcmalloc.h"
 )
 
 config_compile(

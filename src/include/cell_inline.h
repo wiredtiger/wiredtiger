@@ -332,6 +332,9 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&a, 0, &v));
         WT_RET(__wt_vunpack_uint(&a, 0, &alen)); /* Length */
+        /* Adjust the size of data cells without a validity window or run-length encoding. */
+        if (!validity && !rle)
+            alen += WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
@@ -361,6 +364,9 @@ __wt_cell_pack_value_match(
         if (rle) /* Skip RLE */
             WT_RET(__wt_vunpack_uint(&b, 0, &v));
         WT_RET(__wt_vunpack_uint(&b, 0, &blen)); /* Length */
+        /* Adjust the size of data cells without a validity window or run-length encoding. */
+        if (!validity && !rle)
+            blen += WT_CELL_SIZE_ADJUST;
     } else
         return (0);
 
@@ -887,9 +893,8 @@ copy_cell_restart:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
-        page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
-        page_del->committed = true;                 /* There is no running transaction. */
+        page_del->prepare_state = 0; /* No prepare can have been in progress. */
+        page_del->committed = true;  /* There is no running transaction. */
         page_del->selected_for_write = true;
     }
 
@@ -1280,7 +1285,7 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
          * Encourage checkpoint to race with reading the onpage value. If we have an overflow item,
          * it may be removed by checkpoint concurrently.
          */
-        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE);
+        __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE, NULL);
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);

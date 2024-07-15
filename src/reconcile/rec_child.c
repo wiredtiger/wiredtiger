@@ -186,11 +186,11 @@ __rec_child_deleted(
 }
 
 /*
- * __wt_rec_child_modify --
+ * __wti_rec_child_modify --
  *     Return if the internal page's child references any modifications.
  */
 int
-__wt_rec_child_modify(
+__wti_rec_child_modify(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_MODIFY_STATE *cmsp)
 {
     WT_DECL_RET;
@@ -213,7 +213,7 @@ __wt_rec_child_modify(
      * use, there are other page states that must be considered.
      */
     for (;; __wt_yield()) {
-        switch (r->tested_ref_state = ref->state) {
+        switch (r->tested_ref_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
             WT_ASSERT(session, ref->addr != NULL);
@@ -246,7 +246,7 @@ __wt_rec_child_modify(
               "unexpected WT_REF_LOCKED child state during eviction reconciliation");
 
             /* If the page is being read from disk, it's not modified by definition. */
-            if (F_ISSET(ref, WT_REF_FLAG_READING))
+            if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING))
                 goto done;
 
             /*

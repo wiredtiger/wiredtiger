@@ -32,6 +32,10 @@
 #include "model/kv_database.h"
 #include "wiredtiger.h"
 
+extern "C" {
+#include "test_util.h"
+}
+
 /*
  * wt_get --
  *     Read from WiredTiger.
@@ -141,16 +145,56 @@ model::data_value wt_ckpt_get(WT_SESSION *session, const char *uri, const model:
 void wt_ckpt_create(WT_SESSION *session, const char *ckpt_name = nullptr);
 
 /*
+ * wt_get_timestamp --
+ *     Get the given timestamp in WiredTiger.
+ */
+model::timestamp_t wt_get_timestamp(WT_CONNECTION *conn, const char *kind);
+
+/*
+ * wt_set_timestamp --
+ *     Set the given timestamp in WiredTiger.
+ */
+int wt_set_timestamp(WT_CONNECTION *conn, const char *kind, model::timestamp_t timestamp);
+
+/*
+ * wt_get_stable_timestamp --
+ *     Get the oldest timestamp in WiredTiger.
+ */
+inline model::timestamp_t
+wt_get_oldest_timestamp(WT_CONNECTION *conn)
+{
+    return wt_get_timestamp(conn, "oldest_timestamp");
+}
+
+/*
+ * wt_set_oldest_timestamp --
+ *     Set the oldest timestamp in WiredTiger.
+ */
+inline int
+wt_set_oldest_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+{
+    return wt_set_timestamp(conn, "oldest_timestamp", timestamp);
+}
+
+/*
  * wt_get_stable_timestamp --
  *     Get the stable timestamp in WiredTiger.
  */
-model::timestamp_t wt_get_stable_timestamp(WT_CONNECTION *conn);
+inline model::timestamp_t
+wt_get_stable_timestamp(WT_CONNECTION *conn)
+{
+    return wt_get_timestamp(conn, "stable_timestamp");
+}
 
 /*
  * wt_set_stable_timestamp --
  *     Set the stable timestamp in WiredTiger.
  */
-void wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp);
+inline int
+wt_set_stable_timestamp(WT_CONNECTION *conn, model::timestamp_t timestamp)
+{
+    return wt_set_timestamp(conn, "stable_timestamp", timestamp);
+}
 
 /*
  * wt_print_debug_log --
@@ -169,25 +213,51 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
 }
 
 /*
+ * wt_model_assert_equal_with_labels --
+ *     Check that the two values are the same.
+ */
+#define wt_model_assert_equal_with_labels(a, b, label_a, label_b)                 \
+    {                                                                             \
+        auto ret_a = (a);                                                         \
+        auto ret_b = (b);                                                         \
+        if (ret_a != ret_b) {                                                     \
+            std::cerr << std::endl;                                               \
+            std::cerr << "Assertion failure in " << __PRETTY_FUNCTION__           \
+                      << ": Values are not equal. " << std::endl;                 \
+            std::cerr << "  Location: " << __FILE__ ":" << __LINE__ << std::endl; \
+            std::cerr << "  " << (label_a) << ": " << ret_a << std::endl;         \
+            std::cerr << "  " << (label_b) << ": " << ret_b << std::endl;         \
+            testutil_die(0, nullptr);                                             \
+        }                                                                         \
+    }
+
+/*
+ * wt_model_assert_equal --
+ *     Check that the two values are the same.
+ */
+#define wt_model_assert_equal(a, b) wt_model_assert_equal_with_labels(a, b, #a, #b)
+
+/*
  * wt_model_assert --
  *     Check that the key has the same value in the model as in the database.
  */
-#define wt_model_assert(table, uri, key, ...)                              \
-    {                                                                      \
-        model::data_value __out_model, __out_wt;                           \
-        int __ret_model, __ret_wt;                                         \
-        __ret_model = table->get_ext(key, __out_model, ##__VA_ARGS__);     \
-        __ret_wt = wt_get_ext(session, uri, key, __out_wt, ##__VA_ARGS__); \
-        testutil_assert(__ret_model == __ret_wt);                          \
-        testutil_assert(__out_model == __out_wt);                          \
+#define wt_model_assert(table, uri, key, ...)                                          \
+    {                                                                                  \
+        model::data_value __out_model, __out_wt;                                       \
+        int __ret_model, __ret_wt;                                                     \
+        __ret_model = table->get_ext(key, __out_model, ##__VA_ARGS__);                 \
+        __ret_wt = wt_get_ext(session, uri, key, __out_wt, ##__VA_ARGS__);             \
+        wt_model_assert_equal(__ret_model, __ret_wt);                                  \
+        wt_model_assert_equal_with_labels(std::move(__out_model), std::move(__out_wt), \
+          "__out_model", "__out_wt"); /* To make Coverity happy. */                    \
     }
 
 /*
  * wt_model_insert_both --
  *     Insert both into the model and the database.
  */
-#define wt_model_insert_both(table, uri, key, value, ...)       \
-    testutil_assert(table->insert(key, value, ##__VA_ARGS__) == \
+#define wt_model_insert_both(table, uri, key, value, ...)           \
+    wt_model_assert_equal(table->insert(key, value, ##__VA_ARGS__), \
       wt_insert(session, uri, key, value, ##__VA_ARGS__));
 
 /*
@@ -195,23 +265,23 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
  *     Remove both from the model and from the database.
  */
 #define wt_model_remove_both(table, uri, key, ...) \
-    testutil_assert(                               \
-      table->remove(key, ##__VA_ARGS__) == wt_remove(session, uri, key, ##__VA_ARGS__));
+    wt_model_assert_equal(                         \
+      table->remove(key, ##__VA_ARGS__), wt_remove(session, uri, key, ##__VA_ARGS__));
 
 /*
  * wt_model_truncate_both --
  *     Truncate in both from the model and from the database.
  */
 #define wt_model_truncate_both(table, uri, start, ...) \
-    testutil_assert(                                   \
-      table->truncate(start, ##__VA_ARGS__) == wt_truncate(session, uri, start, ##__VA_ARGS__));
+    wt_model_assert_equal(                             \
+      table->truncate(start, ##__VA_ARGS__), wt_truncate(session, uri, start, ##__VA_ARGS__));
 
 /*
  * wt_model_update_both --
  *     Update both in the model and in the database.
  */
-#define wt_model_update_both(table, uri, key, value, ...)       \
-    testutil_assert(table->update(key, value, ##__VA_ARGS__) == \
+#define wt_model_update_both(table, uri, key, value, ...)           \
+    wt_model_assert_equal(table->update(key, value, ##__VA_ARGS__), \
       wt_update(session, uri, key, value, ##__VA_ARGS__));
 
 /*
@@ -219,8 +289,8 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
  *     Check that the key has the same value in the model as in the database.
  */
 #define wt_model_txn_assert(table, uri, txn, session, key, ...) \
-    testutil_assert(                                            \
-      table->get(txn, key, ##__VA_ARGS__) == wt_txn_get(session, uri, key, ##__VA_ARGS__));
+    wt_model_assert_equal(                                      \
+      table->get(txn, key, ##__VA_ARGS__), wt_txn_get(session, uri, key, ##__VA_ARGS__));
 
 /*
  * wt_model_txn_begin_both --
@@ -287,15 +357,15 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
  *     Insert both into the model and the database.
  */
 #define wt_model_txn_insert_both(table, uri, txn, session, key, value, ...) \
-    testutil_assert(table->insert(txn, key, value, ##__VA_ARGS__) ==        \
+    wt_model_assert_equal(table->insert(txn, key, value, ##__VA_ARGS__),    \
       wt_txn_insert(session, uri, key, value, ##__VA_ARGS__));
 
 /*
  * wt_model_ckpt_assert --
  *     Check that the key has the same value in the model as in the database.
  */
-#define wt_model_ckpt_assert(table, uri, ckpt_name, key, ...)                         \
-    testutil_assert(table->get(database.checkpoint(ckpt_name), key, ##__VA_ARGS__) == \
+#define wt_model_ckpt_assert(table, uri, ckpt_name, key, ...)                             \
+    wt_model_assert_equal(table->get(database.checkpoint(ckpt_name), key, ##__VA_ARGS__), \
       wt_ckpt_get(session, uri, key, ckpt_name, ##__VA_ARGS__));
 
 /*
@@ -309,14 +379,20 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
     }
 
 /*
+ * wt_model_set_oldest_timestamp_both --
+ *     Set the oldest timestamp in both the model and the database.
+ */
+#define wt_model_set_oldest_timestamp_both(timestamp) \
+    wt_model_assert_equal(                            \
+      wt_set_oldest_timestamp(conn, timestamp), database.set_oldest_timestamp(timestamp));
+
+/*
  * wt_model_set_stable_timestamp_both --
  *     Set the stable timestamp in both the model and the database.
  */
 #define wt_model_set_stable_timestamp_both(timestamp) \
-    {                                                 \
-        wt_set_stable_timestamp(conn, timestamp);     \
-        database.set_stable_timestamp(timestamp);     \
-    }
+    wt_model_assert_equal(                            \
+      wt_set_stable_timestamp(conn, timestamp), database.set_stable_timestamp(timestamp));
 
 /*
  * wt_model_rollback_to_stable_both --

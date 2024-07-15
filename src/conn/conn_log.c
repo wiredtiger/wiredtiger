@@ -34,11 +34,11 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
         FLD_CLR(txn_logsync, WT_LOG_SYNC_ENABLED);
 
     WT_RET(__wt_config_gets(session, cfg, "transaction_sync.method", &cval));
-    if (WT_STRING_MATCH("dsync", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("dsync", cval))
         FLD_SET(txn_logsync, WT_LOG_DSYNC | WT_LOG_FLUSH);
-    else if (WT_STRING_MATCH("fsync", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("fsync", cval))
         FLD_SET(txn_logsync, WT_LOG_FSYNC);
-    else if (WT_STRING_MATCH("none", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("none", cval))
         FLD_SET(txn_logsync, WT_LOG_FLUSH);
     WT_RELEASE_WRITE_WITH_BARRIER(conn->txn_logsync, txn_logsync);
     return (0);
@@ -108,13 +108,13 @@ __logmgr_get_log_version(WT_VERSION version)
 }
 
 /*
- * __wt_logmgr_compat_version --
+ * __wti_logmgr_compat_version --
  *     Set up the compatibility versions in the log manager. This is split out because it is called
  *     much earlier than log subsystem creation on startup so that we can verify the system state in
  *     files before modifying files.
  */
 void
-__wt_logmgr_compat_version(WT_SESSION_IMPL *session)
+__wti_logmgr_compat_version(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -154,7 +154,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
     else
         first_record = WT_LOG_END_HEADER;
 
-    __wt_logmgr_compat_version(session);
+    __wti_logmgr_compat_version(session);
 
     /*
      * If the version is the same, there is nothing to do.
@@ -188,11 +188,11 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 }
 
 /*
- * __wt_logmgr_config --
+ * __wti_logmgr_config --
  *     Parse and setup the logging server options.
  */
 int
-__wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
+__wti_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -309,8 +309,12 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
      * dictates.
      */
     WT_RET(__wt_config_gets(session, cfg, "log.prealloc", &cval));
-    if (cval.val != 0)
-        conn->log_prealloc = 1;
+    if (cval.val != 0) {
+        WT_RET(__wt_config_gets(session, cfg, "log.prealloc_init_count", &cval));
+        conn->log_prealloc = (uint32_t)cval.val;
+        conn->log_prealloc_init_count = (uint32_t)cval.val;
+        WT_ASSERT(session, conn->log_prealloc > 0);
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
     if (cval.val != 0)
@@ -324,7 +328,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
      */
     if (!reconfig) {
         WT_RET(__wt_config_gets_def(session, cfg, "log.recover", 0, &cval));
-        if (WT_STRING_MATCH("error", cval.str, cval.len))
+        if (WT_CONFIG_LIT_MATCH("error", cval))
             FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
     }
 
@@ -343,13 +347,13 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 }
 
 /*
- * __wt_logmgr_reconfig --
+ * __wti_logmgr_reconfig --
  *     Reconfigure logging.
  */
 int
-__wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
+__wti_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_RET(__wt_logmgr_config(session, cfg, true));
+    WT_RET(__wti_logmgr_config(session, cfg, true));
     return (__logmgr_version(session, true));
 }
 
@@ -510,7 +514,8 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
         conn->log_prealloc += log->prep_missed;
         __wt_verbose(session, WT_VERB_LOG, "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
           log->prep_missed, conn->log_prealloc);
-    } else if (reccount > conn->log_prealloc / 2 && conn->log_prealloc > 2) {
+    } else if (reccount > conn->log_prealloc / 2 &&
+      conn->log_prealloc > conn->log_prealloc_init_count) {
         /*
          * If we used less than half, then start adjusting down.
          */
@@ -637,9 +642,10 @@ __log_file_server(void *arg)
                  * file system may not support truncate: both are OK, it's just more work during
                  * cursor traversal.
                  */
-                if (conn->hot_backup_start == 0 && conn->log_cursors == 0) {
+                if (__wt_atomic_load64(&conn->hot_backup_start) == 0 && conn->log_cursors == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
-                      ret = __wt_ftruncate(session, close_fh, close_end_lsn.l.offset), NULL);
+                      ret = __wt_ftruncate(session, close_fh, __wt_lsn_offset(&close_end_lsn)),
+                      NULL);
                     WT_ERR_ERROR_OK(ret, ENOTSUP, false);
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
@@ -679,7 +685,7 @@ typedef struct {
 #define WT_WRLSN_ENTRY_CMP_LT(entry1, entry2)        \
     ((entry1).lsn.l.file < (entry2).lsn.l.file ||    \
       ((entry1).lsn.l.file == (entry2).lsn.l.file && \
-        (entry1).lsn.l.offset < (entry2).lsn.l.offset))
+        __wt_lsn_offset(&(entry1).lsn) < __wt_lsn_offset(&(entry2).lsn)))
 
 /*
  * __wt_log_wrlsn --
@@ -713,7 +719,7 @@ restart:
     while (i < WT_SLOT_POOL) {
         save_i = i;
         slot = &log->slot_pool[i++];
-        if (slot->slot_state != WT_LOG_SLOT_WRITTEN)
+        if (__wt_atomic_loadiv64(&slot->slot_state) != WT_LOG_SLOT_WRITTEN)
             continue;
         written[written_i].slot_index = save_i;
         WT_ASSIGN_LSN(&written[written_i++].lsn, &slot->slot_release_lsn);
@@ -756,7 +762,7 @@ restart:
                  * If we get here we have a slot to coalesce and free.
                  */
                 __wt_atomic_storeiv64(
-                  &coalescing->slot_last_offset, __wt_atomic_loadiv64(&slot->slot_last_offset));
+                  &coalescing->slot_last_offset, __wt_atomic_loadi64(&slot->slot_last_offset));
                 WT_ASSIGN_LSN(&coalescing->slot_end_lsn, &slot->slot_end_lsn);
                 WT_STAT_CONN_INCR(session, log_slot_coalesced);
                 /*
@@ -784,9 +790,9 @@ restart:
                  * LSN refers to the beginning of a real record. The last offset in a slot is kept
                  * so that the checkpoint LSN is close to the end of the record.
                  */
-                slot_last_offset = (uint32_t)__wt_atomic_loadiv64(&slot->slot_last_offset);
-                if (slot->slot_start_lsn.l.offset != slot_last_offset)
-                    slot->slot_start_lsn.l.offset = slot_last_offset;
+                slot_last_offset = (uint32_t)__wt_atomic_loadi64(&slot->slot_last_offset);
+                if (__wt_lsn_offset(&slot->slot_start_lsn) != slot_last_offset)
+                    __wt_atomic_store32(&slot->slot_start_lsn.l.offset, slot_last_offset);
                 WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
                 WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
                 __wt_cond_signal(session, log->log_write_cond);
@@ -955,11 +961,11 @@ err:
 }
 
 /*
- * __wt_logmgr_create --
+ * __wti_logmgr_create --
  *     Initialize the log subsystem (before running recovery).
  */
 int
-__wt_logmgr_create(WT_SESSION_IMPL *session)
+__wti_logmgr_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
@@ -1016,11 +1022,11 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_logmgr_open --
+ * __wti_logmgr_open --
  *     Start the log service threads.
  */
 int
-__wt_logmgr_open(WT_SESSION_IMPL *session)
+__wti_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t now;
@@ -1093,11 +1099,11 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_logmgr_destroy --
+ * __wti_logmgr_destroy --
  *     Destroy the log removal server thread and logging subsystem.
  */
 int
-__wt_logmgr_destroy(WT_SESSION_IMPL *session)
+__wti_logmgr_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

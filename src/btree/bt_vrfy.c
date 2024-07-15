@@ -143,7 +143,7 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 #if !defined(HAVE_DIAGNOSTIC)
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #else
-        WT_TRET(__wt_debug_offset_blind(session, (wt_off_t)offset, NULL));
+        WT_TRET(__wti_debug_offset_blind(session, (wt_off_t)offset, NULL));
 #endif
     }
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -204,7 +204,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
-    bm_start = quit = skip_hs = false;
+    bm_start = quit = false;
+    WT_NOT_READ(skip_hs, false);
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -238,11 +239,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Skip the history store explicit call if we're performing a metadata verification. The
-     * metadata file is verified before we verify the history store, and it makes no sense to verify
-     * the history store against itself.
+     * Skip the history store explicit call if:
+     * - we are performing a metadata verification. Indeed, the metadata file is verified
+     * before we verify the history store, and it makes no sense to verify the history store against
+     * itself.
+     * - the debug flag is set where we do not clear the record's txn IDs. Visibility rules may not
+     * work correctly when we do not clear the record's txn IDs.
      */
-    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
+    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 ||
+      F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID);
 
     /* Loop through the file's checkpoints, verifying each one. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -266,7 +271,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         /* Skip trees with no root page. */
         if (root_addr_size != 0) {
-            WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
+            WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
                 WT_ERR(__wt_msg(session, "Root:\n\t> addr: %s",
@@ -449,7 +454,7 @@ __verify_tree(
      * well.
      */
     if (__wt_session_prefetch_check(session, ref))
-        WT_RET(__wt_btree_prefetch(session, ref));
+        WT_RET(__wti_btree_prefetch(session, ref));
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
@@ -490,9 +495,9 @@ __verify_tree(
 #ifdef HAVE_DIAGNOSTIC
     /* Optionally dump the blocks or page in debugging mode. */
     if (vs->dump_blocks)
-        WT_RET(__wt_debug_disk(session, page->dsk, NULL, vs->dump_all_data, vs->dump_key_data));
+        WT_RET(__wti_debug_disk(session, page->dsk, NULL, vs->dump_all_data, vs->dump_key_data));
     if (vs->dump_pages)
-        WT_RET(__wt_debug_page(session, NULL, ref, NULL, vs->dump_all_data, vs->dump_key_data));
+        WT_RET(__wti_debug_page(session, NULL, ref, NULL, vs->dump_all_data, vs->dump_key_data));
 #endif
 
     /* Make sure the page we got belongs in this kind of tree. */
@@ -602,7 +607,7 @@ celltype_err:
             WT_RET_MSG(session, WT_ERROR,
               "page at %s, of type %s, is referenced in its parent by a cell of type %s",
               __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
-              __wt_cell_type_string(addr_unpack->raw));
+              __wti_cell_type_string(addr_unpack->raw));
         break;
     }
 
@@ -1008,12 +1013,12 @@ __verify_page_content_int(
     WT_CELL_FOREACH_ADDR (session, dsk, unpack) {
         ++cell_num;
 
-        if (!__wt_cell_type_check(unpack.type, dsk->type))
+        if (!__wti_cell_type_check(unpack.type, dsk->type))
             WT_RET_MSG(session, WT_ERROR,
               "illegal cell and page type combination: cell %" PRIu32
               " on page at %s is a %s cell on a %s page",
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-              __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+              __wti_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
@@ -1086,7 +1091,8 @@ __verify_page_content_fix(
                 WT_RET_MSG(session, EINVAL,
                   "cell %" PRIu32 " for key %" PRIu64 " on page at %s has wrong type %s", cell_num,
                   ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
-                  __verify_addr_string(session, ref, vs->tmp1), __wt_cell_type_string(unpack.type));
+                  __verify_addr_string(session, ref, vs->tmp1),
+                  __wti_cell_type_string(unpack.type));
 
             /* The value cell should contain only a time window. */
             if (unpack.size != 0)
@@ -1158,12 +1164,12 @@ __verify_page_content_leaf(
     WT_CELL_FOREACH_KV (session, dsk, unpack) {
         ++cell_num;
 
-        if (!__wt_cell_type_check(unpack.type, dsk->type))
+        if (!__wti_cell_type_check(unpack.type, dsk->type))
             WT_RET_MSG(session, WT_ERROR,
               "illegal cell and page type combination: cell %" PRIu32
               " on page at %s is a %s cell on a %s page",
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-              __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+              __wti_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
@@ -1226,7 +1232,7 @@ __verify_page_content_leaf(
           "page at %s, of type %s and referenced in its parent by a cell of type %s, contains "
           "overflow items",
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
-          __wt_cell_type_string(parent->raw));
+          __wti_cell_type_string(parent->raw));
 
     return (0);
 }

@@ -90,7 +90,8 @@ __wt_page_alloc(
             }
         if (0) {
 err:
-            if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
+            WT_INTL_INDEX_GET_SAFE(page, pindex);
+            if (pindex != NULL) {
                 for (i = 0; i < pindex->entries; ++i)
                     __wt_free(session, pindex->index[i]);
                 __wt_free(session, pindex);
@@ -201,16 +202,16 @@ __page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    WT_RET(__wt_col_modify(cbt, recno, NULL, *updp, WT_UPDATE_INVALID, true, true));
+    WT_RET(__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
     return (0);
 }
 
 /*
- * __wt_page_inmem_prepare --
+ * __wti_page_inmem_prepare --
  *     Instantiate prepared updates.
  */
 int
-__wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -307,11 +308,16 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* Search the page and apply the modification. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
-            WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
             upd = NULL;
         }
     }
 
+    /*
+     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
+     * updates to avoid reconciling the page every time.
+     */
+    __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
@@ -325,11 +331,11 @@ err:
 }
 
 /*
- * __wt_page_inmem --
+ * __wti_page_inmem --
  *     Build in-memory page information.
  */
 int
-__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
+__wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
   WT_PAGE **pagep, bool *preparedp)
 {
     WT_CELL_UNPACK_ADDR unpack_addr;
@@ -464,7 +470,7 @@ err:
 }
 
 /*
- * __wt_col_fix_read_auxheader --
+ * __wti_col_fix_read_auxheader --
  *     Read the auxiliary header following the bitmap data, if any. This code is used by verify and
  *     needs to be accordingly careful. It is also used by mainline reads so it must also not crash
  *     or print on behalf of verify, and it should not waste time on checks that inmem doesn't need.
@@ -474,7 +480,7 @@ err:
  *     needn't bother. Salvage is protected by verify and doesn't need to check any of it.
  */
 int
-__wt_col_fix_read_auxheader(
+__wti_col_fix_read_auxheader(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
 {
     WT_BTREE *btree;
@@ -550,7 +556,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
 
     page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
 
-    WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+    WT_RET(__wti_col_fix_read_auxheader(session, dsk, &auxhdr));
     WT_ASSERT(session, auxhdr.dataoffset <= dsk->mem_size);
 
     switch (auxhdr.version) {
@@ -688,7 +694,7 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t page_recno)
      * Walk the page, building references: the page contains value items. The value items are
      * on-page items (WT_CELL_VALUE).
      */
-    pindex = WT_INTL_INDEX_GET_SAFE(page);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
     refp = pindex->index;
     hint = 0;
     WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
@@ -835,7 +841,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
      * Walk the page, instantiating keys: the page contains sorted key and location cookie pairs.
      * Keys are on-page/overflow items and location cookies are WT_CELL_ADDR_XXX items.
      */
-    pindex = WT_INTL_INDEX_GET_SAFE(page);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
     refp = pindex->index;
     overflow_keys = false;
     hint = 0;
@@ -866,7 +872,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
              */
             WT_ERR(__wt_dsk_cell_data_ref_addr(session, page->type, &unpack, current));
 
-            WT_ERR(__wt_row_ikey_incr(session, page, WT_PAGE_DISK_OFFSET(page, unpack.cell),
+            WT_ERR(__wti_row_ikey_incr(session, page, WT_PAGE_DISK_OFFSET(page, unpack.cell),
               current->data, current->size, ref));
 
             *sizep += sizeof(WT_IKEY) + current->size;

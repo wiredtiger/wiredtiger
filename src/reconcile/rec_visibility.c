@@ -386,7 +386,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 
     /* Cannot delete the update from history store when checkpoint is running. */
     if (r->delete_hs_upd_next > 0) {
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
         return (EBUSY);
     }
 
@@ -398,7 +398,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT_ALWAYS(
           session, select_tw->stop_ts == WT_TS_NONE, "No stop timestamp found for selected update");
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_2);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_2);
         return (EBUSY);
     }
 
@@ -430,7 +430,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (prev_upd->start_ts < upd->start_ts) {
             WT_ASSERT_ALWAYS(
               session, prev_upd->start_ts == WT_TS_NONE, "Previous update missing start timestamp");
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
             return (EBUSY);
         }
 
@@ -474,7 +474,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
             WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
             return (EBUSY);
         }
     }
@@ -518,8 +518,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid, txnid;
-    bool is_hs_page;
-    bool seen_prepare;
+    bool is_hs_page, seen_prepare;
 
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -665,7 +664,7 @@ __rec_fill_tw_from_upd_select(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_TIME_WINDOW *select_tw;
-    WT_UPDATE *last_upd, *upd, *tombstone;
+    WT_UPDATE *last_upd, *tombstone, *upd;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -791,11 +790,11 @@ __rec_fill_tw_from_upd_select(
 }
 
 /*
- * __wt_rec_upd_select --
+ * __wti_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
 int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
@@ -852,6 +851,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (first_txn_upd == NULL) {
         WT_ASSERT_ALWAYS(session, upd == NULL,
           "__wt_rec_upd_select has selected an update when none are present on the update chain");
+        if (first_upd != NULL)
+            r->cache_upd_chain_all_aborted = true;
         return (0);
     }
 
@@ -926,7 +927,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (__timestamp_no_ts_fix(session, &upd_select->tw) && F_ISSET(r, WT_REC_HS) &&
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
         WT_ASSERT(session, false);
         return (EBUSY);
     }
@@ -962,12 +963,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (upd_select->tombstone != NULL)
         F_SET(upd_select->tombstone, WT_UPDATE_DS);
 
-    /*
-     * Set statistics for update restore evictions. Update restore eviction debug mode forces update
-     * restores to both committed or uncommitted changes.
-     */
-    if (supd_restore || F_ISSET(r, WT_REC_SCRUB))
-        r->cache_write_restore = true;
+    /* Track whether we need to do update restore eviction. */
+    if (supd_restore)
+        r->cache_write_restore_invisible = true;
 
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.

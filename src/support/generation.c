@@ -16,6 +16,8 @@
  * object.
  */
 
+static void __gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
+
 /*
  * __gen_name --
  *     Return the generation name.
@@ -34,6 +36,8 @@ __gen_name(int which)
         return ("hazard");
     case WT_GEN_SPLIT:
         return ("split");
+    case WT_GEN_TXN_COMMIT:
+        return ("commit");
     default:
         break;
     }
@@ -94,7 +98,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 
     v = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
 
-    __wt_gen_drain(session, which, v);
+    __gen_drain(session, which, v);
 }
 
 /*
@@ -111,6 +115,7 @@ __gen_drain_callback(
     uint64_t time_diff_ms, v;
 #ifdef HAVE_DIAGNOSTIC
     WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
+    WT_CLEAR(verbose_orig_level);
 #endif
 
     cookie = (WT_GENERATION_DRAIN_COOKIE *)cookiep;
@@ -223,11 +228,11 @@ __gen_drain_callback(
 }
 
 /*
- * __wt_gen_drain --
+ * __gen_drain --
  *     Wait for the resource to drain.
  */
-void
-__wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
+static void
+__gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
     WT_GENERATION_DRAIN_COOKIE cookie;
 

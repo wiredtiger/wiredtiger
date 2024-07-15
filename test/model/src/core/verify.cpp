@@ -72,6 +72,7 @@ kv_table_verify_cursor::verify_next(const data_value &key, const data_value &val
 
     /* Advance the iterator, but keep the current position for the rest of this function. */
     auto i = _iterator;
+    _prev = i;
     _iterator++;
 
     /* Check the key. */
@@ -90,12 +91,11 @@ kv_table_verify_cursor::verify_next(const data_value &key, const data_value &val
 std::pair<data_value, data_value>
 kv_table_verify_cursor::get_prev() const
 {
-    if (_iterator == _data.begin())
-        throw model_exception("The iterator is at the beginning");
+    /* If there is no previous value, just return a pair of NONE values. */
+    if (!_prev.has_value())
+        return make_pair(NONE, NONE);
 
-    auto i = _iterator;
-    i--;
-
+    auto i = *_prev;
     return make_pair(i->first, i->second.get());
 }
 
@@ -147,6 +147,15 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
             value = get_wt_cursor_value(wt_cursor);
             if (_verbose)
                 std::cout << "Verification: key = " << key << ", value = " << value << std::endl;
+
+            /* The database has more key-value pairs than the model. */
+            if (!model_cursor.has_next()) {
+                if (_verbose)
+                    std::cout << "Verification: Reached the end of the model table." << std::endl;
+                throw verify_exception("There are still more key-value pairs in WiredTiger.");
+            }
+
+            /* Verify the key-value pair. */
             if (!model_cursor.verify_next(key, value)) {
                 std::ostringstream ss;
                 auto prev = model_cursor.get_prev();
@@ -158,20 +167,24 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
         }
 
         /* Make sure that we reached the end at the same time. */
-        if (_verbose)
-            std::cout << "Verification: Reached the end." << std::endl;
         if (ret != WT_NOTFOUND)
             throw wiredtiger_exception(session, "Advancing the cursor failed", ret);
+        if (_verbose && !model_cursor.has_next())
+            std::cout << "Verification: Reached the end of the model table." << std::endl;
+        if (_verbose)
+            std::cout << "Verification: Reached the end of the WiredTiger table." << std::endl;
+
+        /* The model has more key-value pairs than the database. */
         if (model_cursor.has_next())
             throw verify_exception("There are still more key-value pairs in the model.");
-        if (_verbose)
-            std::cout << "Verification: Finished." << std::endl;
-
     } catch (std::exception &e) {
         if (_verbose)
             std::cerr << "Verification Failed: " << e.what() << std::endl;
         throw;
     }
+
+    if (_verbose)
+        std::cout << "Verification: Finished." << std::endl;
 
     /* No need to clean up the session or the cursor due to the use of guards. */
 }

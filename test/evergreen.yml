@@ -14,6 +14,8 @@ pre:
 post:
   - func: "dump stacktraces"
   - func: "upload stacktraces"
+  - func: "upload test/format config"
+  - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
   - func: "upload artifact"
     vars:
@@ -51,11 +53,6 @@ functions:
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
-            if ! [[ "${ENABLE_TCMALLOC}" =~ "ENABLE_TCMALLOC=0" ]]; then
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_TOPDIR/TCMALLOC_LIB/lib"
-              export LD_PRELOAD=$WT_TOPDIR/TCMALLOC_LIB/lib/libtcmalloc.so
-            fi
-
             # Create the common sanitizer options and export the specific sanitizer environment
             # variables.
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
@@ -67,8 +64,10 @@ functions:
               export TESTUTIL_MSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
               export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export TESTUTIL_TSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
+              export TESTUTIL_UBSAN=1
             fi
 
             ${additional_env_vars}
@@ -130,6 +129,17 @@ functions:
     type: setup
     params:
       directory: wiredtiger
+  "get automation-scripts": &get_automation_scripts
+    command: shell.exec
+    type: setup
+    params:
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        if ! [ -d "./automation-scripts" ]; then
+          git clone git@github.com:wiredtiger/automation-scripts.git
+        fi
   "fetch artifacts": &fetch_artifacts
     command: s3.get
     type: setup
@@ -165,13 +175,18 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+        pushd wiredtiger
         mongo_repo=https://github.com/mongodb/mongo
-        branch=${branch_name}
+        # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
+        # the case of patch builds, it is possible that the developer has a branch name that doesn't
+        # adhere to naming rules, therefore derive the base branch name from git.
+        branch=$(git branch --contains | grep -e "mongodb" -e "develop")
         if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
           mongo_branch=master
         fi
+        popd
         git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
@@ -193,14 +208,18 @@ functions:
         ${PREPARE_PATH}
         virtualenv -p python3 venv
         source venv/bin/activate
-        python3 -m pip install 'poetry==1.5.1'
-        python3 -m poetry install --no-root --sync
+        buildscripts/poetry_sync.sh
+
         ./buildscripts/scons.py --variables-files=etc/scons/mongodbtoolchain_stable_gcc.vars --link-model=dynamic --ninja generate-ninja ICECC=icecc CCACHE=ccache
         ninja -j$(nproc --all) install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
       working_dir: "wiredtiger"
+      include_expansions_in_env:
+       - "s3_bucket_tcmalloc"
+       - "s3_access_key"
+       - "s3_secret_key"
       shell: bash
       script: |
         set -o errexit
@@ -211,10 +230,8 @@ functions:
         # Note that the config flags are resolved prior to changing to cmake_build directory.
         DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
           ${CMAKE_INSTALL_PREFIX|-DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL} \
-          ${CMAKE_PREFIX_PATH|-DCMAKE_PREFIX_PATH="$(pwd)/TCMALLOC_LIB"} \
           ${CMAKE_TOOLCHAIN_FILE|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake} \
           ${ENABLE_LAZYFS|} \
-          ${ENABLE_TCMALLOC|} \
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
@@ -246,7 +263,7 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
-        if [[ "${build_variant|}" =~ "macos-1300" ]]; then
+        if [[ "${build_variant|}" =~ "macos-13" ]]; then
           # For mac builds, we want explicitly tell cmake which python to use, as
           # well as the matching library directory and header files. The find_libpython
           # module gives us the library.
@@ -272,7 +289,7 @@ functions:
              fi
           fi
 
-          if [ "${build_variant|}" = "macos-1300-arm64" ]; then
+          if [ "${build_variant|}" = "macos-13-arm64" ]; then
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPython3_EXECUTABLE=$SYSPY -DPython3_LIBRARY=$SYSPYLIB -DPython3_INCLUDE_DIR=$SYSPYINCDEF"
           else
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB -DPYTHON_INCLUDE_DIR=$SYSPYINCDEF"
@@ -287,12 +304,22 @@ functions:
           powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
-          # Fetch the gperftools library if needed. This will also get tcmalloc.
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}" =~ "ENABLE_TCMALLOC=1" ]] && [ ! -d "./automation-scripts" ]; then
-            is_cmake_build=true
-            git clone git@github.com:wiredtiger/automation-scripts.git
-            . automation-scripts/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} $is_cmake_build
+
+          if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
+            # Preclude use of tcmalloc with sanitizer builds.
+            if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (CMAKE_BUILD_TYPE=([AMT]|UB)San) ]]; then
+              echo "tcmalloc incompatible with build variant: ${build_variant} and cmake build type ${CMAKE_BUILD_TYPE}"
+              exit 1
+            fi
+            # Run this script in its own process as it depends on managing
+            # shell options.
+            /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
+
+            # Preload tcmalloc in the Evergreen environment: this will affect
+            # ALL binaries.
+            export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
           fi
+
           # Compiling with CMake.
           echo "Find CMake"
           . test/evergreen/find_cmake.sh
@@ -343,6 +370,7 @@ functions:
         fi
         echo "Ending 'make wiredtiger' step"
   "compile wiredtiger":
+    - *get_automation_scripts
     - *configure_wiredtiger
     - *make_wiredtiger
   "dump stacktraces": &dump_stacktraces
@@ -366,6 +394,32 @@ functions:
       permissions: public-read
       content_type: text/plain
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
+  "upload test/format config":
+    command: s3.put
+    type: setup
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter:
+        - wiredtiger/cmake_build/test/format/RUNDIR*/CONFIG
+      bucket: build_external
+      permissions: public-read
+      content_type: text/plain
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
+      preserve_path: true
+  "upload test/model workloads":
+    command: s3.put
+    type: setup
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_files_include_filter:
+        - wiredtiger/cmake_build/test/model/tools/WT_TEST*/*.workload
+      bucket: build_external
+      permissions: public-read
+      content_type: text/plain
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
+      preserve_path: true
   "run data validation stress test checkpoint":
     - *fetch_artifacts
     - command: shell.exec
@@ -376,7 +430,7 @@ functions:
           set -o errexit
           set -o verbose
           ${PREPARE_TEST_ENV}
-          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' 120
+          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' ${validation_stress_num_runs|120}
   "run tiered storage test":
     - command: shell.exec
       params:
@@ -415,7 +469,7 @@ functions:
           pip3 install google-cloud-storage
 
           # Run Python testing for all tiered tests.
-          python3 ../test/suite/run.py -j $(nproc) ${tiered_storage_test_name}
+          python3 ../test/suite/run.py ${ignore_stdout} -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -553,7 +607,7 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
-        $CTEST ${extra_args} --output-on-failure 2>&1
+        $CTEST ${ctest_extra_args} --output-on-failure 2>&1
 
   "make check all":
     command: shell.exec
@@ -567,7 +621,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L check -j ${num_jobs} --output-on-failure ${extra_args|} 2>&1
+        $CTEST -L check -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
@@ -585,8 +639,13 @@ functions:
       script: |
         set -o verbose
         ${PREPARE_TEST_ENV}
+        # Get the current setting of the required perf field
+        paranoia_level=`sudo sysctl kernel.perf_event_paranoid | cut -d '=' -f 2 | xargs`
+        sudo sysctl -w kernel.perf_event_paranoid=2
         ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
         exit_code=$?
+        # Restore the kernel perf event paranoid level
+        sudo sysctl -w kernel.perf_event_paranoid=$paranoia_level
         echo "$exit_code" > cppsuite_exit_code
         if [ "$exit_code" != 0 ]; then
           echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
@@ -726,9 +785,9 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
         fi
 
   "code coverage analysis":
@@ -745,7 +804,7 @@ functions:
         source venv/bin/activate
         pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
         mkdir -p coverage_report
-        GCOV=/opt/mongodbtoolchain/v4/bin/gcov gcovr -f src -j 4 --html-self-contained --html-details coverage_report/2_coverage_report.html --json-summary-pretty --json-summary coverage_report/1_coverage_report_summary.json --json coverage_report/full_coverage_report.json
+        GCOV=/opt/mongodbtoolchain/v4/bin/gcov gcovr -f ${coverage_filter|src} -j 4 --html-self-contained --html-details coverage_report/2_coverage_report.html --json-summary-pretty --json-summary coverage_report/1_coverage_report_summary.json --json coverage_report/full_coverage_report.json
         ${python_binary|python3} test/evergreen/code_coverage_analysis.py -s coverage_report/1_coverage_report_summary.json -t time.txt
 
         # Generate Atlas compatible format report.
@@ -795,7 +854,7 @@ functions:
         }
 
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${extra_args|} || fail
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} || fail
         done
   "format test predictable":
     command: shell.exec
@@ -836,7 +895,7 @@ functions:
           rm -rf RUNDIR_1 RUNDIR_2 RUNDIR_3
 
           first_run_args="-c $config runs.timer=$runtime"
-          ./t -h RUNDIR_1 $first_run_args ${extra_args} || fail RUNDIR_1/CONFIG 2>&1
+          ./t -h RUNDIR_1 $first_run_args ${test_format_extra_args} || fail RUNDIR_1/CONFIG 2>&1
           stable_hex=$(../../../tools/wt_timestamps RUNDIR_1 | sed -e '/stable=/!d' -e 's/.*=//')
           ops=$(echo $((0x$stable_hex)))
 
@@ -882,8 +941,8 @@ functions:
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
           rm -rf RUNDIR
-          ./t $format_args ${extra_args}
-          ./t -R $format_args ${extra_args}
+          ./t $format_args ${test_format_extra_args}
+          ./t -R $format_args ${test_format_extra_args}
         done
   "many dbs test":
     command: shell.exec
@@ -999,7 +1058,7 @@ functions:
 
           # We are ignoring the table:wt table. This table does not participate in
           # predictable replay, as it may be concurrently created, opened (regular or bulk cursor),
-          # verified, upgraded and dropped by multiple threads in test_schema_abort.
+          # verified and dropped by multiple threads in test_schema_abort.
           $toolsdir/wt_cmp_dir -i '^table:wt$' RUNDIR_1/WT_HOME RUNDIR_2/WT_HOME || exit 1
         done
   "upload artifact":
@@ -1198,7 +1257,7 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          test/evergreen/compatibility_test_for_releases.sh ${compat_test_args}
+          test/compatibility/compatibility_test_for_releases.sh ${compat_test_args}
 
   "run-perf-test":
     # Run a performance test
@@ -1248,6 +1307,7 @@ functions:
           ${python_binary|python3} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
   "upload stats to atlas":
+    - *get_automation_scripts
     - command: shell.exec
       params:
         shell: bash
@@ -1258,9 +1318,6 @@ functions:
           virtualenv -p ${python_binary|python3} venv
           source venv/bin/activate
           pip3 install pymongo[srv]==3.12.2 pygit2==1.10.1
-          if [[ ! -d "automation-scripts" ]]; then
-            git clone git@github.com:wiredtiger/automation-scripts.git
-          fi
           EVERGREEN_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'", "execution": "'${execution}'", "task_name": "'${task_name}'", "version_id": "'${version_id}'", "branch_name": "'${branch_name}'" } }'
           echo "EVERGREEN_TASK_INFO: $EVERGREEN_TASK_INFO"
           ${python_binary|python3} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_perf_test_username} -p ${atlas_perf_test_password} -c ${collection|} -d ${database|} -f ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/atlas_out_${test-name}.json -t ${created_at} -i "$EVERGREEN_TASK_INFO" -g "./wiredtiger"
@@ -1396,6 +1453,7 @@ variables:
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
+    ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
@@ -1414,12 +1472,11 @@ variables:
         export LD_LIBRARY_PATH=""
         export DYLD_LIBRARY_PATH=$WT_BUILDDIR
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
-      ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+      ENABLE_TCMALLOC: 0
     tasks:
       - name: compile
       - name: make-check-test
-      # FIXME: WT-9575
-      # Using a special version of unit test for macOS to reduce the concurrency level.
+        # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
       - name: fops
       - name: memory-model-test-mac
@@ -1636,7 +1693,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: examples/c
-          extra_args: -R "(ex_access|ex_col_store|ex_config_parse|ex_cursor|ex_event_handler|ex_extending|ex_extra_diagnostics|ex_extractor|ex_hello|ex_pack|ex_process|ex_schema|ex_smoke|ex_thread|ex_tiered|ex_verbose)" -j ${num_jobs}
+          ctest_extra_args: -E "(ex_all|ex_backup_block)" -j ${num_jobs}
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
@@ -1829,7 +1886,7 @@ tasks:
         vars:
           test_config: debug_mode=(cursor_copy=true)
 
-  - name: cppsuite-background-long
+  - name: cppsuite-background-compact-long
     tags: ["cppsuite-stress-test"]
     depends_on:
       - name: compile
@@ -1997,6 +2054,29 @@ tasks:
           test_config_filename: configs/bounded_cursor_perf_stress.txt
           test_name: bounded_cursor_perf
 
+  - name: cppsuite-api-instruction-count-benchmarks-default-perf
+    depends_on:
+      - name: compile
+    # This and the later test only run on ARM as the required harsware counter is missing on x86.
+    tags: ["cppsuite-perf-test-arm"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/api_instruction_count_benchmarks_default.txt
+          test_name: api_instruction_count_benchmarks
+
+  - name: cppsuite-api-timing-benchmarks-default-perf
+    depends_on:
+      - name: compile
+    tags: ["cppsuite-perf-test-arm"]
+    commands:
+      - func: "fetch artifacts"
+      - func: "cppsuite perf test"
+        vars:
+          test_config_filename: configs/api_timing_benchmarks_default.txt
+          test_name: api_timing_benchmarks
+
   # End of cppsuite test tasks.
   # Start of csuite test tasks
   - name: csuite-tests-fast
@@ -2007,7 +2087,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: test/csuite
-          extra_args: -LE "long_running" -j ${num_jobs}
+          ctest_extra_args: -LE "long_running" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:
@@ -2025,6 +2105,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_TEST_ENV}
 
             ./test_timestamp_abort -PT -Po s3_store
 
@@ -2111,7 +2192,7 @@ tasks:
   - name: unit-test-macos
     tags: ["python"]
     depends_on:
-    - name: compile
+      - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "python config check"
@@ -2186,7 +2267,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -2243,7 +2324,7 @@ tasks:
             do
               ((i=i+1))
               echo "Test count: $i"
-              ${python_binary|python3} ../test/suite/run.py -v 4 test_prepare_hs03.py --hook timestamp
+              ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} -v 4 test_prepare_hs03.py --hook timestamp
             done
 
   - name: csuite-long-running
@@ -2254,7 +2335,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
-          extra_args: -L long_running -j ${num_jobs}
+          ctest_extra_args: -L long_running -j ${num_jobs}
 
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
@@ -2515,19 +2596,27 @@ tasks:
   # End of Python unit test tasks
 
   - name: s-all
-    tags: ["pull_request"]
-    depends_on:
-    - name: compile
+    tags: ["lint"]
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/dist"
+          working_dir: "wiredtiger"
           shell: bash
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_PATH}
+
+            # Install Ruff as it is executed as part of s_all.
+            RUFF_VERSION=$(grep required-version dist/ruff.toml | grep -o [0-9]\\.[0-9]\\.[0-9])
+            virtualenv -p python3 venv
+            source venv/bin/activate
+            python3 -m pip install ruff==$RUFF_VERSION
+
+            cd dist
             bash -x s_all -E 2>&1
+
             # Run s_string with the "-r" option to remove no-longer-needed words from s_string.ok
             # This is run separately from s_all as it can be too proactive when run as part of
             # developers local workflow, but needs to be run in PR builds before the code is merged.
@@ -2650,7 +2739,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -p
+            test/compatibility/compatibility_test_for_releases.sh -p
 
   - name: compatibility-test-suite
     tags: ["python"]
@@ -2684,7 +2773,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -i
+            test/compatibility/compatibility_test_for_releases.sh -i
 
   - name: generate-datafile-little-endian
     commands:
@@ -2694,7 +2783,7 @@ tasks:
         vars:
           times: 10
           config: ../../../test/format/CONFIG.endian
-          extra_args: -h "WT_TEST.$i"
+          test_format_extra_args: -h "WT_TEST.$i"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/test/format"
@@ -2746,7 +2835,7 @@ tasks:
         vars:
           times: 10
           config: ../../../test/format/CONFIG.endian
-          extra_args: -h "WT_TEST.$i"
+          test_format_extra_args: -h "WT_TEST.$i"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/test/format"
@@ -2791,7 +2880,7 @@ tasks:
       - func: "verify wt datafiles"
 
   - name: clang-analyzer
-    tags: ["pull_request"]
+    tags: ["lint"]
     commands:
       - func: "get project"
       - command: shell.exec
@@ -2807,6 +2896,7 @@ tasks:
   - name: configure-combinations
     commands:
       - func: "get project"
+      - func: "get automation-scripts"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -2883,6 +2973,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_TEST_ENV}
             WT_BUILDDIR=$(pwd)/../../cmake_build LD_LIBRARY_PATH=$WT_BUILDDIR ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
@@ -2941,6 +3032,25 @@ tasks:
       - func: "code coverage publish main page"
       - func: "code coverage publish report"
 
+  - name: coverage-report-per-test
+    # This task will measure code coverage across a range of tests, including, but not limited to,
+    # the Catch2-based unit tests. Code coverage results are captured on a per-test basis so we can determine which tests hit which code paths.
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            if [ ${is_patch|false} = true ]; then
+              test/evergreen/code_coverage/coverage-report-per-test.sh true ${num_jobs|1}
+            else
+              test/evergreen/code_coverage/coverage-report-per-test.sh false ${num_jobs|1}
+            fi
+      - func: "code coverage publish report"
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
     tags: ["pull_request_code_statistics"]
@@ -3025,20 +3135,28 @@ tasks:
             ${PREPARE_PATH}
             virtualenv -p ${python_binary|python3} venv
             source venv/bin/activate
-            pip3 install pygit2==1.10.1
+            pip3 install pygit2==1.10.1 requests
 
             EXTRA_CODE_CHANGE_PARAMETERS=''
 
             if [ ${is_patch|false} = true ]; then
               echo "This is a patch build"
-              # Obtain the diff for the changes in this patch
-              git diff `git merge-base develop HEAD` > coverage_report/diff.txt
+              # Obtain the diff for the changes in this patch, excluding newly added 0-length files.
+              python3 test/evergreen/code_change_report/git_diff_tool.py -g . -d coverage_report/diff.txt -v
               EXTRA_CODE_CHANGE_PARAMETERS='-d coverage_report/diff.txt'
               # Generate an HTML friendly version of the diff for
               sed 's/$/<br>/' coverage_report/diff.txt > coverage_report/diff.html
               # Logging for debugging
               ls -l coverage_report
               cat coverage_report/diff.txt
+            fi
+
+            pr_args=""
+            if [ ! -z "${github_pr_number}" ]; then
+              echo "Detected Github PR ${github_pr_number}"
+              pr_args+="--github_repo ${github_org}/${github_repo} "
+              pr_args+="--github_pr_number ${github_pr_number} "
+              pr_args+="--github_token ${github_app_token} "
             fi
 
             ######################################################
@@ -3056,9 +3174,8 @@ tasks:
             #######################################################
             # Obtain the complexity metrics for the 'previous' code
             #######################################################
-            git clone https://github.com/wiredtiger/wiredtiger.git wiredtiger_previous
+            git worktree add --detach wiredtiger_previous "${github_commit}"
             cd wiredtiger_previous
-            git checkout ${github_commit}
             if [ ${is_patch|false} = true ]; then
               # Checkout the point at which this patch/branch diverged from develop
               git checkout `python3 dist/common_functions.py last_commit_from_dev`
@@ -3085,7 +3202,8 @@ tasks:
             cat coverage_report/code_change_info.json
 
             # Generate the Code Change Report
-            ${python_binary|python3} test/evergreen/code_change_report/code_change_report.py -v -c coverage_report/code_change_info.json -o coverage_report/code_change_report.html
+            ${python_binary|python3} test/evergreen/code_change_report/code_change_report.py -v -c coverage_report/code_change_info.json -o coverage_report/code_change_report.html $pr_args
+
       - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test
@@ -3220,7 +3338,7 @@ tasks:
       - func: "format test"
         vars:
           times: 3
-          extra_args: runs.rows=1000000:2500000
+          test_format_extra_args: runs.rows=1000000:2500000
 
   - name: spinlock-pthread-adaptive-test
     commands:
@@ -3233,7 +3351,7 @@ tasks:
       - func: "format test"
         vars:
           times: 3
-          extra_args: runs.rows=1000000:2500000
+          test_format_extra_args: runs.rows=1000000:2500000
 
   - name: wtperf-test
     depends_on:
@@ -3271,6 +3389,7 @@ tasks:
   - name: long-test
     commands:
       - func: "get project"
+      - func: "get automation-scripts"
       - func: "configure wiredtiger"
       - func: "make wiredtiger"
 
@@ -3342,16 +3461,16 @@ tasks:
       # format test
       - func: "format test"
         vars:
-          extra_args: file_type=fix runs.rows=1000000:2500000
+          test_format_extra_args: file_type=fix runs.rows=1000000:2500000
       - func: "format test"
         vars:
-          extra_args: file_type=row runs.rows=1000000:2500000
+          test_format_extra_args: file_type=row runs.rows=1000000:2500000
 
       # format test for stressing compaction code path
       - func: "format test"
         vars:
           times: 3
-          extra_args: file_type=row compaction=1 verify=1 runs.rows=1000000:2500000 runs.timer=3 ops.pct.delete=30
+          test_format_extra_args: file_type=row compaction=1 verify=1 runs.rows=1000000:2500000 runs.timer=3 ops.pct.delete=30
 
   - name: time-shift-sensitivity-test
     depends_on:
@@ -3377,6 +3496,15 @@ tasks:
           config: ../../../test/format/CONFIG.mirror
           trace_args: -T all
 
+  - name: format-msan-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          format_test_script_args: -c ../../../test/format/CONFIG.msan -t 10 rows=10000 ops=50000
+
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
     commands:
@@ -3398,7 +3526,7 @@ tasks:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
       - func: "format test"
         vars:
-          extra_args: -C "verbose=(checkpoint_cleanup:1)"
+          test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-asan-smoke-test
     commands:
@@ -3413,7 +3541,7 @@ tasks:
       - func: "format test"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          extra_args: -C "verbose=(checkpoint_cleanup:1)"
+          test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-wtperf-test
     commands:
@@ -3429,7 +3557,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            cp ../../../bench/wtperf/split_heavy.wtperf .
+            cp ../../../bench/wtperf/runners/split_heavy.wtperf .
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
   - name: memory-model-test
@@ -3717,6 +3845,21 @@ tasks:
             ${PREPARE_TEST_ENV}
             ./test_model.sh
 
+  - name: model-test-failure-workloads
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/evergreen"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ./run_model_workloads.sh
+
   - name: model-test-long
     tags: ["model_checking"]
     commands:
@@ -3730,8 +3873,46 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 30 minutes
+            ./model_test -l 2000-3000 -t 1800
+
+  - name: model-test-long-with-coverage
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - command: expansions.update
+        params:
+          updates:
+          - key: CMAKE_TOOLCHAIN_FILE
+            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
+          CODE_COVERAGE_FLAGS: -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1
+          HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+
+            # Record the start time, in seconds (needed by the code coverage analysis step below)
+            date +%s > ../../../../time.txt
+
             # Keep repeating the model test for 600 seconds
             ./model_test -l 2000-3000 -t 600
+
+            # Record the end time, in seconds
+            date +%s >> ../../../../time.txt
+      - func: "code coverage analysis"
+        vars:
+          coverage_filter: "src/rollback_to_stable"
+          working_dir: "wiredtiger"
+      - func: "code coverage publish main page"
+      - func: "code coverage publish report"
 
   - name: format-stress-zseries-test
     tags: ["stress-test-zseries-1"]
@@ -3952,8 +4133,8 @@ tasks:
         params:
           exec_timeout_secs: 86400
           timeout_secs: 86400
-      - func: "fetch mongo repo"
       - func: "get project"
+      - func: "fetch mongo repo"
       - func: "get engflow creds"
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
@@ -4020,8 +4201,8 @@ tasks:
             # Set the cyclomatic complexity limit to 20
             python3 "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
-            # Fail if there are functions with cyclomatic complexity larger than 91
-            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:91 > $t
+            # Fail if there are functions with cyclomatic complexity larger than 98
+            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:98 > $t
             if grep -q 'exceeds' $t; then
                 echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
@@ -4269,6 +4450,24 @@ tasks:
         vars:
           test-name: parallel-pop-btree-long.wtperf
 
+  - name: perf-test-short-key-btree
+    tags: ["btree-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: short-key-btree.wtperf
+          maxruns: 1
+          wtarg: -ops ['"load", "read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: short-key-btree.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: short-key-btree.wtperf
+
   - name: perf-test-update-only-btree
     tags: ["btree-perf"]
     depends_on:
@@ -4358,6 +4557,24 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: modify-force-update-large-record-btree.wtperf
+
+  - name: perf-test-modify-read-btree
+    tags: ["btree-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: modify-read-btree.wtperf
+          maxruns: 3
+          wtarg: -ops ['"load", "modify", "read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: modify-read-btree.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: modify-read-btree.wtperf
 
     ###############################
     # Performance Tests for oplog #
@@ -5129,6 +5346,46 @@ tasks:
           comparison_op: "lt"
           expected-stats: '{"Warning Idle (drop)": 50, "Latency drop(in sec.) Max1": 500, "Latency warnings (read, insert, update)": 500}'
 
+  - name: prefetch-off-verify
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: microbenchmark_prefetch_off_verify.py
+          maxruns: 1
+          wtarg: -ops ['"block_read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: microbenchmark_prefetch_off_verify.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: microbenchmark_prefetch_off_verify.py
+
+  - name: prefetch-on-verify
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: microbenchmark_prefetch_on_verify.py
+          maxruns: 1
+          wtarg: -ops ['"block_read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: microbenchmark_prefetch_on_verify.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: microbenchmark_prefetch_on_verify.py
+
   - name: bench-wt2853-perf-test-row
     tags: ["wt2853-perf"]
     depends_on:
@@ -5215,6 +5472,12 @@ tasks:
   - <<: *workgen-test
     name: "workgen-test-small_btree_reopen"
 
+  - <<: *workgen-test
+    name: "workgen-test-microbenchmark_prefetch_off_verify"
+
+  - <<: *workgen-test
+    name: "workgen-test-microbenchmark_prefetch_on_verify"
+
 #######################################
 #     Antithesis Integration          #
 #######################################
@@ -5247,11 +5510,12 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".pull_request !.pull_request_compilers"
+    - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
     - name: compile
@@ -5269,7 +5533,9 @@ buildvariants:
     - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
+      distros: ubuntu2004-large
     - name: long-test
+      distros: ubuntu2004-large
     - name: unit-test-extra-long
       distros: ubuntu2004-large
     - name: static-wt-build-test
@@ -5278,10 +5544,12 @@ buildvariants:
     - name: format-mirror-test
     - name: format-smoke-test
     - name: format-failure-configs-test
+      distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
     - name: catch2-unittest-test
     - name: s3-tiered-storage-extensions-test
-    - name: azure-gcp-tiered-storage-extensions-test
+    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
+    # - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: catch2-unittest-assertions
     - name: ".tiered_unittest"
@@ -5292,9 +5560,12 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
-    # FIXME-WT-12539
-    #- name: model-test-long
-    #  batchtime: 1440 # once a day
+    - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
+    - name: model-test-long
+      batchtime: 1440 # once a day
+    - name: model-test-long-with-coverage
+      batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
 
@@ -5305,13 +5576,18 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 0
     additional_env_vars: |
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    # Exclude this test for ASan builds, as it results in a false positives owing
+    # to deliberate killing of processes to invoke corruption.
+    ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest"
+    - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+      vars:
+        # We want to keep pull request testing short. Disable tests that are slow under ASan
+        ctest_extra_args: -E "wt12015_backup_corruption" -LE sanitizer_long
     - name: examples-c-test
     - name: format-asan-smoke-test
 
@@ -5322,13 +5598,64 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     additional_env_vars: |
-      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: examples-c-tsan
+
+# FIXME-WT-13256
+# This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
+# encounters. This allows us to check whether a TSan change may cause other unexpected failures
+# while also not having to fix every TSan issue discovered. At the conclusion of the TSan work this
+# variant will be deleted.
+- name: ubuntu2004-tsan-no-throw
+  display_name: "~ Ubuntu 20.04 TSAN (No throw)"
+  patch_only: true
+  run_on:
+  - ubuntu2004-large
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
+    ENABLE_TCMALLOC: 0
+    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
+    additional_env_vars: |
+      # We intentionally suppress all TSan warnings.
+      export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    # We don't run C++ memory sanitized testing as it creates false positives. TSan also significantly increases the runtime
+    # of some csuite tests, so disable the already long tests as well as tests heavily impacted by TSan.
+    ctest_extra_args: -LE "cppsuite|long_running|sanitizer_long"
+    # TSan slows down python testing enough that we start printing "operation took X seconds" warnings.
+    # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead.
+    ignore_stdout: --ignore-stdout
+    # Reduce the number of test iterations in validation stressing as TSan increases runtime by a factor of roughly 10x
+    validation_stress_num_runs: 20
+  tasks:
+    # Skip the azure/gcp tests as they don't compile under clang
+    - name: ".pull_request !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
+    - name: compile
+    - name: make-check-test
+    - name: configure-combinations
+    - name: syscall-linux
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: unit-test-random-seed
+    - name: unit-test-hook-timestamp
+    - name: test-prepare-hs03-hook-timestamp
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+    - name: static-wt-build-test
+    - name: linux-directio
+      distros: ubuntu2004-build
+    - name: format-smoke-test
+    - name: ".data-validation-stress-test"
+    - name: catch2-unittest-test
+    - name: s3-tiered-storage-extensions-test
+    - name: bench-tiered-push-pull
+    - name: catch2-unittest-assertions
+    - name: bench-tiered-push-pull-s3
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
@@ -5340,7 +5667,7 @@ buildvariants:
     # Compile with clang so we test that path for the catch2 unittests.
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -5357,25 +5684,24 @@ buildvariants:
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
+    # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
+    posix_configure_flags: -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
     # builds) as -O1, making test binaries more difficult to debug.
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: |
-      export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 0
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
-    extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
-    - name: clang-analyzer
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
-    - name: format-stress-pull-request-test
+    - name: format-msan-test
     - name: make-check-test
       distros: ubuntu2004-large
     - name: csuite-long-running
@@ -5393,11 +5719,9 @@ buildvariants:
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
     # builds) as -O1, making test binaries more difficult to debug.
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+    ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: clang-analyzer
     - name: compile
     - name: compile-production-disable-shared
     - name: compile-production-disable-static
@@ -5413,7 +5737,7 @@ buildvariants:
   run_on:
   - ubuntu2004-wt-build
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".pull_request_compilers"
@@ -5423,8 +5747,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
@@ -5432,6 +5755,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
+      distros: ubuntu2004-medium
     - name: ".stress-test-sanitizer"
       run_on:
       - ubuntu2004-medium
@@ -5447,8 +5771,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
@@ -5466,7 +5789,7 @@ buildvariants:
   # We run on medium as small has too small a disk.
   - ubuntu2004-medium
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
@@ -5478,7 +5801,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
@@ -5497,8 +5820,7 @@ buildvariants:
   run_on:
   - rhel80-test
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
-    additional_env_vars: export LD_PRELOAD="/usr/local/lib/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 0
     cmake_generator: "Unix Makefiles"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -5525,7 +5847,7 @@ buildvariants:
   run_on:
   - windows-2022-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     # Remove the default configurations for the toolchain, install prefix and number of jobs.
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
@@ -5539,13 +5861,13 @@ buildvariants:
     - name: catch2-unittest-test
 
 - <<: *mac_test_template
-  name: macos-1300-arm64
-  display_name: "macOS 13.00 (ARM64)"
+  name: macos-13-arm64
+  display_name: "macOS 13 (ARM64)"
   run_on:
-    - macos-1300-arm64
+    - macos-13-arm64
   batchtime: 120 # 2 hours
   expansions:
-    python_binary: '/opt/homebrew/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
+    python_binary: '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
     python_config_search_string: '_Python3_EXECUTABLE'
     <<: *mac_test_template_expansions
 
@@ -5555,7 +5877,7 @@ buildvariants:
   - ubuntu2204-large
   batchtime: 4320 # 3 days
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -5571,7 +5893,7 @@ buildvariants:
   - rhel80-zseries-build
   batchtime: 4320 # 3 days
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -5591,7 +5913,7 @@ buildvariants:
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_STRICT=0
   tasks:
     - name: compile
@@ -5608,7 +5930,7 @@ buildvariants:
   - rhel80-zseries-test
   batchtime: 120 # 2 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     # Use half number of vCPU to avoid OOM kill failure
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
   tasks:
@@ -5625,35 +5947,44 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: compile
-    - name: make-check-test
-    - name: unit-test
-    - name: fops
-    - name: format-failure-configs-test
-    - name: linux-directio
-    - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
-    - name: unit-test-extra-long
-      distros: ubuntu2004-arm64-large
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
-    - name: wtperf-test
-    - name: long-test
-    - name: configure-combinations
-    - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
-    - name: chunkcache-test
-    - name: memory-model-test
-      batchtime: 40320 # 28 days
+    - name: ".lint"
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
+    - name: checkpoint-filetypes-test
+    - name: chunkcache-test
+    - name: compile
+    - name: configure-combinations
+    - name: fops
+    - name: format-failure-configs-test
+      distros: ubuntu2004-arm64-large
+    - name: format-smoke-test
+    - name: format-stress-pull-request-test
+    - name: linux-directio
+      distros: ubuntu2004-arm64-large
+    - name: long-test
+      distros: ubuntu2004-arm64-large
+    - name: make-check-test
+    - name: memory-model-test
+      batchtime: 40320 # 28 days
+    - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
+    - name: model-test-long
+      batchtime: 1440 # once a day
+    - name: model-test-long-with-coverage
+      batchtime: 1440 # once a day
     - name: model-unit-test
-    # FIXME-WT-12539
-    #- name: model-test-long
-    #  batchtime: 1440 # once a day
+    - name: s3-tiered-storage-extensions-test
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+      distros: ubuntu2004-arm64-large
+    - name: unit-test
+    - name: unit-test-extra-long
+      distros: ubuntu2004-arm64-large
+    - name: unit-test-zstd
+    - name: wtperf-test
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
@@ -5661,30 +5992,33 @@ buildvariants:
   - amazon2-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
   # Using large distro for a few tests here as more memory is required.
   tasks:
+    - name: checkpoint-filetypes-test
     - name: compile
-    - name: make-check-test
-      distros: amazon2-arm64-large
-    - name: unit-test
     - name: fops
     - name: format-failure-configs-test
-    - name: linux-directio
-    - name: checkpoint-filetypes-test
-    - name: unit-test-zstd
-    - name: unit-test-extra-long
       distros: amazon2-arm64-large
+    - name: format-smoke-test
+    - name: format-stress-pull-request-test
+    - name: linux-directio
+      distros: amazon2-arm64-large
+    - name: long-test
+      distros: amazon2-arm64-large
+    - name: make-check-test
+      distros: amazon2-arm64-large
+    - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: amazon2-arm64-large
-    - name: wtperf-test
-    - name: long-test
+    - name: unit-test
+    - name: unit-test-extra-long
       distros: amazon2-arm64-large
-    - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
+    - name: unit-test-zstd
+    - name: wtperf-test
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
@@ -5692,7 +6026,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -5707,7 +6041,7 @@ buildvariants:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
@@ -5717,11 +6051,14 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: linux-directio
+      distros: ubuntu2004-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
+      distros: ubuntu2004-large
     - name: long-test
+      distros: ubuntu2004-large
     - name: configure-combinations
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
@@ -5732,7 +6069,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=0
+    ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
@@ -5742,11 +6079,14 @@ buildvariants:
     - name: format-smoke-test
     - name: fops
     - name: linux-directio
+      distros: ubuntu2004-arm64-large
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
+      distros: ubuntu2004-arm64-large
     - name: long-test
+      distros: ubuntu2004-arm64-large
     - name: configure-combinations
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
@@ -5757,13 +6097,12 @@ buildvariants:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-sanitizer"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
@@ -5773,7 +6112,7 @@ buildvariants:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -5786,7 +6125,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -5804,8 +6143,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
   tasks:
@@ -5814,6 +6152,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
+      distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: compile
     - name: ".cppsuite-stress-test"
@@ -5825,7 +6164,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -5846,8 +6185,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
-    additional_env_vars: export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libeatmydata.so:$LD_PRELOAD"
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
@@ -5873,7 +6211,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-small
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -5897,7 +6235,7 @@ buildvariants:
   - amazon2-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: -DENABLE_TCMALLOC=1
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: "Unix Makefiles"
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0

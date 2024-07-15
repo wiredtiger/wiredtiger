@@ -25,7 +25,7 @@ __random_insert_valid(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT 
     cbt->tmp->data = WT_INSERT_KEY(ins);
     cbt->tmp->size = WT_INSERT_KEY_SIZE(ins);
 
-    return (__wt_cursor_valid(cbt, validp, false));
+    return (__wti_cursor_valid(cbt, validp, false));
 }
 
 /*
@@ -41,7 +41,7 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, bool *validp)
     cbt->slot = slot;
     cbt->compare = 0;
 
-    return (__wt_cursor_valid(cbt, validp, false));
+    return (__wti_cursor_valid(cbt, validp, false));
 }
 
 /* Magic constant: 5000 entries in a skip list is enough to forcibly evict. */
@@ -346,6 +346,37 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __random_root_inmem_ref --
+ *     Return a random in-mem ref from a root page by applying reservoir sampling.
+ */
+static void
+__random_root_inmem_ref(
+  WT_SESSION_IMPL *session, WT_REF *current, WT_REF **refp, WT_RAND_STATE *rnd)
+{
+    WT_REF *ref, *ref_inmem;
+    uint64_t cnt;
+
+    cnt = 0;
+    ref_inmem = NULL;
+
+    WT_ASSERT(session, __wt_ref_is_root(current));
+
+    WT_STAT_CONN_INCR(session, cache_eviction_random_sample_inmem_root);
+    WT_STAT_DSRC_INCR(session, cache_eviction_random_sample_inmem_root);
+
+    WT_INTL_FOREACH_BEGIN (session, current->page, ref)
+        if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
+            cnt++;
+            if ((__wt_random(rnd) % cnt) == 0)
+                ref_inmem = ref;
+        }
+    WT_INTL_FOREACH_END;
+
+    if (cnt != 0)
+        *refp = ref_inmem;
+}
+
+/*
  * __wt_random_descent --
  *     Find a random page in a tree for either sampling or eviction.
  */
@@ -357,14 +388,17 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_REF *current, *descent;
-    uint32_t i, entries, retry;
-    bool eviction;
+    WT_REF_STATE descent_state;
+    uint32_t entries, i;
+    int retry;
+    bool eviction, sample_inmem_page;
 
     *refp = NULL;
 
     btree = S2BT(session);
     current = NULL;
     retry = 100;
+    sample_inmem_page = false;
     /*
      * This function is called by eviction to find a random page in the cache. That case is
      * indicated by the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as
@@ -393,6 +427,8 @@ restart:
         /* Eviction just wants any random child. */
         if (eviction) {
             descent = pindex->index[__wt_random(rnd) % entries];
+            if (sample_inmem_page && __wt_ref_is_root(current))
+                __random_root_inmem_ref(session, current, &descent, rnd);
             goto descend;
         }
 
@@ -408,13 +444,15 @@ restart:
         descent = NULL;
         for (i = 0; i < entries; ++i) {
             descent = pindex->index[__wt_random(rnd) % entries];
-            if (descent->state == WT_REF_DISK || descent->state == WT_REF_MEM)
+            descent_state = WT_REF_GET_STATE(descent);
+            if (descent_state == WT_REF_DISK || descent_state == WT_REF_MEM)
                 break;
         }
         if (i == entries)
             for (i = 0; i < entries; ++i) {
                 descent = pindex->index[i];
-                if (descent->state == WT_REF_DISK || descent->state == WT_REF_MEM)
+                descent_state = WT_REF_GET_STATE(descent);
+                if (descent_state == WT_REF_DISK || descent_state == WT_REF_MEM)
                     break;
             }
         if (i == entries || descent == NULL) {
@@ -444,10 +482,17 @@ descend:
     }
 
     /*
-     * There is no point starting with the root page: the walk will exit immediately. In that case
-     * we aren't holding a hazard pointer so there is nothing to release.
+     * There is no point starting with the root page: continue attempting the process until we
+     * encounter a non-root page.
      */
-    if (!eviction || !__wt_ref_is_root(current))
+    if (eviction && __wt_ref_is_root(current)) {
+        if (--retry > 0)
+            goto restart;
+        else if (S2C(session)->evict_sample_inmem && !sample_inmem_page) {
+            sample_inmem_page = true;
+            goto restart;
+        }
+    } else
         *refp = current;
     return (0);
 }
@@ -485,7 +530,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
     if (btree->type != BTREE_ROW)
         WT_RET_MSG(session, ENOTSUP, "WT_CURSOR.next_random only supported by row-store tables");
 
-    WT_STAT_CONN_DATA_INCR(session, cursor_next);
+    WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
@@ -563,7 +608,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      */
     for (skip = cbt->next_random_leaf_skip; cbt->ref == NULL || skip > 0;) {
         n = skip;
-        WT_ERR(__wt_tree_walk_skip(session, &cbt->ref, &skip));
+        WT_ERR(__wti_tree_walk_skip(session, &cbt->ref, &skip));
         if (n == skip) {
             if (skip == 0)
                 break;

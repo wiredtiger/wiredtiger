@@ -27,41 +27,31 @@
  */
 
 #include <cstdint>
+#include <iostream>
+#include <algorithm>
+#include <cmath>
 
 #include "execution_timer.h"
-
 #include "src/component/metrics_writer.h"
 
 namespace test_harness {
-execution_timer::execution_timer(const std::string id, const std::string &test_name)
-    : _id(id), _test_name(test_name), _it_count(0), _total_time_taken(0)
+execution_timer::execution_timer(const std::string &id, const std::string &test_name)
+    : _id(id), _test_name(test_name)
 {
 }
 
 void
 execution_timer::append_stats()
 {
-    uint64_t avg = (uint64_t)_total_time_taken / _it_count;
-    std::string stat = "{\"name\":\"" + _id + "\",\"value\":" + std::to_string(avg) + "}";
-    metrics_writer::instance().add_stat(stat);
-}
-
-template <typename T>
-auto
-execution_timer::track(T lambda)
-{
-    auto _start_time = std::chrono::steady_clock::now();
-    int ret = lambda();
-    auto _end_time = std::chrono::steady_clock::now();
-    _total_time_taken += (_end_time - _start_time).count();
-    _it_count += 1;
-
-    return ret;
+    std::sort(_time_recordings.begin(), _time_recordings.end());
+    auto percentile = _time_recordings[std::floor(_time_recordings.size() * 0.9)];
+    metrics_writer::instance().add_stat("{\"name\":\"" + _id +
+      "_nanoseconds_90th_percentile\",\"value\":" + std::to_string(percentile) + "}");
 }
 
 execution_timer::~execution_timer()
 {
-    if (_it_count != 0)
+    if (_time_recordings.size() != 0)
         append_stats();
 }
 }; // namespace test_harness

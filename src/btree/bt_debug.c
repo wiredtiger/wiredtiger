@@ -384,7 +384,7 @@ __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_blkcache_read(session, buf, addr, addr_size));
-    ret = __wt_debug_disk(session, buf->mem, ofile, false, false);
+    ret = __wti_debug_disk(session, buf->mem, ofile, false, false);
 
 err:
     __wt_scr_free(session, &buf);
@@ -392,11 +392,11 @@ err:
 }
 
 /*
- * __wt_debug_offset_blind --
+ * __wti_debug_offset_blind --
  *     Read and dump a disk page in debugging mode, using a file offset.
  */
 int
-__wt_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *ofile)
+__wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *ofile)
 {
     uint32_t checksum, size;
 
@@ -443,7 +443,7 @@ __wt_debug_offset(
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_blkcache_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
-    ret = __wt_debug_disk(session, buf->mem, ofile, false, false);
+    ret = __wti_debug_disk(session, buf->mem, ofile, false, false);
 
 err:
     __wt_scr_free(session, &buf);
@@ -549,7 +549,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
 
     session = ds->session;
 
-    WT_RET(ds->f(ds, "\t%s: len: %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
+    WT_RET(ds->f(ds, "\t%s: len: %" PRIu32, __wti_cell_type_string(unpack->raw), unpack->size));
 
     /* Dump the cell's per-disk page type information. */
     switch (dsk->type) {
@@ -627,7 +627,7 @@ __debug_cell_kv(
         WT_RET(ds->f(ds,
           "\t"
           "cell_type: %s | len: %" PRIu32,
-          __wt_cell_type_string(unpack->raw), unpack->size));
+          __wti_cell_type_string(unpack->raw), unpack->size));
     else if (F_ISSET(ds, WT_DEBUG_UNREDACT_KEYS)) {
         if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
           unpack->raw == WT_CELL_KEY_OVFL || unpack->raw == WT_CELL_KEY_SHORT ||
@@ -635,17 +635,17 @@ __debug_cell_kv(
             WT_RET(ds->f(ds,
               "\t"
               "cell_type: %s | len: %" PRIu32,
-              __wt_cell_type_string(unpack->raw), unpack->size));
+              __wti_cell_type_string(unpack->raw), unpack->size));
         else
             WT_RET(ds->f(ds,
               "\t"
               "cell_type: %s | len: {REDACTED}",
-              __wt_cell_type_string(unpack->raw)));
+              __wti_cell_type_string(unpack->raw)));
     } else
         WT_RET(ds->f(ds,
           "\t"
           "cell_type: %s | len: {REDACTED}",
-          __wt_cell_type_string(unpack->raw)));
+          __wti_cell_type_string(unpack->raw)));
 
     /* Dump per-disk page type information. */
     switch (page_type) {
@@ -677,10 +677,6 @@ __debug_cell_kv(
         break;
     }
 
-    /* Early exit for column store deleted cells. There's nothing further to print. */
-    if (unpack->raw == WT_CELL_DEL)
-        return (0);
-
     /* Overflow addresses. */
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
@@ -690,6 +686,10 @@ __debug_cell_kv(
         break;
     }
     WT_RET(ds->f(ds, "\n"));
+
+    /* Early exit for column store deleted cells. There's nothing further to print. */
+    if (unpack->raw == WT_CELL_DEL)
+        return (0);
 
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
@@ -745,7 +745,7 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 
     btree = S2BT(ds->session);
 
-    WT_RET(__wt_col_fix_read_auxheader(ds->session, dsk, &auxhdr));
+    WT_RET(__wti_col_fix_read_auxheader(ds->session, dsk, &auxhdr));
 
     WT_RET(ds->f(ds, "\t> "));
     switch (auxhdr.version) {
@@ -779,11 +779,11 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 }
 
 /*
- * __wt_debug_disk --
+ * __wti_debug_disk --
  *     Dump a disk page in debugging mode.
  */
 int
-__wt_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile,
+__wti_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile,
   bool dump_all_data, bool dump_key_data)
 {
     WT_DBG *ds, _ds;
@@ -885,7 +885,7 @@ __debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
     const char *unit;
 
     page = ref->page;
-    v = page->memory_footprint;
+    v = __wt_atomic_loadsize(&page->memory_footprint);
 
     if (v > WT_GIGABYTE) {
         v /= WT_GIGABYTE;
@@ -926,7 +926,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
           "%d %s\n",
           level * 3, " ", level, __debug_tree_shape_info(ref, buf, sizeof(buf))));
         WT_INTL_FOREACH_BEGIN (session, ref->page, walk) {
-            if (walk->state == WT_REF_MEM)
+            if (WT_REF_GET_STATE(walk) == WT_REF_MEM)
                 WT_RET(__debug_tree_shape_worker(ds, walk, level + 1));
         }
         WT_INTL_FOREACH_END;
@@ -1010,11 +1010,11 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
 }
 
 /*
- * __wt_debug_page --
+ * __wti_debug_page --
  *     Dump the in-memory information for a page.
  */
 int
-__wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile,
+__wti_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile,
   bool dump_all_data, bool dump_key_data)
 {
     WT_DBG *ds, _ds;
@@ -1075,7 +1075,7 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     }
 
     WT_WITH_BTREE(
-      session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->ref, ofile, true, false));
+      session, CUR2BT(cbt), ret = __wti_debug_page(session, NULL, cbt->ref, ofile, true, false));
 
     if (did_hs_checkpoint)
         session->hs_checkpoint = NULL;
@@ -1288,8 +1288,9 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     if (split_gen != 0)
         WT_RET(ds->f(ds, " | split_gen: %" PRIu64, split_gen));
     if (mod != NULL)
-        WT_RET(ds->f(ds, " | page_state: %" PRIu32, mod->page_state));
-    WT_RET(ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT, page->memory_footprint));
+        WT_RET(ds->f(ds, " | page_state: %" PRIu32, __wt_atomic_load32(&mod->page_state)));
+    WT_RET(
+      ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT, __wt_atomic_loadsize(&page->memory_footprint)));
     return (ds->f(ds, "\n"));
 }
 
@@ -1384,7 +1385,7 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page)
 
     if (F_ISSET(ds, WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            if (ref->state == WT_REF_MEM) {
+            if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
                 WT_RET(ds->f(ds, "\n"));
                 WT_RET(__debug_page(ds, ref));
             }
@@ -1467,7 +1468,7 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page)
 
     if (F_ISSET(ds, WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            if (ref->state == WT_REF_MEM) {
+            if (WT_REF_GET_STATE(ref) == WT_REF_MEM) {
                 WT_RET(ds->f(ds, "\n"));
                 WT_RET(__debug_page(ds, ref));
             }
@@ -1582,7 +1583,7 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 static int
 __debug_modify(WT_DBG *ds, const uint8_t *data)
 {
-    size_t nentries, data_size, offset, size;
+    size_t data_size, nentries, offset, size;
     const size_t *p;
 
     p = (size_t *)data;
@@ -1719,15 +1720,22 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     session = ds->session;
 
     WT_RET(ds->f(ds, "ref: %p", (void *)ref));
-    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(ref->state)));
+    WT_RET(ds->f(ds, " | ref_state: %s", __debug_ref_state(WT_REF_GET_STATE(ref))));
     if (ref->flags != 0) {
         WT_RET(ds->f(ds, " | page_type: ["));
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_RET(ds->f(ds, "%s", "internal"));
-        if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+        else
             WT_RET(ds->f(ds, "%s", "leaf"));
-        if (F_ISSET(ref, WT_REF_FLAG_READING))
-            WT_RET(ds->f(ds, ", %s", "reading"));
+        WT_RET(ds->f(ds, "]"));
+    }
+
+    if (ref->flags_atomic != 0) {
+        WT_RET(ds->f(ds, " | flags_atomic: [ "));
+        if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING))
+            WT_RET(ds->f(ds, "%s", "reading "));
+        if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+            WT_RET(ds->f(ds, "%s", "prefetch "));
         WT_RET(ds->f(ds, "]"));
     }
 

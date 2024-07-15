@@ -95,6 +95,8 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
 
     WT_ERR(cst->stats_desc(cst, WT_STAT_KEY_OFFSET(cst), &desc));
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
+        /* The printed value is currently null. Create it now, it's needed for the packed result. */
+        WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
         WT_ERR(__wt_struct_size(session, &size, cursor->value_format, desc, cst->pv.data, cst->v));
         WT_ERR(__wt_buf_initsize(session, &cursor->value, size));
         WT_ERR(__wt_struct_pack(
@@ -113,8 +115,11 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
         va_start(ap, cursor);
         if ((p = va_arg(ap, const char **)) != NULL)
             *p = desc;
-        if ((p = va_arg(ap, const char **)) != NULL)
+        if ((p = va_arg(ap, const char **)) != NULL) {
+            /* Create the printed value only when needed. */
+            WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
             *p = cst->pv.data;
+        }
         if ((v = va_arg(ap, uint64_t *)) != NULL)
             *v = cst->v;
         va_end(ap);
@@ -211,7 +216,6 @@ __curstat_next(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
-    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     if (0) {
@@ -255,7 +259,6 @@ __curstat_prev(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
-    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     if (0) {
@@ -317,7 +320,6 @@ __curstat_search(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
-    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
 err:
@@ -616,21 +618,22 @@ int
 __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, const char *cfg[],
   WT_CURSOR **cursorp)
 {
+    WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR_STATIC_INIT(iface, __curstat_get_key, /* get-key */
       __curstat_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,         /* get-raw-key-value */
+      __wti_cursor_get_raw_key_value_notsup,        /* get-raw-key-value */
       __curstat_set_key,                            /* set-key */
       __curstat_set_value,                          /* set-value */
-      __wt_cursor_compare_notsup,                   /* compare */
-      __wt_cursor_equals_notsup,                    /* equals */
+      __wti_cursor_compare_notsup,                  /* compare */
+      __wti_cursor_equals_notsup,                   /* equals */
       __curstat_next,                               /* next */
       __curstat_prev,                               /* prev */
       __curstat_reset,                              /* reset */
       __curstat_search,                             /* search */
-      __wt_cursor_search_near_notsup,               /* search-near */
+      __wti_cursor_search_near_notsup,              /* search-near */
       __wt_cursor_notsup,                           /* insert */
-      __wt_cursor_modify_notsup,                    /* modify */
+      __wti_cursor_modify_notsup,                   /* modify */
       __wt_cursor_notsup,                           /* update */
       __wt_cursor_notsup,                           /* remove */
       __wt_cursor_notsup,                           /* reserve */
@@ -641,7 +644,6 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
       __wt_cursor_reopen_notsup,                    /* reopen */
       __wt_cursor_checkpoint_id,                    /* checkpoint ID */
       __curstat_close);                             /* close */
-    WT_CONFIG_ITEM cval, sval;
     WT_CURSOR *cursor;
     WT_CURSOR_STAT *cst;
     WT_DECL_RET;

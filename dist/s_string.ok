@@ -9,7 +9,9 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
+ANDed
 APIs
+AREALLSET
 ARG
 ARGS
 ASAN
@@ -71,6 +73,7 @@ Castagnoli
 Cclmpv
 Ceil
 CentOS
+Charset
 Checkpointing
 Checksums
 CityHash
@@ -95,7 +98,6 @@ DNE
 DONTNEED
 DS
 DUPLICATEV
-DeadStores
 Decrypt
 DeleteFileW
 Deterministically
@@ -190,6 +192,7 @@ INTRINSICS
 INUSE
 INVL
 ISA
+ISSET
 ITEMs
 InitializeCriticalSectionAndSpinCount
 Instantiation
@@ -204,6 +207,7 @@ Keyedness
 Kounavis
 LANGID
 LF
+LLVM
 LLVMFuzzerTestOneInput
 LOGOP
 LOGREC
@@ -300,6 +304,7 @@ Posix
 PostgreSQL
 Pre
 Precompiled
+Prefetch
 Preload
 Prepend
 Prepending
@@ -345,6 +350,7 @@ SMT
 SPINLOCK
 SSHH
 SSq
+STATP
 STR
 STRUCT
 SYSCALL
@@ -368,7 +374,6 @@ Su
 Subdirectory
 Subprocess
 TAILQ
-TCMalloc
 TESTUTIL
 TID
 TMP
@@ -386,6 +391,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+UBSAN
 UDF
 UID
 UIDs
@@ -421,6 +427,7 @@ Vixie
 VloaY
 Vo
 VxWorks
+WCHAR
 WILLNEED
 WIREDTIGER
 WRLSN
@@ -446,9 +453,9 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerTmplog
 WithSeeds
+Wl
 Wmissing
 WriteFile
-Wundef
 Wuninitialized
 Wunused
 XP
@@ -465,7 +472,6 @@ abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
 acqrel
-addl
 addr
 addrs
 addtw
@@ -506,6 +512,7 @@ bbuilddir
 bcr
 bd
 beginthreadex
+benchmarking
 binutils
 bitcnt
 bitfield
@@ -518,6 +525,7 @@ blk
 blkcache
 blkincr
 blkmod
+blkmods
 bm
 bnd
 bool
@@ -561,6 +569,7 @@ cerr
 cfg
 cfko
 chacha
+charset
 chdir
 checkfmt
 checkkey
@@ -593,6 +602,7 @@ comparator
 comparators
 comparep
 compat
+compilable
 cond
 conditionalize
 conf
@@ -607,9 +617,9 @@ cookiep
 copydoc
 countp
 cp
-cplusplus
 cpp
 cppsuite
+cpu
 cpuid
 crc
 crypto
@@ -636,7 +646,6 @@ cursoring
 cursorp
 curstartrecno
 curstat
-curstd
 curtable
 curversion
 cust
@@ -655,7 +664,6 @@ dbar
 dbs
 dcalloc
 ddd
-deadcode
 decile
 deciles
 decl
@@ -746,9 +754,14 @@ fclose
 fcntl
 fd
 fdatasync
+fe
+feffff
 fextend
 ffc
 fff
+fffff
+ffffff
+ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -804,6 +817,7 @@ getone
 getones
 getopt
 getraw
+getter
 getters
 gettime
 gettimeofday
@@ -817,6 +831,7 @@ gostring
 gostruct
 goto
 goutf
+groupd
 gte
 handleops
 handlep
@@ -1001,6 +1016,7 @@ mn
 mnt
 mongod
 mrs
+msan
 msecs
 msg
 msvc
@@ -1027,6 +1043,7 @@ nentries
 nentriesp
 newbar
 newfile
+newuri
 newv
 nextprev
 nf
@@ -1087,6 +1104,7 @@ packv
 pageref
 pagesize
 param
+params
 pareto
 parserp
 patchp
@@ -1181,6 +1199,7 @@ risc
 rl
 rle
 rmw
+rnd
 rng
 rotN
 rotn
@@ -1255,6 +1274,7 @@ strdup
 strerror
 strftime
 strlen
+strncmp
 strncpy
 strndup
 strnlen
@@ -1338,6 +1358,7 @@ umount
 unallocated
 unbare
 unbuffered
+uncached
 unconfigured
 uncustomized
 undef

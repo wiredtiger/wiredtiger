@@ -65,7 +65,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     cap = &conn->capacity;
     cap->chunkcache = chunkcache;
-    cap->total = total;
+    __wt_atomic_store64(&cap->total, total);
     if (total != 0) {
         /*
          * We've been given a total capacity, set the capacity of all the subsystems.
@@ -177,11 +177,11 @@ __capacity_server_start(WT_CONNECTION_IMPL *conn)
 }
 
 /*
- * __wt_capacity_server_create --
+ * __wti_capacity_server_create --
  *     Configure and start the capacity server.
  */
 int
-__wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -196,7 +196,7 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * we're updating, and it's not expected that reconfiguration will happen a lot.
      */
     if (conn->capacity_session != NULL)
-        WT_RET(__wt_capacity_server_destroy(session));
+        WT_RET(__wti_capacity_server_destroy(session));
     WT_RET(__capacity_config(session, cfg));
 
     /*
@@ -213,11 +213,11 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_capacity_server_destroy --
+ * __wti_capacity_server_destroy --
  *     Destroy the capacity server thread.
  */
 int
-__wt_capacity_server_destroy(WT_SESSION_IMPL *session)
+__wti_capacity_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -356,9 +356,12 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
 
     conn = S2C(session);
     cap = &conn->capacity;
-    /* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
-    capacity = steal_capacity = 0;
+    steal_capacity = 0;
     reservation = steal = NULL;
+
+    /* Quiet warnings from both gcc and clang about this variable. */
+    WT_NOT_READ(capacity, 0);
+
     switch (type) {
     case WT_THROTTLE_CHUNKCACHE:
         __throttle_chunkcache(session, cap, bytes);
@@ -387,14 +390,14 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
         WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
         break;
     }
-    total_capacity = cap->total;
+    total_capacity = __wt_atomic_load64(&cap->total);
 
     /*
      * Right now no subsystem can be individually turned off, but it is certainly a possibility to
      * consider one subsystem may be turned off at some point in the future. If this subsystem is
      * not throttled there's nothing to do.
      */
-    if (cap->total == 0 || capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
+    if (__wt_atomic_load64(&cap->total) == 0 || capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
         return;
 
     /*

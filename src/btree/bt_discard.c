@@ -242,13 +242,13 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __ref_addr_safe_free --
+ * __wti_ref_addr_safe_free --
  *     Any thread that is reviewing the address in a WT_REF, must also be holding a split generation
  *     to ensure that the page index they are using remains valid. Utilize the same generation type
  *     to safely free the address once all users of it have left the generation.
  */
-static void
-__ref_addr_safe_free(WT_SESSION_IMPL *session, void *ref_addr)
+void
+__wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
 {
     WT_DECL_RET;
     uint64_t split_gen;
@@ -259,9 +259,7 @@ __ref_addr_safe_free(WT_SESSION_IMPL *session, void *ref_addr)
      * creating a whole new generation counter. There are no page splits taking place.
      */
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
-    WT_TRET(__wt_stash_add(
-      session, WT_GEN_SPLIT, split_gen, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size));
-    WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, ref_addr, sizeof(WT_ADDR)));
+    WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, len));
     __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 
     if (ret != 0)
@@ -307,16 +305,18 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_yield();
     }
 
-    if (home == NULL || __wt_off_page(home, ref_addr))
-        __ref_addr_safe_free(session, ref_addr);
+    if (home == NULL || __wt_off_page(home, ref_addr)) {
+        __wti_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size);
+        __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
+    }
 }
 
 /*
- * __wt_free_ref --
+ * __wti_free_ref --
  *     Discard the contents of a WT_REF structure (optionally including the pages it references).
  */
 void
-__wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
+__wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
 {
     WT_IKEY *ikey;
 
@@ -376,18 +376,20 @@ __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_PAGE_INDEX *pindex;
     uint32_t i;
 
-    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
-        __wt_free_ref(session, pindex->index[i], page->type, false);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
+    for (i = 0; i < pindex->entries; ++i)
+        __wti_free_ref(session, pindex->index[i], page->type, false);
 
     __wt_free(session, pindex);
 }
 
 /*
- * __wt_free_ref_index --
+ * __wti_free_ref_index --
  *     Discard a page index and its references.
  */
 void
-__wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
+__wti_free_ref_index(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
 {
     WT_REF *ref;
     uint32_t i;
@@ -409,7 +411,7 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
           __wt_hazard_check_assert(session, ref, false),
           "Attempting to discard ref to a page with hazard pointers");
 
-        __wt_free_ref(session, ref, page->type, free_pages);
+        __wti_free_ref(session, ref, page->type, free_pages);
     }
     __wt_free(session, pindex);
 }

@@ -58,7 +58,12 @@ set_stable(uint64_t stable_ts)
 void
 start_threads(void)
 {
-    set_stable(1); /* Let's start with 1 as the stable as 0 is not a valid timestamp. */
+    /*
+     * Ensure we are not going backwards and start with 1 as the stable as 0 is not a valid
+     * timestamp.
+     */
+    set_stable(WT_MAX(1, g.ts_stable));
+
     /*
      * If there are N worker threads (0 - N-1), the checkpoint thread has an ID of N and the clock
      * thread an ID of N + 1.
@@ -241,9 +246,6 @@ real_checkpointer(THREAD_DATA *td)
     ts_config = "use_timestamp=false";
     verify_ts = WT_TS_NONE;
     flush_tier = false;
-
-    if (!g.opts.running)
-        return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
 
     while (g.ntables > g.ntables_created && g.opts.running)
         __wt_yield();

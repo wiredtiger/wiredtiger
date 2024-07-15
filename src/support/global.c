@@ -31,6 +31,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
   {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
   {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
+  {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
@@ -39,7 +40,8 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
   {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
   {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
-  {"prefix_compare", WT_TIMING_STRESS_PREFIX_COMPARE},
+  {"prefetch_1", WT_TIMING_STRESS_PREFETCH_1}, {"prefetch_2", WT_TIMING_STRESS_PREFETCH_2},
+  {"prefetch_3", WT_TIMING_STRESS_PREFETCH_3}, {"prefix_compare", WT_TIMING_STRESS_PREFIX_COMPARE},
   {"prepare_checkpoint_delay", WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY},
   {"prepare_resolution_1", WT_TIMING_STRESS_PREPARE_RESOLUTION_1},
   {"prepare_resolution_2", WT_TIMING_STRESS_PREPARE_RESOLUTION_2},
@@ -91,7 +93,7 @@ __global_calibrate_ticks(void)
     __wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
     __wt_process.use_epochtime = true;
 
-#if defined(__i386) || defined(__amd64) || defined(__aarch64__)
+#if defined(__amd64) || defined(__aarch64__)
     {
         struct timespec start, stop;
         double ratio;

@@ -163,10 +163,15 @@ of the documentation.
     - @ref arch-cache
     - @ref arch-eviction
 
+- @subpage arch-toc-int-wt-dev
+    - @ref arch-concurrency
+    - @ref arch-locking-hierarchy
+
 - @subpage arch-toc-mem-disk
     - @ref arch-block
     - @ref arch-data-file
     - @ref arch-cloud-storage-extension
+    - @ref arch-tiered-storage
 
 - @subpage arch-toc-on-disk
     - @ref arch-checkpoint
@@ -275,6 +280,13 @@ writing it to disk if it is dirty.
 
 */
 
+/*! @page arch-toc-int-wt-dev Internal WiredTiger Development
+
+@subpage arch-concurrency
+@subpage arch-locking-hierarchy
+
+*/
+
 /*! @page arch-toc-mem-disk Moving Data Between Memory and Disk
 
 @subpage arch-block
@@ -288,6 +300,11 @@ The format of the data file is given by structures in \c block.h .
 @subpage arch-cloud-storage-extension
 
 The cloud storage source extension which manage the flushing of the data files to and reading from different cloud object stores.
+
+@subpage arch-tiered-storage
+
+Tiered storage allows B-Trees to be stored into multiple places, more
+recently updated blocks are on local disk and less recently updated blocks are in cloud storage.
 
 */
 

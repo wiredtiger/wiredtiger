@@ -113,7 +113,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))
-        __wt_free(session, addr->addr);
+        __wti_ref_addr_safe_free(session, addr->addr, addr->size);
     else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
@@ -162,8 +162,8 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ADDR_COPY copy;
     WT_BM *bm;
     WT_DECL_RET;
+    WT_REF_STATE previous_state;
     size_t addr_size;
-    uint8_t previous_state;
 
     *skipp = true; /* Default skip. */
 
@@ -173,10 +173,10 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_REF_LOCK(session, ref, &previous_state);
 
     /*
-     * Don't bother rewriting deleted pages but also don't skip. The on-disk block is discarded by
-     * the next checkpoint.
+     * Don't bother rewriting deleted pages but also don't skip. The on-disk block with an address
+     * is discarded by the next checkpoint, if it has not already been freed.
      */
-    if (previous_state == WT_REF_DELETED && ref->page_del == NULL)
+    if (previous_state == WT_REF_DELETED && ref->page_del == NULL && ref->addr != NULL)
         *skipp = false;
 
     /*
@@ -321,7 +321,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     bm = S2BT(session)->bm;
     ref = NULL;
 
-    WT_STAT_DATA_INCR(session, session_compact);
+    WT_STAT_DSRC_INCR(session, session_compact);
 
     /*
      * Check if compaction might be useful (the API layer will quit trying to compact the data
@@ -330,7 +330,7 @@ __wt_compact(WT_SESSION_IMPL *session)
     WT_RET(bm->compact_skip(bm, session, &skip));
     if (skip) {
         WT_STAT_CONN_INCR(session, session_table_compact_skipped);
-        WT_STAT_DATA_INCR(session, btree_compact_skipped);
+        WT_STAT_DSRC_INCR(session, btree_compact_skipped);
 
         /*
          * Print the "skipping compaction" message only if this is the first time we are working on

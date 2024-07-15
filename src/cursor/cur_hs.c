@@ -426,8 +426,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 static int
 __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 {
-    WT_CURSOR *file_cursor;
-    WT_CURSOR *std_cursor;
+    WT_CURSOR *file_cursor, *std_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(datastore_key);
     WT_DECL_RET;
@@ -483,7 +482,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * might have later stop times and we might need to return one of them.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
 
@@ -530,8 +529,7 @@ err:
 static int
 __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 {
-    WT_CURSOR *file_cursor;
-    WT_CURSOR *std_cursor;
+    WT_CURSOR *file_cursor, *std_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(datastore_key);
     WT_DECL_RET;
@@ -587,7 +585,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * might have later stop times and we might need to return one of them.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_next_hs_tombstone);
+            WT_STAT_CONN_DSRC_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
 
@@ -667,7 +665,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
         if (cmp > 0) {
             while ((ret = cursor->prev(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
-                WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
+                WT_STAT_DSRC_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
                 /*
                  * Exit if we have found a key that is smaller than or equal to the specified key.
@@ -684,7 +682,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
         if (cmp < 0) {
             while ((ret = cursor->next(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
-                WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
+                WT_STAT_DSRC_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
                 /* Exit if we have found a key that is larger than or equal to the specified key. */
                 if (cmp >= 0)
@@ -714,7 +712,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     wt_timestamp_t start_ts;
     uint64_t counter;
     uint32_t btree_id;
-    int exact, cmp;
+    int cmp, exact;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -911,8 +909,7 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_ITEM *hs_val;
-    wt_timestamp_t start_ts;
-    wt_timestamp_t stop_ts;
+    wt_timestamp_t start_ts, stop_ts;
     uint64_t type;
     va_list ap;
 
@@ -1190,7 +1187,7 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     start_file_cursor = ((WT_CURSOR_HS *)trunc_info->start)->file_cursor;
     stop_file_cursor = NULL;
 
-    WT_STAT_DATA_INCR(session, cursor_truncate);
+    WT_STAT_DSRC_INCR(session, cursor_truncate);
 
     WT_ASSERT(session, F_ISSET(start_file_cursor, WT_CURSTD_KEY_INT));
     WT_RET(__wt_cursor_localkey(start_file_cursor));
@@ -1233,11 +1230,11 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
+      __wti_cursor_get_raw_key_value_notsup,          /* get-raw-key-value */
       __curhs_set_key,                                /* set-key */
       __curhs_set_value,                              /* set-value */
       __curhs_compare,                                /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
+      __wti_cursor_equals_notsup,                     /* equals */
       __curhs_next,                                   /* next */
       __curhs_prev,                                   /* prev */
       __curhs_reset,                                  /* reset */

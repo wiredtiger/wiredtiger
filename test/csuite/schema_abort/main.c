@@ -140,7 +140,6 @@ typedef struct {
 #define CREATE_UNQ "create_unique"
 #define CURSOR "cursor"
 #define DROP "drop"
-#define UPGRADE "upgrade"
 #define VERIFY "verify"
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -468,28 +467,6 @@ test_drop(THREAD_DATA *td, int force)
 }
 
 /*
- * test_upgrade --
- *     Upgrade a tree.
- */
-static void
-test_upgrade(THREAD_DATA *td)
-{
-    WT_DECL_RET;
-    WT_SESSION *session;
-
-    /* FIXME-WT-11366 Remove this return when tiered storage supports upgrade. */
-    if (opts->tiered_storage)
-        return;
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
-    if ((ret = session->upgrade(session, uri, NULL)) != 0)
-        if (ret != ENOENT && ret != EBUSY)
-            testutil_die(ret, "session.upgrade");
-
-    testutil_check(session->close(session, NULL));
-}
-
-/*
  * test_verify --
  *     Verify a tree.
  */
@@ -596,6 +573,7 @@ thread_ckpt_run(void *arg)
     int i;
     char ckpt_flush_config[128], ckpt_config[128];
     bool created_ready, flush_tier, ready_for_kill;
+    uint64_t diff_sec;
 
     td = (THREAD_DATA *)arg;
     /*
@@ -628,14 +606,18 @@ thread_ckpt_run(void *arg)
              */
             if (!stable_set) {
                 __wt_epoch(NULL, &now);
-                if (WT_TIMEDIFF_SEC(now, start) >= 1)
-                    printf("CKPT: !stable_set time %" PRIu64 "\n", WT_TIMEDIFF_SEC(now, start));
-                if (WT_TIMEDIFF_SEC(now, start) > MAX_STARTUP) {
+                diff_sec = WT_TIMEDIFF_SEC(now, start);
+                if (diff_sec >= 1 && (i % 100) == 0)
+                    printf("CKPT: !stable_set time %" PRIu64 "\n", diff_sec);
+                if (diff_sec > MAX_STARTUP) {
                     fprintf(
                       stderr, "After %d seconds stable still not set. Aborting.\n", MAX_STARTUP);
                     dump_ts();
                     abort();
                 }
+                __wt_sleep(0, WT_THOUSAND);
+                /* Give timestamp thread a chance to run and move the timestamps forward. */
+                __wt_yield();
                 continue;
             }
         }
@@ -820,10 +802,6 @@ thread_run(void *arg)
                 test_drop(td, __wt_random(&td->data_rnd) & 1);
                 break;
             case 6:
-                WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, UPGRADE);
-                test_upgrade(td);
-                break;
-            case 7:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, VERIFY);
                 test_verify(td);
                 break;
