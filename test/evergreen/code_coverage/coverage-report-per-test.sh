@@ -60,7 +60,7 @@ if [ "${is_patch}" = true ]; then
   ls -l coverage_report
   echo "cat coverage_report/diff.txt"
   cat coverage_report/diff.txt
-  python3 test/evergreen/code_change_report/per_test_code_coverage_report.py -v -c coverage_data -d coverage_report/diff.txt -m coverage_report/metrixpp.csv
+  python3 test/evergreen/code_change_report/per_test_code_coverage_report.py -c coverage_data -d coverage_report/diff.txt -m coverage_report/metrixpp.csv
 fi
 
 tar -czf coverage_report/coverage_data.tar.gz coverage_data
