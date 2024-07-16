@@ -95,7 +95,7 @@ def setup_build_dirs(build_dir_base, parallel, setup_task_list):
     base_build_dir = "{}{}".format(build_dir_base, 0)
     if os.path.exists(base_build_dir):
         sys.exit('build directory exists within {}.'.format(base_build_dir))
-    
+
     logging.debug('Creating build directory {}.'.format(base_build_dir))
     os.mkdir(base_build_dir)
 

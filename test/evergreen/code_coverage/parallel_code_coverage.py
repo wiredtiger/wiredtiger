@@ -126,7 +126,7 @@ def main():
             continue
         elif (not res and python):
             continue
-                
+
         build_dir_number = test_num % parallel_tests
         logging.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
         task_bucket_info[build_dir_number]['task_bucket'].append(test)

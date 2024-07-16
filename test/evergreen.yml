@@ -810,7 +810,7 @@ functions:
           gcovr -f ${coverage_filter|src} -j ${num_jobs|4} --html-self-contained --html-details coverage_report/2_coverage_report.html --json-summary-pretty \
             --json-summary coverage_report/1_coverage_report_summary.json --json coverage_report/full_coverage_report.json
           ${python_binary|python3} test/evergreen/code_coverage_analysis.py -s coverage_report/1_coverage_report_summary.json -t time.txt
-        fi    
+        fi
 
         # Generate Atlas compatible format report.
         if [ ! -z ${generate_atlas_format} ]; then
@@ -3040,7 +3040,6 @@ tasks:
         vars:
           upload_source_dir: "wiredtiger/coverage_report"
           upload_filename: coverage-report-python.tgz
-      
 
   - name: coverage-report-csuite
     # This task will measure code coverage across a range of tests, not including python tests. The tests are run in parallel.
@@ -3066,7 +3065,7 @@ tasks:
         vars:
           upload_source_dir: "wiredtiger/coverage_report"
           upload_filename: coverage-report-csuite.tgz
-  
+
   - name: generate-coverage-report
     tags: ["pull_request_code_statistics"]
     depends_on:
@@ -3088,7 +3087,7 @@ tasks:
           second_coverage_file_path: coverage_report_python/full_coverage_report.json
           combine_coverage_report: true
           generate_atlas_format: true
-          working_dir: "wiredtiger"      
+          working_dir: "wiredtiger"
       - func: "upload stats to atlas"
         vars:
           stats_dir: ./wiredtiger/coverage_report
@@ -3111,7 +3110,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            
+
             if [ ${is_patch|false} = true ]; then
               test/evergreen/code_coverage/coverage-report-per-test.sh true ${num_jobs|1}
             else
@@ -3127,7 +3126,7 @@ tasks:
       - func: "run code coverage tests"
         vars:
           num_jobs: 1
-          code_coverage_test_file: test/evergreen/code_coverage/code_coverage_config_catch2.json 
+          code_coverage_test_file: test/evergreen/code_coverage/code_coverage_config_catch2.json
       - func: "code coverage analysis"
         vars:
           working_dir: "wiredtiger"
