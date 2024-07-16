@@ -2381,9 +2381,13 @@ struct __wt_connection {
      * eviction_obsolete_tw_pages_dirty_max, maximum number of obsolete time window pages that can
      * be marked dirty per btree in a single checkpoint by the eviction threads., an integer between
      * \c 0 and \c 100000; default \c 100.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max,
-     * maximum number of btrees that can be checked for obsolete time window cleanup in a single
-     * checkpoint., an integer between \c 0 and \c 500000; default \c 100.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * obsolete_check_aggressive, if true\, more aggressively reclaim obsolete updates from update
+     * chains in memory.  This can increase contention in concurrent applications with the benefit
+     * of improving cache effectiveness., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max, maximum number of btrees that can be
+     * checked for obsolete time window cleanup in a single checkpoint., an integer between \c 0 and
+     * \c 500000; default \c 100.}
      * @config{ ),,}
      * @config{history_store = (, history store configuration options., a set of related
      * configuration options defined as follows.}
@@ -3262,10 +3266,15 @@ struct __wt_connection {
  * eviction_obsolete_tw_pages_dirty_max, maximum number of obsolete time window pages that can be
  * marked dirty per btree in a single checkpoint by the eviction threads., an integer between \c 0
  * and \c 100000; default \c 100.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max, maximum
- * number of btrees that can be checked for obsolete time window cleanup in a single checkpoint., an
- * integer between \c 0 and \c 500000; default \c 100.}
- * @config{ ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_check_aggressive, if
+ * true\, more aggressively reclaim obsolete updates from update chains in memory.  This can
+ * increase contention in concurrent applications with the benefit of improving cache
+ * effectiveness., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * obsolete_tw_btree_max, maximum number of btrees that can be checked for obsolete time window
+ * cleanup in a single checkpoint., an integer between \c 0 and \c 500000; default \c 100.}
+ * @config{
+ * ),,}
  * @config{history_store = (, history store configuration options., a set of related configuration
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum number of

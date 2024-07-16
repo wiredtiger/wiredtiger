@@ -2269,6 +2269,9 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
       session, cfg, "heuristic_controls.eviction_obsolete_tw_pages_dirty_max", &cval));
     conn->heuristic_controls.eviction_obsolete_tw_pages_dirty_max = (uint32_t)cval.val;
 
+    WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_check_aggressive", &cval));
+    conn->heuristic_controls.obsolete_check_aggressive = (bool)cval.val;
+
     WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_btree_max", &cval));
     conn->heuristic_controls.obsolete_tw_btree_max = (uint32_t)cval.val;
 

@@ -743,6 +743,11 @@ connection_runtime_config = [
                 maximum number of obsolete time window pages that can be marked dirty per btree in a
                 single checkpoint by the eviction threads''',
                 min=0, max=100000),
+            Config('obsolete_check_aggressive', 'false', r'''
+               if true, more aggressively reclaim obsolete updates from update chains in memory.
+               This can increase contention in concurrent applications with the benefit of
+               improving cache effectiveness.''',
+               type='boolean'),
             Config('obsolete_tw_btree_max', '100', r'''
                 maximum number of btrees that can be checked for obsolete time window cleanup in a
                 single checkpoint''',
