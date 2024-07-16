@@ -349,6 +349,7 @@ __checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    wt_timestamp_t newest_ts;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -388,6 +389,15 @@ __checkpoint_cleanup_page_skip(
      */
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         *skipp = true;
+        return (0);
+    }
+
+    /* TBD. */
+    newest_ts = WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts);
+    if (!WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
+      __wt_txn_newest_visible_all(session, addr.ta.newest_txn, newest_ts)) {
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+          "%p: obsolete time window page read into the cache", (void *)ref);
         return (0);
     }
 
