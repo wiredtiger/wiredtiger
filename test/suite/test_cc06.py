@@ -45,12 +45,6 @@ class test_cc06(test_cc_base):
     ]
     scenarios = make_scenarios(format_values)
 
-    def get_stat(self, stat, uri = ""):
-        stat_cursor = self.session.open_cursor(f'statistics:{uri}')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def test_cc(self):
         uri = "table:cc06"
 

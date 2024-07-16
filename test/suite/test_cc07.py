@@ -81,7 +81,7 @@ class test_cc07(test_cc_base):
         else:
             self.assertEqual(btree_cc_stat, 0)
 
-        # Verify the btree and connection-level stat.
+        # Verify the connection-level stat.
         conn_cc_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
         if self.expected_cleanup:
             self.assertGreater(conn_cc_stat, 0)
