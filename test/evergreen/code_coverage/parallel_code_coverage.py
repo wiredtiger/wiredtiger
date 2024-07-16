@@ -50,7 +50,7 @@ def run_task_list(task_list_info):
         try:
             os.chdir(build_dir)
             split_command = task.split()
-            subprocess.run(split_command, check=True, env=env)
+            subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
         except subprocess.CalledProcessError as exception:
             logging.error(f'Command {exception.cmd} failed with error {exception.returncode}')
         end_time = datetime.now()

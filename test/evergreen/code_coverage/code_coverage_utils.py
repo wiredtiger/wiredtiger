@@ -96,7 +96,7 @@ def setup_build_dirs(build_dir_base, parallel, setup_task_list):
     if os.path.exists(base_build_dir):
         sys.exit('build directory exists within {}.'.format(base_build_dir))
     
-    logging.debug('Creating build directory {}.', base_build_dir)
+    logging.debug('Creating build directory {}.'.format(base_build_dir))
     os.mkdir(base_build_dir)
 
     for build_num in range(parallel):
@@ -106,6 +106,7 @@ def setup_build_dirs(build_dir_base, parallel, setup_task_list):
     logging.debug("Build dirs: {}".format(task_bucket_info))
 
     logging.debug("Compiling base build directory: {}".format(base_build_dir))
+    start_time = datetime.now()
     for task in setup_task_list:
         try:
             p = PushWorkingDirectory(base_build_dir)
@@ -114,7 +115,10 @@ def setup_build_dirs(build_dir_base, parallel, setup_task_list):
             p.pop()
         except subprocess.CalledProcessError as exception:
             logging.error(f'Command {exception.cmd} failed with error {exception.returncode}')
+    end_time = datetime.now()
+    diff = end_time - start_time
 
+    logging.debug("Finished setup and took {} seconds".format(diff.total_seconds()))
     # Copy compiled base build directory into the other build directores.
     logging.debug("Copying base build directory {} into the other build directories.".format(base_build_dir))
     for task_bucket in task_bucket_info[1:]:
