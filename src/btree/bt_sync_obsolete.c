@@ -456,11 +456,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
-    wt_timestamp_t newest_stop_durable_ts;
+    wt_timestamp_t newest_page_stop_durable_ts;
     size_t addr_size;
     bool logged;
 
-    newest_stop_durable_ts = WT_TS_NONE;
+    newest_page_stop_durable_ts = WT_TS_NONE;
     addr_size = 0;
     logged = false;
 
@@ -479,7 +479,8 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     while ((ret = __wt_config_next(&ckptconf, &key, &cval)) == 0) {
         ret = __wt_config_subgets(session, &cval, "newest_page_stop_durable_ts", &value);
         if (ret == 0)
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
+            newest_page_stop_durable_ts =
+              WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "addr", &value);
         if (ret == 0)
@@ -499,7 +500,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      *    timestamps are not in use, otherwise, the first condition will be satisfied.
      */
     if ((addr_size != 0) &&
-      (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
+      (newest_page_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
         return (true);
 
     return (false);
