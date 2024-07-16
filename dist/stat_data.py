@@ -412,6 +412,7 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
+    CheckpointStat('checkpoint_cleanup_obsolete_tw_pages_read', 'obsolete time window pages read into the cache during checkpoint cleanup tree walk'),
     CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
