@@ -386,8 +386,10 @@ __checkpoint_cleanup_page_skip(
      * Ignore the pages with no on-disk address. It is possible that a page with deleted state may
      * not have an on-disk address.
      */
-    if (!__wt_ref_addr_copy(session, ref, &addr))
+    if (!__wt_ref_addr_copy(session, ref, &addr)) {
+        *skipp = true;
         return (0);
+    }
 
     /*
      * The checkpoint cleanup fast deletes the obsolete leaf page by marking it as deleted
