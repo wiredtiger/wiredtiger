@@ -692,7 +692,6 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TIME_AGGREGATE newest_ta;
-    wt_timestamp_t max_durable_ts;
     uint32_t i;
     char time_string[WT_TIME_STRING_SIZE];
 
@@ -769,12 +768,11 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* If there is no transaction or timestamp information available, there is nothing to do. */
-    max_durable_ts = WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts);
-    if (newest_ta.newest_txn == WT_TXN_NONE && max_durable_ts == WT_TS_NONE)
+    if (newest_ta.newest_txn == WT_TXN_NONE && newest_ta.newest_durable_ts == WT_TS_NONE)
         return (0);
 
     /* Ensure the time window information has content that is globally visible. */
-    if (!__wt_txn_visible_all(session, newest_ta.newest_txn, max_durable_ts))
+    if (!__wt_txn_visible_all(session, newest_ta.newest_txn, newest_ta.newest_durable_ts))
         return (0);
 
     /* Mark the page dirty to remove any obsolete information during reconciliation. */
