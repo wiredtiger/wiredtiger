@@ -619,7 +619,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L check -j ${num_jobs} ${extra_args} --output-on-failure ${extra_args|} 2>&1
+        $CTEST -L check -j ${num_jobs} --output-on-failure ${extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
@@ -841,7 +841,7 @@ functions:
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
-      local_files_include_filter: ${coverage_dir|wiredtiger/coverage_report}/*
+      local_files_include_filter: wiredtiger/coverage_report/*
       bucket: build_external
       permissions: public-read
       content_type: text/html
@@ -853,7 +853,7 @@ functions:
     params:
       aws_secret: ${aws_secret}
       aws_key: ${aws_key}
-      local_file: ${coverage_dir|wiredtiger/coverage_report}/2_coverage_report.html
+      local_file: wiredtiger/coverage_report/2_coverage_report.html
       bucket: build_external
       permissions: public-read
       content_type: text/html
@@ -3036,12 +3036,12 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
+            # Remove all build directories before uploading the artifacts.
             rm -rf build_*
       - func: "upload artifact"
         vars:
-          upload_source_dir: "wiredtiger"
+          upload_source_dir: "wiredtiger/coverage_report"
           upload_filename: coverage-report-python.tgz
-      - func: "cleanup"
       
 
   - name: coverage-report-csuite
@@ -3062,12 +3062,12 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
+            # Remove all build directories before uploading the artifacts.
             rm -rf build_*
       - func: "upload artifact"
         vars:
-          upload_source_dir: "wiredtiger"
+          upload_source_dir: "wiredtiger/coverage_report"
           upload_filename: coverage-report-csuite.tgz
-      - func: "cleanup"
   
   - name: generate-coverage-report
     tags: ["pull_request_code_statistics"]
@@ -3086,8 +3086,8 @@ tasks:
           destination: wiredtiger/coverage_report_csuite
       - func: "code coverage analysis"
         vars:
-          first_coverage_file_path: coverage_report_csuite/coverage_report/full_coverage_report.json
-          second_coverage_file_path: coverage_report_python/coverage_report/full_coverage_report.json
+          first_coverage_file_path: coverage_report_csuite/full_coverage_report.json
+          second_coverage_file_path: coverage_report_python/full_coverage_report.json
           combine_coverage_report: true
           generate_atlas_format: true
           working_dir: "wiredtiger"      
@@ -3120,6 +3120,7 @@ tasks:
               test/evergreen/code_coverage/coverage-report-per-test.sh false ${num_jobs|1}
             fi
       - func: "code coverage publish report"
+
   - name: coverage-report-catch2
     # This task measures code coverage achieved by only the Catch2-based unit tests.
     tags: ["pull_request_code_statistics"]
@@ -3211,6 +3212,7 @@ tasks:
               pr_args+="--github_pr_number ${github_pr_number} "
               pr_args+="--github_token ${github_app_token} "
             fi
+
             ######################################################
             # Obtain the complexity metrics for the 'current' code
             ######################################################
