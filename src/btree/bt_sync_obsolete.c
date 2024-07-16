@@ -398,6 +398,7 @@ __checkpoint_cleanup_page_skip(
       __wt_txn_newest_visible_all(session, addr.ta.newest_txn, newest_ts)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: obsolete time window page read into the cache", (void *)ref);
+        WT_STAT_CONN_INCR(session, checkpoint_cleanup_obsolete_tw_pages_read);
         return (0);
     }
 
