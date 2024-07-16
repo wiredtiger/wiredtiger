@@ -99,9 +99,9 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         }
 
         /*
-         * Clear the history store flags for the stable update to indicate that this update should be
-         * written to the history store later. The next time when this update is moved into the history
-         * store, it will have a different stop time point.
+         * Clear the history store flags for the stable update to indicate that this update should
+         * be written to the history store later. The next time when this update is moved into the
+         * history store, it will have a different stop time point.
          */
         if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS)) {
             /* Find the update following a stable tombstone. */
