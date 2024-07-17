@@ -680,12 +680,10 @@ static int
 __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const char *config)
 {
     WT_CONFIG kcols, pkcols;
-    WT_CONFIG_ITEM ckey, cval, icols, kval;
-    WT_DECL_PACK_VALUE(pv);
+    WT_CONFIG_ITEM ckey, cval, icols;
     WT_DECL_RET;
     WT_INDEX *idx;
     WT_ITEM confbuf, extra_cols, fmt, namebuf;
-    WT_PACK pack;
     WT_TABLE *table;
     size_t tlen;
     u_int i, npublic_cols;
@@ -693,7 +691,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     const char *cfg[4] = {WT_CONFIG_BASE(session, index_meta), NULL, NULL, NULL};
     const char *idxname, *source, *sourceconf, *tablename;
     const char *sourcecfg[] = {config, NULL, NULL};
-    bool exists, have_extractor;
+    bool exists;
 
     sourceconf = NULL;
     idxconf = origconf = NULL;
@@ -701,7 +699,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     WT_CLEAR(fmt);
     WT_CLEAR(extra_cols);
     WT_CLEAR(namebuf);
-    exists = have_extractor = false;
+    exists = false;
 
     tablename = name;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "index:");
@@ -753,20 +751,9 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         WT_ERR(__wt_buf_catfmt(session, &confbuf, ",source=\"%s\"", source));
     }
 
-    if (__wt_config_getones_none(session, config, "extractor", &cval) == 0 && cval.len != 0) {
-        have_extractor = true;
-        /*
-         * Custom extractors must supply a key format; convert not-found errors to EINVAL for the
-         * application.
-         */
-        if ((ret = __wt_config_getones(session, config, "key_format", &kval)) != 0)
-            WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : 0,
-              "%s: custom extractors require a key_format", name);
-    }
-
     /* Calculate the key/value formats. */
     WT_CLEAR(icols);
-    if (__wt_config_getones(session, config, "columns", &icols) != 0 && !have_extractor)
+    if (__wt_config_getones(session, config, "columns", &icols) != 0)
         WT_ERR_MSG(session, EINVAL, "%s: requires 'columns' configuration", name);
 
     /*
@@ -774,17 +761,10 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
      * custom extractors.
      */
     npublic_cols = 0;
-    if (!have_extractor) {
-        __wt_config_subinit(session, &kcols, &icols);
-        while ((ret = __wt_config_next(&kcols, &ckey, &cval)) == 0)
-            ++npublic_cols;
-        WT_ERR_NOTFOUND_OK(ret, false);
-    } else {
-        WT_ERR(__pack_initn(session, &pack, kval.str, kval.len));
-        while ((ret = __pack_next(&pack, &pv)) == 0)
-            ++npublic_cols;
-        WT_ERR_NOTFOUND_OK(ret, false);
-    }
+    __wt_config_subinit(session, &kcols, &icols);
+    while ((ret = __wt_config_next(&kcols, &ckey, &cval)) == 0)
+        ++npublic_cols;
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
      * The key format for an index is somewhat subtle: the application specifies a set of columns
@@ -798,23 +778,14 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
-        if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0) {
-            if (have_extractor)
-                WT_ERR_MSG(session, EINVAL,
-                  "an index with a custom extractor may not include primary key columns");
+        if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0)
             continue;
-        }
         WT_ERR(__wt_buf_catfmt(session, &extra_cols, "%.*s,", (int)ckey.len, ckey.str));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Index values are empty: all columns are packed into the index key. */
     WT_ERR(__wt_buf_fmt(session, &fmt, "value_format=,key_format="));
-
-    if (have_extractor) {
-        WT_ERR(__wt_buf_catfmt(session, &fmt, "%.*s", (int)kval.len, kval.str));
-        WT_CLEAR(icols);
-    }
 
     /*
      * Construct the index key format, or append the primary key columns for custom extractors.

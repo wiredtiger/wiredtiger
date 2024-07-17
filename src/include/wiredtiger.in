@@ -1218,8 +1218,6 @@ struct __wt_session {
      * @config{exclusive, fail if the object exists.  When false (the default)\, if the object
      * exists\, check that its settings match the specified configuration., a boolean flag; default
      * \c false.}
-     * @config{extractor, configure a custom extractor for indices.  Permitted values are \c "none"
-     * or an extractor name created with WT_CONNECTION::add_extractor., a string; default \c none.}
      * @config{format, the file format., a string\, chosen from the following options: \c "btree";
      * default \c btree.}
      * @config{ignore_in_memory_cache_size, allow update and insert operations to proceed even if
