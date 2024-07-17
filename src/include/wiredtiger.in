@@ -6012,7 +6012,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_CONSIDER_PREFETCH	1204
 /*! cache: pages currently held in the cache */
 #define	WT_STAT_CONN_CACHE_PAGES_INUSE			1205
-/*! cache: pages dirtied due to obsolete time window */
+/*! cache: pages dirtied due to obsolete time window by eviction */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_OBSOLETE_TW	1206
 /*! cache: pages evicted in parallel with checkpoint */
 #define	WT_STAT_CONN_CACHE_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT	1207
@@ -6201,8 +6201,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: pages added for eviction during checkpoint cleanup */
 #define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_EVICT	1287
 /*!
- * checkpoint: pages marked dirty due to obsolete time window during
- * checkpoint cleanup
+ * checkpoint: pages dirtied due to obsolete time window by checkpoint
+ * cleanup
  */
 #define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	1288
 /*! checkpoint: pages removed during checkpoint cleanup */
@@ -7537,7 +7537,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2110
 /*! cache: page written requiring history store records */
 #define	WT_STAT_DSRC_CACHE_WRITE_HS			2111
-/*! cache: pages dirtied due to obsolete time window */
+/*! cache: pages dirtied due to obsolete time window by eviction */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2112
 /*! cache: pages read into cache */
 #define	WT_STAT_DSRC_CACHE_READ				2113
@@ -7690,8 +7690,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! checkpoint: pages added for eviction during checkpoint cleanup */
 #define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_EVICT	2152
 /*!
- * checkpoint: pages marked dirty due to obsolete time window during
- * checkpoint cleanup
+ * checkpoint: pages dirtied due to obsolete time window by checkpoint
+ * cleanup
  */
 #define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	2153
 /*! checkpoint: pages removed during checkpoint cleanup */
