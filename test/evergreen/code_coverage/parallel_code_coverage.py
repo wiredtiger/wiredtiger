@@ -42,10 +42,15 @@ def run_task_list(task_list_info):
     list_start_time = datetime.now()
 
     env = os.environ.copy()
+    # GCOV doesn't like it that we have copied the base build directory to construct the other
+    # build directories. GCOV supports cross profiling for reference:
+    # https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
+    # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away from the
+    # absolute path, and the GCOV_PREFIX prepends the directory path.
     env["GCOV_PREFIX_STRIP"] = "4"
     for task in task_list:
         logging.debug("Running task {} in {}".format(task, build_dir))
-        env["GCOV_PREFIX_STRIP"] = build_dir
+        env["GCOV_PREFIX"] = build_dir
         start_time = datetime.now()
         try:
             os.chdir(build_dir)
@@ -74,7 +79,8 @@ def main():
     parser.add_argument('-s', '--setup', action="store_true",
                         help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
-    parser.add_argument('-p', '--python', action="store_true", help='Base name for the build directories')
+    parser.add_argument('-p', '--python', action="store_true", help='Run on only python tests in code coverage')
+    parser.add_argument('-o', '--other', action="store_true", help='Run any other tests that are not python in code coverage')
     args = parser.parse_args()
 
     verbose = args.verbose
@@ -83,6 +89,7 @@ def main():
     build_dir_base = args.build_dir_base
     parallel_tests = args.parallel
     python = args.python
+    other = args.other
     setup = args.setup
 
     logging.debug('Code Coverage')
@@ -121,12 +128,15 @@ def main():
     # Prepare to run the tasks in the list
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
+        # We currently have two machines that runs a subset of tests to reduce code coverage time.
+        # To do this we divide the tests into two buckets into either only python tests or
+        # non-python tests. If python is set, only include python tests in the task list.
         res = re.search("python", test)
-        if (res and not python):
+        if (not res and python):
             continue
-        elif (not res and python):
+        # Else if other is set, only include non-python tests in the task lsit.
+        elif (res and other):
             continue
-
         build_dir_number = test_num % parallel_tests
         logging.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
         task_bucket_info[build_dir_number]['task_bucket'].append(test)

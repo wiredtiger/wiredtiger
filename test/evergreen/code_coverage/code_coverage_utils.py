@@ -56,7 +56,7 @@ def run_task_lists_in_parallel(label, task_bucket_info, run_func):
     task_diff = task_end_time - task_start_time
     logging.debug("Time taken to perform {}: {} seconds".format(label, task_diff.total_seconds()))
 
-# Check the relevant build directories exist and have the correct status  if we are not setting up
+# Check the relevant build directories exist and have the correct status if we are not setting up
 def check_build_dirs(build_dir_base, parallel):
     task_bucket_info = list()
 

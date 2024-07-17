@@ -86,7 +86,7 @@ buildvariants:
   tasks:
     - name: coverage-report-python
       distros: ubuntu2004-arm64-large
-    - name: coverage-report-csuite
+    - name: coverage-report-other
       distros: ubuntu2004-arm64-large
     - name: coverage-report-per-test
       distros: ubuntu2004-arm64-large
