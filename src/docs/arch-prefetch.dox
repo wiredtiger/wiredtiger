@@ -26,13 +26,12 @@ Pre-fetch looks for potential candidate pages in two places: (1) while walking t
 B-tree (\c __tree_walk_internal) and (2) when verifying a tree (\c __verify_tree).
 The \c __wt_session_prefetch_check function contains a few checks to decide if
 pre-fetching should be performed for a given \c ref. Pre-fetching does not operate
-on internal pages, and should not be performed until we have triggered more than
-one leaf page read from sequential read requests. Pre-fetching is also disabled for
+on internal pages, and should not be performed until we have triggered at least two leaf page reads from sequential read requests. Pre-fetching is also disabled for
 tiered tables, and special operations with the exception of verify.
 
 @subsection prefetch_algorithm_populate_queue Populating the Pre-fetch Queue
 The pre-fetch queue is a first-in-first-out (FIFO) data structure containing the
-page references of potential candidates the system has identified for pre-fetching.
+page references of potential pre-fetch candidates.
 The \c __wti_btree_prefetch function is responsible for pushing candidate pages
 onto the queue. Given a \c ref, it will queue the next set of pages if they are leaf
 pages, not already in the cache, and not already on the pre-fetch queue. To prevent
@@ -73,7 +72,7 @@ being read into the cache. It is important to consider how pre-fetch impacts cac
 utilization as it may leave the cache in a state that increases operational latency.
 Pre-fetch stops adding page references to the queue as soon as it detects that we are
 close to hitting the eviction clean trigger. It will also skip processing page
-references that are already on the queue until space in the cache clears up.
+references that are being retrieved from the queue until space in the cache clears up.
 
 @subsection prefetch_other_refs Ensuring references on the pre-fetch queue remain valid
 Page references on the pre-fetch queue may become invalid if other operations
