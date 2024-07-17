@@ -56,6 +56,12 @@ def run_coverage_task_list(task_list_info):
     list_start_time = datetime.now()
 
     env = os.environ.copy()
+    # GCOV doesn't like it that we have copied the base build directory to construct the other
+    # build directories. GCOV supports cross profiling for reference:
+    # https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
+    # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away 
+    # from the absolute path, and the GCOV_PREFIX prepends the directory path. In this case,
+    # we are stripping away /data/mci/wiredtiger/build and then applying the correct build path.
     env["GCOV_PREFIX_STRIP"] = "4"
     for index in range(len(task_list)):
         task = task_list[index]
