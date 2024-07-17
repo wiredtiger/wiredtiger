@@ -56,6 +56,9 @@ class test_cc07(test_cc_base):
         c.close()
 
     def test_cc07(self):
+        if self.runningHook('tiered'):
+            self.skipTest("checkpoint cleanup cannot remove obsolete pages from tiered tables")
+
         create_params = 'key_format=i,value_format=S'
         nrows = 1000
         uri = 'table:cc07'
