@@ -124,6 +124,7 @@ NoSQL
 OPTYPE
 PMU
 PPC
+PREFETCH
 PRELOAD
 PROFDATA
 Powershell
@@ -335,6 +336,7 @@ dup
 dups
 ebusy
 ejnprx
+emptively
 encrypt
 encryptor
 encryptor's
@@ -584,6 +586,7 @@ posix
 ppc
 pre
 prealloc
+prefetch
 prepended
 prepends
 presumptively
