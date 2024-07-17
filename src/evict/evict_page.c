@@ -585,11 +585,9 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Pages that the application threads are evicting should not be included. Reconciliation must
-     * be performed when converting a clean page to a dirty page, which can increase latency. This
-     * check is bypassed if the session is configured with a debug option to evict the page when it
-     * is released and no longer needed.
+     * be performed when converting a clean page to a dirty page, which can increase latency.
      */
-    if (!F_ISSET(session, WT_SESSION_EVICTION) && !F_ISSET(session, WT_SESSION_DEBUG_RELEASE_EVICT))
+    if (!F_ISSET(session, WT_SESSION_EVICTION))
         return (0);
 
     /* Do not perform any obsolete time window cleanup during the startup or shutdown phase. */
