@@ -74,7 +74,6 @@ class test_cc07(test_cc_base):
             self.session.checkpoint()
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
-        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
 
         # Retrieve the number of pages we have cleaned up so far.
