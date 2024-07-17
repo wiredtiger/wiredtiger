@@ -304,7 +304,7 @@ The cloud storage source extension which manage the flushing of the data files t
 
 @subpage arch-prefetch
 
-Pre-fetch is a performance optimization that aims to reduce I/O cost by reading pages from disk
+Pre-fetch is a performance optimization that aims to reduce I/O latency by reading pages from disk
 into memory before they are required by the application.
 
 @subpage arch-tiered-storage
