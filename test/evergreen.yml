@@ -804,9 +804,9 @@ functions:
         mkdir -p coverage_report
         output_flags="--html-self-contained --html-details coverage_report/2_coverage_report.html --json-summary-pretty --json-summary coverage_report/1_coverage_report_summary.json --json coverage_report/full_coverage_report.json"
         if [ ! -z ${combine_coverage_report} ]; then
-          gcovr -f ${coverage_filter|src} --add-tracefile ${first_coverage_file_path} --add-tracefile ${second_coverage_file_path} -j ${num_jobs|4} ${output_flags}
+          gcovr -f ${coverage_filter|src} --add-tracefile ${first_coverage_file_path} --add-tracefile ${second_coverage_file_path} -j ${num_jobs|4} $output_flags
         else
-          gcovr -f ${coverage_filter|src} -j ${num_jobs|4} ${output_flags}
+          gcovr -f ${coverage_filter|src} -j ${num_jobs|4} $output_flags
           ${python_binary|python3} test/evergreen/code_coverage_analysis.py -s coverage_report/1_coverage_report_summary.json -t time.txt
         fi
 
