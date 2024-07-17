@@ -465,6 +465,8 @@ index_only_config = [
 
 colgroup_meta = common_meta + source_meta
 
+index_meta = format_meta + source_meta + index_only_config
+
 table_meta = format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
@@ -1368,6 +1370,8 @@ methods = {
 'file.config' : Method(file_config),
 
 'file.meta' : Method(file_meta),
+
+'index.meta' : Method(index_meta),
 
 'lsm.meta' : Method(lsm_meta),
 
