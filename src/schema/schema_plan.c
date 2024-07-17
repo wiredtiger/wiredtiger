@@ -229,7 +229,7 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns,
             current_col = col + 1;
         }
     }
-    WT_RET(ret);
+    WT_RET_TEST(ret != WT_NOTFOUND, ret);
 
     /* Special case empty plans. */
     if (i == 0 && plan->size == 0)
