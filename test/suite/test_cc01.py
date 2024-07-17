@@ -38,6 +38,12 @@ from wiredtiger import stat
 # Shared base class used by cc tests.
 class test_cc_base(wttest.WiredTigerTestCase):
 
+    def get_stat(self, stat, uri = ""):
+        stat_cursor = self.session.open_cursor(f'statistics:{uri}')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
+
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
