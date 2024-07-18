@@ -34,7 +34,9 @@ errors = [
         This error is generated when an operation cannot be completed
         due to a conflict with concurrent operations.  The operation
         may be retried; if a transaction is in progress, it should be
-        rolled back and the operation retried in a new transaction.'''),
+        rolled back and the operation retried in a new transaction.
+        WiredTiger reserves the right to return WT_ROLLBACk from any
+        cursor API call.'''),
     Error('WT_DUPLICATE_KEY', -31801,
         'attempt to insert an existing key', '''
         This error is generated when the application attempts to insert
