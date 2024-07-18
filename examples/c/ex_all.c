@@ -1295,15 +1295,6 @@ main(int argc, char *argv[])
     error_check(conn->close(conn, NULL));
 
     /*
-     * Don't run this code, statistics logging doesn't yet support indexes.
-     */
-    /*! [Statistics logging with a source type] */
-    error_check(
-      wiredtiger_open(home, NULL, "create, statistics_log=(sources=(\"index:\"), wait=5)", &conn));
-    /*! [Statistics logging with a source type] */
-    error_check(conn->close(conn, NULL));
-
-    /*
      * Don't run this code, because memory checkers get very upset when we leak memory.
      */
     error_check(wiredtiger_open(home, NULL, "create", &conn));

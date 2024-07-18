@@ -84,23 +84,6 @@ main(int argc, char *argv[])
     error_check(session->create(session, "colgroup:poptable:population", "columns=(population)"));
     /*! [Create a table with column groups] */
 
-    /*! [Create an index] */
-    /* Create an index with a simple key. */
-    error_check(session->create(session, "index:poptable:country", "columns=(country)"));
-    /*! [Create an index] */
-
-    /*! [Create an index with a composite key] */
-    /* Create an index with a composite key (country,year). */
-    error_check(
-      session->create(session, "index:poptable:country_plus_year", "columns=(country,year)"));
-    /*! [Create an index with a composite key] */
-
-    /*! [Create an immutable index] */
-    /* Create an immutable index. */
-    error_check(
-      session->create(session, "index:poptable:immutable_year", "columns=(year),immutable"));
-    /*! [Create an immutable index] */
-
     /* Insert the records into the table. */
     error_check(session->open_cursor(session, "table:poptable", NULL, "append", &cursor));
     for (p = pop_data; p->year != 0; p++) {
@@ -176,28 +159,6 @@ main(int argc, char *argv[])
     error_check(cursor->get_value(cursor, &population));
     printf("ID 2: population %" PRIu64 "\n", population);
     /*! [Read population from the standalone column group] */
-    error_check(cursor->close(cursor));
-
-    /*! [Search in a simple index] */
-    /* Search in a simple index. */
-    error_check(session->open_cursor(session, "index:poptable:country", NULL, NULL, &cursor));
-    cursor->set_key(cursor, "AU\0\0\0");
-    error_check(cursor->search(cursor));
-    error_check(cursor->get_value(cursor, &country, &year, &population));
-    printf("AU: country %s, year %" PRIu16 ", population %" PRIu64 "\n", country, year, population);
-    /*! [Search in a simple index] */
-    error_check(cursor->close(cursor));
-
-    /*! [Search in a composite index] */
-    /* Search in a composite index. */
-    error_check(
-      session->open_cursor(session, "index:poptable:country_plus_year", NULL, NULL, &cursor));
-    cursor->set_key(cursor, "USA\0\0", (uint16_t)1900);
-    error_check(cursor->search(cursor));
-    error_check(cursor->get_value(cursor, &country, &year, &population));
-    printf(
-      "US 1900: country %s, year %" PRIu16 ", population %" PRIu64 "\n", country, year, population);
-    /*! [Search in a composite index] */
     error_check(cursor->close(cursor));
 
     error_check(conn->close(conn, NULL));

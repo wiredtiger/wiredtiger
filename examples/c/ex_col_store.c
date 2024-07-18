@@ -313,21 +313,6 @@ average_data(WT_SESSION *session, char *country_average)
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
 
-    /* Open a cursor to search for the location. */
-    error_check(session->open_cursor(session, "index:weather:country", NULL, NULL, &loc_cursor));
-    loc_cursor->set_key(loc_cursor, country_average);
-    ret = loc_cursor->search(loc_cursor);
-
-    /*
-     *  Error handling in the case RUS is not found. In this case as it's a hardcoded location,
-     *  if there aren't any matching locations, no average data is obtained and we proceed with the
-     *  test instead of aborting. If an unexpected error occurs, exit.
-     */
-    if (ret == WT_NOTFOUND)
-        return;
-    else if (ret != 0)
-        exit(EXIT_FAILURE);
-
     /* Populate the array with the totals of each of the columns. */
     count = 0;
     memset(rec_arr, 0, sizeof(rec_arr));
@@ -428,10 +413,6 @@ main(int argc, char *argv[])
 
     /* Prints all the data in the database. */
     print_all_columns(session);
-
-    /* Create indexes for searching */
-    error_check(session->create(session, "index:weather:hour", "columns=(hour)"));
-    error_check(session->create(session, "index:weather:country", "columns=(country)"));
 
     /*
      * Start and end points for time range for finding min/max temperature, in 24 hour format.
