@@ -10,7 +10,7 @@ echo "Check for Python dependencies without specified versions:"
 
 unspecified_dependency=false
 
-pip_installs=$(grep -E 'pip(3)? install' "test/evergreen.yml")
+pip_installs=$(grep -E 'pip3? install' "test/evergreen.yml")
 
 while IFS= read -r line; do
     for word in $line; do
