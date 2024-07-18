@@ -270,7 +270,7 @@ functions:
           SYSPY=${python_binary}
           $SYSPY -mvenv venv
           source venv/bin/activate
-          pip3 install find_libpython
+          pip3 install find_libpython==0.4.0
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
@@ -464,9 +464,9 @@ functions:
 
           virtualenv -p python3 venv
           source venv/bin/activate
-          pip3 install boto3
-          pip3 install azure-storage-blob
-          pip3 install google-cloud-storage
+          pip3 install boto3==1.34.144
+          pip3 install azure-storage-blob==12.20.0
+          pip3 install google-cloud-storage==2.17.0
 
           # Run Python testing for all tiered tests.
           python3 ../test/suite/run.py ${ignore_stdout} -j $(nproc) ${tiered_storage_test_name}
@@ -587,7 +587,7 @@ functions:
           ${PREPARE_PATH}
           virtualenv -p python3 venv
           source venv/bin/activate
-          python -m pip install PyGithub
+          python -m pip install PyGithub==2.3.0
           export GITHUB_OWNER="wiredtiger"
           export GITHUB_REPO="wiredtiger.github.com"
           export GITHUB_APP_ID="${doc_update_github_app_id}"
@@ -3135,7 +3135,7 @@ tasks:
             ${PREPARE_PATH}
             virtualenv -p ${python_binary|python3} venv
             source venv/bin/activate
-            pip3 install pygit2==1.10.1 requests
+            pip3 install pygit2==1.10.1 requests==3.32.3
 
             EXTRA_CODE_CHANGE_PARAMETERS=''
 
@@ -4152,7 +4152,7 @@ tasks:
             virtualenv -p python3 venv
             source venv/bin/activate
             # Need both pymongo and pymongo[srv] as upload-results-atlas.py uses mongo+srv for the URI.
-            pip3 install lorem pymongo==3.12.2 "pymongo[srv]==3.12.2"
+            pip3 install lorem==0.1.1 pymongo==3.12.2 "pymongo[srv]==3.12.2"
             mongod_path=$(find ../../mongo/build -executable -type f -path \*/bin/mongod)
             ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
       - func: "convert-to-atlas-evergreen-format"
@@ -4217,7 +4217,7 @@ tasks:
             # Generate the code complexity statistics that is compatible with Atlas.
             virtualenv -p python3 venv
             source venv/bin/activate
-            pip3 install pandas
+            pip3 install pandas==2.2.2
 
             python3 ../test/evergreen/code_complexity_analysis.py -s ../code_statistics_report/code_complexity_summary.json -d ../code_statistics_report/metrixpp.csv -o ../code_statistics_report/atlas_out_code_complexity.json
       - func: "upload stats to atlas"

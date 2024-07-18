@@ -16,6 +16,31 @@ test -s $t && {
     cat $t
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+    echo "Check for Python dependencies without specified versions:"
+
+    unspecified_dependency=false
+
+    pip_installs=$(grep -E 'pip(3)? install' "test/evergreen.yml")
+
+    while IFS= read -r line; do
+        for word in $line; do
+            if [[ "$word" =~ ^pip(3)?$ || "$word" == "install" || "$word" =~ ^python(3)?$ || "$word" =~ -.* ]]; then
+                continue
+            fi
+            if [[ ! "$word" =~ .*==.* ]]; then
+                unspecified_dependency=true
+                echo "Version not specified for Python dependency $word in line: $line"
+                # exit 0
+            fi
+        done
+    done <<< "$pip_installs"
+
+    if ! $unspecified_dependency; then
+        echo "All Python dependencies have specified versions."
+    fi
+
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
     # Don't exit non-zero unless the python script did, the script
     # requires python modules that are commonly not installed, and
     # in that case it exits 0. Post the complaint, but don't fail.
