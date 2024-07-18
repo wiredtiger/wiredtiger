@@ -30,7 +30,7 @@ test -s $t && {
             if [[ ! "$word" =~ .*==.* ]]; then
                 unspecified_dependency=true
                 echo "Version not specified for Python dependency $word in line: $line"
-                # exit 0
+                exit 1
             fi
         done
     done <<< "$pip_installs"
