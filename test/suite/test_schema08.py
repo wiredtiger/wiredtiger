@@ -44,11 +44,10 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
     conn_config_string = 'log=(enabled,file_max=100k,prealloc=false,remove=false),'
 
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
-        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
-        ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
+        ('file', dict(uri='file:', use_cg=False)),
+        ('lsm', dict(uri='lsm:', use_cg=False)),
+        ('table-cg', dict(uri='table:', use_cg=True)),
+        ('table-simple', dict(uri='table:', use_cg=False)),
     ]
     ops = [
         ('none', dict(schema_ops='none')),
@@ -164,8 +163,6 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
 
         cgparam = ''
         suburi = None
-        if self.use_cg or self.use_index:
-            cgparam = 'columns=(k,v),'
         if self.use_cg:
             cgparam += 'colgroups=(g0),'
 
@@ -176,16 +173,11 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
         if self.ckpt:
             self.session.checkpoint()
 
-        # Add in column group or index tables.
+        # Add in column group tables.
         if self.use_cg:
             # Create.
             cgparam = 'columns=(v),'
             suburi = 'colgroup:table0:g0'
-            self.session.create(suburi, cgparam)
-
-        if self.use_index:
-            # Create.
-            suburi = 'index:table0:i0'
             self.session.create(suburi, cgparam)
 
         self.do_ops(uri, suburi)

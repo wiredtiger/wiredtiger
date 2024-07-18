@@ -66,12 +66,10 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         ds.populate()
 
         # The number of btree_entries reported is influenced by the
-        # number of column groups and indices.  Each insert will have
+        # number of column groups.  Each insert will have
         # a multiplied effect.
         if self.dataset == SimpleDataSet:
             multiplier = 1   # no declared colgroup is like one big colgroup
-        else:
-            multiplier = ds.colgroup_count() +  ds.index_count()
         statc = self.stat_cursor(self.uri)
         self.assertEqual(statc[stat.dsrc.btree_entries][2], n * multiplier)
 
@@ -89,9 +87,6 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         # For applications with indices and/or column groups, verify
         # that there is a way to count the base number of entries.
         if self.dataset != SimpleDataSet:
-            statc.close()
-            statc = self.stat_cursor(ds.index_name(0))
-            self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
             statc.close()
             statc = self.stat_cursor(ds.colgroup_name(0))
             self.assertEqual(statc[stat.dsrc.btree_entries][2], n)

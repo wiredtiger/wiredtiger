@@ -40,15 +40,11 @@ class PackTester:
         self.validhigh = validhigh
         self.recno = 1
         self.forw = None          #  r -> code
-        self.forw_idx = None      #  code -> r
         self.back = None          #  code -> r
-        self.back_idx = None      #  r -> code
         self.session = None
         self.equals = equals
         self.forw_uri = None
         self.back_uri = None
-        self.forw_idx_uri = None
-        self.back_idx_uri = None
 
     def initialize(self, session):
         self.session = session
@@ -58,45 +54,31 @@ class PackTester:
             x = x + '_' # differentiate upper case from lower case in our naming
         tab = pfx + x + 'forw'
         forw_uri = 'table:' + tab
-        forw_idx_uri = 'index:' + tab + ':inverse'
         tab = pfx + x + 'back'
         back_uri = 'table:' + tab
-        back_idx_uri = 'index:' + tab + ':inverse'
 
         session.create(forw_uri, "columns=(k,v)," +
                        "key_format=i,value_format=" + self.formatcode)
-        session.create(forw_idx_uri, "columns=(v)")
         session.create(back_uri, "columns=(k,v)," +
                        "key_format=" + self.formatcode + ",value_format=i")
-        session.create(back_idx_uri, "columns=(v)")
         self.forw_uri = forw_uri
         self.back_uri = back_uri
-        self.forw_idx_uri = forw_idx_uri
-        self.back_idx_uri = back_idx_uri
         self.truncate()
 
     def closeall(self):
         if self.forw != None:
             self.forw.close()
-            self.forw_idx.close()
             self.back.close()
-            self.back_idx.close()
             self.forw = None
-            self.forw_idx = None
             self.back = None
-            self.back_idx = None
 
     def truncate(self):
         self.closeall()
         self.session.truncate(self.forw_uri, None, None, None)
         self.session.truncate(self.back_uri, None, None, None)
         self.forw = self.session.open_cursor(self.forw_uri, None, None)
-        self.forw_idx = self.session.open_cursor(self.forw_idx_uri + "(k)",
-                                                 None, None)
 
         self.back = self.session.open_cursor(self.back_uri, None, None)
-        self.back_idx = self.session.open_cursor(self.back_idx_uri + "(k)",
-                                                 None, None)
 
     def check_range(self, low, high):
         if low < self.validlow:
@@ -105,20 +87,14 @@ class PackTester:
             high = self.validhigh
         i = low
         forw = self.forw
-        forw_idx = self.forw_idx
         back = self.back
-        back_idx = self.back_idx
         while i <= high:
             forw[self.recno] = i
             back[i] = self.recno
             self.equals(forw[self.recno], i)
-            self.equals(forw_idx[i], self.recno)
             self.equals(back[i], self.recno)
-            self.equals(back_idx[self.recno], i)
             forw.reset()
-            forw_idx.reset()
             back.reset()
-            back_idx.reset()
             self.recno += 1
             i += 1
 

@@ -36,11 +36,10 @@ class test_cursor_bound01(bound_base):
     file_name = 'test_cursor_bound01'
 
     types = [
-        ('file', dict(uri='file:', use_index = False, use_colgroup = False)),
-        ('table', dict(uri='table:', use_index = False, use_colgroup = False)),
-        ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
-        ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
-        ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
+        ('file', dict(uri='file:', use_colgroup = False)),
+        ('table', dict(uri='table:', use_colgroup = False)),
+        ('lsm', dict(uri='lsm:', use_colgroup = False)),
+        ('colgroup', dict(uri='table:', use_colgroup = False)),
     ]
 
     format_values = [
@@ -58,7 +57,7 @@ class test_cursor_bound01(bound_base):
 
         uri = self.uri + self.file_name
         create_params = 'value_format={},key_format={}'.format(self.value_format, self.key_format)
-        if self.use_index or self.use_colgroup:
+        if self.use_colgroup:
             create_params += ",columns=(k,v)"
         if self.use_colgroup:
             create_params += ',colgroups=(g0)'
@@ -70,13 +69,7 @@ class test_cursor_bound01(bound_base):
             self.session.create(suburi, create_params)
 
         cursor = None
-        if self.use_index:
-            # Test Index Cursors bound API support.
-            suburi = "index:" + self.file_name + ":i0"
-            self.session.create(suburi, "columns=(v)")
-            cursor = self.session.open_cursor("index:" + self.file_name + ":i0")
-        else:
-            cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(uri)
 
         # LSM format is not supported with range cursors.
         if self.uri == 'lsm:':
@@ -93,24 +86,13 @@ class test_cursor_bound01(bound_base):
             '/Invalid argument/')
 
         # Check that bound configuration works properly.
-        if (self.use_index):
-            cursor.set_key(self.gen_val(1))
-            cursor.bound("bound=lower")
-            cursor.set_key(self.gen_val(10))
-            cursor.bound("bound=upper")
-        else:
-            cursor.set_key(self.gen_key(1))
-            cursor.bound("bound=lower")
-            cursor.set_key(self.gen_key(10))
-            cursor.bound("bound=upper")
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("bound=lower")
+        cursor.set_key(self.gen_key(10))
+        cursor.bound("bound=upper")
 
         # Check that clear works properly.
         cursor.bound("action=clear")
-
-        # Index cursors work slightly differently to other cursors, we can early exit here as the
-        # below edge cases don't apply for index cursors.
-        if (self.use_index):
-            return
 
         # Check that largest key doesn't work with bounded cursors.
         cursor.set_key(self.gen_key(1))

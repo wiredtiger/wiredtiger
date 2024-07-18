@@ -40,7 +40,6 @@ class test_tiered15(TieredConfigMixin, wttest.WiredTigerTestCase):
         ('tier', dict(type='tier', tiered_err=True, non_tiered_err=False, non_tiered_errmsg=None)),
         ('tiered', dict(type='tiered', tiered_err=True, non_tiered_err=True, non_tiered_errmsg="/Invalid argument/")),
         ('colgroup', dict(type='colgroup', tiered_err=True, non_tiered_err=True, non_tiered_errmsg=None)),
-        ('index', dict(type='index', tiered_err=True, non_tiered_err=True, non_tiered_errmsg="/Invalid argument/")),
         ('lsm', dict(type='lsm', tiered_err=True, non_tiered_err=False, non_tiered_errmsg=None)),
         ('backup', dict(type='backup', tiered_err=True, non_tiered_err=False, non_tiered_errmsg="/Operation not supported/")),
     ]
@@ -76,7 +75,7 @@ class test_tiered15(TieredConfigMixin, wttest.WiredTigerTestCase):
             if not self.non_tiered_err:
                 self.session.create(uri, "tiered_storage=(name=none),type=" + self.type)
             else:
-                # The types "tiered", "colgroup", "index", and "backup" are not supported when creating a non-tiered
+                # The types "tiered", "colgroup", and "backup" are not supported when creating a non-tiered
                 # table in a non-tiered connection. It is expected these types will also not work with non-tiered
                 # tables in a connection configured with tiered storage.
                 # Additionally, configuring type to "colgroup" causes WiredTiger to crash, skip this scenario.

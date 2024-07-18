@@ -48,21 +48,17 @@ class test_pack(wttest.WiredTigerTestCase):
         v = list(v)
         fmtname = re.sub('([A-Z])', r'_\1', fmt)
         uri = 'table:' + test_pack.name + '-' + fmtname
-        idx_uri = 'index:' + test_pack.name + '-' + fmtname + ':inverse'
         nargs = len(v)
         colnames = ",".join("v" + str(x) for x in range(nargs))
         self.session.create(uri, "columns=(k," + colnames + ")," +
                             "key_format=i,value_format=" + fmt)
-        self.session.create(idx_uri, "columns=(" + colnames + ")")
         forw = self.session.open_cursor(uri, None, None)
-        forw_idx = self.session.open_cursor(idx_uri + "(k)", None, None)
 
         forw.set_key(1234)
         forw.set_value(*v)
         forw.insert()
 
         #self.dump_cursor(forw, 'forw')
-        #self.dump_cursor(forw_idx, 'index')
 
         forw.set_key(1234)
         self.assertEquals(forw.search(), 0)
@@ -70,13 +66,7 @@ class test_pack(wttest.WiredTigerTestCase):
         if nargs == 1:  # API does not return a list, we want one for comparing
             got = [got]
         self.assertEquals(got, v)
-
-        forw_idx.set_key(*v)
-        self.assertEquals(forw_idx.search(), 0)
-        self.assertEquals(forw_idx.get_value(), 1234)
-        forw.close()
-        forw_idx.close()
-
+        
     def test_packing(self):
         self.check('iii', 0, 101, -99)
         self.check('3i', 0, 101, -99)

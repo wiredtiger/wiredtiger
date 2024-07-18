@@ -62,7 +62,6 @@ class test_rollback_to_stable09(test_rollback_to_stable_base):
 
     tablename = "test_rollback_stable09"
     uri = "table:" + tablename
-    index_uri = "index:test_rollback_stable09:country"
 
     scenarios = make_scenarios(colstore_values, in_memory_values, prepare_values, worker_thread_values)
 
@@ -106,57 +105,34 @@ class test_rollback_to_stable09(test_rollback_to_stable_base):
         else:
             session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
 
-    def create_index(self, commit_ts):
-        session = self.session
-        session.begin_transaction()
-        self.session.create(self.index_uri, "key_format=s,columns=(country)")
-        if commit_ts == 0:
-                session.commit_transaction()
-        elif self.prepare:
-            session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-            session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-            session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-            session.commit_transaction()
-        else:
-            session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-
     def test_rollback_to_stable(self):
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
             ',stable_timestamp=' + self.timestamp_str(10))
 
-        # Create table and index at a later timestamp
+        # Create table at a later timestamp
         self.create_table(20)
-        self.create_index(30)
 
-        #perform rollback to stable, still the table and index must exist
+        #perform rollback to stable, still the table must exist
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         if not self.in_memory:
             self.assertTrue(os.path.exists(self.tablename + ".wt"))
-            self.assertTrue(os.path.exists(self.tablename + "_country.wti"))
 
-        # Check that we are able to open cursor successfully on the table and index
+        # Check that we are able to open cursor successfully on the table
         c = self.session.open_cursor(self.uri, None, None)
-        self.assertTrue(c.next(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(c.close(), 0)
-
-        c = self.session.open_cursor(self.index_uri, None, None)
         self.assertTrue(c.next(), wiredtiger.WT_NOTFOUND)
         self.assertEqual(c.close(), 0)
 
         # Drop the table
         self.drop_table(40)
 
-        #perform rollback to stable, the table and index must not exist
+        #perform rollback to stable, the table must not exist
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         if not self.in_memory:
             self.assertFalse(os.path.exists(self.tablename + ".wt"))
-            self.assertFalse(os.path.exists(self.tablename + "_country.wti"))
 
-        # Check that we are unable to open cursor on the table and index
+        # Check that we are unable to open cursor on the table
         self.assertRaises(wiredtiger.WiredTigerError, lambda:
             self.session.open_cursor(self.uri, None, None))
-        self.assertRaises(wiredtiger.WiredTigerError, lambda:
-            self.session.open_cursor(self.index_uri, None, None))

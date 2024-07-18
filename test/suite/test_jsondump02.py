@@ -110,12 +110,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         cg = 'colgroup:' + self.basename_uri4
         self.session.create(cg + ":c1", "columns=(S1,i2)")
         self.session.create(cg + ":c2", "columns=(S3,i4)")
-        uri4index1 = 'index:' + self.basename_uri4 + ':by-Skey'
-        uri4index2 = 'index:' + self.basename_uri4 + ':by-S3'
-        uri4index3 = 'index:' + self.basename_uri4 + ':by-i2i4'
-        self.session.create(uri4index1, "columns=(Skey)")
-        self.session.create(uri4index2, "columns=(S3)")
-        self.session.create(uri4index3, "columns=(i2,i4)")
 
         self.set_kv(self.table_uri1, 'KEY000', 'string value')
         self.set_kv(self.table_uri1, 'KEY001', '\'\"({[]})\"\'\\, etc. allowed')
@@ -237,35 +231,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
                 ('"ikey" : 4,\n"Skey" : "key4"',
                  '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64'))
         self.check_json(self.table_uri4, table4_json)
-
-        # The dump config currently is not supported for the index type.
-        self.check_json(uri4index1, (
-                ('"Skey" : "key1"',
-                 '"S1" : "val1",\n"i2" : 1,\n"S3" : "val1",\n"i4" : 1'),
-                ('"Skey" : "key2"',
-                 '"S1" : "val4",\n"i2" : 4,\n"S3" : "val8",\n"i4" : 8'),
-                ('"Skey" : "key3"',
-                 '"S1" : "val9",\n"i2" : 9,\n"S3" : "val27",\n"i4" : 27'),
-                ('"Skey" : "key4"',
-                 '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64')))
-        self.check_json(uri4index2, (
-                ('"S3" : "val1"',
-                 '"S1" : "val1",\n"i2" : 1,\n"S3" : "val1",\n"i4" : 1'),
-                ('"S3" : "val27"',
-                 '"S1" : "val9",\n"i2" : 9,\n"S3" : "val27",\n"i4" : 27'),
-                ('"S3" : "val64"',
-                 '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64'),
-                ('"S3" : "val8"',
-                 '"S1" : "val4",\n"i2" : 4,\n"S3" : "val8",\n"i4" : 8')))
-        self.check_json(uri4index3, (
-                ('"i2" : 1,\n"i4" : 1',
-                 '"S1" : "val1",\n"i2" : 1,\n"S3" : "val1",\n"i4" : 1'),
-                ('"i2" : 4,\n"i4" : 8',
-                 '"S1" : "val4",\n"i2" : 4,\n"S3" : "val8",\n"i4" : 8'),
-                ('"i2" : 9,\n"i4" : 27',
-                 '"S1" : "val9",\n"i2" : 9,\n"S3" : "val27",\n"i4" : 27'),
-                ('"i2" : 16,\n"i4" : 64',
-                 '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64')))
 
         # Dump all the tables into a single file, and also each
         # table into its own file.

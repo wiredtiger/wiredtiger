@@ -47,8 +47,8 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
+        ('file', dict(uri='file:', use_cg=False)),
+        ('table-cg', dict(uri='table:', use_cg=True)),
     ]
 
     conncfg = [

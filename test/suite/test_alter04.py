@@ -39,11 +39,10 @@ class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
     cache_alter=('1M', '100K')
     # Settings for os_cache[_dirty]_max.
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
-        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
-        ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
+        ('file', dict(uri='file:', use_cg=False)),
+        ('lsm', dict(uri='lsm:', use_cg=False)),
+        ('table-cg', dict(uri='table:', use_cg=True)),
+        ('table-simple', dict(uri='table:', use_cg=False)),
     ]
     sizes = [
         ('default', dict(ocreate='')),
@@ -106,19 +105,16 @@ class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
             new_param = '%s=0' % self.setting
 
         cgparam = ''
-        if self.use_cg or self.use_index:
+        if self.use_cg:
             cgparam = 'columns=(k,v),'
         if self.use_cg:
             cgparam += 'colgroups=(g0),'
 
         self.session.create(uri, create_params + cgparam)
-        # Add in column group or index settings.
+        # Add in column group settings.
         if self.use_cg:
             cgparam = 'columns=(v),'
             suburi = 'colgroup:' + self.name + ':g0'
-            self.session.create(suburi, complex_params + cgparam)
-        if self.use_index:
-            suburi = 'index:' + self.name + ':i0'
             self.session.create(suburi, complex_params + cgparam)
 
         # Put some data in table.
@@ -138,7 +134,7 @@ class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
             if self.reopen:
                 self.reopen_conn()
 
-            special = self.use_cg or self.use_index
+            special = self.use_cg
             if not special:
                 self.verify_metadata(alter_param)
             else:

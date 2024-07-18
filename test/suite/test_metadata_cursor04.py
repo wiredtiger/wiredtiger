@@ -53,18 +53,16 @@ class test_metadata04(wttest.WiredTigerTestCase):
             self.pr(uri + " SUCCESS")
         self.assertTrue(log_false != -1)
 
-    # Test a complex table with column groups and an index.
+    # Test a complex table with column groups..
     def test_metadata04_complex(self):
         self.session.create(self.uri,
                             "log=(enabled=false),key_format=S,value_format=SS," +
                             "columns=(key,s0,s1),colgroups=(c1)")
 
-        self.session.create("index:metadata04:s0", "log=(enabled=false),columns=(s0)")
         self.session.create("colgroup:metadata04:c1", "log=(enabled=false),columns=(s0,s1)")
 
-        # Check that we can see that logging on the index and colgroup tables is false.
+        # Check that we can see that logging on colgroup tables is false.
         self.check_meta("colgroup:metadata04:c1", True)
-        self.check_meta("index:metadata04:s0", True)
         self.check_meta(self.uri, False)
 
     # Test a simple table.

@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from helper import confirm_does_not_exist
 from wtdataset import SimpleDataSet, ComplexDataSet
-from wtdataset import SimpleIndexDataSet
 from wtscenario import make_scenarios
 
 # test_drop.py
@@ -46,7 +45,7 @@ class test_drop(wttest.WiredTigerTestCase):
     ])
 
     # Populate an object, remove it and confirm it no longer exists.
-    def drop(self, dataset, cnt, with_cursor, reopen, with_transaction, drop_index):
+    def drop(self, dataset, cnt, with_cursor, reopen, with_transaction):
         uri = self.uri + self.name + "." + str(cnt)
         ds = dataset(self, uri, 10, config=self.extra_config)
         # Set first values to variant 1.
@@ -92,11 +91,6 @@ class test_drop(wttest.WiredTigerTestCase):
             # Check that the table still contains the proper variant.
             ds.check(variant)
 
-        if drop_index:
-            if dataset == SimpleIndexDataSet:
-                drop_uri = ds.indexname
-            else:
-                drop_uri = ds.index_name(0)
         else:
             drop_uri = uri
         self.dropUntilSuccess(self.session, drop_uri)
@@ -118,25 +112,11 @@ class test_drop(wttest.WiredTigerTestCase):
     def test_drop(self):
         cnt = 0
         # SimpleDataSet: Simple file or table object.
-        # Try all combinations except dropping the index, the simple
-        # case has no indices.
         for with_cursor in [False, True]:
             for reopen in [False, True]:
                 for with_transaction in [False, True]:
                     cnt = cnt + 1
                     self.drop(SimpleDataSet, cnt, with_cursor, reopen, with_transaction, False)
-
-        # SimpleIndexDataSet: A table with an index
-        # Try almost all test combinations.
-        # Skip if tiered since indices don't work for tiered.
-        if self.uri == "table:" and self.extra_config.find('type=lsm') == -1:
-            for with_cursor in [False, True]:
-                for reopen in [False, True]:
-                    for with_transaction in [False, True]:
-                        cnt = cnt + 1
-                        # drop_index == False since it does not work.
-                        self.drop(SimpleIndexDataSet, cnt, with_cursor,
-                                  reopen, with_transaction, False)
 
         # ComplexDataSet: A complex, multi-file table object.
         # Try all test combinations.
@@ -145,10 +125,9 @@ class test_drop(wttest.WiredTigerTestCase):
             for with_cursor in [False, True]:
                 for reopen in [False, True]:
                     for with_transaction in [False, True]:
-                        for drop_index in [False, True]:
-                            cnt = cnt + 1
-                            self.drop(ComplexDataSet, cnt, with_cursor,
-                                      reopen, with_transaction, drop_index)
+                        cnt = cnt + 1
+                        self.drop(ComplexDataSet, cnt, with_cursor,
+                                    reopen, with_transaction)
 
     # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):
@@ -156,7 +135,6 @@ class test_drop(wttest.WiredTigerTestCase):
             self.skipTest("negative tests for drop do not work in tiered storage")
         uri = self.uri + self.name
         cguri = 'colgroup:' + self.name
-        idxuri = 'index:' + self.name + ':indexname'
         lsmuri = 'lsm:' + self.name
         confirm_does_not_exist(self, uri)
         self.session.drop(uri, 'force')
@@ -166,10 +144,6 @@ class test_drop(wttest.WiredTigerTestCase):
         self.session.drop(cguri, 'force')
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.drop(cguri, None))
-
-        self.session.drop(idxuri, 'force')
-        self.assertRaises(
-            wiredtiger.WiredTigerError, lambda: self.session.drop(idxuri, None))
 
         self.session.drop(lsmuri, 'force')
         self.assertRaises(

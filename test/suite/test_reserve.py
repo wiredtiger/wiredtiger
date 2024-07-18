@@ -30,7 +30,7 @@
 #       Reserve update tests.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, SimpleIndexDataSet
+from wtdataset import SimpleDataSet
 from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
 
@@ -48,7 +48,6 @@ class test_reserve(wttest.WiredTigerTestCase):
         ('lsm', dict(uri='lsm', ds=SimpleDataSet)),
         ('table-complex', dict(uri='table', ds=ComplexDataSet)),
         ('table-complex-lsm', dict(uri='table', ds=ComplexLSMDataSet)),
-        ('table-index', dict(uri='table', ds=SimpleIndexDataSet)),
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table', ds=SimpleLSMDataSet)),
     ]

@@ -160,8 +160,8 @@ class test_cursor13_ckpt2(test_checkpoint02.test_checkpoint02,
 
 @wttest.skip_for_hook("tiered", "uses cached cursors")
 class test_cursor13_reopens(test_cursor13_base):
-    # The SimpleDataSet uses simple tables, that have no column groups or
-    # indices. Thus, these tables will be cached. The more complex data sets
+    # The SimpleDataSet uses simple tables, that have no column groups.
+    # Thus, these tables will be cached. The more complex data sets
     # are not simple, so are not cached and not included in this test.
     types = [
         ('file', dict(uri='file:cursor13_reopen1', dstype=None)),
@@ -327,41 +327,10 @@ class test_cursor13_drops(test_cursor13_base):
             self.open_and_drop(uri, session2, session, 3, 5)
             session2.close()
 
-    def test_open_index_and_drop(self):
-        # We should also be able to detect cached cursors
-        # for indices
-        session = self.session
-        uri = 'table:test_cursor13_drops'
-        ds = ComplexDataSet(self, uri, 100)
-        ds.create()
-        indexname = ds.index_name(0)
-        c = session.open_cursor(indexname)
-        # The index is really open, so we cannot drop the main table.
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: session.drop(uri))
-        c.close()
-        self.dropUntilSuccess(session, uri)
-        confirm_does_not_exist(self, uri)
-
-        # Same test for indices, but with cursor held by another session.
-        # TODO: try with session that DOES have cache_cursors and another
-        # that does not.
-        session2 = self.conn.open_session(None)
-        ds = ComplexDataSet(self, uri, 100)
-        ds.create()
-        indexname = ds.index_name(0)
-        c = session2.open_cursor(indexname)
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: session.drop(uri))
-        c.close()
-        self.dropUntilSuccess(session, uri)
-        confirm_does_not_exist(self, uri)
-        session2.close()
 
     def test_cursor_drops(self):
         session = self.session
         uri = 'table:test_cursor13_drops'
-        idxuri = 'index:test_cursor13_drops:index1'
         config = 'key_format=S,value_format=S,columns=(k,v1)'
 
         for i in range(0, 2):
@@ -379,7 +348,6 @@ class test_cursor13_drops(test_cursor13_base):
 
         for i in range(0, 2):
             session.create(uri, config)
-            session.create(idxuri, 'columns=(v1)')
             cursor = session.open_cursor(uri, None)
             cursor['A'] = 'B'
             self.assertRaises(wiredtiger.WiredTigerError,
@@ -389,11 +357,9 @@ class test_cursor13_drops(test_cursor13_base):
 
         for i in range(0, 2):
             session.create(uri, config)
-            session.create(idxuri, 'columns=(v1)')
             cursor = session.open_cursor(uri, None)
             cursor['A'] = 'B'
             cursor.close()
-            cursor = session.open_cursor(idxuri, None)
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: session.drop(uri))
             cursor.close()

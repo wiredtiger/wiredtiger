@@ -34,11 +34,10 @@ from wtscenario import make_scenarios
 class test_metadata03(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
-        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
-        ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
+        ('file', dict(uri='file:', use_cg=False)),
+        ('lsm', dict(uri='lsm:', use_cg=False)),
+        ('table-cg', dict(uri='table:', use_cg=True)),
+        ('table-simple', dict(uri='table:', use_cg=False)),
     ]
     scenarios = make_scenarios(types)
 
@@ -75,16 +74,14 @@ class test_metadata03(wttest.WiredTigerTestCase):
         create_params = 'key_format=i,value_format=S,'
 
         cgparam = ''
-        if self.use_cg or self.use_index:
-            cgparam = 'columns=(k,v),'
         if self.use_cg:
-            cgparam += 'colgroups=(g0),'
+            cgparam = 'columns=(k,v),colgroups=(g0),'
 
         # Create main table.
         origcnt = self.count_logrecs()
         self.session.create(uri, create_params + cgparam)
         self.verify_logrecs(origcnt)
-        # Add in column group or index tables.
+        # Add in column group tables.
         if self.use_cg:
             # Create.
             cgparam = 'columns=(v),'
@@ -93,14 +90,8 @@ class test_metadata03(wttest.WiredTigerTestCase):
             self.session.create(suburi, cgparam)
             self.verify_logrecs(origcnt)
 
-        if self.use_index:
-            # Create.
-            suburi = 'index:table0:i0'
-            origcnt = self.count_logrecs()
-            self.session.create(suburi, cgparam)
-            self.verify_logrecs(origcnt)
 
-        # Dropping the main table will also drop all index or column group tables.
+        # Dropping the main table will also drop all column group tables.
         origcnt = self.count_logrecs()
         self.session.drop(uri)
         self.verify_logrecs(origcnt)

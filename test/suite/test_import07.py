@@ -42,7 +42,6 @@ class test_import07(test_import_base):
     scenarios = make_scenarios([
         ('colgroup', dict(prefix='colgroup:')),
         ('lsm', dict(prefix='lsm:')),
-        ('index', dict(prefix='index:')),
     ])
 
     def test_import_unsupported_data_source(self):

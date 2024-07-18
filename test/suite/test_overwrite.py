@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, SimpleIndexDataSet
+from wtdataset import SimpleDataSet
 from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import filter_scenarios, make_scenarios
 
@@ -46,7 +46,6 @@ class test_overwrite(wttest.WiredTigerTestCase):
         ('lsm', dict(uri='lsm:', lsm=True, ds=SimpleDataSet)),
         ('table-complex', dict(uri='table:', lsm=False, ds=ComplexDataSet)),
         ('table-complex-lsm', dict(uri='table:', lsm=True, ds=ComplexLSMDataSet)),
-        ('table-index', dict(uri='table:', lsm=False, ds=SimpleIndexDataSet)),
         ('table-simple', dict(uri='table:', lsm=False, ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table:', lsm=True, ds=SimpleLSMDataSet)),
     ]

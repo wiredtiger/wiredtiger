@@ -470,7 +470,7 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
 
     # Test truncation of complex tables using cursors.  We can't do the kind of
     # layout and detailed testing as we can with files, but this will at least
-    # smoke-test the handling of indexes and column-groups.
+    # smoke-test the handling of column-groups.
     def test_truncate_complex(self):
 
         # We only care about tables.

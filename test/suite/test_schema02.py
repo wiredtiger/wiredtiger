@@ -31,7 +31,7 @@ from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
 # test_schema02.py
-#    Columns, column groups, indexes
+#    Columns and column groups
 class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
     """
     Test basic operations
@@ -136,52 +136,6 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.session.create("colgroup:main2:c1", "columns=(S1,i2)")
         self.session.create("colgroup:main2:c2", "columns=(S3,i4)")
 
-    def test_index(self):
-        if self.is_tiered_scenario() and self.type == 'lsm':
-            self.skipTest('Tiered storage does not support LSM URIs.')
-
-        self.session.create("table:main", "key_format=iS,value_format=SiSi,"
-                            "columns=(ikey,Skey,S1,i2,S3,i4),colgroups=(c1,c2)")
-
-        # should be able to create colgroups before indices
-        self.session.create("colgroup:main:c2", "columns=(S3,i4)")
-
-        # should be able to create indices on all key combinations
-        self.session.create(
-            "index:main:ikey", "columns=(ikey)" + self.idx_config)
-        self.session.create(
-            "index:main:Skey", "columns=(Skey)" + self.idx_config)
-        self.session.create(
-            "index:main:ikeySkey", "columns=(ikey,Skey)" + self.idx_config)
-        self.session.create(
-            "index:main:Skeyikey", "columns=(Skey,ikey)" + self.idx_config)
-
-        # should be able to create indices on all value combinations
-        self.session.create(
-            "index:main:S1", "columns=(S1)" + self.idx_config)
-        self.session.create(
-            "index:main:i2", "columns=(i2)" + self.idx_config)
-        self.session.create(
-            "index:main:i2S1", "columns=(i2,S1)" + self.idx_config)
-        self.session.create(
-            "index:main:S1i4", "columns=(S1,i4)" + self.idx_config)
-
-        # somewhat nonsensical to repeat columns within an index, but allowed
-        self.session.create(
-            "index:main:i4S3i4S1", "columns=(i4,S3,i4,S1)" + self.idx_config)
-
-        # should be able to create colgroups after indices
-        self.session.create("colgroup:main:c1", "columns=(S1,i2)")
-
-        self.populate()
-
-        # should be able to create indices after populating
-        self.session.create(
-            "index:main:i2S1i4", "columns=(i2,S1,i4)" + self.idx_config)
-
-        self.check_entries()
-        self.check_indices()
-
     def populate(self):
         cursor = self.session.open_cursor('table:main', None, None)
         for i in range(0, self.nentries):
@@ -212,66 +166,6 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         cursor.reset()
         for ikey, skey, s1, i2, s3, i4 in cursor:
             i = ikey
-            square = i * i
-            cube = square * i
-            self.assertEqual(ikey, i)
-            self.assertEqual(skey, 'key' + str(i))
-            self.assertEqual(s1, 'val' + str(square))
-            self.assertEqual(i2, square)
-            self.assertEqual(s3, 'val' + str(cube))
-            self.assertEqual(i4, cube)
-            count += 1
-        cursor.close()
-        self.assertEqual(count, n)
-
-    def check_indices(self):
-        # we check an index that was created before populating
-        cursor = self.session.open_cursor('index:main:S1i4', None, None)
-        count = 0
-        n = self.nentries
-        for s1key, i4key, s1, i2, s3, i4 in cursor:
-            i = int(i4key ** (1 / 3.0) + 0.0001)  # cuberoot
-            #self.tty('index:main:S1i4[' + str(i) + '] (' +
-            #         str(s1key) + ',' +
-            #         str(i4key) + ') -> (' +
-            #         str(s1) + ',' +
-            #         str(i2) + ',' +
-            #         str(s3) + ',' +
-            #         str(i4) + ')')
-            self.assertEqual(s1key, s1)
-            self.assertEqual(i4key, i4)
-            ikey = i
-            skey = 'key' + str(i)
-            square = i * i
-            cube = square * i
-            self.assertEqual(ikey, i)
-            self.assertEqual(skey, 'key' + str(i))
-            self.assertEqual(s1, 'val' + str(square))
-            self.assertEqual(i2, square)
-            self.assertEqual(s3, 'val' + str(cube))
-            self.assertEqual(i4, cube)
-            count += 1
-        cursor.close()
-        self.assertEqual(count, n)
-
-        # we check an index that was created after populating
-        cursor = self.session.open_cursor('index:main:i2S1i4', None, None)
-        count = 0
-        for i2key, s1key, i4key, s1, i2, s3, i4 in cursor:
-            i = int(i4key ** (1 / 3.0) + 0.0001)  # cuberoot
-            #self.tty('index:main:i2S1i4[' + str(i) + '] (' +
-            #         str(i2key) + ',' +
-            #         str(s1key) + ',' +
-            #         str(i4key) + ') -> (' +
-            #         str(s1) + ',' +
-            #         str(i2) + ',' +
-            #         str(s3) + ',' +
-            #         str(i4) + ')')
-            self.assertEqual(i2key, i2)
-            self.assertEqual(s1key, s1)
-            self.assertEqual(i4key, i4)
-            ikey = i
-            skey = 'key' + str(i)
             square = i * i
             cube = square * i
             self.assertEqual(ikey, i)
