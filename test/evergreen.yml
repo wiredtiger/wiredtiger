@@ -3135,7 +3135,7 @@ tasks:
             ${PREPARE_PATH}
             virtualenv -p ${python_binary|python3} venv
             source venv/bin/activate
-            pip3 install pygit2==1.10.1 requests==3.32.3
+            pip3 install pygit2==1.10.1 requests==2.32.3
 
             EXTRA_CODE_CHANGE_PARAMETERS=''
 
@@ -4186,6 +4186,8 @@ tasks:
           script: |
             t=__wt.$$
             set -o verbose
+
+            ${PREPARE_PATH}
 
             # Install Metrix++, ensuring it is outside the 'src' directory
             source test/evergreen/download_metrixpp.sh
