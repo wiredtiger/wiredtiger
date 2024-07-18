@@ -38,7 +38,6 @@
 #include "api_instruction_count_benchmarks.cpp"
 #include "background_compact.cpp"
 #include "bounded_cursor_perf.cpp"
-#include "bounded_cursor_prefix_indices.cpp"
 #include "bounded_cursor_prefix_search_near.cpp"
 #include "bounded_cursor_prefix_stat.cpp"
 #include "bounded_cursor_stress.cpp"
@@ -148,8 +147,6 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         background_compact(args).run();
     else if (test_name == "bounded_cursor_perf")
         bounded_cursor_perf(args).run();
-    else if (test_name == "bounded_cursor_prefix_indices")
-        bounded_cursor_prefix_indices(args).run();
     else if (test_name == "bounded_cursor_prefix_search_near")
         bounded_cursor_prefix_search_near(args).run();
     else if (test_name == "bounded_cursor_prefix_stat")
@@ -193,7 +190,7 @@ main(int argc, char *argv[])
     int64_t error_code = 0;
     const std::vector<std::string> all_tests = {"api_timing_benchmarks",
       "api_instruction_count_benchmarks", "background_compact", "bounded_cursor_perf",
-      "bounded_cursor_prefix_indices", "bounded_cursor_prefix_search_near",
+      "bounded_cursor_prefix_search_near",
       "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
       "hs_cleanup", "operations_test", "reverse_split", "test_template"};
 
