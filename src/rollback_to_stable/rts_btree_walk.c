@@ -104,13 +104,14 @@ __rts_btree_walk_page_skip(
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_STABLE_PG_WALK_SKIP "ref=%p: stable page walk skipped", (void *)ref);
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
+    } else {
+        reconciled = ref->page && ref->page->modify ? true : false;
+
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+          WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped, reconciled info=%d", (void *)ref,
+          reconciled ? ref->page->modify->rec_result : 0);
     }
 
-    reconciled = ref->page && ref->page->modify ? true : false;
-
-    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-      WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped, reconciled info=%d", (void *)ref,
-      reconciled ? ref->page->modify->rec_result : 0);
     return (0);
 }
 
