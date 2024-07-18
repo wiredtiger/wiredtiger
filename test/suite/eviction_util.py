@@ -32,21 +32,18 @@ import wttest
 # Shared base class used by eviction tests.
 class eviction_util(wttest.WiredTigerTestCase):
 
-    def evict_cursor_tw_cleanup(self, uri, nrows):
-        # Configure debug behavior at the session level to evict the page when released.
-        # This is necessary when willing to trigger the time window cleanup code as application
-        # threads are not allowed to execute this code.
-        session_evict = self.conn.open_session("debug=(release_evict_page=true)")
-        session_evict.begin_transaction("ignore_prepare=true")
-        evict_cursor = session_evict.open_cursor(uri, None, None)
-        for i in range (nrows):
+    def evict_cursor(self, uri, nrows):
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is
+        # used.
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        self.session.begin_transaction("ignore_prepare=true")
+        for i in range (1, nrows + 1):
             evict_cursor.set_key(i)
             evict_cursor.search()
             if i % 10 == 0:
                 evict_cursor.reset()
         evict_cursor.close()
-        session_evict.rollback_transaction()
-        session_evict.close()
+        self.session.rollback_transaction()
 
     def get_stat(self, stat, uri = ""):
         stat_cursor = self.session.open_cursor(f'statistics:{uri}')

@@ -108,7 +108,7 @@ class test_eviction03(eviction_util, suite_subprocess):
         # Scan all files and perform eviction to cleanup the obsolete time window information.
         for i in range(ntables):
             uri = f"{uri_prefix}_{i}"
-            self.evict_cursor_tw_cleanup(uri, nrows)
+            self.evict_cursor(uri, nrows)
 
         # Re-open the connection.
         self.reopen_conn()
