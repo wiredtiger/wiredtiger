@@ -922,8 +922,13 @@ functions:
         ${PREPARE_TEST_ENV}
         ${additional_san_vars}
         ${format_test_setting}
+        # Use only 80% of the machines total memory and make sure that memory is in MB.
+        # Note: Currently format sh script is only run on ubuntu variants therefore we get the
+        # /proc/meminfo here.
+        memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
+        memory_max=$(( ($memory_max * 8) / ($parallel_jobs * 1024 * 10) ))
         for i in $(seq ${times|1}); do
-          ./format.sh -j ${num_jobs} ${format_test_script_args|} 2>&1
+          ./format.sh -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max 2>&1
         done
   "format test tiered":
     command: shell.exec
