@@ -170,7 +170,7 @@ class bound_base(wttest.WiredTigerTestCase):
     def gen_key(self, i):
         tuple_key = []
         key_format = self.key_format
-    
+
         for key in key_format:
             if key == 'S' or key == 'u':
                 tuple_key.append(str(i))

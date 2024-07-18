@@ -129,20 +129,6 @@ Statistics for all underlying data sources of a particular type may be
 included by adding a partial data source URI to the \c statistics_log
 configuration string:
 
-@snippet ex_all.c Statistics logging with a source type
-
-When database statistics are logged, the database home will be the first
-space-separated entry for each record in the log file.  For example:
-
-@code
-Mar 08 11:38:23 463 /database/home pthread mutex condition wait calls
-Mar 08 11:38:23 0 /database/home files currently open
-Mar 08 11:38:23 1855437 /database/home total heap memory allocations
-Mar 08 11:38:23 1856622 /database/home total heap memory frees
-Mar 08 11:38:23 1 /database/home total heap memory re-allocations
-Mar 08 11:38:23 472 /database/home total read I/Os
-@endcode
-
 When data source statistics are logged, the data source's URI will be
 the first space-separated entry for each record in the log file.  For
 example:

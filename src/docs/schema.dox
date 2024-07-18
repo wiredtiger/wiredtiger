@@ -290,55 +290,12 @@ configuration.
 
 Continuing the example, we might open an index on the \c country column:
 
-@snippet ex_schema.c Create an index
-
-Cursors are opened on indices by passing the index's URI to the
-WT_SESSION::open_cursor method.
-
-Index cursors use the specified index key columns for
-WT_CURSOR::get_key and WT_CURSOR::set_key.
-For example, we can retrieve information from
-the \c country index as follows:
-
-@snippet ex_schema.c Search in a simple index
-
-To create an index with a composite key, specify more than one column
-to the WT_SESSION::create call:
-
-@snippet ex_schema.c Create an index with a composite key
-
-To retrieve information from a composite index requires a more complicated
-WT_CURSOR::set_key call,
-but is otherwise the same:
-
-@snippet ex_schema.c Search in a composite index
-
-@section schema_index_immutable Immutable indices
-
-It is possible to create an index with the \c immutable configuration
-setting enabled. This setting tells WiredTiger that the index keys for a
-record do not change when records are updated. This is an optimization
-that it saves a remove and insert into the index whenever a value in the
-primary table is updated.
-
-If immutable is configured when updates should alter the content of
-the index it is possible to corrupt data.
-
-An example of using an immutable index is:
-
-@snippet ex_schema.c Create an immutable index
-
 @section schema_examples Code samples
 
 The code included above was taken from the complete example program
 @ex_ref{ex_schema.c}.
 
-Here are other example programs, @ex_ref{ex_call_center.c},
-
-@snippet ex_call_center.c call-center decl
-@snippet ex_call_center.c call-center work
-
-and @ex_ref{ex_col_store.c}.
+Here are other example programs @ex_ref{ex_col_store.c}.
 
 @snippet ex_col_store.c col-store decl
 @snippet ex_col_store.c col-store main

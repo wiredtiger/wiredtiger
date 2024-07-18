@@ -66,7 +66,7 @@ class test_pack(wttest.WiredTigerTestCase):
         if nargs == 1:  # API does not return a list, we want one for comparing
             got = [got]
         self.assertEquals(got, v)
-        
+
     def test_packing(self):
         self.check('iii', 0, 101, -99)
         self.check('3i', 0, 101, -99)

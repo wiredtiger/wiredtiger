@@ -5,10 +5,6 @@ Create, insert and access a simple table.
 @example ex_backup.c
 Shows how to use incremental backup.
 
-@example ex_call_center.c
-A more complex schema based on a call center example, showing how to map
-some SQL constructs onto the WiredTiger API.
-
 @example ex_col_store.c
 Shows how to use a column-store with column groups using example operations.
 
@@ -21,9 +17,6 @@ Shows how to extend WiredTiger with a simple encryption algorithm.
 @example ex_extending.c
 Shows how to extend WiredTiger with application-specific collations,
 extractors and cursor types.
-
-@example ex_extractor.c
-Shows how to extend WiredTiger with a more complex custom extractor.
 
 @example ex_extra_diagnostics.c
 This is an example demonstrating how to enable and update extra diagnostic code at runtime.

@@ -25,13 +25,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET ex_call_center
-    SOURCES ex_call_center.c
-    DIR_NAME ex_call_center
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_call_center>/WT_HOME>
-)
-
-define_c_test(
     TARGET ex_col_store
     SOURCES ex_col_store.c
     DIR_NAME ex_col_store
@@ -77,13 +70,6 @@ define_c_test(
     SOURCES ex_extending.c
     DIR_NAME ex_extending
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_extending>/WT_HOME>
-)
-
-define_c_test(
-    TARGET ex_extractor
-    SOURCES ex_extractor.c
-    DIR_NAME ex_extractor
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_extractor>/WT_HOME>
 )
 
 define_c_test(
