@@ -40,7 +40,8 @@ inclusive. The following is a list of the WiredTiger-specific return values:
 @par \c WT_ROLLBACK
 This error is generated when an operation cannot be completed due to a conflict with concurrent
 operations. The operation may be retried; if a transaction is in progress, it should be rolled back
-and the operation retried in a new transaction.
+and the operation retried in a new transaction. WiredTiger reserves the right to return WT_ROLLBACK
+from any cursor API call.
 
 @par \c WT_DUPLICATE_KEY
 This error is generated when the application attempts to insert a record with the same key as an

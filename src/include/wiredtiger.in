@@ -4097,7 +4097,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * This error is generated when an operation cannot be completed due to a
  * conflict with concurrent operations.  The operation may be retried; if a
  * transaction is in progress, it should be rolled back and the operation
- * retried in a new transaction.
+ * retried in a new transaction. WiredTiger reserves the right to return
+ * WT_ROLLBACK from any cursor API call.
  */
 #define	WT_ROLLBACK	(-31800)
 /*!
