@@ -615,6 +615,7 @@ format()
 			args+=" stress.split_$k=$(($RANDOM%2))"
 		done
 	fi
+	args+=$format_args
 	msg "starting job in $dir ($(date))"
 
 	# If we're using recording, append our default arguments.
