@@ -46,7 +46,7 @@ class test_eviction03(eviction_util, suite_subprocess):
         # Filename contains the output from verfify dump_pages which contains the space taken on
         # disk by each internal and leaf pages.
         file = open(filename, 'r')
-        res = re.findall(r'dsk_mem_size: (\d+)', file.read(), re.DOTALL)
+        res = re.findall(r'dsk_mem_size (\d+)', file.read(), re.DOTALL)
         file.close()
 
         # Convert all elements to integers.
