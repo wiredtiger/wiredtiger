@@ -32,7 +32,7 @@ __rts_btree_walk_page_skip(
 {
     WT_PAGE_DELETED *page_del;
     wt_timestamp_t rollback_timestamp;
-    char time_string[WT_TIME_STRING_SIZE];
+    char time_string[3][WT_TIME_STRING_SIZE];
     bool reconciled;
 
     rollback_timestamp = *(wt_timestamp_t *)context;
@@ -71,7 +71,7 @@ __rts_btree_walk_page_skip(
                   WT_RTS_VERB_TAG_SKIP_DEL "ref=%p: deleted page walk skipped page_del %s",
                   (void *)ref,
                   __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
-                    page_del->txnid, time_string));
+                    page_del->txnid, time_string[0]));
             }
             WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
@@ -83,9 +83,9 @@ __rts_btree_walk_page_skip(
               WT_RTS_VERB_TAG_PAGE_DELETE
               "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
               "rollback_timestamp=%s, txnid=%" PRIu64,
-              __wt_timestamp_to_string(page_del->timestamp, time_string),
-              __wt_timestamp_to_string(page_del->durable_timestamp, time_string),
-              __wt_timestamp_to_string(rollback_timestamp, time_string), page_del->txnid);
+              __wt_timestamp_to_string(page_del->timestamp, time_string[0]),
+              __wt_timestamp_to_string(page_del->durable_timestamp, time_string[1]),
+              __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
         return (0);
     }
 
