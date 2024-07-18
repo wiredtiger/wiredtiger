@@ -926,7 +926,7 @@ functions:
         # Note: Currently format sh script is only run on ubuntu variants therefore we get the
         # /proc/meminfo here.
         memory_max=$(cat /proc/meminfo | grep "MemTotal: " | grep -o "[[:digit:]]*")
-        memory_max=$(( ($memory_max * 8) / ($parallel_jobs * 1024 * 10) ))
+        memory_max=$(( ($memory_max * 8) / (${num_jobs} * 1024 * 10) ))
         for i in $(seq ${times|1}); do
           ./format.sh -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max 2>&1
         done
