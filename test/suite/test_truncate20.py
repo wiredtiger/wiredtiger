@@ -115,7 +115,7 @@ class test_truncate20(test_cc_base):
 
             self.evict_cursor(uri, ds, start_num, nrows)
 
-            # Take a checkpoint.
+            # Trigger checkpoint cleanup and wait for it to make progress.
             self.wait_for_cc_to_run()
 
             # Ensure the datasize is smaller than 600M

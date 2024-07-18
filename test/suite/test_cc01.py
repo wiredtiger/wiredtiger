@@ -138,7 +138,7 @@ class test_cc01(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100) +
             ',stable_timestamp=' + self.timestamp_str(100))
 
-        # Checkpoint to ensure that the history store is cleaned.
+        # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
@@ -170,7 +170,7 @@ class test_cc01(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200) +
             ',stable_timestamp=' + self.timestamp_str(200))
 
-        # Checkpoint to ensure that the history store is cleaned.
+        # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
@@ -202,7 +202,7 @@ class test_cc01(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(300) +
             ',stable_timestamp=' + self.timestamp_str(300))
 
-        # Checkpoint to ensure that the history store is cleaned.
+        # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
