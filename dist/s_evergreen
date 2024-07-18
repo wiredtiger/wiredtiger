@@ -4,6 +4,35 @@
 setup_trap
 cd_top
 
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+echo "Check for Python dependencies without specified versions:"
+
+unspecified_dependency=false
+
+pip_installs=$(grep -E 'pip(3)? install' "test/evergreen.yml")
+
+while IFS= read -r line; do
+    for word in $line; do
+        if [[ "$word" =~ ^pip3?$ || "$word" == "install" || "$word" =~ ^python3?$ || "$word" =~ -.* ]]; then
+            continue
+        fi
+        # pip uses == to specify a specific version. Make sure these characters are present
+        if [[ ! "$word" =~ .*==.* ]]; then
+            unspecified_dependency=true
+            echo "Version not specified for Python dependency $word in line: $line"
+        fi
+    done
+done <<< "$pip_installs"
+
+if $unspecified_dependency; then
+    exit 1
+else 
+    echo "All Python dependencies have specified versions."
+fi
+
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
 program=test/evergreen/evg_cfg.py
 
 # Run checking program to identify missing tests in Evergreen configuration
@@ -14,33 +43,6 @@ test -s $t && {
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "$0: $program check"
     cat $t
-    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
-    echo "Check for Python dependencies without specified versions:"
-
-    unspecified_dependency=false
-
-    pip_installs=$(grep -E 'pip(3)? install' "test/evergreen.yml")
-
-    while IFS= read -r line; do
-        for word in $line; do
-            if [[ "$word" =~ ^pip3?$ || "$word" == "install" || "$word" =~ ^python(3)?$ || "$word" =~ -.* ]]; then
-                continue
-            fi
-            # pip uses == to specify a specific version. Make sure these characters are present
-            if [[ ! "$word" =~ .*==[0-9.]+ ]]; then
-                unspecified_dependency=true
-                echo "Version not specified for Python dependency $word in line: $line"
-            fi
-        done
-    done <<< "$pip_installs"
-
-    if $unspecified_dependency; then
-        exit 1
-    else 
-        echo "All Python dependencies have specified versions."
-    fi
-
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     # Don't exit non-zero unless the python script did, the script
