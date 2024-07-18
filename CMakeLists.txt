@@ -280,7 +280,6 @@ endif()
 # Build the wiredtiger test suites.
 add_subdirectory(bench/wtperf)
 add_subdirectory(bench/tiered)
-add_subdirectory(bench/wt2853_perf)
 add_subdirectory(examples)
 add_subdirectory(test)
 if(ENABLE_LLVM)

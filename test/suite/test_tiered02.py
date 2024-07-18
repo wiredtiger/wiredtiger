@@ -120,7 +120,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.progress('Create simple data set (50)')
         ds = self.get_dataset(50)
         self.progress('populate')
-        # Don't (re)create any of the tables or indices from here on out.
+        # Don't (re)create any of the tables from here on out.
         # We will keep a cursor open on the table, and creation requires
         # exclusive access.
         ds.populate(create=False)

@@ -746,17 +746,6 @@ functions:
     - *cppsuite_s3_put
     - *cppsuite_remove_dir
 
-  "wt2853_perf test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/cmake_build/bench/wt2853_perf"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ./test_wt2853_perf ${wt2853_perf_args}
-
   "csuite test":
     command: shell.exec
     params:
@@ -5317,32 +5306,6 @@ tasks:
           stat_file: './test_stats/evergreen_out_many-dhandle-stress.py.json'
           comparison_op: "lt"
           expected-stats: '{"Warning Idle (drop)": 50, "Latency drop(in sec.) Max1": 500, "Latency warnings (read, insert, update)": 500}'
-
-  - name: bench-wt2853-perf-test-row
-    tags: ["wt2853-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "wt2853_perf test"
-        vars:
-          wt2853_perf_args: "-t r"
-      - func: "upload test stats"
-        vars:
-          test_path: bench/wt2853_perf/wt2853_perf
-
-  - name: bench-wt2853-perf-test-col
-    tags: ["wt2853-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "wt2853_perf test"
-        vars:
-          wt2853_perf_args: "-t c"
-      - func: "upload test stats"
-        vars:
-          test_path: bench/wt2853_perf/wt2853_perf
 
   - <<: *workgen-test
     name: "workgen-test-compress_ratio"

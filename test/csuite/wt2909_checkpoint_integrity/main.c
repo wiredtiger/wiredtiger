@@ -52,14 +52,10 @@
  * given N may give different results on different runs. But approximate optimal N can be
  * determined, allowing a series of additional tests clustered around this N.
  *
- * The data is stored in two tables, one having indices. Both tables have the same keys and are
- * updated with the same key in a single transaction.
- *
  * The keys are int (key_format 'i'); for column-store these are converted on the fly to uint64_t.
  *
  * Failure mode: If one table is out of step with the other, that is detected as a failure at the
- * top level. If an index is missing values (or has extra values), that is likewise a failure at the
- * top level. If the tables or the home directory cannot be opened, that is a top level error. The
+ * top level.  If the tables or the home directory cannot be opened, that is a top level error. The
  * tables must be present as an initial checkpoint is done without any injected fault.
  */
 
@@ -81,7 +77,6 @@
 static int check_results(TEST_OPTS *, uint64_t *);
 static void check_values(WT_CURSOR *, int, int, int, char *);
 static int create_big_string(char **);
-static void cursor_count_items(WT_CURSOR *, uint64_t *);
 static void disable_failures(void);
 static void enable_failures(uint64_t, uint64_t);
 static void generate_key(uint64_t, int *);
@@ -102,9 +97,9 @@ extern int __wt_optind;
 static int
 check_results(TEST_OPTS *opts, uint64_t *foundp)
 {
-    WT_CURSOR *maincur, *maincur2, *v0cur, *v1cur, *v2cur;
+    WT_CURSOR *maincur, *maincur2;
     WT_SESSION *session;
-    uint64_t count, idxcount, nrecords, key64;
+    uint64_t count, nrecords, key64;
     uint32_t rndint;
     int key, key_got, ret, v0, v1, v2;
     char *big, *bigref;
@@ -117,9 +112,6 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 
     testutil_check(session->open_cursor(session, "table:subtest", NULL, NULL, &maincur));
     testutil_check(session->open_cursor(session, "table:subtest2", NULL, NULL, &maincur2));
-    testutil_check(session->open_cursor(session, "index:subtest:v0", NULL, NULL, &v0cur));
-    testutil_check(session->open_cursor(session, "index:subtest:v1", NULL, NULL, &v1cur));
-    testutil_check(session->open_cursor(session, "index:subtest:v2", NULL, NULL, &v2cur));
 
     count = 0;
     while ((ret = maincur->next(maincur)) == 0) {
@@ -146,17 +138,6 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
         testutil_assert(key == key_got);
         check_values(maincur, v0, v1, v2, big);
 
-        /* Check the values in the indices. */
-        v0cur->set_key(v0cur, v0);
-        testutil_check(v0cur->search(v0cur));
-        check_values(v0cur, v0, v1, v2, big);
-        v1cur->set_key(v1cur, v1);
-        testutil_check(v1cur->search(v1cur));
-        check_values(v1cur, v0, v1, v2, big);
-        v2cur->set_key(v2cur, v2);
-        testutil_check(v2cur->search(v2cur));
-        check_values(v2cur, v0, v1, v2, big);
-
         count++;
         if (count % VERBOSE_PRINT == 0 && opts->verbose)
             printf("checked %" PRIu64 "/%" PRIu64 "\n", count, nrecords);
@@ -170,12 +151,6 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
     testutil_assert(count > 0);
     testutil_assert(ret == WT_NOTFOUND);
     testutil_assert(maincur2->next(maincur2) == WT_NOTFOUND);
-    cursor_count_items(v0cur, &idxcount);
-    testutil_assert(count == idxcount);
-    cursor_count_items(v1cur, &idxcount);
-    testutil_assert(count == idxcount);
-    cursor_count_items(v2cur, &idxcount);
-    testutil_assert(count == idxcount);
 
     testutil_check(opts->conn->close(opts->conn, NULL));
     opts->conn = NULL;
@@ -221,23 +196,6 @@ create_big_string(char **bigp)
     big[BIG_SIZE] = '\0';
     *bigp = big;
     return (0);
-}
-
-/*
- * cursor_count_items --
- *     Count the number of items in the table by traversing through the cursor.
- */
-static void
-cursor_count_items(WT_CURSOR *cursor, uint64_t *countp)
-{
-    WT_DECL_RET;
-
-    *countp = 0;
-
-    testutil_check(cursor->reset(cursor));
-    while ((ret = cursor->next(cursor)) == 0)
-        (*countp)++;
-    testutil_assert(ret == WT_NOTFOUND);
 }
 
 /*
@@ -537,10 +495,6 @@ subtest_main(int argc, char *argv[], bool close_test)
     testutil_snprintf(tableconf, sizeof(tableconf), "key_format=%s,value_format=i",
       opts->table_type == TABLE_ROW ? "i" : "r");
     testutil_check(session->create(session, "table:subtest2", tableconf));
-
-    testutil_check(session->create(session, "index:subtest:v0", "columns=(v0)"));
-    testutil_check(session->create(session, "index:subtest:v1", "columns=(v1)"));
-    testutil_check(session->create(session, "index:subtest:v2", "columns=(v2)"));
 
     testutil_check(session->close(session, NULL));
 

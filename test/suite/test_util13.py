@@ -144,7 +144,7 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_config(self):
         # The number of btree_entries reported is influenced by the
-        # number of column groups and indices.  Each insert will have
+        # number of column groups.  Each insert will have
         # a multiplied effect.
         ds = self.dataset(self, self.uri, self.nentries,
                           config=self.table_config, cgconfig=self.cg_config)
