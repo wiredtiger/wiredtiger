@@ -37,8 +37,8 @@ pct20 = 0
 pct80 = pct20 * 4
 
 # There should be 1:1 matching between the names and types.
-global_names = ['Replicated Collections', 'Replicated Indexes', 'OpLog', 'Local tables', 'System tables']
-global_types = ['coll', 'index', 'oplog', 'local', 'system']
+global_names = ['Replicated Collections', 'OpLog', 'Local tables', 'System tables']
+global_types = ['coll', 'oplog', 'local', 'system']
 
 assert(len(global_names) == len(global_types))
 class TypeStats(object):
@@ -93,8 +93,7 @@ def older_dir(dir1, dir2):
 # is kept to analyze the state of the system.
 def compute_type(filename, filemeta):
     # Figure out the type of file it is based on the name and metadata.
-    # For collections and indexes, if logging is disabled, then they are replicated.
-    #   if logging is enabled on an index, it is a local table.
+    # For collections if logging is disabled, then it is replicated.
     #   if logging is enabled on a collection, it is a local table unless it has 'oplog' in its
     #   app_private string. There should only be one oplog in a system.
     # Any other file name is a system table.
@@ -107,13 +106,6 @@ def compute_type(filename, filemeta):
             type = 'oplog'
         else:
             type = 'local'
-    elif 'index' in filename:
-        if disabled in filemeta:
-            type = 'index'
-        else:
-            type = 'local'
-    else:
-        type = 'system'
     assert(type in global_types)
     return type
 

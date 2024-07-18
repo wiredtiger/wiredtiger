@@ -214,63 +214,12 @@ class SimpleLSMDataSet(SimpleDataSet):
     def is_lsm(cls):
         return True
 
-class SimpleIndexDataSet(SimpleDataSet):
-    """
-    SimpleIndexDataSet is identical to SimpleDataSet, adding one index
-    that maps the value to the key.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        self.indexname = 'index:' + uri.split(":")[1] + ':index1'
-        self.origconfig = kwargs.get('config', '')
-        kwargs['config'] = self.origconfig + ',columns=(key0,value0)'
-        super(SimpleIndexDataSet, self).__init__(
-            testcase, uri, rows, **kwargs)
-
-    def create(self):
-        super(SimpleIndexDataSet, self).create()
-        self.testcase.session.create(self.indexname, 'columns=(value0,key0),' +
-            self.origconfig)
-
-    def check(self, variant=1):
-        BaseDataSet.check(self, variant)
-
-        # Check values in the index.
-        idxcursor = self.open_cursor(self.indexname)
-        for i in range(1, self.rows + 1):
-            k = self.key(i)
-            v = self.value(i, variant)
-            ik = (v, k)  # The index key is columns=(v,k).
-            self.testcase.assertEqual(v, idxcursor[ik])
-        idxcursor.close()
-
-class SimpleIndexLSMDataSet(SimpleIndexDataSet):
-    """
-    SimpleIndexLSMDataSet is identical to SimpleIndexDataSet, but
-    using LSM files.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        kwargs['config'] = kwargs.get('config', '') + ',type=lsm'
-        super(SimpleIndexLSMDataSet, self).__init__(
-            testcase, uri, rows, **kwargs)
-
-    @classmethod
-    def is_lsm(cls):
-        return True
 
 class ComplexDataSet(BaseDataSet):
     """
-    ComplexDataSet populates a table with a mixed set of indices
-    and column groups.  Some indices are created before the
-    table is populated, some after.
+    ComplexDataSet populates a table with a mixed set of column groups.
     """
     def __init__(self, testcase, uri, rows, **kwargs):
-        self.indexlist = [
-            ['indx1', 'column2'],
-            ['indx2', 'column3'],
-            ['indx3', 'column4'],
-            ['indx4', 'column2,column4'],
-            ['indx5', 'column3,column5'],
-            ['indx6', 'column3,column5,column4']]
         self.cglist = [
             ['cgroup1', 'column2'],
             ['cgroup2', 'column3'],
@@ -296,17 +245,12 @@ class ComplexDataSet(BaseDataSet):
         for cg in self.cglist:
             session.create('colgroup:' + tablepart + cg[0],
                            ',columns=(' + cg[1] + '),' + self.cgconfig)
-        for index in self.indexlist[0:4]:
-            session.create('index:' + tablepart + index[0],
-                           ',columns=(' + index[1] + '),' + self.config)
+
 
     def postfill_create(self):
-        # add some indices after filling the table
         tablepart = self.uri.split(":")[1] + ':'
         session = self.testcase.session
-        for index in self.indexlist[4:]:
-            session.create('index:' + tablepart + index[0],
-                           ',columns=(' + index[1] + ')')
+
 
     def colgroup_count(self):
         return len(self.cglist)
@@ -314,19 +258,10 @@ class ComplexDataSet(BaseDataSet):
     def colgroup_name(self, i):
         return 'colgroup:' + self.uri.split(":")[1] + ':' + self.cglist[i][0]
 
-    def index_count(self):
-        return len(self.indexlist)
-
-    def index_name(self, i):
-        return 'index:' + self.uri.split(":")[1] + ':' + self.indexlist[i][0]
-
     # A value suitable for checking the value returned by a cursor, as
     # cursor.get_value() returns a list.
     def comparable_value(self, i, variant=1):
         iv = variant * i
-        # Most of these columns are the keys for indices.  To make sure our indices
-        # are ordered in a different order than the main btree, we'll reverse some
-        # decimal strings to produce the column values.
         reversed = str(iv)[::-1]
         reversed18 = str(iv*18)[::-1]
         reversed23 = str(iv*23)[::-1]

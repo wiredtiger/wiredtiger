@@ -273,7 +273,6 @@ methods = {
     'api_timing_benchmarks' : Method(test_config),
     'background_compact' : Method(test_config),
     'bounded_cursor_perf' : Method(test_config),
-    'bounded_cursor_prefix_indices' : Method(test_config),
     'bounded_cursor_prefix_search_near' : Method(test_config),
     'bounded_cursor_prefix_stat' : Method(test_config + [
         Config("search_near_threads", 10, r'''
