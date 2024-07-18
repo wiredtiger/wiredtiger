@@ -25,13 +25,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET ex_col_store
-    SOURCES ex_col_store.c
-    DIR_NAME ex_col_store
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_col_store>/WT_HOME>
-)
-
-define_c_test(
     TARGET ex_config_parse
     SOURCES ex_config_parse.c
     DIR_NAME ex_config_parse

@@ -27,8 +27,7 @@ Database schema defines how data files are organized in the database home folder
  filename will be as follows \c "<table name>_<colgroup name>.wt". Where \c "<table name>" is
  the name that was specified as a part of the \c name parameter to WT_SESSION::create. And
  \c "<colgroup name>" is the column group name defined in the \c colgroups entry during the
- definition of the table format. See this example of how column groups can be configured in
- WiredTiger @ex_ref{ex_col_store.c}. @ref arch-row-column "Row Store and Column Store" describes
+ definition of the table format. @ref arch-row-column "Row Store and Column Store" describes
  in more detail how row and column stores work.
  - Each table index is stored in a separate file \c "<table name>_<index name>.wti".
  Where \c "<table name>" is the table name passed into WT_SESSION::create. And \c "<index name>"
