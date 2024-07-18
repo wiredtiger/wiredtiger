@@ -4,9 +4,7 @@
 setup_trap
 cd_top
 
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
-echo "Check for Python dependencies without specified versions:"
+error=0
 
 unspecified_dependency=false
 
@@ -26,18 +24,18 @@ while IFS= read -r line; do
 done <<< "$pip_installs"
 
 if $unspecified_dependency; then
-    exit 1
-else 
-    echo "All Python dependencies have specified versions."
+    error=1
 fi
-
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 program=test/evergreen/evg_cfg.py
 
 # Run checking program to identify missing tests in Evergreen configuration
 ${program} check >$t 2>&1
 e=$?
+
+if [[ $e == 1 ]]; then
+    error=1
+fi
 
 test -s $t && {
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -50,4 +48,4 @@ test -s $t && {
     # in that case it exits 0. Post the complaint, but don't fail.
     exit $e
 }
-exit 0
+exit $error
