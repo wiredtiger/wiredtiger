@@ -594,11 +594,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                 continue;
             } else {
                 /*
-                 * If we are not in eviction, we must be in salvage to reach here. For prepared
-                 * updates written to the date store in salvage, we write the same prepared value to
-                 * the data store. Therefore, the prepared update must be restored from the disk. If
-                 * there is still content for that key left in the history store, rollback to stable
-                 * will bring it back to the data store. Otherwise, it removes the key.
+                 * If we are not in eviction, we must be in salvage to reach here. Since salvage
+                 * only works on data on-disk, the prepared update must be restored from the disk.
+                 * If there is still content for that key left in the history store, rollback to
+                 * stable will bring it back to the data store. Otherwise, it removes the key.
                  */
                 WT_ASSERT_ALWAYS(session,
                   F_ISSET(r, WT_REC_EVICT) ||
