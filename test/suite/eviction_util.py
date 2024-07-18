@@ -32,19 +32,6 @@ import wttest
 # Shared base class used by eviction tests.
 class eviction_util(wttest.WiredTigerTestCase):
 
-    def evict_cursor(self, uri, nrows):
-        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is
-        # used.
-        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        self.session.begin_transaction("ignore_prepare=true")
-        for i in range (1, nrows + 1):
-            evict_cursor.set_key(i)
-            evict_cursor.search()
-            if i % 10 == 0:
-                evict_cursor.reset()
-        evict_cursor.close()
-        self.session.rollback_transaction()
-
     def get_stat(self, stat, uri = ""):
         stat_cursor = self.session.open_cursor(f'statistics:{uri}')
         val = stat_cursor[stat][2]
