@@ -190,9 +190,9 @@ main(int argc, char *argv[])
     int64_t error_code = 0;
     const std::vector<std::string> all_tests = {"api_timing_benchmarks",
       "api_instruction_count_benchmarks", "background_compact", "bounded_cursor_perf",
-      "bounded_cursor_prefix_search_near",
-      "bounded_cursor_prefix_stat", "bounded_cursor_stress", "burst_inserts", "cache_resize",
-      "hs_cleanup", "operations_test", "reverse_split", "test_template"};
+      "bounded_cursor_prefix_search_near", "bounded_cursor_prefix_stat", "bounded_cursor_stress",
+      "burst_inserts", "cache_resize", "hs_cleanup", "operations_test", "reverse_split",
+      "test_template"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
