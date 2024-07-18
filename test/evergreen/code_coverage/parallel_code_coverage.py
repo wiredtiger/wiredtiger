@@ -80,8 +80,7 @@ def main():
     parser.add_argument('-s', '--setup', action="store_true",
                         help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
-    parser.add_argument('-p', '--python', action="store_true", help='Run on only python tests in code coverage')
-    parser.add_argument('-o', '--other', action="store_true", help='Run any other tests that are not python in code coverage')
+    parser.add_argument('-u', '--bucket', type=str, help='Run on only python tests in code coverage')
     args = parser.parse_args()
 
     verbose = args.verbose
@@ -89,8 +88,7 @@ def main():
     config_path = args.config_path
     build_dir_base = args.build_dir_base
     parallel_tests = args.parallel
-    python = args.python
-    other = args.other
+    bucket = args.bucket
     setup = args.setup
 
     logging.debug('Code Coverage')
@@ -100,6 +98,9 @@ def main():
     logging.debug('  Base name for build directories: {}'.format(build_dir_base))
     logging.debug('  Number of parallel tests:        {}'.format(parallel_tests))
     logging.debug('  Perform setup actions:           {}'.format(setup))
+
+    if (bucket != "python" and bucket != "other"):
+        sys.exit("Only buckets options \"python\" and \"other\" are allowed")
 
     if parallel_tests < 1:
         sys.exit("Number of parallel tests must be >= 1")
@@ -132,11 +133,11 @@ def main():
         # We currently have two machines that runs a subset of tests to reduce code coverage time.
         # To do this we divide the tests into two buckets into either only python tests or
         # non-python tests. If python is set, only include python tests in the task list.
-        res = re.search("python", test)
-        if (not res and python):
+        is_python_test = re.search("python", test)
+        if (not is_python_test and bucket == "python"):
             continue
-        # Else if other is set, only include non-python tests in the task lsit.
-        elif (res and other):
+        # Else if other is set, only include non-python tests in the task list.
+        elif (is_python_test and bucket == "other"):
             continue
         build_dir_number = test_num % parallel_tests
         logging.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
