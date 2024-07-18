@@ -38,9 +38,6 @@ WT_CONNECTION::add_extractor.  This is often done by creating a
 @ref extensions "WiredTiger extension". They are then configured by
 passing \c "extractor=..." to WT_SESSION::create when creating an index.
 
-See @ex_ref{ex_extractor.c} for an example of how to implement custom
-extractors.
-
 @section custom_extractors_notes Implementation notes
 
 A WiredTiger index is a row store where the key columns contain all of

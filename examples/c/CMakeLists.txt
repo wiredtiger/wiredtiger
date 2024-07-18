@@ -80,13 +80,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET ex_extractor
-    SOURCES ex_extractor.c
-    DIR_NAME ex_extractor
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_extractor>/WT_HOME>
-)
-
-define_c_test(
     TARGET ex_extra_diagnostics
     SOURCES ex_extra_diagnostics.c
     DIR_NAME ex_extra_diagnostics
