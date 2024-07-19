@@ -66,7 +66,7 @@ class test_cc08(eviction_util, test_cc_base):
         # visible. This makes any time window informaton associated with that data obsolete and
         # eligible for cleanup.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(2 * nrows // 3))
-        
+
         # Restart to have everything on disk.
         self.reopen_conn()
 

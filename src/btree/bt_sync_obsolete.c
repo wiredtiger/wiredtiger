@@ -19,8 +19,8 @@
 static bool
 __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
     btree = S2BT(session);
