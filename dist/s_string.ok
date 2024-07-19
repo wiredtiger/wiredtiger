@@ -16,7 +16,6 @@ ARG
 ARGS
 ASAN
 ASM
-AUS
 AWS
 AWS's
 Addr
@@ -68,7 +67,6 @@ CRC
 CSV
 CURSORs
 CURSTD
-CallsCustDate
 Castagnoli
 Cclmpv
 Ceil
@@ -88,7 +86,6 @@ CreateFileMappingW
 CreateFileW
 Crt
 Crummey
-CustomersPhone
 Cygwin
 DAX
 DESC
@@ -156,7 +153,6 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
-GBR
 GC
 GCP
 GCP's
@@ -221,7 +217,6 @@ LWN
 LZ
 LazyFS
 LazyFS's
-LeafGreen
 LibFuzzer
 LoadLoad
 LoadStore
@@ -268,7 +263,6 @@ NOWAIT
 NUL
 NUM
 NVRAM
-NZD
 NetBSD
 NoAddr
 Noll
@@ -331,7 +325,6 @@ RNGs
 RPC
 RTS
 RUNDIR
-RUS
 RWLOCK
 RXB
 ReadFile
@@ -346,7 +339,6 @@ SIMD
 SLVG
 SMT
 SPINLOCK
-SSHH
 SSq
 STATP
 STR
@@ -357,7 +349,6 @@ Sedgewick
 Seigh
 SetEndOfFile
 SetFilePointerEx
-Sevii
 SiH
 Skiplist
 SleepConditionVariableCS
@@ -413,7 +404,6 @@ Unmap
 UnmapViewOfFile
 Unmount
 Uryyb
-VARCHAR
 VLCS
 VPM
 VR
@@ -433,7 +423,6 @@ WRNOLOCK
 WTPERF
 WaitForSingleObject
 Wconditional
-Wduplicated
 WeakHashLen
 Werror
 Wformat
@@ -501,7 +490,6 @@ auxincr
 aws
 bInheritHandle
 backoff
-bal
 basecfg
 bb
 bba
@@ -548,7 +536,6 @@ builtins
 bursty
 bytestring
 byteswap
-byvalue
 bzip
 cacheable
 calc
@@ -561,7 +548,6 @@ ccc
 ccr
 cd
 ce
-celsius
 centric
 cerr
 cfg
@@ -645,7 +631,6 @@ curstartrecno
 curstat
 curtable
 curversion
-cust
 customizable
 customp
 cv
@@ -663,7 +648,6 @@ dcalloc
 ddd
 decile
 deciles
-decl
 decr
 decrementing
 decrypt
@@ -717,7 +701,6 @@ eee
 eg
 ejnprx
 el
-emp
 encodings
 encryptor
 encryptors
@@ -741,7 +724,6 @@ existp
 extern
 extlist
 fadvise
-fahrenheit
 failpoint
 fallocate
 fallthrough
@@ -830,7 +812,6 @@ groupd
 gte
 handleops
 handlep
-hardcoded
 hashsize
 hashtable
 hashval
@@ -854,7 +835,6 @@ idx
 ie
 iface
 ifdef's
-iiSii
 iiiS
 ikey
 im
@@ -943,7 +923,6 @@ llvm
 loadbool
 loadtext
 loadvbool
-loc
 localTime
 localkey
 localtime
@@ -1018,7 +997,6 @@ mutex
 mutexes
 mux
 mytable
-nTemp
 namespace
 namespaces
 nbits
@@ -1142,7 +1120,6 @@ pwrite
 py
 qdown
 qn
-qrrSS
 qsort
 quartile
 queueable
