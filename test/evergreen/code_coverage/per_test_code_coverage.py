@@ -43,7 +43,6 @@ def delete_runtime_coverage_files(build_dir_base: str) -> None:
         for filename in files:
             if filename.endswith('.gcda'):
                 file_path = os.path.join(root, filename)
-                logging.debug(f"Deleting: {file_path}")
                 os.remove(file_path)
                 logging.debug(f"Deleted: {file_path}")
 
@@ -61,8 +60,10 @@ def run_coverage_task_list(task_list_info):
     # https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
     # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away 
     # from the absolute path, and the GCOV_PREFIX prepends the directory path. In this case,
-    # we are stripping away /data/mci/wiredtiger/build and then applying the correct build path.
-    env["GCOV_PREFIX_STRIP"] = "4"
+    # we are stripping away /data/mci/commit_hash/wiredtiger/build and then applying the correct
+    # build path.
+    path_depth = build_dir.count("/")
+    env["GCOV_PREFIX_STRIP"] = str(path_depth)
     for index in range(len(task_list)):
         task = task_list[index]
         logging.debug("Running task {} in {}".format(task, build_dir))

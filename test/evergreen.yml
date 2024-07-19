@@ -3021,7 +3021,7 @@ tasks:
       - func: "get project"
       - func: "run code coverage tests"
         vars:
-          code_cov_extra_args: -p
+          code_cov_extra_args: --bucket python
       - func: "code coverage analysis"
         vars:
           generate_atlas_format: true
@@ -3049,6 +3049,8 @@ tasks:
     commands:
       - func: "get project"
       - func: "run code coverage tests"
+        vars:
+          code_cov_extra_args: --bucket other
       - func: "code coverage analysis"
         vars:
           generate_atlas_format: true

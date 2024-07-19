@@ -48,7 +48,8 @@ def run_task_list(task_list_info):
     # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away 
     # from the absolute path, and the GCOV_PREFIX prepends the directory path. In this case,
     # we are stripping away /data/mci/wiredtiger/build and then applying the correct build path.
-    env["GCOV_PREFIX_STRIP"] = "4"
+    path_depth = build_dir.count("/")
+    env["GCOV_PREFIX_STRIP"] = str(path_depth)
     for task in task_list:
         logging.debug("Running task {} in {}".format(task, build_dir))
         env["GCOV_PREFIX"] = build_dir
@@ -99,7 +100,7 @@ def main():
     logging.debug('  Number of parallel tests:        {}'.format(parallel_tests))
     logging.debug('  Perform setup actions:           {}'.format(setup))
 
-    if (bucket != "python" and bucket != "other"):
+    if (bucket and bucket != "python" and bucket != "other"):
         sys.exit("Only buckets options \"python\" and \"other\" are allowed")
 
     if parallel_tests < 1:
