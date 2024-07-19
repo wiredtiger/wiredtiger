@@ -1692,6 +1692,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: number of internal pages visited",
   "checkpoint: number of leaf pages visited",
   "checkpoint: number of pages caused to be reconciled",
+  "checkpoint: obsolete time window pages read into the cache during checkpoint cleanup tree walk",
   "checkpoint: pages added for eviction during checkpoint cleanup",
   "checkpoint: pages dirtied due to obsolete time window by checkpoint cleanup",
   "checkpoint: pages removed during checkpoint cleanup",
@@ -2452,6 +2453,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_pages_visited_internal = 0;
     stats->checkpoint_pages_visited_leaf = 0;
     stats->checkpoint_pages_reconciled = 0;
+    stats->checkpoint_cleanup_obsolete_tw_pages_read = 0;
     stats->checkpoint_cleanup_pages_evict = 0;
     stats->checkpoint_cleanup_pages_obsolete_tw = 0;
     stats->checkpoint_cleanup_pages_removed = 0;
@@ -3254,6 +3256,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, checkpoint_pages_visited_internal);
     to->checkpoint_pages_visited_leaf += WT_STAT_CONN_READ(from, checkpoint_pages_visited_leaf);
     to->checkpoint_pages_reconciled += WT_STAT_CONN_READ(from, checkpoint_pages_reconciled);
+    to->checkpoint_cleanup_obsolete_tw_pages_read +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_obsolete_tw_pages_read);
     to->checkpoint_cleanup_pages_evict += WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_evict);
     to->checkpoint_cleanup_pages_obsolete_tw +=
       WT_STAT_CONN_READ(from, checkpoint_cleanup_pages_obsolete_tw);
