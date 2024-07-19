@@ -12,6 +12,31 @@
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
+ * __sync_obsolete_limit_reached --
+ *     This function checks whether checkpoint cleanup can continue given the work done so far and
+ *     the checkpoint cleanup settings.
+ */
+static bool
+__sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_BTREE *btree;
+
+    conn = S2C(session);
+    btree = S2BT(session);
+
+    if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
+      conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
+        return (true);
+    if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
+        conn->heuristic_controls.obsolete_tw_btree_max)
+        return (true);
+    return (false);
+}
+
+/*
  * __sync_obsolete_inmem_evict_or_mark_dirty --
  *     This function checks whether the in-memory ref contains obsolete information and takes
  *     necessary action.
@@ -110,19 +135,9 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_page_evict_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
     } else if (!has_stop) {
-        /*
-         * Limit the number of obsolete time window pages that are marked as dirty to reduce the
-         * load.
-         */
-        if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
-          conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
-            return (0);
 
-        /* Limit the number of btrees that can be cleaned up. */
-        if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-          __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
-          __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
-            conn->heuristic_controls.obsolete_tw_btree_max)
+        /* Limit the activity to reduce the load. */
+        if (__sync_obsolete_limit_reached(session))
             return (0);
 
         if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn,
@@ -349,18 +364,12 @@ __checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
-    WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
     wt_timestamp_t newest_ts;
-    bool target_reached;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
 
     *skipp = false; /* Default to reading */
-    btree = S2BT(session);
-    conn = S2C(session);
-    target_reached = false;
 
     /*
      * Skip deleted pages as they are no longer required for the checkpoint. The checkpoint never
@@ -398,21 +407,17 @@ __checkpoint_cleanup_page_skip(
         return (0);
     }
 
+    if (__sync_obsolete_limit_reached(session)) {
+        *skipp = true;
+        return (0);
+    }
+
     /*
-     * Read the page on disk if all the following crtieria are met:
-     * - We are allowed to dirty pages given the current settings and the work done so far.
-     * - The content of the page is not fully deleted and the most recent transaction is globally
-     * visible.
+     * Read the page on disk if all the content of the page is not fully deleted and the most recent
+     * transaction is globally visible.
      */
-    if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
-      conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
-        target_reached = true;
-    if (!target_reached && __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
-        conn->heuristic_controls.obsolete_tw_btree_max)
-        target_reached = true;
     newest_ts = WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts);
-    if (!target_reached && !WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
+    if (!WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
       __wt_txn_newest_visible_all(session, addr.ta.newest_txn, newest_ts)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: obsolete time window page read into the cache", (void *)ref);
