@@ -31,8 +31,7 @@ Database schema defines how data files are organized in the database home folder
  in more detail how row and column stores work.
  - Each table index is stored in a separate file \c "<table name>_<index name>.wti".
  Where \c "<table name>" is the table name passed into WT_SESSION::create. And \c "<index name>"
- is the index name defined during index creation. See @ref schema_indices for more
- information on how to create a table index.
+ is the index name defined during index creation.
  - LSM trees are store on the file system in \c "<table name>-<chunk id>.lsm" files. Where
  \c "<table name>" is the name that was specified as a part of the \c name parameter to
  WT_SESSION::create. \c "<chunk id>" is the chunk index managed by WiredTiger. More information

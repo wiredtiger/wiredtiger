@@ -84,7 +84,7 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         n += 1
         self.assertEqual(statc[stat.dsrc.btree_entries][2], n * multiplier)
 
-        # For applications with indices and/or column groups, verify
+        # For applications with column groups, verify
         # that there is a way to count the base number of entries.
         if self.dataset != SimpleDataSet:
             statc.close()

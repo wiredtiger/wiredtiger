@@ -36,7 +36,6 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
 
     types = [
         ('file', dict(type='file:', lsm=False, dataset=SimpleDataSet)),
-        ('lsm', dict(type='table:', lsm=True, dataset=ComplexLSMDataSet)),
         ('table', dict(type='table:', lsm=False, dataset=ComplexDataSet))
     ]
     keyfmt = [
@@ -72,11 +71,10 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         dsX = self.dataset(self, uriX, 100, key_format=self.keyfmt)
         ds.populate()
         dsX.populate()
-        if self.type == 'file:':
-            ix0_0 = None
-            ix0_1 = None
-            ix1_0 = None
-            ixX_0 = None
+        ix0_0 = None
+        ix0_1 = None
+        ix1_0 = None
+        ixX_0 = None
 
         c1 = self.session.open_cursor(uri, None)
         c2 = self.session.open_cursor(uri, None)
@@ -142,11 +140,10 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         dsX = self.dataset(self, uriX, 100, key_format=self.keyfmt)
         ds.populate()
         dsX.populate()
-        if self.type == 'file:':
-            ix0_0 = None
-            ix0_1 = None
-            ix1_0 = None
-            ixX_0 = None
+        ix0_0 = None
+        ix0_1 = None
+        ix1_0 = None
+        ixX_0 = None
 
         c1 = self.session.open_cursor(uri, None)
         c2 = self.session.open_cursor(uri, None)

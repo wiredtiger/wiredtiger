@@ -246,11 +246,9 @@ class ComplexDataSet(BaseDataSet):
             session.create('colgroup:' + tablepart + cg[0],
                            ',columns=(' + cg[1] + '),' + self.cgconfig)
 
-
     def postfill_create(self):
         tablepart = self.uri.split(":")[1] + ':'
         session = self.testcase.session
-
 
     def colgroup_count(self):
         return len(self.cglist)

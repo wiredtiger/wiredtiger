@@ -25,7 +25,6 @@ variables:
     - ".chunk-cache-perf"
     - ".long-perf"
     - ".oplog-perf"
-    - ".wt2853-perf"
     - name: many-collection-test
       distros: ubuntu2004-wt-large
     - name: ".cppsuite-perf-test"

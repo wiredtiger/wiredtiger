@@ -55,7 +55,7 @@
  * The keys are int (key_format 'i'); for column-store these are converted on the fly to uint64_t.
  *
  * Failure mode: If one table is out of step with the other, that is detected as a failure at the
- * top level.  If the tables or the home directory cannot be opened, that is a top level error. The
+ * top level. If the tables or the home directory cannot be opened, that is a top level error. The
  * tables must be present as an initial checkpoint is done without any injected fault.
  */
 

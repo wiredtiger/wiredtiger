@@ -77,7 +77,6 @@ main key(s) of the table.  Indices may be added after the data is populated in t
 This requires the index to be filled at the time it is added.  Index cursors are implemented using
 \c WT_CURSOR_INDEX.  Methods on this cursor that set and get values know to use the value that appears
 in the index as a key into the main table.
-See @ref schema_indices for API details.
 
 Internally, we define the concept of a "simple" table as one that has no named columns.  *Columns*,
 that is the set of keys and values, may be optionally named when creating a table.
