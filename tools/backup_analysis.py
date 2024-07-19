@@ -106,6 +106,8 @@ def compute_type(filename, filemeta):
             type = 'oplog'
         else:
             type = 'local'
+    else:
+        type = 'system'
     assert(type in global_types)
     return type
 

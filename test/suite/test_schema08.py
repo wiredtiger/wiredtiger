@@ -164,7 +164,7 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
         cgparam = ''
         suburi = None
         if self.use_cg:
-            cgparam += 'colgroups=(g0),'
+            cgparam += 'columns=(k,v),' + 'colgroups=(g0),'
 
         # Create main table.
         self.session.create(uri, create_params + cgparam)
