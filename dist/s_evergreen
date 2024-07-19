@@ -33,7 +33,7 @@ program=test/evergreen/evg_cfg.py
 ${program} check >$t 2>&1
 e=$?
 
-if [[ $e == 1 ]]; then
+if [[ $e != 0 ]]; then
     error=1
 fi
 
