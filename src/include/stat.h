@@ -314,6 +314,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
  */
 #define WT_STAT_SESSION_INCRV(session, fld, value) \
     WT_STAT_INCRV_BASE(session, &(session)->stats, fld, value)
+#define WT_STAT_SESSION_INCR(session, fld) WT_STAT_SESSION_INCRV(session, fld, 1)
 #define WT_STAT_SESSION_SET(session, fld, value) \
     WT_STAT_SET_BASE(session, &(session)->stats, fld, value)
 
@@ -700,6 +701,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_visited_leaf;
     int64_t checkpoint_pages_reconciled;
     int64_t checkpoint_cleanup_pages_evict;
+    int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;
@@ -1281,6 +1283,7 @@ struct __wt_dsrc_stats {
     int64_t cache_state_pages;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_cleanup_pages_evict;
+    int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;
@@ -1458,6 +1461,8 @@ struct __wt_session_stats {
     int64_t write_time;
     int64_t lock_schema_wait;
     int64_t cache_time;
+    int64_t read_io;
+    int64_t write_io;
 };
 
 /* Statistics section: END */

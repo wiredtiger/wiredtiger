@@ -699,8 +699,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
 
     /* Too many pages have been cleaned for this btree. */
-    if (__wt_atomic_load32(&btree->obsolete_tw_pages) >=
-      conn->heuristic_controls.obsolete_tw_pages_dirty_max)
+    if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) >=
+      conn->heuristic_controls.eviction_obsolete_tw_pages_dirty_max)
         return (0);
 
     /*
@@ -737,7 +737,8 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Limit the number of btrees that can be cleaned up. */
-    if (__wt_atomic_load32(&btree->obsolete_tw_pages) == 0 &&
+    if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
       __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (0);
@@ -763,34 +764,32 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     else if (__wt_ref_addr_copy(session, ref, &addr))
         WT_TIME_AGGREGATE_COPY(&newest_ta, &addr.ta);
 
-    /* Pages that are totally removed are eliminated during the checkpoint cleanup procedure. */
+    /* The pages that are removed are eliminated during the checkpoint cleanup procedure. */
     if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
         return (0);
 
-    /* If there is no transaction or timestamp information available, there is nothing to do. */
-    if (newest_ta.newest_txn == WT_TXN_NONE && newest_ta.newest_durable_ts == WT_TS_NONE)
-        return (0);
-
-    /* Ensure the time window information has content that is globally visible. */
-    if (!__wt_txn_visible_all(session, newest_ta.newest_txn, newest_ta.newest_durable_ts))
-        return (0);
-
-    /* Mark the page dirty to remove any obsolete information during reconciliation. */
-    __wt_verbose(session, WT_VERB_EVICT,
-      "%p in-memory page obsolete time window: time aggregate %s", (void *)ref,
-      __wt_time_aggregate_to_string(&newest_ta, time_string));
-
-    WT_RET(__wt_page_modify_init(session, ref->page));
-    __wt_page_modify_set(session, ref->page);
-
     /*
-     * Save that another tree has been processed if that's the first time it gets cleaned and update
-     * the number of pages made dirty for that tree.
+     * Mark the page as dirty to allow the page reconciliation to remove all information related to
+     * an obsolete time window.
      */
-    if (__wt_atomic_load32(&btree->obsolete_tw_pages) == 0)
-        __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
-    __wt_atomic_addv32(&btree->obsolete_tw_pages, 1);
-    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
+    if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn, newest_ta.newest_durable_ts)) {
+        __wt_verbose(session, WT_VERB_EVICT,
+          "%p in-memory page obsolete time window: time aggregate %s", (void *)ref,
+          __wt_time_aggregate_to_string(&newest_ta, time_string));
+
+        WT_RET(__wt_page_modify_init(session, ref->page));
+        __wt_page_modify_set(session, ref->page);
+
+        /*
+         * Save that another tree has been processed if that's the first time it gets cleaned and
+         * update the number of pages made dirty for that tree.
+         */
+        if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
+          __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
+            __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+        __wt_atomic_addv32(&btree->eviction_obsolete_tw_pages, 1);
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
+    }
 
     return (0);
 }
