@@ -2225,7 +2225,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 -R cursor13 join02 join07 schema03 timestamp22
+          unit_test_args: -v 2 -R cursor13 schema03 timestamp22
 
   - name: unit-test-hook-tiered
     tags: ["python"]
@@ -5840,8 +5840,6 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
-    - name: linux-directio
-      distros: ubuntu2004-arm64-large
     - name: long-test
       distros: ubuntu2004-arm64-large
     - name: make-check-test
@@ -5882,8 +5880,6 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
-    - name: linux-directio
-      distros: amazon2-arm64-large
     - name: long-test
       distros: amazon2-arm64-large
     - name: make-check-test

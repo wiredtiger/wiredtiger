@@ -325,8 +325,8 @@ extern const WT_NAME_FLAG __wt_stress_types[];
 
 /*
  * Access the array of all sessions. This field uses the Slotted Array pattern to managed shared
- * accesses, if you are looking to walk all sessions please consider using the existing session walk
- * logic. FIXME-WT-10946 - Add link to Slotted Array docs.
+ * accesses, if you need to walk all sessions please call __wt_session_array_walk. For more details
+ * on this usage pattern see the architecture guide.
  */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
