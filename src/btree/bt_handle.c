@@ -501,18 +501,14 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (btree->compressor != NULL && btree->compressor->compress != NULL &&
       btree->type != BTREE_COL_FIX) {
         /*
-         * Don't do compression adjustment when on-disk page sizes are less than 16KB. There's not
-         * enough compression going on to fine-tune the size, all we end up doing is hammering
-         * shared memory.
-         *
          * Don't do compression adjustment when on-disk page sizes are equal to the maximum
          * in-memory page image, the bytes taken for compression can't grow past the base value.
          */
-        if (btree->maxintlpage >= 16 * 1024 && btree->maxmempage_image > btree->maxintlpage) {
+        if (btree->maxmempage_image > btree->maxintlpage) {
             btree->intlpage_compadjust = true;
             btree->maxintlpage_precomp = btree->maxmempage_image;
         }
-        if (btree->maxleafpage >= 16 * 1024 && btree->maxmempage_image > btree->maxleafpage) {
+        if (btree->maxmempage_image > btree->maxleafpage) {
             btree->leafpage_compadjust = true;
             btree->maxleafpage_precomp = btree->maxmempage_image;
         }
