@@ -45,7 +45,7 @@ def run_task_list(task_list_info):
     # GCOV doesn't like it that we have copied the base build directory to construct the other
     # build directories. GCOV supports cross profiling for reference:
     # https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
-    # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away 
+    # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away
     # from the absolute path, and the GCOV_PREFIX prepends the directory path. In this case,
     # we are stripping away /data/mci/wiredtiger/build and then applying the correct build path.
     path_depth = build_dir.count("/")
