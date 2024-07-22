@@ -8172,10 +8172,6 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4006
 /*! session: time waiting for cache (usecs) */
 #define	WT_STAT_SESSION_CACHE_TIME			4007
-/*! session: total read I/Os */
-#define	WT_STAT_SESSION_READ_IO				4008
-/*! session: total write I/Os */
-#define	WT_STAT_SESSION_WRITE_IO			4009
 /*! @} */
 /*
  * Statistics section: END
