@@ -282,4 +282,22 @@ thread_worker::running() const
 {
     return (_running);
 }
+
+uint64_t
+thread_worker::get_assigned_first_collection_id()
+{
+    uint64_t collection_count = db.get_collection_count();
+    return collection_count / thread_count * id + std::min(id, collection_count % thread_count);
+}
+
+/*
+ * Assign collections evenly among threads, for any remainders,
+ * disrtibute one collection to each thread starting from thread 0.
+ */
+uint64_t
+thread_worker::get_assigned_collection_count()
+{
+    uint64_t collection_count = db.get_collection_count();
+    return collection_count / thread_count + (collection_count % thread_count > id);
+}
 } // namespace test_harness
