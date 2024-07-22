@@ -234,7 +234,7 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     if (cb->incr_file != NULL)
         __wt_free(session, cb->incr_file);
 
-    return (__wt_curbackup_free_incr(session, cb));
+    return (__wti_curbackup_free_incr(session, cb));
 }
 
 /*
@@ -311,19 +311,19 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
-      __wt_cursor_get_value_notsup,                   /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
-      __wt_cursor_set_key_notsup,                     /* set-key */
-      __wt_cursor_set_value_notsup,                   /* set-value */
-      __wt_cursor_compare_notsup,                     /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
+      __wti_cursor_get_value_notsup,                  /* get-value */
+      __wti_cursor_get_raw_key_value_notsup,          /* get-raw-key-value */
+      __wti_cursor_set_key_notsup,                    /* set-key */
+      __wti_cursor_set_value_notsup,                  /* set-value */
+      __wti_cursor_compare_notsup,                    /* compare */
+      __wti_cursor_equals_notsup,                     /* equals */
       __curbackup_next,                               /* next */
       __wt_cursor_notsup,                             /* prev */
       __curbackup_reset,                              /* reset */
       __wt_cursor_notsup,                             /* search */
-      __wt_cursor_search_near_notsup,                 /* search-near */
+      __wti_cursor_search_near_notsup,                /* search-near */
       __wt_cursor_notsup,                             /* insert */
-      __wt_cursor_modify_notsup,                      /* modify */
+      __wti_cursor_modify_notsup,                     /* modify */
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
@@ -377,15 +377,19 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
-     * view when creating a copy.
+     * view when creating a copy. We only need the locks when opening the top-level backup cursor.
+     * We do not need them when opening a duplicate backup cursor.
      */
     WT_STAT_CONN_SET(session, backup_start, 1);
-    WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
-    WT_ERR(ret);
+    if (othercb == NULL) {
+        WT_WITH_CHECKPOINT_LOCK(
+          session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
+        WT_ERR(ret);
+    } else
+        WT_ERR(__backup_start(session, cb, othercb, cfg));
     WT_ERR(cb->incr_file == NULL ?
         __wt_cursor_init(cursor, uri, NULL, cfg, cursorp) :
-        __wt_curbackup_open_incr(session, uri, other, cursor, cfg, cursorp));
+        __wti_curbackup_open_incr(session, uri, other, cursor, cfg, cursorp));
 
     WT_STAT_CONN_SET(session, backup_cursor_open, 1);
     if (0) {
@@ -548,8 +552,10 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     incremental_config = log_config = false;
     is_dup = othercb != NULL;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    if (!is_dup) {
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    }
 
     /*
      * Per-file offset incremental hot backup configurations take a starting checkpoint and optional
@@ -756,8 +762,10 @@ __backup_start(
     dest = NULL;
     is_dup = othercb != NULL;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    if (!is_dup) {
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    }
 
     cb->next = 0;
     cb->list = NULL;
@@ -769,7 +777,7 @@ __backup_start(
      * Single thread hot backups: we're holding the schema lock, so we know we'll serialize with
      * other attempts to start a hot backup.
      */
-    if (conn->hot_backup_start != 0 && !is_dup)
+    if (__wt_atomic_load64(&conn->hot_backup_start) != 0 && !is_dup)
         WT_RET_MSG(session, EINVAL, "there is already a backup cursor open");
 
     if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && is_dup)
@@ -940,7 +948,7 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     WT_TRET(__wt_remove_if_exists(session, WT_EXPORT_BACKUP, true));
 
     /* Checkpoint deletion and next hot backup can proceed. */
-    WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_start = 0);
+    WT_WITH_HOTBACKUP_WRITE_LOCK(session, __wt_atomic_store64(&conn->hot_backup_start, 0));
     F_CLR(session, WT_SESSION_BACKUP_CURSOR);
 
     return (ret);

@@ -82,14 +82,6 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* Maximum number of buckets to visit during a regular cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_MAX 64
 
-/*
- * Default session ID, used during startup and in cases where a properly initialized session is not
- * available.
- */
-#define WT_SESSION_ID_DEFAULT 0x0
-
-#define WT_SESSION_IS_DEFAULT(s) ((s)->id == WT_SESSION_ID_DEFAULT)
-
 /* Invalid session ID. */
 #define WT_SESSION_ID_INVALID 0xffffffff
 
@@ -132,8 +124,8 @@ struct __wt_session_impl {
      */
     /* Session handle reference list */
     TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
-    uint64_t last_sweep;        /* Last sweep for dead handles */
-    struct timespec last_epoch; /* Last epoch time returned */
+    wt_shared uint64_t last_sweep; /* Last sweep for dead handles */
+    struct timespec last_epoch;    /* Last epoch time returned */
 
     WT_CURSOR_LIST cursors;          /* Cursors closed with the session */
     u_int ncursors;                  /* Count of active file cursors. */
@@ -254,7 +246,8 @@ struct __wt_session_impl {
     void *salvage_track;
 
     /* Sessions have an associated statistics bucket based on its ID. */
-    u_int stat_bucket;          /* Statistics bucket offset */
+    u_int stat_conn_bucket;     /* Statistics connection bucket offset */
+    u_int stat_dsrc_bucket;     /* Statistics data source bucket offset */
     uint64_t cache_max_wait_us; /* Maximum time an operation waits for space in cache */
 
 #ifdef HAVE_DIAGNOSTIC
@@ -290,7 +283,7 @@ struct __wt_session_impl {
 
 /*
  * Note: The WT_SESSION_PREFETCH_THREAD flag is set for prefetch server threads whereas the
- * WT_SESSION_PREFETCH_THREAD flag is set when prefetch has been enabled on the session.
+ * WT_SESSION_PREFETCH_ENABLED flag is set when prefetch has been enabled on the session.
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

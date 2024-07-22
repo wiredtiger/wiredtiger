@@ -255,6 +255,8 @@ struct __wt_hazard_array;
 typedef struct __wt_hazard_array WT_HAZARD_ARRAY;
 struct __wt_hazard_cookie;
 typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
+struct __wt_heuristic_controls;
+typedef struct __wt_heuristic_controls WT_HEURISTIC_CONTROLS;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
 struct __wt_import_entry;
@@ -505,7 +507,7 @@ typedef uint64_t wt_timestamp_t;
 #include "mutex.h"
 
 #include "stat.h"         /* required by dhandle.h */
-#include "dhandle.h"      /* required by btree.h */
+#include "dhandle.h"      /* required by btree.h, connection.h */
 #include "timestamp.h"    /* required by reconcile.h */
 #include "thread_group.h" /* required by rollback_to_stable.h */
 
@@ -567,7 +569,6 @@ typedef uint64_t wt_timestamp_t;
 #include "mutex_inline.h"     /* required by btree_inline.h */
 #include "txn_inline.h"       /* required by btree_inline.h */
 
-#include "api_inline.h"
 #include "bitstring_inline.h"
 #include "block_inline.h"
 #include "btree_inline.h" /* required by cursor_inline.h */

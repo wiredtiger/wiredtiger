@@ -222,9 +222,11 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
+/* Disable logging for history store in the metadata. */
 #define WT_HS_CONFIG                                                   \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
+    ",log=(enabled=false)"                                             \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
@@ -323,7 +325,7 @@ struct __wt_page_modify {
     wt_timestamp_t rec_max_timestamp;
 
     /* The largest update transaction ID (approximate). */
-    uint64_t update_txn;
+    wt_shared uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
     wt_shared size_t bytes_dirty;
@@ -450,8 +452,8 @@ struct __wt_page_modify {
     bool instantiated;        /* True if this is a newly instantiated page. */
     WT_UPDATE **inst_updates; /* Update list for instantiated page with unresolved truncate. */
 
-#define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
-#define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock((s), &(p)->modify->page_lock)
+#define WT_PAGE_LOCK(s, p) __wt_spin_lock_track((s), &(p)->modify->page_lock)
+#define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock_track((s), &(p)->modify->page_lock)
 #define WT_PAGE_UNLOCK(s, p) __wt_spin_unlock((s), &(p)->modify->page_lock)
     WT_SPINLOCK page_lock; /* Page's spinlock */
 
@@ -616,17 +618,38 @@ struct __wt_page {
  * but it's not always required: for example, if a page is locked for splitting, or being created or
  * destroyed.
  */
-#define WT_INTL_INDEX_GET_SAFE(page) ((page)->u.intl.__index)
+#ifdef TSAN_BUILD
+/*
+ * TSan doesn't detect the acquire/release barriers used in our normal WT_INTL_INDEX_* functions, so
+ * use __atomic intrinsics instead. We can use __atomics here as MSVC doesn't support TSan.
+ */
+#define WT_INTL_INDEX_GET_SAFE(page, pindex)                                   \
+    do {                                                                       \
+        (pindex) = __atomic_load_n(&(page)->u.intl.__index, __ATOMIC_ACQUIRE); \
+    } while (0)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
-        (pindex) = WT_INTL_INDEX_GET_SAFE(page);                          \
+        WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)      \
-    do {                                \
-        WT_RELEASE_BARRIER();           \
-        ((page)->u.intl.__index) = (v); \
+#define WT_INTL_INDEX_SET(page, v)                                        \
+    do {                                                                  \
+        __atomic_store_n(&(page)->u.intl.__index, (v), __ATOMIC_RELEASE); \
     } while (0)
+#else
+/* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
+#define WT_INTL_INDEX_GET(session, page, pindex)                          \
+    do {                                                                  \
+        WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
+        WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
+    } while (0)
+#define WT_INTL_INDEX_SET(page, v)                               \
+    do {                                                         \
+        WT_RELEASE_BARRIER();                                    \
+        __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
+    } while (0)
+#endif
 
 /*
  * Macro to walk the list of references in an internal page.
@@ -805,6 +828,19 @@ struct __wt_page_walk_skip_stats {
     size_t total_del_pages_skipped;
     size_t total_inmem_del_pages_skipped;
 };
+
+/*
+ * Type used by WT_REF::state and valid values.
+ *
+ * Declared well before __wt_ref struct as the type is used in other structures in this header.
+ */
+typedef uint8_t WT_REF_STATE;
+
+#define WT_REF_DISK 0    /* Page is on disk */
+#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
+#define WT_REF_MEM 3     /* Page is in cache and valid */
+#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
 
 /*
  * Prepare states.
@@ -1011,12 +1047,6 @@ struct __wt_page_deleted {
     wt_shared volatile uint8_t prepare_state;
 
     /*
-     * The previous state of the WT_REF; if the fast-truncate transaction is rolled back without the
-     * page first being instantiated, this is the state to which the WT_REF returns.
-     */
-    uint8_t previous_ref_state;
-
-    /*
      * If the fast-truncate transaction has committed. If we're forced to instantiate the page, and
      * the committed flag isn't set, we have to create an update structure list for the transaction
      * to resolve in a subsequent commit. (This is tricky: if the transaction is rolled back, the
@@ -1086,12 +1116,6 @@ struct __wt_ref {
                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     wt_shared uint8_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_8 */
 
-#define WT_REF_DISK 0    /* Page is on disk */
-#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
-#define WT_REF_MEM 3     /* Page is in cache and valid */
-#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
-
     /*
      * Ref state: Obscure the field name as this field shouldn't be accessed directly. The public
      * interface is made up of five functions:
@@ -1103,7 +1127,7 @@ struct __wt_ref {
      *
      * For more details on these functions see ref_inline.h.
      */
-    wt_shared volatile uint8_t __state;
+    wt_shared volatile WT_REF_STATE __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1430,7 +1454,8 @@ struct __wt_update {
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x08u   /* Fast truncate instantiation */
 #define WT_UPDATE_RESTORED_FROM_DS 0x10u         /* Update restored from data store. */
 #define WT_UPDATE_RESTORED_FROM_HS 0x20u         /* Update restored from history store. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x40u        /* Update needs to be deleted from history store */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x40u         /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x80u        /* Update needs to be deleted from history store */
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 

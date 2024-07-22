@@ -139,6 +139,8 @@ CONFIG configuration_list[] = {
 
 {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
 
+{"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, UINT_MAX}
+
 {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"checkpoint.log_size", "MB of log to wait if wiredtiger checkpoints configured", 0x0, 20, 200, 1024}
@@ -156,6 +158,8 @@ CONFIG configuration_list[] = {
 {"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
 
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
+
+{"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0}
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
@@ -271,6 +275,8 @@ CONFIG configuration_list[] = {
 
 {"ops.verify", "configure verify", C_BOOL, 100, 1, 0}
 
+{"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
+
 {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1}
 
 {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX}
@@ -326,6 +332,8 @@ CONFIG configuration_list[] = {
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
+
+{"stress.prefetch_delay", "stress prefetch delay", C_BOOL, 2, 0, 0}
 
 {"stress.prepare_resolution_1", "stress prepare resolution (#1)", C_BOOL, 2, 0, 0}
 

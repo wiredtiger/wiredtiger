@@ -14,29 +14,29 @@
  * isn't trivial because some API calls re-enter via public API entry points and the session with ID
  * 0 is the default session in the connection handle which can be used across multiple threads.
  */
-#define WT_SINGLE_THREAD_CHECK_START(s)                                                      \
-    {                                                                                        \
-        uintmax_t __tmp_api_tid;                                                             \
-        __wt_thread_id(&__tmp_api_tid);                                                      \
-                                                                                             \
-        /*                                                                                   \
-         * Only a single thread should use this session at a time. It's ok                   \
-         * (but unexpected) if different threads use the session consecutively,              \
-         * but concurrent access is not allowed. Verify this by having the thread            \
-         * take a lock on first API access. Failing to take the lock implies                 \
-         * another thread holds it and we're attempting concurrent access of the             \
-         * session.                                                                          \
-         *                                                                                   \
-         * The default session (ID == 0) is an exception where concurrent access             \
-         * is allowed. We can also skip taking the lock if we're re-entrant and              \
-         * already hold it.                                                                  \
-         */                                                                                  \
-        if (!WT_SESSION_IS_DEFAULT(s) && (s)->thread_check.owning_thread != __tmp_api_tid) { \
-            WT_ASSERT((s), __wt_spin_trylock((s), &(s)->thread_check.lock) == 0);            \
-            (s)->thread_check.owning_thread = __tmp_api_tid;                                 \
-        }                                                                                    \
-                                                                                             \
-        ++(s)->thread_check.entry_count;                                                     \
+#define WT_SINGLE_THREAD_CHECK_START(s)                                           \
+    {                                                                             \
+        uintmax_t __tmp_api_tid;                                                  \
+        __wt_thread_id(&__tmp_api_tid);                                           \
+                                                                                  \
+        /*                                                                        \
+         * Only a single thread should use this session at a time. It's ok        \
+         * (but unexpected) if different threads use the session consecutively,   \
+         * but concurrent access is not allowed. Verify this by having the thread \
+         * take a lock on first API access. Failing to take the lock implies      \
+         * another thread holds it and we're attempting concurrent access of the  \
+         * session.                                                               \
+         *                                                                        \
+         * The default session (ID == 0) is an exception where concurrent access  \
+         * is allowed. We can also skip taking the lock if we're re-entrant and   \
+         * already hold it.                                                       \
+         */                                                                       \
+        if ((s)->id != 0 && (s)->thread_check.owning_thread != __tmp_api_tid) {   \
+            WT_ASSERT((s), __wt_spin_trylock((s), &(s)->thread_check.lock) == 0); \
+            (s)->thread_check.owning_thread = __tmp_api_tid;                      \
+        }                                                                         \
+                                                                                  \
+        ++(s)->thread_check.entry_count;                                          \
     }
 
 #define WT_SINGLE_THREAD_CHECK_STOP(s)                          \
@@ -44,7 +44,7 @@
         uintmax_t __tmp_api_tid;                                \
         __wt_thread_id(&__tmp_api_tid);                         \
         if (--((s)->thread_check.entry_count) == 0) {           \
-            if (!WT_SESSION_IS_DEFAULT(s)) {                    \
+            if ((s)->id != 0) {                                 \
                 (s)->thread_check.owning_thread = 0;            \
                 __wt_spin_unlock((s), &(s)->thread_check.lock); \
             }                                                   \
@@ -55,36 +55,6 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
-/*
- * Helper macros to correctly read and check the API counters. Carefully read the out counter before
- * the in counter otherwise the out counter can include more API calls than the in and make the
- * balance negative.
- */
-#define WT_API_COUNTER_REALIZE(s, counter, output)                                      \
-    {                                                                                   \
-        uint64_t _api_count_in, _api_count_out;                                         \
-        WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                            \
-        WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);                              \
-        if (!WT_SESSION_IS_DEFAULT(s))                                                  \
-            WT_ASSERT(session, _api_count_in >= _api_count_out);                        \
-        (output) = _api_count_out > _api_count_in ? 0 : _api_count_in - _api_count_out; \
-    }
-
-#ifdef HAVE_DIAGNOSTIC
-#define WT_API_COUNTER_CHECK(s, counter)                                                  \
-    {                                                                                     \
-        /* The global connection session is shared so the count can be off temporarily */ \
-        if (!WT_SESSION_IS_DEFAULT(s)) {                                                  \
-            uint64_t _api_count_in, _api_count_out;                                       \
-            WT_READ_ONCE(_api_count_out, S2C(s)->counter##_out);                          \
-            WT_READ_ONCE(_api_count_in, S2C(s)->counter##_in);                            \
-            WT_ASSERT(session, _api_count_in >= _api_count_out);                          \
-        }                                                                                 \
-    }
-#else
-#define WT_API_COUNTER_CHECK(s, counter) /* No-op in release builds */
-#endif
-
 #define API_SESSION_PUSH(s, struct_name, func_name, dh)                                      \
     WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
     const char *__oldname;                                                                   \
@@ -93,26 +63,10 @@
     __oldname = (s)->name;                                                                   \
     ++(s)->api_call_counter;                                                                 \
     (s)->dhandle = (dh);                                                                     \
-    (s)->name = (s)->lastop = #struct_name "." #func_name;                                   \
-    if ((s)->api_call_counter == 1 && !WT_SESSION_IS_DEFAULT(s)) {                           \
-        if (F_ISSET(session, WT_SESSION_INTERNAL))                                           \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_int_in, 1);                           \
-        else                                                                                 \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_in, 1);                               \
-    }
-
-#define API_SESSION_POP(s)                                          \
-    if ((s)->api_call_counter == 1 && !WT_SESSION_IS_DEFAULT(s)) {  \
-        if (F_ISSET(session, WT_SESSION_INTERNAL)) {                \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_int_out, 1); \
-            WT_API_COUNTER_CHECK((s), api_count_int);               \
-        } else {                                                    \
-            (void)__wt_atomic_add64(&S2C(s)->api_count_out, 1);     \
-            WT_API_COUNTER_CHECK((s), api_count);                   \
-        }                                                           \
-    }                                                               \
-    (s)->dhandle = __olddh;                                         \
-    (s)->name = __oldname;                                          \
+    (s)->name = (s)->lastop = #struct_name "." #func_name
+#define API_SESSION_POP(s)  \
+    (s)->dhandle = __olddh; \
+    (s)->name = __oldname;  \
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
@@ -143,8 +97,19 @@
         bool __set_err = true;                                                              \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
-        if ((config) != NULL)                                                               \
-    WT_ERR(__wt_config_check((s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0))
+        /*                                                                                  \
+         * Optimize configuration checking. If the configuration string                     \
+         * passed into the API is empty, use NULL instead, it saves a                       \
+         * little on every configuration lookup. The API caller's configuration             \
+         * string is stored in array position 1.                                            \
+         */                                                                                 \
+        if (config != NULL) {                                                               \
+            if (((const char *)config)[0] == '\0')                                          \
+                cfg[1] = NULL;                                                              \
+            else                                                                            \
+                WT_ERR(__wt_config_check(                                                   \
+                  (s), WT_CONFIG_REF(s, struct_name##_##func_name), (config), 0));          \
+        }
 
 #define API_END(s, ret)                                                                    \
     if ((s) != NULL) {                                                                     \
@@ -202,7 +167,7 @@
             F_CLR((s)->txn, WT_TXN_AUTOCOMMIT);                     \
             if ((retry) && (ret) == WT_ROLLBACK) {                  \
                 (ret) = 0;                                          \
-                WT_STAT_CONN_DATA_INCR(s, autocommit_update_retry); \
+                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \
                 continue;                                           \
             }                                                       \
         } else if ((ret) == 0)                                      \
@@ -213,7 +178,7 @@
             WT_TRET(__wt_txn_rollback((s), NULL));                  \
             if ((retry) && (ret) == WT_ROLLBACK) {                  \
                 (ret) = 0;                                          \
-                WT_STAT_CONN_DATA_INCR(s, autocommit_update_retry); \
+                WT_STAT_CONN_DSRC_INCR(s, autocommit_update_retry); \
                 continue;                                           \
             }                                                       \
             WT_TRET(__wt_session_reset_cursors(s, false));          \
@@ -236,7 +201,7 @@
 #define API_END_STAT(s, ret, api)                   \
     do {                                            \
         if ((ret) != 0 && ((ret) != WT_NOTFOUND)) { \
-            WT_STAT_CONN_DATA_INCR(s, api##_error); \
+            WT_STAT_CONN_DSRC_INCR(s, api##_error); \
         }                                           \
     } while (0)
 
@@ -347,7 +312,7 @@
     if ((ret) != WT_ROLLBACK || F_ISSET((s)->txn, WT_TXN_RUNNING) || (s)->api_call_counter != 1) \
         break;                                                                                   \
     (ret) = 0;                                                                                   \
-    WT_STAT_CONN_DATA_INCR(s, autocommit_readonly_retry);                                        \
+    WT_STAT_CONN_DSRC_INCR(s, autocommit_readonly_retry);                                        \
     }                                                                                            \
     /* !!!! This is a while(1) loop. !!!! */                                                     \
     while (1)

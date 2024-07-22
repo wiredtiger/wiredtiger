@@ -15,7 +15,8 @@
 static WT_INLINE bool
 __wt_cache_aggressive(WT_SESSION_IMPL *session)
 {
-    return (S2C(session)->cache->evict_aggressive_score >= WT_EVICT_SCORE_CUTOFF);
+    return (
+      __wt_atomic_load32(&S2C(session)->cache->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
 }
 
 /*
@@ -85,11 +86,13 @@ static WT_INLINE bool
 __wt_cache_stuck(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
+    uint32_t tmp_evict_aggressive_score;
 
     cache = S2C(session)->cache;
-    WT_ASSERT(session, cache->evict_aggressive_score <= WT_EVICT_SCORE_MAX);
+    tmp_evict_aggressive_score = __wt_atomic_load32(&cache->evict_aggressive_score);
+    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
     return (
-      cache->evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(cache, WT_CACHE_EVICT_HARD));
+      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(cache, WT_CACHE_EVICT_HARD));
 }
 
 /*
@@ -239,6 +242,29 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_eviction_clean_pressure --
+ *     Return true if clean cache is stressed and will soon require application threads to evict
+ *     content.
+ */
+static WT_INLINE bool
+__wt_eviction_clean_pressure(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    double pct_full;
+
+    cache = S2C(session)->cache;
+    pct_full = 0;
+
+    /* Eviction should be done if we hit the eviction clean trigger or come close to hitting it. */
+    if (__wt_eviction_clean_needed(session, &pct_full))
+        return (true);
+    if (pct_full > cache->eviction_target &&
+      pct_full >= WT_EVICT_PRESSURE_THRESHOLD * cache->eviction_trigger)
+        return (true);
+    return (false);
+}
+
+/*
  * __wt_eviction_clean_needed --
  *     Return if an application thread should do eviction due to the total volume of data in cache.
  */
@@ -271,8 +297,8 @@ __wt_eviction_dirty_target(WT_CACHE *cache)
 {
     double dirty_target, scrub_target;
 
-    dirty_target = cache->eviction_dirty_target;
-    scrub_target = cache->eviction_scrub_target;
+    dirty_target = __wt_read_shared_double(&cache->eviction_dirty_target);
+    scrub_target = __wt_read_shared_double(&cache->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }

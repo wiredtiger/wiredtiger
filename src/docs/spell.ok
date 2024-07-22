@@ -9,6 +9,7 @@ AWS's
 ActiveState
 Adler's
 Atomicity
+Atomics
 BLOBs
 BLRrVv
 BLmRrSVv
@@ -76,6 +77,7 @@ Gimpel
 GitHub
 Google
 Google's
+Growable
 HyperDex
 HyperLevelDB
 IAA
@@ -104,10 +106,14 @@ Lameter
 LevelDB
 Levyx
 LibFuzzer
+LoadLoad
+LoadStore
 MERCHANTABILITY
 MSAN
+MSVC
 MVCC's
 Makefiles
+McKenney
 Mewhort
 MongoDB
 MongoDB's
@@ -119,10 +125,13 @@ NoSQL
 OPTYPE
 PMU
 PPC
+PREFETCH
 PRELOAD
 PROFDATA
 Powershell
+Pseudocode
 README
+REFs
 RLE
 RNG
 RedHat
@@ -139,12 +148,16 @@ SYSV
 Sanitizer
 Seward's
 SiH
+StoreLoad
+StoreStore
 TSC
+TSan
 TW
 TXID
 TXT
 Timestamping
 Truncations
+Tsvg
 UBSAN
 UNC
 URIs
@@ -165,6 +178,7 @@ WiredTigerRollbackException
 WiredTigerStat
 WiredTigerTestCase
 WiredTigerTmplog
+WwS
 XChaCha
 XRay
 Yann
@@ -176,6 +190,7 @@ abc
 abstime
 acSstu
 ack'ed
+acq
 addr
 ajn
 alloc
@@ -191,6 +206,7 @@ archiver
 arg
 args
 atomicity
+atomics
 autoconf
 autogen
 automake
@@ -221,10 +237,13 @@ cacheable
 cachesize
 calc
 callbk
+callgraph
+cas
 ccache
 cd
 cdb
 cds
+cellpadding
 cfg
 changelog
 checkpointed
@@ -302,6 +321,7 @@ dhandle
 dhandle's
 dhandles
 dir
+dirstore
 disjunction
 disjunctions
 distclean
@@ -320,6 +340,7 @@ dup
 dups
 ebusy
 ejnprx
+emptively
 encrypt
 encryptor
 encryptor's
@@ -396,6 +417,8 @@ gid
 github
 gnuplot
 graphviz
+growable
+hashtable
 hb
 hotbackup
 href
@@ -409,8 +432,10 @@ iSi
 iaa
 icount
 ie
+iface
 ifdef
 iflag
+img
 incr
 indices
 init
@@ -454,12 +479,14 @@ libsodium
 libtool
 libwiredtiger
 lifecycle
+lifecycles
 llvm
 lmin
 ln
 loadtext
 loc
 logc
+logmgr
 lookup
 lookups
 loongarch
@@ -531,12 +558,14 @@ nosync
 notgranted
 notyet
 nowait
+nowrap
 nproc
 ns
 nul
 num
 numa
 nvd
+objectid
 objectsin
 ol
 oltp
@@ -552,6 +581,7 @@ pareto
 pcoll
 pdf
 perf
+performant
 petabyte
 pget
 php
@@ -562,6 +592,7 @@ posix
 ppc
 pre
 prealloc
+prefetch
 prepended
 prepends
 presumptively
@@ -574,6 +605,7 @@ priv
 proc
 profdata
 profraw
+pseudocode
 pthread
 pthreads
 putKey
@@ -586,6 +618,7 @@ qnx
 qpl
 qqq
 rankdir
+rarr
 rdbms
 rdlock
 readlock
@@ -597,10 +630,13 @@ rebalance
 recno
 recnoN
 recnum
+reconfig
 recoverability
 recs
 rectype
+rel
 relinking
+reorderings
 req
 rerequests
 ret
@@ -609,10 +645,12 @@ riscv
 rmw
 ro
 rotn
+rowspan
 rpc
 rts
 runnable
 runtime
+rw
 rwlock
 sHQ
 sHq
@@ -648,6 +686,7 @@ startuml
 startup
 statlog
 stderr
+stdin
 stdout
 str
 strerror
@@ -669,6 +708,7 @@ syscalls
 sz
 tRuE
 tablename
+tagrex
 tcl
 tcmalloc
 td
@@ -681,6 +721,7 @@ timespan
 timestamp
 timestamping
 timestamps
+tmp
 toc
 todo
 toolchain
@@ -693,6 +734,7 @@ tradeoffs
 transactional
 transactionally
 truncations
+trylock
 tt
 txn
 txnid
@@ -703,6 +745,7 @@ uint
 ul
 umask
 unallocated
+undef
 unencoded
 unencrypted
 unescaped
@@ -710,6 +753,7 @@ unicode
 uninstall
 unittest
 unpositioned
+unsets
 untyped
 uri
 usec
@@ -737,8 +781,10 @@ workgen
 wrapup
 writelock
 writelocks
+writelsn
 wrlock
 wti
+wtobj
 wtperf
 wtstats
 xa
@@ -755,3 +801,4 @@ yieldcpu
 zlib
 zseries
 zstd
+zwj

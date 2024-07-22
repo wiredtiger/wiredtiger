@@ -69,39 +69,29 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
-    uint64_t api_count;
 
     conn = S2C(session);
     stats = conn->stats;
 
-    __wt_cache_stats_update(session);
+    __wti_cache_stats_update(session);
     __wt_txn_stats_update(session);
 
-    WT_STAT_SET(session, stats, file_open, conn->open_file_count);
-    WT_STAT_SET(session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
-    WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
-    WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
-    WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
-
-    /*
-     * If the atomic operations used to keep these values up to date become a performance problem,
-     * the fields could be moved into session handles, and this code could traverse session handles
-     * accumulating current values. In some way it would be nice to have these be active counts, but
-     * tracking bugs can lead to a negative value when that happens. Note that these counters are
-     * updated independently. Carefully read the out counter before the in counter otherwise the out
-     * counter can include more API calls than the in and make the balance negative.
-     */
-    WT_API_COUNTER_REALIZE(session, api_count, api_count);
-    WT_STAT_CONN_SET(session, api_call_current, api_count);
-
-    WT_API_COUNTER_REALIZE(session, api_count_int, api_count);
-    WT_STAT_CONN_SET(session, api_call_current_int, api_count);
-
-    WT_API_COUNTER_REALIZE(session, api_count_cursor, api_count);
-    WT_STAT_CONN_SET(session, api_call_current_cursor, api_count);
-
-    WT_API_COUNTER_REALIZE(session, api_count_cursor_int, api_count);
-    WT_STAT_CONN_SET(session, api_call_current_cursor_int, api_count);
+    WT_STATP_CONN_SET(session, stats, file_open, conn->open_file_count);
+    WT_STATP_CONN_SET(
+      session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_btree_count, conn->dhandle_types_count[WT_DHANDLE_TYPE_BTREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_table_count, conn->dhandle_types_count[WT_DHANDLE_TYPE_TABLE]);
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_count,
+      conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED]);
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_tree_count,
+      conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED_TREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_checkpoint_count, conn->dhandle_checkpoint_count);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
 
 /*
@@ -178,9 +168,9 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         __wt_config_subinit(session, &objectconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
             /*
-             * XXX Only allow "file:" and "lsm:" for now: "file:" works because it's been converted
-             * to data handles, "lsm:" works because we can easily walk the list of open LSM
-             * objects, even though it hasn't been converted.
+             * Only allow "file:" and "lsm:" for now: "file:" works because it's been converted to
+             * data handles, "lsm:" works because we can easily walk the list of open LSM objects,
+             * even though it hasn't been converted.
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
                 WT_ERR_MSG(session, EINVAL,
@@ -330,7 +320,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
     size_t prefixlen;
     int64_t val;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
-    const char *desc, *endprefix, *valstr, *uri;
+    const char *desc, *endprefix, *uri, *valstr;
     bool first, groupfirst;
 
     conn = S2C(session);
@@ -661,11 +651,11 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 }
 
 /*
- * __wt_statlog_create --
+ * __wti_statlog_create --
  *     Start the statistics server thread.
  */
 int
-__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     bool start;
@@ -690,7 +680,7 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (conn->stat_session == NULL)
         WT_RET(__stat_config_discard(session));
     else
-        WT_RET(__wt_statlog_destroy(session, false));
+        WT_RET(__wti_statlog_destroy(session, false));
 
     WT_RET(__statlog_config(session, cfg, &start));
     if (start)
@@ -700,11 +690,11 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_statlog_destroy --
+ * __wti_statlog_destroy --
  *     Destroy the statistics server thread.
  */
 int
-__wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
+__wti_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

@@ -35,7 +35,7 @@
 
 /* Check if a handle could be reopened. */
 #define WT_DHANDLE_CAN_REOPEN(dhandle) \
-    (!F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED) && F_ISSET(dhandle, WT_DHANDLE_OPEN))
+    (F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN) == WT_DHANDLE_OPEN)
 
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
@@ -72,6 +72,15 @@
         }                                                                 \
     } while (0)
 
+enum wt_dhandle_type {
+    WT_DHANDLE_TYPE_BTREE = 0,
+    WT_DHANDLE_TYPE_TABLE,
+    WT_DHANDLE_TYPE_TIERED,
+    WT_DHANDLE_TYPE_TIERED_TREE
+};
+/* Number of values above. */
+#define WT_DHANDLE_TYPE_NUM (1 + WT_DHANDLE_TYPE_TIERED_TREE)
+
 /*
  * WT_DATA_HANDLE --
  *	A handle for a generic named data source.
@@ -106,15 +115,11 @@ struct __wt_data_handle {
     WT_DATA_SOURCE *dsrc; /* Data source for this handle */
     void *handle;         /* Generic handle */
 
-    enum {
-        WT_DHANDLE_TYPE_BTREE,
-        WT_DHANDLE_TYPE_TABLE,
-        WT_DHANDLE_TYPE_TIERED,
-        WT_DHANDLE_TYPE_TIERED_TREE
-    } type;
+    wt_shared enum wt_dhandle_type type;
 
-#define WT_DHANDLE_BTREE(dhandle) \
-    ((dhandle)->type == WT_DHANDLE_TYPE_BTREE || (dhandle)->type == WT_DHANDLE_TYPE_TIERED)
+#define WT_DHANDLE_BTREE(dhandle)                                        \
+    (__wt_atomic_load_enum(&(dhandle)->type) == WT_DHANDLE_TYPE_BTREE || \
+      __wt_atomic_load_enum(&(dhandle)->type) == WT_DHANDLE_TYPE_TIERED)
 
     bool compact_skip; /* If the handle failed to compact */
 
@@ -126,7 +131,7 @@ struct __wt_data_handle {
     WT_SPINLOCK close_lock; /* Lock to close the handle */
 
     /* Data-source statistics */
-    WT_DSRC_STATS *stats[WT_COUNTER_SLOTS];
+    WT_DSRC_STATS *stats[WT_STAT_DSRC_COUNTER_SLOTS];
     WT_DSRC_STATS *stat_array;
 
 /*

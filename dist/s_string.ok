@@ -73,6 +73,7 @@ Castagnoli
 Cclmpv
 Ceil
 CentOS
+Charset
 Checkpointing
 Checksums
 CityHash
@@ -206,6 +207,7 @@ Keyedness
 Kounavis
 LANGID
 LF
+LLVM
 LLVMFuzzerTestOneInput
 LOGOP
 LOGREC
@@ -302,6 +304,7 @@ Posix
 PostgreSQL
 Pre
 Precompiled
+Prefetch
 Preload
 Prepend
 Prepending
@@ -347,6 +350,7 @@ SMT
 SPINLOCK
 SSHH
 SSq
+STATP
 STR
 STRUCT
 SYSCALL
@@ -387,6 +391,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+UBSAN
 UDF
 UID
 UIDs
@@ -422,6 +427,7 @@ Vixie
 VloaY
 Vo
 VxWorks
+WCHAR
 WILLNEED
 WIREDTIGER
 WRLSN
@@ -447,6 +453,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerTmplog
 WithSeeds
+Wl
 Wmissing
 WriteFile
 Wuninitialized
@@ -465,7 +472,6 @@ abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
 acqrel
-addl
 addr
 addrs
 addtw
@@ -506,6 +512,7 @@ bbuilddir
 bcr
 bd
 beginthreadex
+benchmarking
 binutils
 bitcnt
 bitfield
@@ -562,6 +569,7 @@ cerr
 cfg
 cfko
 chacha
+charset
 chdir
 checkfmt
 checkkey
@@ -611,6 +619,7 @@ countp
 cp
 cpp
 cppsuite
+cpu
 cpuid
 crc
 crypto
@@ -808,6 +817,7 @@ getone
 getones
 getopt
 getraw
+getter
 getters
 gettime
 gettimeofday
@@ -821,6 +831,7 @@ gostring
 gostruct
 goto
 goutf
+groupd
 gte
 handleops
 handlep
@@ -1005,6 +1016,7 @@ mn
 mnt
 mongod
 mrs
+msan
 msecs
 msg
 msvc
@@ -1031,6 +1043,7 @@ nentries
 nentriesp
 newbar
 newfile
+newuri
 newv
 nextprev
 nf
@@ -1345,6 +1358,7 @@ umount
 unallocated
 unbare
 unbuffered
+uncached
 unconfigured
 uncustomized
 undef

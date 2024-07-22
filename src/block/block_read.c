@@ -37,15 +37,15 @@ __wt_bm_read(
      * In diagnostic mode, verify the block we're about to read isn't on the available list, or for
      * the writable objects, the discard list.
      */
-    WT_ERR(__wt_block_misplaced(session, block, "read", offset, size,
+    WT_ERR(__wti_block_misplaced(session, block, "read", offset, size,
       bm->is_live && block == bm->block, __PRETTY_FUNCTION__, __LINE__));
 #endif
 
     /* Read the block. */
-    WT_ERR(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
+    WT_ERR(__wti_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
-    WT_ERR(__wt_block_discard(session, block, (size_t)size));
+    WT_ERR(__wti_block_discard(session, block, (size_t)size));
 
 err:
     if (bm->is_multi_handle) {
@@ -158,11 +158,11 @@ err:
 #endif
 
 /*
- * __wt_block_read_off --
+ * __wti_block_read_off --
  *     Read an addr/size pair referenced block into a buffer.
  */
 int
-__wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
+__wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;

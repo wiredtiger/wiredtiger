@@ -282,8 +282,8 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         tune_checksum for more information.''',
         choices=['on', 'off', 'uncompressed', 'unencrypted']),
     Config('dictionary', '0', r'''
-        the maximum number of unique values remembered in the Btree row-store leaf page value
-        dictionary; see @ref file_formats_compression for more information''',
+        the maximum number of unique values remembered in the row-store/variable-length column-store
+        leaf page value dictionary; see @ref file_formats_compression for more information''',
         min='0'),
     Config('encryption', '', r'''
         configure an encryptor for file blocks. When a table is created, its encryptor is not
@@ -648,6 +648,10 @@ connection_runtime_config = [
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
                 min=1, max=20),
+            Config('evict_sample_inmem', 'true', r'''
+                If no in-memory ref is found on the root page, attempt to locate a random 
+                in-memory page by examining all entries on the root page.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -726,6 +730,24 @@ connection_runtime_config = [
         the number of milliseconds to wait for a resource to drain before timing out in diagnostic
         mode. Default will wait for 4 minutes, 0 will wait forever''',
         min=0),
+    Config('heuristic_controls', '', r'''
+        control the behavior of various optimizations. This is primarily used as a mechanism for
+        rolling out changes to internal heuristics while providing a mechanism for quickly
+        reverting to prior behavior in the field''',
+        type='category', subconfig=[
+            Config('checkpoint_cleanup_obsolete_tw_pages_dirty_max', '100', r'''
+                maximum number of obsolete time window pages that can be marked as dirty per btree
+                in a single checkpoint by the checkpoint cleanup''',
+                min=0, max=100000),
+            Config('eviction_obsolete_tw_pages_dirty_max', '100', r'''
+                maximum number of obsolete time window pages that can be marked dirty per btree in a
+                single checkpoint by the eviction threads''',
+                min=0, max=100000),
+            Config('obsolete_tw_btree_max', '100', r'''
+                maximum number of btrees that can be checked for obsolete time window cleanup in a
+                single checkpoint''',
+                min=0, max=500000),
+        ]),
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -831,10 +853,10 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prefix_compare',
-        'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
-        'sleep_before_read_overflow_onpage','split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2', 
+        'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
+        'prepare_resolution_2', 'sleep_before_read_overflow_onpage','split_1', 'split_2',
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -871,6 +893,7 @@ connection_runtime_config = [
             'mutex',
             'out_of_order',
             'overflow',
+            'prefetch',
             'read',
             'reconcile',
             'recovery',
@@ -932,6 +955,9 @@ log_configuration_common = [
     Config('prealloc', 'true', r'''
         pre-allocate log files''',
         type='boolean'),
+    Config('prealloc_init_count', '1', r'''
+        initial number of pre-allocated log files''',
+        min='1', max='500'),
     Config('remove', 'true', r'''
         automatically remove unneeded log files''',
         type='boolean'),
@@ -985,9 +1011,8 @@ statistics_log_configuration_common = [
     Config('on_close', 'false', r'''log statistics on database close''',
         type='boolean'),
     Config('sources', '', r'''
-        if non-empty, include statistics for the list of data source URIs, if they are open at the
-        time of the statistics logging. The list may include URIs matching a single data source
-        ("table:mytable"), or a URI matching all data sources of a particular type ("table:")''',
+        if non-empty, include statistics for the list of "file:" and "lsm:" data source URIs,
+        if they are open at the time of the statistics logging.''',
         type='list'),
     Config('timestamp', '"%b %d %H:%M:%S"', r'''
         a timestamp prepended to each log record. May contain \c strftime conversion specifications.
@@ -1675,6 +1700,7 @@ methods = {
 ]),
 
 'WT_SESSION.reset_snapshot' : Method([]),
+'WT_SESSION.rename' : Method([]),
 'WT_SESSION.reset' : Method([]),
 'WT_SESSION.salvage' : Method([
     Config('force', 'false', r'''
@@ -1685,11 +1711,11 @@ methods = {
 'WT_SESSION.strerror' : Method([]),
 
 'WT_SESSION.truncate' : Method([]),
-'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
-        or failures.''',
+        or failures. Note: History store validation is disabled when the configuration is set as 
+        visibility rules may not work correctly because the transaction ids are not cleared.''',
         type='boolean'),
     Config('dump_address', 'false', r'''
         Display page addresses, time windows, and page types as pages are verified, using the
@@ -1881,7 +1907,7 @@ methods = {
         prior to the start of the backup cannot be dropped''',
         type='list'),
     Config('flush_tier', '', r'''
-        configure flushing objects to tiered storage after checkpoint''',
+        configure flushing objects to tiered storage after checkpoint. See @ref tiered_storage''',
         type='category', subconfig= [
             Config('enabled', 'false', r'''
                 if true and tiered storage is in use, perform one iteration of object switching

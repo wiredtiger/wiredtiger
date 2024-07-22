@@ -51,7 +51,8 @@ class OpType(Enum):
     TREE_OBJECT_LOG = 42
     UPDATE_CHAIN_VERIFY = 43
     WAIT_THREADS = 44
-    SKIP_DEL = 45
+    SKIP_DEL = 45,
+    NO_STABLE = 46
 
 class Operation:
     def __init__(self, line):
@@ -530,9 +531,6 @@ class Operation:
         self.type = OpType.PAGE_UNSKIPPED
         self.addr = self.__extract_pointer('ref', line)
 
-        matches = re.search('reconciled info=(\d+)', line)
-        self.reconcile = int(matches.group(1))
-
     def __init_stable_update_found(self, line):
         self.type = OpType.STABLE_UPDATE_FOUND
 
@@ -581,6 +579,9 @@ class Operation:
 
     def __init_wait_threads(self, line):
         self.type = OpType.WAIT_THREADS
+
+    def __init_no_stable(self, line):
+        self.type = OpType.NO_STABLE
 
     def __init_end(self, line):
         self.type = OpType.END

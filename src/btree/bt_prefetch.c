@@ -9,13 +9,13 @@
 #include "wt_internal.h"
 
 /*
- * __wt_btree_prefetch --
+ * __wti_btree_prefetch --
  *     Pre-load a set of pages into the cache. This session holds a hazard pointer on the ref passed
  *     in, so there must be a valid page and a valid parent page (though that parent could change if
  *     a split happens).
  */
 int
-__wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -79,6 +79,7 @@ __wt_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
         if (WT_REF_GET_STATE(next_ref) == WT_REF_DISK && F_ISSET(next_ref, WT_REF_FLAG_LEAF) &&
           next_ref->page_del == NULL && !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH)) {
             ret = __wt_conn_prefetch_queue_push(session, next_ref);
+            /* If no more entries to prefetch, stop here. */
             if (ret == EBUSY) {
                 ret = 0;
                 break;
@@ -108,7 +109,7 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     if (pe->ref->home != pe->first_home)
         __wt_verbose(
-          session, WT_VERB_PREFETCH, "The home changed while queued for pre-fetch %s", "");
+          session, WT_VERB_PREFETCH, "%s", "The home changed while queued for pre-fetch");
 
     WT_PREFETCH_ASSERT(session, pe->dhandle != NULL, prefetch_skipped_no_valid_dhandle);
     WT_PREFETCH_ASSERT(
@@ -123,10 +124,10 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (__wt_ref_addr_copy(session, pe->ref, &addr)) {
-        WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH));
+        /* Skip deleted pages that are globally visible. They are not interesting to the readers. */
+        WT_ERR(__wt_page_in(session, pe->ref, WT_READ_PREFETCH | WT_READ_SKIP_DELETED));
         WT_ERR(__wt_page_release(session, pe->ref, 0));
-    } else
-        ret = (WT_ERROR);
+    }
 
 err:
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
