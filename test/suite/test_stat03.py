@@ -70,6 +70,8 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         # a multiplied effect.
         if self.dataset == SimpleDataSet:
             multiplier = 1   # no declared colgroup is like one big colgroup
+        else:
+            multiplier = ds.colgroup_count()
         statc = self.stat_cursor(self.uri)
         self.assertEqual(statc[stat.dsrc.btree_entries][2], n * multiplier)
 

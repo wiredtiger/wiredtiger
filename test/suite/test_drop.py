@@ -90,23 +90,20 @@ class test_drop(wttest.WiredTigerTestCase):
             self.reopen_conn()
             # Check that the table still contains the proper variant.
             ds.check(variant)
-
-        else:
-            drop_uri = uri
-        self.dropUntilSuccess(self.session, drop_uri)
-
-        confirm_does_not_exist(self, drop_uri)
+            
+        self.dropUntilSuccess(self.session, uri)
+        confirm_does_not_exist(self, uri)
 
         # Skip if tiered because test_drop_dne contains: self.skipTest("negative tests for drop do not work in tiered storage").
         if self.extra_config.find('type=lsm') == -1:
             # Test dropping a non-existent table
             # Fail without force or force=false
             self.assertRaises(wiredtiger.WiredTigerError,
-                lambda: self.session.drop(drop_uri, None))
+                lambda: self.session.drop(uri, None))
             self.assertRaises(wiredtiger.WiredTigerError,
-                lambda: self.session.drop(drop_uri, "force=false"))
+                lambda: self.session.drop(uri, "force=false"))
             # Succeed with force=true.
-            self.session.drop(drop_uri, "force=true")
+            self.session.drop(uri, "force=true")
 
     # Test drop of an object.
     def test_drop(self):
@@ -116,7 +113,7 @@ class test_drop(wttest.WiredTigerTestCase):
             for reopen in [False, True]:
                 for with_transaction in [False, True]:
                     cnt = cnt + 1
-                    self.drop(SimpleDataSet, cnt, with_cursor, reopen, with_transaction, False)
+                    self.drop(SimpleDataSet, cnt, with_cursor, reopen, with_transaction)
 
         # ComplexDataSet: A complex, multi-file table object.
         # Try all test combinations.

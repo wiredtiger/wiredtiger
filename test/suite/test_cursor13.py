@@ -355,16 +355,6 @@ class test_cursor13_drops(test_cursor13_base):
             cursor.close()
             self.dropUntilSuccess(session, uri)
 
-        for i in range(0, 2):
-            session.create(uri, config)
-            cursor = session.open_cursor(uri, None)
-            cursor['A'] = 'B'
-            cursor.close()
-            self.assertRaises(wiredtiger.WiredTigerError,
-                lambda: session.drop(uri))
-            cursor.close()
-            self.dropUntilSuccess(session, uri)
-
 # Shared base class for some bigger tests.
 class test_cursor13_big_base(test_cursor13_base):
     deep = 3
