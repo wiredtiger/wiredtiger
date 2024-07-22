@@ -90,7 +90,7 @@ class test_drop(wttest.WiredTigerTestCase):
             self.reopen_conn()
             # Check that the table still contains the proper variant.
             ds.check(variant)
-            
+
         self.dropUntilSuccess(self.session, uri)
         confirm_does_not_exist(self, uri)
 
