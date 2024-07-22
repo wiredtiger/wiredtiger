@@ -3793,8 +3793,6 @@ static const char *const __stats_session_desc[] = {
   "session: page write from cache to disk time (usecs)",
   "session: schema lock wait time (usecs)",
   "session: time waiting for cache (usecs)",
-  "session: total read I/Os",
-  "session: total write I/Os",
 };
 
 int
@@ -3822,6 +3820,4 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->write_time = 0;
     stats->lock_schema_wait = 0;
     stats->cache_time = 0;
-    stats->read_io = 0;
-    stats->write_io = 0;
 }
