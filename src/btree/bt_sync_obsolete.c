@@ -610,7 +610,8 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * in the btree. Remove the obsolete data to reduce the checkpoint size. Note the visiblity
      * check is done later on at the page level when walking the tree to find the right page that
      * has obsolete content.
-     * FIXME-XXX We should rely on the oldest_start_ts rather than the newest_*_ts.
+     *
+     * FIXME-WT-13321 Rely on the oldest_start_ts rather than the newest_*_ts.
      */
     if (__wt_txn_newest_visible_all(
           session, newest_txn, WT_MAX(newest_start_durable_ts, newest_stop_durable_ts)))
