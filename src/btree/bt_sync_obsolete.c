@@ -598,7 +598,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         return (true);
 
     /*
-     * Upon restart, the write generation number will be lower than the connectione one. For this
+     * Upon restart, the write generation number will be lower than the connection one. For this
      * reason, don't rely on the transaction as the transaction will be very likely bigger than the
      * current oldest one.
      */
@@ -607,7 +607,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
 
     /*
      * The checkpoint has some obsolete time window information that is no longer required to exist
-     * in the btree. Remove the obsolete data to reduce the checkpoint size. Note the visiblity
+     * in the btree. Remove the obsolete data to reduce the checkpoint size. Note the visibility
      * check is done later on at the page level when walking the tree to find the right page that
      * has obsolete content.
      *
