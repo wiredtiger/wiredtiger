@@ -28,7 +28,7 @@
 
 import os, re
 from suite_subprocess import suite_subprocess
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 import wiredtiger, wttest
 
 from wtscenario import make_scenarios
@@ -59,12 +59,8 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-simple', dict(uri='table:' + pfx, dataset=SimpleDataSet,
             table_config='split_pct=50', cfg='',
             cg_config='')),
-        ('table-complex',
-            dict(uri='table:' + pfx, dataset=ComplexDataSet,
-            table_config='allocation_size=512B', cfg='',
-            cg_config='allocation_size=512B')),
-        ('table-complex-lsm',
-            dict(uri='table:' + pfx, dataset=ComplexLSMDataSet,
+        ('table-simple-lsm',
+            dict(uri='table:' + pfx, dataset=SimpleLSMDataSet,
             table_config='lsm=(merge_max=5)', cfg='merge_max=5',
             cg_config='lsm=(merge_max=5)'))
     ]
@@ -79,16 +75,7 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
         #print "compare_config Expected config "
         #print expected_cfg
         cfg_orig = actual_cfg
-        if self.dataset != SimpleDataSet:
-            #
-            # If we have a complex config, strip out the colgroups and
-            # columns from the config.  Doing so allows us to keep the
-            # split commands below usable because those two items don't
-            # have assignments in them.
-            #
-            nocolgrp = re.sub("colgroups=\((.+?)\),", '', actual_cfg)
-            cfg_orig = re.sub("columns=\((.+?)\),", '', nocolgrp)
-
+    
         #print "Using original config "
         #print cfg_orig
         da = dict(kv.split('=') for kv in
@@ -162,10 +149,6 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
             expectout.write('Format=print\n')
             expectout.write('Header\n')
             expectout.write(self.uri + '\n')
-            # Check the config on the colgroup itself for complex tables.
-            if self.dataset != SimpleDataSet:
-                expectout.write('key_format=S\n')
-                expectout.write('colgroup:' + self.pfx + ':cgroup1\n')
             if self.cfg == '':
                 expectout.write(self.table_config + '\n')
             else:

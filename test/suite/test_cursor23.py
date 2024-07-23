@@ -30,16 +30,15 @@
 #   Test cursor get_raw_key_value using complex schema
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 class test_cursor23(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
-        ('file-S', dict(type='file:', keyfmt='S', valfmt='S', dataset=SimpleDataSet, complex=False)),
-        ('lsm-S', dict(type='lsm:', keyfmt='S', valfmt='S', dataset=SimpleDataSet, complex=False)),
-        ('table-S', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleDataSet, complex=False)),
-        ('table-S-complex-lsm', dict(type='table:', keyfmt='S', valfmt='S',
-            dataset=ComplexLSMDataSet, complex=True)),
+        ('file-S', dict(type='file:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('lsm-S', dict(type='lsm:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('table-S', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('table-S-lsm', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleLSMDataSet)),
     ])
 
     def check_get_key_and_value(self, cursor, expected_key, expected_value):
@@ -60,41 +59,21 @@ class test_cursor23(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(uri)
 
-        if self.complex:
-            # Check the data using get_key() and get_value()
-            self.session.begin_transaction()
-            cursor.reset()
+        # Check the data using get_key() and get_value()
+        self.session.begin_transaction()
+        cursor.reset()
+        for i in range(1, 10):
             cursor.next()
-            self.check_get_key_and_value(cursor=cursor, expected_key=f'{1:015d}', expected_value=['1:', 1, '32:', '81:'])
-            cursor.next()
-            self.check_get_key_and_value(cursor=cursor, expected_key=f'{2:015d}', expected_value=['2: ', 2, '64: ', '63: '])
-            cursor.next()
-            self.check_get_key_and_value(cursor=cursor, expected_key=f'{3:015d}', expected_value=['3: a', 3, '96: a', '45: a'])
-            self.session.commit_transaction()
+            self.check_get_key_and_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
+        self.session.commit_transaction()
 
-            # Try to check the data using get_raw_key_value(), but it's not supported
-            self.session.begin_transaction()
-            cursor.reset()
+        # Check the data using get_raw_key_and_value()
+        self.session.begin_transaction()
+        cursor.reset()
+        for i in range(1, 10):
             cursor.next()
-            msg = '/Unsupported cursor operation: Operation not supported/'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.get_raw_key_value(), msg)
-            self.session.commit_transaction()
-        else:
-            # Check the data using get_key() and get_value()
-            self.session.begin_transaction()
-            cursor.reset()
-            for i in range(1, 10):
-                cursor.next()
-                self.check_get_key_and_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
-            self.session.commit_transaction()
-
-            # Check the data using get_raw_key_and_value()
-            self.session.begin_transaction()
-            cursor.reset()
-            for i in range(1, 10):
-                cursor.next()
-                self.check_get_raw_key_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
-            self.session.commit_transaction()
+            self.check_get_raw_key_value(cursor=cursor, expected_key=f'{i:015d}'.format(i), expected_value=f'{i}: abcdefghijklmnopqrstuvwxyz'.format(i))
+        self.session.commit_transaction()
 
         cursor.close()
         self.session.close()

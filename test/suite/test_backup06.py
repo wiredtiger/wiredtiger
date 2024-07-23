@@ -30,7 +30,7 @@ import os
 from wtbackup import backup_base
 import wiredtiger, wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 try:
     # Windows does not getrlimit/setrlimit so we must catch the resource
     # module load.
@@ -56,10 +56,8 @@ class test_backup06(backup_base):
     tobjs = [
         ('table:' + pfx + '.3', SimpleDataSet),
         ('table:' + pfx + '.4', SimpleDataSet),
-        ('table:' + pfx + '.5', ComplexDataSet),
-        ('table:' + pfx + '.6', ComplexDataSet),
-        ('table:' + pfx + '.7', ComplexLSMDataSet),
-        ('table:' + pfx + '.8', ComplexLSMDataSet),
+        ('table:' + pfx + '.5', SimpleLSMDataSet),
+        ('table:' + pfx + '.6', SimpleLSMDataSet),
     ]
 
     # Populate a set of objects.

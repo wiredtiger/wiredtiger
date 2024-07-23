@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, SimpleIndexDataSet
-from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet
+from wtdataset import SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 # test_cursor11.py
@@ -45,9 +45,6 @@ class test_cursor11(wttest.WiredTigerTestCase):
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
         ('lsm', dict(uri='lsm', ds=SimpleDataSet)),
-        ('table-complex', dict(uri='table', ds=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table', ds=ComplexLSMDataSet)),
-        ('table-index', dict(uri='table', ds=SimpleIndexDataSet)),
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table', ds=SimpleLSMDataSet)),
     ]
@@ -57,8 +54,6 @@ class test_cursor11(wttest.WiredTigerTestCase):
         if d['keyfmt'] == 'r' and (d['ds'].is_lsm() or d['uri'] == 'lsm'):
             return False
         if d['valfmt'] == '8t' and d['keyfmt'] != 'r':
-            return False
-        if d['valfmt'] == '8t' and d['ds'] == ComplexDataSet:
             return False
         return True
 

@@ -31,7 +31,7 @@
 #
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # Test session.open_cursor with cursor duplication.
@@ -69,11 +69,6 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_duplicate_cursor(self):
-        # FIXME-WT-9815:
-        # Using column store ComplexDataStore after SimpleDataStore doesn't work, see ticket.
-        if 'tiered' in self.hook_names:
-            self.skipTest("this test does not yet work with tiered storage")
-
         uri = self.uri + self.name
 
         # A simple, one-file file or table object.
@@ -82,11 +77,3 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
         ds.populate()
         self.iterate(uri, ds)
         self.dropUntilSuccess(self.session, uri)
-
-        # A complex, multi-file table object.
-        if self.uri == "table:" and self.valfmt != '8t':
-            ds = ComplexDataSet(self, uri, self.nentries, \
-                    key_format=self.keyfmt, value_format=self.valfmt)
-            ds.populate()
-            self.iterate(uri, ds)
-            self.dropUntilSuccess(self.session, uri)

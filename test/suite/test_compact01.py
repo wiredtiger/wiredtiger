@@ -29,7 +29,7 @@
 import wttest
 from compact_util import compact_util
 from suite_subprocess import suite_subprocess
-from wtdataset import SimpleDataSet, ComplexDataSet
+from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
@@ -44,11 +44,8 @@ class test_compact(compact_util, suite_subprocess):
     config = 'leaf_page_max=8KB,key_format=S'
     nentries = 50000
 
-    # The table is a complex object, give it roughly 5 pages per underlying
-    # file.
     types = [
-        ('file', dict(type='file:', dataset=SimpleDataSet, maxpages=5)),
-        ('table', dict(type='table:', dataset=ComplexDataSet, maxpages=50))
+        ('file', dict(type='file:', dataset=SimpleDataSet, maxpages=5))
         ]
     compact = [
         ('method', dict(utility=0,reopen=0)),

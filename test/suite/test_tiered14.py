@@ -28,7 +28,7 @@
 
 import os, random, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
-from wtdataset import TrackedSimpleDataSet, TrackedComplexDataSet
+from wtdataset import TrackedSimpleDataSet
 from wtscenario import make_scenarios
 
 # test_tiered14.py
@@ -55,7 +55,6 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
     ]
     dataset = [
         ('simple', dict(dataset='simple')),
-        #('complex', dict(dataset='complex', long_only=True)),
     ]
     scenarios = make_scenarios(multiplier, keyfmt, dataset, storage_sources)
 
@@ -91,10 +90,6 @@ class test_tiered14(wttest.WiredTigerTestCase, TieredConfigMixin):
         if self.dataset == 'simple':
             ds = TrackedSimpleDataSet(self, uri, self.multiplier,
                                       key_format = self.keyfmt)
-        elif self.dataset == 'complex':
-            ds = TrackedComplexDataSet(self, uri, self.multiplier,
-                                      key_format = self.keyfmt)
-
         # Populate for a tracked data set is needed to create the uri.
         ds.populate()
         inserted = 0

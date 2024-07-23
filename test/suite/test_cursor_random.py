@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest, sys
-from wtdataset import SimpleDataSet, ComplexDataSet, simple_key, simple_value
+from wtdataset import SimpleDataSet, simple_key, simple_value
 from wtscenario import make_scenarios
 
 # test_cursor_random.py
@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 class test_cursor_random(wttest.WiredTigerTestCase):
     types = [
         ('file', dict(type='file:random', dataset=SimpleDataSet)),
-        ('table', dict(type='table:random', dataset=ComplexDataSet))
+        ('table', dict(type='table:random', dataset=SimpleDataSet))
     ]
     config = [
         ('sample', dict(config='next_random=true,next_random_sample_size=35')),

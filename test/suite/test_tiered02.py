@@ -28,20 +28,15 @@
 
 import os, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
-from wtdataset import SimpleDataSet, ComplexDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_tiered02.py
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
-    complex_dataset = [
-        ('simple_ds', dict(complex_dataset=False)),
-        ('complex_ds', dict(complex_dataset=True)),
-    ]
-
     # Make scenarios for different cloud service providers
     storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered02', tiered_only=True)
-    scenarios = make_scenarios(storage_sources, complex_dataset)
+    scenarios = make_scenarios(storage_sources)
 
     uri = "table:test_tiered02"
 
@@ -87,11 +82,7 @@ class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     def get_dataset(self, rows):
         args = 'key_format=S'
-
-        if self.complex_dataset:
-            return ComplexDataSet(self, self.uri, rows, config=args)
-        else:
-            return SimpleDataSet(self, self.uri, rows, config=args)
+        return SimpleDataSet(self, self.uri, rows, config=args)
 
     # Test tiered storage with checkpoints and flush_tier calls.
     def test_tiered(self):

@@ -29,7 +29,7 @@
 import string
 import wttest
 from suite_subprocess import suite_subprocess
-from wtdataset import ComplexDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_util02.py
@@ -169,7 +169,7 @@ class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
 
     def load_commandline(self, args, fail):
         errfile= "errfile"
-        ComplexDataSet(self, self.uri, 20).populate()
+        SimpleDataSet(self, self.uri, 20).populate()
         self.runWt(["dump", self.uri], outfilename="dump.out")
         loadargs = ["load", "-f", "dump.out"] + args
         self.runWt(loadargs, errfilename=errfile, failure=fail)

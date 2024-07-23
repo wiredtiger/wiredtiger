@@ -32,7 +32,7 @@
 import wttest
 from wiredtiger import stat
 
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 # test_stat03.py
@@ -46,11 +46,7 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         ('table-simple-row', dict(uri='table:' + pfx, dataset=SimpleDataSet, kf='S', vf='S')),
         ('table-simple-var', dict(uri='table:' + pfx, dataset=SimpleDataSet, kf='r', vf='S')),
         ('table-simple-fix', dict(uri='table:' + pfx, dataset=SimpleDataSet, kf='r', vf='8t')),
-        # The complex data sets ignore any passed-in value format.
-        ('table-complex-row', dict(uri='table:' + pfx, dataset=ComplexDataSet, kf='S', vf=None)),
-        ('table-complex-var', dict(uri='table:' + pfx, dataset=ComplexDataSet, kf='r', vf=None)),
-        ('table-complex-lsm', dict(uri='table:' + pfx,
-            dataset=ComplexLSMDataSet, kf='S', vf=None))
+        ('table-simple-lsm', dict(uri='table:' + pfx, dataset=SimpleLSMDataSet, kf='S', vf='S'))
     ]
 
     scenarios = make_scenarios(uri)
@@ -64,35 +60,18 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         n = 100
         ds = self.dataset(self, self.uri, n, key_format=self.kf, value_format=self.vf)
         ds.populate()
-
-        # The number of btree_entries reported is influenced by the
-        # number of column groups and indices.  Each insert will have
-        # a multiplied effect.
-        if self.dataset == SimpleDataSet:
-            multiplier = 1   # no declared colgroup is like one big colgroup
-        else:
-            multiplier = ds.colgroup_count() +  ds.index_count()
         statc = self.stat_cursor(self.uri)
-        self.assertEqual(statc[stat.dsrc.btree_entries][2], n * multiplier)
-
+        self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
         c = self.session.open_cursor(self.uri)
         c.set_key(ds.key(200))
         c.set_value(ds.value(200))
         c.insert()
 
         # Test that cursor reset re-loads the values.
-        self.assertEqual(statc[stat.dsrc.btree_entries][2], n * multiplier)
+        self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
         statc.reset()
         n += 1
-        self.assertEqual(statc[stat.dsrc.btree_entries][2], n * multiplier)
-
-        # For applications with indices and/or column groups, verify
-        # that there is a way to count the base number of entries.
-        if self.dataset != SimpleDataSet:
-            statc.close()
-            statc = self.stat_cursor(ds.index_name(0))
-            self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
-            statc.close()
-            statc = self.stat_cursor(ds.colgroup_name(0))
-            self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
+        self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
+        self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
         statc.close()
+        

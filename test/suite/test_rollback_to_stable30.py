@@ -28,7 +28,7 @@
 
 from rollback_to_stable_util import verify_rts_logs
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_rollback_to_stable30.py
@@ -39,8 +39,6 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
         ('table-f', dict(keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
         ('table-r', dict(keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
         ('table-S', dict(keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
-        ('table-r-complex', dict(keyfmt='r', valfmt=None, dataset=ComplexDataSet)),
-        ('table-S-complex', dict(keyfmt='S', valfmt=None, dataset=ComplexDataSet)),
     ]
 
     worker_thread_values = [

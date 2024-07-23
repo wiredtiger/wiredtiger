@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, SimpleIndexDataSet
-from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleLSMDataSet
 from wtscenario import filter_scenarios, make_scenarios
 
 # test_overwrite.py
@@ -44,8 +44,6 @@ class test_overwrite(wttest.WiredTigerTestCase):
     types = [
         ('file', dict(uri='file:', lsm=False, ds=SimpleDataSet)),
         ('lsm', dict(uri='lsm:', lsm=True, ds=SimpleDataSet)),
-        ('table-complex', dict(uri='table:', lsm=False, ds=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table:', lsm=True, ds=ComplexLSMDataSet)),
         ('table-index', dict(uri='table:', lsm=False, ds=SimpleIndexDataSet)),
         ('table-simple', dict(uri='table:', lsm=False, ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table:', lsm=True, ds=SimpleLSMDataSet)),

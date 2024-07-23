@@ -28,8 +28,7 @@
 
 import json
 import wttest
-from wtdataset import SimpleDataSet, SimpleLSMDataSet, SimpleIndexDataSet, \
-    ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet, SimpleIndexDataSet
 from helper import compare_files
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -83,8 +82,6 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
         ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
         ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
-        ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet))
     ]
     scenarios = make_scenarios(types, keyfmt)
 

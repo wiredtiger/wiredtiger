@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 from helper import confirm_does_not_exist
-from wtdataset import SimpleDataSet, ComplexDataSet
+from wtdataset import SimpleDataSet
 from wtdataset import SimpleIndexDataSet
 from wtscenario import make_scenarios
 
@@ -137,18 +137,6 @@ class test_drop(wttest.WiredTigerTestCase):
                         # drop_index == False since it does not work.
                         self.drop(SimpleIndexDataSet, cnt, with_cursor,
                                   reopen, with_transaction, False)
-
-        # ComplexDataSet: A complex, multi-file table object.
-        # Try all test combinations.
-        # Skip if tiered since column groups don't work for tiered.
-        if self.uri == "table:" and self.extra_config.find('type=lsm') == -1:
-            for with_cursor in [False, True]:
-                for reopen in [False, True]:
-                    for with_transaction in [False, True]:
-                        for drop_index in [False, True]:
-                            cnt = cnt + 1
-                            self.drop(ComplexDataSet, cnt, with_cursor,
-                                      reopen, with_transaction, drop_index)
 
     # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):

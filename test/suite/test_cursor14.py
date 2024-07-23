@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 # test_cursor14.py
@@ -41,12 +41,7 @@ class test_cursor14(wttest.WiredTigerTestCase):
         ('table-f', dict(type='table:', keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
         ('table-r', dict(type='table:', keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
         ('table-S', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
-        ('table-r-complex', dict(type='table:', keyfmt='r', valfmt=None,
-            dataset=ComplexDataSet)),
-        ('table-S-complex', dict(type='table:', keyfmt='S', valfmt=None,
-            dataset=ComplexDataSet)),
-        ('table-S-complex-lsm', dict(type='table:', keyfmt='S', valfmt=None,
-            dataset=ComplexLSMDataSet)),
+        ('table-S-lsm', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleLSMDataSet)),
     ])
 
     def test_cursor14(self):

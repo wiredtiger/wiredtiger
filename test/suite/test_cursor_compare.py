@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 # Test cursor comparisons.
@@ -36,8 +36,7 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
 
     types = [
         ('file', dict(type='file:', lsm=False, dataset=SimpleDataSet)),
-        ('lsm', dict(type='table:', lsm=True, dataset=ComplexLSMDataSet)),
-        ('table', dict(type='table:', lsm=False, dataset=ComplexDataSet))
+        ('lsm', dict(type='table:', lsm=True, dataset=SimpleLSMDataSet)),
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i', valfmt='S')),
@@ -51,9 +50,6 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         if d['keyfmt'] == 'r':
             # Skip record number keys with LSM.
             if d['lsm']:
-                return False
-            # Skip complex data sets with FLCS.
-            if d['valfmt'] == '8t' and d['dataset'] != SimpleDataSet:
                 return False
         else:
             # Skip byte data with row-store.

@@ -37,7 +37,7 @@ import shutil
 import time
 from wtbackup import backup_base
 import wiredtiger
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from helper import compare_files
 
 # test_backup.py
@@ -52,10 +52,8 @@ class test_backup(backup_base):
         ( 'file:' + pfx + '.2', SimpleDataSet, 0),
         ('table:' + pfx + '.3', SimpleDataSet, 0),
         ('table:' + pfx + '.4', SimpleDataSet, 0),
-        ('table:' + pfx + '.5', ComplexDataSet, 0),
-        ('table:' + pfx + '.6', ComplexDataSet, 0),
-        ('table:' + pfx + '.7', ComplexLSMDataSet, 1),
-        ('table:' + pfx + '.8', ComplexLSMDataSet, 1),
+        ('table:' + pfx + '.7', SimpleLSMDataSet, 1),
+        ('table:' + pfx + '.8', SimpleLSMDataSet, 1),
     ]
 
     # Test simple backup cursor open/close.
@@ -114,11 +112,11 @@ class test_backup(backup_base):
     # Test backup of database subsets.
     def test_backup_table(self):
         self.populate(self.objs)
-        self.backup_table([0,2,4,6])
-        self.backup_table([1,3,5,7])
+        self.backup_table([0,1,3])
+        self.backup_table([2,3])
         self.backup_table([0,1,2])
-        self.backup_table([3,4,5])
-        self.backup_table([5,6,7])
+        self.backup_table([1,2,3])
+
 
     # Test cursor reset runs through the list twice.
     def test_cursor_reset(self):

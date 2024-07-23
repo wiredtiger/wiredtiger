@@ -28,7 +28,7 @@
 
 import wttest
 from wtscenario import make_scenarios
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 
 # test_stat05.py
 #    Statistics cursor using size only
@@ -52,10 +52,8 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
         ('table-lsm', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='lsm',
             cfg='lsm=(chunk_size=1MB,merge_min=2)',
             conn_config = 'statistics=(fast)')),
-        ('complex-row', dict(uri='table:' + pfx, dataset=ComplexDataSet, type='row', cfg='')),
-        ('complex-var', dict(uri='table:' + pfx, dataset=ComplexDataSet, type='fix', cfg='')),
-        ('complex-lsm',
-            dict(uri='table:' + pfx, dataset=ComplexLSMDataSet, type='lsm',
+        ('simple-lsm',
+            dict(uri='table:' + pfx, dataset=SimpleLSMDataSet, type='lsm',
             cfg='lsm=(chunk_size=1MB,merge_min=2)',
             conn_config = 'statistics=(fast)')),
     ]

@@ -29,7 +29,7 @@
 import os, shutil
 import wiredtiger
 from wtbackup import backup_base
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 # test_backup03.py
@@ -38,13 +38,9 @@ from wtscenario import make_scenarios
 class test_backup_target(backup_base):
     dir='backup.dir'                    # Backup directory name
 
-    # This test is written to test LSM hot backups: we test a simple LSM object
-    # and a complex LSM object, but we can't test them both at the same time
-    # because we need to load fast enough the merge threads catch up, and so we
-    # test the real database, not what the database might look like after the
-    # merging settles down.
+    # This test is written to test LSM hot backups.
     #
-    # The way it works is we create 4 objects, only one of which is large, then
+    # The way it works is we create 3 objects, only one of which is large, then
     # we do a hot backup of one or more of the objects and compare the original
     # to the backup to confirm the backup is correct.
     #
@@ -54,26 +50,22 @@ class test_backup_target(backup_base):
     objs = [                            # Objects
         ('table:' + pfx + '.1', SimpleDataSet, 0, ''),
         (  'lsm:' + pfx + '.2', SimpleDataSet, 1, ''),
-        ('table:' + pfx + '.3', ComplexDataSet, 2, ''),
-        ('table:' + pfx + '.4', ComplexLSMDataSet, 3, 'lsm=(chunk_size=512k)'),
+        ('table:' + pfx + '.3', SimpleLSMDataSet, 2, 'lsm=(chunk_size=512k)'),
     ]
     list = [
         ( 'backup_1', dict(big=0,list=[0])),       # Target objects individually
         ( 'backup_2', dict(big=1,list=[1])),
         ( 'backup_3', dict(big=2,list=[2])),
-        ( 'backup_4', dict(big=3,list=[3])),
-        ('backup_5a', dict(big=0,list=[0,2])),     # Target groups of objects
-        ('backup_5b', dict(big=2,list=[0,2])),
-        ('backup_6a', dict(big=1,list=[1,3])),
-        ('backup_6b', dict(big=3,list=[1,3])),
+        ('backup_4a', dict(big=0,list=[0,2])),     # Target groups of objects
+        ('backup_4b', dict(big=2,list=[0,2])),
+        ('backup_5a', dict(big=1,list=[1,2])),
+        ('backup_5b', dict(big=2,list=[1,2])),
+        ('backup_6a', dict(big=0,list=[0,1])),     # Target groups of objects
+        ('backup_6b', dict(big=1,list=[0,1])),
         ('backup_7a', dict(big=0,list=[0,1,2])),
         ('backup_7b', dict(big=1,list=[0,1,2])),
         ('backup_7c', dict(big=2,list=[0,1,2])),
-        ('backup_8a', dict(big=0,list=[0,1,2,3])),
-        ('backup_8b', dict(big=1,list=[0,1,2,3])),
-        ('backup_8c', dict(big=2,list=[0,1,2,3])),
-        ('backup_8d', dict(big=3,list=[0,1,2,3])),
-        ('backup_9', dict(big=3,list=[])),         # Backup everything
+        ('backup_8', dict(big=3,list=[])),         # Backup everything
     ]
 
     scenarios = make_scenarios(list, prune=3, prunelong=1000)

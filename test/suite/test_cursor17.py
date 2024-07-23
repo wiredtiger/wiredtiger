@@ -31,7 +31,7 @@
 #
 import wttest
 import wiredtiger
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet
 from wtscenario import make_scenarios
 
 class test_cursor17(wttest.WiredTigerTestCase):
@@ -45,10 +45,8 @@ class test_cursor17(wttest.WiredTigerTestCase):
         ('table-var', dict(type='table:', keyformat='r', valueformat='i', dataset=SimpleDataSet)),
         ('file-fix', dict(type='file:', keyformat='r', valueformat='8t', dataset=SimpleDataSet)),
         # ('lsm', dict(type='lsm:', keyformat='i', valueformat='i', dataset=SimpleDataSet)),
-        ('table-r-complex', dict(type='table:', keyformat='r', valueformat=None,
-            dataset=ComplexDataSet)),
-        # ('table-i-complex-lsm', dict(type='table:', keyformat='i', valueformat=None,
-        #   dataset=ComplexLSMDataSet)),
+        # ('table-i-lsm', dict(type='table:', keyformat='i', valueformat='i',
+        #   dataset=SimpleLSMDataSet)),
     ]
 
     scenarios = make_scenarios(types)

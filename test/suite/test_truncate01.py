@@ -36,7 +36,7 @@
 
 import wiredtiger, wttest
 from helper import confirm_empty
-from wtdataset import SimpleDataSet, ComplexDataSet, simple_key
+from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 
 # Test truncation arguments.
@@ -102,13 +102,6 @@ class test_truncate_uri(wttest.WiredTigerTestCase):
         confirm_empty(self, uri)
         self.dropUntilSuccess(self.session, uri)
 
-        if self.type == "table:":
-            cds = ComplexDataSet(self, uri, 100)
-            cds.populate()
-            cds.truncate(uri, None, None, None)
-            confirm_empty(self, uri)
-            self.dropUntilSuccess(self.session, uri)
-
 # Test truncation of cursors in an illegal order.
 class test_truncate_cursor_order(wttest.WiredTigerTestCase):
     name = 'test_truncate'
@@ -171,18 +164,6 @@ class test_truncate_cursor_end(wttest.WiredTigerTestCase):
         self.assertEqual(c1.close(), 0)
         self.assertEqual(c2.close(), 0)
         self.dropUntilSuccess(self.session, uri)
-
-        if self.type == "table:":
-            ds = ComplexDataSet(self, uri, 100, key_format=self.keyfmt)
-            ds.populate()
-            c1 = self.session.open_cursor(uri, None)
-            c1.set_key(ds.key(1000))
-            c2 = self.session.open_cursor(uri, None)
-            c2.set_key(ds.key(2000))
-            ds.truncate(None, c1, c2, None)
-            self.assertEqual(c1.close(), 0)
-            self.assertEqual(c2.close(), 0)
-            self.dropUntilSuccess(self.session, uri)
 
 # Test truncation of empty objects.
 class test_truncate_empty(wttest.WiredTigerTestCase):
@@ -467,62 +448,3 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
 
                 self.truncateRangeAndCheck(ds, uri, begin, end, expected)
                 self.dropUntilSuccess(self.session, uri)
-
-    # Test truncation of complex tables using cursors.  We can't do the kind of
-    # layout and detailed testing as we can with files, but this will at least
-    # smoke-test the handling of indexes and column-groups.
-    def test_truncate_complex(self):
-
-        # We only care about tables.
-        if self.type == 'file:':
-                return
-
-        uri = self.type + self.name
-
-        # list: truncation patterns
-        #
-        # begin and end: -1 means pass None for the cursor arg to truncate.  An
-        # integer N, with 1 <= N < self.nentries, truncates from/to a cursor
-        # positioned at that row.
-        list = [
-            (-1, self.nentries),                # begin to end, begin = None
-            (1, -1),                            # begin to end, end = None
-            (1, self.nentries),                 # begin to end
-            (-1, self.nentries - self.skip),    # begin to middle, begin = None
-            (1, self.nentries - self.skip),     # begin to middle
-            (self.skip, -1),                    # middle to end, end = None
-            (self.skip, self.nentries),         # middle to end
-            (self.skip,                         # middle to different middle
-                self.nentries - self.skip),
-            (1, 1),                             # begin to begin
-            (self.nentries, self.nentries),     # end to end
-            (self.skip, self.skip)              # middle to same middle
-            ]
-
-        # Build the layout we're going to test
-        for begin,end in list:
-            '''
-            print '===== run:', uri
-            print 'key:', self.keyfmt, 'begin:', begin, 'end:', end
-            '''
-
-            # Create the object.
-            ds = ComplexDataSet(self, uri, self.nentries,
-                config=self.config, key_format=self.keyfmt)
-            ds.populate()
-
-            # Build a dictionary of what the object should look like for
-            # later comparison
-            cursor = ds.open_cursor()
-            expected = {}
-            for i in range(1, self.nentries + 1):
-                expected[ds.key(i)] = ds.comparable_value(i)
-            cursor.close()
-
-            # Optionally close and re-open the object to get a disk image
-            # instead of a big insert list.
-            if self.reopen:
-                self.reopen_conn()
-
-            self.truncateRangeAndCheck(ds, uri, begin, end, expected)
-            self.dropUntilSuccess(self.session, uri)

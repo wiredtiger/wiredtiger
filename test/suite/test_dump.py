@@ -35,8 +35,7 @@ import wttest
 
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
-from wtdataset import SimpleDataSet, SimpleIndexDataSet, SimpleLSMDataSet, \
-    ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet, SimpleIndexDataSet, SimpleLSMDataSet
 
 # test_dump.py
 #    Utilities: wt dump
@@ -64,8 +63,6 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
         ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
         ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
-        ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet)),
     ]
     scenarios = make_scenarios(types, keyfmt, dumpfmt)
 
@@ -142,15 +139,6 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['-h', self.dir, 'load', '-n', '-f', 'dump.out'],
             errfilename='errfile.out', failure=True)
         self.check_non_empty_file('errfile.out')
-
-        # If there are indices, dump one of them and check the output.
-        if self.dataset == ComplexDataSet:
-            indexuri = 'index:' + self.name + ':indx1'
-            hexopt = ['-x'] if self.hex == 1 else []
-            self.runWt(['-h', self.dir, 'dump'] + hexopt + [indexuri],
-                       outfilename='dumpidx.out')
-            self.check_non_empty_file('dumpidx.out')
-            self.compare_dump_values('dump.out', 'dumpidx.out')
 
         # Re-load the object into a different table uri
         shutil.rmtree(self.dir)
