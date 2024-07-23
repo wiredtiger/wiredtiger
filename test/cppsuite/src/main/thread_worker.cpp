@@ -292,7 +292,7 @@ thread_worker::get_assigned_first_collection_id()
 
 /*
  * Assign collections evenly among threads, for any remainders,
- * disrtibute one collection to each thread starting from thread 0.
+ * distribute one collection to each thread starting from thread 0.
  */
 uint64_t
 thread_worker::get_assigned_collection_count()
