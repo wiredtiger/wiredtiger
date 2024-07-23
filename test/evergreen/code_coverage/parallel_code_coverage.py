@@ -94,7 +94,7 @@ def main():
     if (bucket and bucket != "python" and bucket != "other"):
         sys.exit("Only buckets options \"python\" and \"other\" are allowed")
 
-    # Analysis will rewrite the list of coverage tests. If we use this when running a subset of 
+    # Analysis will rewrite the list of coverage tests. If we use this when running a subset of
     # tests only that subset will be written and we'll lose the unscheduled tests.
     if (bucket and analysis):
         sys.exit("Analysis mode can not be done with bucket")
@@ -146,7 +146,7 @@ def main():
     analysis_test_timings = run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_task, analysis=analysis)
 
     # In analysis mode, we analyze the test and their timings, and sort them in descending order.
-    # Running the shortest tests last decreases the amount of time we spend waiting for the 
+    # Running the shortest tests last decreases the amount of time we spend waiting for the
     # last thread to finish the last test, reducing overall runtime.
     if (analysis):
         analysis_test_timings.sort(key=lambda tup: tup[1], reverse=True)
