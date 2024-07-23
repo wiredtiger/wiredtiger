@@ -5583,10 +5583,6 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
-    # We also disable long tests to keep PR testing fast.
-    # FIXME-WT-XXXXX We're setting the -LE flag at the variant level since we can't set them on specific tasks below.
-    # They're only needed for csuite-tests-fast in the !.pull_request label and currently this is the only test in the variant that uses ctest_extra_args.
-    # If we add new tests they may unintentionally skip long tests.
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
     - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
