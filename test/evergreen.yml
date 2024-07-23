@@ -2080,24 +2080,14 @@ tasks:
   # End of cppsuite test tasks.
   # Start of csuite test tasks
   - name: csuite-tests-fast
-    tags: ["pull_request", "pull_request_no_sanitizer"]
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
           directory: test/csuite
-          ctest_extra_args: ${ctest_extra_args} -LE "long_running" -j ${num_jobs}
-
-  - name: csuite-tests-fast-sanitizer
-    tags: ["pull_request", "pull_request_sanitizer"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          directory: test/csuite
-          ctest_extra_args: ${ctest_extra_args} -E "wt12015_backup_corruption" -LE "long_running|sanitizer_long" -j ${num_jobs}
+          ctest_extra_args: -LE "long_running" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:
@@ -5526,7 +5516,7 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.pull_request_sanitizer"
+    - name: ".pull_request !.pull_request_compilers"
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
@@ -5596,7 +5586,10 @@ buildvariants:
     # to deliberate killing of processes to invoke corruption.
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.pull_request_no_sanitizer !.model_checking !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+    - name: ".pull_request !.pull_request_compilers !.model_checking !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+      vars:
+        # We want to keep pull request testing short. Disable tests that are slow under ASan
+        ctest_extra_args: -E "wt12015_backup_corruption" -LE sanitizer_long
     - name: examples-c-test
     - name: format-asan-smoke-test
 
@@ -5643,7 +5636,7 @@ buildvariants:
     validation_stress_num_runs: 20
   tasks:
     # Skip the azure/gcp tests as they don't compile under clang
-    - name: ".pull_request !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.pull_request_no_sanitizer !.model_checking !csuite-wt12015-backup-corruption-test"
+    - name: ".pull_request !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
     - name: compile
     - name: make-check-test
     - name: configure-combinations
@@ -6140,7 +6133,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.pull_request_sanitizer"
+    - name: ".pull_request !.pull_request_compilers"
     - name: compile
     - name: make-check-test
     - name: unit-test-extra-long
