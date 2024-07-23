@@ -48,7 +48,7 @@ def run_task(index, task):
     # we are stripping away /data/mci/wiredtiger/build and then applying the correct build path.
     path_depth = build_dir.count("/")
     env["GCOV_PREFIX_STRIP"] = str(path_depth)
-    env["GCOV_PREFIX_STRIP"] = build_dir
+    env["GCOV_PREFIX"] = build_dir
 
     logging.debug("Running task {} in {}".format(task, build_dir))
     start_time = datetime.now()
@@ -71,7 +71,7 @@ def main():
                         help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
     parser.add_argument('-u', '--bucket', type=str, help='Run on only python tests in code coverage')
-    parser.add_argument('-a', '--analysis', action="store_true", help='Analyse and sort the code coverage tests timing')
+    parser.add_argument('-o', '--optimize_test_order', action="store_true", help='Review test runtimes and update the test ordering for faster test execution')
     args = parser.parse_args()
 
     verbose = args.verbose
@@ -94,6 +94,8 @@ def main():
     if (bucket and bucket != "python" and bucket != "other"):
         sys.exit("Only buckets options \"python\" and \"other\" are allowed")
 
+    # Analysis will rewrite the list of coverage tests. If we use this when running a subset of 
+    # tests only that subset will be written and we'll lose the unscheduled tests.
     if (bucket and analysis):
         sys.exit("Analysis mode can not be done with bucket")
 
@@ -144,8 +146,8 @@ def main():
     analysis_test_timings = run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_task, analysis=analysis)
 
     # In analysis mode, we analyze the test and their timings, and sort them in descending order.
-    # A sorted test list will optimize the shared queue across the parallel processes and will
-    # overall shorten the code coverage time
+    # Running the shortest tests last decreases the amount of time we spend waiting for the 
+    # last thread to finish the last test, reducing overall runtime.
     if (analysis):
         analysis_test_timings.sort(key=lambda tup: tup[1], reverse=True)
         assert(len(config['test_tasks']) == len(analysis_test_timings))
