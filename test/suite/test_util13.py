@@ -75,7 +75,7 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
         #print "compare_config Expected config "
         #print expected_cfg
         cfg_orig = actual_cfg
-    
+
         #print "Using original config "
         #print cfg_orig
         da = dict(kv.split('=') for kv in

@@ -345,7 +345,6 @@ SIMD
 SLVG
 SMT
 SPINLOCK
-SSHH
 SSq
 STATP
 STR
@@ -1336,7 +1335,6 @@ txt
 typedef
 typeof
 uS
-ui
 uint
 uintAny
 umount
