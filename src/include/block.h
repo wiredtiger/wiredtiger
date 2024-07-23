@@ -246,7 +246,7 @@ struct __wt_bm {
 
 /*
  * WT_BLOCK --
- *	Block manager handle, references a single file.
+ *	Block manager file handle.
  */
 struct __wt_block {
     const char *name;  /* Name */
@@ -257,7 +257,7 @@ struct __wt_block {
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
 
     WT_FH *fh;            /* Backing file handle */
-    wt_off_t size;        /* File size */
+    wt_off_t size;        /* Storage size */
     wt_off_t extend_size; /* File extended size */
     wt_off_t extend_len;  /* File extend chunk size */
 
@@ -398,40 +398,12 @@ struct __wt_block_header {
      */
     uint8_t unused[3]; /* 09-11: unused padding */
 };
+
 /*
  * WT_BLOCK_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
  * inserts padding it will break the world.
  */
 #define WT_BLOCK_HEADER_SIZE 12
-
-/*
- * __wt_block_header_byteswap_copy --
- *     Handle big- and little-endian transformation of a header block, copying from a source to a
- *     target.
- */
-static WT_INLINE void
-__wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
-{
-    *to = *from;
-#ifdef WORDS_BIGENDIAN
-    to->disk_size = __wt_bswap32(from->disk_size);
-    to->checksum = __wt_bswap32(from->checksum);
-#endif
-}
-
-/*
- * __wt_block_header_byteswap --
- *     Handle big- and little-endian transformation of a header block.
- */
-static WT_INLINE void
-__wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
-{
-#ifdef WORDS_BIGENDIAN
-    __wt_block_header_byteswap_copy(blk, blk);
-#else
-    WT_UNUSED(blk);
-#endif
-}
 
 /*
  * WT_BLOCK_HEADER_BYTE
@@ -454,24 +426,62 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
 #define WT_BLOCK_ENCRYPT_SKIP WT_BLOCK_HEADER_BYTE_SIZE
 
 /*
- * __wt_block_header --
- *     Return the size of the block-specific header.
+ * WT_BLOCK_PANTRY --
+ *	Block manager handle for pantry storage block manager.
  */
-static WT_INLINE u_int
-__wt_block_header(WT_BLOCK *block)
-{
-    WT_UNUSED(block);
+struct __wt_block_pantry {
+    const char *name;  /* Name */
+    uint32_t objectid; /* Object id */
+    uint32_t ref;      /* References */
 
-    return ((u_int)WT_BLOCK_HEADER_SIZE);
-}
+    TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
+    TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+
+    /*
+     * Custom pantry fields - above this line the structure needs to exactly match the WT_BLOCK
+     * structure, since it can be treated as one for connection caching and a few other things.
+     * Ideally we would split this into a public/private structure, similar to session handles, and
+     * customize file and pantry handles as necessary. That's invasive so save the grunt work for
+     * now.
+     */
+
+    wt_shared uint64_t next_pantry_id;
+    WT_FH *fh;
+};
 
 /*
- * __wt_block_eligible_for_sweep --
- *     Return true if the block meets requirements for sweeping. The check that read reference count
- *     is zero is made elsewhere.
+ * WT_BLOCK_PANTRY_HEADER --
+ *	The pantry block manager custom header
  */
-static WT_INLINE bool
-__wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
-{
-    return (!block->remote && block->objectid <= bm->max_flushed_objectid);
-}
+struct __wt_block_pantry_header {
+    /*
+     * The pantry identifier for a particular page.
+     */
+    uint64_t pantry_id; /* 00-07: pantry identifier */
+
+    /*
+     * Page checksums are stored in two places. Similarly to the default block header.
+     */
+    uint32_t checksum; /* 08-11: checksum */
+
+/*
+ * No automatic generation: flag values cannot change, they're written to disk.
+ */
+#define WT_BLOCK_PANTRY_DATA_CKSUM 0x1u /* Block data is part of the checksum */
+#define WT_BLOCK_PANTRY_DATA_DELTA 0x2u /* Block object is a delta */
+    uint8_t flags;                      /* 12: flags */
+
+    /*
+     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
+     * 32-bit aligned and having a few bytes to play with in the future can't hurt.
+     */
+    uint8_t unused[7]; /* 13-15: unused padding */
+};
+
+/*
+ * WT_BLOCK_PANTRY_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
+ * inserts padding it will break the world.
+ */
+#define WT_BLOCK_PANTRY_HEADER_SIZE 16
+#define WT_BLOCK_PANTRY_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_PANTRY_HEADER_SIZE)
+#define WT_BLOCK_PANTRY_ID_INVALID UINT64_MAX

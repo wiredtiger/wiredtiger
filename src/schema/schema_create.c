@@ -117,20 +117,38 @@ err:
  *     Create a new file in the block manager, and track it.
  */
 static int
-__create_file_block_manager(
-  WT_SESSION_IMPL *session, const char *uri, const char *filename, uint32_t allocsize)
+__create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
+  uint32_t allocsize, const char **cfg)
 {
-    WT_RET(__wt_block_manager_create(session, filename, allocsize));
+    WT_CONFIG_ITEM storage_source_item;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
 
-    /*
-     * Track the creation of this file.
-     *
-     * If something down the line fails, we're going to need to roll this back. Specifically do NOT
-     * track the op in the import case since we do not want to wipe a data file just because we fail
-     * to import it.
-     */
-    if (WT_META_TRACKING(session))
-        WT_RET(__wt_meta_track_fileop(session, NULL, uri));
+    WT_RET(__wt_config_gets(session, cfg, "storage_source", &storage_source_item));
+    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
+
+    if (nstorage != NULL) {
+        /*
+         * This is currently a place holder - the storage source isn't fully created until the btree
+         * is created and I don't want to pull that forward into this schema code at the moment. So
+         * make a stub call to demonstrate intention, but the subsequent open call will implicitly
+         * create a file if necessary. Using the pantry manager also means metadata tracking isn't
+         * currently working. It assumes that the existing default block manger is responsible for
+         * objects.
+         */
+        WT_RET(__wt_block_pantry_manager_create(session, NULL, filename));
+    } else {
+        WT_RET(__wt_block_manager_create(session, filename, allocsize));
+
+        /*
+         * Track the creation of this file.
+         *
+         * If something down the line fails, we're going to need to roll this back. Specifically do
+         * NOT track the op in the import case since we do not want to wipe a data file just because
+         * we fail to import it.
+         */
+        if (WT_META_TRACKING(session))
+            WT_RET(__wt_meta_track_fileop(session, NULL, uri));
+    }
 
     return (0);
 }
@@ -205,7 +223,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
          */
         if (WT_SUFFIX_MATCH(filename, ".wtobj")) {
             if (session->import_list != NULL)
-                WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+                WT_ERR(__create_file_block_manager(session, uri, filename, allocsize, filecfg));
             else
                 WT_ERR_MSG(session, ENOTSUP,
                   "%s: import without metadata_file not supported on tiered files", uri);
@@ -258,7 +276,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         }
     } else
         /* Create the file. */
-        WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
+        WT_ERR(__create_file_block_manager(session, uri, filename, allocsize, filecfg));
 
     /*
      * If creating an ordinary file, update the file ID and current version numbers and strip
@@ -1110,7 +1128,11 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+#if 0
+    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false),storage_source=dir_store"));
+#else
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
+#endif
     stable_cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));

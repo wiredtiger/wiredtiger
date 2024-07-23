@@ -294,6 +294,57 @@ __wt_btree_config_encryptor(
     }
     return (0);
 }
+/*
+ * __btree_setup_storage_source --
+ *     Configure a WT_BTREE storage source.
+ */
+static int
+__btree_setup_storage_source(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_BUCKET_STORAGE *new;
+    WT_CONFIG_ITEM storage_source_item;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
+    WT_STORAGE_SOURCE *storage;
+    const char **cfg;
+
+    cfg = btree->dhandle->cfg;
+    conn = S2C(session);
+    nstorage = NULL;
+
+    /* Setup any configured storage source on the data handle */
+    WT_RET(__wt_config_gets(session, cfg, "storage_source", &storage_source_item));
+    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
+
+    if (nstorage == NULL)
+        return (0);
+
+    WT_ERR(__wt_calloc_one(session, &new));
+    new->auth_token = NULL;
+    new->cache_directory = NULL;
+    WT_ERR(__wt_strndup(session, "foo", 3, &new->bucket));
+    WT_ERR(__wt_strndup(session, "bar", 3, &new->bucket_prefix));
+
+    storage = nstorage->storage_source;
+    WT_ERR(storage->ss_customize_file_system(
+      storage, &session->iface, new->bucket, "", NULL, &new->file_system));
+    new->storage_source = storage;
+
+    F_SET(new, WT_BUCKET_FREE);
+    btree->bstorage = new;
+
+    if (0) {
+err:
+        if (new != NULL) {
+            __wt_free(session, new->bucket);
+            __wt_free(session, new->bucket_prefix);
+        }
+        __wt_free(session, new);
+    }
+
+    return (ret);
+}
 
 /*
  * __btree_conf --
@@ -424,6 +475,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_SET(btree, WT_BTREE_NO_CHECKPOINT);
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
+
+    WT_RET(__btree_setup_storage_source(session, btree));
 
     /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;
@@ -830,7 +883,7 @@ __btree_preload(WT_SESSION_IMPL *session)
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr)) {
-            WT_ERR(__wt_blkcache_read(session, tmp, addr.addr, addr.size));
+            WT_ERR(__wt_blkcache_read(session, tmp, addr.block_cookie, addr.block_cookie_size));
             ++block_preload;
         }
     WT_INTL_FOREACH_END;

@@ -147,6 +147,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
              * corrupted data, we'll end up here on corrupted data.
              */
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
+            /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
             if ((ret = __wt_decrypt(session, encryptor, WT_BLOCK_ENCRYPT_SKIP, ip, etmp)) != 0)
                 WT_ERR(__blkcache_read_corrupt(
                   session, ret, addr, addr_size, "block decryption failed"));

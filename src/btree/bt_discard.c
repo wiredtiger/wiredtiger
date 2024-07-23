@@ -177,7 +177,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
              * of the pages not in memory. We will redo reconciliation next time we visit this page.
              */
             __wt_free(session, multi->disk_image);
-            __wt_free(session, multi->addr.addr);
+            __wt_free(session, multi->addr.block_cookie);
         }
         __wt_free(session, mod->mod_multi);
         break;
@@ -193,7 +193,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * page, it would write the new disk image even it hasn't been instantiated into memory.
          * Therefore, no need to reconcile the page again if it remains clean.
          */
-        __wt_free(session, mod->mod_replace.addr);
+        __wt_free(session, mod->mod_replace.block_cookie);
         __wt_free(session, mod->mod_disk_image);
         break;
     }
@@ -306,7 +306,8 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     if (home == NULL || __wt_off_page(home, ref_addr)) {
-        __wt_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size);
+        __wt_ref_addr_safe_free(
+          session, ((WT_ADDR *)ref_addr)->block_cookie, ((WT_ADDR *)ref_addr)->block_cookie_size);
         __wt_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
     }
 }

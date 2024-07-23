@@ -249,8 +249,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &unpack.ta);
-        WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->addr));
-        addr->size = (uint8_t)unpack.size;
+        WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->block_cookie));
+        addr->block_cookie_size = (uint8_t)unpack.size;
         switch (unpack.raw) {
         case WT_CELL_ADDR_DEL:
             /* Could only have been fast-truncated if there were no overflow items. */
@@ -279,7 +279,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
 
 err:
     if (addr != NULL) {
-        __wt_free(session, addr->addr);
+        __wt_free(session, addr->block_cookie);
         __wt_free(session, addr);
     }
     return (ret);
@@ -1663,10 +1663,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     WT_REF *ref;
 
     /* There can be an address or a disk image or both. */
-    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
+    WT_ASSERT(session, multi->addr.block_cookie != NULL || multi->disk_image != NULL);
 
     /* If closing the file, there better be an address. */
-    WT_ASSERT(session, !closing || multi->addr.addr != NULL);
+    WT_ASSERT(session, !closing || multi->addr.block_cookie != NULL);
 
     /* If closing the file, there better not be any saved updates. */
     WT_ASSERT(session, !closing || multi->supd == NULL);
@@ -1676,11 +1676,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
       session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
 
     /* Verify any disk image we have. */
+#if 1
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,
       multi->disk_image == NULL ||
         __wt_verify_dsk_image(session, "[page instantiate]", multi->disk_image, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0,
       "Failed to verify a disk image");
+#endif
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
@@ -1722,12 +1724,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
      */
-    if (multi->addr.addr != NULL) {
+    if (multi->addr.block_cookie != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
         ref->addr = addr;
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
-        WT_RET(__wt_memdup(session, multi->addr.addr, multi->addr.size, &addr->addr));
-        addr->size = multi->addr.size;
+        WT_RET(__wt_memdup(
+          session, multi->addr.block_cookie, multi->addr.block_cookie_size, &addr->block_cookie));
+        addr->block_cookie_size = multi->addr.block_cookie_size;
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);

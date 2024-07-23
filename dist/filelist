@@ -18,6 +18,12 @@ src/block_cache/block_io.c
 src/block_cache/block_map.c
 src/block_cache/block_mgr.c
 src/block_cache/block_tier.c
+src/block_pantry/block_addr.c
+src/block_pantry/block_mgr.c
+src/block_pantry/block_open.c
+src/block_pantry/block_read.c
+src/block_pantry/block_unsup.c
+src/block_pantry/block_write.c
 src/bloom/bloom.c
 src/btree/bt_compact.c
 src/btree/bt_curnext.c

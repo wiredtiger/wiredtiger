@@ -970,6 +970,9 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
 
+    if (__wt_block_pantry_manager_owns_object(session, uri))
+        return (__wt_block_pantry_manager_open(session, uri, cfg, forced_salvage, readonly, bmp));
+
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
     bm->is_multi_handle = false;

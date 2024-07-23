@@ -4710,6 +4710,7 @@ typedef enum {
     WT_FS_OPEN_FILE_TYPE_DATA,  /*!< open a data file */
     WT_FS_OPEN_FILE_TYPE_DIRECTORY, /*!< open a directory */
     WT_FS_OPEN_FILE_TYPE_LOG,   /*!< open a log file */
+    WT_FS_OPEN_FILE_TYPE_PANTRY,   /*!< open a pantry object */
     WT_FS_OPEN_FILE_TYPE_REGULAR    /*!< open a regular file */
 } WT_FS_OPEN_FILE_TYPE;
 
@@ -5201,6 +5202,51 @@ struct __wt_file_handle {
      */
     int (*fh_write)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
         wt_off_t offset, size_t length, const void *buf);
+
+#if !defined(DOXYGEN)
+/* This object based interface is not public. */
+
+    /*!
+     * Put an object given an identifier.
+     *
+     * @errors
+     *
+     * @param file_handle the WT_FILE_HANDLE
+     * @param session the current WiredTiger session
+     * @param offset offset at which to start writing
+     * @param length amount of data to write
+     * @param buf content to be written to the file
+     */
+    int (*fh_obj_put)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
+        uint64_t object_id, WT_ITEM *buf);
+
+    /*!
+     * Get an object for a given identifier.
+     *
+     * @errors
+     *
+     * @param file_handle the WT_FILE_HANDLE
+     * @param session the current WiredTiger session
+     * @param offset offset at which to start writing
+     * @param length amount of data to write
+     * @param buf content to be written to the file
+     */
+    int (*fh_obj_get)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
+        uint64_t object_id, WT_ITEM *buf);
+
+    /*!
+     * Remove an object.
+     *
+     * @errors
+     *
+     * @param file_handle the WT_FILE_HANDLE
+     * @param session the current WiredTiger session
+     * @param offset offset at which to start writing
+     * @param length amount of data to write
+     * @param buf content to be written to the file
+     */
+    int (*fh_obj_delete)(WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t offset);
+#endif
 };
 
 #if !defined(DOXYGEN)

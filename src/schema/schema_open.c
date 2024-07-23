@@ -405,6 +405,32 @@ __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
 }
 
 /*
+ * __wt_schema_open_storage_source --
+ *     Return a storage source if configured. This doesn't really belong here, but it's shared
+ *     between btree and tiered handle configuration, so I could not think of somewhere better.
+ */
+int
+__wt_schema_open_storage_source(
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *name, WT_NAMED_STORAGE_SOURCE **nstoragep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
+
+    *nstoragep = NULL;
+
+    if (name->len == 0 || WT_CONFIG_LIT_MATCH("none", *name))
+        return (0);
+
+    conn = S2C(session);
+    TAILQ_FOREACH (nstorage, &conn->storagesrcqh, q)
+        if (WT_CONFIG_MATCH(nstorage->name, *name)) {
+            *nstoragep = nstorage;
+            return (0);
+        }
+    WT_RET_MSG(session, EINVAL, "unknown storage source '%.*s'", (int)name->len, name->str);
+}
+
+/*
  * __schema_open_table --
  *     Open the data handle for a table (internal version).
  */

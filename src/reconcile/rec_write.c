@@ -792,7 +792,7 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
-        __wt_free(session, multi->addr.addr);
+        __wt_free(session, multi->addr.block_cookie);
     }
     __wt_free(session, r->multi);
 
@@ -2153,8 +2153,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 #ifdef HAVE_DIAGNOSTIC
     verify_image = false;
 #endif
-    WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
-    multi->addr.size = (uint8_t)addr_size;
+    WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.block_cookie));
+    multi->addr.block_cookie_size = (uint8_t)addr_size;
 
     /* Adjust the pre-compression page size based on compression results. */
     if (WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->intlpage_compadjust)
@@ -2312,9 +2312,10 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
          * saved updates. We've gotten this wrong a few times, so use the existence of an address to
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
-        if (multi->addr.addr != NULL) {
-            WT_RET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
-            __wt_free(session, multi->addr.addr);
+        if (multi->addr.block_cookie != NULL) {
+            WT_RET(__wt_btree_block_free(
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+            __wt_free(session, multi->addr.block_cookie);
         }
     }
     __wt_free(session, mod->mod_multi);
@@ -2476,11 +2477,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * checkpoints, and must be explicitly dropped.
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(session, mod->mod_replace.addr, mod->mod_replace.size));
+            WT_RET(__wt_btree_block_free(
+              session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
 
         /* Discard the replacement page's address and disk image. */
-        __wt_free(session, mod->mod_replace.addr);
-        mod->mod_replace.size = 0;
+        __wt_free(session, mod->mod_replace.block_cookie);
+        mod->mod_replace.block_cookie_size = 0;
         __wt_free(session, mod->mod_disk_image);
         break;
     default:
@@ -2548,7 +2550,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         if (r->wrapup_checkpoint == NULL) {
             mod->mod_replace = r->multi->addr;
-            r->multi->addr.addr = NULL;
+            r->multi->addr.block_cookie = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
@@ -2648,8 +2650,9 @@ __rec_write_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * question of correctness, we're avoiding block leaks.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->addr.addr != NULL)
-            WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
+        if (multi->addr.block_cookie != NULL)
+            WT_TRET(__wt_btree_block_free(
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size));
 
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 

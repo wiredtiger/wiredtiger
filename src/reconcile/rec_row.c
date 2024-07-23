@@ -490,23 +490,21 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
 /*
  * __rec_row_garbage_collect_fixup_update_list --
- *     Insert a tombstone at the start of an update list if all entries are eligible for
- *     garbage collection.
- *     There is duplication between the update list and insert list versions of these functions
- *     but my head explodes trying to keep the data structures involved mapped in my head, so
- *     the duplication feels warranted.
- *     Don't bother tracking the additional memory associated with these tombstones - it is
- *     about to be freed anyway.
+ *     Insert a tombstone at the start of an update list if all entries are eligible for garbage
+ *     collection. There is duplication between the update list and insert list versions of these
+ *     functions but my head explodes trying to keep the data structures involved mapped in my head,
+ *     so the duplication feels warranted. Don't bother tracking the additional memory associated
+ *     with these tombstones - it is about to be freed anyway.
  */
 static int
 __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ROW *rip)
 {
-	WT_BTREE *btree;
+    WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone, **upd_entry;
 
-	btree = S2BT(session);
+    btree = S2BT(session);
     page = r->page;
     mod = page->modify;
 
@@ -520,10 +518,10 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
           "oligarch table record garbage collected 5");
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
-         * Use the transaction ID of the prior update to avoid out-of-order IDs,
-         * we know that update selection further into reconciliation will choose this
-         * tombstone and cause the record to be skipped when creating a page image.
-        */
+         * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
+         * selection further into reconciliation will choose this tombstone and cause the record to
+         * be skipped when creating a page image.
+         */
         tombstone->txnid = first_upd->txnid;
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
@@ -534,18 +532,19 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
 
 /*
  * __rec_row_garbage_collect_fixup_insert_list --
- *     Insert a tombstone at the start of an insert list if all entries are eligible for
- *     garbage collection.
+ *     Insert a tombstone at the start of an insert list if all entries are eligible for garbage
+ *     collection.
  */
 static int
-__rec_row_garbage_collect_fixup_insert_list(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
+__rec_row_garbage_collect_fixup_insert_list(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
-	WT_BTREE *btree;
+    WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone;
 
-	btree = S2BT(session);
+    btree = S2BT(session);
     page = r->page;
     mod = page->modify;
 
@@ -560,10 +559,10 @@ __rec_row_garbage_collect_fixup_insert_list(WT_SESSION_IMPL *session, WT_RECONCI
           "oligarch table record garbage collected 4");
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
-         * Use the transaction ID of the prior update to avoid out-of-order IDs,
-         * we know that update selection further into reconciliation will choose this
-         * tombstone and cause the record to be skipped when creating a page image.
-        */
+         * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
+         * selection further into reconciliation will choose this tombstone and cause the record to
+         * be skipped when creating a page image.
+         */
         tombstone->txnid = first_upd->txnid;
         tombstone->next = first_upd;
         ins->upd = tombstone;
@@ -928,7 +927,7 @@ __wt_rec_row_leaf(
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
                 __wt_txn_tw_start_visible_all(session, twp) ||
                 (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-                WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)));
+                  WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)

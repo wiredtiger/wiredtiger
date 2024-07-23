@@ -1740,7 +1740,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
         WT_RET(ds->f(ds, " | %s | addr: %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
-          __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
+          __wt_addr_string(session, addr.block_cookie, addr.block_cookie_size, ds->t1)));
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, " | page_del: %s",

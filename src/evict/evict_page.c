@@ -495,11 +495,11 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
         break;
     case WT_PM_REC_REPLACE:
         /* 1-for-1 page swap: Update the parent to reference the replacement page. */
-        WT_ASSERT(session, mod->mod_replace.addr != NULL);
+        WT_ASSERT(session, mod->mod_replace.block_cookie != NULL);
         WT_RET(__wt_calloc_one(session, &addr));
         *addr = mod->mod_replace;
-        mod->mod_replace.addr = NULL;
-        mod->mod_replace.size = 0;
+        mod->mod_replace.block_cookie = NULL;
+        mod->mod_replace.block_cookie_size = 0;
         ref->addr = addr;
 
         /*
