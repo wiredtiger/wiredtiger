@@ -1494,8 +1494,8 @@ __wt_row_leaf_value_cell(
 struct __wt_addr_copy {
     uint8_t type;
 
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    uint8_t size;
+    uint8_t block_cookie[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t block_cookie_size;
 
     WT_TIME_AGGREGATE ta;
 
@@ -1539,7 +1539,8 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
         copy->type = addr->type;
-        memcpy(copy->addr, addr->addr, copy->size = addr->size);
+        memcpy(copy->block_cookie, addr->block_cookie,
+          copy->block_cookie_size = addr->block_cookie_size);
         return (true);
     }
 
@@ -1572,7 +1573,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         copy->type = WT_ADDR_LEAF_NO;
         break;
     }
-    memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
+    memcpy(copy->block_cookie, unpack->data, copy->block_cookie_size = (uint8_t)unpack->size);
     return (true);
 }
 
@@ -1611,7 +1612,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
 
-    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+    WT_ERR(__wt_btree_block_free(session, addr.block_cookie, addr.block_cookie_size));
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);

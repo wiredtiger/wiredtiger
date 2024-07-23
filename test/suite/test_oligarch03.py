@@ -39,9 +39,17 @@ class test_oligarch03(wttest.WiredTigerTestCase):
 
     uri = "oligarch:" + uri_base
 
+    # Load the directory store extension, which has object storage support
+    def conn_extensions(self, extlist):
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
+        extlist.extension('storage_sources', 'dir_store')
+
     # Test inserting a record into an oligarch tree
     def test_oligarch03(self):
         base_create = 'key_format=S,value_format=S'
+        os.mkdir('foo') # Hard coded to match library for now.
+        os.mkdir('bar') # Hard coded to match library for now.
 
         self.pr("create oligarch tree")
         self.session.create(self.uri, base_create)

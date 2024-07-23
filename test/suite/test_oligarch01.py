@@ -47,9 +47,11 @@ class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
             ("file:" + uri_base + ".wt_stable", '')
             ]
 
-    # Load the storage store extension.
+    # Load the directory store extension, which has object storage support
     def conn_extensions(self, extlist):
-        TieredConfigMixin.conn_extensions(self, extlist)
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
+        extlist.extension('storage_sources', 'dir_store')
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str):

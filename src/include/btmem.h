@@ -135,8 +135,8 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 struct __wt_addr {
     WT_TIME_AGGREGATE ta;
 
-    uint8_t *addr; /* Block-manager's cookie */
-    uint8_t size;  /* Block-manager's cookie length */
+    uint8_t *block_cookie;     /* Block-manager's cookie */
+    uint8_t block_cookie_size; /* Block-manager's cookie length */
 
 #define WT_ADDR_INT 1     /* Internal page */
 #define WT_ADDR_LEAF 2    /* Leaf page */

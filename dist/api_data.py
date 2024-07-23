@@ -388,6 +388,10 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         when a Btree page is split, it will be split into smaller pages, where each page is
         the specified percentage of the maximum Btree page size''',
         min='50', max='100'),
+    Config('storage_source', '', r'''
+        The custome storage source used as a backing for this table - currently only used
+        experimentally by oligarch tables to back their stable component in shared/object
+        based storage''', type='string', undoc=True),
 ]
 
 # File metadata, including both configurable and non-configurable (internal)

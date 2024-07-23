@@ -522,6 +522,7 @@ blkincr
 blkmod
 blkmods
 bm
+bmp
 bnd
 bool
 boolean
@@ -901,6 +902,7 @@ isprint
 isrc
 isspace
 iter
+janky
 jjj
 js
 json
