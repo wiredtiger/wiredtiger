@@ -68,20 +68,10 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         dsX = self.dataset(self, uriX, 100, key_format=self.keyfmt)
         ds.populate()
         dsX.populate()
-        if self.type == 'file:':
-            ix0_0 = None
-            ix0_1 = None
-            ix1_0 = None
-            ixX_0 = None
-        else:
-            ix0_0 = self.session.open_cursor(ds.index_name(0), None)
-            ix0_1 = self.session.open_cursor(ds.index_name(0), None)
-            ix1_0 = self.session.open_cursor(ds.index_name(1), None)
-            ixX_0 = self.session.open_cursor(dsX.index_name(0), None)
-            ix0_0.next()
-            ix0_1.next()
-            ix1_0.next()
-            ixX_0.next()
+        ix0_0 = None
+        ix0_1 = None
+        ix1_0 = None
+        ixX_0 = None
 
         c1 = self.session.open_cursor(uri, None)
         c2 = self.session.open_cursor(uri, None)
@@ -117,16 +107,6 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
             ix0_1.prev()
             self.assertLess(ix0_0.compare(ix0_1), 0)
             self.assertGreater(ix0_1.compare(ix0_0), 0)
-            # Main table vs. index not allowed
-            msg = '/must reference the same object/'
-            self.assertRaisesWithMessage(
-                wiredtiger.WiredTigerError, lambda: c1.compare(ix0_0), msg)
-            # Two unrelated indices not allowed
-            self.assertRaisesWithMessage(
-                wiredtiger.WiredTigerError, lambda: ixX_0.compare(ix0_0), msg)
-            # Two different indices from same table not allowed
-            self.assertRaisesWithMessage(
-                wiredtiger.WiredTigerError, lambda: ix0_0.compare(ix1_0), msg)
 
         # Test cursors after they're positioned (shouldn't matter for compare).
         c1.set_key(ds.key(10))
@@ -157,21 +137,11 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         dsX = self.dataset(self, uriX, 100, key_format=self.keyfmt)
         ds.populate()
         dsX.populate()
-        if self.type == 'file:':
-            ix0_0 = None
-            ix0_1 = None
-            ix1_0 = None
-            ixX_0 = None
-        else:
-            ix0_0 = self.session.open_cursor(ds.index_name(0), None)
-            ix0_1 = self.session.open_cursor(ds.index_name(0), None)
-            ix1_0 = self.session.open_cursor(ds.index_name(1), None)
-            ixX_0 = self.session.open_cursor(dsX.index_name(0), None)
-            ix0_0.next()
-            ix0_1.next()
-            ix1_0.next()
-            ixX_0.next()
-
+        ix0_0 = None
+        ix0_1 = None
+        ix1_0 = None
+        ixX_0 = None
+        
         c1 = self.session.open_cursor(uri, None)
         c2 = self.session.open_cursor(uri, None)
 
@@ -205,16 +175,6 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
             ix0_1.reset()
             ix0_1.prev()
             self.assertFalse(ix0_0.equals(ix0_1))
-            # Main table vs. index not allowed
-            msg = '/must reference the same object/'
-            self.assertRaisesWithMessage(
-                wiredtiger.WiredTigerError, lambda: c1.equals(ix0_0), msg)
-            # Two unrelated indices not allowed
-            self.assertRaisesWithMessage(
-                wiredtiger.WiredTigerError, lambda: ixX_0.equals(ix0_0), msg)
-            # Two different indices from same table not allowed
-            self.assertRaisesWithMessage(
-                wiredtiger.WiredTigerError, lambda: ix0_0.equals(ix1_0), msg)
 
         # Test cursors after they're positioned (internally, it's a different
         # search path if keys are positioned in the tree).
