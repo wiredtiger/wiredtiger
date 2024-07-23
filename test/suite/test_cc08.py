@@ -47,7 +47,14 @@ class test_cc08(eviction_util, test_cc_base):
         ('500_pages', dict(expected_cleanup=True, cc_obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=500]')),
     ]
 
-    scenarios = make_scenarios(conn_config_values)
+    # Necessary conditions for checkpoint cleanup to run.
+    cc_scenarios = [
+        ('newest_stop_durable_ts', dict(has_delete=True, bump_oldest_ts=False)),
+        ('obsolete_ts', dict(has_delete=False, bump_oldest_ts=True)),
+        ('none', dict(has_delete=False, bump_oldest_ts=False)),
+    ]
+
+    scenarios = make_scenarios(conn_config_values, cc_scenarios)
 
     def test_evict(self):
         create_params = 'key_format=i,value_format=S'
@@ -74,13 +81,25 @@ class test_cc08(eviction_util, test_cc_base):
         # table.
         cursor = self.session.open_cursor(uri, None, None)
 
+        if self.has_delete:
+            self.session.begin_transaction()
+            cursor.set_key(1)
+            cursor.remove()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 1))
+            self.session.checkpoint()
+
+        if self.bump_oldest_ts:
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows))
+
         # Force checkpoint cleanup and wait for it to make progress. It should read pages from the
         # disk to clear the obsolete content if allowed to.
         self.check_cc_stats()
 
         cc_read_stat = self.get_stat(stat.conn.checkpoint_cleanup_obsolete_tw_pages_read)
         cc_dirty_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
-        if self.expected_cleanup:
+
+        # We may be expecting cleanup but we have to be in one of the valid scenarios.
+        if self.expected_cleanup and (self.has_delete or self.bump_oldest_ts):
             assert cc_read_stat > 0, "Checkpoint cleanup did not read anything"
             assert cc_dirty_stat > 0, "Checkpoint cleanup did not dirty anything"
             assert cc_dirty_stat <= self.cc_obsolete_tw_max, f"Checkpoint cleanup dirtied too many pages {cc_dirty_stat} (max: {self.cc_obsolete_tw_max})"
