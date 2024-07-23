@@ -2950,14 +2950,16 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
             continue;
 
         sess = &WT_CONN_SESSIONS_GET(conn)[i];
+        if (sess->isolation == WT_ISO_READ_UNCOMMITTED)
+            WT_RET(__wt_msg(session,
+              "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
+              ", metadata pinned ID: %" PRIu64 ", name: %s",
+              i, id, __wt_atomic_loadv64(&s->pinned_id), __wt_atomic_loadv64(&s->metadata_pinned),
+              sess->name == NULL ? "EMPTY" : sess->name));
+
         if (!F_ISSET(sess->txn, WT_TXN_HAS_SNAPSHOT))
             continue;
 
-        WT_RET(__wt_msg(session,
-          "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
-          ", metadata pinned ID: %" PRIu64 ", name: %s",
-          i, id, __wt_atomic_loadv64(&s->pinned_id), __wt_atomic_loadv64(&s->metadata_pinned),
-          sess->name == NULL ? "EMPTY" : sess->name));
         WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
