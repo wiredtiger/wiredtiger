@@ -30,7 +30,7 @@ import wiredtiger, wttest, threading, wtthread, time
 from wiredtiger import stat
 
 # test_bug033.py
-# Test for WT-12096 and BF-32981.
+# Test for WT-12096.
 # Test inserting obsolete updates on the update chain after rolling back to a stable timestamp.
 class test_bug033(wttest.WiredTigerTestCase):
     uri = 'table:test_bug033'
