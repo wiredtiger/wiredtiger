@@ -141,7 +141,7 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         ix0_1 = None
         ix1_0 = None
         ixX_0 = None
-        
+
         c1 = self.session.open_cursor(uri, None)
         c2 = self.session.open_cursor(uri, None)
 
