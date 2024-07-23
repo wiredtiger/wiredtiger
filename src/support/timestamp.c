@@ -165,6 +165,8 @@ __time_aggregate_validate_parent_stable(
 
     if (ta->newest_durable_ts > stable)
         WT_TIME_ERROR("a newest durable time after");
+    if (ta->newest_page_stop_durable_ts > stable)
+        WT_TIME_ERROR("a newest page stop durable time after");
     if (ta->oldest_start_ts > stable)
         WT_TIME_ERROR("an oldest start time after");
     if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > stable)
@@ -185,35 +187,44 @@ __time_aggregate_validate_parent(
 
     if (ta->newest_durable_ts > parent->newest_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest durable time after its parent's; time "
+          "aggregate time window has the newest durable time after its parent's; time "
           "aggregate %s, parent %s",
+          __wt_time_aggregate_to_string(ta, time_string[0]),
+          __wt_time_aggregate_to_string(parent, time_string[1]));
+
+    if (ta->newest_page_stop_durable_ts > parent->newest_page_stop_durable_ts)
+        WT_TIME_VALIDATE_RET(session,
+          "aggregate time window has the newest page stop durable time after its parent's; time "
+          "aggregate "
+          "%s, parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (ta->oldest_start_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has an oldest start time before its parent's; time aggregate %s, "
+          "aggregate time window has the oldest start time before its parent's; time aggregate %s, "
           "parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (ta->newest_txn > parent->newest_txn)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest transaction after its parent's; time "
+          "aggregate time window has the newest transaction after its parent's; time "
           "aggregate %s, parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (ta->newest_stop_ts > parent->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest stop time after its parent's; time aggregate %s, "
+          "aggregate time window has the newest stop time after its parent's; time aggregate %s, "
           "parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (ta->newest_stop_txn > parent->newest_stop_txn)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest stop transaction after its parent's; time aggregate "
+          "aggregate time window has the newest stop transaction after its parent's; time "
+          "aggregate "
           "%s, parent %s",
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
@@ -290,33 +301,54 @@ __wt_time_aggregate_validate(
 
     if (ta->oldest_start_ts > ta->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has an oldest start time after its newest stop time; time "
+          "aggregate time window has the oldest start time after its newest stop time; time "
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     if (ta->newest_txn > ta->newest_stop_txn)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest transaction after its newest stop "
+          "aggregate time window has the newest transaction after its newest stop "
           "transaction; time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     if (ta->oldest_start_ts > ta->newest_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has an oldest start time after its newest start durable time; "
+          "aggregate time window has the oldest start time after its newest start durable time; "
           "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
+    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_page_stop_durable_ts)
+        WT_TIME_VALIDATE_RET(session,
+          "aggregate time window has the newest stop time after its newest page stop durable time; "
+          "time "
+          "aggregate %s",
+          __wt_time_aggregate_to_string(ta, time_string[0]));
+
+#if 0
+    /*
+     * FIXME: These checks are possible only with the new way of storing the data. Enable it with
+     * the version check.
+     */
     if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest stop time after its newest durable time; time "
+          "aggregate time window has the newest stop time after its newest durable time; time "
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     if (ta->newest_page_stop_durable_ts > ta->newest_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "aggregate time window has a newest page stop durable time after its newest durable "
+          "aggregate time window has the newest page stop durable time after its newest durable "
           "time; "
           "time aggregate %s",
+          __wt_time_aggregate_to_string(ta, time_string[0]));
+#endif
+
+    if (ta->newest_page_stop_durable_ts != WT_TS_NONE &&
+      ta->newest_page_stop_durable_ts < ta->oldest_start_ts)
+        WT_TIME_VALIDATE_RET(session,
+          "aggregate time window has the newest page stop durable time before its oldest start "
+          "time; time "
+          "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     /*
