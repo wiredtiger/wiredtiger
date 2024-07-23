@@ -2808,6 +2808,21 @@ __wt_verbose_dump_txn_one(
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
 
+    if (txn->isolation != WT_ISO_READ_UNCOMMITTED &&
+      !F_ISSET(txn_session->txn, WT_TXN_HAS_SNAPSHOT))
+        return (0);
+
+    WT_RET(__wt_msg(session,
+      "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
+      ", metadata pinned ID: %" PRIu64 ", name: %s",
+      txn_session->id, __wt_atomic_loadv64(&txn_shared->id),
+      __wt_atomic_loadv64(&txn_shared->pinned_id),
+      __wt_atomic_loadv64(&txn_shared->metadata_pinned),
+      txn_session->name == NULL ? "EMPTY" : txn_session->name));
+
+    if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
+        return (0);
+
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
     case WT_ISO_READ_COMMITTED:
@@ -2950,16 +2965,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
             continue;
 
         sess = &WT_CONN_SESSIONS_GET(conn)[i];
-        if (sess->isolation == WT_ISO_READ_UNCOMMITTED)
-            WT_RET(__wt_msg(session,
-              "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
-              ", metadata pinned ID: %" PRIu64 ", name: %s",
-              i, id, __wt_atomic_loadv64(&s->pinned_id), __wt_atomic_loadv64(&s->metadata_pinned),
-              sess->name == NULL ? "EMPTY" : sess->name));
-
-        if (!F_ISSET(sess->txn, WT_TXN_HAS_SNAPSHOT))
-            continue;
-
         WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
