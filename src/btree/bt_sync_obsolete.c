@@ -536,11 +536,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_DECL_RET;
     wt_timestamp_t newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
-    uint64_t newest_txn;
+    uint64_t newest_txn, write_gen;
 
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
     newest_txn = WT_TXN_NONE;
-    addr_size = 0;
+    addr_size = write_gen = 0;
 
     /* Checkpoint cleanup cannot remove obsolete pages from tiered tables. */
     if (WT_SUFFIX_MATCH(uri, ".wtobj"))
@@ -566,21 +566,25 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     while ((ret = __wt_config_next(&ckptconf, &key, &cval)) == 0) {
-        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
+        ret = __wt_config_subgets(session, &cval, "addr", &value);
         if (ret == 0)
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
+            addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
         if (ret == 0)
             newest_start_durable_ts = WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
+        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
+        if (ret == 0)
+            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
+        WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
         if (ret == 0)
             newest_txn = WT_MAX(newest_txn, (uint64_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
-        ret = __wt_config_subgets(session, &cval, "addr", &value);
+        ret = __wt_config_subgets(session, &cval, "write_gen", &value);
         if (ret == 0)
-            addr_size = value.len;
+            write_gen = WT_MAX(write_gen, (uint64_t)value.val);
         WT_RET_NOTFOUND_OK(ret);
     }
     WT_RET_NOTFOUND_OK(ret);
@@ -594,8 +598,19 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         return (true);
 
     /*
+     * Upon restart, the write generation number will be lower than the connectione one. For this
+     * reason, don't rely on the transaction as the transaction will be very likely bigger than the
+     * current oldest one.
+     */
+    if (write_gen < S2C(session)->base_write_gen)
+        newest_txn = WT_TXN_NONE;
+
+    /*
      * The checkpoint has some obsolete time window information that is no longer required to exist
-     * in the btree. Remove the obsolete data to reduce the checkpoint size.
+     * in the btree. Remove the obsolete data to reduce the checkpoint size. Note the visiblity
+     * check is done later on at the page level when walking the tree to find the right page that
+     * has obsolete content.
+     * FIXME-XXX We should rely on the oldest_start_ts rather than the newest_*_ts.
      */
     if (__wt_txn_newest_visible_all(
           session, newest_txn, WT_MAX(newest_start_durable_ts, newest_stop_durable_ts)))
