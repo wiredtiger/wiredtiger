@@ -56,11 +56,11 @@ def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, analysis):
     task_start_time = datetime.now()
 
     # Build a shared queue of all the build directories, which will be used to initialize each
-    # process to it's own build directory. 
+    # process to it's own build directory.
     build_queue = multiprocessing.Queue()
     for build_dir in build_dirs_list:
         build_queue.put(build_dir)
-    
+
     analysis_test_timings = list()
     futures = list()
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel, initializer=setup_run_tasks_parallel, initargs=(build_queue,)) as executor:

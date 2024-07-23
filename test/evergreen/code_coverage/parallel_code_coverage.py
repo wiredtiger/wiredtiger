@@ -143,7 +143,7 @@ def main():
     # Perform task operations in parallel across the build directories
     analysis_test_timings = run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_task, analysis=analysis)
 
-    # In analysis mode, we analyze the test and their timings, and sort them in descending order. 
+    # In analysis mode, we analyze the test and their timings, and sort them in descending order.
     # A sorted test list will optimize the shared queue across the parallel processes and will
     # overall shorten the code coverage time
     if (analysis):
