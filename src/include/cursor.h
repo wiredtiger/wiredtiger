@@ -371,7 +371,6 @@ struct __wt_cursor_index {
 
     WT_TABLE *table;
     WT_INDEX *index;
-    const char *key_plan, *value_plan;
 
     WT_CURSOR *child;
     WT_CURSOR **cg_cursors;

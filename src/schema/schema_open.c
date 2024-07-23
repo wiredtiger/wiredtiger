@@ -107,7 +107,6 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
         WT_ERR(__wti_table_check(session, table));
 
         WT_ERR(__wt_buf_init(session, buf, 0));
-        WT_ERR(__wt_struct_plan(session, table, table->colconf.str, table->colconf.len, true, buf));
         WT_ERR(__wt_strndup(session, buf->data, buf->size, &table->plan));
     }
 
@@ -217,7 +216,6 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
         goto err;
 
     WT_ERR(__wt_scr_alloc(session, 0, &plan));
-    WT_ERR(__wt_struct_plan(session, table, buf->data, buf->size, false, plan));
     WT_ERR(__wt_strndup(session, plan->data, plan->size, &idx->key_plan));
 
     /* Set up the cursor key format (the visible columns). */
@@ -235,7 +233,6 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
     /* By default, index cursor values are the table value columns. */
     /* TODO Optimize to use index columns in preference to table lookups. */
     WT_ERR(__wt_buf_init(session, plan, 0));
-    WT_ERR(__wt_struct_plan(session, table, table->colconf.str, table->colconf.len, true, plan));
     WT_ERR(__wt_strndup(session, plan->data, plan->size, &idx->value_plan));
 
 err:

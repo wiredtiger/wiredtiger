@@ -318,22 +318,9 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
 static WT_INLINE int
 __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
 {
-    WT_CURSOR_INDEX *cindex;
-    WT_ITEM *item;
-    WT_SESSION_IMPL *session;
-
-    cindex = (WT_CURSOR_INDEX *)cursor;
-    session = CUR2S(cursor);
-    WT_RET(__cursor_checkvalue(cursor));
-
-    if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
-        WT_RET(__wt_schema_project_merge(
-          session, cindex->cg_cursors, cindex->value_plan, cursor->value_format, &cursor->value));
-        item = va_arg(ap, WT_ITEM *);
-        item->data = cursor->value.data;
-        item->size = cursor->value.size;
-    } else
-        WT_RET(__wt_schema_project_out(session, cindex->cg_cursors, cindex->value_plan, ap));
+    /* ENTIRE FUNCTION TO BE DELETED. */
+    WT_UNUSED(ap);
+    WT_UNUSED(cursor);
     return (0);
 }
 
@@ -355,12 +342,11 @@ __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
     WT_RET(__cursor_checkvalue(primary));
 
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
-        WT_RET(__wt_schema_project_merge(
-          session, ctable->cg_cursors, ctable->plan, cursor->value_format, &cursor->value));
         item = va_arg(ap, WT_ITEM *);
         item->data = cursor->value.data;
         item->size = cursor->value.size;
     } else
+        /* call unpack straight here __wt_struct_unpackv( */
         WT_RET(__wt_schema_project_out(session, ctable->cg_cursors, ctable->plan, ap));
     return (0);
 }

@@ -129,8 +129,6 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
         __wt_buf_free(session, &extract_cursor.iface.key);
         WT_RET(ret);
     } else {
-        WT_RET(__wt_schema_project_merge(
-          session, ctable->cg_cursors, idx->key_plan, idx->key_format, &cur->key));
         /*
          * The index key is now set and the value is empty (it starts clear and is never set).
          */
@@ -267,8 +265,6 @@ __curtable_set_valuev(WT_CURSOR *cursor, va_list ap)
         item = va_arg(ap, WT_ITEM *);
         cursor->value.data = item->data;
         cursor->value.size = item->size;
-        ret = __wt_schema_project_slice(
-          session, ctable->cg_cursors, ctable->plan, 0, cursor->value_format, &cursor->value);
     } else {
         /*
          * The user may be passing us pointers returned by get_value that point into the buffers we
@@ -282,8 +278,6 @@ __curtable_set_valuev(WT_CURSOR *cursor, va_list ap)
                 item->memsize = 0;
             }
         }
-
-        ret = __wt_schema_project_in(session, ctable->cg_cursors, ctable->plan, ap);
 
         for (i = 0, cp = ctable->cg_cursors; i < WT_COLGROUPS(ctable->table); i++, cp++) {
             tmp = &ctable->cg_valcopy[i];
@@ -627,8 +621,6 @@ __curtable_update(WT_CURSOR *cursor)
      */
     if (ctable->table->nindices > 0) {
         WT_ERR(__wt_scr_alloc(session, ctable->cg_cursors[0]->value.size, &value_copy));
-        WT_ERR(__wt_schema_project_merge(
-          session, ctable->cg_cursors, ctable->plan, cursor->value_format, value_copy));
         APPLY_CG(ctable, search);
 
         /*
@@ -637,8 +629,7 @@ __curtable_update(WT_CURSOR *cursor)
          */
         if (ret == 0) {
             WT_ERR_NOTFOUND_OK(__apply_idx(ctable, offsetof(WT_CURSOR, remove), true), false);
-            WT_ERR(__wt_schema_project_slice(
-              session, ctable->cg_cursors, ctable->plan, 0, cursor->value_format, value_copy));
+
         } else
             WT_ERR_NOTFOUND_OK(ret, false);
     }
@@ -1120,17 +1111,6 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     ctable->table = table;
     ctable->plan = table->plan;
 
-    /* Handle projections. */
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-    if (columns != NULL) {
-        WT_ERR(__wt_struct_reformat(session, table, columns, strlen(columns), NULL, false, tmp));
-        WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &cursor->value_format));
-
-        WT_ERR(__wt_buf_init(session, tmp, 0));
-        WT_ERR(__wt_struct_plan(session, table, columns, strlen(columns), false, tmp));
-        WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &ctable->plan));
-    }
-
     /*
      * random_retrieval Random retrieval cursors only support next, reset and close.
      */
@@ -1144,7 +1124,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_ERR(__wt_cursor_init(cursor, cursor->internal_uri, owner, cfg, cursorp));
 
     if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
-        WT_ERR(__wti_json_column_init(cursor, uri, table->key_format, NULL, &table->colconf));
+        WT_ERR(__wti_json_column_init(cursor, table->key_format, NULL, &table->colconf));
 
     /*
      * Open the colgroup cursors immediately: we're going to need them for

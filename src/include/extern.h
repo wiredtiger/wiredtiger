@@ -1530,7 +1530,7 @@ extern int __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char 
 extern int __wti_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t size,
   const char *fmt, WT_CURSOR_JSON *json, bool iskey, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
+extern int __wti_json_column_init(WT_CURSOR *cursor, const char *keyformat,
   const WT_CONFIG_ITEM *idxconf, const WT_CONFIG_ITEM *colconf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
