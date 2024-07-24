@@ -75,9 +75,9 @@ struct waiter {
     }
 
     bool
-    spurious(const futex_word wake_val) const
+    spurious() const
     {
-        return _ret == 0 && _val_on_wake != wake_val;
+        return _ret == 0 && _val_on_wake == _expected;
     }
 };
 
@@ -230,7 +230,7 @@ public:
             REQUIRE(wake_sigs.size() == 1);
             auto sig = wake_sigs.front();
             auto wake_cnt = count_if(wbeg, wend, bind(&waiter::awoken, _1, sig._value));
-            auto spurious_cnt = count_if(wbeg, wend, bind(&waiter::spurious, _1, sig._value));
+            auto spurious_cnt = count_if(wbeg, wend, mem_fn(&waiter::spurious));
             REQUIRE(((wake_cnt + spurious_cnt) == _waiters.size()));
             return (outcome::AsExpected);
         }
@@ -242,8 +242,7 @@ public:
         }
 
         /*
-         * Match each wakeup to a corresponding signal. It is irrelevant whether or not the wakeup
-         * was spurious.
+         * Match each wakeup to a corresponding signal.
          */
         list<wake_signal> rem_sigs(wake_sigs.begin(), wake_sigs.end());
         for (auto wakeup = wbeg; wakeup != timeouts; ++wakeup) {
@@ -253,6 +252,12 @@ public:
                 return (outcome::LostSignal);
             rem_sigs.erase(sig);
         }
+
+        /*
+         * The remaining (unmatched) signal count must match the spurious wakeup count.
+         */
+        auto spurious_cnt = count_if(wbeg, wend, mem_fn(&waiter::spurious));
+        REQUIRE(spurious_cnt == rem_sigs.size());
 
         return (outcome::AsExpected);
     }
