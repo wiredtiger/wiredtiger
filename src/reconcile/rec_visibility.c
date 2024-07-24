@@ -165,7 +165,8 @@ __rec_append_orig_value(
             total_size += size;
             /*
              * When reconciling during recovery, we need to clear the transaction id as we haven't
-             * done so when we read the page into memory.
+             * done so when we read the page into memory to avoid using the transaction id from the
+             * previous run.
              */
             if (F_ISSET(conn, WT_CONN_RECOVERING))
                 tombstone->txnid = WT_TXN_NONE;
@@ -202,7 +203,8 @@ __rec_append_orig_value(
         total_size += size;
         /*
          * When reconciling during recovery, we need to clear the transaction id as we haven't done
-         * so when we read the page into memory.
+         * so when we read the page into memory to avoid using the transaction id from the previous
+         * run.
          */
         if (F_ISSET(conn, WT_CONN_RECOVERING))
             append->txnid = WT_TXN_NONE;
@@ -780,20 +782,13 @@ __rec_fill_tw_from_upd_select(
          * visible. In this case, the on page value is not appended. Verify that.
          */
         if (last_upd->next != NULL) {
-            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-                WT_ASSERT_ALWAYS(session,
-                  last_upd->next->txnid == WT_TXN_NONE &&
-                    last_upd->next->start_ts == vpack->tw.start_ts &&
-                    last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
-                  "Tombstone is globally visible, but the tombstoned update is on the update "
-                  "chain");
-            else
-                WT_ASSERT_ALWAYS(session,
-                  last_upd->next->txnid == vpack->tw.start_txn &&
-                    last_upd->next->start_ts == vpack->tw.start_ts &&
-                    last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
-                  "Tombstone is globally visible, but the tombstoned update is on the update "
-                  "chain");
+            WT_ASSERT_ALWAYS(session,
+              last_upd->next->txnid ==
+                  (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE : vpack->tw.start_txn) &&
+                last_upd->next->start_ts == vpack->tw.start_ts &&
+                last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
+              "Tombstone is globally visible, but the tombstoned update is on the update "
+              "chain");
             upd_select->upd = last_upd->next;
             WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
         } else {
