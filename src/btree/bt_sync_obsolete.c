@@ -598,9 +598,10 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
         return (true);
 
     /*
-     * Upon restart, the write generation number will be lower than the connection one. For this
-     * reason, don't rely on the transaction as the transaction will be very likely bigger than the
-     * current oldest one.
+     * We don't want to rely on transaction IDs that come from a previous run because they will be
+     * very likely bigger than the current oldest one as WiredTiger restarts the transaction
+     * counters upon restart. Transaction IDs from a previous run can be detected using the write
+     * generation number.
      */
     if (write_gen < S2C(session)->base_write_gen)
         newest_txn = WT_TXN_NONE;
