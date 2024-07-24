@@ -160,7 +160,14 @@ __rec_append_orig_value(
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
-            tombstone->txnid = unpack->tw.stop_txn;
+            /*
+             * When evicting in recovery, we need to clear the transaction id of the on disk value
+             * as it is written before the restart.
+             */
+            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+                tombstone->txnid = WT_TXN_NONE;
+            else
+                tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
@@ -190,7 +197,14 @@ __rec_append_orig_value(
           unpack->cell == NULL || __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
         WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
-        append->txnid = unpack->tw.start_txn;
+        /*
+         * When evicting in recovery, we need to clear the transaction id of the on disk value as it
+         * is written before the restart.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            append->txnid = WT_TXN_NONE;
+        else
+            append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
@@ -763,12 +777,20 @@ __rec_fill_tw_from_upd_select(
          * visible. In this case, the on page value is not appended. Verify that.
          */
         if (last_upd->next != NULL) {
-            WT_ASSERT_ALWAYS(session,
-              last_upd->next->txnid == vpack->tw.start_txn &&
-                last_upd->next->start_ts == vpack->tw.start_ts &&
-                last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
-              "Tombstone is globally visible, but the tombstoned update is on the update "
-              "chain");
+            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+                WT_ASSERT_ALWAYS(session,
+                  last_upd->next->txnid == WT_TXN_NONE &&
+                    last_upd->next->start_ts == vpack->tw.start_ts &&
+                    last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
+                  "Tombstone is globally visible, but the tombstoned update is on the update "
+                  "chain");
+            else
+                WT_ASSERT_ALWAYS(session,
+                  last_upd->next->txnid == vpack->tw.start_txn &&
+                    last_upd->next->start_ts == vpack->tw.start_ts &&
+                    last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
+                  "Tombstone is globally visible, but the tombstoned update is on the update "
+                  "chain");
             upd_select->upd = last_upd->next;
             WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
         } else {
