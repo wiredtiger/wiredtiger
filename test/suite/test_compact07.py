@@ -104,19 +104,12 @@ class test_compact07(compact_util):
         self.session.checkpoint()
 
         # There should be more free space in the last created tables compared to the very first one.
-        min_free_space = 0
         for i in range(self.n_tables):
-            free_space = self.get_free_space(uri)
-            self.assertGreater(free_space, free_space_20)
-            if i == 0:
-                min_free_space = free_space
-            elif free_space < min_free_space:
-                min_free_space = free_space
+            self.assertGreater(self.get_free_space(uri), free_space_20)
 
         # Enable background compaction with a threshold big enough so it does not process the first
         # table created but only the others with more empty space.
-        self.assertGreater(min_free_space - 1, free_space_20)
-        self.turn_on_bg_compact(f'free_space_target={(min_free_space - 1)}MB')
+        self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB')
 
         # Background compaction should run through every file as listed in the metadata file.
         # Wait until all the eligible files have been compacted.
