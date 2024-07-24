@@ -115,7 +115,7 @@ class test_compact07(compact_util):
 
         # Enable background compaction with a threshold big enough so it does not process the first
         # table created but only the others with more empty space.
-        assert min_free_space - 1 > free_space_20
+        self.assertGreater(min_free_space - 1, free_space_20)
         self.turn_on_bg_compact(f'free_space_target={(min_free_space - 1)}MB')
 
         # Background compaction should run through every file as listed in the metadata file.
