@@ -36,15 +36,6 @@ from wtscenario import make_scenarios
 # transaction IDs.
 class test_truncate27(wttest.WiredTigerTestCase):
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        # Fast-truncate for FLCS does not work?
-        # ('column-fix', dict(key_format='r', value_format='8t')),
-        # ('string-row', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def evict_cursor(self, uri, nrows):
         # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
@@ -65,13 +56,9 @@ class test_truncate27(wttest.WiredTigerTestCase):
     def test_truncate27(self):
         nrows = 100000
         uri = 'table:test_truncate27'
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
-        self.session.create(uri, create_params)
-
-        if self.value_format == '8t':
-            value1 = 97
-        else:
-            value1 = 'a' * 5
+        self.session.create(uri, 'key_format=r,value_format=S')
+        
+        value = 'a' * 5
 
         # Pin oldest timestamp.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -80,7 +67,7 @@ class test_truncate27(wttest.WiredTigerTestCase):
         for i in range(1, nrows + 1):
             # Insert some data.
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[i] = value
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(i))
         cursor.close()
 
@@ -110,7 +97,7 @@ class test_truncate27(wttest.WiredTigerTestCase):
         # Insert unstable data.
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
-        cursor[100] = value1
+        cursor[100] = value
         cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts + 2))
 
