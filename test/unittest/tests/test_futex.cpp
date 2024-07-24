@@ -102,7 +102,7 @@ enum outcome {
     UnexpectedTimeouts, /* More timeouts than expected. */
 
     /* The following is a test implementation error. */
-    LostWakeup /* Waiter awoken without corresponding wake up signal. */
+    LostSignal /* Waiter awoken without corresponding wake up signal. */
 };
 
 ostream &
@@ -121,7 +121,7 @@ operator<<(ostream &out, const outcome &result)
         R_(AsExpected);
         R_(Error);
         R_(UnexpectedTimeouts);
-        R_(LostWakeup);
+        R_(LostSignal);
     }
 
 #undef R_
@@ -147,6 +147,12 @@ bool
 is_wake_all(const wake_signal &wsig)
 {
     return wsig._type == WT_FUTEX_WAKE_ALL;
+}
+
+ostream &
+operator<<(ostream &out, const wake_signal &sig)
+{
+    return out << "WAKE_SIGNAL(" << sig._type << ", " << sig._value << ")";
 }
 
 } // namespace
@@ -208,8 +214,8 @@ public:
         /* Test validity check. */
         REQUIRE(_waiters.size() >= wake_sigs.size());
 
-        auto wbeg = _waiters.cbegin();
-        auto wend = _waiters.cend();
+        auto wbeg = _waiters.begin();
+        auto wend = _waiters.end();
 
         /* Presence of any error other than timeout is failure. */
         auto err_cnt = count_if(wbeg, wend, bind(&waiter::error, _1));
@@ -229,46 +235,24 @@ public:
             return (outcome::AsExpected);
         }
 
-        /* Account for any expected timeouts. */
-        list<waiter> rem_waiters{_waiters.begin(), _waiters.end()};
-        auto timeout_cnt = count_if(wbeg, wend, bind(&waiter::timedout, _1));
-        if (timeout_cnt > 0) {
-            /*
-             * The timeout count should match the difference in the number of explicit wake up
-             * signals and waiters.
-             */
-            if (timeout_cnt != (_waiters.size() - wake_sigs.size()))
-                return (outcome::UnexpectedTimeouts);
-
-            /* Now that timeouts are accounted for, they are no longer of interest. */
-            rem_waiters.remove_if(bind(&waiter::timedout, _1));
+        /* Account for expected timeouts. */
+        auto timeouts = remove_if(wbeg, wend, bind(&waiter::timedout, _1));
+        if (distance(wbeg, timeouts) != wake_sigs.size()) {
+            return (outcome::UnexpectedTimeouts);
         }
 
-        /* Match remaining explicit wake ups with remaining waiters. */
-        list<wake_signal> rem_sigs{wake_sigs.begin(), wake_sigs.end()};
-        while (!rem_sigs.empty() && !rem_waiters.empty()) {
-            auto sig = rem_sigs.front();
-            auto match = find_if(
-              rem_waiters.begin(), rem_waiters.end(), bind(&waiter::awoken, _1, sig._value));
-
-            if (match == rem_waiters.end()) {
-                /*
-                 * No matching waiter for the wake up, so there should be a waiter that awoke
-                 * spuriously.
-                 */
-                auto spurious = find_if(
-                  rem_waiters.begin(), rem_waiters.end(), bind(&waiter::spurious, _1, sig._value));
-                if (spurious == rem_waiters.end())
-                    return (outcome::LostWakeup);
-
-                rem_waiters.erase(spurious);
-            } else
-                rem_waiters.erase(match);
-            rem_sigs.pop_front();
+        /*
+         * Match each wakeup to a corresponding signal. It is irrelevant whether or not the wakeup
+         * was spurious.
+         */
+        list<wake_signal> rem_sigs(wake_sigs.begin(), wake_sigs.end());
+        for (auto wakeup = wbeg; wakeup != timeouts; ++wakeup) {
+            auto sig = find_if(rem_sigs.begin(), rem_sigs.end(),
+              [&wakeup](wake_signal &s) { return wakeup->_val_on_wake == s._value; });
+            if (sig == rem_sigs.end())
+                return (outcome::LostSignal);
+            rem_sigs.erase(sig);
         }
-
-        /* Test validation check. */
-        REQUIRE((rem_waiters.empty() && rem_sigs.empty()));
 
         return (outcome::AsExpected);
     }
