@@ -2808,8 +2808,7 @@ __wt_verbose_dump_txn_one(
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
 
-    if (txn->isolation != WT_ISO_READ_UNCOMMITTED &&
-      !F_ISSET(txn_session->txn, WT_TXN_HAS_SNAPSHOT))
+    if (txn->isolation != WT_ISO_READ_UNCOMMITTED && !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
 
     WT_RET(__wt_msg(session,
