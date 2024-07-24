@@ -116,6 +116,9 @@ class test_compact07(compact_util):
         while self.get_files_compacted(uris) < self.n_tables:
             time.sleep(0.1)
 
+        # Check that we have the compacted files in the background compaction tracking list.
+        self.assertGreater(self.get_bg_compaction_files_tracked(), 0)
+
         # Check that we made no progress on the small file.
         self.assertEqual(self.get_pages_rewritten(uri_small), 0)
 
