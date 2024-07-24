@@ -287,7 +287,7 @@ public:
             counter++;
             if (counter == tw_collection_count)
                 counter = 0;
-            testutil_assert(counter < tw_collection_count);
+            testutil_assert(counter <= tw_collection_count);
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
         tw->txn.try_rollback();

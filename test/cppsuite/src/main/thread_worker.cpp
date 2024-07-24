@@ -283,8 +283,23 @@ thread_worker::running() const
     return (_running);
 }
 
+/*
+ * E.g. If we have 4 threads with ids from 0 to 3, and 14 collections with ids from 0 to 13,
+ * the distribution of collections to each thread will be as below:
+ *
+ * Collection count: 14         | Thread count: 4               |
+ * -----------------------------|-------------------------------|
+ * Thread_id                    |   0   |   1   |   2   |   3   |
+ * -----------------------------|-------|-------|-------|-------|
+ * Assigned collection count    |   4   |   4   |   3   |   3   |
+ * -----------------------------|-------|-------|-------|-------|
+ * Assigned first collection_id |   0   |   4   |   8   |   11  |
+ * -----------------------------|-------|-------|-------|-------|
+ * Assigned collection_id range | [0,3] | [4,7] |[8,10] |[11,13]|
+ *
+ */
 uint64_t
-thread_worker::get_assigned_first_collection_id()
+thread_worker::get_assigned_first_collection_id() const
 {
     uint64_t collection_count = db.get_collection_count();
     return collection_count / thread_count * id + std::min(id, collection_count % thread_count);
@@ -292,10 +307,11 @@ thread_worker::get_assigned_first_collection_id()
 
 /*
  * Assign collections evenly among threads, for any remainders, distribute one collection to each
- * thread starting from thread 0.
+ * thread starting from thread 0. See a detailed example in the header of
+ * get_assigned_first_collection_id().
  */
 uint64_t
-thread_worker::get_assigned_collection_count()
+thread_worker::get_assigned_collection_count() const
 {
     uint64_t collection_count = db.get_collection_count();
     return collection_count / thread_count + (collection_count % thread_count > id);

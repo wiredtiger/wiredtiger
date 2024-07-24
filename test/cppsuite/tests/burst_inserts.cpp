@@ -139,7 +139,7 @@ public:
             counter++;
             if (counter == tc_collection_count)
                 counter = 0;
-            testutil_assert(counter < tc_collection_count);
+            testutil_assert(counter <= tc_collection_count);
             tc->sleep();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */

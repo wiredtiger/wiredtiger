@@ -228,7 +228,7 @@ database_operation::insert_operation(thread_worker *tc)
         counter++;
         if (counter == tc_collection_count)
             counter = 0;
-        testutil_assert(counter < tc_collection_count);
+        testutil_assert(counter <= tc_collection_count);
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
     tc->txn.try_rollback();

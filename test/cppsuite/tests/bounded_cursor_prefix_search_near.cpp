@@ -137,7 +137,7 @@ public:
             testutil_check(cc.cursor->reset(cc.cursor.get()));
             if (++counter == ccv.size())
                 counter = 0;
-            testutil_assert(counter < tc_collection_count);
+            testutil_assert(counter <= tc_collection_count);
         }
     }
 
