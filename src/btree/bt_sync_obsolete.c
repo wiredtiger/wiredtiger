@@ -140,7 +140,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         if (__sync_obsolete_limit_reached(session))
             return (0);
 
-        if (__wt_txn_newest_visible_all(session, newest_ta.newest_txn,
+        if (__wt_txn_has_newest_and_visible_all(session, newest_ta.newest_txn,
               WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
             /*
              * Dirty the page with an obsolete time window to let the page reconciliation remove all
@@ -418,7 +418,7 @@ __checkpoint_cleanup_page_skip(
      */
     newest_ts = WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts);
     if (!WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
-      __wt_txn_newest_visible_all(session, addr.ta.newest_txn, newest_ts)) {
+      __wt_txn_has_newest_and_visible_all(session, addr.ta.newest_txn, newest_ts)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: obsolete time window page read into the cache", (void *)ref);
         WT_STAT_CONN_INCR(session, checkpoint_cleanup_obsolete_tw_pages_read);
@@ -614,7 +614,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      *
      * FIXME-WT-13321 Rely on the oldest_start_ts rather than the newest_*_ts.
      */
-    if (__wt_txn_newest_visible_all(
+    if (__wt_txn_has_newest_and_visible_all(
           session, newest_txn, WT_MAX(newest_start_durable_ts, newest_stop_durable_ts)))
         return (true);
 
