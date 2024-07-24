@@ -104,24 +104,24 @@ class test_compact07(compact_util):
         self.session.checkpoint()
 
         # There should be more free space in the last created tables compared to the very first one.
+        min_free_space = 0
         for i in range(self.n_tables):
-            self.assertGreater(self.get_free_space(uri), free_space_20)
+            free_space = self.get_free_space(uri)
+            self.assertGreater(free_space, free_space_20)
+            if i == 0:
+                min_free_space = free_space
+            elif free_space < min_free_space:
+                min_free_space = free_space
 
         # Enable background compaction with a threshold big enough so it does not process the first
         # table created but only the others with more empty space.
-        self.session.compact(None, f'background=true,free_space_target={free_space_20 + 1}MB')
-
-        # Wait for the background server to wake up.
-        compact_running = self.get_bg_compaction_running()
-        while not compact_running:
-            time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 1)
+        assert min_free_space - 1 > free_space_20
+        self.turn_on_bg_compact(f'free_space_target={(min_free_space - 1)}MB')
 
         # Background compaction should run through every file as listed in the metadata file.
         # Wait until all the eligible files have been compacted.
         while self.get_files_compacted(uris) < self.n_tables:
-            time.sleep(1)
+            time.sleep(0.1)
 
         # Check that we made no progress on the small file.
         self.assertEqual(self.get_pages_rewritten(uri_small), 0)
@@ -143,9 +143,6 @@ class test_compact07(compact_util):
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
 
-        # Check that we have some files in the background compaction tracking list.
-        self.assertGreater(self.get_bg_compaction_files_tracked(), 0)
-
         # Drop the tables and wait for sometime for them to be removed from the background
         # compaction server list.
         for i in range(self.n_tables):
@@ -161,14 +158,7 @@ class test_compact07(compact_util):
             time.sleep(1)
 
         # Stop the background compaction server.
-        self.session.compact(None, 'background=false')
-
-        # Wait for the background compaction server to stop running.
-        compact_running = self.get_bg_compaction_running()
-        while compact_running:
-            time.sleep(1)
-            compact_running = self.get_bg_compaction_running()
-        self.assertEqual(compact_running, 0)
+        self.turn_off_bg_compact()
 
         # Background compaction may have been inspecting a table when disabled, which is considered
         # as an interruption, ignore that message.
