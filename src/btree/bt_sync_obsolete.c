@@ -38,7 +38,7 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
 
 /*
  * __sync_obsolete_can_process --
- *     TBD
+ *     XXX
  */
 static bool
 __sync_obsolete_can_process(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
@@ -426,8 +426,8 @@ __checkpoint_cleanup_page_skip(
     }
 
     /*
-     * From this point onwards, the page is on disk and checkpoint cleanup should NOT induce a read
-     * if at least of one of the folowing conditions is met:
+     * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if at
+     * least of one of the following conditions is met:
      *
      * - The page is a leaf page with no overflow items because obsolete leaf pages with overflow
      * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can be
