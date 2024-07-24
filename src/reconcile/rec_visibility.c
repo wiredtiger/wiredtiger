@@ -492,13 +492,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
                 prev_upd->start_ts == prev_upd->durable_ts ||
                 prev_upd->durable_ts >= vpack->tw.durable_start_ts,
               "Start: Durable timestamps cannot be out of order for prepared updates");
-        /*
-         * Rollback to stable may recover updates from the history store that is out of order to the
-         * on-disk value. Normally these updates have the WT_UPDATE_RESTORED_FROM_HS flag on them.
-         * However, in rare cases, if the newer update becomes globally visible, the restored update
-         * may be removed by the obsolete check. This may lead to an out of order edge case but it
-         * is benign. Check the global visibility of the update and ignore this case.
-         */
+
         if (prev_upd->start_ts == WT_TS_NONE) {
             if (prev_upd->start_ts < vpack->tw.start_ts ||
               (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
@@ -506,6 +500,14 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
                 return (EBUSY);
             }
         } else
+            /*
+             * Rollback to stable may recover updates from the history store that is out of order to
+             * the on-disk value. Normally these updates have the WT_UPDATE_RESTORED_FROM_HS flag on
+             * them. However, in rare cases, if the newer update becomes globally visible, the
+             * restored update may be removed by the obsolete check. This may lead to an out of
+             * order edge case but it is benign. Check the global visibility of the update and
+             * ignore this case.
+             */
             WT_ASSERT(session,
               __wt_txn_upd_visible_all(session, prev_upd) ||
                 (prev_upd->start_ts >= vpack->tw.start_ts &&
