@@ -13,8 +13,8 @@
 
 /*
  * __sync_obsolete_limit_reached --
- *     This function checks whether checkpoint cleanup can continue given the work done so far and
- *     the checkpoint cleanup settings.
+ *     This function checks whether checkpoint cleanup can continue operating on the obsolete time
+ *     window pages.
  */
 static bool
 __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
