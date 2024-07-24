@@ -2914,7 +2914,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_SESSION_IMPL *sess;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    uint64_t id;
     uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
@@ -2971,7 +2970,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Skip sessions with no active transaction */
-        if ((id = __wt_atomic_loadv64(&s->id)) == WT_TXN_NONE &&
+        if (__wt_atomic_loadv64(&s->id) == WT_TXN_NONE &&
           __wt_atomic_loadv64(&s->pinned_id) == WT_TXN_NONE)
             continue;
 
