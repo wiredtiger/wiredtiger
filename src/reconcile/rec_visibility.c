@@ -70,11 +70,14 @@ static int
 __rec_append_orig_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
     bool tombstone_globally_visible;
+
+    conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
       upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare,
@@ -105,7 +108,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
           unpack->tw.start_txn == upd->txnid && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -164,7 +167,7 @@ __rec_append_orig_value(
              * When evicting in recovery, we need to clear the transaction id of the on disk value
              * as it is written before the restart.
              */
-            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            if (F_ISSET(conn, WT_CONN_RECOVERING))
                 tombstone->txnid = WT_TXN_NONE;
             else
                 tombstone->txnid = unpack->tw.stop_txn;
@@ -201,7 +204,7 @@ __rec_append_orig_value(
          * When evicting in recovery, we need to clear the transaction id of the on disk value as it
          * is written before the restart.
          */
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        if (F_ISSET(conn, WT_CONN_RECOVERING))
             append->txnid = WT_TXN_NONE;
         else
             append->txnid = unpack->tw.start_txn;
