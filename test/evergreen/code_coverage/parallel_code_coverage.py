@@ -76,7 +76,7 @@ def main():
 
     verbose = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
-    analysis = args.analysis
+    optimize_test_order = args.optimize_test_order
     config_path = args.config_path
     build_dir_base = args.build_dir_base
     parallel_tests = args.parallel
@@ -94,9 +94,9 @@ def main():
     if (bucket and bucket != "python" and bucket != "other"):
         sys.exit("Only buckets options \"python\" and \"other\" are allowed")
 
-    # Analysis will rewrite the list of coverage tests. If we use this when running a subset of
-    # tests only that subset will be written and we'll lose the unscheduled tests.
-    if (bucket and analysis):
+    # optimize_test_order will rewrite the list of coverage tests. If we use this when running a
+    # subset of tests only that subset will be written and we'll lose the unscheduled tests.
+    if (bucket and optimize_test_order):
         sys.exit("Analysis mode can not be done with bucket")
 
     if parallel_tests < 1:
@@ -143,15 +143,15 @@ def main():
     logging.debug("task_list: {}".format(task_list))
 
     # Perform task operations in parallel across the build directories
-    analysis_test_timings = run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_task, analysis=analysis)
+    analyse_test_timings = run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_task, optimize_test_order=optimize_test_order)
 
     # In analysis mode, we analyze the test and their timings, and sort them in descending order.
     # Running the shortest tests last decreases the amount of time we spend waiting for the
     # last thread to finish the last test, reducing overall runtime.
-    if (analysis):
-        analysis_test_timings.sort(key=lambda tup: tup[1], reverse=True)
-        assert(len(config['test_tasks']) == len(analysis_test_timings))
-        for test_num, (test, _) in enumerate(analysis_test_timings):
+    if (optimize_test_order):
+        analyse_test_timings.sort(key=lambda tup: tup[1], reverse=True)
+        assert(len(config['test_tasks']) == len(analyse_test_timings))
+        for test_num, (test, _) in enumerate(analyse_test_timings):
             config['test_tasks'][test_num] = test
 
         logging.debug("Rewriting test section portion based on sorted list: {}".format(config['test_tasks']))

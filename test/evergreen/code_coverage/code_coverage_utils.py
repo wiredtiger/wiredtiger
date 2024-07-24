@@ -51,7 +51,7 @@ def setup_run_tasks_parallel(init_args):
     return 0
 
 # Execute each list of tasks in parallel
-def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, analysis):
+def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, optimize_test_order):
     parallel = len(build_dirs_list)
     task_start_time = datetime.now()
 
@@ -61,7 +61,7 @@ def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, analysis):
     for build_dir in build_dirs_list:
         build_queue.put(build_dir)
 
-    analysis_test_timings = list()
+    analyse_test_timings = list()
     futures = list()
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel, initializer=setup_run_tasks_parallel, initargs=(build_queue,)) as executor:
         for index, task in enumerate(task_list):
@@ -69,15 +69,15 @@ def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, analysis):
 
         # Only in analysis mode, do we construct an list of all the tasks and how long they
         # took to run
-        if (analysis):
+        if (optimize_test_order):
             for future in concurrent.futures.as_completed(futures):
                 data = future.result()
-                analysis_test_timings.append(data)
+                analyse_test_timings.append(data)
 
     task_end_time = datetime.now()
     task_diff = task_end_time - task_start_time
     logging.debug("Time taken to perform tasks: {} seconds".format(task_diff.total_seconds()))
-    return analysis_test_timings
+    return analyse_test_timings
 
 # Check the relevant build directories exist and have the correct status if we are not setting up
 def check_build_dirs(build_dir_base, parallel):
