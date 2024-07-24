@@ -164,8 +164,8 @@ __rec_append_orig_value(
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
             /*
-             * When evicting a page during recovery, we need to clear the transaction id as it is
-             * written before the restart.
+             * When reconciling during recovery, we need to clear the transaction id as we haven't
+             * done so when we read the page into memory.
              */
             if (F_ISSET(conn, WT_CONN_RECOVERING))
                 tombstone->txnid = WT_TXN_NONE;
@@ -201,8 +201,8 @@ __rec_append_orig_value(
         WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
         /*
-         * When evicting a page during recovery, we need to clear the transaction id as it is
-         * written before the restart.
+         * When reconciling during recovery, we need to clear the transaction id as we haven't done
+         * so when we read the page into memory.
          */
         if (F_ISSET(conn, WT_CONN_RECOVERING))
             append->txnid = WT_TXN_NONE;
