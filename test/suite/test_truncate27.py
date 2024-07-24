@@ -29,7 +29,6 @@
 import wttest
 from helper import simulate_crash_restart
 from wiredtiger import stat
-from wtscenario import make_scenarios
 
 # test_truncate27.py
 # Test that updates preceding an unstable fast truncate operation are restored with the correct
