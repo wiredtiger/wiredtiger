@@ -446,8 +446,8 @@ __checkpoint_cleanup_page_skip(
     page_has_deletes = addr.ta.newest_stop_durable_ts != WT_TS_NONE;
     if (addr.type == WT_ADDR_LEAF_NO || (!page_has_deletes && (skip_intl_pages || !logged))) {
         /*
-         * While we may have decided to skip the page, we still want to read it if there is globally
-         * visible content.
+         * While we may have decided to skip the page, we still want to read it if a globally
+         * visible time window exists on the page.
          */
         if (!__sync_obsolete_can_process(session, addr.ta))
             *skipp = true;
