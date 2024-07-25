@@ -289,6 +289,7 @@ def main():
     args = parser.parse_args()
 
     verbose = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
     git_diff = args.git_diff
     git_working_tree_dir = args.git_root
     complexity_data_file = args.metrix_complexity_data
