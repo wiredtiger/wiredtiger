@@ -8,3 +8,6 @@ if(has_x86intrin)
     add_cmake_flag(CMAKE_C_FLAGS -DHAVE_X86INTRIN_H)
 endif()
 unset(has_x86intrin CACHE)
+
+# Disable cppsuite as it only runs on linux.
+set(ENABLE_CPPSUITE 0)
