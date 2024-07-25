@@ -451,19 +451,18 @@ __checkpoint_cleanup_page_skip(
          * While we may have decided to skip the page, we still want to read it if a globally
          * visible time window exists on the page.
          */
-        if (!__sync_obsolete_tw_check(session, addr.ta))
+        if (!__sync_obsolete_tw_check(session, addr.ta)) {
+            __wt_verbose_debug2(
+              session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
+            WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped);
             *skipp = true;
+        } else {
+            __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "%p: obsolete time window page read into the cache", (void *)ref);
+            WT_STAT_CONN_INCR(session, checkpoint_cleanup_obsolete_tw_pages_read);
+        }
     }
 
-    if (*skipp) {
-        __wt_verbose_debug2(
-          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
-        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped);
-    } else {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
-          "%p: obsolete time window page read into the cache", (void *)ref);
-        WT_STAT_CONN_INCR(session, checkpoint_cleanup_obsolete_tw_pages_read);
-    }
     return (0);
 }
 
