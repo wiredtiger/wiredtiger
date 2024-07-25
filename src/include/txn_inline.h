@@ -778,7 +778,8 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 
 /*
  * __wt_txn_has_newest_and_visible_all --
- *     Check whether a given newest time window is globally visible.
+ *     Check whether a given time window is either globally visible or obsolete. Note that both the
+ * id and the timestamp have to be greater than 0 to be considered.
  */
 static WT_INLINE bool
 __wt_txn_has_newest_and_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
