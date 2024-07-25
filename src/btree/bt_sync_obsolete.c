@@ -28,19 +28,21 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
     if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
       conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
         return (true);
+
     if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
       __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
       __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (true);
+
     return (false);
 }
 
 /*
  * __sync_obsolete_tw_check --
  *     This function checks whether the given time aggregate refers to a globally visible time
- * window and if checkpoint cleanup can process it. Note that time aggregates corresponding
- * to fully deleted pages are not considered.
+ *     window and if checkpoint cleanup can process it. Note that time aggregates corresponding to
+ *     fully deleted pages are not considered.
  */
 static bool
 __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
@@ -60,6 +62,7 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
     if (!__wt_txn_has_newest_and_visible_all(
           session, ta.newest_txn, WT_MAX(ta.newest_start_durable_ts, ta.newest_stop_durable_ts)))
         return (false);
+
     return (true);
 }
 
