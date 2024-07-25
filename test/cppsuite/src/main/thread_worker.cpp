@@ -85,6 +85,8 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
         op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
 
     testutil_assert(key_size > 0 && value_size > 0);
+    if (type == thread_type::INSERT)
+        testutil_assert(db.get_collection_count() >= thread_count);
 }
 
 void
