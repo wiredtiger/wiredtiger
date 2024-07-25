@@ -263,6 +263,10 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "oligarch: checkpoints performed on this table by the oligarch manager",
+  "oligarch: how many log applications the oligarch manager applied on this tree",
+  "oligarch: how many log applications the oligarch manager skipped on this tree",
+  "oligarch: how many previously-applied LSNs the oligarch manager skipped on this tree",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -610,6 +614,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->oligarch_manager_checkpoints = 0;
+    stats->oligarch_manager_logops_applied = 0;
+    stats->oligarch_manager_logops_skipped = 0;
+    stats->oligarch_manager_skip_lsn = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -948,6 +956,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->oligarch_manager_checkpoints += from->oligarch_manager_checkpoints;
+    to->oligarch_manager_logops_applied += from->oligarch_manager_logops_applied;
+    to->oligarch_manager_logops_skipped += from->oligarch_manager_logops_skipped;
+    to->oligarch_manager_skip_lsn += from->oligarch_manager_skip_lsn;
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
@@ -1307,6 +1319,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->oligarch_manager_checkpoints += WT_STAT_DSRC_READ(from, oligarch_manager_checkpoints);
+    to->oligarch_manager_logops_applied += WT_STAT_DSRC_READ(from, oligarch_manager_logops_applied);
+    to->oligarch_manager_logops_skipped += WT_STAT_DSRC_READ(from, oligarch_manager_logops_skipped);
+    to->oligarch_manager_skip_lsn += WT_STAT_DSRC_READ(from, oligarch_manager_skip_lsn);
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
@@ -1893,6 +1909,16 @@ static const char *const __stats_connection_desc[] = {
   "log: total size of compressed records",
   "log: written slots coalesced",
   "log: yields waiting for previous log file close",
+  "oligarch: checkpoints performed on this table by the oligarch manager",
+  "oligarch: how many log applications the oligarch manager applied on this tree",
+  "oligarch: how many log applications the oligarch manager skipped on this tree",
+  "oligarch: how many previously-applied LSNs the oligarch manager skipped on this tree",
+  "oligarch: the number of tables the oligarch manager considered for checkpointing",
+  "oligarch: the number of tables the oligarch manager has open",
+  "oligarch: the number of tables the oligarch manager thread has search to calculate the pinned "
+  "ID",
+  "oligarch: whether the oligarch manager thread has been started",
+  "oligarch: whether the oligarch manager thread is currently busy doing work",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
   "perf: file system read latency histogram (bucket 2) - 10-49ms",
   "perf: file system read latency histogram (bucket 3) - 50-99ms",
@@ -2632,6 +2658,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_compress_len = 0;
     stats->log_slot_coalesced = 0;
     stats->log_close_yields = 0;
+    stats->oligarch_manager_checkpoints = 0;
+    stats->oligarch_manager_logops_applied = 0;
+    stats->oligarch_manager_logops_skipped = 0;
+    stats->oligarch_manager_skip_lsn = 0;
+    stats->oligarch_manager_checkpoint_candidates = 0;
+    stats->oligarch_manager_tables = 0;
+    stats->oligarch_manager_pinned_id_tables_searched = 0;
+    stats->oligarch_manager_running = 0;
+    stats->oligarch_manager_active = 0;
     stats->perf_hist_fsread_latency_lt10 = 0;
     stats->perf_hist_fsread_latency_lt50 = 0;
     stats->perf_hist_fsread_latency_lt100 = 0;
@@ -3425,6 +3460,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_compress_len += WT_STAT_CONN_READ(from, log_compress_len);
     to->log_slot_coalesced += WT_STAT_CONN_READ(from, log_slot_coalesced);
     to->log_close_yields += WT_STAT_CONN_READ(from, log_close_yields);
+    to->oligarch_manager_checkpoints += WT_STAT_CONN_READ(from, oligarch_manager_checkpoints);
+    to->oligarch_manager_logops_applied += WT_STAT_CONN_READ(from, oligarch_manager_logops_applied);
+    to->oligarch_manager_logops_skipped += WT_STAT_CONN_READ(from, oligarch_manager_logops_skipped);
+    to->oligarch_manager_skip_lsn += WT_STAT_CONN_READ(from, oligarch_manager_skip_lsn);
+    to->oligarch_manager_checkpoint_candidates +=
+      WT_STAT_CONN_READ(from, oligarch_manager_checkpoint_candidates);
+    to->oligarch_manager_tables += WT_STAT_CONN_READ(from, oligarch_manager_tables);
+    to->oligarch_manager_pinned_id_tables_searched +=
+      WT_STAT_CONN_READ(from, oligarch_manager_pinned_id_tables_searched);
+    to->oligarch_manager_running += WT_STAT_CONN_READ(from, oligarch_manager_running);
+    to->oligarch_manager_active += WT_STAT_CONN_READ(from, oligarch_manager_active);
     to->perf_hist_fsread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt10);
     to->perf_hist_fsread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt50);
     to->perf_hist_fsread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt100);

@@ -117,6 +117,10 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
+class OligarchStat(Stat):
+    prefix = 'oligarch'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, OligarchStat.prefix, desc, flags)
 class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
@@ -607,6 +611,15 @@ conn_stats = [
     LSMStat('lsm_work_units_created', 'tree maintenance operations scheduled'),
     LSMStat('lsm_work_units_discarded', 'tree maintenance operations discarded'),
     LSMStat('lsm_work_units_done', 'tree maintenance operations executed'),
+
+    ##########################################
+    # Oligarch statistics
+    ##########################################
+    OligarchStat('oligarch_manager_active', 'whether the oligarch manager thread is currently busy doing work'),
+    OligarchStat('oligarch_manager_checkpoint_candidates', 'the number of tables the oligarch manager considered for checkpointing'),
+    OligarchStat('oligarch_manager_pinned_id_tables_searched', 'the number of tables the oligarch manager thread has search to calculate the pinned ID'),
+    OligarchStat('oligarch_manager_running', 'whether the oligarch manager thread has been started'),
+    OligarchStat('oligarch_manager_tables', 'the number of tables the oligarch manager has open'),
 
     ##########################################
     # Performance Histogram Stats
@@ -1123,6 +1136,14 @@ conn_dsrc_stats = [
     ##########################################
     LSMStat('lsm_checkpoint_throttle', 'sleep for LSM checkpoint throttle'),
     LSMStat('lsm_merge_throttle', 'sleep for LSM merge throttle'),
+
+    ##########################################
+    # Oligarch statistics
+    ##########################################
+    OligarchStat('oligarch_manager_checkpoints', 'checkpoints performed on this table by the oligarch manager'),
+    OligarchStat('oligarch_manager_logops_applied', 'how many log applications the oligarch manager applied on this tree'),
+    OligarchStat('oligarch_manager_logops_skipped', 'how many log applications the oligarch manager skipped on this tree'),
+    OligarchStat('oligarch_manager_skip_lsn', 'how many previously-applied LSNs the oligarch manager skipped on this tree'),
 
     ##########################################
     # Reconciliation statistics

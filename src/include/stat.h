@@ -908,6 +908,15 @@ struct __wt_connection_stats {
     int64_t log_compress_len;
     int64_t log_slot_coalesced;
     int64_t log_close_yields;
+    int64_t oligarch_manager_checkpoints;
+    int64_t oligarch_manager_logops_applied;
+    int64_t oligarch_manager_logops_skipped;
+    int64_t oligarch_manager_skip_lsn;
+    int64_t oligarch_manager_checkpoint_candidates;
+    int64_t oligarch_manager_tables;
+    int64_t oligarch_manager_pinned_id_tables_searched;
+    int64_t oligarch_manager_running;
+    int64_t oligarch_manager_active;
     int64_t perf_hist_fsread_latency_lt10;
     int64_t perf_hist_fsread_latency_lt50;
     int64_t perf_hist_fsread_latency_lt100;
@@ -1355,6 +1364,10 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t oligarch_manager_checkpoints;
+    int64_t oligarch_manager_logops_applied;
+    int64_t oligarch_manager_logops_skipped;
+    int64_t oligarch_manager_skip_lsn;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
