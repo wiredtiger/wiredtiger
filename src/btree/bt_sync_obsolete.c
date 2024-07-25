@@ -382,7 +382,7 @@ __checkpoint_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
-    bool aggressive_mode, logged, page_fully_deleted;
+    bool page_has_deletes, logged, skip_intl_pages;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
@@ -433,17 +433,18 @@ __checkpoint_cleanup_page_skip(
      * keys/values cannot be fast deleted to free the overflow blocks. The overflow blocks can be
      * freed during reconciliation after being marked dirty.
      *
-     * - The page is not fully deleted (checked using the aggregated stop durable timestamp) and
-     *   - the table is not logged (logged tables do not use timestamps) or checkpoint cleanup is
-     * configured to reclaim space.
+     * - The page does not have any deletes (checked using the aggregated stop durable timestamp)
+     * AND
+     *  - the checkpoint cleanup is configured to skip internal pages OR
+     *  - the table is not logged (they do not use timestamps).
      *
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
      * operation is performed using no timestamp.
      */
-    aggressive_mode = F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT);
+    skip_intl_pages = F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT);
     logged = F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-    page_fully_deleted = addr.ta.newest_stop_durable_ts != WT_TS_NONE;
-    if (addr.type == WT_ADDR_LEAF_NO || (!page_fully_deleted && (aggressive_mode || !logged))) {
+    page_has_deletes = addr.ta.newest_stop_durable_ts != WT_TS_NONE;
+    if (addr.type == WT_ADDR_LEAF_NO || (!page_has_deletes && (skip_intl_pages || !logged))) {
         /*
          * While we may have decided to skip the page, we still want to read it if there is globally
          * visible content.
