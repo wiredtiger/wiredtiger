@@ -37,11 +37,13 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
 }
 
 /*
- * __sync_obsolete_can_process --
- *     XXX
+ * __sync_obsolete_tw_check --
+ *     This function checks whether the given time aggregate refers to a globally visible time
+ * window and if checkpoint cleanup can process it. Note that time aggregates corresponding
+ * to fully deleted pages are not considered.
  */
 static bool
-__sync_obsolete_can_process(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
+__sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
 {
     bool has_stop;
 
@@ -159,7 +161,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_page_evict_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else if (__sync_obsolete_can_process(session, newest_ta)) {
+    } else if (__sync_obsolete_tw_check(session, newest_ta)) {
 
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
@@ -449,7 +451,7 @@ __checkpoint_cleanup_page_skip(
          * While we may have decided to skip the page, we still want to read it if a globally
          * visible time window exists on the page.
          */
-        if (!__sync_obsolete_can_process(session, addr.ta))
+        if (!__sync_obsolete_tw_check(session, addr.ta))
             *skipp = true;
     }
 
