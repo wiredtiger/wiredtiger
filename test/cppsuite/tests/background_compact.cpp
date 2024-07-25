@@ -236,6 +236,9 @@ public:
         testutil_assert(collection_count != 0);
         uint64_t tw_collection_count = tw->get_assigned_collection_count();
         uint64_t tw_first_collection_id = tw->get_assigned_first_collection_id();
+        /* Extra threads will keep idle if there are more threads than collections, so
+         * collection_count must be greater than or equal to thread_count */
+        testutil_assert(tw->db.get_collection_count() >= tw->thread_count);
 
         for (uint64_t i = 0; i < tw_collection_count && tw->running(); ++i) {
             collection &coll = tw->db.get_collection(tw_first_collection_id + i);

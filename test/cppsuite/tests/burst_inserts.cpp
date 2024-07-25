@@ -71,6 +71,9 @@ public:
         std::vector<collection_cursor> ccv;
         uint64_t tc_collection_count = tc->get_assigned_collection_count();
         uint64_t tc_first_collection_id = tc->get_assigned_first_collection_id();
+        /* Extra threads will keep idle if there are more threads than collections, so
+         * collection_count must be greater than or equal to thread_count */
+        testutil_assert(tc->db.get_collection_count() >= tc->thread_count);
 
         for (uint64_t i = 0; i < tc_collection_count && tc->running(); ++i) {
             collection &coll = tc->db.get_collection(tc_first_collection_id + i);
