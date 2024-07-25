@@ -320,7 +320,13 @@ def main():
     else:
         file = open(git_diff, mode="r")
         data = file.read()
-        diff = Diff.parse_diff(data)
+        try:
+            diff = Diff.parse_diff(data)
+        except KeyError as e:
+            # No patch found because the diff is empty, fall back to get_git_diff().
+            logging.error(e)
+            logging.warning("Falling back to get_git_diff()")
+            diff = get_git_diff(git_working_tree_dir=git_working_tree_dir)
 
     change_list = diff_to_change_list(diff=diff)
     report_info = create_report_info(change_list=change_list,
