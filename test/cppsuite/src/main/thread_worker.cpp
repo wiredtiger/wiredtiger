@@ -85,7 +85,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
         op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
 
     testutil_assert(key_size > 0 && value_size > 0);
-    /* Extra threads will keep idle if there're more threads than collections, so collection_count
+    /* Extra threads will keep idle if there are more threads than collections, so collection_count
      * must be greater than or equal to thread_count */
     if (type == thread_type::INSERT)
         testutil_assert(db.get_collection_count() >= thread_count);
