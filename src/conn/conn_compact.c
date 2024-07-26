@@ -525,12 +525,12 @@ __background_compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool cache_pressure, full_iteration, running;
+    bool backup_active, cache_pressure, full_iteration, running;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    cache_pressure = full_iteration = running = false;
+    backup_active = cache_pressure = full_iteration = running = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
@@ -554,8 +554,9 @@ __background_compact_server(void *arg)
          * - Background compaction is not enabled.
          * - The entire metadata has been parsed.
          * - There is cache pressure and we don't want compaction to potentially add more.
+         * - A backup cursor is active.
          */
-        if (!running || full_iteration || cache_pressure) {
+        if (!running || full_iteration || cache_pressure || backup_active) {
             /*
              * In order to always try to parse all the candidates present in the metadata file even
              * though the compaction server may be stopped at random times, only set the URI to the
@@ -573,6 +574,9 @@ __background_compact_server(void *arg)
                 WT_STAT_CONN_INCR(session, background_compact_sleep_cache_pressure);
                 cache_pressure = false;
             }
+
+            if (backup_active)
+                backup_active = false;
 
             /* Check periodically in case the signal was missed. */
             __wt_cond_wait(session, conn->background_compact.cond,
@@ -622,6 +626,14 @@ __background_compact_server(void *arg)
         cache_pressure =
           __wt_eviction_dirty_needed(session, NULL) || __wt_eviction_clean_needed(session, NULL);
         if (cache_pressure)
+            continue;
+
+        /*
+         * Throttle background compaction if a backup cursor is active. An active backup will pin
+         * blocks which will likely prevent compaction to make progress.
+         */
+        backup_active = __wt_atomic_load64(&conn->hot_backup_start) != 0;
+        if (backup_active)
             continue;
 
         /* Find the next URI to compact. */
