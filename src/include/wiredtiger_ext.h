@@ -12,7 +12,9 @@
 #include <wiredtiger.h>
 
 #if defined(__cplusplus)
+#ifndef USE_CPP_FOR_C_FILES
 extern "C" {
+#endif
 #endif
 
 #if !defined(SWIG)
@@ -513,6 +515,8 @@ struct __wt_extension_api {
 #endif /* SWIG */
 
 #if defined(__cplusplus)
+#ifndef USE_CPP_FOR_C_FILES
 }
+#endif
 #endif
 #endif /* __WIREDTIGER_EXT_H_ */

@@ -95,13 +95,17 @@ struct __wt_conf {
 #define WT_CONF_VALUE_TABLE_ENTRY(conf, n) \
     &((WT_CONF_VALUE *)((uint8_t *)conf + conf->conf_value_table_offset))[n]
 
+
+typedef enum
+{
+  CONF_VALUE_DEFAULT_ITEM,
+  CONF_VALUE_NONDEFAULT_ITEM,
+  CONF_VALUE_BIND_DESC,
+  CONF_VALUE_SUB_INFO
+} __wt_conf_value_enum;
+
 struct __wt_conf_value {
-    enum {
-        CONF_VALUE_DEFAULT_ITEM,
-        CONF_VALUE_NONDEFAULT_ITEM,
-        CONF_VALUE_BIND_DESC,
-        CONF_VALUE_SUB_INFO
-    } type;
+    __wt_conf_value_enum type;
     union {
         WT_CONFIG_ITEM item;
         WT_CONF_BIND_DESC bind_desc;

@@ -154,12 +154,23 @@
 /*
  * Read a shared location and guarantee that subsequent reads do not see any earlier state.
  */
+#ifdef USE_CPP_FOR_C_FILES
+template <class T1, class T2>
+void
+WT_ACQUIRE_READ_WITH_BARRIER(T1& v, T2& val)
+{
+    do {
+        (v) = (T1)__wt_atomic_load_generic(&(val));
+        WT_ACQUIRE_BARRIER();
+    } while (0);
+}
+#else
 #define WT_ACQUIRE_READ_WITH_BARRIER(v, val)    \
     do {                                        \
         (v) = __wt_atomic_load_generic(&(val)); \
         WT_ACQUIRE_BARRIER();                   \
     } while (0)
-
+#endif /* USE_CPP_FOR_C_FILES */
 /*
  * Atomic versions of the flag set/clear macros.
  */

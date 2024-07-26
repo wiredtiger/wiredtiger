@@ -53,7 +53,7 @@ __wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
         return (errbuf);
     if (session != NULL && __wt_buf_fmt(session, &session->err, "error return: %d", error) == 0 &&
       session->err.data != NULL)
-        return (session->err.data);
+        return ((const char *)session->err.data);
 
     /* Defeated. */
     return ("Unable to return error string");

@@ -154,8 +154,8 @@ __config_merge_scan(
          * WT_CONFIG_ITEM_STRUCT, so we check for a field name in the
          * value.
          */
-        if (v.type == WT_CONFIG_ITEM_STRUCT && strchr(vb->data, '=') != NULL) {
-            WT_ERR(__config_merge_scan(session, kb->data, vb->data, strip, cp));
+        if (v.type == WT_CONFIG_ITEM_STRUCT && strchr((const char *)vb->data, '=') != NULL) {
+            WT_ERR(__config_merge_scan(session, (const char *)kb->data, (const char *)vb->data, strip, cp));
             continue;
         }
 
@@ -246,7 +246,7 @@ __config_merge_format_next(WT_SESSION_IMPL *session, const char *prefix, size_t 
             /*
              * It's possible the level contained nothing, check and discard empty levels.
              */
-            p = build->data;
+            p = (const char *)build->data;
             if (p[build->size - 3] == '(')
                 build->size = saved_len;
 

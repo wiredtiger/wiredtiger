@@ -10,7 +10,10 @@
 #define __WT_INTERNAL_H
 
 #if defined(__cplusplus)
-extern "C" {
+#ifndef USE_CPP_FOR_C_FILES
+//extern "C" {
+#else
+#endif
 #endif
 
 /*******************************************
@@ -587,6 +590,8 @@ typedef uint64_t wt_timestamp_t;
 #include "time_inline.h"
 
 #if defined(__cplusplus)
-}
+#ifndef USE_CPP_FOR_C_FILES
+//}
+#endif
 #endif
 #endif /* !__WT_INTERNAL_H */

@@ -126,7 +126,7 @@
 static WT_INLINE uint64_t
 fnv_64a_buf(const void *buf, size_t len, uint64_t hval)
 {
-	const unsigned char *bp = buf;		/* start of buffer */
+	const unsigned char *bp = (const unsigned char *)buf;		/* start of buffer */
 	const unsigned char *be = bp + len;	/* beyond end of buffer */
 
 	/*
