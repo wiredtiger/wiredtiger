@@ -312,7 +312,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
 
         /* Concatenate the metadata base string with the checkpoint string. */
         WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", meta_base, str));
-        WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
+        WT_ERR(__wt_metadata_update(session, fname, (const char *)tmp->mem));
     } else {
         /* Retrieve the metadata for this file. */
         WT_ERR(__wt_metadata_search(session, fname, &config));
@@ -472,9 +472,9 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
         WT_ERR(__wt_buf_grow(session, b, encrypt_size));
         WT_ERR(__wt_encrypt(session, kencryptor, 0, a, b));
         WT_ERR(__wt_buf_grow(session, a, b->size * 2 + 1));
-        __wt_fill_hex(b->mem, b->size, a->mem, a->memsize, &a->size);
+        __wt_fill_hex((const uint8_t *)b->mem, b->size, (uint8_t *)a->mem, a->memsize, &a->size);
 
-        metadata = a->data;
+        metadata = (const char *)a->data;
         metadata_len = a->size;
     }
 
@@ -1133,7 +1133,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
             if (ckpt->raw.size == 0)
                 ckpt->addr.size = 0;
             else
-                WT_RET(__wt_raw_to_hex(session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
+                WT_RET(__wt_raw_to_hex(session, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
         }
 
         WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
@@ -1205,7 +1205,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
           !F_ISSET(blk, WT_BLOCK_MODS_RENAME) && __wt_random(&session->rnd) % 10 == 0)
             skip_rename = true;
 
-        WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));
+        WT_RET(__wt_raw_to_hex(session, (const uint8_t *)blk->bitstring.data, blk->bitstring.size, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf,
           "%s\"%s\"=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",offset=%" PRIu64
           "%s,blocks=%.*s)",
@@ -1247,7 +1247,7 @@ __wt_meta_ckptlist_update_config(
 
     /* Replace the checkpoint entry. */
     cfg[0] = oldcfg;
-    cfg[1] = buf->mem;
+    cfg[1] = (const char *)buf->mem;
     cfg[2] = NULL;
     WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
 
@@ -1491,7 +1491,7 @@ __wt_meta_ckptlist_set(
     if (__wt_atomic_load_enum(&dhandle->type) == WT_DHANDLE_TYPE_TIERED)
         WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
 
-    WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
+    WT_ERR(__ckpt_set(session, fname, (const char *)buf->mem, has_lsn));
 
 err:
     __wt_scr_free(session, &buf);
@@ -1610,7 +1610,7 @@ __meta_sysinfo_update(WT_SESSION_IMPL *session, bool full, const char *name, siz
         WT_RET(__wt_metadata_update(session, uri, value));
     if (name != NULL) {
         WT_RET(__wt_buf_fmt(session, buf, "%s.%.*s", uri, (int)namelen, name));
-        WT_RET(__wt_metadata_update(session, buf->data, value));
+        WT_RET(__wt_metadata_update(session, (const char *)buf->data, value));
     }
     return (0);
 }
@@ -1627,7 +1627,7 @@ __meta_sysinfo_remove(WT_SESSION_IMPL *session, bool full, const char *name, siz
         WT_RET_NOTFOUND_OK(__wt_metadata_remove(session, uri));
     if (name != NULL) {
         WT_RET(__wt_buf_fmt(session, buf, "%s.%.*s", uri, (int)namelen, name));
-        WT_RET_NOTFOUND_OK(__wt_metadata_remove(session, buf->data));
+        WT_RET_NOTFOUND_OK(__wt_metadata_remove(session, (const char *)buf->data));
     }
     return (0);
 }
@@ -1705,7 +1705,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
                             "=%" PRIu64,
           hex_timestamp, session->current_ckpt_sec, conn->base_write_gen));
         WT_ERR(__meta_sysinfo_update(
-          session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
+          session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, (const char *)valbuf->data));
     }
 
     /*
@@ -1728,14 +1728,14 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
                               "=%" PRIu64,
           hex_timestamp, session->current_ckpt_sec, conn->base_write_gen));
         WT_ERR(__meta_sysinfo_update(
-          session, full, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI, valbuf->data));
+          session, full, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI, (const char *)valbuf->data));
     }
 
     /* Handle the snapshot information. */
 
     WT_ERR(__meta_print_snapshot(session, valbuf));
     WT_ERR(__meta_sysinfo_update(
-      session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, valbuf->data));
+      session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, (const char *)valbuf->data));
 
     /* Print what we did. */
 
@@ -1759,7 +1759,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
     if (full) {
         WT_ERR(__wt_buf_fmt(
           session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));
-        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, valbuf->data));
+        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, (const char *)valbuf->data));
     }
 
 err:
@@ -1848,7 +1848,7 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     else {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_buf_fmt(session, tmp, "%s.%s", WT_SYSTEM_CKPT_SNAPSHOT_URI, ckpt_name));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, tmp->data, &sys_config), false);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, (const char *)tmp->data, &sys_config), false);
     }
 
     /* Extract the components of the metadata string. */
@@ -1975,7 +1975,7 @@ __meta_retrieve_checkpoint_timestamp(WT_SESSION_IMPL *session, const char *ckpt_
 
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, tmp, "%s.%s", uri, ckpt_name));
-    WT_ERR(__meta_retrieve_timestamp(session, tmp->data, key, timestampp, ckpttime));
+    WT_ERR(__meta_retrieve_timestamp(session, (const char *)tmp->data, key, timestampp, ckpttime));
 err:
     __wt_scr_free(session, &tmp);
     return (ret);

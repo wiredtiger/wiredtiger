@@ -137,7 +137,7 @@ __conf_check_compare(const void *keyvoid, const void *check)
 {
     const WT_CONFIG_ITEM *key;
 
-    key = keyvoid;
+    key = (const WT_CONFIG_ITEM *)keyvoid;
     return (strncmp(key->str, ((WT_CONFIG_CHECK *)check)->name, key->len));
 }
 
@@ -344,7 +344,7 @@ __wt_conf_compile(
     cfgs[0] = centry->base;
     cfgs[1] = format_copy;
     WT_ERR(__wt_calloc(session, centry->conf_total_size, 1, &buf));
-    conf = buf;
+    conf = (WT_CONF *)buf;
     conf->source_config = format_copy;
     conf->default_config = cfgs[0];
 
@@ -419,7 +419,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     WT_ASSERT(session, preconf != NULL);
 
     memcpy(compile_buf, preconf, compile_buf_size);
-    conf = compile_buf;
+    conf = (WT_CONF *)compile_buf;
 
     /* Save the config string from the API call, it can be helpful for debugging. */
     conf->api_config = config;

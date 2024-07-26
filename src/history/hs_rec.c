@@ -297,7 +297,7 @@ __hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INS
     switch (r->page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
-        p = key->mem;
+        p = (uint8_t *)key->mem;
         WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
         key->size = WT_PTRDIFF(p, key->data);
         break;

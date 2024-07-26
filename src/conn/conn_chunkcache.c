@@ -222,7 +222,7 @@ __chunkcache_metadata_server(void *arg)
     uint64_t cond_time_us;
     bool signalled;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     cond_time_us = WT_MILLION;
 

@@ -1176,7 +1176,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     for (cfg_cnt = 1; cfg[cfg_cnt] != NULL; ++cfg_cnt)
         WT_ERR(__wt_buf_catfmt(session, tmp, "%s,", cfg[cfg_cnt]));
     WT_ERR(__wt_buf_catfmt(session, tmp, "dump=\"\",readonly=0"));
-    WT_ERR(__wt_strdup(session, tmp->data, &ctable->cfg[1]));
+    WT_ERR(__wt_strdup(session, (const char *)tmp->data, &ctable->cfg[1]));
 
     if (0) {
 err:

@@ -58,7 +58,7 @@ __meta_track_next(WT_SESSION_IMPL *session, WT_META_TRACK **trkp)
     WT_ASSERT(session, session->meta_track_next != NULL);
 
     if (trkp != NULL) {
-        *trkp = session->meta_track_next;
+        *trkp = (WT_META_TRACK *)session->meta_track_next;
         session->meta_track_next = *trkp + 1;
     }
 
@@ -86,7 +86,7 @@ __meta_track_err(WT_SESSION_IMPL *session)
 {
     WT_META_TRACK *trk;
 
-    trk = session->meta_track_next;
+    trk = (WT_META_TRACK *)session->meta_track_next;
     --trk;
     __meta_track_clear(session, trk);
 
@@ -141,7 +141,7 @@ __meta_track_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
     case WT_ST_EMPTY: /* Unused slot */
         break;
     case WT_ST_CHECKPOINT: /* Checkpoint, see above */
-        btree = trk->dhandle->handle;
+        btree = (WT_BTREE *)trk->dhandle->handle;
         bm = btree->bm;
         WT_WITH_DHANDLE(session, trk->dhandle, ret = bm->checkpoint_resolve(bm, session, false));
         break;
@@ -181,7 +181,7 @@ __meta_track_unroll(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
     case WT_ST_EMPTY: /* Unused slot */
         break;
     case WT_ST_CHECKPOINT: /* Checkpoint, see above */
-        btree = trk->dhandle->handle;
+        btree = (WT_BTREE *)trk->dhandle->handle;
         bm = btree->bm;
         WT_WITH_DHANDLE(session, trk->dhandle, ret = bm->checkpoint_resolve(bm, session, true));
         break;
@@ -244,8 +244,8 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 
     WT_ASSERT(session, WT_META_TRACKING(session) && session->meta_track_nest > 0);
 
-    trk_orig = session->meta_track;
-    trk = session->meta_track_next;
+    trk_orig = (WT_META_TRACK *)session->meta_track;
+    trk = (WT_META_TRACK *)session->meta_track_next;
 
     /* If it was a nested transaction, there is nothing to do. */
     if (--session->meta_track_nest != 0)
@@ -368,8 +368,8 @@ __wt_meta_track_sub_off(WT_SESSION_IMPL *session)
     if (!WT_META_TRACKING(session) || session->meta_track_sub == NULL)
         return (0);
 
-    trk_orig = session->meta_track_sub;
-    trk = session->meta_track_next;
+    trk_orig = (WT_META_TRACK *)session->meta_track_sub;
+    trk = (WT_META_TRACK *)session->meta_track_next;
 
     /* Turn off tracking for unroll. */
     session->meta_track_next = session->meta_track_sub = NULL;

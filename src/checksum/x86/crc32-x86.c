@@ -51,7 +51,7 @@ __checksum_with_seed_hw(uint32_t seed, const void *chunk, size_t len)
     crc = ~seed;
 
     /* Checksum one byte at a time to the first 8B boundary. */
-    for (p = chunk; ((uintptr_t)p & (sizeof(uint64_t) - 1)) != 0 && len > 0; ++p, --len) {
+    for (p = (const uint8_t *)chunk; ((uintptr_t)p & (sizeof(uint64_t) - 1)) != 0 && len > 0; ++p, --len) {
         __asm__ __volatile__(".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1" : "=S"(crc) : "0"(crc), "c"(*p));
     }
 

@@ -119,7 +119,7 @@ __wt_struct_repack(WT_SESSION_IMPL *session, const char *infmt, const char *outf
     const void *start;
 
     start = NULL;
-    p = inbuf->data;
+    p = (const uint8_t *)inbuf->data;
     end = p + inbuf->size;
 
     WT_RET(__pack_init(session, &packout, outfmt));

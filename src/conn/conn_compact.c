@@ -527,7 +527,7 @@ __background_compact_server(void *arg)
     WT_SESSION_IMPL *session;
     bool cache_pressure, full_iteration, running;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
     cache_pressure = full_iteration = running = false;

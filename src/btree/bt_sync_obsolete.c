@@ -440,12 +440,12 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
      */
     WT_WITHOUT_DHANDLE(session,
       WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __wt_conn_dhandle_find(session, uri->data, NULL))));
+        session, (ret = __wt_conn_dhandle_find(session, (const char *)uri->data, NULL))));
     if (ret == WT_NOTFOUND)
         return (0);
 
     /* Open a handle for processing. */
-    ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
+    ret = __wt_session_get_dhandle(session, (const char *)uri->data, NULL, NULL, 0);
     if (ret != 0) {
         __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP, "%s: unable to open handle%s",
           (char *)uri->data,
@@ -679,7 +679,7 @@ __checkpoint_cleanup(void *arg)
     uint64_t last, now;
     bool cv_signalled;
 
-    session = arg;
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
 
     __wt_seconds(session, &last);

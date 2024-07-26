@@ -59,7 +59,7 @@ int
 __wti_tiered_bucket_config(
   WT_SESSION_IMPL *session, const char *cfg[], WT_BUCKET_STORAGE **bstoragep)
 {
-    WT_BUCKET_STORAGE *bstorage, *new;
+    WT_BUCKET_STORAGE *bstorage, *new_storage;
     WT_CONFIG_ITEM auth, bucket, cachedir, name, prefix, shared;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
@@ -72,7 +72,7 @@ __wti_tiered_bucket_config(
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &name));
     WT_RET(__wt_scr_alloc(session, 0, &buf));
-    bstorage = new = NULL;
+    bstorage = new_storage = NULL;
     conn = S2C(session);
 
     __wt_spin_lock(session, &conn->storage_lock);
@@ -122,36 +122,36 @@ __wti_tiered_bucket_config(
         }
     }
 
-    WT_ERR(__wt_calloc_one(session, &new));
-    WT_ERR(__wt_strndup(session, auth.str, auth.len, &new->auth_token));
-    WT_ERR(__wt_strndup(session, bucket.str, bucket.len, &new->bucket));
-    WT_ERR(__wt_strndup(session, prefix.str, prefix.len, &new->bucket_prefix));
-    WT_ERR(__wt_strndup(session, cachedir.str, cachedir.len, &new->cache_directory));
+    WT_ERR(__wt_calloc_one(session, &new_storage));
+    WT_ERR(__wt_strndup(session, auth.str, auth.len, &new_storage->auth_token));
+    WT_ERR(__wt_strndup(session, bucket.str, bucket.len, &new_storage->bucket));
+    WT_ERR(__wt_strndup(session, prefix.str, prefix.len, &new_storage->bucket_prefix));
+    WT_ERR(__wt_strndup(session, cachedir.str, cachedir.len, &new_storage->cache_directory));
 
     storage = nstorage->storage_source;
     if (cachedir.len != 0)
-        WT_ERR(__wt_buf_fmt(session, buf, "cache_directory=%s", new->cache_directory));
+        WT_ERR(__wt_buf_fmt(session, buf, "cache_directory=%s", new_storage->cache_directory));
     WT_ERR(storage->ss_customize_file_system(
-      storage, &session->iface, new->bucket, new->auth_token, buf->data, &new->file_system));
-    new->storage_source = storage;
+      storage, &session->iface, new_storage->bucket, new_storage->auth_token, (const char *)buf->data, &new_storage->file_system));
+    new_storage->storage_source = storage;
     if (shared.val)
-        new->tiered_shared = true;
+        new_storage->tiered_shared = true;
 
     /* If we're creating a new bucket storage, parse the other settings into it. */
-    TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
-    TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
-    F_SET(new, WT_BUCKET_FREE);
-    WT_ERR(__tiered_common_config(session, cfg, new));
-    *bstoragep = new;
+    TAILQ_INSERT_HEAD(&nstorage->bucketqh, new_storage, q);
+    TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new_storage, hashq);
+    F_SET(new_storage, WT_BUCKET_FREE);
+    WT_ERR(__tiered_common_config(session, cfg, new_storage));
+    *bstoragep = new_storage;
 
 done:
     if (0) {
 err:
-        if (new != NULL) {
-            __wt_free(session, new->bucket);
-            __wt_free(session, new->bucket_prefix);
+        if (new_storage != NULL) {
+            __wt_free(session, new_storage->bucket);
+            __wt_free(session, new_storage->bucket_prefix);
         }
-        __wt_free(session, new);
+        __wt_free(session, new_storage);
     }
     __wt_spin_unlock(session, &conn->storage_lock);
     __wt_scr_free(session, &buf);
