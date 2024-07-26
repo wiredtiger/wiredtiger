@@ -733,7 +733,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
     if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
-        F_SET(conn, WT_CONN_CKPT_CLEANUP_SKIP_INT);
+        F_SET(conn, WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
     conn->cc_cleanup.interval = (uint64_t)cval.val;
