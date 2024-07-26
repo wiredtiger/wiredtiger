@@ -494,8 +494,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
               "Start: Durable timestamps cannot be out of order for prepared updates");
 
         if (prev_upd->start_ts == WT_TS_NONE) {
-            if (prev_upd->start_ts < vpack->tw.start_ts ||
-              (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
+            if (vpack->tw.start_ts != WT_TS_NONE ||
+              (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && vpack->tw.stop_ts != WT_TS_NONE)) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
                 return (EBUSY);
             }
