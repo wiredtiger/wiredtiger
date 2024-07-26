@@ -293,9 +293,12 @@ class Translator:
                 else:
                     self.error('unknown thread option: ' + k)
 
-            topts.inserts += topts.insert; topts.insert = 0
-            topts.updates += topts.update; topts.update = 0
-            topts.reads += topts.read; topts.read = 0
+            topts.inserts += topts.insert
+            topts.insert = 0
+            topts.updates += topts.update
+            topts.update = 0
+            topts.reads += topts.read
+            topts.read = 0
             if topts.count == 0:
                 continue
 

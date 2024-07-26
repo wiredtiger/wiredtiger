@@ -86,7 +86,7 @@ class test_join09(wttest.WiredTigerTestCase):
             [k] = jc.get_keys()
             [v0,v1] = jc.get_values()
             self.assertEquals(self.gen_values(k), [v0, v1])
-            if not k in mbr:
+            if k not in mbr:
                 # With false positives, we can see extra values
                 if self.false_positives:
                     fp_count += 1

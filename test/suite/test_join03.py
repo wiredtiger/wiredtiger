@@ -56,7 +56,7 @@ class test_join03(wttest.WiredTigerTestCase):
             i = k - 1
             [v] = jc.get_values()
             self.assertEquals(self.gen_values(i), [v])
-            if not i in mbr:
+            if i not in mbr:
                 self.tty('  result ' + str(i) + ' is not in: ' + str(mbr))
             self.assertTrue(i in mbr)
             mbr.remove(i)

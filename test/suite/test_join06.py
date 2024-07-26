@@ -125,7 +125,7 @@ class test_join06(wttest.WiredTigerTestCase):
                 self.assertEquals(self.gen_values2(k), [v0, v1])
             else:
                 self.assertEquals(self.gen_values(k), [v0, v1])
-            if not k in mbr:
+            if k not in mbr:
                 self.tty('**** ERROR: result ' + str(k) + ' is not in: ' +
                          str(mbr))
             self.assertTrue(k in mbr)

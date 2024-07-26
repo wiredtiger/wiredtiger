@@ -200,7 +200,7 @@ class Doxypy(object):
 		start of the line.
 		"""
 		stripped = line.strip()
-		if stripped and not stripped[0] in ('@', '\\'):
+		if stripped and stripped[0] not in ('@', '\\'):
 			return "\\brief " + line
 		else:
 			return line

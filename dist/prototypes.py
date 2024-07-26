@@ -19,7 +19,7 @@ def clean_function_name(filename, fn):
     ret = ret.replace("\n", " ", 1)
 
     # If there's no CPP syntax, join everything.
-    if not '#endif' in ret:
+    if '#endif' not in ret:
         ret = " ".join(ret.split())
 
     # If it's not an inline function, prefix with "extern".
@@ -88,7 +88,7 @@ def prototypes_extern():
     tests = []
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
-                continue;
+                continue
         if fnmatch.fnmatch(name, '*/checksum/arm64/*'):
             continue
         if fnmatch.fnmatch(name, '*/checksum/loongarch64/*'):
@@ -115,7 +115,7 @@ def prototypes_posix():
     tests = []
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
-                continue;
+                continue
         if not fnmatch.fnmatch(name, '*/os_posix/*'):
             continue
         fn_prototypes(fns, tests, name)
@@ -128,7 +128,7 @@ def prototypes_win():
     tests = []
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
-                continue;
+                continue
         if not fnmatch.fnmatch(name, '*/os_win/*'):
             continue
         fn_prototypes(fns, tests, name)

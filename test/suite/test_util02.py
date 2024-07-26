@@ -112,7 +112,7 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
                 elif c == '\\':
                     result += '\\\\'
                 elif c == ' ' or \
-                    (c in string.printable and not c in string.whitespace):
+                    (c in string.printable and c not in string.whitespace):
                     result += c
                 else:
                     result += '\\' + "%0.2x" % ord(c)

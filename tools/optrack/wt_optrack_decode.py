@@ -41,7 +41,7 @@ import traceback
 #
 # This log version must be the same as that defined in ../src/include/optrack.h
 #
-currentLogVersion = 2;
+currentLogVersion = 2
 
 class color:
    PURPLE = '\033[95m'
@@ -55,53 +55,53 @@ class color:
    UNDERLINE = '\033[4m'
    END = '\033[0m'
 
-functionMap = {};
+functionMap = {}
 
 def buildTranslationMap(mapFileName):
 
-    mapFile = None;
+    mapFile = None
 
     if not os.path.exists(mapFileName):
-        return False;
+        return False
 
     try:
-        mapFile = open(mapFileName, "r");
+        mapFile = open(mapFileName, "r")
     except:
-        print(color.BOLD + color.RED);
-        print("Could not open " + mapFileName + " for reading");
-        print(color.END);
+        print(color.BOLD + color.RED)
+        print("Could not open " + mapFileName + " for reading")
+        print(color.END)
         raise
 
     # Read lines from the map file and build an in-memory map
     # of translations. Each line has a function ID followed by space and
     # followed by the function name.
     #
-    lines = mapFile.readlines();  # a map file is usually small
+    lines = mapFile.readlines()  # a map file is usually small
 
     for line in lines:
 
-        words = line.split(" ");
+        words = line.split(" ")
         if (len(words) < 2):
-            continue;
+            continue
 
         try:
-            funcID = int(words[0]);
+            funcID = int(words[0])
         except:
-            continue;
+            continue
 
-        funcName = words[1].strip();
+        funcName = words[1].strip()
 
-        functionMap[funcID] = funcName;
+        functionMap[funcID] = funcName
 
-    return True;
+    return True
 
 def funcIDtoName(funcID):
 
     if funcID in functionMap:
-        return functionMap[funcID];
+        return functionMap[funcID]
     else:
-       print("Could not find the name for func " + str(funcID));
-       return "NULL";
+       print("Could not find the name for func " + str(funcID))
+       return "NULL"
 
 #
 # The format of the record is written down in src/include/optrack.h
@@ -117,21 +117,21 @@ def funcIDtoName(funcID):
 #
 def parseOneRecord(file):
 
-    bytesRead = "";
-    record = ();
-    RECORD_SIZE = 16;
+    bytesRead = ""
+    record = ()
+    RECORD_SIZE = 16
 
     try:
-        bytesRead = file.read(RECORD_SIZE);
+        bytesRead = file.read(RECORD_SIZE)
     except:
-        return None;
+        return None
 
     if (len(bytesRead) < RECORD_SIZE):
-        return None;
+        return None
 
-    record = struct.unpack('Qhhxxxx', bytesRead);
+    record = struct.unpack('Qhhxxxx', bytesRead)
 
-    return record;
+    return record
 
 #
 # HEADER_SIZE must be the same as the size of WT_OPTRACK_HEADER
@@ -139,25 +139,25 @@ def parseOneRecord(file):
 #
 def validateHeader(file):
 
-    global currentLogVersion;
+    global currentLogVersion
 
-    bytesRead = "";
-    MIN_HEADER_SIZE = 12;
+    bytesRead = ""
+    MIN_HEADER_SIZE = 12
 
     try:
-        bytesRead = file.read(MIN_HEADER_SIZE);
+        bytesRead = file.read(MIN_HEADER_SIZE)
     except:
         print(color.BOLD + color.RED +
-              "failed read of input file" + color.END);
+              "failed read of input file" + color.END)
         raise
 
     if (len(bytesRead) < MIN_HEADER_SIZE):
         print(color.BOLD + color.RED +
-              "unexpected sized input file" + color.END);
+              "unexpected sized input file" + color.END)
         raise
 
-    version, threadType, tsc_nsec = struct.unpack('=III', bytesRead);
-    print("VERSION IS " + str(version));
+    version, threadType, tsc_nsec = struct.unpack('=III', bytesRead)
+    print("VERSION IS " + str(version))
 
     # If the version number is 2, the header contains three fields:
     # version, thread type, and clock ticks per nanosecond).
@@ -166,194 +166,194 @@ def validateHeader(file):
     # would be returned by a call to time() on Unix.
     #
     if (version == 2):
-        return True, threadType, tsc_nsec, 0;
+        return True, threadType, tsc_nsec, 0
     elif(version >= 3):
-        ADDITIONAL_HEADER_SIZE = 12;
+        ADDITIONAL_HEADER_SIZE = 12
         try:
-            bytesRead = file.read(ADDITIONAL_HEADER_SIZE);
+            bytesRead = file.read(ADDITIONAL_HEADER_SIZE)
             if (len(bytesRead) < ADDITIONAL_HEADER_SIZE):
-                return False, -1;
+                return False, -1
 
-            padding, sec_from_epoch = struct.unpack('=IQ', bytesRead);
-            return True, threadType, tsc_nsec, sec_from_epoch;
+            padding, sec_from_epoch = struct.unpack('=IQ', bytesRead)
+            return True, threadType, tsc_nsec, sec_from_epoch
         except:
-            return False, -1;
+            return False, -1
     else:
-        return False, -1, 1;
+        return False, -1, 1
 
 def getStringFromThreadType(threadType):
 
     if (threadType == 0):
-        return "external";
+        return "external"
     elif (threadType == 1):
-        return "internal";
+        return "internal"
     else:
-        return unknown;
+        return unknown
 
 
 def parseFile(fileName):
 
-    done = False;
-    file = None;
-    threadType = 0;
-    threadTypeString = None;
-    tsc_nsec_ratio = 1.0;
-    outputFile = None;
-    outputFileName = "";
-    totalRecords = 0;
-    validVersion = False;
+    done = False
+    file = None
+    threadType = 0
+    threadTypeString = None
+    tsc_nsec_ratio = 1.0
+    outputFile = None
+    outputFileName = ""
+    totalRecords = 0
+    validVersion = False
 
-    print(color.BOLD + "Processing file " + fileName + color.END);
+    print(color.BOLD + "Processing file " + fileName + color.END)
 
     # Open the log file for reading
     try:
-        file = open(fileName, "rb");
+        file = open(fileName, "rb")
     except:
         print(color.BOLD + color.RED +
-              "Could not open " + fileName + " for reading" + color.END);
+              "Could not open " + fileName + " for reading" + color.END)
         raise
 
     # Read and validate log header
     validVersion, threadType, tsc_nsec_ratio, sec_from_epoch = \
-                                                    validateHeader(file);
+                                                    validateHeader(file)
     if (not validVersion):
-        return;
+        return
 
     # Find out if this log file was generated by an internal or an
     # external thread. This will be reflected in the output file name.
     #
-    threadTypeString = getStringFromThreadType(threadType);
+    threadTypeString = getStringFromThreadType(threadType)
 
     # This ratio tells us how many clock ticks there are in a nanosecond
     # on the processor on which this trace file was generated. When the WT
     # library logs this ratio, it multiplies it by 1000. So we have to divide
     # it back to get an accurate ratio.
-    tsc_nsec_ratio = float(tsc_nsec_ratio) / 1000.0;
+    tsc_nsec_ratio = float(tsc_nsec_ratio) / 1000.0
 
-    print("TSC_NSEC ratio parsed: " + '{0:,.4f}'.format(tsc_nsec_ratio));
+    print("TSC_NSEC ratio parsed: " + '{0:,.4f}'.format(tsc_nsec_ratio))
 
     # Open the text file for writing
     try:
-        outputFileName = fileName + "-" + threadTypeString + ".txt";
-        outputFile = open(outputFileName, "w");
+        outputFileName = fileName + "-" + threadTypeString + ".txt"
+        outputFile = open(outputFileName, "w")
     except:
         print(color.BOLD + color.RED +
               "Could not open file " + outputfileName + ".txt for writing." +
-              color.END);
-        return;
+              color.END)
+        return
 
     print(color.BOLD + color.PURPLE +
-          "Writing to output file " + outputFileName + "." + color.END);
+          "Writing to output file " + outputFileName + "." + color.END)
 
     # The first line of the output file contains the seconds from Epoch
-    outputFile.write(str(sec_from_epoch) + "\n");
+    outputFile.write(str(sec_from_epoch) + "\n")
 
     while (not done):
-        record = parseOneRecord(file);
+        record = parseOneRecord(file)
 
         if ((record is None) or len(record) < 3):
-            done = True;
+            done = True
         else:
             try:
-                time = float(record[0]) / tsc_nsec_ratio;
-                funcName = funcIDtoName(record[1]);
-                opType = record[2];
+                time = float(record[0]) / tsc_nsec_ratio
+                funcName = funcIDtoName(record[1])
+                opType = record[2]
 
                 outputFile.write(str(opType) + " " + funcName + " "
                                  + str(int(time))
-                                 + "\n");
-                totalRecords += 1;
+                                 + "\n")
+                totalRecords += 1
             except:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                traceback.print_exception(exc_type, exc_value, exc_traceback);
-                print(color.BOLD + color.RED);
+                traceback.print_exception(exc_type, exc_value, exc_traceback)
+                print(color.BOLD + color.RED)
                 print("Could not write record " + str(record) +
-                      " to file " + fileName + ".txt.");
-                print(color.END);
-                done = True;
+                      " to file " + fileName + ".txt.")
+                print(color.END)
+                done = True
 
-    print("Wrote " + str(totalRecords) + " records to " + outputFileName + ".");
-    file.close();
-    outputFile.close();
+    print("Wrote " + str(totalRecords) + " records to " + outputFileName + ".")
+    file.close()
+    outputFile.close()
 
 def waitOnOneProcess(runningProcesses):
 
-    success = False;
+    success = False
     # Use a copy since we will be deleting entries from the original
     for fname, p in runningProcesses.copy().items():
         if (not p.is_alive()):
-            del runningProcesses[fname];
-            success = True;
+            del runningProcesses[fname]
+            success = True
 
     # If we have not found a terminated process, sleep for a while
     if (not success):
-        time.sleep(5);
+        time.sleep(5)
 
 def main():
 
-    runnableProcesses = {};
-    spawnedProcesses = {};
-    successfullyProcessedFiles = [];
-    targetParallelism = multiprocessing.cpu_count();
-    terminatedProcesses = {};
+    runnableProcesses = {}
+    spawnedProcesses = {}
+    successfullyProcessedFiles = []
+    targetParallelism = multiprocessing.cpu_count()
+    terminatedProcesses = {}
 
     parser = argparse.ArgumentParser(description=
                                      'Convert WiredTiger operation \
                                      tracking logs from binary to \
-                                     text format.');
+                                     text format.')
 
     parser.add_argument('files', type=str, nargs='*',
-                    help='optrack log files to process');
+                    help='optrack log files to process')
 
     parser.add_argument('-j', dest='jobParallelism', type=int,
-                        default='0');
+                        default='0')
 
     parser.add_argument('-m', '--mapfile', dest='mapFileName', type=str,
-                        default='optrack-map');
+                        default='optrack-map')
 
-    args = parser.parse_args();
+    args = parser.parse_args()
 
-    print("Running with the following parameters:");
+    print("Running with the following parameters:")
     for key, value in vars(args).items():
-        print ("\t" + key + ": " + str(value));
+        print ("\t" + key + ": " + str(value))
 
     # Parse the map of function ID to name translations.
     if (buildTranslationMap(args.mapFileName) is False):
         print("Failed to locate or parse the map file " +
-              args.mapFileName);
-        print("Cannot proceed.");
-        return;
+              args.mapFileName)
+        print("Cannot proceed.")
+        return
 
     # Determine the target job parallelism
     if (args.jobParallelism > 0):
-        targetParallelism = args.jobParallelism;
+        targetParallelism = args.jobParallelism
     if (targetParallelism == 0):
-        targetParallelism = len(args.files);
+        targetParallelism = len(args.files)
     print(color.BLUE + color.BOLD +
           "Will process " + str(targetParallelism) + " files in parallel."
-          + color.END);
+          + color.END)
 
     # Prepare the processes that will parse files, one per file
     if (len(args.files) > 0):
         for fname in args.files:
-            p = Process(target=parseFile, args=(fname,));
-            runnableProcesses[fname] = p;
+            p = Process(target=parseFile, args=(fname,))
+            runnableProcesses[fname] = p
 
     # Spawn these processes, not exceeding the desired parallelism
     while (len(runnableProcesses) > 0):
         while (len(spawnedProcesses) < targetParallelism
                and len(runnableProcesses) > 0):
 
-            fname, p = runnableProcesses.popitem();
-            p.start();
-            spawnedProcesses[fname] = p;
+            fname, p = runnableProcesses.popitem()
+            p.start()
+            spawnedProcesses[fname] = p
 
         # Find at least one terminated process
-        waitOnOneProcess(spawnedProcesses);
+        waitOnOneProcess(spawnedProcesses)
 
     # Wait for all processes to terminate
     while (len(spawnedProcesses) > 0):
-        waitOnOneProcess(spawnedProcesses);
+        waitOnOneProcess(spawnedProcesses)
 
 if __name__ == '__main__':
     main()

@@ -189,7 +189,7 @@ def configRecord(cmap, tup):
     for name in tup:
         last = (pos == tuplen - 1)
         pos += 1
-        if not name in cmap:
+        if name not in cmap:
             if last:
                 cmap[name] = {"run":None}
             else:
@@ -206,7 +206,7 @@ def configGet(cmap, tup):
     config was generated).
     """
     for name in tup:
-        if not name in cmap:
+        if name not in cmap:
             return True
         run = cmap[name]["run"] if "run" in cmap[name] else None
         if run != None:

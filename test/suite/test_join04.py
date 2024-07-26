@@ -120,7 +120,8 @@ class test_join04(wttest.WiredTigerTestCase):
             n = 0
             for k in ins:
                 n += 1
-                if k == None: continue
+                if k == None:
+                    continue
                 uri = 'index:join04:index' + str(n)
                 c = self.session.open_cursor(uri, None, None)
                 c.set_key(k)
