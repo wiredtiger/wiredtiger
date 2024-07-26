@@ -203,9 +203,8 @@ __curversion_next_int(WT_CURSOR *cursor)
                 version_cursor->upd_durable_stop_ts = upd->durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
 
-                if (upd != NULL &&
-                  (upd->prepare_state == WT_PREPARE_INPROGRESS ||
-                    upd->prepare_state == WT_PREPARE_LOCKED))
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
 
                 /* No need to check the next update if the tombstone is globally visible. */
