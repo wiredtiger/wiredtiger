@@ -13,3 +13,6 @@ unset(has_x86intrin CACHE)
 if(NOT CMAKE_CROSSCOMPILING)
     include_directories(AFTER SYSTEM "${CMAKE_SOURCE_DIR}/oss/apple")
 endif()
+
+# Disable cppsuite as it only runs on linux.
+set(ENABLE_CPPSUITE 0)
