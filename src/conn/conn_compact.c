@@ -575,8 +575,10 @@ __background_compact_server(void *arg)
                 cache_pressure = false;
             }
 
-            if (backup_active)
+            if (backup_active) {
+                WT_STAT_CONN_INCR(session, background_compact_sleep_backup_active);
                 backup_active = false;
+            }
 
             /* Check periodically in case the signal was missed. */
             __wt_cond_wait(session, conn->background_compact.cond,
