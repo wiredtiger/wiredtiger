@@ -1559,7 +1559,7 @@ dir_store_obj_get(
 
     dir_store_fh->dir_store->object_get_ops++;
     ret = wt_fh->fh_read(
-      wt_fh, session, (wt_off_t)(dir_store_fh->object_id_map[object_id]), object_size, buf);
+      wt_fh, session, (wt_off_t)(dir_store_fh->object_id_map[object_id]), object_size, buf->mem);
     buf->size = object_size;
     /* TODO: cleanup allocated memory on error */
     return (ret);
