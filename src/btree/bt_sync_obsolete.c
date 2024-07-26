@@ -430,6 +430,65 @@ __checkpoint_cleanup_page_skip(
         return (0);
     }
 
+    // We want to do something about addr.type:
+    // - WT_ADDR_LEAF_NO    : No overflow items, skip
+    // - WT_ADDR_LEAF       : May have overflow items, need to check further.
+    // - WT_ADDR_INT        : Internal page, need to check further.
+    if(addr.type == WT_ADDR_LEAF_NO) {
+        *skipp = true;
+        return (0);
+    }
+
+    // We want to do something if the page has deletes. Note that this is always equal to WT_TS_NONE
+    // for logged tables.
+    // - addr.ta.newest_stop_durable_ts != WT_TS_NONE   : Don't skip
+    // - addr.ta.newest_stop_durable_ts == WT_TS_NONE   : No deletes, has to check further.
+    page_has_deletes =
+      !F_ISSET(S2BT(session), WT_BTREE_LOGGED) && addr.ta.newest_stop_durable_ts != WT_TS_NONE;
+    if(page_has_deletes) {
+        *skipp = false;
+        return (0);
+    }
+
+    // We want to do something if skip int is enabled:
+    // - F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT)   : Skip
+    // - !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT)  : Don't skip
+    if(F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT)) {
+        *skipp = true;
+        return (0);
+    }
+
+    // Conclusion:
+    // has_deletes = !logged && addr.ta.newest_stop_durable_ts != WT_TS_NONE
+    // skip_intl_page = F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT
+    // WT_ADDR_LEAF_NO                                                  : Skip
+    // (WT_ADDR_LEAF || WT_ADDR_INT) && has_deletes                     : Don't skip
+    // (WT_ADDR_LEAF || WT_ADDR_INT) && !has_deletes && skip_intl_page  : Skip
+
+
+    if (addr.type == WT_ADDR_LEAF_NO ||
+      (addr.ta.newest_stop_durable_ts == WT_TS_NONE &&
+        (F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT) ||
+          !F_ISSET(S2BT(session), WT_BTREE_LOGGED)))) {
+        __wt_verbose_debug2(
+          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped);
+        *skipp = true;
+    }
+
+    /* Checkpoint cleanup may be configured to skip internal pages. */
+    skip_intl_pages = F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT);
+    if(addr.type == WT_ADDR_INT && skip_intl_pages) {
+        *skipp = true;
+        return (0);
+    }
+
+    /* Don't read overflow pages of a logged table. */
+    if(addr.type == WT_ADDR_LEAF && logged) {
+        *skipp = true;
+        return (0);
+    }
+
     /*
      * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if at
      * least of one of the following conditions is met:
@@ -446,10 +505,9 @@ __checkpoint_cleanup_page_skip(
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
      * operation is performed using no timestamp.
      */
-    skip_intl_pages = F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_SKIP_INT);
     logged = F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-    page_has_deletes = addr.ta.newest_stop_durable_ts != WT_TS_NONE;
-    if (addr.type == WT_ADDR_LEAF_NO || (!page_has_deletes && (skip_intl_pages || !logged))) {
+    page_has_deletes = !logged && addr.ta.newest_stop_durable_ts != WT_TS_NONE;
+    if (addr.type == WT_ADDR_LEAF_NO || !page_has_deletes) {
         /*
          * While we may have decided to skip the page, we still want to read it if a globally
          * visible time window exists on the page.
