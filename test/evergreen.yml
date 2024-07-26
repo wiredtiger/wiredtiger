@@ -3195,6 +3195,8 @@ tasks:
             set -o errexit
             set -o verbose
 
+            ${PREPARE_PATH}
+
             pr_args=""
             if [ ! -z "${github_pr_number}" ]; then
                 echo "Detected Github PR ${github_pr_number}"
