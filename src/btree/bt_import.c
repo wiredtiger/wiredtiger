@@ -92,7 +92,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * imported file has not been part of backup. Strip out the checkpoint LSN, an imported file
      * isn't associated with any log files. Assign a unique file ID.
      */
-    cfg[1] = (const char*)a->data;
+    cfg[1] = (const char *)a->data;
     cfg[2] = checkpoint_list;
     WT_ERR(__wt_reset_blkmod(session, (const char *)a->data, buf));
     cfg[3] = (const char *)buf->mem;

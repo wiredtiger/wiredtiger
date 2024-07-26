@@ -162,7 +162,8 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
      * Do the rename before updating the metadata to avoid leaving the metadata inconsistent if the
      * rename fails.
      */
-    WT_ERR(__wt_schema_rename(session, (const char *)os->data, (const char *)ns->data, cfg, check_visibility));
+    WT_ERR(__wt_schema_rename(
+      session, (const char *)os->data, (const char *)ns->data, cfg, check_visibility));
 
     /*
      * Remove the old metadata entry. Insert the new metadata entry.

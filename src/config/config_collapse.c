@@ -155,7 +155,8 @@ __config_merge_scan(
          * value.
          */
         if (v.type == WT_CONFIG_ITEM_STRUCT && strchr((const char *)vb->data, '=') != NULL) {
-            WT_ERR(__config_merge_scan(session, (const char *)kb->data, (const char *)vb->data, strip, cp));
+            WT_ERR(__config_merge_scan(
+              session, (const char *)kb->data, (const char *)vb->data, strip, cp));
             continue;
         }
 

@@ -124,7 +124,7 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 
     /* Open the from and temporary file handles. */
     WT_ERR(__wt_open(session, from, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &ffh));
-    WT_ERR(__wt_open(session,(const char *) tmp->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
+    WT_ERR(__wt_open(session, (const char *)tmp->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
       WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &tfh));
 
 /*

@@ -477,7 +477,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          * file to grow as little as possible, or shrink, and future salvage calls don't need them
          * either.
          */
-        dsk = (const WT_PAGE_HEADER*)buf->data;
+        dsk = (const WT_PAGE_HEADER *)buf->data;
         switch (dsk->type) {
         case WT_PAGE_BLOCK_MANAGER:
         case WT_PAGE_COL_INT:
@@ -495,7 +495,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          * the end of the file or overflow references to non-existent pages, might as well discard
          * these pages now.
          */
-        if (__wt_verify_dsk(session, (const char*)as->data, buf) != 0) {
+        if (__wt_verify_dsk(session, (const char *)as->data, buf) != 0) {
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
             WT_ERR(bm->free(bm, session, addr, addr_size));
@@ -2203,8 +2203,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
              * there were no overflow items at all.
              */
             searchp = (WT_TRACK **)(ss->ovfl == NULL ?
-              NULL :
-              bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
+                NULL :
+                bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
 
             /*
              * If the overflow page doesn't exist or if another page has already claimed it, this

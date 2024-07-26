@@ -1841,8 +1841,8 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     new_size = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
 
-    WT_STAT_CONN_DSRC_INCRV(
-      session, cursor_update_bytes_changed, new_size > orig_size ? new_size - orig_size : orig_size - new_size);
+    WT_STAT_CONN_DSRC_INCRV(session, cursor_update_bytes_changed,
+      new_size > orig_size ? new_size - orig_size : orig_size - new_size);
 
     /*
      * WT_CURSOR.modify is update-without-overwrite.

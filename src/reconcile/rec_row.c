@@ -120,7 +120,8 @@ __rec_cell_build_leaf_key(
                 pfx_max = size;
             if (r->last->size < pfx_max)
                 pfx_max = r->last->size;
-            for (a = (const uint8_t *)data, b = (const uint8_t *)r->last->data; pfx < pfx_max; ++pfx)
+            for (a = (const uint8_t *)data, b = (const uint8_t *)r->last->data; pfx < pfx_max;
+                 ++pfx)
                 if (*a++ != *b++)
                     break;
 

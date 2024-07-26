@@ -338,7 +338,8 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
 
     ci = (WT_BLOCK_CKPT *)ckpt->bpriv;
     WT_RET(__wti_block_ckpt_init(session, ci, ckpt->name));
-    WT_RET(__wti_block_ckpt_unpack(session, block, (const uint8_t*)ckpt->raw.data, ckpt->raw.size, ci));
+    WT_RET(
+      __wti_block_ckpt_unpack(session, block, (const uint8_t *)ckpt->raw.data, ckpt->raw.size, ci));
 
     /* Extent lists from non-local objects aren't useful, we're going to skip them. */
     if (ci->root_objectid != block->objectid) {
@@ -448,7 +449,7 @@ __ckpt_add_blkmod_entry(
     WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
     WT_ASSERT(session, end_bit < blk_mod->nbits);
     /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset((uint8_t*)blk_mod->bitstring.mem, start_bit, end_bit);
+    __bit_nset((uint8_t *)blk_mod->bitstring.mem, start_bit, end_bit);
     return (0);
 }
 
@@ -694,9 +695,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             continue;
 
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
-            __wti_ckpt_verbose(
-              session, block, "delete", ckpt->name, (const uint8_t *)ckpt->raw.data,
-              ckpt->raw.size);
+            __wti_ckpt_verbose(session, block, "delete", ckpt->name,
+              (const uint8_t *)ckpt->raw.data, ckpt->raw.size);
 
         /*
          * Find the checkpoint into which we'll roll this checkpoint's blocks: it's the next real
@@ -969,7 +969,8 @@ __ckpt_update(
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
-        __wti_ckpt_verbose(session, block, "create", ckpt->name, (const uint8_t *)ckpt->raw.data, ckpt->raw.size);
+        __wti_ckpt_verbose(
+          session, block, "create", ckpt->name, (const uint8_t *)ckpt->raw.data, ckpt->raw.size);
 
     return (0);
 }

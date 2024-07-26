@@ -210,7 +210,8 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * potential overflow, wait until we can get a valid ticket.
          */
         writers_active = old_lock.u.s.next - old_lock.u.s.current;
-        if (old_lock.u.s.readers_queued == UINT8_MAX || old_lock.u.s.readers_queued > writers_active) {
+        if (old_lock.u.s.readers_queued == UINT8_MAX ||
+          old_lock.u.s.readers_queued > writers_active) {
 stall:
             __wt_cond_wait(session, l->cond_readers, 10 * WT_THOUSAND, NULL);
             continue;

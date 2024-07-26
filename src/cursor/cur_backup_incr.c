@@ -323,7 +323,8 @@ __wti_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
          */
         session_cache_flags = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
         F_CLR(session, WT_SESSION_CACHE_CURSORS);
-        WT_ERR(__wt_curfile_open(session, (const char *)open_uri->data, NULL, cfg, &cb->incr_cursor));
+        WT_ERR(
+          __wt_curfile_open(session, (const char *)open_uri->data, NULL, cfg, &cb->incr_cursor));
         F_SET(session, session_cache_flags);
     }
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
