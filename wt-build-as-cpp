@@ -1,0 +1,643 @@
+#!/usr/bin/perl
+use v5.27;
+use warnings;
+use strict;
+no warnings 'uninitialized';    # allow 0+undef
+
+my $ROOT = `git rev-parse --show-toplevel`; die "git rev-parse: $!" if $?;
+chdir $ROOT and die "cd $ROOT: $!";
+
+sub status(;$$) {
+  -t STDERR or return;
+  print STDERR "\e[K$_[0]\r"; flush STDERR;
+}
+
+sub rebuild() {
+  status "--- Full rebuild ...\n";
+`(
+  rm -rf build
+  mkdir build &&
+  cd build &&
+  cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS="-fmacro-backtrace-limit=0 -ferror-limit=1000" -DUSE_CPP_FOR_C_FILES=1 -G Ninja .. &&
+  ninja
+) 2>&1`
+}
+
+sub incbuild() {
+  status "--- Incremental build ...\n";
+`(
+  cd build &&
+  ninja
+) 2>&1`
+}
+
+our $rebuild = $ENV{REBUILD} // 1;
+sub build() {
+  my $ret = $rebuild ? rebuild() : incbuild();
+  $rebuild = 0;
+  return $ret;
+}
+
+sub write_file($$) {
+  my ($file, $content) = @_;
+  open F, ">", $file or die "$file: $!";
+  print F $content;
+  close F;
+}
+
+sub read_file($) {
+  my $file = shift;
+  open F, "<", $file or die "$file: $!";
+  local $/ = undef;
+  my $content = <F>;
+  close F;
+  return $content;
+}
+
+sub rewrite_file(&@) {
+  my $fn = shift;
+  local $ARGV;
+  for $ARGV (grep {$_ ne ""} map {split /\n/} @_) {
+    local $_ = my $orig = read_file($ARGV);
+    $fn->();
+    if ($_ ne $orig) {
+      status "$ARGV: updated\n";
+      write_file($ARGV, $_);
+    }
+  }
+}
+
+sub by_lines(&@) {
+  my $fn = shift;
+  $_ = join "\n", map {$fn->();$_} map {split /\n/, $_, -1} (@_ ? @_ : $_);  # -1 keeps trailing empty lines
+}
+
+sub fix_cmake() {
+  status "--- Cmake ...\n";
+
+  # Make .c files compile as C++
+  rewrite_file {
+    /USE_CPP_FOR_C_FILES/ or $_ .= << '_E';
+if(USE_CPP_FOR_C_FILES)
+    file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
+    SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX )
+    target_compile_definitions(wt_objs PRIVATE USE_CPP_FOR_C_FILES=1)
+endif()
+_E
+  } 'CMakeLists.txt';
+
+  # Move these flags under "if (NOT USE_CPP_FOR_C_FILES)"
+  my $flags = join "|", qw (
+    -Wbad-function-cast
+    -Wdeclaration-after-statement
+    -Wjump-misses-init
+    -Wmissing-prototypes
+    -Wnested-externs
+    -Wold-style-definition
+    -Wpointer-sign
+    -Wstrict-prototypes
+  );
+  rewrite_file {
+    s/((?:\n[^ \n].*?(?:$flags).*(?=\n))+)/"\nif (NOT USE_CPP_FOR_C_FILES)".($1 =~ s#\n#\n    #gr)."\nendif()\n"/eg;
+    # Remove -Werror
+    s/((?<=\n)[^#\n].*(?:-Werror).*\n)/#$1/g;
+  } 'cmake/strict/gcc_strict.cmake';
+
+  rewrite_file {
+    # Add GCC flags
+    my $s = 'set(${flags} ${gnu_flags} PARENT_SCOPE)';
+    s{(?<!endif\(\)\n)(\n.*?\Q$s\E.*\n)}{    if (USE_CPP_FOR_C_FILES)
+        list(APPEND gnu_flags "-Wno-shadow")
+        list(APPEND gnu_flags "-Wno-error=shadow")
+        list(APPEND gnu_flags "-Wno-sign-conversion")
+        # list(APPEND gnu_flags "-Wno-class-memaccess")
+        # list(APPEND gnu_flags "-Wno-error=permissive")
+        # list(APPEND gnu_flags "-fpermissive")
+    endif()\n$1};
+
+    # Add clang flags
+    $s = 'set(${flags} ${clang_flags} PARENT_SCOPE)';
+    s{(?<!endif\(\)\n)(\n.*?\Q$s\E.*\n)}{    if (USE_CPP_FOR_C_FILES)
+        list(APPEND clang_flags "-Wno-old-style-cast")
+        list(APPEND clang_flags "-Wno-zero-as-null-pointer-constant")
+        list(APPEND clang_flags "-Wno-c++98-compat-pedantic")
+        list(APPEND clang_flags "-Wno-gnu-anonymous-struct")
+        list(APPEND clang_flags "-Wno-documentation")
+        list(APPEND clang_flags "-Wno-c99-extensions")
+        list(APPEND clang_flags "-Wno-nested-anon-types")
+        list(APPEND clang_flags "-Wno-deprecated")
+        list(APPEND clang_flags "-Wno-unreachable-code-return")
+    endif()\n$1};
+
+    # Remove -Werror
+    s/((?<=\n)[^#\n].*(?:-Werror).*\n)/#$1/g;
+  } 'cmake/strict/strict_flags_helpers.cmake';
+
+  # Remove -Werror from all other files
+  rewrite_file {
+    s/((?<=\n)[^#\n].*(?:-Werror).*\n)/#$1/g
+  } `grep -lrE -- '-Wall|-Werror' cmake`;
+}
+
+sub fix_new() {
+  status "--- The 'new' keyword ...\n";
+  rewrite_file {
+    s/(
+        (?> \/\* (?:[^*]|\*[^\/])*+ \*\/ ) |
+        (?> \/\/ (?:[^\n]*) \n ) |
+        (?> " (?>[^\\"]|\\.)* " ) |
+        (?> ' (?>[^\\']|\\.)* ' ) |
+        (?> ((?:[^"'\/]|\/[^\/\*])++) )
+      )
+    /($2 ne '') ? $2 =~ s#\bnew\b#new_#sgr : $1/xsge;
+  } `grep -E -r '\\bnew\\b' -l --include \\*.[ch] ext src | fgrep -v IAACompressionCodecDeflate  # skip this C++ header`;
+  exit $? if $?;
+}
+
+my $re_arg = "".qr/(?(DEFINE)(?<TOKEN>
+  \s++ |
+  [;]++ |
+  (?>[,:?]) |
+  (?> (?:\#|\/\/) (?:[^\\\n]|\\.)*+ \n) |
+  (?> \/\* (?:[^*]|\*[^\/])*+ \*\/ ) |
+  (?> " (?>[^\\"]|\\.)* " ) |
+  (?> ' (?>[^\\']|\\.)* ' ) |
+  (?> \{ (?&TOKEN)* \} ) |
+  (?> \( (?&TOKEN)* \) ) |
+  (?> \[ (?&TOKEN)* \] ) |
+  (?>(?:[^\[\](){};:?,\#\s"\x27\/]|\/[^\/\*])++)
+))/nxs;
+
+my $re_arg_expr = "".qr/(?(DEFINE)(?<TOKEN_EXPR>
+  \s++ |
+  (?>[,:?]) |
+  (?> (?:\#|\/\/) (?:[^\\\n]|\\.)*+ \n) |
+  (?> \/\* (?:[^*]|\*[^\/])*+ \*\/ ) |
+  (?> " (?>[^\\"]|\\.)* " ) |
+  (?> ' (?>[^\\']|\\.)* ' ) |
+  (?> \( (?&TOKEN_EXPR)* \) ) |
+  (?> \[ (?&TOKEN_EXPR)* \] ) |
+  (?>(?:[^\[\](){};:?,\#\s"\x27\/]|\/[^\/\*])++)
+))/nxs;
+
+sub max($$) { $_[0] > $_[1] ? $_[0] : $_[1] }
+
+# Find position before the current struct
+sub find_global_insert_pos_struct($$) {
+  my ($content, $pos) = @_;
+  # Find global definition insertion position
+  my $insertpos = max(rindex($content, "\nstruct ", $pos), rindex($content, "\ntypedef struct ", $pos)) + 1;
+  # Adjust for comment before struct
+  if (substr($content, $insertpos - 3, 3) eq "*/\n") {
+    if ((my $pos2 = rindex(substr($content, 0, $insertpos), "\n/*")) >= 0) { $insertpos = $pos2+1; }
+  }
+  return $insertpos;
+}
+
+# Find position before the current thing
+sub find_global_insert_pos($$) {
+  my ($content, $pos) = @_;
+  # Find global definition insertion position
+  for (my $insertpos = rindex($content, "\n", $pos-1); $insertpos > 0; $insertpos = rindex($content, "\n", $insertpos-1)) {
+    if (substr($content, $insertpos+1, 1) ne " ") {
+      # Adjust for comment before
+      if (substr($content, $insertpos - 2, 3) eq "*/\n") {
+        if ((my $pos2 = rindex(substr($content, 0, $insertpos), "\n/*")) >= 0) { $insertpos = $pos2+1; }
+      }
+      return $insertpos;
+    }
+  }
+  return 0;
+}
+
+sub is_in_struct($$) {
+  my ($content, $pos) = @_;
+  my $frag = substr($content, 0, $pos);
+  my $pos2 = max(rindex($frag, "\nstruct "), rindex($frag, "\ntypedef struct ")) + 1;
+  return undef if $pos2 < 1;
+  substr($frag, $pos, $pos - $pos2) !~ /\n[a-zA-Z\{]/s;
+}
+
+# Make enums global to avoid C/C++ namespace difference
+sub global_enums() {
+  status "--- Global enums ...\n";
+  rewrite_file {
+    # enums
+    while (/(?<=\n)(?<indent>[ \t]++)enum\s+(?<definition>\{(?&TOKEN_EXPR)+\})\s*+(?<name>\w++)\;$re_arg_expr/s) {
+      my ($indent, $definition, $name) = @+{qw(indent definition name)};
+      my $enum_name_lc = lc("__wt_${name}_enum");
+      my $enum_name_uc = uc("wt_${name}_enum");
+      my ($start, $end) = ($-[0], $+[0]);
+      if (is_in_struct($_, $start)) {
+        # Replace the struct member definition
+        substr($_, $start, $end - $start, "$indent$enum_name_uc $name;");
+        $definition =~ s/\n$indent/\n/gs;  # unindent definition
+        # Insert global definition
+        substr($_, find_global_insert_pos_struct($_, $start), 0, "typedef enum $enum_name_lc $definition $enum_name_uc;\n\n");
+      } else {
+        substr($_, $start, $end - $start, "$indent/*-TAG-*/enum $definition $name;");
+      }
+    }
+    # structs
+    while (/(?<=\n)(?<indent>[ \t]++)struct\s+(?<name>\w++)\s+(?<definition>\{(?&TOKEN)+\})$re_arg/s) {
+      my ($indent, $definition, $name) = @+{qw(indent definition name)};
+      my ($start, $end) = ($-[0], $+[0]);
+      if (is_in_struct($_, $start)) {
+        # Replace the struct member definition
+        substr($_, $start, $end - $start, "${indent}struct $name");
+        $definition =~ s/\n$indent/\n/gs;  # unindent definition
+        # Insert global definition
+        substr($_, find_global_insert_pos_struct($_, $start), 0, "struct $name $definition;\n\n");
+      } else {
+        substr($_, $start, $end - $start, "$indent/*-TAG-*/struct $name $definition");
+      }
+    }
+    s{\Q/*-TAG-*/}{}gs;
+  } `find src -name \*.[ch]; echo src/include/wiredtiger.in`;
+  exit $? if $?;
+}
+
+# Make enums global to avoid C/C++ namespace difference - special cases
+sub global_enums_special() {
+  status "--- Global special enums ...\n";
+  # Special case WT_CONFIG_ITEM_TYPE ...
+  # TODO: This should be fixed in the original source
+  rewrite_file {
+    if (s{(?<=\n)(?<indent>[ \t]++)enum WT_CONFIG_ITEM_TYPE (?<definition>\{(?&TOKEN_EXPR)+\})$re_arg_expr}{\@\@\@}s)
+    {
+        my ($start, $end, $definition, $indent) = ($-[0], $+[0], $+{definition}, $+{indent});
+        $definition =~ s/\n${indent}/\n/gs;  # unindent enum definition
+        # Insert global enum definition
+        substr($_, find_global_insert_pos_struct($_, $start), 0, "typedef enum WT_CONFIG_ITEM_TYPE $definition WT_CONFIG_ITEM_TYPE;\n\n");
+
+        # Remove old typedefs
+        s{^(typedef enum .* WT_CONFIG_ITEM_TYPE;)}{/* $1 */}mg;
+
+      # Insert new typedefs into the struct
+#       s{\@\@\@}{#if defined(__cplusplus)
+# ${indent}using WT_CONFIG_ITEM_TYPE = enum WT_CONFIG_ITEM_TYPE;
+# #else
+# ${indent}typedef enum ::WT_CONFIG_ITEM_TYPE WT_CONFIG_ITEM_TYPE;
+# #endif
+# ${indent}WT_CONFIG_ITEM_TYPE}s;
+        # s{\@\@\@}{enum $definition}s;
+        s{\@\@\@}{${indent}enum WT_CONFIG_ITEM_TYPE}s;
+    }
+  } 'src/include/wiredtiger.in';
+
+  # Fix references
+  # TODO: This should be fixed in the original source
+  rewrite_file {
+    s/WT_CONFIG_ITEM::WT_CONFIG_ITEM_/WT_CONFIG_ITEM_/sg
+  } `grep -lrE --include=*.[ch] -- 'WT_CONFIG_ITEM::WT_CONFIG_ITEM_' *`;
+  die "$!" if $?;
+}
+
+# Add missing forward declarations
+sub func_forward_decls() {
+  rewrite_file {
+    if (!/int\n__wt_snprintf_len_set/ && /__wt_snprintf_len_set/) {
+      my $pos = find_global_insert_pos($_, $-[0]);
+      substr($_, $pos, 0, 'static WT_INLINE int
+__wt_snprintf_len_set(char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)));
+
+');
+    }
+  } 'src/include/error.h';
+
+  rewrite_file {
+    if (!/\bwiredtiger_crc32c_func\b/) {
+      $_ .= << '_E';
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+  __attribute__((visibility("default")));
+extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t seed, const void *, size_t)
+  __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t seed, const void *, size_t);
+#endif
+
+_E
+    }
+  } 'src/include/extern.h';
+
+}
+
+sub fix_extern_c() {
+  status "--- Extern C ...\n";
+
+  # Add extern "C" to all extern files
+  rewrite_file {
+    $_ =~ s/\#pragma once\n//gs;
+    $_ = << "_E";
+#ifdef __cplusplus
+extern "C" {
+#endif
+$_
+#ifdef __cplusplus
+}
+#endif
+
+_E
+    $ARGV =~ /\.h$/ and $_ = "#pragma once\n\n$_";
+  } `find src -name extern\*.h; grep -lrF --include=*.c '(*wiredtiger_crc32c_func(void))' src`;
+  exit $? if $?;
+
+  # Add special extern "C":
+  rewrite_file {
+    if (s/^extern uint32_t (__wt_checksum_sw|__wt_checksum_with_seed_sw)/extern __C__ uint32_t $1/mg) {
+      $_ = << "_E" . $_;
+#ifdef __cplusplus
+#define __C__ "C"
+#else
+#define __C__
+#endif
+
+_E
+    }
+  } 'src/checksum/software/checksum.c';
+
+}
+
+sub global_tailq() {
+  status "--- Global tailq ...\n";
+  rewrite_file {
+    my $arg_re = '(?<arg>(?&TOKEN_EXPR)+?(?=[;,\)\}]|$))';
+    for my $file (split /\n/, `grep -lrF --include=*.[ch] TAILQ_HEAD src`) {
+      while (/(?<=\n)(?<indent>[ \t]++)TAILQ_HEAD\(\s*+$arg_re,(?<rest>(?&TOKEN_EXPR)+?)\)$re_arg_expr/s) {
+        my ($indent, $arg, $rest) = @+{qw(indent arg rest)};
+        my ($start, $end) = ($-[0], $+[0]);
+        my $newname = "__wt_".($arg =~ s/^_+//gr =~ s/^wt_//r);
+        # Replace the struct member definition
+        substr($_, $start, $end - $start, "$indent$newname");
+        # Insert global definition
+        substr($_, find_global_insert_pos_struct($_, $start), 0, "typedef TAILQ_HEAD($arg, $rest) $newname;\n\n");
+      }
+    }
+  } `grep -lrF --include=*.[ch] TAILQ_HEAD src`;
+  exit $? if $?;
+}
+
+# Fix type conversion in macros
+sub fix_assign_typeof() {
+  status "--- Assign typeof ...\n";
+
+  rewrite_file {
+    s/\Q(v) = __wt_atomic_load_generic/(v) = (__typeof__(v))__wt_atomic_load_generic/gs;
+  } 'src/include/hardware.h';
+
+  rewrite_file {
+    s/\Q__p = (buf)->mem/__p = (__typeof__(__p))(buf)->mem/gs;
+  } 'src/include/misc.h';
+
+}
+
+# Group compiler output lines into messages
+sub split_messages($) {
+  my (@ret, $in_error);
+  for (split /\n/, $_[0]) {
+    if (/^([^:]+\.[ch](?:c|h|pp|xx)?):(\d+):(\d+): (\w+): (.*)$/) {
+      push @ret, { file => $1, line => $2, col => $3, type => $4, message => $5 };
+      $in_error = 1;
+    } elsif ($in_error) {
+      if (/^\d+ errors generated\b/) {
+        $in_error = 0;
+      } else {
+        push @{$ret[-1]{extra}}, $_;
+      }
+    }
+  }
+  @ret;
+}
+
+# Group notes together with corresponging errors
+sub split_errors($) {
+  my @ret;
+  for (split_messages($_[0])) {
+    $_->{type} eq "error" || $_->{type} eq "warning" ? push @ret, [$_] : push @{$ret[-1]}, $_;
+  }
+  @ret;
+}
+
+sub errors_by_file(@) {
+  my $ret = {};
+  # Group by file
+  for (@_) { push @{$ret->{$_->[0]{file}}}, $_; }
+  # Sort by line
+  for my $file (keys %$ret) {
+    $ret->{$file} = [sort {$a->[0]{line} <=> $b->[0]{line}} @{$ret->{$file}}];
+  }
+  $ret;
+}
+
+sub add_type_cast_to_args($$$) {
+  my ($args, $argn, $type) = @_;      # argn starts with 1
+  $argn--;
+  my $pre = $argn > 0 ? '(?<pre>'.('(?&TOKEN_EXPR)+?,\s*+' x $argn).')' : "";
+  my $arg_re = '(?<arg>(?&TOKEN_EXPR)+?(?=[;,\)\}]|$))';
+# use re 'debugcolor';
+  $args =~ s/^[(]$pre$arg_re(?<post>.*)$re_arg_expr$/($+{pre}($type)($+{arg})$+{post}/sr;
+}
+
+# Get offset and length
+sub get_spaces($) { $_[0] =~ /^( *+)/ ? length($1) : 0; }
+sub get_char_offset($)  { my $sp = get_spaces($_[0]->{extra}[0]); $_[0]->{extra}[1] =~ /^( *)([~\^]++)$/ ? (length($1)-$sp, length($2)) : (); }
+sub get_char_offset2($) { my $sp = get_spaces($_[0]->{extra}[0]); $_[0]->{extra}[1] =~ /^([ ~]*+)\^/ ? (length($1)-$sp, 0) : (); }
+sub char_offset_re($) {
+  my $charoffset = $_[0];
+  return !defined($charoffset) ? "[^\n]*?" : !$charoffset ? '[ \t]*+' : '[ \t]*+(?:.{'.$charoffset.'})';
+}
+
+sub add_type_cast_to_func($$$$$;$) {
+  my ($content, $line, $func, $argn, $type, $charoffset) = @_;   # line and argn start with 1; charoffset starts with 0 and doesn't include the leading space
+  $line--;
+  my $char_offset_re = char_offset_re($charoffset);
+  my $re = '^(?<pre>(?:[^\n]*\n){'.$line.'}'.$char_offset_re.')(?<func>'.$func.')(?<args>(?&TOKEN_EXPR))';
+  my $ok = $content =~ s/$re$re_arg_expr/"$+{pre}$+{func}".add_type_cast_to_args($+{args}, $argn, $type)/se;
+  return ($content, $ok);
+}
+
+sub add_type_cast_to_assignment($$$;$) {
+  my ($content, $line, $type, $charoffset) = @_;   # line starts with 1; charoffset starts with 0 and doesn't include the leading space
+  $line--;
+  my $arg_re = '(?<arg>(?&TOKEN_EXPR)+?(?=[;,\)\}]|$))';
+  my $re;
+  my $char_offset_re = char_offset_re($charoffset);
+  if (defined($charoffset)) {
+    # my $char_offset_re = '(?:.{1,'.$charoffset.'}=\s*+)';
+    $re = '^(?<pre>(?:[^\n]*\n){'.$line.'}'.$char_offset_re.')'.$arg_re;
+  } else {
+    $re = '^(?<pre>(?:[^\n]*\n){'.$line.'}'.$char_offset_re.'[^=]=(?=[^=])\s*+)'.$arg_re;    # Ensure there's a "=" before it
+  }
+  my $ok = $content =~ s/$re$re_arg_expr/$+{pre}($type)($+{arg})/s;
+  return ($content, $ok);
+}
+
+sub add_type_cast_to_return($$$;$) {
+  my ($content, $line, $type, $charoffset) = @_;   # line starts with 1; charoffset starts with 0 and doesn't include the leading space
+  $line--;
+  my $arg_re = '(?<arg>(?&TOKEN_EXPR)+?(?=[;,\)\}]|$))';
+  my $char_offset_re = char_offset_re($charoffset);
+  my $re = '^(?<pre>(?:[^\n]*\n){'.$line.'}'.$char_offset_re.')'.$arg_re;
+  my $ok = $content =~ s/$re$re_arg_expr/$+{pre}($type)($+{arg})/s;
+  return ($content, $ok);
+}
+
+sub add_type_cast_to_thing($$$$$) {
+  my ($content, $line, $charoffset, $len, $type) = @_;   # line starts with 1; charoffset starts with 0 and doesn't include the leading space
+  $line--;
+  my $arg_re = '(?<arg>.{'.$len.'})';
+  my $char_offset_re = char_offset_re($charoffset);
+  my $re = '^(?<pre>(?:[^\n]*\n){'.$line.'}'.$char_offset_re.')'.$arg_re;
+  my $ok = $content =~ s/$re$re_arg_expr/$+{pre}($type)($+{arg})/s;
+  return ($content, $ok);
+}
+
+sub find_note_with_message($$) {
+  my ($err, $message_re) = @_;
+  for my $note (@$err) {
+    next if $note->{type} ne "note";
+    next if $note->{message} !~ /$message_re/;
+    my %m = %+;
+    return ($note, \%m, @{^CAPTURE});
+  }
+  return undef;
+}
+
+sub build_loop() {
+  while (1) {
+    our $compile = build();
+    if ($? == 0) {
+      status "--- Done.\n";
+      last;
+    }
+
+    our $errors = errors_by_file(split_errors($compile));
+    our $changes = 0;
+    our %changed_locations = ();
+    our %file_contents = ();
+    our %file_contents_orig = ();
+    our ($charoffset, $charoffset2, $len, $ok);
+
+    my $try_apply_fix = sub {
+      my ($msg, $fn, @args) = @_;
+      my ($file, $line) = ($msg->{file}, $msg->{line});
+      ($charoffset, $len) = get_char_offset($msg);
+      ($charoffset2) = get_char_offset2($msg);
+      return 1 if $changed_locations{$file}{$line}{$charoffset||""};
+      ($file_contents{$file}, $ok) = $fn->(
+          $file_contents{$file} // ($file_contents{$file} = $file_contents_orig{$file} = read_file($file)),
+          $line, @args);
+      return $ok && ($changed_locations{$file}{$line}{$charoffset||""} = 1);
+    };
+    my $apply_fix = sub {
+      my ($err, $fn, @args) = @_;
+      return 1 if $try_apply_fix->($err->[0], $fn, @args);
+      for my $note ((@$err)[1 .. @$err-1]) {
+        next if $note->{type} ne "note" || $note->{message} !~ /^expanded from macro /;
+        next if !$try_apply_fix->($note, $fn, @args);
+        say "$note->{file}:$note->{line}:$charoffset: ... here";
+        return 1;
+      }
+      return undef;
+    };
+
+    for my $file (sort keys %$errors) {
+      status "$file ...";
+      for my $err (reverse @{$errors->{$file}}) {
+        my $report = sub {
+          my $choff = $_[1];
+          ($choff) = get_char_offset($err->[0]) if !defined $choff;
+          say "$file:$err->[0]{line}:$choff: $_[0]";
+        };
+        next if $err->[0]{type} ne "error";
+        if ($err->[0]{message} =~ /^no matching function for call to '([^\']++)'/) {
+          my $func = $1;
+          my ($note, $m) = find_note_with_message($err, qr/^candidate function not viable: cannot convert argument of incomplete type \'(?<from_t>[^\']++)\' to \'(?<to_t>[^\']++)\' .*?\bfor (?<argn>\d++)/);
+          if ($note) {
+            $report->("Converting ($m->{from_t}) to ($m->{to_t}) in call $func(arg $m->{argn})");
+            $apply_fix->($err, sub {add_type_cast_to_func($_[0], $_[1], $func, $m->{argn}, $m->{to_t}, $charoffset)});
+          }
+        } elsif ($err->[0]{message} =~ /^(?:incompatible pointer types )?assigning to '(?<to_t>[^\']++)'.*?\bfrom(?: incompatible type)? '(?<from_t>[^\']++)'/) {
+          my $to_t = $+{to_t};
+          $report->("Converting assignment from ($+{from_t}) to ($to_t)");
+          $apply_fix->($err, sub {add_type_cast_to_assignment($_[0], $_[1], $to_t, $charoffset)});
+        } elsif ($err->[0]{extra}[0] =~ / = / &&
+                 $err->[0]{message} =~ /^cannot initialize a variable of type '(?<to_t>[^\']++)' with an lvalue of type '(?<from_t>[^\']++)'/) {
+          my $to_t = $+{to_t};
+          $report->("Converting assignment from ($+{from_t}) to ($to_t) (no offset)");
+          $apply_fix->($err, sub {add_type_cast_to_assignment($_[0], $_[1], $to_t)});  # no offset!
+        } elsif ($err->[0]{message} =~ /^cannot initialize return object of type '(?<to_t>[^\']++)'.*?\bwith an lvalue of type '(?<from_t>[^\']++)'/) {
+          my $to_t = $+{to_t};
+          $report->("Converting return type from ($+{from_t}) to ($to_t)");
+          $apply_fix->($err, sub {add_type_cast_to_return($_[0], $_[1], $to_t, $charoffset)});
+        } elsif ($err->[0]{message} =~ /^cannot initialize a parameter of type '(?<to_t>[^\']++)'.*?\bwith an lvalue of type '(?<from_t>[^\']++)'/) {
+          my $to_t = $+{to_t};
+          ($charoffset, $len) = get_char_offset($err->[0]);
+          if (defined $charoffset) {
+            $report->("Converting lvalue initializer from ($+{from_t}) to ($+{to_t})", $charoffset);
+            $apply_fix->($err, sub {add_type_cast_to_thing($_[0], $_[1], $charoffset, $len, $to_t)});
+          }
+        } elsif ($err->[0]{message} =~ /^cannot initialize a parameter of type '(?<to_t>[^\']++)'.*?\bwith an rvalue of type '(?<from_t>[^\']++)'/) {
+          my $to_t = $+{to_t};
+          ($charoffset2) = get_char_offset2($err->[0]);
+          if (defined $charoffset2) {
+            $report->("Converting rvalue parameter from ($+{from_t}) to ($+{to_t})", $charoffset2);
+            $apply_fix->($err, sub {add_type_cast_to_return($_[0], $_[1], $to_t, $charoffset2)});
+          }
+        } elsif ($err->[0]{extra}[0] =~ / = / &&
+                 ($err->[0]{message} =~ /cannot be assigned because its copy assignment operator is implicitly deleted/ ||
+                  $err->[0]{message} =~ /^no viable overloaded '='$/)) {
+          # TODO: This should be fixed in the original source
+          $report->("Converting '=' to memcpy");
+          $apply_fix->($err, sub {
+            my ($content, $line) = @_;   # line starts with 1
+            $line--;
+            my $arg1_re = '(?<arg1>(?&TOKEN_EXPR)+?)';
+            my $arg2_re = '(?<arg2>(?&TOKEN_EXPR)+?(?=[;,\)\}]|$))';
+            my $char_offset_re = '[^\n]*?';
+            my $re = '^(?<pre>(?:[^\n]*\n){'.$line.'}[ \t]*+[^\n]*?)'.$arg1_re.'\s*+=\s*+'.$arg2_re;
+            my $ok = $content =~ s/$re$re_arg_expr/$+{pre}memcpy((void *)&($+{arg1}), (const void *)&($+{arg2}), sizeof($+{arg1}))/s;
+            return ($content, $ok);
+          });
+        }
+      }
+    }
+    for my $f (sort keys %file_contents) {
+      next if $file_contents{$f} eq $file_contents_orig{$f};
+      status "$f: updated\n";
+      write_file($f, $file_contents{$f});
+      $changes = 1; # $rebuild = 1 if $f =~ /\.h(?:pp)?$/;
+    }
+    last if $ENV{STOP_AFTER_ONE};
+    if (!$changes) {
+      status "\n--- There are errors but unable to auto fix them.\n\n";
+      print $compile;
+      last;
+    }
+  }
+}
+
+fix_cmake();
+fix_new();
+fix_assign_typeof();
+global_enums();
+global_enums_special();
+global_tailq();
+func_forward_decls();
+fix_extern_c();
+
+build_loop();
+
+print << '_E';
+
+Build WiredTiger as C++ with these commands:
+
+$ mkdir build
+$ cd build
+$ cmake -DUSE_CPP_FOR_C_FILES=1 -G Ninja ..
+$ ninja
+
+_E
