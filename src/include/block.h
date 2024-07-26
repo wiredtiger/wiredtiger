@@ -475,7 +475,7 @@ struct __wt_block_pantry_header {
      * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
      * 32-bit aligned and having a few bytes to play with in the future can't hurt.
      */
-    uint8_t unused[7]; /* 13-15: unused padding */
+    uint8_t unused[3]; /* 13-15: unused padding */
 };
 
 /*

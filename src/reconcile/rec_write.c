@@ -2151,7 +2151,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
-    verify_image = false;
+    verify_image = true;
 #endif
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.block_cookie));
     multi->addr.block_cookie_size = (uint8_t)addr_size;
