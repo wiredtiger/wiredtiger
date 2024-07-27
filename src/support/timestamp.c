@@ -113,10 +113,11 @@ __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp)
 void
 __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg)
 {
-    char hex_timestamp[WT_TS_HEX_STRING_SIZE];
+    char hex_timestamp[WT_TS_HEX_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
 
     __wt_timestamp_to_hex_string(ts, hex_timestamp);
-    __wt_verbose(session, WT_VERB_TIMESTAMP, "Timestamp 0x%s: %s", hex_timestamp, msg);
+    __wt_verbose(session, WT_VERB_TIMESTAMP, "Timestamp 0x%s%s: %s", hex_timestamp,
+      __wt_timestamp_to_string(ts, ts_string), msg);
 }
 
 #define WT_TIME_VALIDATE_RET(session, ...)        \
