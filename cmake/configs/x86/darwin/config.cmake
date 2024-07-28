@@ -9,5 +9,10 @@ if(has_x86intrin)
 endif()
 unset(has_x86intrin CACHE)
 
+# Header file here is required for portable futex implementation.
+if(NOT CMAKE_CROSSCOMPILING)
+    include_directories(AFTER SYSTEM "${CMAKE_SOURCE_DIR}/oss/apple")
+endif()
+
 # Disable cppsuite as it only runs on linux.
 set(ENABLE_CPPSUITE 0)
