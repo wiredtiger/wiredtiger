@@ -49,6 +49,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
     def create(self):
         self.session.create(self.uri, 'key_format={},value_format={}'.format(self.keyformat, self.valueformat))
 
+    # Don't verify the location and flags as we are not able to reliably evict the page and control where the update is
     def verify_value(self, version_cursor, expected_start_ts, expected_start_durable_ts, expected_stop_ts,
         expected_stop_durable_ts, expected_type, expected_prepare_state, expected_value):
         values = version_cursor.get_values()
