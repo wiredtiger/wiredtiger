@@ -1383,7 +1383,10 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        /* Sleep randomly on every 100th iteration when history store search is enabled. */
+        /*
+         * Stressing this code path may slow down the system too much. To minimize the impact, sleep
+         * on every random 100th iteration when this is enabled.
+         */
         if (__wt_random(&session->rnd) % 100 == 0)
             __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
