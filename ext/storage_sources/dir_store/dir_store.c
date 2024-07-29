@@ -1479,9 +1479,9 @@ dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
         return (ENOMEM);
 
     if (dir_store_fh->object_map_size != 0) {
-        memcpy(new_id_map, dir_store_fh->object_id_map, dir_store_fh->object_map_size);
+        memcpy(new_id_map, dir_store_fh->object_id_map, dir_store_fh->object_map_size * sizeof(uint64_t));
         free(dir_store_fh->object_id_map);
-        memcpy(new_size_map, dir_store_fh->object_size_map, dir_store_fh->object_map_size);
+        memcpy(new_size_map, dir_store_fh->object_size_map, dir_store_fh->object_map_size * sizeof(uint64_t));
         free(dir_store_fh->object_size_map);
     }
     dir_store_fh->object_id_map = new_id_map;
