@@ -6205,10 +6205,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cleanup
  */
 #define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	1288
+/*!
+ * checkpoint: pages read into cache during checkpoint cleanup
+ * (reclaim_space)
+ */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	1289
 /*! checkpoint: pages removed during checkpoint cleanup */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_REMOVED	1289
-/*! checkpoint: pages selected during checkpoint cleanup (reclaim_space) */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_SELECTED_RECLAIM_SPACE	1290
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_REMOVED	1290
 /*! checkpoint: pages skipped during checkpoint cleanup tree walk */
 #define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	1291
 /*! checkpoint: pages visited during checkpoint cleanup */
@@ -7696,10 +7699,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cleanup
  */
 #define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	2153
+/*!
+ * checkpoint: pages read into cache during checkpoint cleanup
+ * (reclaim_space)
+ */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	2154
 /*! checkpoint: pages removed during checkpoint cleanup */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED	2154
-/*! checkpoint: pages selected during checkpoint cleanup (reclaim_space) */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_SELECTED_RECLAIM_SPACE	2155
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED	2155
 /*! checkpoint: pages skipped during checkpoint cleanup tree walk */
 #define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	2156
 /*! checkpoint: pages visited during checkpoint cleanup */

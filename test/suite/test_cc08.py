@@ -67,7 +67,7 @@ class test_cc08(test_cc_base):
         self.check_cc_stats()
 
         # Check stats.
-        selected_pages = self.get_stat(stat.conn.checkpoint_cleanup_pages_selected_reclaim_space)
+        selected_pages = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_reclaim_space)
         if self.cc_aggressive:
             self.assertGreater(selected_pages, 0)
         else:
