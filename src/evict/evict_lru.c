@@ -1824,7 +1824,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Calculate the target pages to add to the queue.
  */
 static WT_INLINE uint32_t
-__evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t *slotp)
+__evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t slot)
 {
     WT_BTREE *btree;
     uint32_t remaining_slots, target_pages;
@@ -1835,7 +1835,7 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t *
      * Figure out how many slots to fill from this tree. Note that some care is taken in the
      * calculation to avoid overflow.
      */
-    remaining_slots = max_entries - *slotp;
+    remaining_slots = max_entries - slot;
 
     /*
      * For this handle, calculate the number of target pages to evict. If the number of target pages
@@ -2102,7 +2102,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
     /*
      * If history store dirty content is dominating the cache, we want to prioritize evicting
      * history store pages over other btree pages. This helps in keeping cache contents below the
-     * configured cache size during checkpoints where reconciling non-HS pages can generate
+     * configured cache size during checkpoints where reconciling non-HS pages can generate a
      * significant amount of HS dirty content very quickly.
      */
     if (WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
@@ -2116,6 +2116,15 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
     if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         goto fast;
 
+    /* Skip pages we don't want. */
+    want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
+      (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
+      (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
+    if (!want_page) {
+        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_pages);
+        return;
+    }
+
     /*
      * Do not evict a clean metadata page that contains historical data needed to satisfy a reader.
      * Since there is no history store for metadata, we won't be able to serve an older reader if we
@@ -2125,15 +2134,6 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
       F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
       !__wt_txn_visible_all(session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
         WT_STAT_CONN_INCR(session, cache_eviction_server_skip_metatdata_with_history);
-        return;
-    }
-
-    /* Skip pages we don't want. */
-    want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
-      (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
-      (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
-    if (!want_page) {
-        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_pages);
         return;
     }
 
@@ -2155,11 +2155,8 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
             return;
     }
 
-    /* If eviction gets aggressive, anything else is fair game. */
-    if (__wt_cache_aggressive(session))
-        goto fast;
-
-    if (modified && __evict_skip_dirty_candidate(session, page))
+    /* Evaluate dirty page candidacy, when eviction is not aggressive. */
+    if (!__wt_cache_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
         return;
 
 fast:
@@ -2210,7 +2207,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
 
     start = queue->evict_queue + *slotp;
-    target_pages = __evict_get_target_pages(session, max_entries, slotp);
+    target_pages = __evict_get_target_pages(session, max_entries, *slotp);
 
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
