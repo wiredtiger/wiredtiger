@@ -1999,11 +1999,11 @@ rand_next:
 }
 
 /*
- * __evict_should_give_up --
+ * __evict_should_give_up_walk --
  *     Check if we should give up on the current walk.
  */
 static WT_INLINE bool
-__evict_should_give_up(WT_SESSION_IMPL *session, uint64_t pages_seen, uint64_t pages_queued,
+__evict_should_give_up_walk(WT_SESSION_IMPL *session, uint64_t pages_seen, uint64_t pages_queued,
   uint64_t min_pages, uint32_t target_pages)
 {
     WT_BTREE *btree;
@@ -2253,7 +2253,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          evict < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
-        if (__evict_should_give_up(session, pages_seen, pages_queued, min_pages, target_pages))
+        if (__evict_should_give_up_walk(session, pages_seen, pages_queued, min_pages, target_pages))
             break;
 
         if (ref == NULL) {
