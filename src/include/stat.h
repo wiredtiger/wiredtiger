@@ -608,7 +608,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_app_dirty_attempt;
     int64_t cache_eviction_app_dirty_fail;
     int64_t cache_eviction_dirty;
-    int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
+    int64_t cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
     int64_t cache_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -700,6 +700,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_visited_leaf;
     int64_t checkpoint_pages_reconciled;
     int64_t checkpoint_cleanup_pages_evict;
+    int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;
@@ -1235,7 +1236,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_eviction_dirty;
-    int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
+    int64_t cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
@@ -1281,6 +1282,7 @@ struct __wt_dsrc_stats {
     int64_t cache_state_pages;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_cleanup_pages_evict;
+    int64_t checkpoint_cleanup_pages_obsolete_tw;
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;

@@ -2308,7 +2308,22 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 
     if (cursor != NULL) {
-        WT_TRET(cursor->close(cursor));
+        /*
+         * Technically the WiredTiger API allows closing a cursor to return rollback. This is a
+         * strange error to get in the rollback path so we swallow that error here. Analysis made at
+         * the time suggests that it is impossible for resetting a cursor to return rollback, which
+         * is called from cursor close, but we cannot guarantee it.
+         *
+         * Because swallowing an error that you believe cannot happen doesn't make a lot of sense we
+         * assert the error is not generated in diagnostic mode.
+         */
+#ifdef HAVE_DIAGNOSTIC
+        int ret2 = cursor->close(cursor);
+        WT_ASSERT(session, ret2 != WT_ROLLBACK);
+        WT_TRET(ret2);
+#else
+        WT_TRET_ERROR_OK(cursor->close(cursor), WT_ROLLBACK);
+#endif
         cursor = NULL;
     }
 
@@ -2805,6 +2820,20 @@ __wt_verbose_dump_txn_one(
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
 
+    if (txn->isolation != WT_ISO_READ_UNCOMMITTED && !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (0);
+
+    WT_RET(__wt_msg(session,
+      "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
+      ", metadata pinned ID: %" PRIu64 ", name: %s",
+      txn_session->id, __wt_atomic_loadv64(&txn_shared->id),
+      __wt_atomic_loadv64(&txn_shared->pinned_id),
+      __wt_atomic_loadv64(&txn_shared->metadata_pinned),
+      txn_session->name == NULL ? "EMPTY" : txn_session->name));
+
+    if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
+        return (0);
+
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
     case WT_ISO_READ_COMMITTED:
@@ -2885,7 +2914,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_SESSION_IMPL *sess;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    uint64_t id;
     uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
@@ -2942,15 +2970,11 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Skip sessions with no active transaction */
-        if ((id = __wt_atomic_loadv64(&s->id)) == WT_TXN_NONE &&
+        if (__wt_atomic_loadv64(&s->id) == WT_TXN_NONE &&
           __wt_atomic_loadv64(&s->pinned_id) == WT_TXN_NONE)
             continue;
+
         sess = &WT_CONN_SESSIONS_GET(conn)[i];
-        WT_RET(__wt_msg(session,
-          "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
-          ", metadata pinned ID: %" PRIu64 ", name: %s",
-          i, id, __wt_atomic_loadv64(&s->pinned_id), __wt_atomic_loadv64(&s->metadata_pinned),
-          sess->name == NULL ? "EMPTY" : sess->name));
         WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
