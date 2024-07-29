@@ -410,8 +410,8 @@ __checkpoint_cleanup_page_skip(
         *skipp = true;
     else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE)
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-        *skipp = !(F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) &&
-          F_ISSET(S2BT(session), WT_BTREE_LOGGED));
+        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
+          !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
 
     if (*skipp) {
         __wt_verbose_debug2(
