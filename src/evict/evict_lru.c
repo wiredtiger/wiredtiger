@@ -1868,30 +1868,30 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t *
         }
     }
 
-    if (target_pages == 0)
-        return (0);
-
-    /*
-     * These statistics generate a histogram of the number of pages targeted for eviction each
-     * round. The range of values here start at MIN_PAGES_PER_TREE as this is the smallest number of
-     * pages we can target, unless there are fewer slots available. The aim is to cover the likely
-     * ranges of target pages in as few statistics as possible to reduce the overall overhead.
-     */
-    if (target_pages < MIN_PAGES_PER_TREE) {
-        WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt10);
-        WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt10);
-    } else if (target_pages < 32) {
-        WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt32);
-        WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt32);
-    } else if (target_pages < 64) {
-        WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt64);
-        WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt64);
-    } else if (target_pages < 128) {
-        WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt128);
-        WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt128);
-    } else {
-        WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge128);
-        WT_STAT_DSRC_INCR(session, cache_eviction_target_page_ge128);
+    if (target_pages != 0) {
+        /*
+         * These statistics generate a histogram of the number of pages targeted for eviction each
+         * round. The range of values here start at MIN_PAGES_PER_TREE as this is the smallest
+         * number of pages we can target, unless there are fewer slots available. The aim is to
+         * cover the likely ranges of target pages in as few statistics as possible to reduce the
+         * overall overhead.
+         */
+        if (target_pages < MIN_PAGES_PER_TREE) {
+            WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt10);
+            WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt10);
+        } else if (target_pages < 32) {
+            WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt32);
+            WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt32);
+        } else if (target_pages < 64) {
+            WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt64);
+            WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt64);
+        } else if (target_pages < 128) {
+            WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt128);
+            WT_STAT_DSRC_INCR(session, cache_eviction_target_page_lt128);
+        } else {
+            WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge128);
+            WT_STAT_DSRC_INCR(session, cache_eviction_target_page_ge128);
+        }
     }
 
     return (target_pages);
@@ -2054,12 +2054,12 @@ __evict_should_give_up_walk(WT_SESSION_IMPL *session, uint64_t pages_seen, uint6
 }
 
 /*
- * __evict_queue_page --
+ * __evict_try_queue_page --
  *     Check if we should queue the page for eviction. Queue it to the urgent queue or the regular
  *     queue.
  */
 static WT_INLINE void
-__evict_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *ref,
+__evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *ref,
   WT_PAGE *last_parent, WT_EVICT_ENTRY *evict, bool *urgent_queuedp, bool *queuedp)
 {
     WT_BTREE *btree;
@@ -2220,7 +2220,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
     min_pages = __evict_get_min_pages(session, target_pages);
 
-    WT_RET(__evict_walk_prepare(session, &walk_flags));
+    WT_RET_NOTFOUND_OK(__evict_walk_prepare(session, &walk_flags));
 
     /*
      * Get some more eviction candidate pages, starting at the last saved point. Clear the saved
@@ -2290,7 +2290,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             continue;
         }
 
-        __evict_queue_page(session, queue, ref, last_parent, evict, &urgent_queued, &queued);
+        __evict_try_queue_page(session, queue, ref, last_parent, evict, &urgent_queued, &queued);
 
         if (queued) {
             ++evict;
