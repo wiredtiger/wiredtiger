@@ -408,10 +408,13 @@ __checkpoint_cleanup_page_skip(
      */
     if (addr.type == WT_ADDR_LEAF_NO)
         *skipp = true;
-    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE)
+    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
         *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
+        if(!*skipp)
+            WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_selected_reclaim_space);
+    }
 
     if (*skipp) {
         __wt_verbose_debug2(
