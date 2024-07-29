@@ -40,7 +40,7 @@
 
 /*
  * __wt_modify_max_memsize --
- *     Calculate the maximum memory usage when applying the modify.
+ *     Calculate the maximum memory usage when applying a packed modify.
  */
 static WT_INLINE void
 __wt_modify_max_memsize(const void *modify, size_t *max_memsize)
@@ -63,7 +63,8 @@ __wt_modify_max_memsize(const void *modify, size_t *max_memsize)
 
 /*
  * __wt_modify_max_memsize_format --
- *     Calculate the maximum memory usage when applying the modify.
+ *     Calculate the maximum memory usage when applying a packed modify. This function also
+ *     considers the memory usage of the string terminator.
  */
 static WT_INLINE void
 __wt_modify_max_memsize_format(const void *modify, const char *value_format, size_t *max_memsize)
@@ -76,7 +77,8 @@ __wt_modify_max_memsize_format(const void *modify, const char *value_format, siz
 
 /*
  * __wt_modify_max_memsize_unpacked --
- *     Calculate the maximum memory usage when applying the modify.
+ *     Calculate the maximum memory usage when applying an unpacked modify. This function also
+ *     considers the memory usage of the string terminator.
  */
 static WT_INLINE void
 __wt_modify_max_memsize_unpacked(
@@ -93,7 +95,8 @@ __wt_modify_max_memsize_unpacked(
 
 /*
  * __wt_modifies_max_memsize --
- *     Calculate the maximum memory usage when applying a series of modifies.
+ *     Calculate the maximum memory usage when applying a series of modifies. This function also
+ *     considers the memory usage of the string terminator.
  */
 static WT_INLINE void
 __wt_modifies_max_memsize(WT_UPDATE_VECTOR *modifies, const char *value_format, size_t *max_memsize)
