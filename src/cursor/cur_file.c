@@ -696,6 +696,10 @@ __curfile_cache(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     session = CUR2S(cursor);
 
+    if (cbt->hs_cursor != NULL) {
+        WT_TRET(cbt->hs_cursor->close(cbt->hs_cursor));
+        cbt->hs_cursor = NULL;
+    }
     WT_TRET(__wti_cursor_cache(cursor, cbt->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
 

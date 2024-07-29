@@ -239,6 +239,8 @@ struct __wt_cursor_btree {
      */
     wt_shared WT_RAND_STATE rnd; /* Random number generation state */
 
+    WT_CURSOR *hs_cursor; /* Cached history store cursor */
+
 #ifdef HAVE_DIAGNOSTIC
     /* Check that cursor next/prev never returns keys out-of-order. */
     WT_ITEM *lastkey, _lastkey;
