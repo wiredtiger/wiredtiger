@@ -31,7 +31,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_cc08.py
-# Verify checkpoint cleanup cleans up logged tabled when configured in aggressive mode.
+# Verify checkpoint cleanup cleans up logged tables when configured in aggressive mode.
 class test_cc08(test_cc_base):
     conn_config = 'statistics=(all),statistics_log=(json,wait=1,on_close=true),log=(enabled=true)'
 
