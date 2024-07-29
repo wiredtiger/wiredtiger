@@ -1387,8 +1387,10 @@ retry:
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
          * on every random 100th iteration when this is enabled.
          */
-        if (__wt_random(&session->rnd) % 100 == 0)
+        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_HS_SEARCH) &&
+          __wt_random(&session->rnd) % 100 == 0)
             __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }
