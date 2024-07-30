@@ -893,7 +893,7 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
 
-        ../../../test/format_test_predictable ${times} ${test_format_extra_args}
+        ../../../test/format_test_predictable.sh ${times} ${test_format_extra_args}
   "format test script":
     command: shell.exec
     params:
@@ -963,7 +963,7 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
 
-        ../../../test/recovery_stress_test_script ${times|1} ${truncated_log_args|}
+        ../../../test/recovery_stress_test_script.sh ${times|1} ${truncated_log_args|}
   "schema abort predictable":
     command: shell.exec
     params:
@@ -975,7 +975,7 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
 
-        ../../../../test/schema_abort_predictable ${times} ${truncated_log_args|}
+        ../../../../test/schema_abort_predictable.sh ${times} ${truncated_log_args|}
   "upload artifact":
     - command: archive.targz_pack
       type: setup
@@ -1089,7 +1089,7 @@ functions:
         set -o verbose
         ${PREPARE_TEST_ENV}
 
-        ../../../test/checkpoint_test_predictable ${times} ${checkpoint_args}
+        ../../../test/checkpoint_test_predictable.sh ${times} ${checkpoint_args}
 
   "checkpoint stress test":
     command: shell.exec
