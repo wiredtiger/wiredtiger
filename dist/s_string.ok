@@ -55,7 +55,6 @@ CAS
 CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
-CET
 CHUNKCACHE
 CKPT
 CLOEXEC
@@ -65,7 +64,6 @@ CONFIG
 CPP
 CPUs
 CRC
-CSV
 CURSORs
 CURSTD
 CallsCustDate
@@ -345,7 +343,6 @@ SIMD
 SLVG
 SMT
 SPINLOCK
-SSHH
 SSq
 STATP
 STR
@@ -624,7 +621,6 @@ cryptobad
 cryptographic
 cstring
 csuite
-csv
 ctime
 ctype
 curbackup
@@ -632,7 +628,6 @@ curbt
 curbulk
 curconfig
 curdump
-curextract
 curfile
 curhs
 curindex
@@ -1336,7 +1331,6 @@ txt
 typedef
 typeof
 uS
-ui
 uint
 uintAny
 umount

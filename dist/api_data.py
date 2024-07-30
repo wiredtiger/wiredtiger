@@ -454,9 +454,6 @@ table_only_config = [
 ]
 
 index_only_config = [
-    Config('extractor', 'none', r'''
-        configure a custom extractor for indices. Permitted values are \c "none" or an extractor
-        name created with WT_CONNECTION::add_extractor'''),
     Config('immutable', 'false', r'''
         configure the index to be immutable -- that is, the index is not changed by any update to
         a record in the table''',
@@ -465,11 +462,7 @@ index_only_config = [
 
 colgroup_meta = common_meta + source_meta
 
-index_meta = format_meta + source_meta + index_only_config + [
-    Config('index_key_columns', '', r'''
-        number of public key columns''',
-        type='int', undoc=True),
-]
+index_meta = format_meta + source_meta + index_only_config
 
 table_meta = format_meta + table_only_config
 

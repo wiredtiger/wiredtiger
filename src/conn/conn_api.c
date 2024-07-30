@@ -538,132 +538,6 @@ __wti_conn_remove_encryptor(WT_SESSION_IMPL *session)
 }
 
 /*
- * __conn_add_extractor --
- *     WT_CONNECTION->add_extractor method.
- */
-static int
-__conn_add_extractor(
-  WT_CONNECTION *wt_conn, const char *name, WT_EXTRACTOR *extractor, const char *config)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_NAMED_EXTRACTOR *nextractor;
-    WT_SESSION_IMPL *session;
-
-    nextractor = NULL;
-
-    conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_extractor, config, cfg);
-    WT_UNUSED(cfg);
-
-    if (strcmp(name, "none") == 0)
-        WT_ERR_MSG(session, EINVAL, "invalid name for an extractor: %s", name);
-
-    WT_ERR(__wt_calloc_one(session, &nextractor));
-    WT_ERR(__wt_strdup(session, name, &nextractor->name));
-    nextractor->extractor = extractor;
-
-    __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->extractorqh, nextractor, q);
-    nextractor = NULL;
-    __wt_spin_unlock(session, &conn->api_lock);
-
-err:
-    if (nextractor != NULL) {
-        __wt_free(session, nextractor->name);
-        __wt_free(session, nextractor);
-    }
-
-    API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
- * __extractor_confchk --
- *     Check for a valid custom extractor.
- */
-static int
-__extractor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_EXTRACTOR **extractorp)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_NAMED_EXTRACTOR *nextractor;
-
-    *extractorp = NULL;
-
-    if (cname->len == 0 || WT_CONFIG_LIT_MATCH("none", *cname))
-        return (0);
-
-    conn = S2C(session);
-    TAILQ_FOREACH (nextractor, &conn->extractorqh, q)
-        if (WT_CONFIG_MATCH(nextractor->name, *cname)) {
-            *extractorp = nextractor->extractor;
-            return (0);
-        }
-    WT_RET_MSG(session, EINVAL, "unknown extractor '%.*s'", (int)cname->len, cname->str);
-}
-
-/*
- * __wt_extractor_config --
- *     Given a configuration, configure the extractor.
- */
-int
-__wt_extractor_config(WT_SESSION_IMPL *session, const char *uri, const char *config,
-  WT_EXTRACTOR **extractorp, int *ownp)
-{
-    WT_CONFIG_ITEM cname;
-    WT_EXTRACTOR *extractor;
-
-    *extractorp = NULL;
-    *ownp = 0;
-
-    WT_RET_NOTFOUND_OK(__wt_config_getones_none(session, config, "extractor", &cname));
-    if (cname.len == 0)
-        return (0);
-
-    WT_RET(__extractor_confchk(session, &cname, &extractor));
-    if (extractor == NULL)
-        return (0);
-
-    if (extractor->customize != NULL) {
-        WT_RET(__wt_config_getones(session, config, "app_metadata", &cname));
-        WT_RET(extractor->customize(extractor, &session->iface, uri, &cname, extractorp));
-    }
-
-    if (*extractorp == NULL)
-        *extractorp = extractor;
-    else
-        *ownp = 1;
-
-    return (0);
-}
-
-/*
- * __wti_conn_remove_extractor --
- *     Remove extractor added by WT_CONNECTION->add_extractor, only used internally.
- */
-int
-__wti_conn_remove_extractor(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_NAMED_EXTRACTOR *nextractor;
-
-    conn = S2C(session);
-
-    while ((nextractor = TAILQ_FIRST(&conn->extractorqh)) != NULL) {
-        /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->extractorqh, nextractor, q);
-        /* Call any termination method. */
-        if (nextractor->extractor->terminate != NULL)
-            WT_TRET(nextractor->extractor->terminate(nextractor->extractor, (WT_SESSION *)session));
-
-        __wt_free(session, nextractor->name);
-        __wt_free(session, nextractor);
-    }
-
-    return (ret);
-}
-
-/*
  * __conn_add_storage_source --
  *     WT_CONNECTION->add_storage_source method.
  */
@@ -2803,7 +2677,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_get_home, __conn_compile_configuration, __conn_configure_method, __conn_is_new,
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
-      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
+      __conn_add_encryptor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_storage_source, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};

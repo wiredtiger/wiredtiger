@@ -72,7 +72,6 @@ struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
 struct __wt_encryptor;      typedef struct __wt_encryptor WT_ENCRYPTOR;
 struct __wt_event_handler;  typedef struct __wt_event_handler WT_EVENT_HANDLER;
 struct __wt_extension_api;  typedef struct __wt_extension_api WT_EXTENSION_API;
-struct __wt_extractor;      typedef struct __wt_extractor WT_EXTRACTOR;
 struct __wt_file_handle;    typedef struct __wt_file_handle WT_FILE_HANDLE;
 struct __wt_file_system;    typedef struct __wt_file_system WT_FILE_SYSTEM;
 struct __wt_item;       typedef struct __wt_item WT_ITEM;
@@ -1218,8 +1217,6 @@ struct __wt_session {
      * @config{exclusive, fail if the object exists.  When false (the default)\, if the object
      * exists\, check that its settings match the specified configuration., a boolean flag; default
      * \c false.}
-     * @config{extractor, configure a custom extractor for indices.  Permitted values are \c "none"
-     * or an extractor name created with WT_CONNECTION::add_extractor., a string; default \c none.}
      * @config{format, the file format., a string\, chosen from the following options: \c "btree";
      * default \c btree.}
      * @config{ignore_in_memory_cache_size, allow update and insert operations to proceed even if
@@ -2748,22 +2745,6 @@ struct __wt_connection {
         const char *name, WT_ENCRYPTOR *encryptor, const char *config);
 
     /*!
-     * Add a custom extractor for index keys or column groups.
-     *
-     * The application must first implement the WT_EXTRACTOR interface and
-     * then register the implementation with WiredTiger.
-     *
-     * @param connection the connection handle
-     * @param name the name of the extractor to be used in calls to
-     *  WT_SESSION::create, may not be \c "none"
-     * @param extractor the application-supplied extractor
-     * @configempty{WT_CONNECTION.add_extractor, see dist/api_data.py}
-     * @errors
-     */
-    int __F(add_extractor)(WT_CONNECTION *connection, const char *name,
-        WT_EXTRACTOR *extractor, const char *config);
-
-    /*!
      * Configure a custom file system.
      *
      * This method can only be called from an early loaded extension
@@ -4107,7 +4088,7 @@ struct __wt_collator {
 
     /*!
      * If non-NULL a callback performed when the data source is closed
-     * for customized extractors otherwise when the database is closed.
+     * for customized collators otherwise when the database is closed.
      *
      * The WT_COLLATOR::terminate callback is intended to allow cleanup;
      * the handle will not be subsequently accessed by WiredTiger.
@@ -4564,56 +4545,6 @@ struct __wt_encryptor {
      * @snippet nop_encrypt.c WT_ENCRYPTOR terminate
      */
     int (*terminate)(WT_ENCRYPTOR *encryptor, WT_SESSION *session);
-};
-
-/*!
- * The interface implemented by applications to provide custom extraction of
- * index keys or column group values.
- *
- * Applications register implementations with WiredTiger by calling
- * WT_CONNECTION::add_extractor.  See @ref custom_extractors for more
- * information.
- */
-struct __wt_extractor {
-    /*!
-     * Callback to extract a value for an index or column group.
-     *
-     * @errors
-     *
-     * @param extractor the WT_EXTRACTOR implementation
-     * @param session the current WiredTiger session
-     * @param key the table key in raw format, see @ref cursor_raw for
-     *  details
-     * @param value the table value in raw format, see @ref cursor_raw for
-     *  details
-     * @param[out] result_cursor the method should call WT_CURSOR::set_key
-     *  and WT_CURSOR::insert on this cursor to return a key.  The \c
-     *  key_format of the cursor will match that passed to
-     *  WT_SESSION::create for the index.  Multiple index keys can be
-     *  created for each record by calling WT_CURSOR::insert multiple
-     *  times.
-     */
-    int (*extract)(WT_EXTRACTOR *extractor, WT_SESSION *session,
-        const WT_ITEM *key, const WT_ITEM *value,
-        WT_CURSOR *result_cursor);
-
-    /*!
-     * If non-NULL, this callback is called to customize the extractor for
-     * each index.  If the callback returns a non-NULL extractor, that
-     * instance is used instead of this one for all comparisons.
-     */
-    int (*customize)(WT_EXTRACTOR *extractor, WT_SESSION *session,
-        const char *uri, WT_CONFIG_ITEM *appcfg, WT_EXTRACTOR **customp);
-
-    /*!
-     * If non-NULL a callback performed when the index or column group
-     * is closed for customized extractors otherwise when the database
-     * is closed.
-     *
-     * The WT_EXTRACTOR::terminate callback is intended to allow cleanup;
-     * the handle will not be subsequently accessed by WiredTiger.
-     */
-    int (*terminate)(WT_EXTRACTOR *extractor, WT_SESSION *session);
 };
 
 /*! WT_FILE_SYSTEM::open_file file types */

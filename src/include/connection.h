@@ -215,16 +215,6 @@ struct __wt_named_encryptor {
 };
 
 /*
- * WT_NAMED_EXTRACTOR --
- *	An extractor list entry
- */
-struct __wt_named_extractor {
-    const char *name;                    /* Name of extractor */
-    WT_EXTRACTOR *extractor;             /* User supplied object */
-    TAILQ_ENTRY(__wt_named_extractor) q; /* Linked list of extractors */
-};
-
-/*
  * WT_NAMED_STORAGE_SOURCE --
  *	A storage source list entry
  */
@@ -705,9 +695,6 @@ struct __wt_connection_impl {
     /* Locked: encryptor list */
     WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
     TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
-
-    /* Locked: extractor list */
-    TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
 
     /* Locked: storage source list */
     WT_SPINLOCK storage_lock; /* Storage source list lock */

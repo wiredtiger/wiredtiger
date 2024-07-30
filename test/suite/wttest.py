@@ -121,7 +121,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     # conn_extensions can be overridden to add a list of extensions to load.
     # Each entry is a string (directory and extension name) and optional config.
     # Example:
-    #    conn_extensions = ('extractors/csv_extractor',
+    #    conn_extensions = ('collators/reverse',
     #                       'test/fail_fs={allow_writes=100}')
     conn_extensions = ()
 
