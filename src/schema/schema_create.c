@@ -757,8 +757,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         WT_ERR_MSG(session, EINVAL, "%s: requires 'columns' configuration", name);
 
     /*
-     * Count the public columns using the declared columns for normal indices or the key format for
-     * custom extractors.
+     * Count the public columns using the declared columns.
      */
     npublic_cols = 0;
     __wt_config_subinit(session, &kcols, &icols);
@@ -788,7 +787,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     WT_ERR(__wt_buf_fmt(session, &fmt, "value_format=,key_format="));
 
     /*
-     * Construct the index key format, or append the primary key columns for custom extractors.
+     * Construct the index key format.
      */
     WT_ERR(__wt_struct_reformat(
       session, table, icols.str, icols.len, (const char *)extra_cols.data, false, &fmt));
