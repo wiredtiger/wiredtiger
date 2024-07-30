@@ -197,6 +197,7 @@ static int dir_store_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
 /* Object interface */
+static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1181,6 +1182,7 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     file_handle->fh_truncate = NULL;
     file_handle->fh_write = dir_store_file_write;
 
+    file_handle->fh_obj_checkpoint = dir_store_obj_ckpt;
     file_handle->fh_obj_put = dir_store_obj_put;
     file_handle->fh_obj_get = dir_store_obj_get;
     file_handle->fh_obj_delete = dir_store_obj_delete;
@@ -1479,14 +1481,26 @@ dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
         return (ENOMEM);
 
     if (dir_store_fh->object_map_size != 0) {
-        memcpy(new_id_map, dir_store_fh->object_id_map, dir_store_fh->object_map_size * sizeof(uint64_t));
+        memcpy(new_id_map, dir_store_fh->object_id_map,
+          dir_store_fh->object_map_size * sizeof(uint64_t));
         free(dir_store_fh->object_id_map);
-        memcpy(new_size_map, dir_store_fh->object_size_map, dir_store_fh->object_map_size * sizeof(uint64_t));
+        memcpy(new_size_map, dir_store_fh->object_size_map,
+          dir_store_fh->object_map_size * sizeof(uint64_t));
         free(dir_store_fh->object_size_map);
     }
     dir_store_fh->object_id_map = new_id_map;
     dir_store_fh->object_size_map = new_size_map;
     dir_store_fh->object_map_size = new_size;
+    return (0);
+}
+
+/*
+ * dir_store_obj_ckpt --
+ *     Write out our object ID to offset map.
+ */
+static int
+dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
+{
     return (0);
 }
 
