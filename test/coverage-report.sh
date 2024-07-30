@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [ $# -lt 3 ]; then
+    echo "Error: Not enough arguments given."
+    echo "Current args: $@"
+    exit 1
+fi
+
 is_patch=$1
 python_binary=$2
 github_commit=$3
