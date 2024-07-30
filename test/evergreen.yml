@@ -3205,7 +3205,7 @@ tasks:
                 pr_args+="--github_token ${github_app_token} "
             fi
 
-            ./test/coverage-report ${is_patch} ${python_binary|python3} ${github_commit} ${pr_args}
+            ./test/coverage-report.sh ${is_patch} ${python_binary|python3} ${github_commit} ${pr_args}
 
       - func: "code coverage publish report"
 
@@ -4190,7 +4190,7 @@ tasks:
             t=__wt.$$
             set -o verbose
             ${PREPARE_PATH}
-            ./test/cyclomatic-complexity
+            ./test/cyclomatic-complexity.sh
       - func: "upload stats to atlas"
         vars:
           stats_dir: ./wiredtiger/code_statistics_report
