@@ -181,7 +181,8 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
          */
         if (page->pg_var == NULL || (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH)))
             return (false);
-        __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
+        __read_col_time_window(
+          session, page, (WT_CELL *)WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
         break;
     case WT_PAGE_COL_FIX:
         return (__col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));
@@ -253,7 +254,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
 
     case WT_PAGE_COL_VAR:
         /* Take the value from the original page cell. */
-        cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
+        cell = (WT_CELL *)WT_COL_PTR(page, &page->pg_var[cbt->slot]);
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         return (__read_page_cell_data_ref_kv(session, page, &unpack, buf, tw));
 

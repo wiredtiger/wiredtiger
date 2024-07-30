@@ -223,7 +223,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
     p = end = NULL; /* -Wuninitialized */
 
     WT_RET(__pack_init(session, &vpack, vformat));
-    vp = value->data;
+    vp = (const uint8_t *)value->data;
     vend = vp + value->size;
 
     /* Reset any of the buffers we will be setting. */
@@ -405,7 +405,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
             } else
                 WT_RET(__pack_init(session, &pack, c->key_format));
             buf = &c->key;
-            p = buf->data;
+            p = (const uint8_t *)buf->data;
             end = p + buf->size;
             continue;
 
@@ -413,7 +413,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
             c = cp[arg];
             WT_RET(__pack_init(session, &pack, c->value_format));
             buf = &c->value;
-            p = buf->data;
+            p = (const uint8_t *)buf->data;
             end = p + buf->size;
             continue;
         }

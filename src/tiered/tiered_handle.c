@@ -386,7 +386,7 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         WT_ERR(__wt_buf_fmt(session, tmp,
           ",readonly=true,tiered_object=true,tiered_storage=(bucket=%s,bucket_prefix=%s)",
           tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
-        cfg[1] = tmp->data;
+        cfg[1] = (const char *)tmp->data;
         WT_ERR(__wt_config_merge(session, cfg, NULL, &config));
         /* Set up a tier:example metadata for the first time. */
         __wt_verbose(
@@ -489,7 +489,7 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
 
     dhandle = &tiered->iface;
     WT_ASSERT_ALWAYS(session, WT_DHANDLE_BTREE(dhandle), "Expected a btree handle");
-    btree = dhandle->handle;
+    btree = (WT_BTREE *)dhandle->handle;
 
     __wt_timestamp_to_hex_string(btree->flush_most_recent_ts, hex_timestamp);
     WT_RET(__wt_buf_catfmt(session, buf,
@@ -529,7 +529,7 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
 
     cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
     cfg[1] = orig_config;
-    cfg[2] = tmp->data;
+    cfg[2] = (const char *)tmp->data;
     strip = "tiered_storage=(shared=),";
     WT_ERR(__wt_config_merge(session, cfg, strip, &newconfig));
     __wt_verbose(

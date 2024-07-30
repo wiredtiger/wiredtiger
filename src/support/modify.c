@@ -51,7 +51,7 @@ __wt_modify_idempotent(const void *modify)
     int nentries;
 
     /* Get the number of modify entries. */
-    p = modify;
+    p = (const size_t *)modify;
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
 
@@ -99,7 +99,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
     WT_RET(__wt_scr_alloc(session, len, &modify));
 
     data = (uint8_t *)modify->mem + sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
-    p = modify->mem;
+    p = (size_t *)modify->mem;
     *p++ = (size_t)nentries;
     for (i = 0; i < nentries; ++i) {
         *p++ = entries[i].data.size;
@@ -133,7 +133,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     uint8_t *to;
     const uint8_t *data, *from;
 
-    data = modify->data.data;
+    data = (const uint8_t *)modify->data.data;
     data_size = modify->data.size;
     offset = modify->offset;
     size = modify->size;
@@ -364,7 +364,7 @@ __wt_modify_apply_item(
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
      */
-    p = modify;
+    p = (const size_t *)modify;
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
 

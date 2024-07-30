@@ -18,7 +18,7 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
     WT_CURSOR *stat_cursor;
     WT_DECL_ITEM(uribuf);
     WT_DECL_RET;
-    WT_DSRC_STATS *new, *stats;
+    WT_DSRC_STATS *new_stats, *stats;
     WT_LSM_CHUNK *chunk;
     WT_LSM_TREE *lsm_tree;
     int64_t bloom_count;
@@ -69,21 +69,21 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
          * open the ordinary handle on that chunk instead.
          */
         WT_ERR(__wt_buf_fmt(session, uribuf, "statistics:%s", chunk->uri));
-        ret = __wt_curstat_open(session, uribuf->data, NULL,
+        ret = __wt_curstat_open(session, (const char *)uribuf->data, NULL,
           F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) ? disk_cfg : cfg, &stat_cursor);
         if (ret == WT_NOTFOUND && F_ISSET(chunk, WT_LSM_CHUNK_ONDISK))
-            ret = __wt_curstat_open(session, uribuf->data, NULL, cfg, &stat_cursor);
+            ret = __wt_curstat_open(session, (const char *)uribuf->data, NULL, cfg, &stat_cursor);
         WT_ERR(ret);
 
         /*
          * The underlying statistics have now been initialized; fill in values from the chunk's
          * information, then aggregate into the top-level.
          */
-        new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
-        WT_STAT_WRITE(session, new, lsm_generation_max, chunk->generation);
+        new_stats = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
+        WT_STAT_WRITE(session, new_stats, lsm_generation_max, chunk->generation);
 
         /* Aggregate statistics from each new chunk. */
-        __wt_stat_dsrc_aggregate_single(new, stats);
+        __wt_stat_dsrc_aggregate_single(new_stats, stats);
         WT_ERR(stat_cursor->close(stat_cursor));
 
         if (!F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
@@ -94,20 +94,20 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
 
         /* Get the bloom filter's underlying object. */
         WT_ERR(__wt_buf_fmt(session, uribuf, "statistics:%s", chunk->bloom_uri));
-        WT_ERR(__wt_curstat_open(session, uribuf->data, NULL, cfg, &stat_cursor));
+        WT_ERR(__wt_curstat_open(session, (const char *)uribuf->data, NULL, cfg, &stat_cursor));
 
         /*
          * The underlying statistics have now been initialized; fill in values from the bloom
          * filter's information, then aggregate into the top-level.
          */
-        new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
-        WT_STAT_WRITE(
-          session, new, bloom_size, (int64_t)((chunk->count * lsm_tree->bloom_bit_count) / 8));
-        WT_STAT_WRITE(
-          session, new, bloom_page_evict, new->cache_eviction_clean + new->cache_eviction_dirty);
-        WT_STAT_WRITE(session, new, bloom_page_read, new->cache_read);
+        new_stats = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
+        WT_STAT_WRITE(session, new_stats, bloom_size,
+          (int64_t)((chunk->count * lsm_tree->bloom_bit_count) / 8));
+        WT_STAT_WRITE(session, new_stats, bloom_page_evict,
+          new_stats->cache_eviction_clean + new_stats->cache_eviction_dirty);
+        WT_STAT_WRITE(session, new_stats, bloom_page_read, new_stats->cache_read);
 
-        __wt_stat_dsrc_aggregate_single(new, stats);
+        __wt_stat_dsrc_aggregate_single(new_stats, stats);
         WT_ERR(stat_cursor->close(stat_cursor));
     }
 
