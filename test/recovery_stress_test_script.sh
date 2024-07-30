@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [ $# -lt 1 ]; then
+    echo "Error: Not enough arguments given."
+    echo "Current args: $@"
+    exit 1
+fi
+
 times=$1
 truncated_log_args=$2
 

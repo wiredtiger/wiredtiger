@@ -5,6 +5,12 @@ rando() {
   tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
 }
 
+if [ $# -lt 1 ]; then
+    echo "Error: Not enough arguments given."
+    echo "Current args: $@"
+    exit 1
+fi
+
 times=$1
 
 runtime=20  # seconds
