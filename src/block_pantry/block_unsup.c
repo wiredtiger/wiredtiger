@@ -9,22 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_bmp_checkpoint --
- *     Write a buffer into a block, creating a checkpoint.
- */
-int
-__wt_bmp_checkpoint(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
-{
-    WT_UNUSED(bm);
-    WT_UNUSED(session);
-    WT_UNUSED(buf);
-    WT_UNUSED(ckptbase);
-    WT_UNUSED(data_checksum);
-    return (0);
-}
-
-/*
  * __wt_bmp_checkpoint_load --
  *     Load a checkpoint.
  */

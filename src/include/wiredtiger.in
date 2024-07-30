@@ -5207,6 +5207,16 @@ struct __wt_file_handle {
 /* This object based interface is not public. */
 
     /*!
+     * Checkpoint an object store - save the current state so it's available on the next restart
+     *
+     * @errors
+     *
+     * @param file_handle the WT_FILE_HANDLE
+     * @param session the current WiredTiger session
+     */
+    int (*fh_obj_checkpoint)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
+
+    /*!
      * Put an object given an identifier.
      *
      * @errors
