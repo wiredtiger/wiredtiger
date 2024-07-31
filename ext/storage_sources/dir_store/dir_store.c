@@ -1049,6 +1049,16 @@ dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 }
 
 /*
+ * dir_store_ckpt_load --
+ *     Populate some internal data structures from on-disk content (if any).
+ */
+static int
+dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
+{
+    return (0);
+}
+
+/*
  * dir_store_open --
  *     fopen for our dir_store storage source
  */
@@ -1200,6 +1210,9 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         (void)dir_store_err(dir_store, session, ret, "ss_open_object: pthread_rwlock_unlock");
         goto err;
     }
+
+    if ((ret = dir_store_ckpt_load(dir_store_fh, session)) != 0)
+        goto err;
 
     *file_handlep = file_handle;
 
@@ -1524,6 +1537,7 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     dir_store_fh->object_next_offset = next_mul8(dir_store_fh->object_next_offset);
     start = dir_store_fh->object_next_offset;
 
+    /* TODO lots of optimisations here - coalescing write calls, packing, etc. */
     for (i = 0; i < dir_store_fh->object_map_size; i++) {
         ret = wt_fh->fh_write(wt_fh, session,
           /* Add a uint64_t to leave room at the start of the run for the entry count. */
