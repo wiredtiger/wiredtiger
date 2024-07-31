@@ -201,6 +201,7 @@ static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
+static int dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *, uint64_t);
 
 #define FS2DS(fs) (((DIR_STORE_FILE_SYSTEM *)(fs))->dir_store)
 #define SHOW_STRING(s) (((s) == NULL) ? "<null>" : (s))
@@ -1058,7 +1059,7 @@ dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
     WT_FILE_HANDLE *wt_fh;
     wt_off_t size;
     int ret;
-    uint64_t ckpt_offset;
+    uint64_t entries, i, offset, tmp;
 
     wt_fh = fh->fh;
 
@@ -1071,10 +1072,36 @@ dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
         return (0);
 
     /* Look up the checkpoint's address. */
-    if ((ret = wt_fh->fh_read(wt_fh, session, 0, sizeof(uint64_t), &ckpt_offset)) != 0)
+    if ((ret = wt_fh->fh_read(wt_fh, session, 0, sizeof(uint64_t), &offset)) != 0)
         return (ret);
+    fprintf(stderr, "dir_store_ckpt_load: got start addr of 0x%" PRIx64 "\n", offset);
 
-    fprintf(stderr, "dir_store_ckpt_load: got start addr of 0x%" PRIx64 "\n", ckpt_offset);
+    /* From that address, get the number of entries. */
+    if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &entries)) != 0)
+        return (ret);
+    fprintf(stderr, "dir_store_ckpt_load: loading %" PRIu64 " entries\n", entries);
+    offset += sizeof(uint64_t);
+    dir_store_obj_resize_map(fh, entries);
+
+    /* Go over the entries and rebuild the dir store's internal state. */
+    for (i = 0; i < entries; i++) {
+        if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &tmp)) != 0)
+            return (ret);
+
+        fh->object_id_map[i] = tmp;
+        offset += sizeof(uint64_t);
+        fprintf(stderr, "ckpt_load: put offset 0x%" PRIx64 " at index %" PRIu64 "\n", tmp, i);
+    }
+
+    for (i = 0; i < entries; i++) {
+        if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &tmp)) != 0)
+            return (ret);
+
+        fh->object_size_map[i] = tmp;
+        offset += sizeof(uint64_t);
+        fprintf(stderr, "ckpt_load: put size 0x%" PRIx64 " at index %" PRIu64 "\n", tmp, i);
+    }
+
     return (0);
 }
 
@@ -1565,6 +1592,17 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
           &dir_store_fh->object_id_map[i]);
         if (ret != 0)
             return (ret);
+        dir_store_fh->object_next_offset += sizeof(uint64_t);
+    }
+
+    for (i = 0; i < dir_store_fh->object_map_size; i++) {
+        ret = wt_fh->fh_write(wt_fh, session,
+          /* Add a uint64_t to leave room at the start of the run for the entry count. */
+          (wt_off_t)dir_store_fh->object_next_offset + sizeof(uint64_t), sizeof(uint64_t),
+          &dir_store_fh->object_size_map[i]);
+        if (ret != 0)
+            return (ret);
+        dir_store_fh->object_next_offset += sizeof(uint64_t);
     }
 
     /* Encode the number of entries at the start of the list. */
