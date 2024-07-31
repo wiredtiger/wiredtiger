@@ -14,6 +14,7 @@ else()
         tests/test_error.cpp
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
+        tests/test_futex.cpp
         tests/test_pow.cpp
         tests/test_prepare_mod_sort.cpp
         tests/test_reconciliation_tracking.cpp
