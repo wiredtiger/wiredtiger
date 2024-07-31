@@ -542,10 +542,7 @@ __verify_tree(
         ++vs->depth_leaf[my_stack_level];
 
     if (vs->dump_tree_shape) {
-        printf("%s  %s%s", __tree_stack(vs),
-          vs->depth <= 1                       ? "ROOT" :
-            F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" :
-                                                 "",
+        printf("%s  %s%s", __tree_stack(vs), F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "",
           F_ISSET(ref, WT_REF_FLAG_LEAF) ? "LEAF" : "");
     }
 
