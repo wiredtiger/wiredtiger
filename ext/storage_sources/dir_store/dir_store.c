@@ -1055,6 +1055,26 @@ dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 static int
 dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
 {
+    WT_FILE_HANDLE *wt_fh;
+    wt_off_t size;
+    int ret;
+    uint64_t ckpt_offset;
+
+    wt_fh = fh->fh;
+
+    /* Check the size before we read. */
+    if ((ret = wt_fh->fh_size(wt_fh, session, &size)) != 0)
+        return (ret);
+
+    /* New file, nothing to load. */
+    if (size <= sizeof(uint64_t))
+        return (0);
+
+    /* Look up the checkpoint's address. */
+    if ((ret = wt_fh->fh_read(wt_fh, session, 0, sizeof(uint64_t), &ckpt_offset)) != 0)
+        return (ret);
+
+    fprintf(stderr, "dir_store_ckpt_load: got start addr of 0x%" PRIx64 "\n", ckpt_offset);
     return (0);
 }
 
