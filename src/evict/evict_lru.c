@@ -871,9 +871,11 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
     if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1)) {
         btree->evict_pos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
     } else {
-        btree->evict_pos = __wt_page_npos(session, ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX);
+        btree->evict_pos =
+          __wt_page_npos(session, ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX);
         __wt_verbose_debug1(session, WT_VERB_EVICTSERVER,
-        "Evict walk point memorized at position %lf %s page %s", btree->evict_pos, F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str);
+          "Evict walk point memorized at position %lf %s page %s", btree->evict_pos,
+          F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str);
     }
 
     WT_WITH_DHANDLE(cache->walk_session, session->dhandle,
@@ -1378,8 +1380,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 
 err:
     /*
-     * We don't want to hold hazard pointers for longer than required. Clear hazard pointers
-     * and remember their positions as soft pointers.
+     * We don't want to hold hazard pointers for longer than required. Clear hazard pointers and
+     * remember their positions as soft pointers.
      */
     __evict_clear_all_walks(session);
 
@@ -1950,10 +1952,13 @@ __try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t 
           session, &btree->evict_ref, 0, walk_flags, btree->evict_pos) != 0)
         return (false); /* Failed to restore */
 
-    if (btree->evict_ref != NULL && WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1)) {
-        WT_UNUSED(unused = __wt_page_npos(session, btree->evict_ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX));
+    if (btree->evict_ref != NULL &&
+      WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1)) {
+        WT_UNUSED(unused = __wt_page_npos(
+                    session, btree->evict_ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX));
         __wt_verbose_debug1(session, WT_VERB_EVICTSERVER,
-        "Evict walk point recalled from position %lf %s page %s", btree->evict_pos, F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str);
+          "Evict walk point recalled from position %lf %s page %s", btree->evict_pos,
+          F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str);
     }
 
     return (btree->evict_ref != NULL); /* Restored a good page? */
@@ -2202,8 +2207,8 @@ fast:
         return;
 
     *queuedp = true;
-    __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT, (void *)page,
-      __wt_atomic_loadsize(&page->memory_footprint));
+    __wt_verbose_debug2(session, WT_VERB_EVICTSERVER, "walk select: %p, size %" WT_SIZET_FMT,
+      (void *)page, __wt_atomic_loadsize(&page->memory_footprint));
 
     return;
 }

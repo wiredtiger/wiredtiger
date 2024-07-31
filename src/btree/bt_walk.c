@@ -653,8 +653,8 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
             npos = (slot + npos) / entries;
         if (path_str)
             WT_UNUSED(unused = __wt_snprintf_len_incr(&path_str[*path_str_offset],
-              path_str_sz_max - *path_str_offset, path_str_offset, "[%" PRIu32 "/%" PRIu32 "]",
-              slot, entries));
+                        path_str_sz_max - *path_str_offset, path_str_offset,
+                        "[%" PRIu32 "/%" PRIu32 "]", slot, entries));
         __ref_ascend(session, &ref, NULL, NULL);
     }
     WT_LEAVE_PAGE_INDEX(session);
