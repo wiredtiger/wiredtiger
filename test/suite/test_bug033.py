@@ -26,143 +26,101 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-# test_bug33.py
-# This tests for the scenario discovered in WT-12602.
-# Before WT-12602, it was possible that evicting a page when checkpoint is happening parallel would
-# lead to an incorrect EBUSY error. The page that was getting evicted required a modify to be
-# written to history store and the oldest update in the history store as a globally visible tombstone.
-# For this condition to occur, we must have the following:
-# - The history page must be reconciled and written to disk
-# - One transaction needs to have an modify and update on the record.
-# - There needs to be a globally visible tombstone that is older than the modify
-# and update on the record.
-class test_bug33(wttest.WiredTigerTestCase):
-    # Configure debug behavior on evict, where eviction threads would evict as if checkpoint was in
-    # parallel.
-    conn_config = 'cache_size=500MB,statistics=(all),debug_mode=(eviction_checkpoint_ts_ordering=true)'
-    nrows = 100
+import wiredtiger, wttest, threading, wtthread, time
+from wiredtiger import stat
 
-    def evict_cursor(self, uri, nrows):
-        s = self.conn.open_session()
-        s.begin_transaction()
-        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
-        evict_cursor = s.open_cursor(uri, None, "debug=(release_evict)")
-        for i in range(1, nrows + 1):
-            evict_cursor.set_key(str(i))
-            evict_cursor.search()
-            evict_cursor.reset()
-        s.rollback_transaction()
+# test_bug033.py
+# Test for WT-12096.
+# Test inserting obsolete updates on the update chain after rolling back to a stable timestamp.
+class test_bug033(wttest.WiredTigerTestCase):
+    uri = 'table:test_bug033'
+    conn_config = 'cache_size=100MB,statistics=(all),timing_stress_for_test=[checkpoint_slow]'
+
+    def evict(self, k):
+        evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        self.session.begin_transaction()
+        evict_cursor.set_key(k)
+        evict_cursor.search()
+        evict_cursor.reset()
         evict_cursor.close()
+        self.session.rollback_transaction()
 
-    def non_ts(self):
-        uri = 'table:test_bug033'
-        create_params = 'key_format=S,value_format=S'
-        self.session.create(uri, create_params)
-        value1 = 'a' * 500
-        value2 = 'b' * 500
+    def test_bug033(self):
+        # Note, the comments upd_chain: and disk: show what should be
+        # the upd_chain and disk at that point.
+        self.session.create(self.uri, f'key_format=i,value_format=S')
 
-        # Populate data in the data store table.
-        cursor = self.session.open_cursor(uri)
+        # Pin the oldest and stable timestamps to 1
+        self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)},\
+                                stable_timestamp={self.timestamp_str(1)}')
+
+        # Create updates at timestamps 2 and 4 that should get blown away by rollback to stable.
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
-        self.session.commit_transaction()
-
-        # Write the data to disk.
-        self.session.checkpoint()
-
-        # Add in a tombstone.
+        c = self.session.open_cursor(self.uri, None)
+        c[0] = 'b'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
+        c.close()
+        # upd_chain: 2
+        # disk: None
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor.set_key(str(i))
-            self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction()
+        c = self.session.open_cursor(self.uri, None)
+        c[0] = 'c'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(4)}')
+        c.close()
+        # upd_chain: 2 -> 4
+        # disk: None
 
-        # Make sure that we don't move the oldest ID forward, so create a second long running
-        # transaction.
-        session2 = self.conn.open_session()
-        session2.begin_transaction()
+        # Evict.
+        self.evict(0)
+        # upd_chain: Empty
+        # disk: 4
+        self.conn.rollback_to_stable()
+        # upd_chain: tombstone
+        # disk: 4
 
-        # Add in a update and a modify.
+        # Insert another update at timestamp 2.
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value2
+        c = self.session.open_cursor(self.uri, None)
+        c[0] = 'd'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
+        c.close()
+        # upd_chain: tombstone -> 2
+        # disk: 4
 
-            cursor.set_key(str(i))
-            mods = [wiredtiger.Modify("b", 0, 1)]
-            self.assertEquals(cursor.modify(mods), 0)
-        self.session.commit_transaction()
+        # Move oldest and stable to 3.
+        self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(3)},\
+                                stable_timestamp={self.timestamp_str(3)}')
+        # upd_chain: tombstone (obsolete) -> 2 (obsolete)
+        # disk: 4
 
-        # Apply update again to make sure that the update, modify and tombstome all go
-        # to the HS.
+        # Give time for the oldest id to update. This ensures the obsolete check removes the
+        # obsolete tombstone.
+        time.sleep(1)
+
+        # Insert update at timestamp 4.
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
-        self.session.commit_transaction()
+        c = self.session.open_cursor(self.uri, None)
+        c[0] = 'e'
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(4)}')
+        c.close()
+        # upd_chain: 2 (obsolete)
+        # disk: 4
 
-        # Reconcile all data onto the disk.
-        self.session.checkpoint()
+        # Create a checkpoint in parallel with the eviction below.
+        done = threading.Event()
+        ckpt = wtthread.checkpoint_thread(self.conn, done)
+        try:
+            ckpt.start()
 
-        # Peform dirty eviction to trigger reconcilliation.
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
-        self.session.commit_transaction()
-        self.evict_cursor(uri, self.nrows)
+            # Wait for checkpoint to start before evicting.
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
+                stat_cursor.close()
+                time.sleep(1)
 
-        session2.commit_transaction()
-
-    def test_ts(self):
-        uri = 'table:test_bug033'
-        create_params = 'key_format=S,value_format=S'
-        self.session.create(uri, create_params)
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-
-        # Populate data in the data store table.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
-
-        # Write the data to disk.
-        self.session.checkpoint()
-
-        # Add in a globally visible tombstone.
-        self.session.begin_transaction('no_timestamp=true')
-        for i in range(1, self.nrows):
-            cursor.set_key(str(i))
-            self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction()
-
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7))
-
-        # Add in a update and a modify.
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value2
-
-            cursor.set_key(str(i))
-            mods = [wiredtiger.Modify("b", 0, 1)]
-            self.assertEquals(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(8))
-
-        # Apply update again to make sure that the update, modify and tombstome all go
-        # to the HS.
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-
-        # Reconcile all data onto the disk.
-        self.session.checkpoint()
-
-        # Peform dirty eviction to trigger reconcilliation.
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
-        self.evict_cursor(uri, self.nrows)
+            self.evict(0)
+        finally:
+            done.set()          # Signal checkpoint to exit.
+            ckpt.join()
