@@ -249,7 +249,7 @@ __wt_schema_close_oligarch(WT_SESSION_IMPL *session, WT_OLIGARCH *oligarch, bool
     __wt_free(session, oligarch->stable_uri);
 
     /* Remove the ingest handle from oligarch table manager list */
-    __wt_oligarch_manager_remove_table(session, ((WT_BTREE *)oligarch->ingest->handle)->id);
+    __wt_oligarch_manager_remove_table(session, oligarch->ingest_btree_id);
 
     /* Release our reference to the member handles so they can be cleaned up */
     if (!final) {

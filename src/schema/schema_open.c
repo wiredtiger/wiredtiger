@@ -619,10 +619,19 @@ __schema_open_oligarch_member(
 
     /* Reference the dhandle and set it in the tier array. */
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
-    if (ingest)
+    if (ingest) {
         oligarch->ingest = session->dhandle;
-    else
+
+        /*
+         * TODO this is a bit of a hack. The problem is that during shutdown, all dhandles are
+         * closed. But as part of closing an oligarch table, we need to get the IDs of the B-Trees
+         * backing the constituent tables (to remove them from the manager thread). This involves
+         * dereferencing the dhandle pointer, but that's been freed.
+         */
+        oligarch->ingest_btree_id = ((WT_BTREE *)session->dhandle->handle)->id;
+    } else {
         oligarch->stable = session->dhandle;
+    }
 
     WT_RET(__wt_session_release_dhandle(session));
     return (0);

@@ -85,6 +85,7 @@ struct __wt_oligarch {
     WT_DATA_HANDLE iface;
 
     WT_DATA_HANDLE *ingest;
+    uint32_t ingest_btree_id;
     WT_DATA_HANDLE *stable;
 
     WT_COLLATOR *collator; /* Custom collator */
