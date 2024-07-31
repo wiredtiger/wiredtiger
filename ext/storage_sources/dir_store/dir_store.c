@@ -1154,10 +1154,10 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     dir_store_fh->dir_store = dir_store;
 
     /*
-     * Zero is reserved as out-of-band. This should be a 64 bit space so we can write an extent list
-     * on clean shutdown.
+     * First eight bytes are reserved as out-of-band. This is a 64 bit space so we can write an
+     * extent list on checkpoint or clean shutdown.
      */
-    dir_store_fh->object_next_offset = 1;
+    dir_store_fh->object_next_offset = 8;
 
     /* Initialize public information. */
     file_handle = (WT_FILE_HANDLE *)dir_store_fh;
@@ -1495,13 +1495,52 @@ dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
 }
 
 /*
+ * next_mul8 --
+ *     Return the lowest multiple of 8 larger than or equal to the input.
+ */
+static uint64_t
+next_mul8(uint64_t i)
+{
+    return (i + 7) & ~0x7;
+}
+
+/*
  * dir_store_obj_ckpt --
  *     Write out our object ID to offset map.
  */
 static int
 dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
-    return (0);
+    DIR_STORE_FILE_HANDLE *dir_store_fh;
+    WT_FILE_HANDLE *wt_fh;
+    wt_off_t start;
+    int ret;
+    uint64_t i;
+
+    dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
+    wt_fh = dir_store_fh->fh;
+
+    /* Align - not strictly necessary, but it makes staring at the hex dump easier. */
+    dir_store_fh->object_next_offset = next_mul8(dir_store_fh->object_next_offset);
+    start = dir_store_fh->object_next_offset;
+
+    for (i = 0; i < dir_store_fh->object_map_size; i++) {
+        ret = wt_fh->fh_write(wt_fh, session,
+          /* Add a uint64_t to leave room at the start of the run for the entry count. */
+          (wt_off_t)dir_store_fh->object_next_offset + sizeof(uint64_t), sizeof(uint64_t),
+          &dir_store_fh->object_id_map[i]);
+        if (ret != 0)
+            return (ret);
+    }
+
+    /* Encode the number of entries at the start of the list. */
+    ret = wt_fh->fh_write(wt_fh, session, start, sizeof(uint64_t), &i);
+    if (ret != 0)
+        return (ret);
+    dir_store_fh->object_next_offset += sizeof(uint64_t);
+
+    /* TODO add some magic bytes? Version? Checksum? More thought. */
+    return (wt_fh->fh_write(wt_fh, session, 0, sizeof(uint64_t), &start));
 }
 
 /*
@@ -1528,8 +1567,10 @@ dir_store_obj_put(
     if (ret != 0)
         return (ret);
 
+    /*
     fprintf(stderr, "PBM writing object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id,
       dir_store_fh->object_next_offset);
+     */
     dir_store_fh->object_id_map[object_id] = dir_store_fh->object_next_offset;
     dir_store_fh->object_size_map[object_id] = buf->size;
     dir_store_fh->object_next_offset += buf->size;
