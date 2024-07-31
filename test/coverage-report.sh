@@ -1,7 +1,16 @@
 #!/bin/bash
 
+# Check if enough arguments are given, pr_args can be an empty string for patch builds.
 if [ $# -lt 3 ]; then
     echo "Error: Not enough arguments given."
+    echo "Usage: coverage-report.sh \${is_patch} \${python_binary} \${github_commit} \${pr_args}"
+    echo "Current args: $@"
+    exit 1
+fi
+
+if [ $# -gt 5 ]; then
+    echo "Error: invalid number of arguments."
+    echo "Usage: coverage-report.sh \${is_patch} \${python_binary} \${github_commit} \${pr_args}"
     echo "Current args: $@"
     exit 1
 fi
