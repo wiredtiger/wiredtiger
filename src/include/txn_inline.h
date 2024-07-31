@@ -686,12 +686,10 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
     txn = session->txn;
 
-    /* Ensure that checkpoint cursor transactions only read checkpoints and never read metadata. */
+    /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
     WT_ASSERT(session,
-      (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle)) ||
-        !WT_READING_CHECKPOINT(session));
-    WT_ASSERT(
-      session, WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
+      (session->dhandle != NULL && WT_IS_METADATA(session->dhandle)) ||
+        WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
 
     /*
      * When reading from a checkpoint, all readers use the same snapshot, so a transaction is
@@ -722,6 +720,21 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 }
 
 /*
+ * __wt_txn_timestamp_visible_all --
+ *     Check whether a given timestamp is either globally visible or obsolete.
+ */
+static WT_INLINE bool
+__wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session, wt_timestamp_t timestamp)
+{
+    wt_timestamp_t pinned_ts;
+
+    /* Compare the given timestamp to the pinned timestamp, if it exists. */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+
+    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
+}
+
+/*
  * __wt_txn_visible_all --
  *     Check whether a given time window is either globally visible or obsolete. For global
  *     visibility checks, the commit times are checked against the oldest possible readers in the
@@ -736,8 +749,6 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 static WT_INLINE bool
 __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
-    wt_timestamp_t pinned_ts;
-
     /*
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
@@ -752,22 +763,34 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
     if (timestamp == WT_TS_NONE)
         return (true);
 
-    /* Ensure that checkpoint cursor transactions only read checkpoints and never read metadata. */
+    /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
     WT_ASSERT(session,
-      (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle)) ||
-        !WT_READING_CHECKPOINT(session));
-    WT_ASSERT(
-      session, WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
+      (session->dhandle != NULL && WT_IS_METADATA(session->dhandle)) ||
+        WT_READING_CHECKPOINT(session) == F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
 
     /* When reading a checkpoint, use the checkpoint state instead of the current state. */
     if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
         return (session->txn->checkpoint_oldest_timestamp != WT_TS_NONE &&
           timestamp <= session->txn->checkpoint_oldest_timestamp);
 
-    /* If no oldest timestamp has been supplied, updates have to stay in cache. */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    return (__wt_txn_timestamp_visible_all(session, timestamp));
+}
 
-    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
+/*
+ * __wt_txn_newest_visible_all --
+ *     Check whether a given newest time window is globally visible.
+ */
+static WT_INLINE bool
+__wt_txn_newest_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
+{
+    /* If there is no transaction or timestamp information available, there is nothing to do. */
+    if (id == WT_TXN_NONE && timestamp == WT_TS_NONE)
+        return (false);
+
+    if (__wt_txn_visible_all(session, id, timestamp))
+        return (true);
+
+    return (false);
 }
 
 /*
