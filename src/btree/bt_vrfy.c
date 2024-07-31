@@ -29,12 +29,13 @@ typedef struct {
     bool dump_all_data;
     bool dump_key_data;
     bool dump_blocks;
-    bool dump_layout;
+    bool dump_layout, dump_tree_shape;
     bool dump_pages;
     bool read_corrupt;
 
     /* Page layout information. */
-    uint64_t depth, depth_internal[100], depth_leaf[100];
+    uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
+      key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
 
@@ -85,6 +86,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));
     vs->dump_layout = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "dump_tree_shape", &cval));
+    vs->dump_tree_shape = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
@@ -436,6 +440,69 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unp
       __verify_addr_string(session, ref, vs->tmp1));
 }
 
+static const char *__page_types[] = {
+  "WT_PAGE_INVALID",
+  "WT_PAGE_BLOCK_MANAGER",
+  "WT_PAGE_COL_FIX",
+  "WT_PAGE_COL_INT",
+  "WT_PAGE_COL_VAR",
+  "WT_PAGE_OVFL",
+  "WT_PAGE_ROW_INT",
+  "WT_PAGE_ROW_LEAF",
+};
+
+/*
+ * __stat_row_leaf_entries --
+ *     Get leaf stats.
+ */
+static int
+__stat_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint64_t *entriesp,
+  uint64_t *keys_sizep, uint64_t *values_sizep)
+{
+    WT_CELL_UNPACK_KV unpack;
+
+    *entriesp = *keys_sizep = *values_sizep = 0;
+    WT_CELL_FOREACH_KV (session, dsk, unpack) {
+        switch (unpack.type) {
+        case WT_CELL_KEY:
+        case WT_CELL_KEY_OVFL:
+            ++*entriesp;
+            *keys_sizep += unpack.size;
+            break;
+        case WT_CELL_VALUE:
+        case WT_CELL_VALUE_OVFL:
+            *values_sizep += unpack.size;
+            break;
+        default:
+            return (__wt_illegal_value(session, unpack.type));
+        }
+    }
+    WT_CELL_FOREACH_END;
+    return (0);
+}
+
+/*
+ * __tree_stack --
+ *     Format page tree stack.
+ */
+static const char *
+__tree_stack(WT_VSTUFF *vs)
+{
+    static char data[WT_ELEMENTS(vs->tree_stack) * 10];
+    size_t i, len, strsz;
+    int force_unused;
+
+    for (strsz = 0, i = 0, len = WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1); i < len;
+         ++i)
+        force_unused = /* using plain WT_UNUSED(snprintf) is screwed on GCC */
+          __wt_snprintf_len_incr(&data[strsz], 10, &strsz, "%" PRIu64 ".", vs->tree_stack[i]);
+    WT_UNUSED(force_unused);
+    if (strsz > 0)
+        --strsz; /* remove last dot */
+    data[strsz] = 0;
+    return (data);
+}
+
 /*
  * __verify_tree --
  *     Verify a tree, recursively descending through it in depth-first fashion. The page argument
@@ -452,6 +519,7 @@ __verify_tree(
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
+    size_t my_stack_level, next_stack_level;
     uint32_t entry;
 
     btree = S2BT(session);
@@ -476,11 +544,18 @@ __verify_tree(
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
           page->dsk->write_gen));
 
+    my_stack_level = WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1);
+
     /* Track the shape of the tree. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
+        ++vs->depth_internal[my_stack_level];
     else
-        ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
+        ++vs->depth_leaf[my_stack_level];
+
+    if (vs->dump_tree_shape) {
+        printf("%s  %s%s", __tree_stack(vs), F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "",
+          F_ISSET(ref, WT_REF_FLAG_LEAF) ? "LEAF" : "");
+    }
 
     /*
      * The page's physical structure was verified when it was read into memory by the read server
@@ -597,7 +672,39 @@ __verify_tree(
             WT_RET(__verify_page_content_leaf(session, ref, addr_unpack, vs));
             break;
         }
+
+        if (vs->dump_tree_shape) {
+            printf("  type: %s",
+              page->dsk->type < WT_ELEMENTS(__page_types) ? __page_types[page->dsk->type] :
+                                                            "UNKNOWN");
+            /* see __wti_page_inmem */
+            switch (page->dsk->type) {
+            case WT_PAGE_COL_FIX:
+            case WT_PAGE_COL_VAR:
+            case WT_PAGE_COL_INT:
+                printf("  entries: %" PRIu32, page->dsk->u.entries);
+                break;
+            case WT_PAGE_ROW_INT:
+                printf("  entries: %" PRIu32, page->dsk->u.entries / 2);
+                break;
+            case WT_PAGE_ROW_LEAF:
+                WT_RET(
+                  __stat_row_leaf_entries(session, page->dsk, &vs->keys_count_stack[my_stack_level],
+                    &vs->key_sz_stack[my_stack_level], &vs->val_sz_stack[my_stack_level]));
+                printf("  keys: %" PRIu64 "  keys_size: %" PRIu64 "  values_size: %" PRIu64
+                       "  total_size: %" PRIu64,
+                  vs->keys_count_stack[my_stack_level], vs->key_sz_stack[my_stack_level],
+                  vs->val_sz_stack[my_stack_level],
+                  vs->total_sz_stack[my_stack_level] = page->dsk->mem_size);
+                break;
+            default:
+                break; /* Shouldn't even be here */
+            }
+        }
     }
+
+    if (vs->dump_tree_shape)
+        printf("  mem_footprint: %" WT_SIZET_FMT, page->memory_footprint);
 
     /* Compare the address type against the page type. */
     switch (page->type) {
@@ -622,19 +729,26 @@ celltype_err:
         break;
     }
 
+    if (vs->dump_tree_shape)
+        printf("\n");
+
     /* Check tree connections and recursively descend the tree. */
     switch (page->type) {
     case WT_PAGE_COL_INT:
         /* For each entry in an internal page, verify the subtree. */
         entry = 0;
+        next_stack_level = WT_MIN(vs->depth + 1, WT_ELEMENTS(vs->depth_internal) - 1);
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
+            vs->tree_stack[my_stack_level] = entry++;
+            vs->keys_count_stack[next_stack_level] = vs->total_sz_stack[next_stack_level] =
+              vs->key_sz_stack[next_stack_level] = vs->val_sz_stack[next_stack_level] = 0;
+
             /*
              * It's a depth-first traversal: this entry's starting record number should be 1 more
              * than the total records reviewed to this point. However, for VLCS fast-truncate can
              * introduce gaps; allow a gap but not overlapping ranges. For FLCS, gaps are not
              * permitted.
              */
-            ++entry;
             if (btree->type == BTREE_COL_FIX && child_ref->ref_recno != vs->records_so_far + 1) {
                 WT_RET_MSG(session, WT_ERROR,
                   "the starting record number in entry %" PRIu32
@@ -697,20 +811,35 @@ celltype_err:
             WT_RET(ret);
 
             WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
+
+            vs->keys_count_stack[my_stack_level] += vs->keys_count_stack[next_stack_level];
+            vs->total_sz_stack[my_stack_level] += vs->total_sz_stack[next_stack_level];
+            vs->key_sz_stack[my_stack_level] += vs->key_sz_stack[next_stack_level];
+            vs->val_sz_stack[my_stack_level] += vs->val_sz_stack[next_stack_level];
         }
         WT_INTL_FOREACH_END;
+        if (vs->dump_tree_shape)
+            printf("%s  =  children: %" PRIu64 "  keys: %" PRIu64 "  keys_size: %" PRIu64
+                   "  values_size: %" PRIu64 "  total_size: %" PRIu64 "\n",
+              __tree_stack(vs), vs->tree_stack[my_stack_level] + 1,
+              vs->keys_count_stack[my_stack_level], vs->key_sz_stack[my_stack_level],
+              vs->val_sz_stack[my_stack_level], vs->total_sz_stack[my_stack_level]);
         break;
     case WT_PAGE_ROW_INT:
         /* For each entry in an internal page, verify the subtree. */
         entry = 0;
+        next_stack_level = WT_MIN(vs->depth + 1, WT_ELEMENTS(vs->depth_internal) - 1);
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
+            vs->tree_stack[my_stack_level] = entry++;
+            vs->keys_count_stack[next_stack_level] = vs->total_sz_stack[next_stack_level] =
+              vs->key_sz_stack[next_stack_level] = vs->val_sz_stack[next_stack_level] = 0;
+
             /*
              * It's a depth-first traversal: this entry's starting key should be larger than the
              * largest key previously reviewed.
              *
              * The 0th key of any internal page is magic, and we can't test against it.
              */
-            ++entry;
             if (entry != 1)
                 WT_RET(__verify_row_int_key_order(session, page, child_ref, entry, vs));
 
@@ -744,8 +873,19 @@ celltype_err:
             WT_RET(ret);
 
             WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
+
+            vs->keys_count_stack[my_stack_level] += vs->keys_count_stack[next_stack_level];
+            vs->total_sz_stack[my_stack_level] += vs->total_sz_stack[next_stack_level];
+            vs->key_sz_stack[my_stack_level] += vs->key_sz_stack[next_stack_level];
+            vs->val_sz_stack[my_stack_level] += vs->val_sz_stack[next_stack_level];
         }
         WT_INTL_FOREACH_END;
+        if (vs->dump_tree_shape)
+            printf("%s  =  children: %" PRIu64 "  keys: %" PRIu64 "  keys_size: %" PRIu64
+                   "  values_size: %" PRIu64 "  total_size: %" PRIu64 "\n",
+              __tree_stack(vs), vs->tree_stack[my_stack_level] + 1,
+              vs->keys_count_stack[my_stack_level], vs->key_sz_stack[my_stack_level],
+              vs->val_sz_stack[my_stack_level], vs->total_sz_stack[my_stack_level]);
         break;
     }
     return (0);
