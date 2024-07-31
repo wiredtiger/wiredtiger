@@ -151,6 +151,9 @@ struct __wt_bucket_storage {
  *  Heuristic controls configuration.
  */
 struct __wt_heuristic_controls {
+    /* Flag to control aggressive obsolete check. */
+    bool obsolete_check_aggressive;
+
     /* Number of btrees processed in the current checkpoint. */
     wt_shared uint32_t obsolete_tw_btree_count;
 

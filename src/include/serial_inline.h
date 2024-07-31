@@ -299,6 +299,11 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (upd->next == NULL || exclusive)
         return (0);
 
+    /* Skip obsolete check randomly when the aggressive check is disabled. */
+    if (!S2C(session)->heuristic_controls.obsolete_check_aggressive &&
+      __wt_random(&session->rnd) % 2 == 0)
+        return (0);
+
     /*
      * We would like to call __wt_txn_update_oldest only in the event that there are further updates
      * to this page, the check against WT_TXN_NONE is used as an indicator of there being further
