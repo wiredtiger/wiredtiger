@@ -34,7 +34,7 @@ typedef struct {
     bool read_corrupt;
 
     /* Page layout information. */
-    uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], cells_count_stack[100],
+    uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
@@ -677,14 +677,14 @@ __verify_tree(
                 printf("  entries: %" PRIu32, page->dsk->u.entries / 2);
                 break;
             case WT_PAGE_ROW_LEAF:
-                WT_RET(__stat_row_leaf_entries(session, page->dsk,
-                  &vs->cells_count_stack[my_stack_level], &vs->key_sz_stack[my_stack_level],
-                  &vs->val_sz_stack[my_stack_level]));
-                printf("  cells: %" PRIu64 "  total_size: %" PRIu64 "  keys_size: %" PRIu64
-                       "  values_size: %" PRIu64,
-                  vs->cells_count_stack[my_stack_level],
-                  vs->total_sz_stack[my_stack_level] = page->dsk->mem_size,
-                  vs->key_sz_stack[my_stack_level], vs->val_sz_stack[my_stack_level]);
+                WT_RET(
+                  __stat_row_leaf_entries(session, page->dsk, &vs->keys_count_stack[my_stack_level],
+                    &vs->key_sz_stack[my_stack_level], &vs->val_sz_stack[my_stack_level]));
+                printf("  keys: %" PRIu64 "  keys_size: %" PRIu64 "  values_size: %" PRIu64
+                       "  total_size: %" PRIu64,
+                  vs->keys_count_stack[my_stack_level], vs->key_sz_stack[my_stack_level],
+                  vs->val_sz_stack[my_stack_level],
+                  vs->total_sz_stack[my_stack_level] = page->dsk->mem_size);
                 break;
             default:
                 break; /* Shouldn't even be here */
@@ -729,7 +729,7 @@ celltype_err:
         next_stack_level = WT_MIN(vs->depth + 1, WT_ELEMENTS(vs->depth_internal) - 1);
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
             vs->tree_stack[my_stack_level] = entry++;
-            vs->cells_count_stack[next_stack_level] = vs->total_sz_stack[next_stack_level] =
+            vs->keys_count_stack[next_stack_level] = vs->total_sz_stack[next_stack_level] =
               vs->key_sz_stack[next_stack_level] = vs->val_sz_stack[next_stack_level] = 0;
 
             /*
@@ -801,18 +801,18 @@ celltype_err:
 
             WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
 
-            vs->cells_count_stack[my_stack_level] += vs->cells_count_stack[next_stack_level];
+            vs->keys_count_stack[my_stack_level] += vs->keys_count_stack[next_stack_level];
             vs->total_sz_stack[my_stack_level] += vs->total_sz_stack[next_stack_level];
             vs->key_sz_stack[my_stack_level] += vs->key_sz_stack[next_stack_level];
             vs->val_sz_stack[my_stack_level] += vs->val_sz_stack[next_stack_level];
         }
         WT_INTL_FOREACH_END;
         if (vs->dump_tree_shape)
-            printf("%s  =  children: %" PRIu64 "  cells: %" PRIu64 "  total_size: %" PRIu64
-                   "  keys_size: %" PRIu64 "  values_size: %" PRIu64 "\n",
+            printf("%s  =  children: %" PRIu64 "  keys: %" PRIu64 "  keys_size: %" PRIu64
+                   "  values_size: %" PRIu64 "  total_size: %" PRIu64 "\n",
               __tree_stack(vs), vs->tree_stack[my_stack_level] + 1,
-              vs->cells_count_stack[my_stack_level], vs->total_sz_stack[my_stack_level],
-              vs->key_sz_stack[my_stack_level], vs->val_sz_stack[my_stack_level]);
+              vs->keys_count_stack[my_stack_level], vs->key_sz_stack[my_stack_level],
+              vs->val_sz_stack[my_stack_level], vs->total_sz_stack[my_stack_level]);
         break;
     case WT_PAGE_ROW_INT:
         /* For each entry in an internal page, verify the subtree. */
@@ -820,7 +820,7 @@ celltype_err:
         next_stack_level = WT_MIN(vs->depth + 1, WT_ELEMENTS(vs->depth_internal) - 1);
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
             vs->tree_stack[my_stack_level] = entry++;
-            vs->cells_count_stack[next_stack_level] = vs->total_sz_stack[next_stack_level] =
+            vs->keys_count_stack[next_stack_level] = vs->total_sz_stack[next_stack_level] =
               vs->key_sz_stack[next_stack_level] = vs->val_sz_stack[next_stack_level] = 0;
 
             /*
@@ -863,18 +863,18 @@ celltype_err:
 
             WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
 
-            vs->cells_count_stack[my_stack_level] += vs->cells_count_stack[next_stack_level];
+            vs->keys_count_stack[my_stack_level] += vs->keys_count_stack[next_stack_level];
             vs->total_sz_stack[my_stack_level] += vs->total_sz_stack[next_stack_level];
             vs->key_sz_stack[my_stack_level] += vs->key_sz_stack[next_stack_level];
             vs->val_sz_stack[my_stack_level] += vs->val_sz_stack[next_stack_level];
         }
         WT_INTL_FOREACH_END;
         if (vs->dump_tree_shape)
-            printf("%s  =  children: %" PRIu64 "  cells: %" PRIu64 "  total_size: %" PRIu64
-                   "  keys_size: %" PRIu64 "  values_size: %" PRIu64 "\n",
+            printf("%s  =  children: %" PRIu64 "  keys: %" PRIu64 "  keys_size: %" PRIu64
+                   "  values_size: %" PRIu64 "  total_size: %" PRIu64 "\n",
               __tree_stack(vs), vs->tree_stack[my_stack_level] + 1,
-              vs->cells_count_stack[my_stack_level], vs->total_sz_stack[my_stack_level],
-              vs->key_sz_stack[my_stack_level], vs->val_sz_stack[my_stack_level]);
+              vs->keys_count_stack[my_stack_level], vs->key_sz_stack[my_stack_level],
+              vs->val_sz_stack[my_stack_level], vs->total_sz_stack[my_stack_level]);
         break;
     }
     return (0);
