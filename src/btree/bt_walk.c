@@ -74,7 +74,7 @@ found:
 
 /*
  * __ref_ascend --
- *     Ascend the tree one level.
+ *     Ascend the tree one level. If `pindexp` is not null, fill in both `pindexp` and `slotp`.
  */
 static WT_INLINE void
 __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
@@ -96,7 +96,8 @@ __ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, u
         parent_ref = ref->home->pg_intl_parent_ref;
         if (__wt_ref_is_root(parent_ref))
             break;
-        __ref_index_slot(session, parent_ref, pindexp, slotp);
+        if (pindexp)
+            __ref_index_slot(session, parent_ref, pindexp, slotp);
 
         /*
          * There's a split race when a cursor moving forwards through
@@ -623,4 +624,242 @@ __wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleaf
     } while (*skipleafcntp > 0);
 
     return (0);
+}
+
+/*
+ * !!!
+ * __wt_page_npos --
+ *     Get the page's normalized position in the tree.
+ *     - If `path_str_offsetp` is set, return a string representation of the page's path.
+ *     - `start` is a position within the leaf page: 0 .. 1.
+ *       * When calculating a leaf page's position, use 0.5 to get the middle of the page.
+ *       * 0 and 1 are corner cases and can lead you to an adjacent page.
+ *       * Numbers outside of 0 .. 1 range will lead you to a prev/next page.
+ */
+double
+__wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_str,
+  size_t *path_str_offsetp, size_t path_str_sz_max)
+{
+    WT_PAGE_INDEX *pindex;
+    double npos;
+    uint32_t entries, slot;
+    int unused = 1; /* WT_UNUSED(snprintf) is screwed in GCC */
+
+    npos = start;
+    if (path_str)
+        *path_str_offsetp = 0;
+
+    WT_ENTER_PAGE_INDEX(session);
+    while (!__wt_ref_is_root(ref)) {
+        slot = UINT32_MAX; /* We get this invalid value in case of error */
+        __ref_index_slot(session, ref, &pindex, &slot);
+        entries = pindex->entries;
+        /*
+         * Depending on the implementation, `__ref_index_slot` might return an error or `slot`
+         * outside of range. Check for `slot < entries` ensures that it's a valid number. If it's
+         * not, then just skip the adjustment: the resulting number will be wrong but still within
+         * the range of the current page. Alternatively, could assign it any "reasonable" estimate
+         * like 0.5 or 0 / 1 depending on the walk direction.
+         */
+        if (slot < entries)
+            npos = (slot + npos) / entries;
+        if (path_str)
+            WT_UNUSED(unused = __wt_snprintf_len_incr(&path_str[*path_str_offsetp],
+                        path_str_sz_max - *path_str_offsetp, path_str_offsetp,
+                        "[%" PRIu32 "/%" PRIu32 "]", slot, entries));
+        __ref_ascend(session, &ref, NULL, NULL);
+    }
+    WT_LEAVE_PAGE_INDEX(session);
+
+    if (path_str) {
+        path_str[*path_str_offsetp] = 0;
+    }
+
+    return (WT_CLAMP(npos, 0.0, 1.0));
+}
+
+/*
+ * !!!
+ * __find_closest_page --
+ *     Find the closest suitable page according to flags.
+ *     - It should not be deleted.
+ *     - If WT_READ_CACHE is set, the page should be in memory.
+ */
+static int
+__find_closest_page(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
+{
+    if (*refp == NULL || F_ISSET(*refp, WT_REF_FLAG_LEAF))
+        return (0);
+    LF_SET(WT_READ_SKIP_INTL);
+    return (__wt_tree_walk(session, refp, flags));
+}
+
+/*
+ * __page_from_npos_internal --
+ *     Go to a leaf page given its normalized position. Note that this function can return a "bad"
+ *     page (deleted, locked, etc). The caller of this function should walk the tree to find a
+ *     suitable page.
+ *
+ * NOTE: Must be called within WT_WITH_PAGE_INDEX or WT_ENTER_PAGE_INDEX
+ */
+static int
+__page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, double npos)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_PAGE_INDEX *pindex;
+    WT_REF *current, *descent;
+    double npos_local;
+    int idx, entries;
+    bool eviction;
+
+    /*
+     * The content of this function is derived from the `random_descent` one but has diverged since.
+     */
+    *refp = NULL;
+
+    btree = S2BT(session);
+    current = NULL;
+    /*
+     * This function is called by eviction to find a page in the cache. That case is indicated by
+     * the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as needed.
+     */
+    eviction = LF_ISSET(WT_READ_CACHE);
+
+    if (0) {
+restart:; /* Restart the search from the root. */
+    }
+
+    /* Search the internal pages of the tree. */
+    current = &btree->root;
+    npos_local = npos;
+    for (;;) {
+        if (F_ISSET(current, WT_REF_FLAG_LEAF))
+            goto done;
+
+        /* The entire for loop's body is for INTERNAL pages only */
+
+        page = current->page;
+        WT_INTL_INDEX_GET(session, page, pindex);
+        entries = (int)pindex->entries;
+
+        npos_local *= entries;
+        idx = (int)npos_local;
+        idx = WT_CLAMP(idx, 0, entries - 1);
+        npos_local -= idx;
+        descent = pindex->index[idx];
+
+        if (eviction) {
+            /*
+             * In case of eviction, we never want to load pages from disk. Also, page_swap with
+             * WT_READ_CACHE will fail anyway and we'll lose our pointer, so avoid making a call
+             * that will fail.
+             */
+            switch (WT_REF_GET_STATE(descent)) {
+            case WT_REF_DISK:
+            case WT_REF_LOCKED:
+            case WT_REF_DELETED:
+                /* Can't go down from here but it's ok to return this page */
+                goto done;
+            default: /* WT_REF_MEM, WT_REF_SPLIT */
+                goto descend;
+            }
+            /* Unreachable */
+        } else {
+            /* Not eviction */
+            switch (WT_REF_GET_STATE(descent)) {
+            case WT_REF_LOCKED:
+                if (!LF_ISSET(WT_READ_NO_WAIT)) {
+                    WT_RET(__wt_page_release(session, current, flags));
+                    __wt_sleep(0, 10);
+                    goto restart;
+                }
+                /* Fall through */
+            case WT_REF_DELETED:
+                /*
+                 * Can't go down from here. Return this page and __find_closest_page will finish the
+                 * job.
+                 */
+                goto done;
+            default: /* WT_REF_DISK, WT_REF_MEM, WT_REF_SPLIT */
+                goto descend;
+            }
+            /* Unreachable */
+        }
+        /* Unreachable */
+
+descend:
+        /*
+         * Swap the current page for the child page. If the page splits while we're retrieving it,
+         * restart the search at the root.
+         *
+         * On other error, simply return, the swap call ensures we're holding nothing on failure.
+         */
+        if ((ret = __wt_page_swap(session, current, descent, flags)) == 0) {
+            current = descent;
+            continue;
+        }
+        if (eviction && (ret == WT_NOTFOUND || ret == WT_RESTART))
+            goto done;
+        if (ret == WT_RESTART) {
+            WT_RET(__wt_page_release(session, current, flags));
+            goto restart;
+        }
+        return (ret);
+    }
+done:
+    /*
+     * Because eviction considers internal pages in post-order, returning the root page will
+     * indicate the end of walk. Also, eviction will never evict the root. Also, returning a NULL is
+     * not an error for eviction but a signal to start over. So handle this case individually.
+     */
+    if (eviction && __wt_ref_is_root(current)) {
+        WT_RET(__wt_page_release(session, current, flags));
+        current = NULL;
+    }
+    *refp = current;
+    return (0);
+}
+
+/*
+ * __wt_page_from_npos --
+ *     Find a page given its normalized position.
+ */
+int
+__wt_page_from_npos(
+  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos)
+{
+    WT_DECL_RET;
+
+    WT_WITH_PAGE_INDEX(session, ret = __page_from_npos_internal(session, refp, read_flags, npos));
+    WT_RET(ret);
+    /* Return the first good page starting from here */
+    return (__find_closest_page(session, refp, walk_flags));
+}
+
+/*
+ * __wt_page_from_npos_for_eviction --
+ *     Go to a page given its normalized position (for eviction). - Use WT_READ_PREV to look up
+ *     backwards.
+ */
+int
+__wt_page_from_npos_for_eviction(
+  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos)
+{
+    return (__wt_page_from_npos(session, refp, read_flags | WT_READ_EVICT_READ_FLAGS,
+      walk_flags | WT_READ_EVICT_WALK_FLAGS, npos));
+}
+
+/*
+ * __wt_page_from_npos_for_read --
+ *     Go to a leaf page given its normalized position (for reading). - Use WT_READ_PREV to look up
+ *     backwards.
+ */
+int
+__wt_page_from_npos_for_read(
+  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos)
+{
+    return (__wt_page_from_npos(
+      session, refp, read_flags | WT_READ_DATA_FLAGS, walk_flags | WT_READ_DATA_FLAGS, npos));
 }
