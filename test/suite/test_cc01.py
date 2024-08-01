@@ -77,8 +77,18 @@ class test_cc_base(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    def wait_for_cc_to_run(self):
-        c = self.session.open_cursor( 'statistics:')
+    def populate(self, uri, start_key, num_keys, value):
+        c = self.session.open_cursor(uri, None)
+        for k in range(start_key, num_keys):
+            self.session.begin_transaction()
+            c[k] = value
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k + 1))
+        c.close()
+
+    # Trigger checkpoint cleanup. The function waits for checkpoint cleanup to make progress before
+    # exiting.
+    def wait_for_cc_to_run(self, ckpt_name = ""):
+        c = self.session.open_cursor('statistics:')
         cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
         c.close()
         while cc_success - prev_cc_success == 0:
