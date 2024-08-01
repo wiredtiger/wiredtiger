@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+import threading, time
+from compact_util import compact_util
+from wtthread import checkpoint_thread
+
+class test_compact16(compact_util):
+    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
+    conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
+    uri_prefix = 'table:test_compact16'
+    
+    table_numkv = 1000 * 1000
+    value_size = 1024 # The value should be small enough so that we don't create overflow pages.
+        
+    def populate(self, uri, num_keys): 
+        c = self.session.open_cursor(uri, None)
+        for k in range(num_keys):
+            value_size = 1024
+            c[k] = ('%07d' % k) + '_' + 'a' * (value_size - 2)
+        c.close()
+
+    def test_compact16(self):
+        # FIXME-WT-11399
+        if self.runningHook('tiered'):
+            self.skipTest("this test does not yet work with tiered storage")
+
+        # Create and populate a table.
+        uri = self.uri_prefix
+        self.session.create(uri, self.create_params)
+        self.populate(uri, self.table_numkv)
+
+        # Write to disk.
+        self.session.checkpoint()
+        
+        # Remove 1/4 of the data
+        c = self.session.open_cursor(uri, None)
+        for i in range(self.table_numkv):
+            if (i % 4 == 0):
+                c.set_key(i)
+                c.remove()
+        c.close()
+
+        self.reopen_conn()
+        
+        # Run compact concurrently with another thread that continually creates checkpoints.
+        done = threading.Event()
+        ckpt = checkpoint_thread(self.conn, done)
+        try:
+            ckpt.start()
+            time.sleep(0.1)
+            self.session.compact(uri)
+        finally:
+            done.set()
+            ckpt.join()
+        
+        # Compact should not leave more than 20% available space in the file. If it does, that means
+        # we've hit the maximum (100) passes over a file for a compaction attempt and something else
+        # has prevented compact from reclaiming space.
+        pct_space_available = self.get_bytes_avail_for_reuse(uri) / self.get_size(uri) * 100
+        self.assertLess(pct_space_available, 20)
+        
+        self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
+        self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')

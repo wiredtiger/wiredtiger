@@ -391,6 +391,22 @@ __wt_compact(WT_SESSION_IMPL *session)
             WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
         }
 
+        if (ret == EBUSY) {
+            WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
+
+            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+              "The compaction of the data handle %s returned EBUSY due to an in-progress "
+              "conflicting checkpoint.%s",
+              session->dhandle->name,
+              session == S2C(session)->background_compact.session ?
+                "" :
+                " Compaction of this data handle will resume after checkpoint completes.");
+
+            __wt_sleep(1, 0);
+
+            ret = 0;
+        }
+
         /* Track progress. */
         __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed);
 
