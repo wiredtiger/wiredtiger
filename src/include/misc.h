@@ -39,24 +39,13 @@
         (v) = (val);        \
         (void)(v);          \
     } while (0);
-#define WT_IGNORE_RET(call)                \
-    do {                                   \
-        uintmax_t __ignored_ret;           \
-        __ignored_ret = (uintmax_t)(call); \
-        WT_UNUSED(__ignored_ret);          \
-    } while (0)
-#define WT_IGNORE_RET_BOOL(call)  \
-    do {                          \
-        bool __ignored_ret;       \
-        __ignored_ret = (call);   \
-        WT_UNUSED(__ignored_ret); \
-    } while (0)
-#define WT_IGNORE_RET_PTR(call)    \
-    do {                           \
-        const void *__ignored_ret; \
-        __ignored_ret = (call);    \
-        WT_UNUSED(__ignored_ret);  \
-    } while (0)
+
+/* 
+ * Explicitly suppress unused return value warning at function call sites. 
+ */
+#define WT_IGNORE_RET(call) ((void)!(call))
+#define WT_IGNORE_RET_BOOL(call) ((void)!(call))
+#define WT_IGNORE_RET_PTR(call) ((void)!(call))
 
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
