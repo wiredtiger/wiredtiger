@@ -92,6 +92,8 @@ struct __wt_cursor_backup {
     uint32_t flags;
 };
 
+typedef enum __wt_iter_retry_enum { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } WT_ITER_RETRY_ENUM;
+
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
@@ -231,7 +233,7 @@ struct __wt_cursor_btree {
      * We have to restart cursor next/prev after a prepare conflict. Keep the state of the cursor
      * separately so we can restart at exactly the right point.
      */
-    enum { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } iter_retry;
+    WT_ITER_RETRY_ENUM iter_retry;
 
     /*
      * The random number state is used for random cursor operations. The random number can be seeded

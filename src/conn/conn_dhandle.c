@@ -310,7 +310,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
      * it should be NULL.
      */
     is_btree = WT_DHANDLE_BTREE(dhandle);
-    btree = is_btree ? dhandle->handle : NULL;
+    btree = (WT_BTREE *)(is_btree ? dhandle->handle : NULL);
 
     if (is_btree) {
         /*
@@ -516,7 +516,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     WT_DECL_RET;
 
     dhandle = session->dhandle;
-    btree = dhandle->handle;
+    btree = (WT_BTREE *)(dhandle->handle);
 
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_DHANDLE_LOCK_ONLY));
 

@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern WT_DATA_SOURCE *__wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_EXT *__wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
@@ -2614,3 +2618,18 @@ extern void __ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack
 extern void __ut_chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t bit_index);
 
 #endif
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+  __attribute__((visibility("default")));
+extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t seed, const void *, size_t)
+  __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+extern uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t seed, const void *, size_t);
+#endif
+
+
+#ifdef __cplusplus
+}
+#endif
+

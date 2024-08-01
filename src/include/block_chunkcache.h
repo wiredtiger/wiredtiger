@@ -68,9 +68,11 @@ struct __wt_chunkcache_chunk {
     uint8_t flags;
 };
 
+typedef TAILQ_HEAD(__wt_chunkchain_head,  __wt_chunkcache_chunk) __wt_chunkchain_head;
+
 struct __wt_chunkcache_bucket {
     /* This queue contains all chunks that mapped to this bucket. */
-    TAILQ_HEAD(__wt_chunkchain_head, __wt_chunkcache_chunk) colliding_chunks;
+    __wt_chunkchain_head colliding_chunks;
     WT_SPINLOCK bucket_lock;
 };
 

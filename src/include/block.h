@@ -244,6 +244,13 @@ struct __wt_bm {
     bool is_live; /* The live system */
 };
 
+typedef enum __wt_ckpt_state_enum {                 /* Live checkpoint status */
+    WT_CKPT_NONE = 0,
+    WT_CKPT_INPROGRESS,
+    WT_CKPT_PANIC_ON_FAILURE,
+    WT_CKPT_SALVAGE
+} WT_CKPT_STATE_ENUM;
+
 /*
  * WT_BLOCK --
  *	Block manager handle, references a single file.
@@ -282,12 +289,7 @@ struct __wt_block {
     WT_SPINLOCK live_lock; /* Live checkpoint lock */
     WT_BLOCK_CKPT live;    /* Live checkpoint */
     bool live_open;        /* Live system is open */
-    enum {                 /* Live checkpoint status */
-        WT_CKPT_NONE = 0,
-        WT_CKPT_INPROGRESS,
-        WT_CKPT_PANIC_ON_FAILURE,
-        WT_CKPT_SALVAGE
-    } ckpt_state;
+    WT_CKPT_STATE_ENUM ckpt_state;
 
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 

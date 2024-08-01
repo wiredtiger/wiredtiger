@@ -175,6 +175,10 @@ __wt_tret_error_ok(int *pret, int a, int e)
 
 #define WT_ERR_MSG_BUF_LEN 1024
 
+static WT_INLINE int
+__wt_snprintf_len_set(char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)));
+
 /*
  * BUILD_ASSERTION_STRING --
  *  Append a common prefix to an assertion message and save into the provided buffer.

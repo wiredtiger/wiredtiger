@@ -85,7 +85,7 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
               session, table->iface.name, i == 0 ? true : false, buf));
         else
             WT_ERR(__schema_colgroup_name(session, table, ckey.str, ckey.len, buf));
-        if ((ret = __wt_metadata_search(session, buf->data, &cgconfig)) != 0) {
+        if ((ret = __wt_metadata_search(session, (const char *)(buf->data), &cgconfig)) != 0) {
             /* It is okay if the table is incomplete. */
             if (ret == WT_NOTFOUND)
                 ret = 0;
@@ -217,7 +217,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
         goto err;
 
     WT_ERR(__wt_scr_alloc(session, 0, &plan));
-    WT_ERR(__wt_struct_plan(session, table, buf->data, buf->size, false, plan));
+    WT_ERR(__wt_struct_plan(session, table, (const char *)(buf->data), buf->size, false, plan));
     WT_ERR(__wt_strndup(session, plan->data, plan->size, &idx->key_plan));
 
     /* Set up the cursor key format (the visible columns). */

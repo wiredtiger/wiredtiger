@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern bool __wt_absolute_path(const char *path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_has_priv(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_path_separator(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -71,3 +75,8 @@ extern void __wti_posix_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSIO
 #ifdef HAVE_UNITTEST
 
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+

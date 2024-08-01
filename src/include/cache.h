@@ -246,6 +246,8 @@ struct __wt_cache {
         WT_WITH_LOCK_WAIT(session, &cache->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
     } while (0)
 
+typedef TAILQ_HEAD(__wt_cache_pool_qh,  __wt_connection_impl) __wt_cache_pool_qh;
+
 /*
  * WT_CACHE_POOL --
  *	A structure that represents a shared cache.
@@ -260,7 +262,7 @@ struct __wt_cache_pool {
     uint64_t currently_used;
     uint32_t refs; /* Reference count for structure. */
     /* Locked: List of connections participating in the cache pool. */
-    TAILQ_HEAD(__wt_cache_pool_qh, __wt_connection_impl) cache_pool_qh;
+    __wt_cache_pool_qh cache_pool_qh;
 
     wt_shared uint8_t pool_managed; /* Cache pool has a manager thread */
 

@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*
  * CRC-32 algorithms implemented with the z/Architecture Vector Extension Facility.
  *
@@ -141,3 +144,8 @@ uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_
 {
     return (__crc32c_le_wrapper);
 }
+
+#ifdef __cplusplus
+}
+#endif
+

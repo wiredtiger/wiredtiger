@@ -11,6 +11,8 @@
 /*******************************************
  * Global per-process structure.
  *******************************************/
+typedef TAILQ_HEAD(__wt_connection_impl_qh,  __wt_connection_impl) __wt_connection_impl_qh;
+
 /*
  * WT_PROCESS --
  *	Per-process information for the library.
@@ -19,7 +21,7 @@ struct __wt_process {
     WT_SPINLOCK spinlock; /* Per-process spinlock */
 
     /* Locked: connection queue */
-    TAILQ_HEAD(__wt_connection_impl_qh, __wt_connection_impl) connqh;
+    __wt_connection_impl_qh connqh;
 
 /* Checksum functions */
 #define __wt_checksum(chunk, len) __wt_process.checksum(chunk, len)
@@ -82,6 +84,10 @@ struct __wt_background_compact_exclude {
     TAILQ_ENTRY(__wt_background_compact_exclude) hashq; /* internal hash queue */
 };
 
+typedef TAILQ_HEAD(__wt_background_compactstathash,  __wt_background_compact_stat) __wt_background_compactstathash;
+
+typedef TAILQ_HEAD(__wt_background_compactexcludelisthash,  __wt_background_compact_exclude) __wt_background_compactexcludelisthash;
+
 /*
  * WT_BACKGROUND_COMPACT --
  *	Structure dedicated to the background compaction server
@@ -107,9 +113,9 @@ struct __wt_background_compact {
     uint64_t full_iteration_wait_time; /* Time in seconds to wait after a full iteration */
 
     /* List of files to track compaction statistics across background server iterations. */
-    TAILQ_HEAD(__wt_background_compactstathash, __wt_background_compact_stat) * stat_hash;
+    __wt_background_compactstathash * stat_hash;
     /* List of files excluded from background compaction. */
-    TAILQ_HEAD(__wt_background_compactexcludelisthash, __wt_background_compact_exclude) *
+    __wt_background_compactexcludelisthash *
       exclude_list_hash;
 };
 
@@ -222,6 +228,10 @@ struct __wt_named_data_source {
     TAILQ_ENTRY(__wt_named_data_source) q;
 };
 
+typedef TAILQ_HEAD(__wt_keyedhash,  __wt_keyed_encryptor) __wt_keyedhash;
+
+typedef TAILQ_HEAD(__wt_keyed_qh,  __wt_keyed_encryptor) __wt_keyed_qh;
+
 /*
  * WT_NAMED_ENCRYPTOR --
  *	An encryptor list entry
@@ -230,8 +240,8 @@ struct __wt_named_encryptor {
     const char *name;        /* Name of encryptor */
     WT_ENCRYPTOR *encryptor; /* User supplied callbacks */
     /* Locked: list of encryptors by key */
-    TAILQ_HEAD(__wt_keyedhash, __wt_keyed_encryptor) * keyedhashqh;
-    TAILQ_HEAD(__wt_keyed_qh, __wt_keyed_encryptor) keyedqh;
+    __wt_keyedhash * keyedhashqh;
+    __wt_keyed_qh keyedqh;
     /* Linked list of encryptors */
     TAILQ_ENTRY(__wt_named_encryptor) q;
 };
@@ -246,6 +256,10 @@ struct __wt_named_extractor {
     TAILQ_ENTRY(__wt_named_extractor) q; /* Linked list of extractors */
 };
 
+typedef TAILQ_HEAD(__wt_buckethash,  __wt_bucket_storage) __wt_buckethash;
+
+typedef TAILQ_HEAD(__wt_bucket_qh,  __wt_bucket_storage) __wt_bucket_qh;
+
 /*
  * WT_NAMED_STORAGE_SOURCE --
  *	A storage source list entry
@@ -253,8 +267,8 @@ struct __wt_named_extractor {
 struct __wt_named_storage_source {
     const char *name;                  /* Name of storage source */
     WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
-    TAILQ_HEAD(__wt_buckethash, __wt_bucket_storage) * buckethashqh;
-    TAILQ_HEAD(__wt_bucket_qh, __wt_bucket_storage) bucketqh;
+    __wt_buckethash * buckethashqh;
+    __wt_bucket_qh bucketqh;
     /* Linked list of storage sources */
     TAILQ_ENTRY(__wt_named_storage_source) q;
 };
@@ -362,6 +376,53 @@ extern const WT_NAME_FLAG __wt_stress_types[];
  */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
+struct __wt_recovery_timeline {
+    uint64_t log_replay_ms;
+    uint64_t rts_ms;
+    uint64_t checkpoint_ms;
+    uint64_t recovery_ms;
+};
+
+struct __wt_shutdown_timeline {
+    uint64_t rts_ms;
+    uint64_t checkpoint_ms;
+    uint64_t shutdown_ms;
+};
+
+typedef TAILQ_HEAD(__wt_chunkcache_metadata_qh,  __wt_chunkcache_metadata_work_unit) __wt_chunkcache_metadata_qh;
+
+typedef TAILQ_HEAD(__wt_dhhash,  __wt_data_handle) __wt_dhhash;
+
+typedef TAILQ_HEAD(__wt_dhandle_qh,  __wt_data_handle) __wt_dhandle_qh;
+
+typedef TAILQ_HEAD(__wt_dlh_qh,  __wt_dlh) __wt_dlh_qh;
+
+typedef TAILQ_HEAD(__wt_fhhash,  __wt_fh) __wt_fhhash;
+
+typedef TAILQ_HEAD(__wt_fh_qh,  __wt_fh) __wt_fh_qh;
+
+typedef TAILQ_HEAD(__wt_lsm_qh,  __wt_lsm_tree) __wt_lsm_qh;
+
+typedef TAILQ_HEAD(__wt_tiered_qh,  __wt_tiered_work_unit) __wt_tiered_qh;
+
+typedef TAILQ_HEAD(__wt_blockhash,  __wt_block) __wt_blockhash;
+
+typedef TAILQ_HEAD(__wt_block_qh,  __wt_block) __wt_block_qh;
+
+typedef TAILQ_HEAD(__wt_pf_qh,  __wt_prefetch_queue_entry) __wt_pf_qh;
+
+typedef TAILQ_HEAD(__wt_coll_qh,  __wt_named_collator) __wt_coll_qh;
+
+typedef TAILQ_HEAD(__wt_comp_qh,  __wt_named_compressor) __wt_comp_qh;
+
+typedef TAILQ_HEAD(__wt_dsrc_qh,  __wt_named_data_source) __wt_dsrc_qh;
+
+typedef TAILQ_HEAD(__wt_encrypt_qh,  __wt_named_encryptor) __wt_encrypt_qh;
+
+typedef TAILQ_HEAD(__wt_extractor_qh,  __wt_named_extractor) __wt_extractor_qh;
+
+typedef TAILQ_HEAD(__wt_storage_source_qh,  __wt_named_storage_source) __wt_storage_source_qh;
+
 /*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
@@ -438,7 +499,7 @@ struct __wt_connection_impl {
     WT_FH *lock_fh; /* Lock file handle */
 
     /* Locked: chunk cache metadata work queue (and length counter). */
-    TAILQ_HEAD(__wt_chunkcache_metadata_qh, __wt_chunkcache_metadata_work_unit)
+    __wt_chunkcache_metadata_qh
     chunkcache_metadataqh;
     int chunkcache_queue_len;
 
@@ -448,22 +509,22 @@ struct __wt_connection_impl {
      * of the table URI.
      */
     /* Locked: data handle hash array */
-    TAILQ_HEAD(__wt_dhhash, __wt_data_handle) * dhhash;
+    __wt_dhhash * dhhash;
     /* Locked: data handle list */
-    TAILQ_HEAD(__wt_dhandle_qh, __wt_data_handle) dhqh;
+    __wt_dhandle_qh dhqh;
     /* Locked: dynamic library handle list */
-    TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
+    __wt_dlh_qh dlhqh;
     /* Locked: file list */
-    TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
-    TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
+    __wt_fhhash * fhhash;
+    __wt_fh_qh fhqh;
     /* Locked: LSM handle list. */
-    TAILQ_HEAD(__wt_lsm_qh, __wt_lsm_tree) lsmqh;
+    __wt_lsm_qh lsmqh;
     /* Locked: Tiered system work queue. */
-    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
+    __wt_tiered_qh tieredqh;
 
     WT_SPINLOCK block_lock; /* Locked: block manager list */
-    TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
-    TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
+    __wt_blockhash * blockhash;
+    __wt_block_qh blockqh;
 
     WT_BLKCACHE blkcache;             /* Block cache */
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
@@ -562,19 +623,10 @@ struct __wt_connection_impl {
     uint64_t ckpt_write_pages;
 
     /* Record the important timestamps of each stage in recovery. */
-    struct __wt_recovery_timeline {
-        uint64_t log_replay_ms;
-        uint64_t rts_ms;
-        uint64_t checkpoint_ms;
-        uint64_t recovery_ms;
-    } recovery_timeline;
+    struct __wt_recovery_timeline recovery_timeline;
 
     /* Record the important timestamps of each stage in shutdown. */
-    struct __wt_shutdown_timeline {
-        uint64_t rts_ms;
-        uint64_t checkpoint_ms;
-        uint64_t shutdown_ms;
-    } shutdown_timeline;
+    struct __wt_shutdown_timeline shutdown_timeline;
     /* Checkpoint and incremental backup data */
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
@@ -624,7 +676,7 @@ struct __wt_connection_impl {
     WT_THREAD_GROUP prefetch_threads;
     uint64_t prefetch_queue_count;
     /* Queue of refs to pre-fetch from */
-    TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
+    __wt_pf_qh pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
 
@@ -716,24 +768,24 @@ struct __wt_connection_impl {
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
     /* Locked: collator list */
-    TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
+    __wt_coll_qh collqh;
 
     /* Locked: compressor list */
-    TAILQ_HEAD(__wt_comp_qh, __wt_named_compressor) compqh;
+    __wt_comp_qh compqh;
 
     /* Locked: data source list */
-    TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
+    __wt_dsrc_qh dsrcqh;
 
     /* Locked: encryptor list */
     WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
-    TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
+    __wt_encrypt_qh encryptqh;
 
     /* Locked: extractor list */
-    TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
+    __wt_extractor_qh extractorqh;
 
     /* Locked: storage source list */
     WT_SPINLOCK storage_lock; /* Storage source list lock */
-    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
+    __wt_storage_source_qh storagesrcqh;
 
     void *lang_private; /* Language specific private storage */
 

@@ -118,7 +118,7 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
         if ((p = va_arg(ap, const char **)) != NULL) {
             /* Create the printed value only when needed. */
             WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
-            *p = cst->pv.data;
+            *p = (const char *)(cst->pv.data);
         }
         if ((v = va_arg(ap, uint64_t *)) != NULL)
             *v = cst->v;

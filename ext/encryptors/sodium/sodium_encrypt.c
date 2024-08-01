@@ -243,7 +243,7 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
      * never used to encrypt or decrypt anything.
      */
     const SODIUM_ENCRYPTOR *orig;
-    SODIUM_ENCRYPTOR *new;
+    SODIUM_ENCRYPTOR *new_;
     WT_CONFIG_ITEM keyid, secretkey;
     WT_EXTENSION_API *wt_api;
     size_t keylen;
@@ -253,10 +253,10 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
     wt_api = orig->wt_api;
 
     /* Allocate and initialize the new encryptor. */
-    if ((new = calloc(1, sizeof(*new))) == NULL)
+    if ((new_ = calloc(1, sizeof(*new_))) == NULL)
         return (errno);
-    *new = *orig;
-    new->secretkey = NULL;
+    *new_ = *orig;
+    new_->secretkey = NULL;
 
     /* Get the keyid, if any. */
     ret = wt_api->config_get(wt_api, session, encrypt_config, "keyid", &keyid);
@@ -271,20 +271,20 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
     /* Providing both a keyid and a secretkey is an error. */
     if (keyid.len != 0 && secretkey.len != 0) {
         ret = sodium_error(
-          new, NULL, EINVAL, "sodium_customize: keys specified with both keyid= and secretkey=");
+          new_, NULL, EINVAL, "sodium_customize: keys specified with both keyid= and secretkey=");
         goto err;
     }
 
     /* Providing neither is also an error. */
     if (keyid.len == 0 && secretkey.len == 0) {
         ret = sodium_error(
-          new, NULL, EINVAL, "sodium_customize: no key given with either keyid= or secretkey=");
+          new_, NULL, EINVAL, "sodium_customize: no key given with either keyid= or secretkey=");
         goto err;
     }
 
     /* Use sodium_malloc, which takes assorted precautions for working with secrets. */
-    new->secretkey = sodium_malloc(KEY_LEN);
-    if (new->secretkey == NULL) {
+    new_->secretkey = sodium_malloc(KEY_LEN);
+    if (new_->secretkey == NULL) {
         ret = errno;
         goto err;
     }
@@ -296,7 +296,7 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
      * the keyid once the key is installed.
      */
     if (keyid.len != 0) {
-        ret = sodium_error(new, NULL, EINVAL, "sodium_customize: keyids not supported yet");
+        ret = sodium_error(new_, NULL, EINVAL, "sodium_customize: keyids not supported yet");
         goto err;
     }
 
@@ -308,23 +308,23 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
     if (secretkey.len != 0) {
         /* Explicit keys are passed as hex strings of the proper length. */
         ret = sodium_hex2bin(
-          new->secretkey, KEY_LEN, secretkey.str, secretkey.len, NULL, &keylen, NULL);
+          new_->secretkey, KEY_LEN, secretkey.str, secretkey.len, NULL, &keylen, NULL);
         if (ret < 0) {
-            ret = sodium_error(new, NULL, EINVAL, "sodium_customize: secret key not hex");
+            ret = sodium_error(new_, NULL, EINVAL, "sodium_customize: secret key not hex");
             goto err;
         }
         if (keylen != KEY_LEN) {
-            ret = sodium_error(new, NULL, EINVAL, "sodium_customize: wrong secret key length");
+            ret = sodium_error(new_, NULL, EINVAL, "sodium_customize: wrong secret key length");
             goto err;
         }
     }
 
-    *customp = (WT_ENCRYPTOR *)new;
+    *customp = (WT_ENCRYPTOR *)new_;
     return (0);
 
 err:
-    sodium_free(new->secretkey);
-    free(new);
+    sodium_free(new_->secretkey);
+    free(new_);
     return (ret);
 }
 

@@ -91,7 +91,7 @@ __wti_blkcache_tiered_open(
 
         bstorage = tiered->bstorage;
         WT_WITH_BUCKET_STORAGE(bstorage, session,
-          ret = __wt_block_open(session, tmp->mem, objectid, cfg, false, true, true, 0, &block));
+          ret = __wt_block_open(session, (const char *)(tmp->mem), objectid, cfg, false, true, true, 0, &block));
         block->remote = true;
         WT_ERR(ret);
     }

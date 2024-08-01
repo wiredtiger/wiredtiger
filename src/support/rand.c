@@ -69,7 +69,7 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
     M_W(rnd) = DEFAULT_SEED_W;
     M_Z(rnd) = DEFAULT_SEED_Z;
 
-    *rnd_state = rnd;
+    memcpy((void *)&(*rnd_state), (const void *)&(rnd), sizeof(*rnd_state));
 }
 
 /*
@@ -92,7 +92,7 @@ __wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
     M_W(rnd) ^= DEFAULT_SEED_W;
     M_Z(rnd) ^= DEFAULT_SEED_Z;
 
-    *rnd_state = rnd;
+    memcpy((void *)&(*rnd_state), (const void *)&(rnd), sizeof(*rnd_state));
 }
 
 /*
@@ -134,7 +134,7 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
     rnd.v ^= rnd.v >> 7;
     rnd.v ^= rnd.v << 17;
 
-    *rnd_state = rnd;
+    memcpy((void *)&(*rnd_state), (const void *)&(rnd), sizeof(*rnd_state));
 }
 
 /*
@@ -155,7 +155,7 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
      * of the random state so we can ensure that the calculation operates on the state consistently
      * regardless of concurrent calls with the same random state.
      */
-    rnd = *rnd_state;
+    memcpy((void *)&(rnd), (const void *)&(*rnd_state), sizeof(rnd));
     WT_ACQUIRE_BARRIER();
     w = M_W(rnd);
     z = M_Z(rnd);
@@ -180,7 +180,7 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
 
     M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
     M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
-    *rnd_state = rnd;
+    memcpy((void *)&(*rnd_state), (const void *)&(rnd), sizeof(*rnd_state));
 
     return ((z << 16) + (w & 65535));
 #endif

@@ -80,7 +80,7 @@ struct __wt_config_parser_impl {
  */
 #ifdef __cplusplus
 #define WT_CONFIG_ITEM_STATIC_INIT(n) \
-    static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM}
+    static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM_NUM}
 #else
 #define WT_CONFIG_ITEM_STATIC_INIT(n) static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM_NUM}
 #endif

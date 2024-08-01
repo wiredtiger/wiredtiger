@@ -13,14 +13,17 @@ list(APPEND gcc_flags "-Wshadow")
 list(APPEND gcc_flags "-Wsign-conversion")
 
 # Specific C flags:
-list(APPEND gcc_flags "-Wbad-function-cast")
-list(APPEND gcc_flags "-Wdeclaration-after-statement")
-list(APPEND gcc_flags "-Wjump-misses-init")
-list(APPEND gcc_flags "-Wmissing-prototypes")
-list(APPEND gcc_flags "-Wnested-externs")
-list(APPEND gcc_flags "-Wold-style-definition")
-list(APPEND gcc_flags "-Wpointer-sign")
-list(APPEND gcc_flags "-Wstrict-prototypes")
+if (NOT USE_CPP_FOR_C_FILES)
+    list(APPEND gcc_flags "-Wbad-function-cast")
+    list(APPEND gcc_flags "-Wdeclaration-after-statement")
+    list(APPEND gcc_flags "-Wjump-misses-init")
+    list(APPEND gcc_flags "-Wmissing-prototypes")
+    list(APPEND gcc_flags "-Wnested-externs")
+    list(APPEND gcc_flags "-Wold-style-definition")
+    list(APPEND gcc_flags "-Wpointer-sign")
+    list(APPEND gcc_flags "-Wstrict-prototypes")
+endif()
+
 
 # We only turn on the unsafe-loop-optimizations warning before gcc7,
 # it's too noisy to tolerate otherwise.

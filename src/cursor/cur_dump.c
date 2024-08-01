@@ -16,9 +16,9 @@ static int
 __raw_to_dump(WT_SESSION_IMPL *session, WT_ITEM *from, WT_ITEM *to, bool hexonly)
 {
     if (hexonly)
-        WT_RET(__wt_raw_to_hex(session, from->data, from->size, to));
+        WT_RET(__wt_raw_to_hex(session, (const uint8_t *)(from->data), from->size, to));
     else
-        WT_RET(__wt_raw_to_esc_hex(session, from->data, from->size, to));
+        WT_RET(__wt_raw_to_esc_hex(session, (const uint8_t *)(from->data), from->size, to));
 
     return (0);
 }
@@ -104,7 +104,7 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
             itemp->data = cursor->key.data;
             itemp->size = cursor->key.size;
         } else
-            *va_arg(ap, const char **) = cursor->key.data;
+            *va_arg(ap, const char **) = (const char *)(cursor->key.data);
         va_end(ap);
     }
 
@@ -162,7 +162,7 @@ __curdump_set_keyv(WT_CURSOR *cursor, va_list ap)
     CURSOR_API_CALL(cursor, session, ret, set_key, NULL);
 
     if (F_ISSET(cursor, WT_CURSTD_RAW))
-        p = va_arg(ap, WT_ITEM *)->data;
+        p = (const char *)(va_arg(ap, WT_ITEM *)->data);
     else
         p = va_arg(ap, const char *);
 
@@ -253,7 +253,7 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
             itemp->data = cursor->value.data;
             itemp->size = cursor->value.size;
         } else
-            *va_arg(ap, const char **) = cursor->value.data;
+            *va_arg(ap, const char **) = (const char *)(cursor->value.data);
         va_end(ap);
     }
 
@@ -279,7 +279,7 @@ __curdump_set_valuev(WT_CURSOR *cursor, va_list ap)
     CURSOR_API_CALL(cursor, session, ret, set_value, NULL);
 
     if (F_ISSET(cursor, WT_CURSTD_RAW))
-        p = va_arg(ap, WT_ITEM *)->data;
+        p = (const char *)(va_arg(ap, WT_ITEM *)->data);
     else
         p = va_arg(ap, const char *);
 

@@ -8,14 +8,18 @@
 
 #include "wt_internal.h"
 
+typedef TAILQ_HEAD(__wt_fhhash_inmem,  __wt_file_handle_inmem) __wt_fhhash_inmem;
+
+typedef TAILQ_HEAD(__wt_fh_inmem_qh,  __wt_file_handle_inmem) __wt_fh_inmem_qh;
+
 /*
  * File system interface for in-memory implementation.
  */
 typedef struct {
     WT_FILE_SYSTEM iface;
 
-    TAILQ_HEAD(__wt_fhhash_inmem, __wt_file_handle_inmem) * fhhash;
-    TAILQ_HEAD(__wt_fh_inmem_qh, __wt_file_handle_inmem) fhqh;
+    __wt_fhhash_inmem * fhhash;
+    __wt_fh_inmem_qh fhqh;
 
     WT_SPINLOCK lock;
 } WT_FILE_SYSTEM_INMEM;

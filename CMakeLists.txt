@@ -289,3 +289,8 @@ endif()
 
 # Build other tools.
 add_subdirectory(tools/checksum_bitflip)
+if(USE_CPP_FOR_C_FILES)
+    file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/*.c")
+    SET_SOURCE_FILES_PROPERTIES(${CFILES} PROPERTIES LANGUAGE CXX )
+    target_compile_definitions(wt_objs PRIVATE USE_CPP_FOR_C_FILES=1)
+endif()

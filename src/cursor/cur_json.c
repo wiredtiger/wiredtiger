@@ -238,7 +238,7 @@ __json_struct_size(WT_SESSION_IMPL *session, const void *buffer, size_t size, co
     const uint8_t *end, *p;
     bool needcr;
 
-    p = buffer;
+    p = (const uint8_t *)(buffer);
     end = p + size;
     result = 0;
     needcr = false;
@@ -279,7 +279,7 @@ __json_struct_unpackv(WT_SESSION_IMPL *session, const void *buffer, size_t size,
     const uint8_t *end, *p;
     bool needcr;
 
-    p = buffer;
+    p = (const uint8_t *)(buffer);
     end = p + size;
     needcr = false;
 
@@ -729,7 +729,7 @@ __json_pack_struct(
     const char *tokstart;
     bool multi;
 
-    p = buffer;
+    p = (uint8_t *)(buffer);
     end = p + size;
     multi = false;
 

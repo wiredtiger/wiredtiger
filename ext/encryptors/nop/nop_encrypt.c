@@ -154,7 +154,7 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
      */
 
     const NOP_ENCRYPTOR *orig;
-    NOP_ENCRYPTOR *new;
+    NOP_ENCRYPTOR *new_;
     WT_CONFIG_ITEM keyid, secretkey;
     WT_EXTENSION_API *wt_api;
     int ret;
@@ -163,9 +163,9 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
     wt_api = orig->wt_api;
 
     /* Allocate and initialize the new encryptor. */
-    if ((new = calloc(1, sizeof(*new))) == NULL)
+    if ((new_ = calloc(1, sizeof(*new_))) == NULL)
         return (errno);
-    *new = *orig;
+    *new_ = *orig;
 
     /* Get the keyid, if any. */
     ret = wt_api->config_get(wt_api, session, encrypt_config, "keyid", &keyid);
@@ -180,7 +180,7 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
     /* Providing both a keyid and a secretkey is an error. */
     if (keyid.len != 0 && secretkey.len != 0) {
         ret = nop_error(
-          new, NULL, EINVAL, "nop_customize: keys specified with both keyid= and secretkey=");
+          new_, NULL, EINVAL, "nop_customize: keys specified with both keyid= and secretkey=");
         goto err;
     }
 
@@ -205,11 +205,11 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
         (void)secretkey.str; /* do nothing; add code here */
 
     /* Return the new encryptor. */
-    *customp = (WT_ENCRYPTOR *)new;
+    *customp = (WT_ENCRYPTOR *)new_;
     return (0);
 
 err:
-    free(new);
+    free(new_);
     return (ret);
 }
 /*! [WT_ENCRYPTOR customize] */

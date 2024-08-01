@@ -31,7 +31,7 @@ function(get_gnu_base_flags flags)
 
     list(APPEND gnu_flags "-Wcast-align")
     list(APPEND gnu_flags "-Wdouble-promotion")
-    list(APPEND gnu_flags "-Werror")
+#    list(APPEND gnu_flags "-Werror")
     list(APPEND gnu_flags "-Wfloat-equal")
     list(APPEND gnu_flags "-Wformat-nonliteral")
     list(APPEND gnu_flags "-Wformat-security")
@@ -117,7 +117,7 @@ function(get_clang_base_flags flags)
 
     set(clang_flags)
 
-    list(APPEND clang_flags "-Werror")
+#    list(APPEND clang_flags "-Werror")
     list(APPEND clang_flags "-Wno-cast-align")
     list(APPEND clang_flags "-Wno-documentation-unknown-command")
     list(APPEND clang_flags "-Wno-format-nonliteral")

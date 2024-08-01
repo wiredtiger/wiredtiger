@@ -88,6 +88,53 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 /* A fake session ID for when we need to refer to a session that is actually NULL. */
 #define WT_SESSION_ID_NULL 0xfffffffe
 
+typedef enum __wt_compact_state_enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } WT_COMPACT_STATE_ENUM;
+
+struct __wt_thread_check {
+    WT_SPINLOCK lock;
+    uintmax_t owning_thread;
+    uint32_t entry_count;
+};
+
+struct __wt_scratch_track {
+    const char *func; /* Allocating function, line */
+    int line;
+};
+
+struct __wt_reconcile_timeline {
+    uint64_t reconcile_start;
+    uint64_t image_build_start;
+    uint64_t image_build_finish;
+    uint64_t hs_wrapup_start;
+    uint64_t hs_wrapup_finish;
+    uint64_t reconcile_finish;
+    uint64_t total_reentry_hs_eviction_time;
+};
+
+struct __wt_evict_timeline {
+    uint64_t evict_start;
+    uint64_t reentry_hs_evict_start;
+    uint64_t reentry_hs_evict_finish;
+    uint64_t evict_finish;
+    bool reentry_hs_eviction;
+};
+
+struct __wt_stash {
+    void *p; /* Memory, length */
+    size_t len;
+    uint64_t gen; /* Generation */
+};
+
+struct __wt_session_stash {
+    struct __wt_stash * list;
+    size_t cnt;   /* Array entries */
+    size_t alloc; /* Allocated bytes */
+};
+
+typedef TAILQ_HEAD(__dhandles,  __wt_data_handle_cache) __wt_dhandles;
+
+typedef TAILQ_HEAD(__dhandles_hash,  __wt_data_handle_cache) __wt_dhandles_hash;
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -123,7 +170,7 @@ struct __wt_session_impl {
      * declared further down.
      */
     /* Session handle reference list */
-    TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
+    __wt_dhandles dhandles;
     wt_shared uint64_t last_sweep; /* Last sweep for dead handles */
     struct timespec last_epoch;    /* Last epoch time returned */
 
@@ -139,7 +186,7 @@ struct __wt_session_impl {
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 
     WT_COMPACT_STATE *compact; /* Compaction information */
-    enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
+    WT_COMPACT_STATE_ENUM compact_state;
 
     WT_IMPORT_LIST *import_list; /* List of metadata entries to import from file. */
 
@@ -163,45 +210,24 @@ struct __wt_session_impl {
 #ifdef HAVE_DIAGNOSTIC
 
     /* Enforce the contract that a session is only used by a single thread at a time. */
-    struct __wt_thread_check {
-        WT_SPINLOCK lock;
-        uintmax_t owning_thread;
-        uint32_t entry_count;
-    } thread_check;
+    struct __wt_thread_check thread_check;
 
     /*
      * It's hard to figure out from where a buffer was allocated after it's leaked, so in diagnostic
      * mode we track them; DIAGNOSTIC can't simply add additional fields to WT_ITEM structures
      * because they are visible to applications, create a parallel structure instead.
      */
-    struct __wt_scratch_track {
-        const char *func; /* Allocating function, line */
-        int line;
-    } * scratch_track;
+    struct __wt_scratch_track * scratch_track;
 #endif
 
     /* Record the important timestamps of each stage in an reconciliation. */
-    struct __wt_reconcile_timeline {
-        uint64_t reconcile_start;
-        uint64_t image_build_start;
-        uint64_t image_build_finish;
-        uint64_t hs_wrapup_start;
-        uint64_t hs_wrapup_finish;
-        uint64_t reconcile_finish;
-        uint64_t total_reentry_hs_eviction_time;
-    } reconcile_timeline;
+    struct __wt_reconcile_timeline reconcile_timeline;
 
     /*
      * Record the important timestamps of each stage in an eviction. If an eviction takes a long
      * time and times out, we can trace the time usage of each stage from this information.
      */
-    struct __wt_evict_timeline {
-        uint64_t evict_start;
-        uint64_t reentry_hs_evict_start;
-        uint64_t reentry_hs_evict_finish;
-        uint64_t evict_finish;
-        bool reentry_hs_eviction;
-    } evict_timeline;
+    struct __wt_evict_timeline evict_timeline;
 
     WT_ITEM err; /* Error buffer */
 
@@ -331,7 +357,7 @@ struct __wt_session_impl {
     WT_CURSOR_LIST *cursor_cache; /* Hash table of cached cursors */
 
     /* Hashed handle reference list array */
-    TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) * dhhash;
+    __wt_dhandles_hash * dhhash;
 
 /* Generations manager */
 #define WT_GEN_CHECKPOINT 0   /* Checkpoint generation */
@@ -354,15 +380,7 @@ struct __wt_session_impl {
      * memory that's still in use. In order to eventually free it, it's stashed here with its
      * generation number; when no thread is reading in generation, the memory can be freed for real.
      */
-    struct __wt_session_stash {
-        struct __wt_stash {
-            void *p; /* Memory, length */
-            size_t len;
-            uint64_t gen; /* Generation */
-        } * list;
-        size_t cnt;   /* Array entries */
-        size_t alloc; /* Allocated bytes */
-    } stash[WT_GENERATIONS];
+    struct __wt_session_stash stash[WT_GENERATIONS];
 
 /*
  * Hazard pointers.

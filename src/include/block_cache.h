@@ -65,6 +65,8 @@ struct __wt_blkcache_item {
     uint8_t addr[];
 };
 
+typedef TAILQ_HEAD(__wt_blkcache_hash,  __wt_blkcache_item) __wt_blkcache_hash;
+
 /*
  * WT_BLKCACHE --
  *     Block cache metadata includes the hashtable of cached items, number of cached data blocks
@@ -72,7 +74,7 @@ struct __wt_blkcache_item {
  */
 struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
-    TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
+    __wt_blkcache_hash * hash;
     WT_SPINLOCK *hash_locks;
 
     wt_thread_t evict_thread_tid;

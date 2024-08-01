@@ -86,7 +86,7 @@
  * invented and fused loads for this variable in the code following the expression.
  */
 #if defined(__GNUC__) || defined(__clang__)
-#define WT_READ_ONCE(v, val) (v) = __wt_atomic_load_generic((volatile __typeof__(val) *)&(val))
+#define WT_READ_ONCE(v, val) (v) = (__typeof__(v))__wt_atomic_load_generic((volatile __typeof__(val) *)&(val))
 #else
 #define WT_READ_ONCE(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
 #endif
@@ -156,7 +156,7 @@
  */
 #define WT_ACQUIRE_READ_WITH_BARRIER(v, val)    \
     do {                                        \
-        (v) = __wt_atomic_load_generic(&(val)); \
+        (v) = (__typeof__(v))__wt_atomic_load_generic(&(val)); \
         WT_ACQUIRE_BARRIER();                   \
     } while (0)
 

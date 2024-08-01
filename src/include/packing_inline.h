@@ -123,7 +123,7 @@ __pack_name_next(WT_PACK_NAME *pn, WT_CONFIG_ITEM *name)
          * resolution to fully define the type.
          */
 #ifdef __cplusplus
-        name->type = WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING;
+        name->type = WT_CONFIG_ITEM_STRING;
 #else
         name->type = WT_CONFIG_ITEM_STRING;
 #endif

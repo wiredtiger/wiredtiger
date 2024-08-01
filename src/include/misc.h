@@ -323,14 +323,14 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 
 /* Check if a string matches a prefix. */
-#define WT_PREFIX_MATCH(str, pfx) (strncmp(str, pfx, strlen(pfx)) == 0)
+#define WT_PREFIX_MATCH(str, pfx) (strncmp(str, (const char *)(pfx), strlen((const char *)(pfx))) == 0)
 
 /* Check if a string matches a suffix. */
 #define WT_SUFFIX_MATCH(str, sfx) \
     (strlen(str) >= strlen(sfx) && strcmp(&str[strlen(str) - strlen(sfx)], sfx) == 0)
 
 /* Check if a string matches a prefix, and move past it. */
-#define WT_PREFIX_SKIP(str, pfx) (WT_PREFIX_MATCH(str, pfx) ? ((str) += strlen(pfx), 1) : 0)
+#define WT_PREFIX_SKIP(str, pfx) (WT_PREFIX_MATCH(str, pfx) ? ((str) += strlen((const char *)(pfx)), 1) : 0)
 
 /* Assert that a string matches a prefix, and move past it. */
 #define WT_PREFIX_SKIP_REQUIRED(session, str, pfx)     \
@@ -356,7 +356,7 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
  * the literal string is also zero length.
  */
 #define WT_STRING_LIT_MATCH(str, bytes, len) \
-    ((len) == strlen("" str "") && strncmp(str, bytes, len) == 0)
+    ((len) == strlen("" str "") && strncmp(str, (const char *)(bytes), len) == 0)
 
 /*
  * Identical to WT_STRING_LIT_MATCH, except that this works with non-literal strings. It is slightly
@@ -466,7 +466,7 @@ union __wt_rand_state {
             (buf)->size = 0;                                                    \
         for (;;) {                                                              \
             WT_ASSERT(session, (buf)->memsize >= (buf)->size);                  \
-            if ((__p = (buf)->mem) != NULL)                                     \
+            if ((__p = (__typeof__(__p))(buf)->mem) != NULL)                                     \
                 __p += (buf)->size;                                             \
             __space = (buf)->memsize - (buf)->size;                             \
                                                                                 \

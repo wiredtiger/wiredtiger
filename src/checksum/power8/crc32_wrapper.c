@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <wiredtiger_config.h>
 #include <inttypes.h>
 #include <stddef.h>
@@ -65,3 +68,8 @@ uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_
     return (__wt_checksum_with_seed_sw);
 #endif
 }
+
+#ifdef __cplusplus
+}
+#endif
+

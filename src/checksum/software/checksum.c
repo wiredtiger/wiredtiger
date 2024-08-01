@@ -1,3 +1,9 @@
+#ifdef __cplusplus
+#define __C__ "C"
+#else
+#define __C__
+#endif
+
 /*-
  * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
@@ -566,8 +572,8 @@ static const uint32_t g_crc_slicing[8][256] = {
 #endif
 };
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
-extern uint32_t __wt_checksum_with_seed_sw(uint32_t, const void *chunk, size_t len);
+extern __C__ uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+extern __C__ uint32_t __wt_checksum_with_seed_sw(uint32_t, const void *chunk, size_t len);
 
 /*
  * __wt_checksum_with_seed_sw --
@@ -584,7 +590,7 @@ __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
     crc = ~seed;
 
     /* Checksum one byte at a time to the first 4B boundary. */
-    for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len)
+    for (p = (const uint8_t *)(chunk); ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len)
 #ifdef WORDS_BIGENDIAN
         crc = g_crc_slicing[0][((crc >> 24) ^ *p) & 0xFF] ^ (crc << 8);
 #else

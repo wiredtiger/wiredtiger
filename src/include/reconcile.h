@@ -349,18 +349,20 @@ typedef struct {
         WT_ERR(ret);                               \
     } while (0)
 
+typedef enum __wt_state_enum {
+    WT_CHILD_IGNORE,   /* Ignored child */
+    WT_CHILD_MODIFIED, /* Modified child */
+    WT_CHILD_ORIGINAL, /* Original child */
+    WT_CHILD_PROXY     /* Deleted child: proxy */
+} WT_STATE_ENUM;
+
 /*
  * WT_CHILD_MODIFY_STATE --
  *	We review child pages (while holding the child page's WT_REF lock), during internal-page
  * reconciliation. This structure encapsulates the child page's returned information/state.
  */
 typedef struct {
-    enum {
-        WT_CHILD_IGNORE,   /* Ignored child */
-        WT_CHILD_MODIFIED, /* Modified child */
-        WT_CHILD_ORIGINAL, /* Original child */
-        WT_CHILD_PROXY     /* Deleted child: proxy */
-    } state;               /* Returned child state */
+    WT_STATE_ENUM state;               /* Returned child state */
 
     WT_PAGE_DELETED del; /* WT_CHILD_PROXY state fast-truncate information */
 

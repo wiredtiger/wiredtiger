@@ -158,6 +158,12 @@ struct __wt_lsm_work_unit {
     WT_LSM_TREE *lsm_tree;
 };
 
+typedef TAILQ_HEAD(__wt_lsm_work_switch_qh,  __wt_lsm_work_unit) __wt_lsm_work_switch_qh;
+
+typedef TAILQ_HEAD(__wt_lsm_work_app_qh,  __wt_lsm_work_unit) __wt_lsm_work_app_qh;
+
+typedef TAILQ_HEAD(__wt_lsm_work_manager_qh,  __wt_lsm_work_unit) __wt_lsm_work_manager_qh;
+
 /*
  * WT_LSM_MANAGER --
  *	A structure that holds resources used to manage any LSM trees in a
@@ -174,9 +180,9 @@ struct __wt_lsm_manager {
      *   and creating bloom filters.
      * One queue that is for longer running operations such as merges.
      */
-    TAILQ_HEAD(__wt_lsm_work_switch_qh, __wt_lsm_work_unit) switchqh;
-    TAILQ_HEAD(__wt_lsm_work_app_qh, __wt_lsm_work_unit) appqh;
-    TAILQ_HEAD(__wt_lsm_work_manager_qh, __wt_lsm_work_unit) managerqh;
+    __wt_lsm_work_switch_qh switchqh;
+    __wt_lsm_work_app_qh appqh;
+    __wt_lsm_work_manager_qh managerqh;
     WT_SPINLOCK switch_lock;        /* Lock for switch queue */
     WT_SPINLOCK app_lock;           /* Lock for application queue */
     WT_SPINLOCK manager_lock;       /* Lock for manager queue */

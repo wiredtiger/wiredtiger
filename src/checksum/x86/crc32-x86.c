@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*-
  * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
@@ -236,3 +239,8 @@ uint32_t (*wiredtiger_crc32c_with_seed_func(void))(uint32_t, const void *, size_
     return (crc32c_func = __wt_checksum_with_seed_sw);
 #endif
 }
+
+#ifdef __cplusplus
+}
+#endif
+

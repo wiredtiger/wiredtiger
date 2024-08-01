@@ -95,6 +95,8 @@ struct __wt_rts_work_unit {
     wt_timestamp_t rollback_timestamp;
 };
 
+typedef TAILQ_HEAD(__wt_rts_qh,  __wt_rts_work_unit) __wt_rts_qh;
+
 /*
  * WT_ROLLBACK_TO_STABLE --
  *	Rollback to stable singleton, contains the interface to rollback to stable along
@@ -110,7 +112,7 @@ struct __wt_rollback_to_stable {
     uint32_t threads_num;
 
     /* Locked: RTS system work queue. */
-    TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;
+    __wt_rts_qh rtsqh;
     WT_SPINLOCK rts_lock; /* RTS work queue spinlock */
 
     /* Configuration. */
