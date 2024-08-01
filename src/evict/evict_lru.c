@@ -432,6 +432,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             return (0);
         WT_RET(ret);
 
+        /*
+         * Convert hazard pointers to soft positions so we don't pin pages while asleep, otherwise
+         * we can block applications evicting large pages.
+         */
+        ret = __evict_clear_all_walks(session);
+
         __wt_readunlock(session, &conn->dhandle_lock);
         WT_RET(ret);
 
@@ -1379,12 +1385,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     __wt_cond_signal(session, conn->evict_threads.wait_cond);
 
 err:
-    /*
-     * We don't want to hold hazard pointers for longer than required. Clear hazard pointers and
-     * remember their positions as soft pointers.
-     */
-    __evict_clear_all_walks(session);
-
     WT_TRACK_OP_END(session);
     return (ret);
 }
@@ -1998,12 +1998,12 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
         if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
-            goto rand_next;
+            goto rand_prev;
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
         if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
-            goto rand_prev;
+            goto rand_next;
         FLD_SET(*walk_flagsp, WT_READ_PREV);
         break;
     case WT_EVICT_WALK_RAND_PREV:
