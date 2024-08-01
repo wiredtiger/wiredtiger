@@ -30,8 +30,7 @@
 #endif /* CODE_COVERAGE_MEASUREMENT */
 
 /*
- * Quiet compiler warnings about unused function parameters and variables, and unused function
- * return values.
+ * Explicitly suppress compiler warnings about unused variables, and function parameters.
  */
 #define WT_UNUSED(var) (void)(var)
 #define WT_NOT_READ(v, val) \
@@ -40,8 +39,11 @@
         (void)(v);          \
     } while (0);
 
-/* 
- * Explicitly suppress unused return value warning at function call sites. 
+/*
+ * Explicitly suppress: warning unused result.
+ *
+ * This is a different warning to unused variable warning suppressed by WT_UNUSED, and cannot be
+ * suppressed by only casting to void.
  */
 #define WT_IGNORE_RET(call) ((void)!(call))
 
