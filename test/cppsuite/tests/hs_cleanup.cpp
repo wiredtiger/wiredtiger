@@ -47,6 +47,31 @@ public:
         init_operation_tracker();
     }
 
+    /*
+     * The checkpoint function has been overridden to accommodate the offloaded checkpoint cleanup
+     * thread, enabled by the debug=checkpoint_cleanup options, to accurately measure checkpoint
+     * cleanup pages removed.
+     */
+    void
+    checkpoint_operation(thread_worker *tw) override final
+    {
+        logger::log_msg(
+          LOG_INFO, type_string(tw->type) + " thread {" + std::to_string(tw->id) + "} commencing.");
+
+        while (tw->running()) {
+            tw->sleep();
+            /*
+             * This may seem like noise but it can prevent the test being killed by the evergreen
+             * timeout.
+             */
+            logger::log_msg(LOG_INFO,
+              type_string(tw->type) + " thread {" + std::to_string(tw->id) +
+                "} taking a checkpoint.");
+            testutil_check(
+              tw->session->checkpoint(tw->session.get(), "debug=(checkpoint_cleanup=true)"));
+        }
+    }
+
     void
     update_operation(thread_worker *tc) override final
     {
