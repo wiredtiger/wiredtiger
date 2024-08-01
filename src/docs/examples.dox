@@ -19,8 +19,8 @@ Shows some common cursor types and operations.
 Shows how to extend WiredTiger with a simple encryption algorithm.
 
 @example ex_extending.c
-Shows how to extend WiredTiger with application-specific collations,
-extractors and cursor types.
+Shows how to extend WiredTiger with application-specific collations
+and cursor types.
 
 @example ex_extra_diagnostics.c
 This is an example demonstrating how to enable and update extra diagnostic code at runtime.
