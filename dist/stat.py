@@ -12,6 +12,7 @@ from common_functions import filter_if_fast
 
 if not [f for f in filter_if_fast([
             "../dist/dist.py",
+            "../dist/stat_data.py",
             "../src/include/stat.h",
             "../src/include/wiredtiger.in",
             "../src/support/stat.c",
