@@ -792,29 +792,14 @@ functions:
   "code coverage analysis":
     command: shell.exec
     params:
-      working_dir: ${working_dir}
+      working_dir: "wiredtiger"
       shell: bash
       script: |
         set -o errexit
         set -o verbose
         echo "Performing code coverage analysis in ${working_dir}"
         ${PREPARE_PATH}
-        virtualenv -p python3 venv
-        source venv/bin/activate
-        pip3 install lxml==4.8.0 Pygments==2.11.2 Jinja2==3.0.3 gcovr==5.0
-        mkdir -p coverage_report
-        output_flags="--html-self-contained --html-details coverage_report/2_coverage_report.html --json-summary-pretty --json-summary coverage_report/1_coverage_report_summary.json --json coverage_report/full_coverage_report.json"
-        if [ ! -z ${combine_coverage_report} ]; then
-          gcovr -f ${coverage_filter|src} --add-tracefile ${first_coverage_file_path} --add-tracefile ${second_coverage_file_path} -j ${num_jobs|4} $output_flags
-        else
-          gcovr -f ${coverage_filter|src} -j ${num_jobs|4} $output_flags
-          ${python_binary|python3} test/evergreen/code_coverage_analysis.py -s coverage_report/1_coverage_report_summary.json -t time.txt
-        fi
-
-        # Generate Atlas compatible format report.
-        if [ ! -z ${generate_atlas_format} ]; then
-            ${python_binary|python3} test/evergreen/code_coverage_analysis.py -c component_coverage -o coverage_report/atlas_out_code_coverage.json -s coverage_report/1_coverage_report_summary.json
-        fi
+        ./test/evergreen/code_coverage_analysis.sh ${coverage_filter|src} ${num_jobs|4} ${python_binary|python3} ${generate_atlas_format} ${combine_coverage_report} ${first_coverage_file_path} ${second_coverage_file_path}
   "run code coverage tests":
     command: shell.exec
     params:
@@ -3205,7 +3190,7 @@ tasks:
                 pr_args+="--github_token ${github_app_token} "
             fi
 
-            ./test/coverage-report.sh ${is_patch} ${python_binary|python3} ${github_commit} "${pr_args}"
+            ./test/evergreen/coverage-report.sh ${is_patch} ${python_binary|python3} ${github_commit} "${pr_args}"
 
       - func: "code coverage publish report"
 
@@ -4190,7 +4175,7 @@ tasks:
             t=__wt.$$
             set -o verbose
             ${PREPARE_PATH}
-            ./test/cyclomatic-complexity.sh
+            ./test/evergreen/cyclomatic-complexity.sh
       - func: "upload stats to atlas"
         vars:
           stats_dir: ./wiredtiger/code_statistics_report

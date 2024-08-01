@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -o errexit
+set -o verbose
+
 # Check if enough arguments are given, pr_args can be an empty string for patch builds.
 if [ $# -lt 3 ]; then
     echo "Error: Not enough arguments given."
