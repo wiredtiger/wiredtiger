@@ -1,6 +1,6 @@
 # Configuration for hs_cleanup.
 # need to be defined.
-duration_seconds=60,
+duration_seconds=90,
 cache_size_mb=200,
 enable_logging=true,
 statistics_config=

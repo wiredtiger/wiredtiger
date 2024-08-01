@@ -2032,6 +2032,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
+          test_config: checkpoint_cleanup=(wait=60)
           test_config_filename: configs/hs_cleanup_default.txt
           test_name: hs_cleanup
 
