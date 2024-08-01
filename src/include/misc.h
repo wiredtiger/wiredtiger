@@ -44,8 +44,6 @@
  * Explicitly suppress unused return value warning at function call sites. 
  */
 #define WT_IGNORE_RET(call) ((void)!(call))
-#define WT_IGNORE_RET_BOOL(call) ((void)!(call))
-#define WT_IGNORE_RET_PTR(call) ((void)!(call))
 
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
