@@ -20,7 +20,7 @@ if not [f for f in filter_if_fast([
     sys.exit(0)
 
 # Read the source files.
-from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
+from stat_data import dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
     session_stats
 
 ##########################################
