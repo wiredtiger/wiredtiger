@@ -15,6 +15,11 @@ times=$1
 shift
 checkpoint_args=$@
 
+if [ "$(basename "$(pwd)")" != "checkpoint" ]; then
+    echo "This script must be run from the cmake_build/test/checkpoint folder"
+    exit 1;
+fi
+
 toolsdir=../../../tools
 wtutil=../../wt
 

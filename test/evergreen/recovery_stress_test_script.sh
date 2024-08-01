@@ -6,6 +6,13 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
+if [ $# -gt 2 ]; then
+    echo "Error: invalid number of arguments."
+    echo "Usage: format_test_predictable.sh ${times} ${truncated_log_args}"
+    echo "Current args: $@"
+    exit 1
+fi
+
 times=$1
 truncated_log_args=$2
 

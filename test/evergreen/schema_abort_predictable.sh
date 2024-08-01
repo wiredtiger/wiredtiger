@@ -5,8 +5,8 @@ rando() {
   tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
 }
 
-if [ $# -lt 1 ]; then
-    echo "Error: Not enough arguments given."
+if [ $# -ne 1 ]; then
+    echo "Error: invalid number of arguments."
     echo "Current args: $@"
     exit 1
 fi
@@ -15,6 +15,11 @@ times=$1
 
 runtime=20  # seconds
 nthreads=5
+
+if [ "$(basename "$(pwd)")" != "schema_abort" ]; then
+    echo "This script must be run from the build/test/csuite/schema_abort folder"
+    exit 1;
+fi
 
 toolsdir=../../../../tools
 wtutil=../../../wt
