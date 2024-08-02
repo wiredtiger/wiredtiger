@@ -214,39 +214,33 @@ __checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len, boo
  *     Check for an attempt to name a checkpoint that includes anything other than a file object.
  */
 static int
-__checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
+__checkpoint_name_check(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *fail;
+    const char *uri;
 
     cursor = NULL;
     fail = NULL;
 
     /*
      * This function exists as a place for this comment: named checkpoints are only supported on
-     * file objects, and not on LSM trees. If a target list is configured for the checkpoint, this
-     * function is called with each target list entry; check the entry to make sure it's backed by a
-     * file. If no target list is configured, confirm the metadata file contains no non-file
-     * objects. Skip any internal system objects. We don't want spurious error messages, other code
-     * will skip over them and the user has no control over their existence.
+     * file objects, and not on LSM trees. Confirm the metadata file contains no non-file objects.
+     * Skip any internal system objects. We don't want spurious error messages, other code will skip
+     * over them and the user has no control over their existence.
      */
-    if (uri == NULL) {
-        WT_RET(__wt_metadata_cursor(session, &cursor));
-        while ((ret = cursor->next(cursor)) == 0) {
-            WT_ERR(cursor->get_key(cursor, &uri));
-            if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
-              !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, WT_SYSTEM_PREFIX) &&
-              !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:")) {
-                fail = uri;
-                break;
-            }
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+        if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
+          !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, WT_SYSTEM_PREFIX) &&
+          !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:")) {
+            fail = uri;
+            break;
         }
-        WT_ERR_NOTFOUND_OK(ret, false);
-    } else if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
-      !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "table:") &&
-      !WT_PREFIX_MATCH(uri, "tiered:"))
-        fail = uri;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     if (fail != NULL)
         WT_ERR_MSG(session, EINVAL, "%s object does not support named checkpoints", fail);
@@ -298,17 +292,13 @@ __checkpoint_apply_operation(
     if (named) {
         WT_RET(__checkpoint_name_ok(session, cval.str, cval.len, false));
         /* Some objects don't support named checkpoints. */
-        WT_ERR(__checkpoint_name_check(session, NULL));
+        WT_ERR(__checkpoint_name_check(session));
     }
 
     if (op != NULL) {
         /*
          * If the checkpoint is named or we're dropping checkpoints, we checkpoint both open and
          * closed files; else, only checkpoint open files.
-         *
-         * XXX We don't optimize unnamed checkpoints of a list of targets, we open the targets and
-         * checkpoint them even if they are quiescent and don't need a checkpoint, believing
-         * applications unlikely to checkpoint a list of closed targets.
          */
         ckpt_closed = named;
         if (!ckpt_closed) {
@@ -365,15 +355,11 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * A place-holder, to support data sources: we assume calling the underlying data-source session
      * checkpoint function is sufficient to checkpoint all objects in the data source, open or
-     * closed, and we don't attempt to optimize the checkpoint of individual targets. Those
-     * assumptions are not necessarily going to be true for all data sources.
+     * closed. Those assumptions are not necessarily going to be true for all data sources.
      *
-     * It's not difficult to support data-source checkpoints of individual targets
-     * (__wt_schema_worker is the underlying function that will do the work, and it's already
-     * written to support data-sources, although we'd probably need to pass the URI of the object to
-     * the data source checkpoint function which we don't currently do). However, doing a full data
-     * checkpoint is trickier: currently, the connection code is written to ignore all objects other
-     * than "file:", and that code will require significant changes to work with data sources.
+     * Doing a full data checkpoint of a data source is tricky. Currently, the connection code is
+     * written to ignore all objects other than "file:", and that code will require significant
+     * changes to work with data sources.
      */
     TAILQ_FOREACH (ndsrc, &S2C(session)->dsrcqh, q) {
         dsrc = ndsrc->dsrc;
@@ -903,8 +889,8 @@ err:
 
 /*
  * __txn_checkpoint_can_skip --
- *     Determine whether it's safe to skip taking a checkpoint.
- *     Also parse and return some configuration options.
+ *     Determine whether it's safe to skip taking a checkpoint. Also parse and return some
+ *     configuration options.
  */
 static int
 __txn_checkpoint_can_skip(
@@ -1392,19 +1378,19 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * If timestamps defined the checkpoint's content, set the saved last checkpoint timestamp,
      * otherwise clear it. We clear it for a couple of reasons: applications can query it and we
-     * don't want to lie, and we use it to decide if WT_CONNECTION.rollback_to_stable is an
-     * allowed operation. For the same reason, don't set it to WT_TS_NONE when the checkpoint
-     * timestamp is WT_TS_NONE, set it to 1 so we can tell the difference.
+     * don't want to lie, and we use it to decide if WT_CONNECTION.rollback_to_stable is an allowed
+     * operation. For the same reason, don't set it to WT_TS_NONE when the checkpoint timestamp is
+     * WT_TS_NONE, set it to 1 so we can tell the difference.
      */
     if (use_timestamp) {
         conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
-         * cases it queries the recovery timestamp to determine the last stable recovery
-         * timestamp. So, if the recovery timestamp is valid, set the last checkpoint timestamp
-         * to recovery timestamp. This should never be a problem, as checkpoint timestamp should
-         * never be less than recovery timestamp. This could potentially avoid MongoDB making
-         * two calls to determine last stable recovery timestamp.
+         * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
+         * So, if the recovery timestamp is valid, set the last checkpoint timestamp to recovery
+         * timestamp. This should never be a problem, as checkpoint timestamp should never be less
+         * than recovery timestamp. This could potentially avoid MongoDB making two calls to
+         * determine last stable recovery timestamp.
          */
         if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
             conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
