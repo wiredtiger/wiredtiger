@@ -31,10 +31,10 @@ from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_cc08.py
+# test_cc09.py
 # Verify checkpoint cleanup reads pages from the disk to remove any obsolete time window information
 # present on the page.
-class test_cc08(eviction_util, test_cc_base):
+class test_cc09(eviction_util, test_cc_base):
     conn_config_common = 'statistics=(all),statistics_log=(json,wait=1,on_close=true),verbose=(checkpoint_cleanup:0)'
 
     # These settings set a limit to the number of btrees/pages that can be cleaned up per btree per
@@ -59,7 +59,7 @@ class test_cc08(eviction_util, test_cc_base):
     def test_evict(self):
         create_params = 'key_format=i,value_format=S'
         nrows = 100000
-        uri = 'table:cc08'
+        uri = 'table:cc09'
         value = 'k' * 1024
 
         self.session.create(uri, create_params)
