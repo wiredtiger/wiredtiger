@@ -64,8 +64,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     checkpoint = 0.02;
     crash = 0.002;
-    /* FIXME-WT-12972 Enable the eviction operator when it is safe to do so. Set to 0.1. */
-    evict = 0.0;
+    evict = 0.1;
     restart = 0.002;
     rollback_to_stable = 0.005;
     set_oldest_timestamp = 0.1;
@@ -512,6 +511,11 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::evict);
                 table_context_ptr table = choose_table(std::move(kv_workload_sequence_ptr()));
+
+                /* FIXME-WT-12971 Remove this check to allow eviction in FLCS once this is fixed. */
+                if (table->type() == kv_table_type::column_fix)
+                    break;
+
                 data_value key = generate_key(table, op_category::evict);
                 *p << operation::evict(table->id(), key);
                 _sequences.push_back(p);
