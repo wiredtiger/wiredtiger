@@ -1628,12 +1628,18 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
 static int
 dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, size_t *nwritten)
 {
-    const char *tmp;
-    /* TODO */
-    *nwritten = 0;
-    tmp = extra->data;
+    WT_FILE_HANDLE *wt_fh;
+    int ret;
 
-    fprintf(stderr, "dir_store_ckpt_extra: \"%s\"\n", tmp);
+    wt_fh = fh->fh;
+    *nwritten = 0;
+
+    ret = wt_fh->fh_write(wt_fh, session, begin, extra->size, extra->data);
+    if (ret != 0)
+        return (ret);
+
+    *nwritten = extra->size;
+
     return (0);
 }
 
