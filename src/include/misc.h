@@ -42,8 +42,11 @@
 /*
  * Explicitly suppress: warning unused result.
  *
- * This is a different warning to unused variable warning suppressed by WT_UNUSED, and cannot be
- * suppressed by only casting to void.
+ * Simply casting to void as in WT_UNUSED will not suppress this warning on the current version of
+ * gcc (11.3.0) used for the server build.
+ *
+ * This workaround works with every supported toolchain, and does not employ unused temporary values
+ * that are then detected by Coverity.
  */
 #define WT_IGNORE_RET(call) ((void)!(call))
 
