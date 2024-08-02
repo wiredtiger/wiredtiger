@@ -18,6 +18,11 @@ __wt_bmp_checkpoint(
 {
     WT_BLOCK_PANTRY *block_pantry;
     WT_FILE_HANDLE *handle;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_ITEM(tmp2);
+    char *value;
+    const char *uri;
+    int ret;
 
     WT_UNUSED(buf);
     WT_UNUSED(ckptbase);
@@ -25,8 +30,20 @@ __wt_bmp_checkpoint(
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
+    WT_RET(__wt_scr_alloc(session, 4096, &tmp));
+    WT_RET(__wt_scr_alloc(session, 4096, &tmp2));
 
-    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, NULL));
+    WT_RET(__wt_buf_fmt(session, tmp, "file:%s", &handle->name[2])); /* TODO less hacky way to get URI */
+    uri = tmp->data;
+    ret = __wt_metadata_search(session, uri, &value);
+
+    WT_RET(__wt_buf_fmt(session, tmp2, "%s\n%s\n", uri, value)); /* TODO less hacky way to get URI */
+
+    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, tmp2));
+
+    /* TODO WT_ERR etc otherwise this leaks on error */
+    __wt_scr_free(session, &tmp);
+    __wt_scr_free(session, &tmp2);
 
     return (0);
 }
