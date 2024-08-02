@@ -197,7 +197,7 @@ static int dir_store_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
 /* Object interface */
-static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
+static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1603,11 +1603,34 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
     return (0);
 }
 
-/* dir_store_ckpt_meta --
- *     Serialise our the metadata for our URI to a given file handle.
+/*
+ * Overall scheme for the dir store's checkpoint metadata. The left-hand column
+ * isn't aligned like a hex dump or anything, it's just to give the pointers
+ * something to reference.
+ *
+ *     0 | Data pointer (8B) | Extra pointer (8B)
+ *   ... | Normal keys/values
+ *   ... | More keys/values...
+ *   ... | Normal keys/values
+ *  Data | Number of entries (8B) | object_id_map[0]
+ *   ... | object_id_map[1] | object_id_map[2]
+ *   ... | More object ID entries...
+ *   ... | object_id_map[max] | object_size_map[0] (8B)
+ *   ... | object_size_map[1] | object_size_map[2]
+ *   ... | More object size entries...
+ *   ... | object_size_map[max - 1] | object_size_map[max]
+ * Extra | Length of extra data (8B) | extra_data[0] (1B)
+ *   ... | extra_data[1]
+ *   ... | More extra data...
+ *   ... | extra_data[max]
+ *   ... | Normal keys/values
+ */
+
+/* dir_store_ckpt_extra --
+ *     Write out any extra data the block pantry wants associated with the checkpoint.
  */
 static int
-dir_store_ckpt_meta(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, size_t *nwritten)
+dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, size_t *nwritten)
 {
     /* TODO */
     *nwritten = 0;
@@ -1618,14 +1641,19 @@ dir_store_ckpt_meta(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
  *     Serialise our the metadata for our URI to a given file handle.
  */
 static int
-dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
+dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin, wt_off_t extra_begin)
 {
     WT_FILE_HANDLE *wt_fh;
+    int ret;
 
     wt_fh = fh->fh;
 
     /* TODO add some magic bytes? Version? Checksum? More thought. */
-    return (wt_fh->fh_write(wt_fh, session, 0, sizeof(uint64_t), &ckpt_begin));
+    ret = wt_fh->fh_write(wt_fh, session, 0, sizeof(uint64_t), &ckpt_begin);
+    if (ret != 0)
+        return (ret);
+
+    return (wt_fh->fh_write(wt_fh, session, sizeof(uint64_t), sizeof(uint64_t), &extra_begin));
 }
 
 /*
@@ -1633,10 +1661,10 @@ dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t
  *     Write out our object ID to offset map.
  */
 static int
-dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
+dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
-    wt_off_t start;
+    wt_off_t start, extra_start;
     int ret;
     size_t nwritten;
 
@@ -1650,13 +1678,14 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     if (ret != 0)
         return (ret);
     dir_store_fh->object_next_offset += nwritten; /* TODO maybe reset alignment? */
+    extra_start = dir_store_fh->object_next_offset;
 
-    ret = dir_store_ckpt_meta(dir_store_fh, session, dir_store_fh->object_next_offset, &nwritten);
+    ret = dir_store_ckpt_extra(dir_store_fh, session, extra, dir_store_fh->object_next_offset, &nwritten);
     if (ret != 0)
         return (ret);
     dir_store_fh->object_next_offset += nwritten; /* TODO align again? */
 
-    return (dir_store_ckpt_finalize(dir_store_fh, session, start));
+    return (dir_store_ckpt_finalize(dir_store_fh, session, start, extra_start));
 }
 
 /*

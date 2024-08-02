@@ -26,7 +26,7 @@ __wt_bmp_checkpoint(
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
 
-    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface));
+    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, NULL));
 
     return (0);
 }
