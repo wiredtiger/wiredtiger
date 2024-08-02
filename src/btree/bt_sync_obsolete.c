@@ -25,10 +25,15 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
     conn = S2C(session);
     btree = S2BT(session);
 
+    /* Check current progress against max. */
     if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
       conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
         return (true);
 
+    /*
+     * If the current btree has not contributed to the cleanup yet, only process it if we can track
+     * another btree.
+     */
     if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
       __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
       __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
