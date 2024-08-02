@@ -1564,6 +1564,70 @@ next_mul8(uint64_t i)
     return (i + 7) & ~0x7;
 }
 
+/* dir_store_ckpt_intl --
+ *     Serialise our internal data structures to a given file handle.
+ */
+static int
+dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, size_t *nwritten)
+{
+    WT_FILE_HANDLE *wt_fh;
+    int ret;
+    uint64_t i;
+    wt_off_t curr;
+
+    wt_fh = fh->fh;
+    *nwritten = 0;
+    curr = begin + sizeof(uint64_t); /* Number of entries will precede the data. */
+
+    /* TODO lots of optimisations here - coalescing write calls, packing, etc. */
+    for (i = 0; i < fh->object_map_size; i++) {
+        ret = wt_fh->fh_write(wt_fh, session, curr, sizeof(uint64_t), &fh->object_id_map[i]);
+        if (ret != 0)
+            return (ret);
+        curr += sizeof(uint64_t);
+    }
+
+    for (i = 0; i < fh->object_map_size; i++) {
+        ret = wt_fh->fh_write(wt_fh, session, curr, sizeof(uint64_t), &fh->object_size_map[i]);
+        if (ret != 0)
+            return (ret);
+        curr += sizeof(uint64_t);
+    }
+
+    /* Encode the number of entries at the start of the list. */
+    ret = wt_fh->fh_write(wt_fh, session, begin, sizeof(uint64_t), &i);
+    if (ret != 0)
+        return (ret);
+
+    *nwritten = curr - begin;
+    return (0);
+}
+
+/* dir_store_ckpt_meta --
+ *     Serialise our the metadata for our URI to a given file handle.
+ */
+static int
+dir_store_ckpt_meta(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, size_t *nwritten)
+{
+    /* TODO */
+    *nwritten = 0;
+    return (0);
+}
+
+/* dir_store_ckpt_finalize --
+ *     Serialise our the metadata for our URI to a given file handle.
+ */
+static int
+dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
+{
+    WT_FILE_HANDLE *wt_fh;
+
+    wt_fh = fh->fh;
+
+    /* TODO add some magic bytes? Version? Checksum? More thought. */
+    return (wt_fh->fh_write(wt_fh, session, 0, sizeof(uint64_t), &ckpt_begin));
+}
+
 /*
  * dir_store_obj_ckpt --
  *     Write out our object ID to offset map.
@@ -1572,47 +1636,27 @@ static int
 dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
-    WT_FILE_HANDLE *wt_fh;
     wt_off_t start;
     int ret;
-    uint64_t i;
+    size_t nwritten;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
-    wt_fh = dir_store_fh->fh;
 
     /* Align - not strictly necessary, but it makes staring at the hex dump easier. */
     dir_store_fh->object_next_offset = next_mul8(dir_store_fh->object_next_offset);
     start = dir_store_fh->object_next_offset;
 
-    /* TODO lots of optimisations here - coalescing write calls, packing, etc. */
-    for (i = 0; i < dir_store_fh->object_map_size; i++) {
-        ret = wt_fh->fh_write(wt_fh, session,
-          /* Add a uint64_t to leave room at the start of the run for the entry count. */
-          (wt_off_t)dir_store_fh->object_next_offset + sizeof(uint64_t), sizeof(uint64_t),
-          &dir_store_fh->object_id_map[i]);
-        if (ret != 0)
-            return (ret);
-        dir_store_fh->object_next_offset += sizeof(uint64_t);
-    }
-
-    for (i = 0; i < dir_store_fh->object_map_size; i++) {
-        ret = wt_fh->fh_write(wt_fh, session,
-          /* Add a uint64_t to leave room at the start of the run for the entry count. */
-          (wt_off_t)dir_store_fh->object_next_offset + sizeof(uint64_t), sizeof(uint64_t),
-          &dir_store_fh->object_size_map[i]);
-        if (ret != 0)
-            return (ret);
-        dir_store_fh->object_next_offset += sizeof(uint64_t);
-    }
-
-    /* Encode the number of entries at the start of the list. */
-    ret = wt_fh->fh_write(wt_fh, session, start, sizeof(uint64_t), &i);
+    ret = dir_store_ckpt_intl(dir_store_fh, session, start, &nwritten);
     if (ret != 0)
         return (ret);
-    dir_store_fh->object_next_offset += sizeof(uint64_t);
+    dir_store_fh->object_next_offset += nwritten; /* TODO maybe reset alignment? */
 
-    /* TODO add some magic bytes? Version? Checksum? More thought. */
-    return (wt_fh->fh_write(wt_fh, session, 0, sizeof(uint64_t), &start));
+    ret = dir_store_ckpt_meta(dir_store_fh, session, dir_store_fh->object_next_offset, &nwritten);
+    if (ret != 0)
+        return (ret);
+    dir_store_fh->object_next_offset += nwritten; /* TODO align again? */
+
+    return (dir_store_ckpt_finalize(dir_store_fh, session, start));
 }
 
 /*
