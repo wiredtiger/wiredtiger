@@ -4,7 +4,7 @@ set -o errexit
 set -o verbose
 
 # Check if enough arguments are given, first_coverage_file_path and second_coverage_file_path are not defined if combine_coverage_report is false.
-if [ $# -lt 4 ]; then
+if [ $# -lt 3 ]; then
     echo "Error: Not enough arguments given."
     echo "Usage: coverage-report.sh \${coverage_filter} \${num_jobs} \${python_binary} \${generate_atlas_format} \${combine_coverage_report} \${first_coverage_file_path} \${second_coverage_file_path}"
     echo "Current args: $@"
