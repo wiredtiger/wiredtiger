@@ -490,17 +490,6 @@ checkpoint_ops(WT_SESSION *session)
     /* Checkpoint of the database, creating a named snapshot. */
     error_check(session->checkpoint(session, "name=June01"));
 
-    /*
-     * Checkpoint a list of objects. JSON parsing requires quoting the list of target URIs.
-     */
-    error_check(session->checkpoint(session, "target=(\"table:table1\",\"table:table2\")"));
-
-    /*
-     * Checkpoint a list of objects, creating a named snapshot. JSON parsing requires quoting the
-     * list of target URIs.
-     */
-    error_check(session->checkpoint(session, "target=(\"table:mytable\"),name=midnight"));
-
     /* Checkpoint the database, discarding all previous snapshots. */
     error_check(session->checkpoint(session, "drop=(from=all)"));
 
@@ -516,21 +505,7 @@ checkpoint_ops(WT_SESSION *session)
      * Checkpoint the database, discarding all snapshots before and including "midnight".
      */
     error_check(session->checkpoint(session, "drop=(to=midnight)"));
-
-    /*
-     * Create a checkpoint of a table, creating the "July01" snapshot and discarding the "May01" and
-     * "June01" snapshots. JSON parsing requires quoting the list of target URIs.
-     */
-    error_check(
-      session->checkpoint(session, "target=(\"table:mytable\"),name=July01,drop=(May01,June01)"));
     /*! [Checkpoint examples] */
-
-    /*! [JSON quoting example] */
-    /*
-     * Checkpoint a list of objects. JSON parsing requires quoting the list of target URIs.
-     */
-    error_check(session->checkpoint(session, "target=(\"table:table1\",\"table:table2\")"));
-    /*! [JSON quoting example] */
 }
 
 static void
@@ -1130,8 +1105,13 @@ backup(WT_SESSION *session)
     /*! [backup log duplicate]*/
     /* Open the backup data source. */
     error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
+    /*! [JSON quoting example] */
     /* Open a duplicate cursor for additional log files. */
+    /*
+     * JSON parsing requires quoting a URI that contains a colon.
+     */
     error_check(session->open_cursor(session, NULL, cursor, "target=(\"log:\")", &dup_cursor));
+    /*! [JSON quoting example] */
     /*! [backup log duplicate]*/
 
     /*! [incremental block backup]*/
