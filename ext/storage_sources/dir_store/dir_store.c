@@ -1074,12 +1074,10 @@ dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
     /* Look up the checkpoint's address. */
     if ((ret = wt_fh->fh_read(wt_fh, session, 0, sizeof(uint64_t), &offset)) != 0)
         return (ret);
-    fprintf(stderr, "dir_store_ckpt_load: got start addr of 0x%" PRIx64 "\n", offset);
 
     /* From that address, get the number of entries. */
     if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &entries)) != 0)
         return (ret);
-    fprintf(stderr, "dir_store_ckpt_load: loading %" PRIu64 " entries\n", entries);
     offset += sizeof(uint64_t);
     dir_store_obj_resize_map(fh, entries);
 
@@ -1090,7 +1088,6 @@ dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
 
         fh->object_id_map[i] = tmp;
         offset += sizeof(uint64_t);
-        fprintf(stderr, "ckpt_load: put offset 0x%" PRIx64 " at index %" PRIu64 "\n", tmp, i);
     }
 
     for (i = 0; i < entries; i++) {
@@ -1099,7 +1096,6 @@ dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
 
         fh->object_size_map[i] = tmp;
         offset += sizeof(uint64_t);
-        fprintf(stderr, "ckpt_load: put size 0x%" PRIx64 " at index %" PRIu64 "\n", tmp, i);
     }
 
     return (0);
@@ -1632,8 +1628,12 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
 static int
 dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, size_t *nwritten)
 {
+    const char *tmp;
     /* TODO */
     *nwritten = 0;
+    tmp = extra->data;
+
+    fprintf(stderr, "dir_store_ckpt_extra: \"%s\"\n", tmp);
     return (0);
 }
 
