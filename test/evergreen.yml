@@ -2032,6 +2032,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "cppsuite perf test"
         vars:
+          # Configure checkpoint cleanup to run more often as the test only runs for 90 seconds
+          # and checkpoint cleanup is triggered every 300 seconds by default.
+          test_config: checkpoint_cleanup=(wait=60)
           test_config_filename: configs/hs_cleanup_default.txt
           test_name: hs_cleanup
 
@@ -4266,8 +4269,8 @@ tasks:
             # Set the cyclomatic complexity limit to 20
             python3 "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
-            # Fail if there are functions with cyclomatic complexity larger than 98
-            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:98 > $t
+            # Fail if there are functions with cyclomatic complexity larger than 89
+            python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:89 > $t
             if grep -q 'exceeds' $t; then
                 echo "[ERROR]:complexity:cyclomatic: Complexity limit exceeded."
                 cat $t
