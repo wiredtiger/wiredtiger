@@ -38,9 +38,9 @@ class test_compact16(compact_util):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:2]'
     uri = 'table:test_compact16'
-    
+
     table_numkv = 1000 * 1000
-        
+
     def test_compact16(self):
         # FIXME-WT-11399
         if self.runningHook('tiered'):
@@ -52,7 +52,7 @@ class test_compact16(compact_util):
 
         # Write to disk.
         self.session.checkpoint()
-        
+
         # Remove 1/4 of the data
         c = self.session.open_cursor(self.uri, None)
         for i in range(self.table_numkv):
@@ -60,17 +60,17 @@ class test_compact16(compact_util):
                 c.set_key(i)
                 c.remove()
         c.close()
-        
+
         self.delete_range(self.uri, self.table_numkv // 4)
 
         self.reopen_conn()
-        
+
         # Run compact concurrently with another thread that continually creates checkpoints.
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-            
+
             # Wait for checkpoint to start before calling compact.
             ckpt_started = 0
             while not ckpt_started:
@@ -82,12 +82,12 @@ class test_compact16(compact_util):
         finally:
             done.set()
             ckpt.join()
-        
+
         # Compact should not leave more than 20% available space in the file. If it does, that means
         # we've hit the maximum (100) passes over a file for a compaction attempt and something else
         # has prevented compact from reclaiming space.
         pct_space_available = self.get_bytes_avail_for_reuse(self.uri) / self.get_size(self.uri) * 100
         self.assertLess(pct_space_available, 20)
-        
+
         self.ignoreStdoutPatternIfExists('WT_VERB_COMPACT')
         self.ignoreStderrPatternIfExists('WT_VERB_COMPACT')
