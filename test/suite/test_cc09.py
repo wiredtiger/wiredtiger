@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from eviction_util import eviction_util
+import wttest
 from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -34,7 +34,8 @@ from wtscenario import make_scenarios
 # test_cc09.py
 # Verify checkpoint cleanup reads pages from the disk to remove any obsolete time window information
 # present on the page.
-class test_cc09(eviction_util, test_cc_base):
+@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Checkpoint cleanup does not support tiered tables")
+class test_cc09(test_cc_base):
     conn_config_common = 'statistics=(all),statistics_log=(json,wait=1,on_close=true),verbose=(checkpoint_cleanup:0)'
 
     # These settings set a limit to the number of btrees/pages that can be cleaned up per btree per
