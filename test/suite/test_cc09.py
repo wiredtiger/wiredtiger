@@ -95,7 +95,7 @@ class test_cc09(eviction_util, test_cc_base):
         # disk to clear the obsolete content if allowed to.
         self.check_cc_stats()
 
-        cc_read_stat = self.get_stat(stat.conn.checkpoint_cleanup_obsolete_tw_pages_read)
+        cc_read_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_obsolete_tw)
         cc_dirty_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
 
         # We may be expecting cleanup but we have to be in one of the valid scenarios for checkpoint

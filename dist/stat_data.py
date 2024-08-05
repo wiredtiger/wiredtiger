@@ -381,7 +381,6 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint_cleanup_obsolete_tw_pages_read', 'obsolete time window pages read into the cache during checkpoint cleanup tree walk'),
     CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
@@ -1057,6 +1056,7 @@ conn_dsrc_stats = [
     CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window by checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache during checkpoint cleanup (reclaim_space)'),
+    CheckpointStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache during checkpoint cleanup due to obsolete time window'),
     CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
