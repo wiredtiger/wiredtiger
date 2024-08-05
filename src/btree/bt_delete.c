@@ -173,8 +173,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * both the start and stop timestamps.
      */
     if (F_ISSET(session->txn, WT_TXN_TS_NOT_SET) &&
-      !__wt_txn_visible_all(session, addr.ta.newest_txn,
-        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
+      !__wt_txn_visible_all(session, addr.ta.newest_txn, addr.ta.newest_durable_ts))
         goto err;
 
     /*
@@ -183,9 +182,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * checks as we do not track the aggregated commit timestamp.
      */
     if (!WT_IS_HS(session->dhandle) &&
-      !__wt_txn_snap_min_visible(session, addr.ta.newest_txn,
-        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts),
-        WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
+      !__wt_txn_snap_min_visible(
+        session, addr.ta.newest_txn, addr.ta.newest_durable_ts, addr.ta.newest_durable_ts))
         goto err;
 
     /*

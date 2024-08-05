@@ -127,7 +127,7 @@ class test_import05(test_import_base):
         # table has timestamps past 0.
         #
         # Start timestamps get checked first so that's the error msg we expect.
-        error_msg = error_pattern.format('newest start durable')
+        error_msg = error_pattern.format('newest durable')
 
         with self.expectedStderrPattern(error_msg):
             self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -142,10 +142,8 @@ class test_import05(test_import_base):
         else:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[-1] - 1))
 
-        # If our latest operation was an insert, we're expecting it to complain about the aggregated
-        # start timestamp whereas if we did a delete, we should expect it to complain about stop.
-        error_msg = error_pattern.format(
-            'newest start durable' if self.op_type == 'insert' else 'newest stop durable')
+        # We're expecting it to complain about the aggregated timestamp.
+        error_msg = error_pattern.format('newest durable')
 
         with self.expectedStderrPattern(error_msg):
             self.assertRaisesException(wiredtiger.WiredTigerError,
