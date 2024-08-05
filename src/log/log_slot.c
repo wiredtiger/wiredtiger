@@ -548,12 +548,12 @@ __wti_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, W
     wait_cnt = 0;
 #ifdef HAVE_DIAGNOSTIC
     diag_yield = (++log->write_calls % 7) == 0;
-    force_unbuffered = (log->write_calls % WT_THOUSAND) == 0 || mysize > WT_LOG_SLOT_BUF_MAX;
+    force_unbuffered = (log->write_calls % WT_THOUSAND) == 0;
 #else
     diag_yield = false;
-    force_unbuffered = mysize > WT_LOG_SLOT_BUF_MAX;
+    force_unbuffered = false;
 #endif
-    if (force_unbuffered) {
+    if (force_unbuffered || mysize > WT_LOG_SLOT_BUF_MAX) {
         unbuffered = true;
         F_SET(myslot, WT_MYSLOT_UNBUFFERED);
     }
