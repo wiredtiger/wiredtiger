@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -o errexit
+set -o verbose
+
 # Get a random value with leading zeroes removed, /bin/sh version.
 rando() {
   tr -cd 0-9 </dev/urandom | head -c 5 | sed -e 's/0*\(.\)/\1/'
