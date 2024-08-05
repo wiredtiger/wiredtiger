@@ -56,7 +56,7 @@ class test_cc09(eviction_util, test_cc_base):
 
     scenarios = make_scenarios(conn_config_values, cc_scenarios)
 
-    def test_evict(self):
+    def test_cc09(self):
         create_params = 'key_format=i,value_format=S'
         nrows = 100000
         uri = 'table:cc09'
