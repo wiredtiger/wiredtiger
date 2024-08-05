@@ -1280,7 +1280,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         __drop_list_execute(session, session->ckpt_drop_list);
         __wt_scr_free(session, &session->ckpt_drop_list);
     }
-    WT_ERR(__wt_meta_sysinfo_set(session, true, name, namelen));
+    WT_ERR(__wt_meta_sysinfo_set(session, name, namelen));
 
     /* Release the snapshot so we aren't pinning updates in cache. */
     __wt_txn_release_snapshot(session);
