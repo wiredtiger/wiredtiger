@@ -198,7 +198,7 @@ static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t
 
 /* Object interface */
 static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
-static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM **);
+static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1636,6 +1636,11 @@ dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *ex
     wt_fh = fh->fh;
     *nwritten = 0;
 
+    ret = wt_fh->fh_write(wt_fh, session, begin, sizeof(uint64_t), &extra->size);
+    if (ret != 0)
+        return (ret);
+    begin += sizeof(uint64_t);
+
     ret = wt_fh->fh_write(wt_fh, session, begin, extra->size, extra->data);
     if (ret != 0)
         return (ret);
@@ -1704,16 +1709,14 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
  *     data the user kept alongside it.
  */
 static int
-dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM **extra)
+dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
 {
     /*
      * This is really just fetching the extra data - we loaded our internal state on
      * startup (see dir_store_ckpt_load_internal).
      */
-    wt_off_t extra_ptr, size;
+    wt_off_t extra_len, extra_ptr, size;
     int ret;
-
-    *extra = NULL;
 
     /* Check the size before we read. */
     if ((ret = file_handle->fh_size(file_handle, session, &size)) != 0)
@@ -1723,6 +1726,10 @@ dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITE
 
     /* Look up the extra data's address. */
     if ((ret = file_handle->fh_read(file_handle, session, sizeof(uint64_t), sizeof(uint64_t), &extra_ptr)) != 0)
+        return (ret);
+
+    /* Read the extra data's length. */
+    if ((ret = file_handle->fh_read(file_handle, session, extra_ptr, sizeof(uint64_t), &extra_len)) != 0)
         return (ret);
 
     return (0);

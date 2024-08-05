@@ -66,10 +66,14 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_UNUSED(root_addr_sizep);
     WT_UNUSED(checkpoint);
 
+    WT_RET(__wt_scr_alloc(session, 4096, &tmp));
+
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
 
-    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface, &tmp));
+    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface, tmp));
+
+    __wt_scr_free(session, &tmp);
 
     return (0);
 }
