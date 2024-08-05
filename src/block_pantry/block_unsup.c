@@ -9,24 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_bmp_checkpoint_load --
- *     Load a checkpoint.
- */
-int
-__wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
-  uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
-{
-    WT_UNUSED(bm);
-    WT_UNUSED(session);
-    WT_UNUSED(addr);
-    WT_UNUSED(addr_size);
-    WT_UNUSED(root_addr);
-    WT_UNUSED(root_addr_sizep);
-    WT_UNUSED(checkpoint);
-    return (0);
-}
-
-/*
  * __wt_bmp_checkpoint_resolve --
  *     Resolve the checkpoint.
  */
