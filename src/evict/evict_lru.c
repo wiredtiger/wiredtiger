@@ -323,6 +323,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_SET(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         ret = __evict_server(session, &did_work);
+        WT_TRET(__evict_clear_all_walks(session)); // TODO::: 0   // Levels: __evict_thread_run(0) -> __evict_server(1) -> __evict_pass(2) -> __evict_lru_walk(3) -> __evict_walk(4) -> __evict_walk_tree(5)
         FLD_CLR(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
         was_intr = __wt_atomic_loadv32(&cache->pass_intr) != 0;
@@ -436,7 +437,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          * Convert hazard pointers to soft positions so we don't pin pages while asleep, otherwise
          * we can block applications evicting large pages.
          */
-        ret = __evict_clear_all_walks(session);
+        // ret = __evict_clear_all_walks(session);  // TODO::: 1   // Levels: __evict_thread_run(0) -> __evict_server(1) -> __evict_pass(2) -> __evict_lru_walk(3) -> __evict_walk(4) -> __evict_walk_tree(5)
 
         __wt_readunlock(session, &conn->dhandle_lock);
         WT_RET(ret);
@@ -812,6 +813,8 @@ __evict_pass(WT_SESSION_IMPL *session)
              */
             if (loop < 100 ||
               __wt_atomic_load32(&cache->evict_aggressive_score) < WT_EVICT_SCORE_MAX) {
+                /* Clear before sleeping */
+                WT_RET(__evict_clear_all_walks(session)); // TODO::: 21   // Levels: __evict_thread_run(0) -> __evict_server(1) -> __evict_pass(2) -> __evict_lru_walk(3) -> __evict_walk(4) -> __evict_walk_tree(5)
                 /*
                  * Back off if we aren't making progress: walks hold the handle list lock, blocking
                  * other operations that can free space in cache, such as LSM discarding handles.
@@ -833,6 +836,8 @@ __evict_pass(WT_SESSION_IMPL *session)
         loop = 0;
         eviction_progress = __wt_atomic_loadv64(&cache->eviction_progress);
     }
+    /* Clear before sleeping */
+    // return __evict_clear_all_walks(session); // TODO::: 22   // Levels: __evict_thread_run(0) -> __evict_server(1) -> __evict_pass(2) -> __evict_lru_walk(3) -> __evict_walk(4) -> __evict_walk_tree(5)
     return (0);
 }
 
@@ -849,7 +854,9 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
     WT_REF *ref;
 #define PATH_STR_MAX 1024
     char path_str[PATH_STR_MAX];
+    const char *where;
     size_t path_str_offset;
+    double pos;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
@@ -873,15 +880,36 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
     /*
      * Remember the last position before clearing it so that we can restart from about the same
      * point later.
+    */
+
+    /*
+     * If we're at an internal page, then we've just finished all its leafs, so get the position
+     * of the very beginning or the very end of it depending on the direction of walk.
+     * For leaf pages, use the middle of the page (0.5).
      */
     if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1)) {
-        btree->evict_pos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
+        pos = F_ISSET(ref, WT_REF_FLAG_LEAF) ? 0.5 :
+                btree->evict_start_type == WT_EVICT_WALK_NEXT ||
+                btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT ? 1.0 : 0.0;
+        btree->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
     } else {
+        if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+            pos = 0.5;
+            where = "MIDDLE";
+        } else {
+            if (btree->evict_start_type == WT_EVICT_WALK_NEXT || btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
+                pos = 1.0;
+                where = "RIGHT";
+            } else {
+                pos = 0.0;
+                where = "LEFT";
+            }
+        }
         btree->evict_pos =
-          __wt_page_npos(session, ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX);
+          __wt_page_npos(session, ref, pos, path_str, &path_str_offset, PATH_STR_MAX);
         __wt_verbose_debug1(session, WT_VERB_EVICTSERVER,
-          "Evict walk point memorized at position %lf %s page %s", btree->evict_pos,
-          F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str);
+          "Evict walk point memorized at position %lf %s of %s page %s ref %p", btree->evict_pos, where,
+          F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str, (void*)ref);
     }
 
     WT_WITH_DHANDLE(cache->walk_session, session->dhandle,
@@ -1936,7 +1964,7 @@ __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
  *     Try to restore the walk position from saved soft pos. Returns true if the walk position is
  *     restored.
  */
-static WT_INLINE bool
+static WT_INLINE int
 __try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t walk_flags)
 {
 #define PATH_STR_MAX 1024
@@ -1945,23 +1973,22 @@ __try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t 
     double unused; /* GCC fails to WT_UNUSED() :( */
 
     if (btree->evict_ref != NULL)
-        return (true); /* We've got a pointer already */
+        return (0); /* We've got a pointer already */
     if (btree->evict_pos < 0.)
-        return (false); /* No restore point */
-    if (__wt_page_from_npos_for_eviction(
-          session, &btree->evict_ref, 0, walk_flags, btree->evict_pos) != 0)
-        return (false); /* Failed to restore */
+        return (0); /* No restore point */
+    WT_RET_ONLY(__wt_page_from_npos_for_eviction(
+          session, &btree->evict_ref, 0, walk_flags, btree->evict_pos), WT_PANIC);
 
     if (btree->evict_ref != NULL &&
       WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1)) {
         WT_UNUSED(unused = __wt_page_npos(
                     session, btree->evict_ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX));
         __wt_verbose_debug1(session, WT_VERB_EVICTSERVER,
-          "Evict walk point recalled from position %lf %s page %s", btree->evict_pos,
-          F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str);
+          "Evict walk point recalled from position %lf %s page %s ref %p", btree->evict_pos,
+          F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str, (void*)btree->evict_ref);
     }
 
-    return (btree->evict_ref != NULL); /* Restored a good page? */
+    return (0);
 #undef PATH_STR_MAX
 }
 
@@ -1981,7 +2008,8 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         FLD_SET(*walk_flagsp, WT_READ_VISIBLE_ALL);
 
-    if (__try_restore_walk_position(session, btree, *walk_flagsp)) {
+    WT_RET(__try_restore_walk_position(session, btree, *walk_flagsp));
+    if (btree->evict_ref != NULL) {
         WT_STAT_CONN_INCR(session, cache_eviction_walk_saved_pos);
         WT_STAT_DSRC_INCR(session, cache_eviction_walk_saved_pos);
     } else {
@@ -2265,7 +2293,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     ref = btree->evict_ref;
     btree->evict_ref = NULL;
     /* Clear the saved position just in case we never put it back. */
-    btree->evict_pos = -1.;
+    btree->evict_pos = -1.0;
 
     /*
      * Get the snapshot for the eviction server when we want to evict dirty content under cache
@@ -2391,6 +2419,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
         btree->evict_ref = ref;
+        // __evict_clear_walk(session);  // TODO:: 5   // Levels: __evict_thread_run(0) -> __evict_server(1) -> __evict_pass(2) -> __evict_lru_walk(3) -> __evict_walk(4) -> __evict_walk_tree(5)
     }
 
     WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
