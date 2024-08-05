@@ -52,11 +52,8 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
 static bool
 __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
 {
-    bool has_stop;
-
     /* Don't process fully deleted pages. */
-    has_stop = WT_TIME_AGGREGATE_HAS_STOP(&ta);
-    if (has_stop)
+    if (WT_TIME_AGGREGATE_HAS_STOP(&ta))
         return (false);
 
     /* Limit the activity to reduce the load. */
