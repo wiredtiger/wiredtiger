@@ -396,11 +396,9 @@ __wt_compact(WT_SESSION_IMPL *session)
 
             __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
               "The compaction of the data handle %s returned EBUSY due to an in-progress "
-              "conflicting checkpoint.%s",
-              session->dhandle->name,
-              session == S2C(session)->background_compact.session ?
-                "" :
-                " Compaction of this data handle will resume after checkpoint completes.");
+              "conflicting checkpoint. Compaction of this data handle will resume after checkpoint "
+              "completes.",
+              session->dhandle->name);
 
             __wt_sleep(1, 0);
 
