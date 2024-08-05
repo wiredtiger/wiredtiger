@@ -457,6 +457,15 @@ __checkpoint_cleanup_page_skip(
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
     }
 
+    /*
+     * While we may have decided to skip the page, check if there is obsolete content that can be
+     * cleaned up.
+     */
+    if (*skipp && __sync_obsolete_tw_check(session, addr.ta)) {
+        WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
+        *skipp = false;
+    }
+
     if (*skipp) {
         __wt_verbose_debug2(
           session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
