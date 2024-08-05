@@ -511,11 +511,6 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::evict);
                 table_context_ptr table = choose_table(std::move(kv_workload_sequence_ptr()));
-
-                /* FIXME-WT-12971 Remove this check to allow eviction in FLCS once this is fixed. */
-                if (table->type() == kv_table_type::column_fix)
-                    break;
-
                 data_value key = generate_key(table, op_category::evict);
                 *p << operation::evict(table->id(), key);
                 _sequences.push_back(p);
