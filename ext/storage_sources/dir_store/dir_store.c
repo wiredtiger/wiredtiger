@@ -198,6 +198,7 @@ static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t
 
 /* Object interface */
 static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
+static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM **);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1236,6 +1237,7 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     file_handle->fh_write = dir_store_file_write;
 
     file_handle->fh_obj_checkpoint = dir_store_obj_ckpt;
+    file_handle->fh_obj_checkpoint_load = dir_store_obj_ckpt_load;
     file_handle->fh_obj_put = dir_store_obj_put;
     file_handle->fh_obj_get = dir_store_obj_get;
     file_handle->fh_obj_delete = dir_store_obj_delete;
@@ -1659,12 +1661,14 @@ dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t
     if (ret != 0)
         return (ret);
 
+    /* TODO this probably ought to be one indivisible write with the ckpt_begin */
     return (wt_fh->fh_write(wt_fh, session, sizeof(uint64_t), sizeof(uint64_t), &extra_begin));
 }
 
 /*
  * dir_store_obj_ckpt --
- *     Write out our object ID to offset map.
+ *     Save any data necessary to restore our internal state, plus some extra
+ *     data the user wants to keep alongside it.
  */
 static int
 dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
@@ -1692,6 +1696,17 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
     dir_store_fh->object_next_offset += nwritten; /* TODO align again? */
 
     return (dir_store_ckpt_finalize(dir_store_fh, session, start, extra_start));
+}
+
+/*
+ * dir_store_obj_ckpt_load --
+ *     Load any data necessary to restore our internal state, plus some extra
+ *     data the user kept alongside it.
+ */
+static int
+dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM **extra)
+{
+    return (0);
 }
 
 /*

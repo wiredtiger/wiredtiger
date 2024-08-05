@@ -47,3 +47,29 @@ __wt_bmp_checkpoint(
 
     return (0);
 }
+
+/*
+ * __wt_bmp_checkpoint_load --
+ *     Load a checkpoint.
+ */
+int
+__wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
+  uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
+{
+    WT_BLOCK_PANTRY *block_pantry;
+    WT_FILE_HANDLE *handle;
+    WT_DECL_ITEM(tmp);
+
+    WT_UNUSED(addr);
+    WT_UNUSED(addr_size);
+    WT_UNUSED(root_addr);
+    WT_UNUSED(root_addr_sizep);
+    WT_UNUSED(checkpoint);
+
+    block_pantry = (WT_BLOCK_PANTRY *)bm->block;
+    handle = block_pantry->fh->handle;
+
+    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface, &tmp));
+
+    return (0);
+}

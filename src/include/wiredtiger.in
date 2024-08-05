@@ -5218,6 +5218,17 @@ struct __wt_file_handle {
     int (*fh_obj_checkpoint)(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra);
 
     /*!
+     * Load an object store checkpoint - open the current state so it's available after a restart
+     *
+     * @errors
+     *
+     * @param file_handle the WT_FILE_HANDLE
+     * @param session the current WiredTiger session
+     * @param[out] extra any extra data that was associated with the checkpoint
+     */
+    int (*fh_obj_checkpoint_load)(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM **extra);
+
+    /*!
      * Put an object given an identifier.
      *
      * @errors
