@@ -93,7 +93,7 @@ class test_cc09(eviction_util, test_cc_base):
 
         # Force checkpoint cleanup and wait for it to make progress. It should read pages from the
         # disk to clear the obsolete content if allowed to.
-        self.check_cc_stats()
+        self.wait_for_cc_to_run()
 
         cc_read_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_obsolete_tw)
         cc_dirty_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
