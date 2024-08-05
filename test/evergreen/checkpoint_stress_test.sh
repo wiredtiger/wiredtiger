@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -o errexit
+set -o verbose
+
+tiered=$1
+times=$2
+no_of_procs=$3
+
+export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
+
+CMD='./test_checkpoint -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+
+if [ $tiered -eq 1 ]; then
+    CMD="$CMD -PT"
+fi
+
+for i in $(seq $times); do
+  for t in $(seq $no_of_procs); do
+    eval nohup $CMD > nohup.out.$i.$t 2>&1 &
+  done
+
+  failure=0
+  for t in $(seq $no_of_procs); do
+    ret=0
+    wait -n || ret=$?
+    if [ $ret -ne 0 ]; then
+      # Skip the below lines from nohup output file because they are very verbose and
+      # print only the errors to evergreen log file.
+      grep -v "Finished verifying" nohup.out.* | grep -v "Finished a checkpoint" | grep -v "thread starting"
+      failure=1
+      fail_ret=$ret
+    fi
+  done
+  if [ $failure -eq 1 ]; then
+    exit $fail_ret
+  fi
+done

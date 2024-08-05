@@ -638,18 +638,7 @@ functions:
       script: |
         set -o verbose
         ${PREPARE_TEST_ENV}
-        # Get the current setting of the required perf field
-        paranoia_level=`sudo sysctl kernel.perf_event_paranoid | cut -d '=' -f 2 | xargs`
-        sudo sysctl -w kernel.perf_event_paranoid=2
-        ./run -t ${test_name} -C '${test_config}' -f ${test_config_filename} -l 2
-        exit_code=$?
-        # Restore the kernel perf event paranoid level
-        sudo sysctl -w kernel.perf_event_paranoid=$paranoia_level
-        echo "$exit_code" > cppsuite_exit_code
-        if [ "$exit_code" != 0 ]; then
-          echo "[{\"info\":{\"test_name\": \"${test_name}\"},\"metrics\": []}]" > ${test_name}.json
-        fi
-        exit 0
+        ../../../test/evergreen/cppsuite_test_run.sh ${test_name} ${test_config_filename} "${test_config}"
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run all": &cppsuite_test_run_all
@@ -926,13 +915,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        format_args="tiered_storage.storage_source=dir_store tiered_storage.flush_frequency=60 checkpoint.wait=15 runs.source=table runs.timer=10 runs.in_memory=0"
-        for i in $(seq ${times}); do
-          echo Iteration $i/${times}
-          rm -rf RUNDIR
-          ./t $format_args ${test_format_extra_args}
-          ./t -R $format_args ${test_format_extra_args}
-        done
+        ../../../test/evergreen/format_test_tiered.sh ${times} ${test_format_extra_args}
   "many dbs test":
     command: shell.exec
     params:
@@ -1100,33 +1083,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
-        CMD='./test_checkpoint -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
-        if [ ${tiered|0} -eq 1 ]; then
-            CMD="$CMD -PT"
-        fi
-
-        for i in $(seq ${times|1}); do
-          for t in $(seq ${no_of_procs|1}); do
-            eval nohup $CMD > nohup.out.$i.$t 2>&1 &
-          done
-
-          failure=0
-          for t in $(seq ${no_of_procs|1}); do
-            ret=0
-            wait -n || ret=$?
-            if [ $ret -ne 0 ]; then
-              # Skip the below lines from nohup output file because they are very verbose and
-              # print only the errors to evergreen log file.
-              grep -v "Finished verifying" nohup.out.* | grep -v "Finished a checkpoint" | grep -v "thread starting"
-              failure=1
-              fail_ret=$ret
-            fi
-          done
-          if [ $failure -eq 1 ]; then
-            exit $fail_ret
-          fi
-        done
+        ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1}
 
   "compatibility test":
     - command: shell.exec
