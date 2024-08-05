@@ -198,7 +198,7 @@ static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t
 
 /* Object interface */
 static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
-static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
+static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, void *, size_t);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1709,7 +1709,7 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
  *     data the user kept alongside it.
  */
 static int
-dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
+dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *buf, size_t buf_sz)
 {
     /*
      * This is really just fetching the extra data - we loaded our internal state on
@@ -1731,8 +1731,12 @@ dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITE
     /* Read the extra data's length. */
     if ((ret = file_handle->fh_read(file_handle, session, extra_ptr, sizeof(uint64_t), &extra_len)) != 0)
         return (ret);
+    extra_ptr += sizeof(uint64_t);
 
-    return (0);
+    if (extra_len > buf_sz)
+        return (ENOMEM);
+
+    return (file_handle->fh_read(file_handle, session, extra_ptr, extra_len, buf));
 }
 
 /*

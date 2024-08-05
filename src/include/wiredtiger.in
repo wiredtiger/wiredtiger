@@ -5226,7 +5226,7 @@ struct __wt_file_handle {
      * @param session the current WiredTiger session
      * @param[out] extra any extra data that was associated with the checkpoint
      */
-    int (*fh_obj_checkpoint_load)(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra);
+    int (*fh_obj_checkpoint_load)(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *buf, size_t buf_sz);
 
     /*!
      * Put an object given an identifier.
