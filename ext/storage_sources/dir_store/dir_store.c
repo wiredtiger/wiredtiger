@@ -1051,11 +1051,11 @@ dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 }
 
 /*
- * dir_store_ckpt_load --
+ * dir_store_ckpt_load_internal --
  *     Populate some internal data structures from on-disk content (if any).
  */
 static int
-dir_store_ckpt_load(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
+dir_store_ckpt_load_internal(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
 {
     WT_FILE_HANDLE *wt_fh;
     wt_off_t size;
@@ -1256,7 +1256,7 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         goto err;
     }
 
-    if ((ret = dir_store_ckpt_load(dir_store_fh, session)) != 0)
+    if ((ret = dir_store_ckpt_load_internal(dir_store_fh, session)) != 0)
         goto err;
 
     *file_handlep = file_handle;
@@ -1706,6 +1706,25 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
 static int
 dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM **extra)
 {
+    /*
+     * This is really just fetching the extra data - we loaded our internal state on
+     * startup (see dir_store_ckpt_load_internal).
+     */
+    wt_off_t extra_ptr, size;
+    int ret;
+
+    *extra = NULL;
+
+    /* Check the size before we read. */
+    if ((ret = file_handle->fh_size(file_handle, session, &size)) != 0)
+        return (ret);
+    if (size <= sizeof(uint64_t))
+        return (0);
+
+    /* Look up the extra data's address. */
+    if ((ret = file_handle->fh_read(file_handle, session, sizeof(uint64_t), sizeof(uint64_t), &extra_ptr)) != 0)
+        return (ret);
+
     return (0);
 }
 
