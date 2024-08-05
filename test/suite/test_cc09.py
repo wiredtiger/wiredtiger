@@ -98,7 +98,8 @@ class test_cc09(eviction_util, test_cc_base):
         cc_read_stat = self.get_stat(stat.conn.checkpoint_cleanup_obsolete_tw_pages_read)
         cc_dirty_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
 
-        # We may be expecting cleanup but we have to be in one of the valid scenarios.
+        # We may be expecting cleanup but we have to be in one of the valid scenarios for checkpoint
+        # cleanup to do something.
         if self.expected_cleanup and (self.has_delete or self.bump_oldest_ts):
             assert cc_read_stat > 0, "Checkpoint cleanup did not read anything"
             assert cc_dirty_stat > 0, "Checkpoint cleanup did not dirty anything"
