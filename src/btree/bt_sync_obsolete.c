@@ -441,7 +441,7 @@ __checkpoint_cleanup_page_skip(
      *
      * - The page does not have any deletes (checked using the aggregated stop durable timestamp)
      * AND
-     *  - the checkpoint cleanup is configured to skip internal pages OR
+     *  - the checkpoint cleanup is not configured with the reclaim space method OR
      *  - the table is not logged (they do not use timestamps).
      *
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
