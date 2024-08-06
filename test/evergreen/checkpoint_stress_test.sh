@@ -3,6 +3,13 @@
 set -o errexit
 set -o verbose
 
+if [ $# -ne 3 ]; then
+    echo "Error: invalid number of arguments."
+    echo "Usage: format_test_predictable.sh ${tiered} ${times} ${no_of_procs}"
+    echo "Current args: $@"
+    exit 1
+fi
+
 tiered=$1
 times=$2
 no_of_procs=$3

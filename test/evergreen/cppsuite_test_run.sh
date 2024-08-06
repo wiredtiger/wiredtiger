@@ -2,6 +2,13 @@
 
 set -o verbose
 
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+    echo "Error: invalid number of arguments."
+    echo "Usage: format_test_predictable.sh ${test_name} ${test_config_filename} ${test_config}"
+    echo "Current args: $@"
+    exit 1
+fi
+
 test_name=$1
 test_config_filename=$2
 test_config=$3

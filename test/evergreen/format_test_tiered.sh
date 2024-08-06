@@ -6,6 +6,13 @@
 set -o errexit
 set -o verbose
 
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+    echo "Error: invalid number of arguments."
+    echo "Usage: format_test_predictable.sh ${times} ${test_format_extra_args}"
+    echo "Current args: $@"
+    exit 1
+fi
+
 times=$1
 test_format_extra_args=$2
 
