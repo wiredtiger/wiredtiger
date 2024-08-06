@@ -385,12 +385,9 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
 
             /*
              * Always include operations that are not applicable to the aspect of the workload on
-             * which we are focusing. Also, always include workload metadata operations, such as
-             * setting WiredTiger's connection and table configs.
+             * which we are focusing.
              */
-            bool workload_metadata =
-              std::holds_alternative<model::operation::wt_config>(op.operation);
-            if (!has_aspect(op, i) || always_include(op, i) || workload_metadata) {
+            if (!has_aspect(op, i) || always_include(op, i)) {
                 *w << op;
                 continue;
             }

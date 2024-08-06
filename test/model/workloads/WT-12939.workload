@@ -1,4 +1,3 @@
-wt_config("table", "leaf_page_max=4KB")
 create_table(5, table5, r, Q)
 begin_transaction(341)
 insert(5, 341, 89581, 524219)
