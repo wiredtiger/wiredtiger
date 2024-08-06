@@ -15,11 +15,6 @@ if [ $# -lt 3 ]; then
     exit 1
 fi
 
-if [[ "$combine_coverage_report" == "True" && $# -ne 7 ]]; then
-    print_usage $@
-    exit 1
-fi
-
 coverage_filter=$1
 num_jobs=$2
 python_binary=$3
@@ -27,6 +22,11 @@ generate_atlas_format=$4
 combine_coverage_report=$5
 first_coverage_file_path=$6
 second_coverage_file_path=$7
+
+if [[ "$combine_coverage_report" == "True" && $# -ne 7 ]]; then
+    print_usage $@
+    exit 1
+fi
 
 virtualenv -p python3 venv
 source venv/bin/activate
