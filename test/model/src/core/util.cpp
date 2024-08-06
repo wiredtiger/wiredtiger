@@ -384,7 +384,7 @@ quote(const std::string &str)
     out << "\"";
 
     for (char c : str) {
-        if (c == '\"')
+        if (c == '"')
             out << "\\\"";
         else
             out << c;

@@ -548,7 +548,7 @@ kv_workload_runner_wt::do_operation(const operation::wt_config &op)
         memcpy(_state->connection_config, v, l);
     } else if (op.type == "table") {
         if (l > sizeof(_state->table_config))
-            throw model_exception("The connection config is too long");
+            throw model_exception("The table config is too long");
         memcpy(_state->table_config, v, l);
     } else
         throw model_exception("Unknown config type");

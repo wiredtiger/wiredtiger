@@ -61,7 +61,7 @@ protected:
     public:
         /*
          * session_context::session_context --
-         *     Create the
+         *     Create the session context.
          */
         inline session_context(kv_workload_runner_wt &workload_context, WT_SESSION *session)
             : _session(session), _workload_context(workload_context)
@@ -155,7 +155,7 @@ protected:
         size_t failed_operation;     /* The operation that caused an exception. */
         char exception_message[256]; /* The exception message. */
 
-        /* The map of table IDs to URIs, needed to resume the workload from a crash. */
+        /* The map of table IDs to table states, needed to resume the workload from a crash. */
         size_t num_tables;
         table_state tables[256]; /* The table states; protected by the same lock as the URI map. */
 
