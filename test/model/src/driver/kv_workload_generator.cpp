@@ -387,7 +387,7 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                     else {
                         txn << operation::prepare_transaction(txn_id, k_timestamp_none);
 
-                        /* Add a delay before finishing the transation. */
+                        /* Add a delay before finishing the transaction. */
                         size_t delay = _random.next_uint64(_spec.max_delay_after_prepare);
                         for (size_t i = 0; i < delay; i++)
                             txn << operation::nop();
