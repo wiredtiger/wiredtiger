@@ -1,3 +1,4 @@
+wt_config("table", "leaf_page_max=4KB")
 create_table(4, table4, Q, Q)
 begin_transaction(2)
 insert(4, 2, 70018, 454916)
