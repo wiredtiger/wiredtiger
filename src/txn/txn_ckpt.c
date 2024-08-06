@@ -1340,11 +1340,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
      * checkpointing the metadata or syncing the log file works. Recovery relies on the checkpoint
-     * LSN in the metadata being updated by only checkpoints of all files, i.e. full
-     * checkpoints. Together these require checkpointing the metadata for full checkpoints or
-     * partial checkpoints that include non-logged files, and syncing the log file for only partial
-     * checkpoints of logged files. Since partial checkpoints are not supported, checkpoint the
-     * metadata for all checkpoints.
+     * LSN in the metadata being updated by only checkpoints of all files, i.e. full checkpoints.
+     * Together these require checkpointing the metadata for full checkpoints or partial checkpoints
+     * that include non-logged files, and syncing the log file for only partial checkpoints of
+     * logged files. Since partial checkpoints are not supported, checkpoint the metadata for all
+     * checkpoints.
      *
      * This is very similar to __wt_meta_track_off, ideally they would be merged.
      */
