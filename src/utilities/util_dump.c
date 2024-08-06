@@ -1018,7 +1018,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             continue;
         while (current_arg != NULL) {
             if ((args[i] = util_malloc(ARG_BUF_SIZE)) == NULL) {
-                (void) util_err(session, errno, NULL);
+                (void)util_err(session, errno, NULL);
                 goto err;
             }
             memmove(args[i++], current_arg, strlen(current_arg) + 1);
