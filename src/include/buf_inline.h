@@ -90,7 +90,8 @@ __wt_buf_set(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t si
 
 /*
  * __wt_buf_set_and_grow --
- *     Set the contents of the buffer and grow the buffer.
+ *     Set the contents of the buffer and grow the buffer to the maximum of the specified size and
+ *     the content size.
  */
 static WT_INLINE int
 __wt_buf_set_and_grow(
