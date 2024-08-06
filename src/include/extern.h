@@ -85,7 +85,8 @@ extern const char *__wt_wiredtiger_error(int error)
 extern const char *__wti_cell_type_string(uint8_t type)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern double __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_str,
-  size_t *path_str_offset, size_t path_str_sz_max) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  size_t *path_str_offsetp, size_t path_str_sz_max)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
   WT_CURSOR_TABLE *ctable, int (*f)(WT_CURSOR *)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_background_compact_end(WT_SESSION_IMPL *session)

@@ -20,7 +20,9 @@ def missing_comment():
                 # tests, no comment needed in this case.
                 continue
             if not m.group(1) or \
-               not m.group(1).startswith('/*\n * %s --\n' % m.group(2)):
+               not (m.group(1).startswith('/*\n * %s --\n' % m.group(2)) or
+                    (m.group(1).startswith('/*\n * !!!') and
+                     m.group(1).find('\n * %s --\n' % m.group(2)) > 0)):
                    print("%s:%d: missing or malformed comment for %s" % \
                            (f, s[:m.start(2)].count('\n'), m.group(2)))
 

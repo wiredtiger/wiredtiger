@@ -752,9 +752,9 @@ restart:; /* Restart the search from the root. */
 
         if (eviction) {
             /*
-             * In case of eviction, we never want to load pages from disk.
-             * Also, page_swap with WT_READ_CACHE will fail anyway and we'll lose our pointer, so
-             * avoid making a call that will fail.
+             * In case of eviction, we never want to load pages from disk. Also, page_swap with
+             * WT_READ_CACHE will fail anyway and we'll lose our pointer, so avoid making a call
+             * that will fail.
              */
             switch (WT_REF_GET_STATE(descent)) {
             case WT_REF_DISK:
