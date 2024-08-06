@@ -51,7 +51,7 @@ create_btree(WT_CONNECTION *conn)
     memset(val_str, 'A', 1000);
     val_str[1000 - 1] = '\0';
 
-    for (uint64_t i = 0; i < NUM_KEYS; i++) {
+    for (int i = 0; i < NUM_KEYS; i++) {
         cursor->set_key(cursor, i);
         cursor->set_value(cursor, val_str);
         testutil_check(cursor->insert(cursor));
@@ -90,7 +90,7 @@ test_normalized_pos(WT_CONNECTION *conn)
      * Traverse the whole dataset to stabilize the tree and make sure that we don't cause page
      * splits by looking into pages.
      */
-    for (uint64_t key = 0; key < NUM_KEYS; key++) {
+    for (int key = 0; key < NUM_KEYS; key++) {
         cursor->set_key(cursor, key);
         testutil_check(cursor->search(cursor));
     }
@@ -98,7 +98,7 @@ test_normalized_pos(WT_CONNECTION *conn)
     /*
      * Traverse the whole dataset, checking npos.
      */
-    for (uint64_t key = 0; key < NUM_KEYS; key++) {
+    for (int key = 0; key < NUM_KEYS; key++) {
         cursor->set_key(cursor, key);
         testutil_check(cursor->search(cursor));
 
