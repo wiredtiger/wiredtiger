@@ -1017,11 +1017,10 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
         if (current_arg == NULL)
             continue;
         while (current_arg != NULL) {
-            if ((args[i] = util_malloc(ARG_BUF_SIZE)) == NULL) {
-                (void) util_err(session, errno, NULL);
-                goto err;
-            }
-            memmove(args[i++], current_arg, strlen(current_arg) + 1);
+            if ((args[i] = util_malloc(ARG_BUF_SIZE)) == NULL)
+                WT_ERR(util_err(session, errno, NULL));
+            memmove(args[i], current_arg, strlen(current_arg) + 1);
+            ++i;
             ++num_args;
             current_arg = strtok(NULL, " ");
         }
