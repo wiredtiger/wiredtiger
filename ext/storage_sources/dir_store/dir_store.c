@@ -45,6 +45,9 @@
 #define WT_MILLION 1000000
 #endif
 
+/* This is the size of a 64 bit number, don't use sizeof since sign-edness causes issues */
+#define STORED_VALUE_SIZE   8
+
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
  * as local files in a designated directory.
@@ -1058,9 +1061,9 @@ static int
 dir_store_ckpt_load_internal(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
 {
     WT_FILE_HANDLE *wt_fh;
-    wt_off_t size;
+    wt_off_t offset, size;
     int ret;
-    uint64_t entries, i, offset, tmp;
+    uint64_t entries, i, tmp;
 
     wt_fh = fh->fh;
 
@@ -1069,34 +1072,34 @@ dir_store_ckpt_load_internal(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
         return (ret);
 
     /* New file, nothing to load. */
-    if (size <= sizeof(uint64_t))
+    if (size <= STORED_VALUE_SIZE)
         return (0);
 
     /* Look up the checkpoint's address. */
-    if ((ret = wt_fh->fh_read(wt_fh, session, 0, sizeof(uint64_t), &offset)) != 0)
+    if ((ret = wt_fh->fh_read(wt_fh, session, 0, STORED_VALUE_SIZE, &offset)) != 0)
         return (ret);
 
     /* From that address, get the number of entries. */
-    if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &entries)) != 0)
+    if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &entries)) != 0)
         return (ret);
-    offset += sizeof(uint64_t);
+    offset += STORED_VALUE_SIZE;
     dir_store_obj_resize_map(fh, entries);
 
     /* Go over the entries and rebuild the dir store's internal state. */
     for (i = 0; i < entries; i++) {
-        if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &tmp)) != 0)
+        if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &tmp)) != 0)
             return (ret);
 
         fh->object_id_map[i] = tmp;
-        offset += sizeof(uint64_t);
+        offset += STORED_VALUE_SIZE;
     }
 
     for (i = 0; i < entries; i++) {
-        if ((ret = wt_fh->fh_read(wt_fh, session, offset, sizeof(uint64_t), &tmp)) != 0)
+        if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &tmp)) != 0)
             return (ret);
 
         fh->object_size_map[i] = tmp;
-        offset += sizeof(uint64_t);
+        offset += STORED_VALUE_SIZE;
     }
 
     return (0);
@@ -1533,17 +1536,17 @@ dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
         new_size = DIR_STORE_MAX(dir_store_fh->object_map_size * 2, new_max);
 
     /* Don't bother cleaning up on error - out of memory will be fatal here. */
-    if ((new_id_map = calloc(new_size, sizeof(uint64_t))) == NULL)
+    if ((new_id_map = calloc(new_size, STORED_VALUE_SIZE)) == NULL)
         return (ENOMEM);
-    if ((new_size_map = calloc(new_size, sizeof(uint64_t))) == NULL)
+    if ((new_size_map = calloc(new_size, STORED_VALUE_SIZE)) == NULL)
         return (ENOMEM);
 
     if (dir_store_fh->object_map_size != 0) {
         memcpy(new_id_map, dir_store_fh->object_id_map,
-          dir_store_fh->object_map_size * sizeof(uint64_t));
+          dir_store_fh->object_map_size * STORED_VALUE_SIZE);
         free(dir_store_fh->object_id_map);
         memcpy(new_size_map, dir_store_fh->object_size_map,
-          dir_store_fh->object_map_size * sizeof(uint64_t));
+          dir_store_fh->object_map_size * STORED_VALUE_SIZE);
         free(dir_store_fh->object_size_map);
     }
     dir_store_fh->object_id_map = new_id_map;
@@ -1559,14 +1562,14 @@ dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
 static uint64_t
 next_mul8(uint64_t i)
 {
-    return (i + 7) & ~0x7;
+    return (i + 7) & (uint64_t)~0x7;
 }
 
 /* dir_store_ckpt_intl --
  *     Serialise our internal data structures to a given file handle.
  */
 static int
-dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, size_t *nwritten)
+dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, wt_off_t *nwritten)
 {
     WT_FILE_HANDLE *wt_fh;
     int ret;
@@ -1575,25 +1578,25 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
 
     wt_fh = fh->fh;
     *nwritten = 0;
-    curr = begin + sizeof(uint64_t); /* Number of entries will precede the data. */
+    curr = begin + STORED_VALUE_SIZE; /* Number of entries will precede the data. */
 
     /* TODO lots of optimisations here - coalescing write calls, packing, etc. */
     for (i = 0; i < fh->object_map_size; i++) {
-        ret = wt_fh->fh_write(wt_fh, session, curr, sizeof(uint64_t), &fh->object_id_map[i]);
+        ret = wt_fh->fh_write(wt_fh, session, curr, STORED_VALUE_SIZE, &fh->object_id_map[i]);
         if (ret != 0)
             return (ret);
-        curr += sizeof(uint64_t);
+        curr += STORED_VALUE_SIZE;
     }
 
     for (i = 0; i < fh->object_map_size; i++) {
-        ret = wt_fh->fh_write(wt_fh, session, curr, sizeof(uint64_t), &fh->object_size_map[i]);
+        ret = wt_fh->fh_write(wt_fh, session, curr, STORED_VALUE_SIZE, &fh->object_size_map[i]);
         if (ret != 0)
             return (ret);
-        curr += sizeof(uint64_t);
+        curr += STORED_VALUE_SIZE;
     }
 
     /* Encode the number of entries at the start of the list. */
-    ret = wt_fh->fh_write(wt_fh, session, begin, sizeof(uint64_t), &i);
+    ret = wt_fh->fh_write(wt_fh, session, begin, STORED_VALUE_SIZE, &i);
     if (ret != 0)
         return (ret);
 
@@ -1628,7 +1631,7 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
  *     Write out any extra data the block pantry wants associated with the checkpoint.
  */
 static int
-dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, size_t *nwritten)
+dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, wt_off_t *nwritten)
 {
     WT_FILE_HANDLE *wt_fh;
     int ret;
@@ -1636,16 +1639,16 @@ dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *ex
     wt_fh = fh->fh;
     *nwritten = 0;
 
-    ret = wt_fh->fh_write(wt_fh, session, begin, sizeof(uint64_t), &extra->size);
+    ret = wt_fh->fh_write(wt_fh, session, begin, STORED_VALUE_SIZE, &extra->size);
     if (ret != 0)
         return (ret);
-    begin += sizeof(uint64_t);
+    begin += STORED_VALUE_SIZE;
 
     ret = wt_fh->fh_write(wt_fh, session, begin, extra->size, extra->data);
     if (ret != 0)
         return (ret);
 
-    *nwritten = extra->size;
+    *nwritten = (wt_off_t)extra->size;
 
     return (0);
 }
@@ -1662,12 +1665,12 @@ dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t
     wt_fh = fh->fh;
 
     /* TODO add some magic bytes? Version? Checksum? More thought. */
-    ret = wt_fh->fh_write(wt_fh, session, 0, sizeof(uint64_t), &ckpt_begin);
+    ret = wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin);
     if (ret != 0)
         return (ret);
 
     /* TODO this probably ought to be one indivisible write with the ckpt_begin */
-    return (wt_fh->fh_write(wt_fh, session, sizeof(uint64_t), sizeof(uint64_t), &extra_begin));
+    return (wt_fh->fh_write(wt_fh, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_begin));
 }
 
 /*
@@ -1679,26 +1682,25 @@ static int
 dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
-    wt_off_t start, extra_start;
+    wt_off_t start, extra_start, nwritten;
     int ret;
-    size_t nwritten;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
 
     /* Align - not strictly necessary, but it makes staring at the hex dump easier. */
     dir_store_fh->object_next_offset = next_mul8(dir_store_fh->object_next_offset);
-    start = dir_store_fh->object_next_offset;
+    start = (wt_off_t)dir_store_fh->object_next_offset;
 
     ret = dir_store_ckpt_intl(dir_store_fh, session, start, &nwritten);
     if (ret != 0)
         return (ret);
-    dir_store_fh->object_next_offset += nwritten; /* TODO maybe reset alignment? */
-    extra_start = dir_store_fh->object_next_offset;
+    dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO maybe reset alignment? */
+    extra_start = (wt_off_t)dir_store_fh->object_next_offset;
 
-    ret = dir_store_ckpt_extra(dir_store_fh, session, extra, dir_store_fh->object_next_offset, &nwritten);
+    ret = dir_store_ckpt_extra(dir_store_fh, session, extra, (wt_off_t)dir_store_fh->object_next_offset, &nwritten);
     if (ret != 0)
         return (ret);
-    dir_store_fh->object_next_offset += nwritten; /* TODO align again? */
+    dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO align again? */
 
     return (dir_store_ckpt_finalize(dir_store_fh, session, start, extra_start));
 }
@@ -1721,22 +1723,22 @@ dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *
     /* Check the size before we read. */
     if ((ret = file_handle->fh_size(file_handle, session, &size)) != 0)
         return (ret);
-    if (size <= sizeof(uint64_t))
+    if (size <= STORED_VALUE_SIZE)
         return (0);
 
     /* Look up the extra data's address. */
-    if ((ret = file_handle->fh_read(file_handle, session, sizeof(uint64_t), sizeof(uint64_t), &extra_ptr)) != 0)
+    if ((ret = file_handle->fh_read(file_handle, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_ptr)) != 0)
         return (ret);
 
     /* Read the extra data's length. */
-    if ((ret = file_handle->fh_read(file_handle, session, extra_ptr, sizeof(uint64_t), &extra_len)) != 0)
+    if ((ret = file_handle->fh_read(file_handle, session, extra_ptr, STORED_VALUE_SIZE, &extra_len)) != 0)
         return (ret);
-    extra_ptr += sizeof(uint64_t);
+    extra_ptr += STORED_VALUE_SIZE;
 
-    if (extra_len > buf_sz)
+    if (extra_len > (wt_off_t)buf_sz)
         return (ENOMEM);
 
-    return (file_handle->fh_read(file_handle, session, extra_ptr, extra_len, buf));
+    return (file_handle->fh_read(file_handle, session, extra_ptr, (size_t)extra_len, buf));
 }
 
 /*
