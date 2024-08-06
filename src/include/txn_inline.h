@@ -1383,7 +1383,14 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+        /*
+         * Stressing this code path may slow down the system too much. To minimize the impact, sleep
+         * on every random 100th iteration when this is enabled.
+         */
+        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_HS_SEARCH) &&
+          __wt_random(&session->rnd) % 100 == 0)
+            __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }
@@ -1541,8 +1548,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      *
      * We want the global value to lead the allocated values, so that any allocated transaction ID
      * eventually becomes globally visible. When there are no transactions running, the oldest_id
-     * will reach the global current ID, so we want post-increment semantics. Our atomic add
-     * primitive does pre-increment, so adjust the result here.
+     * will reach the global current ID, so we want post-increment (fetch_add) semantics.
      *
      * We rely on atomic reads of the current ID to create snapshots, so for unlocked reads to be
      * well defined, we must use an atomic increment here.
@@ -1550,12 +1556,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
     if (publish) {
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, txn_global->current);
-        id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        id = __wt_atomic_fetch_addv64(&txn_global->current, 1);
         session->txn->id = id;
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, false);
     } else
-        id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        id = __wt_atomic_fetch_addv64(&txn_global->current, 1);
 
     return (id);
 }
