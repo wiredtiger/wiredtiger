@@ -414,12 +414,6 @@ protected:
         return i->second;
     }
 
-    /*
-     * kv_workload_runner_wt::set_wt_config --
-     *     Set the WiredTiger configuration.
-     */
-    void set_wt_config(const std::string &type, const std::string &value);
-
 private:
     std::string _home;
 

@@ -537,7 +537,22 @@ kv_workload_runner_wt::do_operation(const operation::truncate &op)
 int
 kv_workload_runner_wt::do_operation(const operation::wt_config &op)
 {
-    set_wt_config(op.type, op.value);
+    std::unique_lock lock(_connection_lock);
+
+    size_t l = op.value.size() + 1; /* In-memory size, including the NUL byte. */
+    const char *v = op.value.c_str();
+
+    if (op.type == "connection") {
+        if (l > sizeof(_state->connection_config))
+            throw model_exception("The connection config is too long");
+        memcpy(_state->connection_config, v, l);
+    } else if (op.type == "table") {
+        if (l > sizeof(_state->table_config))
+            throw model_exception("The connection config is too long");
+        memcpy(_state->table_config, v, l);
+    } else
+        throw model_exception("Unknown config type");
+
     return 0;
 }
 
@@ -608,30 +623,6 @@ kv_workload_runner_wt::allocate_txn_session(txn_id_t id)
     auto context = std::make_shared<session_context>(*this, session);
     _sessions.insert_or_assign(i, id, context);
     return context;
-}
-
-/*
- * kv_workload_runner_wt::set_wt_config --
- *     Set the WiredTiger configuration.
- */
-void
-kv_workload_runner_wt::set_wt_config(const std::string &type, const std::string &value)
-{
-    std::unique_lock lock(_connection_lock);
-
-    size_t l = value.size() + 1; /* In-memory size, including the NUL byte. */
-    const char *v = value.c_str();
-
-    if (type == "connection") {
-        if (l > sizeof(_state->connection_config))
-            throw model_exception("The connection config is too long");
-        memcpy(_state->connection_config, v, l);
-    } else if (type == "table") {
-        if (l > sizeof(_state->table_config))
-            throw model_exception("The connection config is too long");
-        memcpy(_state->table_config, v, l);
-    } else
-        throw model_exception("Unknown config type");
 }
 
 } /* namespace model */
