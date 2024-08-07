@@ -396,7 +396,7 @@ err:
 }
 
 /*
- * __evict_server --
+ * __clear_all_walks_with_lock --
  *     Try to lock dhandles list and clear all walks. If we can't, just give up.
  */
 static int
@@ -405,9 +405,9 @@ __clear_all_walks_with_lock(WT_SESSION_IMPL *session, bool keep_pos)
     WT_DECL_RET;
 
     /*
-     * Try to get the handle list lock: if we give up, that indicates a session is waiting for
-     * us to clear walks. Do that as part of a normal pass (without the handle list lock) to
-     * avoid deadlock.
+     * Try to get the handle list lock: if we give up, that indicates a session is waiting for us to
+     * clear walks. Do that as part of a normal pass (without the handle list lock) to avoid
+     * deadlock.
      */
     if ((ret = __evict_lock_handle_list(session)) == EBUSY)
         return (0);
