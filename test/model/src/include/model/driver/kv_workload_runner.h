@@ -271,6 +271,17 @@ protected:
     }
 
     /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::wt_config &op)
+    {
+        (void)op;
+        return 0;
+    }
+
+    /*
      * kv_workload_runner::restart --
      *     Simulate database restart.
      */
