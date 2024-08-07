@@ -323,7 +323,6 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_SET(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         ret = __evict_server(session, &did_work);
-        WT_TRET(__evict_clear_all_walks(session, true));
         FLD_CLR(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
         was_intr = __wt_atomic_loadv32(&cache->pass_intr) != 0;
@@ -398,6 +397,35 @@ err:
 
 /*
  * __evict_server --
+ *     Try to lock dhandles list and clear all walks. If we can't, just give up.
+ */
+static int
+__clear_all_walks_with_lock(WT_SESSION_IMPL *session, bool keep_pos)
+{
+    WT_DECL_RET;
+
+    /*
+     * Try to get the handle list lock: if we give up, that indicates a session is waiting for
+     * us to clear walks. Do that as part of a normal pass (without the handle list lock) to
+     * avoid deadlock.
+     */
+    if ((ret = __evict_lock_handle_list(session)) == EBUSY)
+        return (0);
+    WT_RET(ret);
+
+    /*
+     * Clear the walks so we don't pin pages while asleep, otherwise we can block applications
+     * evicting large pages.
+     */
+    ret = __evict_clear_all_walks(session, keep_pos);
+
+    __wt_readunlock(session, &S2C(session)->dhandle_lock);
+
+    return (ret);
+}
+
+/*
+ * __evict_server --
  *     Thread to evict pages from the cache.
  */
 static int
@@ -406,7 +434,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     struct timespec now;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     uint64_t time_diff_ms;
 
     /* Assume there has been no progress. */
@@ -420,22 +447,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
+    WT_RET(__clear_all_walks_with_lock(session, true));
+
     if (!F_ISSET(conn, WT_CONN_EVICTION_RUN) || __wt_atomic_loadv32(&cache->pass_intr) != 0)
         return (0);
 
     if (!__wt_cache_stuck(session)) {
-        /*
-         * Try to get the handle list lock: if we give up, that indicates a session is waiting for
-         * us to clear walks. Do that as part of a normal pass (without the handle list lock) to
-         * avoid deadlock.
-         */
-        if ((ret = __evict_lock_handle_list(session)) == EBUSY)
-            return (0);
-        WT_RET(ret);
-
-        __wt_readunlock(session, &conn->dhandle_lock);
-        WT_RET(ret);
-
         /* Make sure we'll notice next time we're stuck. */
         cache->last_eviction_progress = 0;
         return (0);
@@ -808,7 +825,7 @@ __evict_pass(WT_SESSION_IMPL *session)
             if (loop < 100 ||
               __wt_atomic_load32(&cache->evict_aggressive_score) < WT_EVICT_SCORE_MAX) {
                 /* Clear before sleeping */
-                WT_RET(__evict_clear_all_walks(session, true));
+                WT_RET(__clear_all_walks_with_lock(session, true));
                 /*
                  * Back off if we aren't making progress: walks hold the handle list lock, blocking
                  * other operations that can free space in cache, such as LSM discarding handles.
