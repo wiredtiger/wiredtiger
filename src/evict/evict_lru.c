@@ -525,6 +525,10 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /* This gets called from recovery, skip it if required. */
+    if (F_ISSET(conn, WT_CONN_DEBUG_NO_BACKGROUND_THREADS))
+        return (0);
+
     /*
      * In case recovery has allocated some transaction IDs, bump to the current state. This will
      * prevent eviction threads from pinning anything as they start up and read metadata in order to

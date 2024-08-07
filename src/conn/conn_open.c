@@ -210,6 +210,23 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
 }
 
 /*
+ * __wti_minimal_startup --
+ *     Startup with no worker threads.
+ */
+int
+__wti_minimal_startup(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    /* Run recovery. NOTE: This call will NOT start (and stop) eviction. */
+    WT_RET(__wt_txn_recover(session, cfg));
+    /* Initialize metadata tracking, required before creating tables. */
+    WT_RET(__wt_meta_track_init(session));
+    /* Create the history store file. */
+    WT_RET(__wt_hs_open(session, cfg));
+
+    return (0);
+}
+
+/*
  * __wti_connection_workers --
  *     Start the worker threads.
  */

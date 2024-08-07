@@ -602,6 +602,12 @@ connection_runtime_config = [
             and one that will never checkpoint, it might discard log files before any checkpoint is
             done.) Ignored if set to 0''',
             min='0', max='1024'),
+        Config('no_background_threads', 'false', r'''
+            if true, ensures that WiredTiger will not start any background threads including
+            eviction. WiredTiger cannot be run long under this debug mode and it is only useful for
+            very short testing. Note: This config intentionally does not check for configuration
+            conflicts, e.g. if you configure logging or statistics it will not throw an error but
+            those systems will be disabled.''',type='boolean'),
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact amount requested. This
             will help with spotting memory allocation issues more easily.''',

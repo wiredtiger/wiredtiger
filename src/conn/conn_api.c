@@ -2202,6 +2202,16 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.no_background_threads", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_NO_BACKGROUND_THREADS);
+    else {
+        if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_NO_BACKGROUND_THREADS))
+            WT_RET_MSG(session, EINVAL, "cannot turn off background thread debug mode");
+        else
+            FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_NO_BACKGROUND_THREADS);
+    }
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT);
@@ -3276,8 +3286,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(event_handler->handle_general(
           event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
-    /* Start the worker threads and run recovery. */
-    WT_ERR(__wti_connection_workers(session, cfg));
+    /* If the "no background threads" configuration is supplied by the user skip thread creation. */
+    if (F_ISSET(conn, WT_CONN_DEBUG_NO_BACKGROUND_THREADS)) {
+        WT_ERR(__wti_minimal_startup(session, cfg));
+    } else
+        /* Start the worker threads and run recovery. */
+        WT_ERR(__wti_connection_workers(session, cfg));
 
     /*
      * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
