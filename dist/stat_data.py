@@ -159,37 +159,6 @@ class YieldStat(Stat):
         Stat.__init__(self, name, YieldStat.prefix, desc, flags)
 
 ##########################################
-# Groupings of useful statistics:
-# A pre-defined dictionary containing the group name as the key and the
-# list of prefix tags that comprise that group.
-##########################################
-groups = {}
-groups['cursor'] = [CursorStat.prefix, SessionOpStat.prefix]
-groups['evict'] = [
-    BlockCacheStat.prefix,
-    BlockStat.prefix,
-    CacheStat.prefix,
-    CacheWalkStat.prefix,
-    ChunkCacheStat.prefix,
-    ConnStat.prefix,
-    ThreadStat.prefix
-]
-groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
-groups['memory'] = [
-    CacheStat.prefix,
-    CacheWalkStat.prefix,
-    ConnStat.prefix,
-    RecStat.prefix]
-groups['system'] = [
-    CapacityStat.prefix,
-    ConnStat.prefix,
-    DhandleStat.prefix,
-    PerfHistStat.prefix,
-    SessionOpStat.prefix,
-    ThreadStat.prefix
-]
-
-##########################################
 # CONNECTION statistics
 ##########################################
 conn_stats = [
@@ -1026,7 +995,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
-    CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window'),
+    CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window by eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_random_sample_inmem_root', 'locate a random in-mem ref by examining all entries on the root page'),
@@ -1085,6 +1054,9 @@ conn_dsrc_stats = [
     # Checkpoint statistics
     ##########################################
     CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window by checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache during checkpoint cleanup due to obsolete time window'),
+    CheckpointStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache during checkpoint cleanup (reclaim_space)'),
     CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
