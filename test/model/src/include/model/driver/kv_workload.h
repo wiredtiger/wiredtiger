@@ -505,6 +505,50 @@ operator<<(std::ostream &out, const insert &op)
 }
 
 /*
+ * nop --
+ *     A representation of this workload operation.
+ */
+struct nop : public without_txn_id, public without_table_id {
+
+    /*
+     * nop::nop --
+     *     Create the operation.
+     */
+    inline nop() {}
+
+    /*
+     * nop::operator== --
+     *     Compare for equality.
+     */
+    inline bool
+    operator==(const nop &other) const noexcept
+    {
+        return true;
+    }
+
+    /*
+     * nop::operator!= --
+     *     Compare for inequality.
+     */
+    inline bool
+    operator!=(const nop &other) const noexcept
+    {
+        return !(*this == other);
+    }
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const nop &op)
+{
+    out << "nop()";
+    return out;
+}
+
+/*
  * prepare_transaction --
  *     A representation of this workload operation.
  */
@@ -982,9 +1026,10 @@ operator<<(std::ostream &out, const wt_config &op)
  * any --
  *     Any workload operation.
  */
-using any = std::variant<begin_transaction, checkpoint, commit_transaction, crash, create_table,
-  evict, insert, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
-  set_commit_timestamp, set_oldest_timestamp, set_stable_timestamp, truncate, wt_config>;
+using any =
+  std::variant<begin_transaction, checkpoint, commit_transaction, crash, create_table, evict,
+    insert, nop, prepare_transaction, remove, restart, rollback_to_stable, rollback_transaction,
+    set_commit_timestamp, set_oldest_timestamp, set_stable_timestamp, truncate, wt_config>;
 
 /*
  * operator<< --

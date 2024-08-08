@@ -178,6 +178,17 @@ protected:
      *     Execute the given workload operation in the model.
      */
     int
+    do_operation(const operation::nop &op)
+    {
+        (void)op;
+        return 0;
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
     do_operation(const operation::prepare_transaction &op)
     {
         transaction(op.txn_id)->prepare(op.prepare_timestamp);
