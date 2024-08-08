@@ -164,6 +164,10 @@ parse(const char *str)
         return insert(parse_uint64(args[0]), parse_uint64(args[1]),
           data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
     }
+    if (name == "nop") {
+        CHECK_NUM_ARGS(0);
+        return nop();
+    }
     if (name == "prepare_transaction") {
         CHECK_NUM_ARGS(2);
         return prepare_transaction(parse_uint64(args[0]), parse_uint64(args[1]));
