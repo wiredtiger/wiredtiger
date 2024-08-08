@@ -1280,7 +1280,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         __drop_list_execute(session, session->ckpt_drop_list);
         __wt_scr_free(session, &session->ckpt_drop_list);
     }
-    WT_ERR(__wt_meta_sysinfo_set(session, true, name, namelen));
+    WT_ERR(__wt_meta_sysinfo_set(session, name, namelen));
 
     /* Release the snapshot so we aren't pinning updates in cache. */
     __wt_txn_release_snapshot(session);
@@ -1338,10 +1338,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
 
     /*
-     * Ensure that the metadata changes are durable before the checkpoint is resolved. Do this by
-     * either checkpointing the metadata or syncing the log file. Recovery relies on the checkpoint
-     * LSN in the metadata only being updated by full checkpoints so only checkpoint the metadata
-     * for full or non-logged checkpoints. Note, all checkpoints are full now.
+     * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
+     * checkpointing the metadata or syncing the log file works. Recovery relies on the checkpoint
+     * LSN in the metadata being updated by only checkpoints of all files, i.e. full checkpoints.
+     * Together these require checkpointing the metadata for full checkpoints or partial checkpoints
+     * that include non-logged files, and syncing the log file for only partial checkpoints of
+     * logged files. Since partial checkpoints are not supported, checkpoint the metadata for all
+     * checkpoints.
      *
      * This is very similar to __wt_meta_track_off, ideally they would be merged.
      */
