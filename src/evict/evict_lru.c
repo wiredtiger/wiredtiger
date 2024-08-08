@@ -354,6 +354,10 @@ err:
     return (ret);
 }
 
+/*
+ * __clear_saved_walk_tree --
+ *     Clear saved walk tree maintaining use count.
+ */
 static void
 __clear_saved_walk_tree(WT_SESSION_IMPL *session)
 {
@@ -367,6 +371,10 @@ __clear_saved_walk_tree(WT_SESSION_IMPL *session)
     (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 }
 
+/*
+ * __set_saved_walk_tree --
+ *     Set saved walk tree maintaining use count.
+ */
 static void
 __set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
