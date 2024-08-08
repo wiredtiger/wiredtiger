@@ -447,12 +447,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
-    WT_RET(__clear_all_walks_with_lock(session, true));
-
     if (!F_ISSET(conn, WT_CONN_EVICTION_RUN) || __wt_atomic_loadv32(&cache->pass_intr) != 0)
         return (0);
 
     if (!__wt_cache_stuck(session)) {
+        WT_RET(__clear_all_walks_with_lock(session, true));
         /* Make sure we'll notice next time we're stuck. */
         cache->last_eviction_progress = 0;
         return (0);
@@ -824,8 +823,6 @@ __evict_pass(WT_SESSION_IMPL *session)
              */
             if (loop < 100 ||
               __wt_atomic_load32(&cache->evict_aggressive_score) < WT_EVICT_SCORE_MAX) {
-                /* Clear before sleeping */
-                WT_RET(__clear_all_walks_with_lock(session, true));
                 /*
                  * Back off if we aren't making progress: walks hold the handle list lock, blocking
                  * other operations that can free space in cache, such as LSM discarding handles.
