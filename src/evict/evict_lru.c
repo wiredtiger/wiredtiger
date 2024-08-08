@@ -355,11 +355,13 @@ err:
 }
 
 static void
-__clear_saved_walk_tree(WT_SESSION_IMPL *session) {
+__clear_saved_walk_tree(WT_SESSION_IMPL *session)
+{
     WT_DATA_HANDLE *dhandle;
 
     dhandle = S2C(session)->cache->walk_tree;
-    if (dhandle == NULL) return;
+    if (dhandle == NULL)
+        return;
     WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
     S2C(session)->cache->walk_tree = NULL;
     (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
@@ -372,7 +374,8 @@ __set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 
     cache = S2C(session)->cache;
     __clear_saved_walk_tree(session);
-    if (dhandle == NULL) return;
+    if (dhandle == NULL)
+        return;
     (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
     cache->walk_tree = dhandle;
 }
