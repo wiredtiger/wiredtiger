@@ -998,8 +998,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
     INT64_MAX, NULL},
   {"name", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 20, INT64_MIN,
     INT64_MAX, NULL},
-  {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 134, INT64_MIN,
-    INT64_MAX, NULL},
   {"use_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 159,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
@@ -1008,7 +1006,7 @@ static const uint8_t confchk_WT_SESSION_checkpoint_jump[WT_CONFIG_JUMP_TABLE_SIZ
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4,
-  4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+  4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 
 static const char *confchk_sync_choices[] = {__WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
 
@@ -3767,9 +3765,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
     "debug=(checkpoint_cleanup=false),drop=,flush_tier=(enabled=false"
-    ",force=false,sync=true,timeout=0),force=false,name=,target=,"
+    ",force=false,sync=true,timeout=0),force=false,name=,"
     "use_timestamp=true",
-    confchk_WT_SESSION_checkpoint, 7, confchk_WT_SESSION_checkpoint_jump, 19, WT_CONF_SIZING_NONE,
+    confchk_WT_SESSION_checkpoint, 6, confchk_WT_SESSION_checkpoint_jump, 19, WT_CONF_SIZING_NONE,
     false},
   {"WT_SESSION.close", "", NULL, 0, NULL, 20, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.commit_transaction",

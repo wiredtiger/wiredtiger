@@ -1921,9 +1921,6 @@ struct __wt_session {
      * \c false.}
      * @config{name, if set\, specify a name for the checkpoint (note that checkpoints including LSM
      * trees may not be named)., a string; default empty.}
-     * @config{target, if non-empty\, checkpoint the list of objects.  Checkpointing a list of
-     * objects separately from a database-wide checkpoint can lead to data inconsistencies; see @ref
-     * checkpoint_target for more information., a list of strings; default empty.}
      * @config{use_timestamp, if true (the default)\, create the checkpoint as of the last stable
      * timestamp if timestamps are in use\, or with all committed updates if there is no stable
      * timestamp set.  If false\, always generate a checkpoint with all committed updates\, ignoring
