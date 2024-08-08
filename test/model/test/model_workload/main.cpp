@@ -293,6 +293,8 @@ test_workload_crash(void)
 static void
 test_workload_generator(void)
 {
+    int retries = 0;
+
     while (true) {
         try {
             std::shared_ptr<model::kv_workload> workload = model::kv_workload_generator::generate();
@@ -300,10 +302,14 @@ test_workload_generator(void)
             /* Run the workload in the model and in WiredTiger, then verify. */
             std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
             verify_workload(*workload, opts, test_home, ENV_CONFIG);
+
             break;
         } catch (model::known_issue_exception &) {
             /* Try again. */
         }
+
+        if (retries++ > 10)
+            throw model::model_exception("Too many retries for workload generation");
     }
 }
 
