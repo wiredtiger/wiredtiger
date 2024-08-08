@@ -16,6 +16,8 @@ python_binary=$2
 github_commit=$3
 pr_args=$4
 
+echo "Current args: $@"
+
 virtualenv -p $python_binary venv
 source venv/bin/activate
 pip3 install pygit2==1.10.1 requests==2.32.3
