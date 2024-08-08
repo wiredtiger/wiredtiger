@@ -206,6 +206,10 @@ parse(const char *str)
         return truncate(parse_uint64(args[0]), parse_uint64(args[1]),
           data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
     }
+    if (name == "wt_config") {
+        CHECK_NUM_ARGS(2);
+        return wt_config(args[0].c_str(), args[1].c_str());
+    }
 
 #undef CHECK_NUM_ARGS
 #undef CHECK_NUM_ARGS_RANGE
