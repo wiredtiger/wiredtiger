@@ -102,6 +102,9 @@
 /* Define to 1 if the user has explicitly enable memkind builds. */
 #cmakedefine ENABLE_MEMKIND 1
 
+/* Define to 1 if you have the `vcdenc' library (-lvcdenc). */
+#cmakedefine HAVE_LIBVCDENC 1
+
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #cmakedefine HAVE_LIBPTHREAD 1
 
