@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "google/vcencoder-c.h"
 
 static int __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_destroy(WT_SESSION_IMPL *, void *);
@@ -2039,8 +2040,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
-    size_t addr_size, compressed_size;
+    size_t addr_size, compressed_size, delta_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    const char *delta;
+    bool result;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
@@ -2189,6 +2192,21 @@ copy_image:
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
     __rec_page_time_stats_clear(r);
+
+    /* Only calculate the diff for page rewrite. */
+    if (last_block && r->multi_next == 1 && page->dsk != NULL) {
+        result = vcencode((const char *)page->dsk, page->dsk->mem_size, chunk->image.data, chunk->image.size,
+          &delta, &delta_size);
+        if (result) {
+            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+              "Generated page delta, original page size %d, new page size %zu, delta size %zu",
+              page->dsk->mem_size, chunk->image.size, delta_size);
+            __wt_free(session, delta);
+        } else
+            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+              "Failed to generate page delta, original page size %d, new page size %zu",
+              page->dsk->mem_size, chunk->image.size);
+    }
 
     return (0);
 }
