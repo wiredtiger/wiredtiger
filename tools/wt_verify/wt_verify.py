@@ -608,7 +608,8 @@ def main():
     if "dump_pages" in args.dump:
         parsed_data = parse_dump_pages(input_file)
     else:
-        assert "dump_blocks" in args.dump
+        if not "dump_blocks" in args.dump:
+            raise Exception("dump_blocks expected in args.dump")
         parsed_data = parse_dump_blocks(input_file)
 
     # If we don't have data, nothing to do.
