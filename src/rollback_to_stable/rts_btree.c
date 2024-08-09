@@ -203,7 +203,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
                 key->size = WT_INSERT_KEY_SIZE(ins);
             } else {
                 recno = WT_INSERT_RECNO(ins);
-                memp = key->mem;
+                memp = (uint8_t *)key->mem;
                 WT_ERR(__wt_vpack_uint(&memp, 0, recno));
                 key->size = WT_PTRDIFF(memp, key->data);
             }
@@ -339,7 +339,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     } else {
         /* Manufacture a column key. */
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-        memp = key->mem;
+        memp = (uint8_t *)key->mem;
         WT_ERR(__wt_vpack_uint(&memp, 0, recno));
         key->size = WT_PTRDIFF(memp, key->data);
     }
@@ -796,7 +796,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     } else {
         /* Manufacture a column key. */
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-        memp = key->mem;
+        memp = (uint8_t *)key->mem;
         WT_ERR(__wt_vpack_uint(&memp, 0, recno));
         key->size = WT_PTRDIFF(memp, key->data);
     }
@@ -859,7 +859,7 @@ __rts_btree_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 
         if (page->dsk != NULL) {
             /* Unpack the cell. We need its RLE count whether or not we're going to iterate it. */
-            kcell = WT_COL_PTR(page, cip);
+            kcell = (WT_CELL *)WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
 
