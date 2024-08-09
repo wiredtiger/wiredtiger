@@ -524,8 +524,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval);
-    if (ret == 0 && cval.val)
+    if ((ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval)) == 0)
         session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     WT_ERR_NOTFOUND_OK(ret, false);
 
