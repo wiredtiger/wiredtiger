@@ -408,10 +408,8 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * The only time the first eviction thread is stopped is on shutdown: in case any trees are
      * still open, clear all walks now so that they can be closed.
      */
-    WT_WITH_PASS_LOCK(session,
-        __clear_saved_walk_tree(session);
-        ret = __evict_clear_all_walks(session)
-    );
+    WT_WITH_PASS_LOCK(session, __clear_saved_walk_tree(session);
+                      ret = __evict_clear_all_walks(session));
     WT_ERR(ret);
     /*
      * The only cases when the eviction server is expected to stop are when recovery is finished,
@@ -967,10 +965,9 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
      */
     (void)__wt_atomic_addv32(&cache->pass_intr, 1);
     WT_WITH_PASS_LOCK(session,
-        if (session->dhandle == S2C(session)->cache->walk_tree)
-            __clear_saved_walk_tree(session);
-        ret = __evict_clear_walk(session)
-    );
+                      if (session->dhandle == S2C(session)->cache->walk_tree)
+                        __clear_saved_walk_tree(session);
+                      ret = __evict_clear_walk(session));
     (void)__wt_atomic_subv32(&cache->pass_intr, 1);
     WT_ERR(ret);
 
