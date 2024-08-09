@@ -207,7 +207,8 @@ __rts_push_work(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollba
     __wt_spin_lock(session, &conn->rts->rts_lock);
     TAILQ_INSERT_TAIL(&conn->rts->rtsqh, entry, q);
     __wt_spin_unlock(session, &conn->rts->rts_lock);
-    __wt_cond_signal(session, conn->rts->thread_group.wait_cond);
+    if (!F_ISSET(conn, WT_CONN_DEBUG_NO_BACKGROUND_THREADS))
+        __wt_cond_signal(session, conn->rts->thread_group.wait_cond);
 
     return (0);
 err:

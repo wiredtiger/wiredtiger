@@ -116,10 +116,6 @@ __rts_thread_create(WT_SESSION_IMPL *session)
     /* Set first, the thread might run before we finish up. */
     F_SET(conn, WT_CONN_RTS_THREAD_RUN);
 
-    /* RTS work unit list */
-    TAILQ_INIT(&conn->rts->rtsqh);
-    WT_RET(__wt_spin_init(session, &conn->rts->rts_lock, "RTS work unit list"));
-
     /* Create the RTS thread group. Set the group size to the maximum allowed sessions. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->rts->thread_group, "rts-threads",
@@ -169,6 +165,7 @@ __rts_thread_destroy(WT_SESSION_IMPL *session)
 int
 __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_RTS_WORK_UNIT *entry;
@@ -182,6 +179,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     max_count = rollback_count = 0;
     rollback_msg_count = 0;
     rts_threads_started = false;
+    conn = S2C(session);
 
     /*
      * Walk the metadata first to count how many files we have overall. That allows us to give
@@ -198,8 +196,14 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     WT_ERR(__wt_metadata_cursor_release(session, &cursor));
     have_cursor = false;
 
-    WT_ERR(__rts_thread_create(session));
-    rts_threads_started = true;
+    /* RTS work unit list */
+    TAILQ_INIT(&conn->rts->rtsqh);
+    WT_ERR(__wt_spin_init(session, &conn->rts->rts_lock, "RTS work unit list"));
+
+    if (!F_ISSET(conn, WT_CONN_DEBUG_NO_BACKGROUND_THREADS)) {
+        WT_ERR(__rts_thread_create(session));
+        rts_threads_started = true;
+    }
 
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     have_cursor = true;
@@ -224,9 +228,12 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * Wait until the entire RTS queue is finished processing before performing the history store
      * final pass. Moreover, the main thread joins the processing queue rather than waiting for the
      * workers alone to complete the task.
+     *
+     * If we didn't start RTS threads before getting here then we need to process the whole work
+     * queue in this thread .
      */
-    if (S2C(session)->rts->threads_num != 0) {
-        while (!TAILQ_EMPTY(&S2C(session)->rts->rtsqh)) {
+    if (!rts_threads_started || conn->rts->threads_num != 0) {
+        while (!TAILQ_EMPTY(&conn->rts->rtsqh)) {
             __wti_rts_pop_work(session, &entry);
             if (entry == NULL)
                 break;
@@ -236,7 +243,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         }
     }
 
-    WT_ERR(__rts_thread_destroy(session));
+    if (rts_threads_started)
+        WT_ERR(__rts_thread_destroy(session));
     rts_threads_started = false;
 
     /*
@@ -248,7 +256,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * Do not perform the final pass on the history store in an in-memory configuration as it
      * doesn't exist.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
           WT_RTS_VERB_TAG_HS_TREE_FINAL_PASS
           "performing final pass of the history store to remove unstable entries with "
