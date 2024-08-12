@@ -59,7 +59,8 @@ union __wt_lsn {
     __wt_atomic_store64(&(dstl)->file_offset, __wt_atomic_load64(&(srcl)->file_offset))
 #define WT_SET_LSN(l, f, o) __wt_atomic_store64(&(l)->file_offset, (((uint64_t)(f) << 32) + (o)))
 
-#define WT_INIT_LSN(l) WT_SET_LSN((l), 1, 0)
+#define WT_INIT_LSN_FILE 1
+#define WT_INIT_LSN(l) WT_SET_LSN((l), WT_INIT_LSN_FILE, 0)
 
 #define WT_MAX_LSN(l) WT_SET_LSN((l), UINT32_MAX, INT32_MAX)
 

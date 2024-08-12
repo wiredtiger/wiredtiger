@@ -423,6 +423,13 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WT_LOG *log, uint32_t backup_file
     }
 
     __wt_readunlock(session, &conn->debug_log_retention_lock);
+#ifdef HAVE_DIAGNOSTIC
+    if (min_lognum > WT_INIT_LSN_FILE)
+        (void)__wt_log_printf(session,
+          "min_lognum %" PRIu32 " ckpt file %" PRIu32 " sync file %" PRIu32 " backup_file %" PRIu32
+          "debug_log_cnt %" PRIu32,
+          min_lognum, log->ckpt_lsn.l.file, log->sync_lsn.l.file, backup_file, conn->debug_log_cnt);
+#endif
     return (min_lognum);
 }
 
@@ -446,8 +453,12 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     logfiles = NULL;
 
     min_lognum = __compute_min_lognum(session, log, backup_file);
-    if (min_lognum == 0)
-        /* We want to retain all log files. Nothing to do here. */
+    if (min_lognum <= WT_INIT_LSN_FILE)
+        /*
+         * If the minimum log number is zero or one that means we want to keep all logs and there is
+         * nothing to do here. In typical operation, the minimum returned will be one as that is the
+         * initial LSN file value. When using debug mode, the minimum returned may be zero.
+         */
         return (0);
 
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
