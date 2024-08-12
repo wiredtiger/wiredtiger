@@ -218,6 +218,12 @@ config_lib(
 )
 
 config_lib(
+    HAVE_LIBVCDCOM
+    "vcdcom library exists."
+    LIB "vcdcom"
+)
+
+config_lib(
     HAVE_LIBVCDENC
     "vcdenc library exists."
     LIB "vcdenc"
