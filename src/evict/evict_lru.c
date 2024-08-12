@@ -355,11 +355,11 @@ err:
 }
 
 /*
- * __clear_saved_walk_tree --
+ * __evict_clear_saved_walk_tree --
  *     Clear saved walk tree maintaining use count.
  */
 static void
-__clear_saved_walk_tree(WT_SESSION_IMPL *session)
+__evict_clear_saved_walk_tree(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE *dhandle;
 
@@ -372,16 +372,16 @@ __clear_saved_walk_tree(WT_SESSION_IMPL *session)
 }
 
 /*
- * __set_saved_walk_tree --
+ * __evict_set_saved_walk_tree --
  *     Set saved walk tree maintaining use count.
  */
 static void
-__set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_CACHE *cache;
 
     cache = S2C(session)->cache;
-    __clear_saved_walk_tree(session);
+    __evict_clear_saved_walk_tree(session);
     if (dhandle == NULL)
         return;
     (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
@@ -408,7 +408,7 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * The only time the first eviction thread is stopped is on shutdown: in case any trees are
      * still open, clear all walks now so that they can be closed.
      */
-    WT_WITH_PASS_LOCK(session, __clear_saved_walk_tree(session);
+    WT_WITH_PASS_LOCK(session, __evict_clear_saved_walk_tree(session);
                       ret = __evict_clear_all_walks(session));
     WT_ERR(ret);
     /*
@@ -472,7 +472,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          * evicting large pages.
          */
         ret = __evict_clear_all_walks(session);
-        __clear_saved_walk_tree(session);
+        __evict_clear_saved_walk_tree(session);
 
         __wt_readunlock(session, &conn->dhandle_lock);
         WT_RET(ret);
@@ -966,7 +966,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
     (void)__wt_atomic_addv32(&cache->pass_intr, 1);
     WT_WITH_PASS_LOCK(session,
                       if (session->dhandle == S2C(session)->cache->walk_tree)
-                        __clear_saved_walk_tree(session);
+                        __evict_clear_saved_walk_tree(session);
                       ret = __evict_clear_walk(session));
     (void)__wt_atomic_subv32(&cache->pass_intr, 1);
     WT_ERR(ret);
@@ -1543,11 +1543,11 @@ retry:
              * have a saved handle, pick one randomly from the list.
              */
             if ((dhandle = cache->walk_tree) != NULL)
-                __clear_saved_walk_tree(session);
+                __evict_clear_saved_walk_tree(session);
             else
                 __evict_walk_choose_dhandle(session, &dhandle);
         } else {
-            __clear_saved_walk_tree(session);
+            __evict_clear_saved_walk_tree(session);
             __evict_walk_choose_dhandle(session, &dhandle);
         }
 
@@ -1609,8 +1609,7 @@ retry:
         }
         btree->evict_walk_skips = 0;
 
-        /* Remember the file to visit */
-        __set_saved_walk_tree(session, dhandle);
+        __evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
         dhandle_list_locked = false;
 
