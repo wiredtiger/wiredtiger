@@ -1010,6 +1010,7 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t local_objects_inuse;
+    int64_t session_table_compact_eviction;
     int64_t flush_tier_fail;
     int64_t flush_tier;
     int64_t flush_tier_skipped;
@@ -1162,7 +1163,6 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_reviewed;
     int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;
-    int64_t btree_compact_throttled;
     int64_t btree_compact_bytes_rewritten_expected;
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_checkpoint_pages_reconciled;

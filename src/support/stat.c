@@ -34,7 +34,6 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree compact pages reviewed",
   "btree: btree compact pages rewritten",
   "btree: btree compact pages skipped",
-  "btree: btree compact was throttled and assigned to perform cache eviction",
   "btree: btree expected number of compact bytes rewritten",
   "btree: btree expected number of compact pages rewritten",
   "btree: btree number of pages reconciled during checkpoint",
@@ -401,7 +400,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_reviewed */
     /* not clearing btree_compact_pages_rewritten */
     /* not clearing btree_compact_pages_skipped */
-    /* not clearing btree_compact_throttled */
     /* not clearing btree_compact_bytes_rewritten_expected */
     /* not clearing btree_compact_pages_rewritten_expected */
     /* not clearing btree_checkpoint_pages_reconciled */
@@ -727,7 +725,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
     to->btree_compact_pages_rewritten += from->btree_compact_pages_rewritten;
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
-    to->btree_compact_throttled += from->btree_compact_throttled;
     to->btree_compact_bytes_rewritten_expected += from->btree_compact_bytes_rewritten_expected;
     to->btree_compact_pages_rewritten_expected += from->btree_compact_pages_rewritten_expected;
     to->btree_checkpoint_pages_reconciled += from->btree_checkpoint_pages_reconciled;
@@ -1066,7 +1063,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_compact_pages_reviewed += WT_STAT_DSRC_READ(from, btree_compact_pages_reviewed);
     to->btree_compact_pages_rewritten += WT_STAT_DSRC_READ(from, btree_compact_pages_rewritten);
     to->btree_compact_pages_skipped += WT_STAT_DSRC_READ(from, btree_compact_pages_skipped);
-    to->btree_compact_throttled += WT_STAT_DSRC_READ(from, btree_compact_throttled);
     to->btree_compact_bytes_rewritten_expected +=
       WT_STAT_DSRC_READ(from, btree_compact_bytes_rewritten_expected);
     to->btree_compact_pages_rewritten_expected +=
@@ -2023,6 +2019,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
   "session: attempts to remove a local object and the object is in use",
+  "session: btree compact pulled into eviction",
   "session: flush_tier failed calls",
   "session: flush_tier operation calls",
   "session: flush_tier tables skipped due to no checkpoint",
@@ -2781,6 +2778,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     stats->local_objects_inuse = 0;
+    /* not clearing session_table_compact_eviction */
     stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
     stats->flush_tier_skipped = 0;
@@ -3628,6 +3626,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
     to->local_objects_inuse += WT_STAT_CONN_READ(from, local_objects_inuse);
+    to->session_table_compact_eviction += WT_STAT_CONN_READ(from, session_table_compact_eviction);
     to->flush_tier_fail += WT_STAT_CONN_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_CONN_READ(from, flush_tier);
     to->flush_tier_skipped += WT_STAT_CONN_READ(from, flush_tier_skipped);
