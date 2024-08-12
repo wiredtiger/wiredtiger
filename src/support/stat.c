@@ -2019,7 +2019,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
   "session: attempts to remove a local object and the object is in use",
-  "session: btree compact pulled into eviction",
   "session: flush_tier failed calls",
   "session: flush_tier operation calls",
   "session: flush_tier tables skipped due to no checkpoint",
@@ -2036,6 +2035,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table compact failed calls",
   "session: table compact failed calls due to cache pressure",
   "session: table compact passes",
+  "session: table compact pulled into eviction",
   "session: table compact running",
   "session: table compact skipped as process would not reduce file size",
   "session: table compact successful calls",
@@ -2778,7 +2778,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     stats->local_objects_inuse = 0;
-    /* not clearing session_table_compact_eviction */
     stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
     stats->flush_tier_skipped = 0;
@@ -2795,6 +2794,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_compact_fail */
     /* not clearing session_table_compact_fail_cache_pressure */
     stats->session_table_compact_passes = 0;
+    /* not clearing session_table_compact_eviction */
     /* not clearing session_table_compact_running */
     /* not clearing session_table_compact_skipped */
     /* not clearing session_table_compact_success */
@@ -3626,7 +3626,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
     to->local_objects_inuse += WT_STAT_CONN_READ(from, local_objects_inuse);
-    to->session_table_compact_eviction += WT_STAT_CONN_READ(from, session_table_compact_eviction);
     to->flush_tier_fail += WT_STAT_CONN_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_CONN_READ(from, flush_tier);
     to->flush_tier_skipped += WT_STAT_CONN_READ(from, flush_tier_skipped);
@@ -3647,6 +3646,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_compact_fail_cache_pressure +=
       WT_STAT_CONN_READ(from, session_table_compact_fail_cache_pressure);
     to->session_table_compact_passes += WT_STAT_CONN_READ(from, session_table_compact_passes);
+    to->session_table_compact_eviction += WT_STAT_CONN_READ(from, session_table_compact_eviction);
     to->session_table_compact_running += WT_STAT_CONN_READ(from, session_table_compact_running);
     to->session_table_compact_skipped += WT_STAT_CONN_READ(from, session_table_compact_skipped);
     to->session_table_compact_success += WT_STAT_CONN_READ(from, session_table_compact_success);

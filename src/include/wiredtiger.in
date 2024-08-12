@@ -6946,40 +6946,40 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_SPLIT_STASHED_OBJECTS		1596
 /*! session: attempts to remove a local object and the object is in use */
 #define	WT_STAT_CONN_LOCAL_OBJECTS_INUSE		1597
-/*! session: btree compact pulled into eviction */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_EVICTION	1598
 /*! session: flush_tier failed calls */
-#define	WT_STAT_CONN_FLUSH_TIER_FAIL			1599
+#define	WT_STAT_CONN_FLUSH_TIER_FAIL			1598
 /*! session: flush_tier operation calls */
-#define	WT_STAT_CONN_FLUSH_TIER				1600
+#define	WT_STAT_CONN_FLUSH_TIER				1599
 /*! session: flush_tier tables skipped due to no checkpoint */
-#define	WT_STAT_CONN_FLUSH_TIER_SKIPPED			1601
+#define	WT_STAT_CONN_FLUSH_TIER_SKIPPED			1600
 /*! session: flush_tier tables switched */
-#define	WT_STAT_CONN_FLUSH_TIER_SWITCHED		1602
+#define	WT_STAT_CONN_FLUSH_TIER_SWITCHED		1601
 /*! session: local objects removed */
-#define	WT_STAT_CONN_LOCAL_OBJECTS_REMOVED		1603
+#define	WT_STAT_CONN_LOCAL_OBJECTS_REMOVED		1602
 /*! session: open session count */
-#define	WT_STAT_CONN_SESSION_OPEN			1604
+#define	WT_STAT_CONN_SESSION_OPEN			1603
 /*! session: session query timestamp calls */
-#define	WT_STAT_CONN_SESSION_QUERY_TS			1605
+#define	WT_STAT_CONN_SESSION_QUERY_TS			1604
 /*! session: table alter failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_ALTER_FAIL		1606
+#define	WT_STAT_CONN_SESSION_TABLE_ALTER_FAIL		1605
 /*! session: table alter successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_ALTER_SUCCESS	1607
+#define	WT_STAT_CONN_SESSION_TABLE_ALTER_SUCCESS	1606
 /*! session: table alter triggering checkpoint calls */
-#define	WT_STAT_CONN_SESSION_TABLE_ALTER_TRIGGER_CHECKPOINT	1608
+#define	WT_STAT_CONN_SESSION_TABLE_ALTER_TRIGGER_CHECKPOINT	1607
 /*! session: table alter unchanged and skipped */
-#define	WT_STAT_CONN_SESSION_TABLE_ALTER_SKIP		1609
+#define	WT_STAT_CONN_SESSION_TABLE_ALTER_SKIP		1608
 /*! session: table compact conflicted with checkpoint */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_CONFLICTING_CHECKPOINT	1610
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_CONFLICTING_CHECKPOINT	1609
 /*! session: table compact dhandle successful calls */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_DHANDLE_SUCCESS	1611
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_DHANDLE_SUCCESS	1610
 /*! session: table compact failed calls */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL		1612
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL		1611
 /*! session: table compact failed calls due to cache pressure */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL_CACHE_PRESSURE	1613
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL_CACHE_PRESSURE	1612
 /*! session: table compact passes */
-#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_PASSES	1614
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_PASSES	1613
+/*! session: table compact pulled into eviction */
+#define	WT_STAT_CONN_SESSION_TABLE_COMPACT_EVICTION	1614
 /*! session: table compact running */
 #define	WT_STAT_CONN_SESSION_TABLE_COMPACT_RUNNING	1615
 /*! session: table compact skipped as process would not reduce file size */
