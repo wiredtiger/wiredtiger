@@ -56,7 +56,7 @@ class test_compact16(compact_util):
         # Remove 1/4 of the data.
         self.delete_range(self.uri, self.table_numkv // 4)
 
-        # Write everything to disk. 
+        # Write everything to disk.
         self.reopen_conn()
 
         # Run compact concurrently with another thread that continually creates checkpoints.
