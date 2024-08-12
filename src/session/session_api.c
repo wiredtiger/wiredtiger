@@ -472,14 +472,6 @@ __session_config_cache_max_wait_ms(WT_SESSION_IMPL *session, const char *config)
     return (ret);
 }
 
-#ifdef HAVE_UNITTEST
-int
-__ut_session_config_cache_max_wait_ms(WT_SESSION_IMPL *session, const char *config)
-{
-    return (__session_config_cache_max_wait_ms(session, config));
-}
-#endif
-
 /*
  * __session_reconfigure --
  *     WT_SESSION->reconfigure method.
@@ -2759,3 +2751,11 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
     *sessionp = session;
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_session_config_cache_max_wait_ms(WT_SESSION_IMPL *session, const char *config)
+{
+    return (__session_config_cache_max_wait_ms(session, config));
+}
+#endif
