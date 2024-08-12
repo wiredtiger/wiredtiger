@@ -246,11 +246,6 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      * checkpoint has the lock, check for a compact interrupt and cache stuck before trying again.
      */
     while ((ret = __wt_spin_trylock(session, &S2BT(session)->flush_lock)) == EBUSY) {
-        WT_RET(__wt_session_compact_check_interrupted(session));
-
-        if (__wt_cache_stuck(session))
-            WT_RET(EBUSY);
-
         WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
 
         __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
@@ -258,6 +253,11 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
           "conflicting checkpoint. Compaction of this data handle will resume after checkpoint "
           "completes.",
           session->dhandle->name);
+
+        WT_RET(__wt_session_compact_check_interrupted(session));
+
+        if (__wt_cache_stuck(session))
+            WT_RET(EBUSY);
 
         __wt_sleep(1, 0);
     }
@@ -405,20 +405,6 @@ __wt_compact(WT_SESSION_IMPL *session)
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             bm->block->compact_internal_pages_reviewed++;
             WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
-        }
-
-        if (ret == EBUSY) {
-            WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
-
-            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
-              "The compaction of the data handle %s returned EBUSY due to an in-progress "
-              "conflicting checkpoint. Compaction of this data handle will resume after checkpoint "
-              "completes.",
-              session->dhandle->name);
-
-            __wt_sleep(1, 0);
-
-            ret = 0;
         }
 
         /* Track progress. */
