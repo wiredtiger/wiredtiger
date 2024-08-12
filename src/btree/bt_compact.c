@@ -370,7 +370,7 @@ __wt_compact(WT_SESSION_IMPL *session)
          */
         WT_ERR(__wt_cache_eviction_check(session, false, false, &eviction_happened));
         if (eviction_happened)
-            WT_STAT_DSRC_INCR(session, session_table_compact_eviction);
+            WT_STAT_CONN_INCR(session, session_table_compact_eviction);
 
         /*
          * Pages read for compaction aren't "useful"; don't update the read generation of pages
