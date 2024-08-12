@@ -454,6 +454,33 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_config_cache_max_wait_ms --
+ *     Configure the cache wait time on a session.
+ */
+static int
+__session_config_cache_max_wait_ms(WT_SESSION_IMPL *session, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    if ((ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval)) == 0)
+        session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
+
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+
+    return (ret);
+}
+
+#ifdef HAVE_UNITTEST
+int
+__ut_session_config_cache_max_wait_ms(WT_SESSION_IMPL *session, const char *config)
+{
+    return (__session_config_cache_max_wait_ms(session, config));
+}
+#endif
+
+/*
  * __session_reconfigure --
  *     WT_SESSION->reconfigure method.
  */
@@ -524,9 +551,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if ((ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval)) == 0)
-        session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR(__session_config_cache_max_wait_ms(session, config));
 
     if (S2C(session)->prefetch_auto_on)
         F_SET(session, WT_SESSION_PREFETCH_ENABLED);
