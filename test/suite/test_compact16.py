@@ -53,16 +53,10 @@ class test_compact16(compact_util):
         # Write to disk.
         self.session.checkpoint()
 
-        # Remove 1/4 of the data
-        c = self.session.open_cursor(self.uri, None)
-        for i in range(self.table_numkv):
-            if (i % 4 == 0):
-                c.set_key(i)
-                c.remove()
-        c.close()
-
+        # Remove 1/4 of the data.
         self.delete_range(self.uri, self.table_numkv // 4)
 
+        # Write everything to disk. 
         self.reopen_conn()
 
         # Run compact concurrently with another thread that continually creates checkpoints.
