@@ -233,7 +233,7 @@ def parse_dump_blocks(input_file: str):
 
 def parse_dump_pages(input_file: str):
     """
-    Parse the output file of dump_pages
+    Parse the output file of dump_pages.
     """
     with open(input_file, "r") as f:
         output = {}
@@ -577,7 +577,7 @@ def construct_command(args) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
-    parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='Option to specify dump_pages configuration.')
+    parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='wt verify configuration options.')
     parser.add_argument('-f', '--filename', help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
     parser.add_argument('-i', '--input_file', help='Input file (output of a wt verify command)')
@@ -609,7 +609,7 @@ def main():
         parsed_data = parse_dump_pages(input_file)
     else:
         if not "dump_blocks" in args.dump:
-            raise Exception("dump_blocks expected in args.dump")
+            raise Exception(f"dump_blocks not found in {args.dump}")
         parsed_data = parse_dump_blocks(input_file)
 
     # If we don't have data, nothing to do.
