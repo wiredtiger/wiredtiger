@@ -425,10 +425,11 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WT_LOG *log, uint32_t backup_file
     __wt_readunlock(session, &conn->debug_log_retention_lock);
 #ifdef HAVE_DIAGNOSTIC
     if (min_lognum > WT_INIT_LSN_FILE)
-        (void)__wt_log_printf(session,
+        WT_IGNORE_RET(__wt_log_printf(session,
           "min_lognum %" PRIu32 " ckpt file %" PRIu32 " sync file %" PRIu32 " backup_file %" PRIu32
           "debug_log_cnt %" PRIu32,
-          min_lognum, log->ckpt_lsn.l.file, log->sync_lsn.l.file, backup_file, conn->debug_log_cnt);
+          min_lognum, log->ckpt_lsn.l.file, log->sync_lsn.l.file, backup_file,
+          conn->debug_log_cnt));
 #endif
     return (min_lognum);
 }
