@@ -427,7 +427,7 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WT_LOG *log, uint32_t backup_file
     if (min_lognum > WT_INIT_LSN_FILE)
         WT_IGNORE_RET(__wt_log_printf(session,
           "min_lognum %" PRIu32 " ckpt file %" PRIu32 " sync file %" PRIu32 " backup_file %" PRIu32
-          "debug_log_cnt %" PRIu32,
+          "debug_log count%" PRIu32,
           min_lognum, log->ckpt_lsn.l.file, log->sync_lsn.l.file, backup_file,
           conn->debug_log_cnt));
 #endif
