@@ -231,6 +231,13 @@ config_lib(
 )
 
 config_lib(
+    HAVE_LIBVCDDEC
+    "vcddec library exists."
+    LIB "vcddec"
+    HEADER "google/vcdecoder-c.h"
+)
+
+config_lib(
     HAVE_LIBPTHREAD
     "Pthread library exists."
     LIB "pthread"
