@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __evict_clear_all_walks(WT_SESSION_IMPL *, bool);
+static int __evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *, bool);
 static void __evict_list_clear_page_locked(WT_SESSION_IMPL *, WT_REF *, bool);
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int __evict_lru_pages(WT_SESSION_IMPL *, bool);
@@ -355,37 +355,30 @@ err:
 }
 
 /*
- * __clear_saved_walk_tree --
- *     Clear saved walk tree maintaining use count.
+ * __evict_set_saved_walk_tree --
+ *     Set saved walk tree maintaining use count. Call it with NULL to clear the saved walk tree.
  */
 static void
-__clear_saved_walk_tree(WT_SESSION_IMPL *session)
-{
-    WT_DATA_HANDLE *dhandle;
-
-    dhandle = S2C(session)->cache->walk_tree;
-    if (dhandle == NULL)
-        return;
-    WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
-    S2C(session)->cache->walk_tree = NULL;
-    (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
-}
-
-/*
- * __set_saved_walk_tree --
- *     Set saved walk tree maintaining use count.
- */
-static void
-__set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dhandle)
 {
     WT_CACHE *cache;
+    WT_DATA_HANDLE *old_dhandle;
 
     cache = S2C(session)->cache;
-    __clear_saved_walk_tree(session);
-    if (dhandle == NULL)
+    old_dhandle = cache->walk_tree;
+
+    if (old_dhandle == new_dhandle)
         return;
-    (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
-    cache->walk_tree = dhandle;
+
+    if (new_dhandle != NULL)
+        (void)__wt_atomic_addi32(&new_dhandle->session_inuse, 1);
+
+    cache->walk_tree = new_dhandle;
+
+    if (old_dhandle != NULL) {
+        WT_ASSERT(session, __wt_atomic_loadi32(&old_dhandle->session_inuse) > 0);
+        (void)__wt_atomic_subi32(&old_dhandle->session_inuse, 1);
+    }
 }
 
 /*
@@ -408,8 +401,7 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * The only time the first eviction thread is stopped is on shutdown: in case any trees are
      * still open, clear all walks now so that they can be closed.
      */
-    WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks(session, true));
-    __clear_saved_walk_tree(session);
+    WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks_and_saved_tree(session, true));
     WT_ERR(ret);
     /*
      * The only cases when the eviction server is expected to stop are when recovery is finished,
@@ -459,7 +451,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     if (!__wt_cache_stuck(session)) {
         /* Make sure we'll notice next time we're stuck. */
         cache->last_eviction_progress = 0;
-        __clear_saved_walk_tree(session);
+        __evict_set_saved_walk_tree(session, NULL);
         return (0);
     }
 
@@ -937,11 +929,11 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
 }
 
 /*
- * __evict_clear_all_walks --
+ * __evict_clear_all_walks_and_saved_tree --
  *     Clear the eviction walk points for all files a session is waiting on.
  */
 static int
-__evict_clear_all_walks(WT_SESSION_IMPL *session, bool clear_pos)
+__evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session, bool clear_pos)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -952,7 +944,21 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session, bool clear_pos)
     TAILQ_FOREACH (dhandle, &conn->dhqh, q)
         if (WT_DHANDLE_BTREE(dhandle))
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session, clear_pos)));
+    __evict_set_saved_walk_tree(session, NULL);
     return (ret);
+}
+
+/*
+ * __evict_clear_walk_and_saved_tree_if_current_locked --
+ *     Clear single walk points and clear the walk tree if it's the current session's dhandle.
+ */
+static int
+__evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session, bool clear_pos)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->cache->evict_pass_lock);
+    if (session->dhandle == S2C(session)->cache->walk_tree)
+        __evict_set_saved_walk_tree(session, NULL);
+    return (__evict_clear_walk(session, clear_pos));
 }
 
 /*
@@ -994,7 +1000,8 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
      * any existing LRU eviction walk for the file.
      */
     (void)__wt_atomic_addv32(&cache->pass_intr, 1);
-    WT_WITH_PASS_LOCK(session, ret = __evict_clear_walk(session, false));
+    WT_WITH_PASS_LOCK(
+      session, ret = __evict_clear_walk_and_saved_tree_if_current_locked(session, false));
     (void)__wt_atomic_subv32(&cache->pass_intr, 1);
     WT_ERR(ret);
 
@@ -1570,11 +1577,11 @@ retry:
              * have a saved handle, pick one randomly from the list.
              */
             if ((dhandle = cache->walk_tree) != NULL)
-                __clear_saved_walk_tree(session);
+                __evict_set_saved_walk_tree(session, NULL);
             else
                 __evict_walk_choose_dhandle(session, &dhandle);
         } else {
-            __clear_saved_walk_tree(session);
+            __evict_set_saved_walk_tree(session, NULL);
             __evict_walk_choose_dhandle(session, &dhandle);
         }
 
@@ -1624,7 +1631,7 @@ retry:
         }
         btree->evict_walk_skips = 0;
 
-        __set_saved_walk_tree(session, dhandle);
+        __evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
         dhandle_list_locked = false;
 
@@ -1640,9 +1647,6 @@ retry:
          */
         if (btree->evict_disabled == 0 && !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
             if (btree->evict_disabled == 0 && btree->root.page != NULL) {
-                /*
-                 * Remember the file to visit first, next loop.
-                 */
                 WT_WITH_DHANDLE(
                   session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
 
