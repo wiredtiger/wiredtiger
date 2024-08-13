@@ -12,28 +12,54 @@
 #include "wrappers/mock_session.h"
 
 /*
+ * session_config.cpp: Test one of the session configuration functions, __session_config_int. Ensure
+ * that the relevant configurations correctly modify the session state.
+ */
+
+/*
  * Check a basic configuration that sets and clears a flag.
  */
-#define FLAG_TEST(config_param, flag)                                                    \
-    TEST_CASE(config_param, "[session_config]")                                          \
-    {                                                                                    \
-        std::shared_ptr<MockSession> session_mock = MockSession::buildTestMockSession(); \
-        WT_SESSION_IMPL *session = session_mock->getWtSessionImpl();                     \
-        session->flags = 0;                                                              \
-        REQUIRE(__ut_session_config_int(session, config_param "=true") == 0);            \
-        REQUIRE(F_ISSET(session, flag));                                                 \
-        REQUIRE(__ut_session_config_int(session, config_param "=false") == 0);           \
-        REQUIRE(!F_ISSET(session, flag));                                                \
-        REQUIRE(__ut_session_config_int(session, config_param "=true") == 0);            \
-        REQUIRE(__ut_session_config_int(session, "") == 0);                              \
-        REQUIRE(F_ISSET(session, flag));                                                 \
+static void
+test_config_flag(WT_SESSION_IMPL *session, const std::string &config_param, const int flag)
+{
+    std::string param_true = config_param + "=true";
+    std::string param_false = config_param + "=false";
+    REQUIRE(__ut_session_config_int(session, param_true.c_str()) == 0);
+    REQUIRE(F_ISSET(session, flag));
+    REQUIRE(__ut_session_config_int(session, param_false.c_str()) == 0);
+    REQUIRE(!F_ISSET(session, flag));
+    REQUIRE(__ut_session_config_int(session, param_true.c_str()) == 0);
+    REQUIRE(__ut_session_config_int(session, "") == 0);
+    REQUIRE(F_ISSET(session, flag));
+}
+
+TEST_CASE("Session config - test setting and clearing a flag", "[session_config]")
+{
+    /* Build Mock session, this will automatically create a mock connection. */
+    std::shared_ptr<MockSession> session_mock = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = session_mock->getWtSessionImpl();
+
+    SECTION("ignore_cache_size")
+    {
+        test_config_flag(session, "ignore_cache_size", WT_SESSION_IGNORE_CACHE_SIZE);
     }
 
-FLAG_TEST("ignore_cache_size", WT_SESSION_IGNORE_CACHE_SIZE);
-FLAG_TEST("cache_cursors", WT_SESSION_CACHE_CURSORS);
-FLAG_TEST("debug.checkpoint_fail_before_turtle_update",
-  WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
-FLAG_TEST("debug.release_evict_page", WT_SESSION_DEBUG_RELEASE_EVICT);
+    SECTION("cache_cursors")
+    {
+        test_config_flag(session, "cache_cursors", WT_SESSION_CACHE_CURSORS);
+    }
+
+    SECTION("debug.checkpoint_fail_before_turtle_update")
+    {
+        test_config_flag(session, "debug.checkpoint_fail_before_turtle_update",
+          WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
+    }
+
+    SECTION("debug.release_evict_page")
+    {
+        test_config_flag(session, "debug.release_evict_page", WT_SESSION_DEBUG_RELEASE_EVICT);
+    }
+}
 
 TEST_CASE("cache_max_wait_ms", "[session_config]")
 {
@@ -55,6 +81,7 @@ TEST_CASE("cache_max_wait_ms", "[session_config]")
     REQUIRE(__ut_session_config_int(session, NULL) == 0);
     REQUIRE(__ut_session_config_int(session, "") == 0);
     REQUIRE(__ut_session_config_int(session, "foo=10000") == 0);
+    REQUIRE(__ut_session_config_int(session, "bad_string") == 0);
     REQUIRE(session->cache_max_wait_us == 0);
 
     /*
