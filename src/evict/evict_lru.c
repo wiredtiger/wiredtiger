@@ -362,23 +362,23 @@ static void
 __evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dhandle)
 {
     WT_CACHE *cache;
-    WT_DATA_HANDLE *walk_tree;
+    WT_DATA_HANDLE *old_dhandle;
 
     cache = S2C(session)->cache;
-    walk_tree = cache->walk_tree;
+    old_dhandle = cache->walk_tree;
 
-    if (walk_tree == new_dhandle)
+    if (old_dhandle == new_dhandle)
         return;
-
-    if (walk_tree != NULL) {
-        WT_ASSERT(session, __wt_atomic_loadi32(&walk_tree->session_inuse) > 0);
-        (void)__wt_atomic_subi32(&walk_tree->session_inuse, 1);
-    }
-
-    cache->walk_tree = new_dhandle;
 
     if (new_dhandle != NULL)
         (void)__wt_atomic_addi32(&new_dhandle->session_inuse, 1);
+
+    cache->walk_tree = new_dhandle;
+
+    if (old_dhandle != NULL) {
+        WT_ASSERT(session, __wt_atomic_loadi32(&old_dhandle->session_inuse) > 0);
+        (void)__wt_atomic_subi32(&old_dhandle->session_inuse, 1);
+    }
 }
 
 /*
