@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __evict_clear_all_walks(WT_SESSION_IMPL *);
+static int __evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *);
 static void __evict_list_clear_page_locked(WT_SESSION_IMPL *, WT_REF *, bool);
 static int WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int __evict_lru_pages(WT_SESSION_IMPL *, bool);
@@ -412,8 +412,7 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * The only time the first eviction thread is stopped is on shutdown: in case any trees are
      * still open, clear all walks now so that they can be closed.
      */
-    WT_WITH_PASS_LOCK(session, __evict_clear_saved_walk_tree(session);
-                      ret = __evict_clear_all_walks(session));
+    WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks_and_saved_tree(session));
     WT_ERR(ret);
     /*
      * The only cases when the eviction server is expected to stop are when recovery is finished,
@@ -475,8 +474,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          * Clear the walks so we don't pin pages while asleep, otherwise we can block applications
          * evicting large pages.
          */
-        ret = __evict_clear_all_walks(session);
-        __evict_clear_saved_walk_tree(session);
+        ret = __evict_clear_all_walks_and_saved_tree(session);
 
         __wt_readunlock(session, &conn->dhandle_lock);
         WT_RET(ret);
@@ -893,7 +891,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
+    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
 
     if ((ref = btree->evict_ref) == NULL)
         return (0);
@@ -913,11 +911,11 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __evict_clear_all_walks --
+ * __evict_clear_all_walks_and_saved_tree --
  *     Clear the eviction walk points for all files a session is waiting on.
  */
 static int
-__evict_clear_all_walks(WT_SESSION_IMPL *session)
+__evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
@@ -928,7 +926,21 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
     TAILQ_FOREACH (dhandle, &conn->dhqh, q)
         if (WT_DHANDLE_BTREE(dhandle))
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session)));
+    __evict_clear_saved_walk_tree(session);
     return (ret);
+}
+
+/*
+ * __evict_clear_walk_and_saved_tree_if_current_locked --
+ *     Clear single walk points and clear the walk tree if it's the current session's dhandle.
+ */
+static int
+__evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->cache->evict_pass_lock);
+    if (session->dhandle == S2C(session)->cache->walk_tree)
+        __evict_clear_saved_walk_tree(session);
+    return (__evict_clear_walk(session));
 }
 
 /*
@@ -970,10 +982,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
      * any existing LRU eviction walk for the file.
      */
     (void)__wt_atomic_addv32(&cache->pass_intr, 1);
-    WT_WITH_PASS_LOCK(session,
-                      if (session->dhandle == S2C(session)->cache->walk_tree)
-                        __evict_clear_saved_walk_tree(session);
-                      ret = __evict_clear_walk(session));
+    WT_WITH_PASS_LOCK(session, ret = __evict_clear_walk_and_saved_tree_if_current_locked(session));
     (void)__wt_atomic_subv32(&cache->pass_intr, 1);
     WT_ERR(ret);
 
