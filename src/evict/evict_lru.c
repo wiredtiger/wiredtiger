@@ -355,37 +355,30 @@ err:
 }
 
 /*
- * __evict_clear_saved_walk_tree --
- *     Clear saved walk tree maintaining use count.
- */
-static void
-__evict_clear_saved_walk_tree(WT_SESSION_IMPL *session)
-{
-    WT_DATA_HANDLE *dhandle;
-
-    dhandle = S2C(session)->cache->walk_tree;
-    if (dhandle == NULL)
-        return;
-    WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
-    S2C(session)->cache->walk_tree = NULL;
-    (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
-}
-
-/*
  * __evict_set_saved_walk_tree --
- *     Set saved walk tree maintaining use count.
+ *     Set saved walk tree maintaining use count. Call it with NULL to clear the saved walk tree.
  */
 static void
-__evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dhandle)
 {
     WT_CACHE *cache;
+    WT_DATA_HANDLE *saved_walk_tree;
 
     cache = S2C(session)->cache;
-    __evict_clear_saved_walk_tree(session);
-    if (dhandle == NULL)
+    saved_walk_tree = cache->walk_tree;
+
+    if (saved_walk_tree == new_dhandle)
         return;
-    (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
-    cache->walk_tree = dhandle;
+
+    if (saved_walk_tree != NULL) {
+        WT_ASSERT(session, __wt_atomic_loadi32(&saved_walk_tree->session_inuse) > 0);
+        (void)__wt_atomic_subi32(&saved_walk_tree->session_inuse, 1);
+    }
+
+    cache->walk_tree = new_dhandle;
+
+    if (new_dhandle != NULL)
+        (void)__wt_atomic_addi32(&new_dhandle->session_inuse, 1);
 }
 
 /*
@@ -918,7 +911,7 @@ __evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
     TAILQ_FOREACH (dhandle, &conn->dhqh, q)
         if (WT_DHANDLE_BTREE(dhandle))
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session)));
-    __evict_clear_saved_walk_tree(session);
+    __evict_set_saved_walk_tree(session, NULL);
     return (ret);
 }
 
@@ -931,7 +924,7 @@ __evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)
 {
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->cache->evict_pass_lock);
     if (session->dhandle == S2C(session)->cache->walk_tree)
-        __evict_clear_saved_walk_tree(session);
+        __evict_set_saved_walk_tree(session, NULL);
     return (__evict_clear_walk(session));
 }
 
@@ -1550,11 +1543,11 @@ retry:
              * have a saved handle, pick one randomly from the list.
              */
             if ((dhandle = cache->walk_tree) != NULL)
-                __evict_clear_saved_walk_tree(session);
+                __evict_set_saved_walk_tree(session, NULL);
             else
                 __evict_walk_choose_dhandle(session, &dhandle);
         } else {
-            __evict_clear_saved_walk_tree(session);
+            __evict_set_saved_walk_tree(session, NULL);
             __evict_walk_choose_dhandle(session, &dhandle);
         }
 
