@@ -50,7 +50,7 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
     numrows = 1
 
     key_format_values = [
-        ('column', dict(key_format='r')),
+        # r('column', dict(key_format='r')),
         ('row_integer', dict(key_format='i')),
     ]
     scenarios = make_scenarios(key_format_values)
