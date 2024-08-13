@@ -284,7 +284,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
         if (ret == 0)
             dryrun = cval.val != 0;
         WT_RET_NOTFOUND_OK(ret);
-        if (!F_ISSET(S2C(session), WT_CONN_DEBUG_NO_BACKGROUND_THREADS)) {
+        if (!FLD_ISSET(S2C(session)->debug_flags ,WT_CONN_DEBUG_NO_BACKGROUND_THREADS)) {
         ret = __wt_config_gets(session, cfg, "threads", &cval);
         if (ret == 0)
             threads = (uint32_t)cval.val;

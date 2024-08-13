@@ -3287,7 +3287,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
           event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
     /* If the "no background threads" configuration is supplied by the user skip thread creation. */
-    if (F_ISSET(conn, WT_CONN_DEBUG_NO_BACKGROUND_THREADS)) {
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_NO_BACKGROUND_THREADS)) {
         WT_ERR(__wti_minimal_startup(session, cfg));
     } else
         /* Start the worker threads and run recovery. */

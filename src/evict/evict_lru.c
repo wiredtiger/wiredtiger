@@ -526,7 +526,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* This gets called from recovery, skip it if required. */
-    if (F_ISSET(conn, WT_CONN_DEBUG_NO_BACKGROUND_THREADS))
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_NO_BACKGROUND_THREADS))
         return (0);
 
     /*
