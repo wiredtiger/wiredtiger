@@ -363,8 +363,6 @@ __evict_clear_saved_walk_tree(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE *dhandle;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->cache->evict_pass_lock);
-
     dhandle = S2C(session)->cache->walk_tree;
     if (dhandle == NULL)
         return;
@@ -381,8 +379,6 @@ static void
 __evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_CACHE *cache;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->cache->evict_pass_lock);
 
     cache = S2C(session)->cache;
     __evict_clear_saved_walk_tree(session);
@@ -762,8 +758,6 @@ __evict_pass(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
     time_prev = 0; /* [-Wconditional-uninitialized] */
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
-
     /* Track whether pages are being evicted and progress is made. */
     eviction_progress = __wt_atomic_loadv64(&cache->eviction_progress);
     prev_oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
@@ -890,8 +884,6 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
 
     if ((ref = btree->evict_ref) == NULL)
         return (0);
@@ -1276,8 +1268,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     conn = S2C(session);
     cache = conn->cache;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
-
     /* Age out the score of how much the queue has been empty recently. */
     if (cache->evict_empty_score > 0)
         --cache->evict_empty_score;
@@ -1515,8 +1505,6 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     dhandle = NULL;
     dhandle_list_locked = false;
     retries = 0;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
 
     /*
      * Set the starting slot in the queue and the maximum pages added per walk.
@@ -2239,7 +2227,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     give_up = urgent_queued = false;
     txn = session->txn;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_pass_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &cache->evict_walk_lock);
 
     start = queue->evict_queue + *slotp;
