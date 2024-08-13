@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "txn_internal.h"
 
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);

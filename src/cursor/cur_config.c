@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 /*
  * __curconfig_close --

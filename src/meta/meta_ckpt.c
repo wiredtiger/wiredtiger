@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "meta_internal.h"
 
 static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **, int64_t *, uint64_t *);

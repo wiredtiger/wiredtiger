@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "session_internal.h"
 
 /*
  * __wt_session_prefetch_check --

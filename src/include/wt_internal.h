@@ -551,6 +551,33 @@ typedef uint64_t wt_timestamp_t;
 #include "connection.h"
 
 #include "extern.h"
+// TODO - I've manually included these paths. Find an automated way in future
+// I'm also not 100% happy with including files from the directory above. Think on this
+#include "../block/block.h"
+#include "../block_cache/block_cache.h"
+#include "../bloom/bloom.h"
+#include "../btree/btree.h"
+#include "../call_log/call_log.h"
+#include "../conf/conf.h"
+#include "../config/config.h"
+#include "../conn/conn.h"
+#include "../cursor/cursor.h"
+#include "../evict/evict.h"
+#include "../history/history.h"
+#include "../log/log.h"
+#include "../lsm/lsm.h"
+#include "../meta/meta.h"
+#include "../optrack/optrack.h"
+#include "../os_common/os_common.h"
+#include "../packing/packing.h"
+#include "../reconcile/reconcile.h"
+#include "../schema/schema.h"
+#include "../session/session.h"
+#include "../rollback_to_stable/rollback_to_stable.h"
+#include "../support/support.h"
+#include "../tiered/tiered.h"
+#include "../txn/txn.h"
+
 #ifdef _WIN32
 #include "extern_win.h"
 #else

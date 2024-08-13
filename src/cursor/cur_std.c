@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 static int __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[]);
 

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_internal.h"
 
 static int __verify_ckptfrag_add(WT_SESSION_IMPL *, WT_BLOCK *, wt_off_t, wt_off_t);
 static int __verify_ckptfrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);

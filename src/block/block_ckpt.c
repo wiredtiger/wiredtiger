@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_internal.h"
 
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);

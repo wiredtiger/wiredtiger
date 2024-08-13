@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 /*
  * __check_leaf_key_range --

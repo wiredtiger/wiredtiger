@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 static int __stat_tree_walk(WT_SESSION_IMPL *);
 static int __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);

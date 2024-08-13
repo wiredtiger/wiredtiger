@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "config_internal.h"
 
 static int __config_check(
   WT_SESSION_IMPL *, const WT_CONFIG_CHECK *, u_int, const uint8_t *, const char *, size_t);

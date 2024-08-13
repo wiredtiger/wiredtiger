@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "meta_internal.h"
 
 /*
  * __meta_btree_apply --

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 /*
  * __sync_checkpoint_can_skip --

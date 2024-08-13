@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "log_internal.h"
 
 /*
  * __wt_log_system_backup_id --

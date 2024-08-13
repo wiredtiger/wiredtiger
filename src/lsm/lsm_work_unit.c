@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "lsm_internal.h"
 
 static int __lsm_bloom_create(WT_SESSION_IMPL *, WT_LSM_TREE *, WT_LSM_CHUNK *, u_int);
 static int __lsm_discard_handle(WT_SESSION_IMPL *, const char *, const char *);

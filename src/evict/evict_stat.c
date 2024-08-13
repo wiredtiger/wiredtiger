@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "evict_internal.h"
 
 /*
  * __evict_stat_walk --

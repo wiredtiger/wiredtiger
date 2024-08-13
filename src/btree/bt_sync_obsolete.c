@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 #define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"

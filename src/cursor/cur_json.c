@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 static int __json_unpack_put(
   WT_SESSION_IMPL *, void *, u_char *, size_t, WT_CONFIG_ITEM *, size_t *);

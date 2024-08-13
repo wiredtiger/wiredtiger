@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "txn_internal.h"
 
 /* Enable all recovery-related verbose messaging events. */
 #define WT_VERB_RECOVERY_ALL        \

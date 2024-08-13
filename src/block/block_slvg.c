@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_internal.h"
 
 /*
  * __wt_block_salvage_start --

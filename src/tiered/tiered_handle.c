@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "tiered_internal.h"
 
 /*
  * __tiered_name_check --

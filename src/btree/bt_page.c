@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 static int __inmem_col_fix(WT_SESSION_IMPL *, WT_PAGE *, bool *, size_t *);
 static int __inmem_col_int(WT_SESSION_IMPL *, WT_PAGE *, uint64_t);

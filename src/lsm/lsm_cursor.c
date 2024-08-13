@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "lsm_internal.h"
 
 #define WT_FORALL_CURSORS(clsm, c, i)     \
     for ((i) = (clsm)->nchunks; (i) > 0;) \

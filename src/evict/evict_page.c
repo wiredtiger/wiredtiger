@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "evict_internal.h"
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);

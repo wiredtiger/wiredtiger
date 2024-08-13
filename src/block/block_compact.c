@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_internal.h"
 
 static void __block_dump_file_stat(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "conn_internal.h"
 
 /*
  * __wti_connection_open --

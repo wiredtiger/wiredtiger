@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 static void __free_page_modify(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_col_fix(WT_SESSION_IMPL *, WT_PAGE *);

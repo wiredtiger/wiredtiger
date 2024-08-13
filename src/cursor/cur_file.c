@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 /*
  * Wrapper for substituting checkpoint state when doing checkpoint cursor operations.

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_internal.h"
 
 /*
  * __rec_dictionary_skip_search --

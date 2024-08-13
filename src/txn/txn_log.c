@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "txn_internal.h"
 
 /*
  * __txn_op_log_row_key_check --

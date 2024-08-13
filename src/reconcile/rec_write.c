@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_internal.h"
 
 static int __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_destroy(WT_SESSION_IMPL *, void *);

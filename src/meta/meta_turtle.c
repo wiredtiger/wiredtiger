@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "meta_internal.h"
 
 /*
  * Structure to hold state for metadata entry worker procedure. It is only used during restore after

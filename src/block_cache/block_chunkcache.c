@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_cache_internal.h"
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_BLOCK_OVERLAPS_CHUNK(chunk_off, block_off, chunk_size, block_size) \

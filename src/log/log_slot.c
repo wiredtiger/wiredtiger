@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "log_internal.h"
 
 /*
  * __log_slot_dump --

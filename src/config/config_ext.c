@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "config_internal.h"
 
 /*
  * __wt_ext_config_get --

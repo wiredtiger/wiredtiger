@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "conn_internal.h"
 
 /* Prefix of files the background compaction server deals with. */
 #define WT_BACKGROUND_COMPACT_URI_PREFIX "file:"

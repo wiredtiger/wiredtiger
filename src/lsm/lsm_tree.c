@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "lsm_internal.h"
 
 static int __lsm_tree_cleanup_old(WT_SESSION_IMPL *, const char *);
 static int __lsm_tree_open_check(WT_SESSION_IMPL *, WT_LSM_TREE *);

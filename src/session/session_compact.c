@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "session_internal.h"
 
 /*
  * Compaction is the place where the underlying block manager becomes visible

@@ -1,6 +1,7 @@
 /* DO NOT EDIT: automatically built by dist/api_config.py. */
 
 #include "wt_internal.h"
+#include "config_internal.h"
 const char __WT_CONFIG_CHOICE_NULL[] = ""; /* not set in configuration */
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_close[] = {

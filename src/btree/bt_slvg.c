@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 struct __wt_stuff;
 typedef struct __wt_stuff WT_STUFF;

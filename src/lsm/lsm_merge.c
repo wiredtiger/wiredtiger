@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "lsm_internal.h"
 
 static int __lsm_merge_span(WT_SESSION_IMPL *, WT_LSM_TREE *, u_int, u_int *, u_int *, uint64_t *);
 

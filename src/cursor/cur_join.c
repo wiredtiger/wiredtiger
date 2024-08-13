@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 static int __curjoin_entries_in_range(
   WT_SESSION_IMPL *, WT_CURSOR_JOIN *, WT_ITEM *, WT_CURSOR_JOIN_ITER *);

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "conn_internal.h"
 
 #define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
     (!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) && \

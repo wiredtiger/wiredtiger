@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 static int __backup_all(WT_SESSION_IMPL *);
 static int __backup_list_append(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, const char *, const char *);

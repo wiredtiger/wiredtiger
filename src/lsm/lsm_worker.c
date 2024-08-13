@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "lsm_internal.h"
 
 static int __lsm_worker_general_op(WT_SESSION_IMPL *, WT_LSM_WORKER_ARGS *, bool *);
 static WT_THREAD_RET __lsm_worker(void *);

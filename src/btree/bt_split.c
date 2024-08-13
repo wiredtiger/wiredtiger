@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 #define WT_MEM_TRANSFER(from_decr, to_incr, len) \
     do {                                         \

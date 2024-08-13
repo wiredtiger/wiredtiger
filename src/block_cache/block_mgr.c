@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_cache_internal.h"
 
 static void __bm_method_set(WT_BM *, bool);
 static int __bm_sync_tiered_handles(WT_BM *, WT_SESSION_IMPL *);

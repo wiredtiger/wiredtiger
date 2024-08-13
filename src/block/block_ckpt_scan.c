@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_internal.h"
 
 /*
  * It wasn't possible to open standalone files in historic WiredTiger databases, you're done if you

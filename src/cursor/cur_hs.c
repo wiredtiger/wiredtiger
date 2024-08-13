@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 static int __curhs_file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR *, WT_CURSOR **);

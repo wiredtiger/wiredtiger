@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_internal.h"
 
 /*
  * Estimated memory cost for a structure on the overflow lists, the size of the structure plus two

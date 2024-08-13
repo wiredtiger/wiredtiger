@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "rollback_to_stable_internal.h"
 
 /*
  * __rts_btree_abort_update --

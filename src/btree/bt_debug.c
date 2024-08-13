@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 #ifdef HAVE_DIAGNOSTIC
 /*

@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "session_internal.h"
 
 /*
  * __session_dhandle_readlock --

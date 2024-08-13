@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "cursor_internal.h"
 
 /*
  * The statistics identifier is an offset from a base to ensure the integer ID values don't overlap

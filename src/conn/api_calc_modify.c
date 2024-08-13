@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "conn_internal.h"
 
 #define WT_CM_BLOCKSIZE 8
 #define WT_CM_MINMATCH 64

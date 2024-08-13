@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 static int __err_cell_corrupt(int, WT_VERIFY_INFO *);
 static int __err_cell_corrupt_or_eof(int, WT_VERIFY_INFO *);

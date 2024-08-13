@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_cache_internal.h"
 
 /*
  * Define functions that increment histogram statistics compression ratios for block reads and block

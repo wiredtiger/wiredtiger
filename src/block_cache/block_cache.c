@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "block_cache_internal.h"
 
 /*
  * __blkcache_verbose --

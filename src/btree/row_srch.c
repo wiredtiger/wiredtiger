@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "btree_internal.h"
 
 static WT_INLINE int __validate_next_stack(
   WT_SESSION_IMPL *session, WT_INSERT *next_stack[WT_SKIP_MAXDEPTH], WT_ITEM *srch_key);

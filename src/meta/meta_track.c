@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "meta_internal.h"
 
 #undef WT_ENABLE_SCHEMA_TXN
 /*

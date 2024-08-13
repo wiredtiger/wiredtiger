@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "txn_internal.h"
 
 /*
  * __snapsort_partition --

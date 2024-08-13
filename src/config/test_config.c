@@ -1,6 +1,7 @@
 /* DO NOT EDIT: automatically built by dist/api_config.py. */
 
 #include "wt_internal.h"
+#include "config_internal.h"
 
 static const WT_CONFIG_CHECK confchk_cache_hs_insert_subconfigs[] = {
   {"max", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 12, INT64_MIN,

@@ -1,6 +1,7 @@
 /* DO NOT EDIT: automatically built by dist/api_err.py. */
 
 #include "wt_internal.h"
+#include "conn_internal.h"
 
 /*
  * Historically, there was only the wiredtiger_strerror call because the POSIX port didn't need
