@@ -9,6 +9,7 @@ else()
         tests/test_acquire_release_macros.cpp
         tests/test_binary_search_string.cpp
         tests/test_bitmap.cpp
+        tests/test_block_manager.cpp
         tests/test_bounds_restore.cpp
         tests/test_crc32.cpp
         tests/test_error.cpp
