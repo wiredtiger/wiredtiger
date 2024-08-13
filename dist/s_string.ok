@@ -105,6 +105,7 @@ EB
 EBUSY
 EDC
 EEXIST
+EFAULT
 EINTR
 EINVAL
 EMail
@@ -153,6 +154,7 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
+Futex
 GBR
 GC
 GCP
@@ -390,6 +392,7 @@ UDF
 UID
 UIDs
 UINT
+ULF
 ULINE
 UNC
 UNCOND
@@ -428,6 +431,7 @@ WRLSN
 WRNOLOCK
 WTPERF
 WaitForSingleObject
+WaitOn
 Wconditional
 Wduplicated
 WeakHashLen
@@ -647,6 +651,7 @@ cval
 cx
 cxa
 dT
+darwin
 data's
 datalen
 datasource
@@ -791,6 +796,7 @@ fsyncs
 ftruncate
 func
 funcid
+futex
 fuzzer
 fuzzutil
 fvisibility
@@ -926,6 +932,7 @@ lexicographically
 lf
 libdatasource
 libmemkind
+libpthread
 libs
 libsodium
 libwiredtiger
@@ -1168,6 +1175,7 @@ recurse
 reentrant
 refp
 regionp
+reinstantiated
 relocked
 repl
 repositioned
@@ -1298,6 +1306,7 @@ testext
 testutil
 th
 tid
+timespec
 tinfo
 tlb
 tmp
@@ -1333,6 +1342,7 @@ typeof
 uS
 uint
 uintAny
+ulock
 umount
 unallocated
 unbare
