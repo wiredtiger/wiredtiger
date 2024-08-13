@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 #include "google/vcencoder-c.h"
+#include "google/vcdecoder-c.h"
 
 static int __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_destroy(WT_SESSION_IMPL *, void *);
@@ -2040,10 +2041,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
-    size_t addr_size, compressed_size, delta_size;
+    size_t addr_size, compressed_size, delta_size, target_size;
     uint64_t start, stop;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    const char *delta;
+    const char *delta, *target;
     bool result;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
@@ -2205,6 +2206,21 @@ copy_image:
               "Generated page delta, original page size %d, new page size %zu, delta size %zu, "
               "total time %" PRIu64 "us",
               page->dsk->mem_size, chunk->image.size, delta_size, WT_CLOCKDIFF_US(stop, start));
+            start = __wt_clock(session);
+            result = vcdecode((const char *)page->dsk, page->dsk->mem_size, delta, delta_size,
+              &target, &target_size);
+            stop = __wt_clock(session);
+            if (result) {
+                __wt_verbose(session, WT_VERB_PAGE_DELTA,
+                  "Applied page delta, target size %" PRIu64
+                  ", is the data the same? %s total time %" PRIu64 "us",
+                  target_size, memcmp(chunk->image.data, target, target_size) == 0 ? "yes" : "no",
+                  WT_CLOCKDIFF_US(stop, start));
+                __wt_free(session, target);
+            } else
+                __wt_verbose(session, WT_VERB_PAGE_DELTA,
+                  "Failed to apply page delta, total time %" PRIu64 "us",
+                  WT_CLOCKDIFF_US(stop, start));
             __wt_free(session, delta);
         } else
             __wt_verbose(session, WT_VERB_PAGE_DELTA,
