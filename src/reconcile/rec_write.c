@@ -2041,6 +2041,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_MULTI *multi;
     WT_PAGE *page;
     size_t addr_size, compressed_size, delta_size;
+    uint64_t start, stop;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *delta;
     bool result;
@@ -2195,17 +2196,21 @@ copy_image:
 
     /* Only calculate the diff for page rewrite. */
     if (last_block && r->multi_next == 1 && page->dsk != NULL) {
-        result = vcencode((const char *)page->dsk, page->dsk->mem_size, chunk->image.data, chunk->image.size,
-          &delta, &delta_size);
+        start = __wt_clock(session);
+        result = vcencode((const char *)page->dsk, page->dsk->mem_size, chunk->image.data,
+          chunk->image.size, &delta, &delta_size);
+        stop = __wt_clock(session);
         if (result) {
             __wt_verbose(session, WT_VERB_PAGE_DELTA,
-              "Generated page delta, original page size %d, new page size %zu, delta size %zu",
-              page->dsk->mem_size, chunk->image.size, delta_size);
+              "Generated page delta, original page size %d, new page size %zu, delta size %zu, "
+              "total time %" PRIu64 "us",
+              page->dsk->mem_size, chunk->image.size, delta_size, WT_CLOCKDIFF_US(stop, start));
             __wt_free(session, delta);
         } else
             __wt_verbose(session, WT_VERB_PAGE_DELTA,
-              "Failed to generate page delta, original page size %d, new page size %zu",
-              page->dsk->mem_size, chunk->image.size);
+              "Failed to generate page delta, original page size %d, new page size %zu, total time "
+              "%" PRIu64 "us",
+              page->dsk->mem_size, chunk->image.size, WT_CLOCKDIFF_US(stop, start));
     }
 
     return (0);
