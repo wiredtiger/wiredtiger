@@ -289,6 +289,14 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
+    if (WT_TRY_BUILD_DELTA(r)) {
+        if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DURABLE))
+            return (true);
+
+        if (upd_select->tombstone != NULL && !F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE))
+            return (true);
+    }
+
     /* No need to save the update chain if we want to delete the key from the disk image. */
     if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
         return (false);
