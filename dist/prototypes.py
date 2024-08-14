@@ -16,21 +16,15 @@ def clean_function_name(filename, fn):
         return None
 
     # Join the first two lines, type and function name.
-    # Drop the whitespace change. They break comments appended to external functions
-    # TODO - Clean this up. We can be smarter about not processing the comment.
-    # ret = ret.replace("\n", " ", 1)
-    # # If there's no CPP syntax, join everything.
-    # if not '#endif' in ret:
-    #     ret = " ".join(ret.split())
+    ret = ret.replace("\n", " ", 1)
+
+    # If there's no CPP syntax, join everything.
+    if not '#endif' in ret:
+        ret = " ".join(ret.split())
 
     # If it's not an inline function, prefix with "extern".
     if 'inline' not in ret and 'WT_INLINE' not in ret:
-        if ret.startswith("/*"):
-            # We need to append extern *after* the comment
-            end_of_comment = ret.find("*/")
-            ret = ret[:end_of_comment + 2] + "extern " + ret[end_of_comment + 2:]
-        else:
-            ret = 'extern ' + ret
+        ret = 'extern ' + ret
 
     # Switch to the include file version of any gcc attributes.
     ret = ret.replace("WT_GCC_FUNC_ATTRIBUTE", "WT_GCC_FUNC_DECL_ATTRIBUTE")
@@ -44,11 +38,7 @@ def clean_function_name(filename, fn):
     if re.match(r'#endif$', ret):
         ret = ret + '\n'
 
-    if "/*" in ret:
-        # Add an extra line between functions when printing their comment. It looks cleaner
-        return ret + ';\n\n'
-    else:
-        return ret + ';\n'
+    return ret + ';\n'
 
 # Find function prototypes in a file matching a given regex. Cleans the
 # function names to the point being immediately usable.
@@ -64,8 +54,7 @@ def extract_prototypes(filename, regexp):
 
 # Build function prototypes from a list of files.
 def fn_prototypes(ext_fns, int_fns, tests, name):
-    preceding_comment = r'/\*\n(?: \*.*\n)+ \*/'
-    for sig in extract_prototypes(name, preceding_comment + r'\n[A-Za-z_].*\n__wt_[^{]*'):
+    for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wt_[^{]*'):
         ext_fns.append(sig)
 
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wti_[^{]*'):
