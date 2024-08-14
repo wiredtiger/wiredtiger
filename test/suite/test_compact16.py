@@ -66,7 +66,7 @@ class test_compact16(compact_util):
             ckpt.start()
 
             # Wait for checkpoint to start before calling compact.
-            ckpt_started = 0
+            ckpt_started = False
             while not ckpt_started:
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
                 ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
