@@ -274,7 +274,7 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
             print(f'{filename}: smallest 20%: {pct20_count} of {chg_blocks} changed blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {opts.granularity}')
             print(f'{filename}: largest 80%: {pct80_count} of {chg_blocks} changed blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {opts.granularity}')
         print("")
-    else:
+    elif total_bytes_diff != 0:
         # Print a terse summary all on one line.
         print(
             f'{filename}: bytes: {total_bytes_diff} of {min_size} {chg_byte_pct}%;'
@@ -315,8 +315,8 @@ def print_summary(opts):
             print(f'{n}: {ts.files_changed} {changed} changed out of {ts.files} {total}')
         if ts.gran_blocks != 0:
             chg_blocks = round(abs(ts.chg_blocks / ts.gran_blocks * 100))
-            pct20_blocks = round(abs(ts.pct20 / ts.gran_blocks * 100))
-            pct80_blocks = round(abs(ts.pct80 / ts.gran_blocks * 100))
+            pct20_blocks = round(abs(ts.pct20 / ts.chg_blocks * 100))
+            pct80_blocks = round(abs(ts.pct80 / ts.chg_blocks * 100))
             if not opts.terse:
                 print(f'{ts.files_changed} changed {changed}: differs by {ts.bytes} bytes in {ts.chg_blocks} changed granularity blocks')
                 print(f'{ts.files_changed} changed {changed}: differs by {ts.chg_blocks} ({chg_blocks}%) granularity blocks in {ts.gran_blocks} total granularity blocks')
