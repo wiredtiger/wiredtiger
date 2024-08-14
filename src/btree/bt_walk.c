@@ -643,7 +643,7 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
     WT_PAGE_INDEX *pindex;
     double npos;
     uint32_t entries, slot;
-    int unused = 1; /* WT_UNUSED(snprintf) is screwed in GCC */
+    int unused = 1; /* WT_UNUSED(snprintf) is cooked in GCC */
 
     npos = start;
     if (path_str)
@@ -680,13 +680,15 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
 
 /*
  * !!!
- * __find_closest_page --
+ * __find_closest_leaf --
  *     Find the closest suitable page according to flags.
  *     - It should not be deleted.
  *     - If WT_READ_CACHE is set, the page should be in memory.
+ *     - If the initial ref is to a good page, it will be returned.
+ *     - If the initial ref is null, it does nothing.
  */
 static int
-__find_closest_page(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
+__find_closest_leaf(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 {
     if (*refp == NULL || F_ISSET(*refp, WT_REF_FLAG_LEAF))
         return (0);
@@ -714,9 +716,6 @@ __page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flag
     int idx, entries;
     bool eviction;
 
-    /*
-     * The content of this function is derived from the `random_descent` one but has diverged since.
-     */
     *refp = NULL;
 
     btree = S2BT(session);
@@ -727,9 +726,7 @@ __page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flag
      */
     eviction = LF_ISSET(WT_READ_CACHE);
 
-    if (0) {
-restart:; /* Restart the search from the root. */
-    }
+restart: /* Restart the search from the root. */
 
     /* Search the internal pages of the tree. */
     current = &btree->root;
@@ -778,7 +775,7 @@ restart:; /* Restart the search from the root. */
                 /* Fall through */
             case WT_REF_DELETED:
                 /*
-                 * Can't go down from here. Return this page and __find_closest_page will finish the
+                 * Can't go down from here. Return this page and __find_closest_leaf will finish the
                  * job.
                  */
                 goto done;
@@ -835,13 +832,14 @@ __wt_page_from_npos(
     WT_WITH_PAGE_INDEX(session, ret = __page_from_npos_internal(session, refp, read_flags, npos));
     WT_RET(ret);
     /* Return the first good page starting from here */
-    return (__find_closest_page(session, refp, walk_flags));
+    return (__find_closest_leaf(session, refp, walk_flags));
 }
 
 /*
+ * !!!
  * __wt_page_from_npos_for_eviction --
- *     Go to a page given its normalized position (for eviction). - Use WT_READ_PREV to look up
- *     backwards.
+ *     Go to a page given its normalized position (for eviction).
+ *     - Use WT_READ_PREV to look up backwards.
  */
 int
 __wt_page_from_npos_for_eviction(
@@ -852,9 +850,10 @@ __wt_page_from_npos_for_eviction(
 }
 
 /*
+ * !!!
  * __wt_page_from_npos_for_read --
- *     Go to a leaf page given its normalized position (for reading). - Use WT_READ_PREV to look up
- *     backwards.
+ *     Go to a leaf page given its normalized position (for reading).
+ *     - Use WT_READ_PREV to look up backwards.
  */
 int
 __wt_page_from_npos_for_read(
