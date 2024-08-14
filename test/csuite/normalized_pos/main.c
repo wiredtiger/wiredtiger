@@ -39,7 +39,7 @@ create_btree(WT_CONNECTION *conn)
     WT_SESSION *session;
     /* 1KB string to match the 1KB pages. */
     char val_str[1000];
-    /* TODO - with 100,000 keys and 1 key per page this should mean that each key maps to an
+    /* With 100,000 keys and 1 key per page this should mean that each key maps to an
      * equivalent npos. e.g. key 50,000 should map to roughly npos 0.5, and key 12,300 to 0.123.
      * This isn't true possibly because some pages have 10 slots and others 91? */
 
@@ -69,7 +69,9 @@ create_btree(WT_CONNECTION *conn)
  * NOTE!! This is a white box test. It uses functions and types not available in the WiredTiger API.
  */
 static void
-test_normalized_pos(WT_CONNECTION *conn)
+test_normalized_pos(WT_CONNECTION *conn,
+  int (*page_from_npos_fn)(
+    WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos))
 {
     WT_CURSOR *cursor;
     WT_DATA_HANDLE *dhandle;
@@ -121,7 +123,7 @@ test_normalized_pos(WT_CONNECTION *conn)
         /* Now find which page npos restores to. We haven't modified the Btree so it should be the
          * exact same page */
         WT_WITH_DHANDLE(wt_session, dhandle,
-          testutil_check(__wt_page_from_npos_for_read(wt_session, &restored_page_ref, 0, 0, npos)));
+          testutil_check(page_from_npos_fn(wt_session, &restored_page_ref, 0, 0, npos)));
 
         testutil_assertfmt(page_ref == restored_page_ref,
           "page mismatch for key %llu!\n  Expected %p, got %p\n  npos = %f", key, (void *)page_ref,
@@ -147,7 +149,7 @@ test_normalized_pos(WT_CONNECTION *conn)
  *     change the underlying btree during the test.
  */
 static void
-run(const char *working_dir)
+run(const char *working_dir, const char *config)
 {
     WT_CONNECTION *conn;
     char home[1024];
@@ -155,12 +157,11 @@ run(const char *working_dir)
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     testutil_recreate_dir(home);
 
-    /* Only run in memory. It's easier to reason about the shape of the Btree */
-    /* TODO - Add test case for on-disk WiredTiger */
-    testutil_check(wiredtiger_open(home, NULL, "create,in_memory=true,cache_size=1GB", &conn));
+    testutil_check(wiredtiger_open(home, NULL, config, &conn));
 
     create_btree(conn);
-    test_normalized_pos(conn);
+    test_normalized_pos(conn, __wt_page_from_npos_for_eviction);
+    test_normalized_pos(conn, __wt_page_from_npos_for_read);
 
     testutil_check(conn->close(conn, ""));
     testutil_clean_test_artifacts(home);
@@ -192,6 +193,7 @@ main(int argc, char *argv[])
     if (argc != 0)
         usage();
 
-    run(working_dir);
+    run(working_dir, "create,in_memory=true,cache_size=1GB");
+    run(working_dir, "create,cache_size=100MB");
     return 0;
 }
