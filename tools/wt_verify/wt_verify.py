@@ -109,9 +109,6 @@ def parse_metadata(line):
         line = line[3:-1]
         for x in line.split(" | "):
             [key, value] = x.split(": ", 1)
-            if len(value) == 0:
-                dict[key] = value
-                continue
             if value[0] == "[" and value[-1] == "]":
                 value = value[1:-1].split(", ")
                 value = list(map(lambda n: is_int(n), value))
