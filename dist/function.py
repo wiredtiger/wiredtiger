@@ -6,26 +6,29 @@ from dist import all_c_files, all_cpp_files, all_h_files, compare_srcfile, sourc
 from common_functions import filter_if_fast
 
 def check_function_comment(function_name, function_comment):
+    # Unit test functions don't have to have a comment.
     if function_name.startswith('__ut_'):
         return True
 
+    # No comment at all.
     if not function_comment:
         return False
 
-    # The first line should be the function name
+    # The first line is the function name
     #    /*
     #     * func_name --
-    comment_starts_with_func = function_comment.startswith(f'/*\n * {function_name} --\n')
+    if function_comment.startswith(f'/*\n * {function_name} --\n'):
+        return True
 
-    # We also allow unformatted comments to start with !!!
+    # Unformatted comment containing !!!
     #    /*
     #     * !!!
     #     * func_name --
-    unformatted_comment_starts_with_func = \
-        function_comment.find('!!!') != -1 and \
-            function_comment.find(f'\n * {function_name} --\n') != -1
+    if function_comment.find('!!!') != -1 and \
+            function_comment.find(f'\n * {function_name} --\n') != -1:
+        return True
 
-    return comment_starts_with_func or unformatted_comment_starts_with_func
+    return False
 
 # Complain if a function comment is missing.
 def missing_comment():
