@@ -340,8 +340,8 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
             }
 
-            /* Quit compaction if eviction is a problem. */
-            if (ret == EBUSY && __wt_cache_stuck(session)) {
+            /* Compact will return EBUSY if eviction is a problem. */
+            if (ret == EBUSY) {
                 WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
                 WT_ERR_MSG(session, EBUSY,
                   "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
