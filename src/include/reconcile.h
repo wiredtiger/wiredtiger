@@ -384,10 +384,12 @@ typedef struct {
     } while (0)
 
 /* Called when building the disk image. */
-#define WT_TRY_BUILD_DELTA(r) (r)->multi_next == 0 && (r->ref->page)->dsk != NULL
+#define WT_TRY_BUILD_DELTA(session, r) \
+    !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 0 && (r->ref->page)->dsk != NULL
 
 /* Called after disk image has been built. */
-#define WT_BUILD_DELTA(r) (r)->multi_next == 1 && (r->ref->page)->dsk != NULL
+#define WT_BUILD_DELTA(session, r) \
+    !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 1 && (r->ref->page)->dsk != NULL
 
 /*
  * Enumeration used to track the context of reconstructing modifies within a update list.

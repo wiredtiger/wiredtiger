@@ -287,7 +287,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
-    if (WT_TRY_BUILD_DELTA(r)) {
+    if (WT_TRY_BUILD_DELTA(session, r)) {
         if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DURABLE))
             return (true);
 
