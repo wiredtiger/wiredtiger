@@ -6,6 +6,11 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * block_ext.c: [extent_list] Test extent list search functions: __block_off_srch_last,
+ * __block_off_srch, __block_first_srch, and __block_size_srch.
+ */
+
 #include <memory>
 
 #include <catch2/catch.hpp>
