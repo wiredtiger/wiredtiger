@@ -144,7 +144,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     upd->durable_ts = unpack->tw.durable_start_ts;
     upd->start_ts = unpack->tw.start_ts;
     upd->txnid = unpack->tw.start_txn;
-    F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
 
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
@@ -170,13 +169,16 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
           unpack->tw.start_txn == unpack->tw.stop_txn) {
             upd->durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
-        }
+            F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        } else
+            F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
 
         tombstone->next = upd;
         *updp = tombstone;
     } else {
         upd->durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
+        F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
         *updp = upd;
     }
 
@@ -202,7 +204,7 @@ __page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    WT_RET(__wt_col_modify(cbt, recno, NULL, *updp, WT_UPDATE_INVALID, true, true));
+    WT_RET(__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
     return (0);
 }
 
@@ -308,7 +310,7 @@ __wti_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* Search the page and apply the modification. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
-            WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
             upd = NULL;
         }
     }

@@ -125,7 +125,9 @@ def parse_node(f, line, output, chkpt_info, root_addr, is_root_node):
     node = {}
     line = line[2:-1] # remove new node symbol
     page_type = line.split()[-1]
-    assert page_type == "internal" or page_type == "leaf"
+    expected_page_type = ["internal", "leaf"]
+    if not page_type in expected_page_type:
+        raise Exception(f"page_type expected to be one of {expected_page_type} but found '{page_type}'")
     node_id = line.split(": ")[0]
     line = f.readline()
     while line and line != SEPARATOR and not line.startswith("- "):
@@ -148,14 +150,17 @@ def parse_chkpt_info(f):
     else:
         raise RuntimeError("Could not find checkpoint name")
     line = f.readline()
-    assert line.startswith("Root:")
+    if not line.startswith("Root:"):
+        if not line.strip():
+            raise Exception("Root not found, there is no data to parse")
+        raise Exception(f"Expected the line starts with 'Root:' but found '{line}'")
     line = f.readline()
     root_addr = parse_metadata(line[3:-1]) # remove metadata symbol
     line = f.readline()
     return [root_addr, line, chkpt_info]
 
 
-def parse_dump_blocks():
+def parse_dump_blocks(input_file: str):
     """
     Parse the output file of dump_blocks.
     Return a dictionary that has checkpoint names as keys. Each checkpoint has a set of keys that
@@ -163,11 +168,11 @@ def parse_dump_blocks():
     offset.
     """
 
-    with open(WT_OUTPUT_FILE, "r") as f:
+    with open(input_file, "r") as f:
         lines = f.readlines()
 
     checkpoint_name = None
-    is_root = False
+    is_root, has_root = False, False
     data = {}
 
     for line in lines:
@@ -177,8 +182,8 @@ def parse_dump_blocks():
         # (i.e > addr: [0: 4096-8192, 4096, 1421166157])
         if is_root:
             x = re.search(r"^> addr: \[\d+: (\d+)-\d+, (\d+), \d+]$", line)
-            assert x, f"Root information expected in '{line}"
-
+            if not x:
+                raise Exception(f"Root information expected in '{line}'")
             addr_start = int(x.group(1))
             size = int(x.group(2))
 
@@ -195,7 +200,7 @@ def parse_dump_blocks():
 
         # Check for the root info.
         if x := re.search(r"^Root:$", line):
-            is_root = True
+            has_root = is_root = True
             continue
 
         # Check for any other addr info.
@@ -208,7 +213,8 @@ def parse_dump_blocks():
             # If a cell type has an address, get its type.
             if page_type == 'cell_type':
                 x = re.search(r"^cell_type: (\w+).*", line)
-                assert x, f"Cell type not found in {line}"
+                if not x:
+                    raise Exception(f"Cell type not found in {line}")
                 page_type = x.group(1)
 
             if page_type not in data[checkpoint_name]:
@@ -216,7 +222,8 @@ def parse_dump_blocks():
 
             data[checkpoint_name][page_type] += [(addr_start, size)]
             continue
-
+    if not has_root:
+        raise Exception("Root not found, there is no data to parse")
     # Sort by offset.
     for checkpoint in data:
         for page_type in data[checkpoint]:
@@ -224,20 +231,22 @@ def parse_dump_blocks():
 
     return data
 
-def parse_dump_pages():
+def parse_dump_pages(input_file: str):
     """
-    Parse the output file of dump_pages
+    Parse the output file of dump_pages.
     """
-    with open(WT_OUTPUT_FILE, "r") as f:
+    with open(input_file, "r") as f:
         output = {}
         line = f.readline()
         while line:
-            assert line == SEPARATOR
+            if line != SEPARATOR:
+                raise Exception(f"Expected '{SEPARATOR}' but found '{line}'")
             [root_addr, line, chkpt_info] = parse_chkpt_info(f)
             output[chkpt_info] = {}
             is_root_node = True
             while line and line != SEPARATOR:
-                assert line.startswith("- ") 
+                if not line.startswith("- "):
+                    raise Exception(f"Expected the line starts with '- ' but found '{line}'")
                 line = parse_node(f, line, output, chkpt_info, root_addr, is_root_node)
                 is_root_node = False
     return output
@@ -364,7 +373,8 @@ def show_free_block_distribution(filename, data, max_gap_size=0):
             prev_tuple = all_addr[i - 1]
             prev_tuple_end = prev_tuple[0] + prev_tuple[1]
             gap = current_tuple[0] - prev_tuple_end
-            assert gap >= 0, f"Data is not sorted correctly"
+            if gap < 0:
+                raise Exception("Data is not sorted correctly")
             if gap == 0:
                 continue
             # If the size of the free block is large enough, we may not have interest in it.
@@ -496,9 +506,9 @@ def visualize(tree_data, fields):
     serve(imgs)
 
 
-def execute_command(command):
+def execute_command(command: str, output_file: str) -> None:
     """
-    Execute a given command and return its output in a file.
+    Execute a given command and writes its output in a file.
     """
     try:
         result = subprocess.run(command, shell=True, check=True,
@@ -509,9 +519,9 @@ def execute_command(command):
         sys.exit(1)
     
     try:
-        with open(WT_OUTPUT_FILE, 'w') as file:
+        with open(output_file, 'w') as file:
             file.write(result.stdout)
-        print(f"WT tool output written to {WT_OUTPUT_FILE}")
+        print(f"WT tool output written to {output_file}")
     except IOError as e:
         print(f"Failed to write output to file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -548,7 +558,7 @@ def find_wt_exec_path():
     return result[0]
 
 
-def construct_command(args):
+def construct_command(args) -> str:
     """
     Construct the WiredTiger verify command based on provided arguments.
     """
@@ -567,9 +577,10 @@ def construct_command(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Script to run the WiredTiger verify command with specified options.")
-    parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='Option to specify dump_pages configuration.')
-    parser.add_argument('-f', '--filename', required=True, help='Name of the WiredTiger file to verify (such as file:foo.wt).')
+    parser.add_argument('-d', '--dump', required=True, choices=['dump_blocks','dump_pages'], help='wt verify configuration options.')
+    parser.add_argument('-f', '--filename', help='Name of the WiredTiger file to verify (such as file:foo.wt).')
     parser.add_argument('-hd', '--home_dir', default='.', help='Path to the WiredTiger database home directory (default is current directory).')
+    parser.add_argument('-i', '--input_file', help='Input file (output of a wt verify command)')
     parser.add_argument('-o', '--output_file', help='Optionally save output to the provided output file.')
     parser.add_argument('-p', '--print_output', action='store_true', default=False, help='Print the output to stdout (default is off)')
     parser.add_argument('-v', '--visualize', choices=ALL_VISUALIZATION_CHOICES, nargs='*',
@@ -577,21 +588,29 @@ def main():
     parser.add_argument('-wt', '--wt_exec_path', help='Path of the WT tool executable.')
 
     args = parser.parse_args()
-    command = construct_command(args)
-    try:
-        execute_command(command)
-    except (RuntimeError, ValueError, TypeError) as e:
-        print(str(e), file=sys.stderr)
-        sys.exit(1)
+
+    # If the user has given an input file, don't generate anything.
+    input_file = args.input_file
+    if not input_file:
+        if not args.filename:
+            raise Exception("Argument -f/--filename is required")
+        command = construct_command(args)
+        try:
+            execute_command(command, WT_OUTPUT_FILE)
+        except (RuntimeError, ValueError, TypeError) as e:
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
+        # Use the generated output file as the input file for the next steps.
+        input_file = WT_OUTPUT_FILE
 
     parsed_data = None
 
-    if "dump_pages" in command:
-        parsed_data = parse_dump_pages()
-    elif "dump_blocks" in command:
-        parsed_data = parse_dump_blocks()
+    if "dump_pages" in args.dump:
+        parsed_data = parse_dump_pages(input_file)
     else:
-        assert False, f"Unexpected command '{command}'"
+        if not "dump_blocks" in args.dump:
+            raise Exception(f"dump_blocks not found in {args.dump}")
+        parsed_data = parse_dump_blocks(input_file)
 
     # If we don't have data, nothing to do.
     if not parsed_data:
@@ -613,7 +632,7 @@ def main():
     if args.print_output:
         print(pretty_output)
 
-    if "dump_blocks" in command:
+    if "dump_blocks" in args.dump:
         imgs = show_block_distribution_broken_barh(args.filename, parsed_data)
         imgs += show_block_distribution_hist(args.filename, parsed_data)
         imgs += show_free_block_distribution(args.filename, parsed_data)

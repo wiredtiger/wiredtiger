@@ -1566,7 +1566,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
             copy->del.txnid = WT_TXN_NONE;
             copy->del.timestamp = copy->del.durable_timestamp = WT_TS_NONE;
             copy->del.prepare_state = 0;
-            copy->del.previous_ref_state = WT_REF_DISK;
             copy->del.committed = true;
         }
         /* FALLTHROUGH */
@@ -1898,6 +1897,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     page = ref->page;
     mod = page->modify;
 
+    /*
+     * We cannot evict the page in the prefetch queue. Eviction may split the page and free the ref.
+     * The prefetch thread would crash if it sees a freed ref.
+     */
+    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+        return (false);
+
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
     if (mod == NULL)
         return (true);
@@ -2028,7 +2034,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          */
         if (LF_ISSET(WT_READ_NO_EVICT) ||
           (inmem_split ? LF_ISSET(WT_READ_NO_SPLIT) : F_ISSET(session, WT_SESSION_NO_RECONCILE)))
-            WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+            WT_IGNORE_RET(__wt_page_evict_urgent(session, ref));
         else {
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);

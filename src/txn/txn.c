@@ -570,12 +570,16 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     if (WT_TXNID_LT(__wt_atomic_loadv64(&txn_global->last_running), last_running)) {
         __wt_atomic_storev64(&txn_global->last_running, last_running);
 
-        /* Output a verbose message about long-running transactions,
-         * but only when some progress is being made. */
+        /*
+         * Output a verbose message about long-running transactions, but only when some progress is
+         * being made.
+         */
+        current_id = __wt_atomic_loadv64(&txn_global->current);
+        WT_ASSERT(session, WT_TXNID_LE(oldest_id, current_id));
         if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
           current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
-              "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
+              "oldest id %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
               oldest_id, oldest_session->id, oldest_session->lastop,
               oldest_session->txn->snapshot_data.snap_min);
         }
@@ -1193,8 +1197,8 @@ __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
     WT_WITH_BTREE(session, op->btree,
       ret = btree->type == BTREE_ROW ?
-        __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
-        __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+        __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :
+        __wt_col_modify(cbt, cbt->recno, NULL, &tombstone, WT_UPDATE_INVALID, false, false));
     WT_ERR(ret);
     tombstone = NULL;
 
@@ -1212,25 +1216,18 @@ err:
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
-
-    /* If we've reached the end of the chain, we're done looking. */
-    if (upd == NULL)
-        return;
-
     /*
      * Aborted updates can exist in the update chain of our transaction. Generally this will occur
      * due to a reserved update. As such we should skip over these updates entirely.
      */
-    if (upd->txnid == WT_TXN_ABORTED) {
-        __txn_resolve_prepared_update_chain(session, upd->next, commit);
-        return;
-    }
+    while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+        upd = upd->next;
 
     /*
-     * If the transaction id is then different and not aborted we know we've reached the end of our
-     * update chain and don't need to look deeper.
+     * The previous loop exits on null, check that here. Additionally if the transaction id is then
+     * different we know we've reached the end of our update chain and don't need to look deeper.
      */
-    if (upd->txnid != session->txn->id)
+    if (upd == NULL || upd->txnid != session->txn->id)
         return;
 
     /* Go down the chain. Do the resolves on the way back up. */
@@ -2311,7 +2308,22 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 
     if (cursor != NULL) {
-        WT_TRET(cursor->close(cursor));
+        /*
+         * Technically the WiredTiger API allows closing a cursor to return rollback. This is a
+         * strange error to get in the rollback path so we swallow that error here. Analysis made at
+         * the time suggests that it is impossible for resetting a cursor to return rollback, which
+         * is called from cursor close, but we cannot guarantee it.
+         *
+         * Because swallowing an error that you believe cannot happen doesn't make a lot of sense we
+         * assert the error is not generated in diagnostic mode.
+         */
+#ifdef HAVE_DIAGNOSTIC
+        int ret2 = cursor->close(cursor);
+        WT_ASSERT(session, ret2 != WT_ROLLBACK);
+        WT_TRET(ret2);
+#else
+        WT_TRET_ERROR_OK(cursor->close(cursor), WT_ROLLBACK);
+#endif
         cursor = NULL;
     }
 
@@ -2808,6 +2820,20 @@ __wt_verbose_dump_txn_one(
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
 
+    if (txn->isolation != WT_ISO_READ_UNCOMMITTED && !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (0);
+
+    WT_RET(__wt_msg(session,
+      "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
+      ", metadata pinned ID: %" PRIu64 ", name: %s",
+      txn_session->id, __wt_atomic_loadv64(&txn_shared->id),
+      __wt_atomic_loadv64(&txn_shared->pinned_id),
+      __wt_atomic_loadv64(&txn_shared->metadata_pinned),
+      txn_session->name == NULL ? "EMPTY" : txn_session->name));
+
+    if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
+        return (0);
+
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
     case WT_ISO_READ_COMMITTED:
@@ -2888,7 +2914,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_SESSION_IMPL *sess;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    uint64_t id;
     uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
@@ -2945,15 +2970,11 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Skip sessions with no active transaction */
-        if ((id = __wt_atomic_loadv64(&s->id)) == WT_TXN_NONE &&
+        if (__wt_atomic_loadv64(&s->id) == WT_TXN_NONE &&
           __wt_atomic_loadv64(&s->pinned_id) == WT_TXN_NONE)
             continue;
+
         sess = &WT_CONN_SESSIONS_GET(conn)[i];
-        WT_RET(__wt_msg(session,
-          "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
-          ", metadata pinned ID: %" PRIu64 ", name: %s",
-          i, id, __wt_atomic_loadv64(&s->pinned_id), __wt_atomic_loadv64(&s->metadata_pinned),
-          sess->name == NULL ? "EMPTY" : sess->name));
         WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);

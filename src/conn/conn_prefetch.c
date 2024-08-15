@@ -42,7 +42,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     while (!TAILQ_EMPTY(&conn->pfqh)) {
         /* Encourage races. */
-        __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_DELAY, NULL);
+        __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_1, NULL);
 
         __wt_spin_lock(session, &conn->prefetch_lock);
         pe = TAILQ_FIRST(&conn->pfqh);
@@ -69,6 +69,9 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             __wt_free(session, pe);
             continue;
         }
+
+        /* Encourage races. */
+        __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_2, NULL);
 
         /*
          * We increment this while in the prefetch lock as the thread reading from the queue expects
@@ -98,9 +101,17 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          */
         F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
-        WT_ERR(ret);
 
         __wt_free(session, pe);
+
+        /*
+         * Ignore specific errors that prevented prefetch from making progress, they are harmless.
+         */
+        if (ret == WT_NOTFOUND || ret == WT_RESTART) {
+            WT_STAT_CONN_INCR(session, prefetch_skipped_error_ok);
+            ret = 0;
+        }
+        WT_ERR(ret);
     }
 
 err:
@@ -182,12 +193,33 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(EBUSY);
     }
 
+    /* We should never add a ref that is already in the prefetch queue. */
+    WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
+
+    /* Encourage races. */
+    __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
+
+    /*
+     * The page can be read into memory and evicted concurrently. Eviction may split the page and
+     * add the ref to the stash to be freed later before the WT_REF_FLAG_PREFETCH flag is set. In
+     * another case, the page can be fast truncated and become globally visible concurrently. This
+     * may also lead to the ref being added to the stash before the WT_REF_FLAG_PREFETCH flag is
+     * set. Lock the ref to ensure those cases cannot happen. If we fail to lock the ref, someone
+     * else must have started to operate on it. Ignore this page without waiting.
+     */
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
+        __wt_spin_unlock(session, &conn->prefetch_lock);
+        goto err;
+    }
+
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
-     * guarantees the corresponding internal page cannot be evicted until prefetch has processed the
-     * leaf page. This flag is checked when eviction reviews an internal page for active children.
+     * guarantees the corresponding internal page and itself cannot be evicted until prefetch has
+     * processed the leaf page.
      */
     F_SET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH);
+    /* Unlock the ref. */
+    WT_REF_SET_STATE(ref, WT_REF_DISK);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
     ++conn->prefetch_queue_count;
     __wt_spin_unlock(session, &conn->prefetch_lock);
