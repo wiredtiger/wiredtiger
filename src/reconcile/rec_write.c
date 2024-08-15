@@ -2097,6 +2097,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
         /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !multi->supd_restore) {
+            if (btree->type == BTREE_ROW)
+                __wt_free(session, multi->key.ikey);
             --r->multi_next;
             return (0);
         }
