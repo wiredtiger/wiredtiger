@@ -1428,9 +1428,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /*
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
      * underlying page functions to do it.
+     *
+     * We should do better here to avoid processing each every page.
      */
-    if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-        WT_RET(__wti_page_inmem_prepare(session, ref));
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        WT_RET(__wti_page_inmem_updates(session, ref));
 
     /*
      * Put the re-instantiated page in the same LRU queue location as the original page, unless this
