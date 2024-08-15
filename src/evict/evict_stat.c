@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "wt_internal.h"
+#include "evict.h"
 #include "evict_internal.h"
 
 /*

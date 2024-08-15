@@ -552,9 +552,9 @@ typedef uint64_t wt_timestamp_t;
 
 #include "extern.h"
 
-// MOVED OUT OF ORDER!!
+// MOVED OUT OF ORDER!! This used to run after we included all of the component headers.
+// However, it doesn't seem to cause any problems
 #include "verify_build.h"
-
 
 // REMOVED the includes of all our component headers and _inline.h files
 // This is present in wt_internal.h
