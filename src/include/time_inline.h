@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "wt_internal.h"
-
 /*
  * __wt_rdtsc --
  *     Get a timestamp from CPU registers.
