@@ -94,8 +94,12 @@ __rec_append_orig_value(
                 continue;
         }
 
-        /* Done if the update was restored from the data store or the history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
+        /* Done if the update was restored from the history store. */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS))
+            return (0);
+
+        /* Done if the update is a full update restored from the data store. */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS) && upd->type == WT_UPDATE_STANDARD)
             return (0);
 
         /*
