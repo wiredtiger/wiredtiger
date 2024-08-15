@@ -328,7 +328,7 @@ __ut_block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
 int
 __ut_block_manager_session_cleanup(WT_SESSION_IMPL *session)
 {
-    return (__ut_block_manager_session_cleanup(session));
+    return (__block_manager_session_cleanup(session));
 }
 
 int
