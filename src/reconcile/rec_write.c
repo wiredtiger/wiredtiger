@@ -2092,8 +2092,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         multi->key.recno = chunk->recno;
 
     /* Check if there are saved updates that might belong to this block. */
-    if (r->supd_next != 0)
+    if (r->supd_next != 0) {
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
+
+        /* We have an empty page. Free the multi. */
+        if (chunk->entries == 0 && !multi->supd_restore) {
+            --r->multi_next;
+            return (0);
+        }
+    }
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
