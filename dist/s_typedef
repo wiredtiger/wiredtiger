@@ -17,13 +17,13 @@ build() {
 
     [[ -z "$(
         {
-            echo ../src/include/wt_internal.h
+            echo ../src/include/wt_prelude.h
             ls -1 ../src/include/*.h ../src/include/*.in
         } | filter_if_fast ../
     )" ]] && return
 
     # Build the standard typedefs.
-    f=../src/include/wt_internal.h
+    f=../src/include/wt_prelude.h
     (sed -e '/Forward type declarations .*: BEGIN/{' \
         -e 'n' \
         -e 'q' \
