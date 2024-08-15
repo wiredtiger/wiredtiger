@@ -316,7 +316,7 @@ def function_scoping():
                     fn.used_outside_of_file = True
 
                 # Check whether a "__wti" function is used outside of its module.
-                if fn.visibility_module and module != fn.module:
+                if fn.visibility_module and module != fn.module and module != "test":
                     print(f'{source_file}:{line_no}: {fn_name} is used outside of its module ' +
                           f'"{fn.module}"')
                     failed = True
