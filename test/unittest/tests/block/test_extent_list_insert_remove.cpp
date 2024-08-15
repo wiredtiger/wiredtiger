@@ -27,6 +27,7 @@
 extern void print_list(WT_EXT **head);
 
 // Wrappers and Utilities
+// For expected values
 struct off_size {
     wt_off_t off;
     wt_off_t size;
@@ -50,6 +51,7 @@ struct
 } off_sizeLess;
 
 
+// Allocate WT_EXT
 WT_EXT *
 alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
 {
@@ -71,6 +73,29 @@ alloc_new_ext(WT_SESSION_IMPL *session, const off_size & one) {
     return alloc_new_ext(session, one.off, one.size);
 }
 
+// WT_EXTLIST operations
+WT_EXT *
+get_off_n(const WT_EXTLIST &extlist, uint32_t idx) {
+    REQUIRE(idx < extlist.entries);
+    if ((extlist.last != nullptr) && (idx == (extlist.entries - 1)))
+        return extlist.last;
+    return extlist.off[idx];
+}
+
+
+void
+verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order) {
+    REQUIRE(extlist.entries == expected_order.size());
+    uint32_t idx = 0;
+    for (const off_size & expected: expected_order) {
+        WT_EXT * ext = get_off_n(extlist, idx);
+        REQUIRE(ext->off == expected.off);
+        REQUIRE(ext->size == expected.size);
+        ++idx;
+    }
+}
+
+// break break_here for debugging.
 void
 break_here(const char * file, const char * func, int line) {
     printf(">> %s line %d: %s\n", file, line, func);
@@ -149,19 +174,6 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Verify extents */
         std::vector<off_size> expected_order { insert_list };
         std::sort(expected_order.begin(), expected_order.end(), off_sizeLess);
-
-        int idx = 0;
-        for (const off_size & expected: expected_order) {
-            __ut_block_off_srch(&extlist.off[0], expected.off, &stack[0], false);
-
-            for (int i = 0; i < WT_SKIP_MAXDEPTH; i++)
-                REQUIRE(stack[i] == &extlist.off[i]);
-
-            if (extlist.off[0] != nullptr) {
-                REQUIRE(extlist.off[0]->off == expected.off);
-                REQUIRE(extlist.off[0]->size == expected.size);
-            }
-            ++idx;
-        }
+        verify_off_extent_list(extlist, expected_order);
     }
 }
