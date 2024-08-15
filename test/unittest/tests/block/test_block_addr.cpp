@@ -19,11 +19,7 @@ TEST_CASE("Block addr pack", "[block_pack]")
     bmp->block = &b;
 
     /*
-     * Address cookie 1
-     * objectid 0
-     * offset 0
-     * size 0
-     * checksum 0
+     * Address cookie 1 objectid 0 offset 0 size 0 checksum 0
      */
     SECTION("Pack address cookie 1")
     {
@@ -46,11 +42,7 @@ TEST_CASE("Block addr pack", "[block_pack]")
     }
 
     /*
-     * Address cookie 2
-     * objectid 0
-     * offset 1
-     * size 0
-     * checksum 1
+     * Address cookie 2 objectid 0 offset 1 size 0 checksum 1
      */
     SECTION("Pack address cookie 2")
     {
@@ -74,11 +66,7 @@ TEST_CASE("Block addr pack", "[block_pack]")
     }
 
     /*
-     * Address cookie 3
-     * objectid 0
-     * offset 10
-     * size 4
-     * checksum 12345
+     * Address cookie 3 objectid 0 offset 10 size 4 checksum 12345
      */
     SECTION("Pack address cookie 3")
     {
@@ -91,12 +79,13 @@ TEST_CASE("Block addr pack", "[block_pack]")
         offset = 10;
         size = 4;
         expected_checksum = 12345;
-        expected_offset = offset/b.allocsize - 1;
-        expected_size = size/b.allocsize;
+        expected_offset = offset / b.allocsize - 1;
+        expected_size = size / b.allocsize;
 
         // Test packing an address cookie with mostly non-zero fields.
         begin = (const uint8_t *)pp;
-        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, offset, size, checksum) == 0);
+        REQUIRE(__wt_block_addr_pack(
+                  bmp->block, &pp, WT_TIERED_OBJECTID_NONE, offset, size, checksum) == 0);
 
         REQUIRE(__wt_vunpack_uint(&begin, 0, &offset) == 0);
         CHECK(offset == expected_offset);
@@ -109,15 +98,17 @@ TEST_CASE("Block addr pack", "[block_pack]")
 
 // Generates an address cookie for testing purposes.
 static void
-generate_address_cookie(uint8_t **pp, WT_BLOCK *b, uint64_t offset, uint64_t size, uint64_t checksum)
+generate_address_cookie(
+  uint8_t **pp, WT_BLOCK *b, uint64_t offset, uint64_t size, uint64_t checksum)
 {
     uint64_t pack_offset, pack_size;
-    pack_offset = (offset > 0) ? offset/b->allocsize - 1 : 0;
-    pack_size = (size > 0) ? size/b->allocsize : 0;
+    pack_offset = (offset > 0) ? offset / b->allocsize - 1 : 0;
+    pack_size = (size > 0) ? size / b->allocsize : 0;
     REQUIRE(__wt_vpack_uint(pp, 0, pack_offset) == 0);
     REQUIRE(__wt_vpack_uint(pp, 0, pack_size) == 0);
     REQUIRE(__wt_vpack_uint(pp, 0, checksum) == 0);
 }
+
 TEST_CASE("Block addr unpack", "[block_unpack]")
 {
     WT_BLOCK b;
@@ -141,12 +132,13 @@ TEST_CASE("Block addr unpack", "[block_unpack]")
         generate_address_cookie(&pp, bmp->block, expected_offset, expected_size, expected_checksum);
 
         // Check that the block manager unpack function generates the expected results.
-        REQUIRE(__wt_block_addr_unpack(NULL, bmp->block, &p, 3, &obj_id, &offset, &size, &checksum) == 0);
+        REQUIRE(
+          __wt_block_addr_unpack(NULL, bmp->block, &p, 3, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
         CHECK(checksum == expected_checksum);
     }
-    
+
     SECTION("Unpack address cookie 2")
     {
         uint8_t p, *pp;
@@ -155,15 +147,16 @@ TEST_CASE("Block addr unpack", "[block_unpack]")
         wt_off_t offset, expected_offset;
         pp = &p;
         expected_checksum = 12345;
-        expected_offset = 10; 
+        expected_offset = 10;
         expected_size = 4;
 
         generate_address_cookie(&pp, bmp->block, expected_offset, expected_size, expected_checksum);
 
         // Check that the block manager unpack function generates the expected results.
-        REQUIRE(__wt_block_addr_unpack(NULL, bmp->block, &p, 5, &obj_id, &offset, &size, &checksum) == 0);
+        REQUIRE(
+          __wt_block_addr_unpack(NULL, bmp->block, &p, 5, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
-        CHECK(checksum == expected_checksum); 
+        CHECK(checksum == expected_checksum);
     }
 }
