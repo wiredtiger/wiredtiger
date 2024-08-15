@@ -11,6 +11,10 @@
  * __block_merge, __block_off_remove.
  */
 
+/* Choose one */
+#define DEBUG /* Print debugging output */
+//#undef DEBUG
+
 #include <algorithm>
 #include <memory>
 
@@ -47,24 +51,24 @@ struct
 
 
 WT_EXT *
-alloc_new_ext(wt_off_t off = 0, wt_off_t size = 0)
+alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
 {
-    /*
-     * Manually alloc enough extra space for the zero-length array to encode two skip lists.
-     */
-    constexpr auto sz = sizeof(WT_EXT) + 2 * WT_SKIP_MAXDEPTH * sizeof(WT_EXT *);
+    WT_EXT *ext;
+    REQUIRE(__wti_block_ext_alloc(session, &ext) == 0);
+    ext->off = off;
+    ext->size = size;
 
-    auto raw = (WT_EXT *)malloc(sz);
-    memset(raw, 0, sz);
-    raw->off = off;
-    raw->size = size;
+#ifdef DEBUG
+    printf("Allocated WT_EXT %p: off=%" PRId64 ", size=%" PRId64 ", depth=%" PRIu8 ", next[0]=%p\n",
+           ext, ext->off, ext->size, ext->depth, ext->next[0]);
+#endif
 
-    return raw;
+    return ext;
 }
 
 WT_EXT *
-alloc_new_ext(const off_size & one) {
-    return alloc_new_ext(one.off, one.size);
+alloc_new_ext(WT_SESSION_IMPL *session, const off_size & one) {
+    return alloc_new_ext(session, one.off, one.size);
 }
 
 void
@@ -104,11 +108,13 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Insert one extent */
-        WT_EXT * first = alloc_new_ext(4096, 4096);
+        WT_EXT * first = alloc_new_ext(session, 4096, 4096);
         REQUIRE(__ut_block_ext_insert(session, &extlist, first) == 0);
 
+#ifdef DEBUG
         print_list(extlist.off);
         fflush(stdout);
+#endif
 
         /* Verify */
         REQUIRE(__ut_block_off_srch_last(&extlist.off[0], &stack[0]) == extlist.off[0]);
@@ -131,12 +137,14 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 
         /* Insert extents */
         for (const off_size & to_insert: insert_list) {
-            WT_EXT * insert_ext = alloc_new_ext(to_insert);
+            WT_EXT * insert_ext = alloc_new_ext(session, to_insert);
             REQUIRE(__ut_block_ext_insert(session, &extlist, insert_ext) == 0);
         }
 
+#ifdef DEBUG
         print_list(extlist.off);
         fflush(stdout);
+#endif
 
         /* Verify extents */
         std::vector<off_size> expected_order { insert_list };
