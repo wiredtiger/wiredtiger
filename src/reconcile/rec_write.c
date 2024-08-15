@@ -2099,6 +2099,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (chunk->entries == 0 && !multi->supd_restore) {
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
+            __wt_free(session, multi->supd);
             --r->multi_next;
             return (0);
         }
