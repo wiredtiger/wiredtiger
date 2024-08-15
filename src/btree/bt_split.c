@@ -1445,9 +1445,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
      */
-    if (multi->supd_entries == 0)
+    if (!multi->supd_restore)
         return (0);
-    WT_ASSERT(session, multi->supd_restore);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
