@@ -107,12 +107,23 @@ TEST_CASE("Block addr pack", "[block_pack]")
     }
 }
 
+// Generates an address cookie for testing purposes.
+static void
+generate_address_cookie(uint8_t **pp, WT_BLOCK *b, uint64_t offset, uint64_t size, uint64_t checksum)
+{
+    uint64_t pack_offset, pack_size;
+    pack_offset = (offset > 0) ? offset/b->allocsize - 1 : 0;
+    pack_size = (size > 0) ? size/b->allocsize : 0;
+    REQUIRE(__wt_vpack_uint(pp, 0, pack_offset) == 0);
+    REQUIRE(__wt_vpack_uint(pp, 0, pack_size) == 0);
+    REQUIRE(__wt_vpack_uint(pp, 0, checksum) == 0);
+}
 TEST_CASE("Block addr unpack", "[block_unpack]")
 {
     WT_BLOCK b;
     WT_BM bm, *bmp;
 
-    b.allocsize = 2;
+    b.allocsize = 1;
     bmp = &bm;
     bmp->block = &b;
 
@@ -127,12 +138,13 @@ TEST_CASE("Block addr unpack", "[block_unpack]")
         expected_checksum = expected_offset = expected_size = 0;
 
         // Manually generate an address cookie.
-        REQUIRE(__wt_vpack_uint(&pp, 0, expected_offset) == 0);
-        REQUIRE(__wt_vpack_uint(&pp, 0, expected_size) == 0);
-        REQUIRE(__wt_vpack_uint(&pp, 0, expected_checksum) == 0);
+        generate_address_cookie(&pp, bmp->block, expected_offset, expected_size, expected_checksum);
 
         // Check that the block manager unpack function generates the expected results.
-        REQUIRE(__wt_block_addr_unpack(NULL, bmp->block, &p, 3, &obj_id, &offset, &size, &checksum) == 0); 
+        REQUIRE(__wt_block_addr_unpack(NULL, bmp->block, &p, 3, &obj_id, &offset, &size, &checksum) == 0);
+        CHECK(offset == expected_offset);
+        CHECK(size == expected_size);
+        CHECK(checksum == expected_checksum);
     }
     
     SECTION("Unpack address cookie 2")
@@ -146,12 +158,12 @@ TEST_CASE("Block addr unpack", "[block_unpack]")
         expected_offset = 10; 
         expected_size = 4;
 
-        // Manually generate an address cookie.
-        REQUIRE(__wt_vpack_uint(&pp, 10, expected_offset) == 0);
-        REQUIRE(__wt_vpack_uint(&pp, 4, expected_size) == 0);
-        REQUIRE(__wt_vpack_uint(&pp, 12345, expected_checksum) == 0);
+        generate_address_cookie(&pp, bmp->block, expected_offset, expected_size, expected_checksum);
 
         // Check that the block manager unpack function generates the expected results.
-        REQUIRE(__wt_block_addr_unpack(NULL, bmp->block, &p, 5, &obj_id, &offset, &size, &checksum) == 0); 
+        REQUIRE(__wt_block_addr_unpack(NULL, bmp->block, &p, 5, &obj_id, &offset, &size, &checksum) == 0);
+        CHECK(offset == expected_offset);
+        CHECK(size == expected_size);
+        CHECK(checksum == expected_checksum); 
     }
 }
