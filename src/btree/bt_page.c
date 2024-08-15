@@ -143,10 +143,9 @@ __page_inmem_tombstone(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_
 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
     total_size += size;
-    tombstone->durable_ts = WT_TS_NONE;
+    tombstone->durable_ts = unpack->tw.durable_stop_ts;
     tombstone->start_ts = unpack->tw.stop_ts;
     tombstone->txnid = unpack->tw.stop_txn;
-    tombstone->prepare_state = WT_PREPARE_INPROGRESS;
     F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
     *updp = tombstone;
     *sizep = total_size;
