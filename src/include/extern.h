@@ -1644,7 +1644,7 @@ extern int __wti_ovfl_track_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 extern int __wti_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image,
-  uint32_t flags, WT_PAGE **pagep, bool *preparedp)
+  uint32_t flags, WT_PAGE **pagep, bool *instantiate_updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

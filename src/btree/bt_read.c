@@ -97,7 +97,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_PAGE *notused;
     WT_REF_STATE previous_state;
     uint32_t page_flags;
-    bool prepare;
+    bool instantiate_upd;
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -196,11 +196,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
+    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &instantiate_upd));
     tmp.mem = NULL;
 
-    /* We should do better here to avoid processing each every page. */
-    if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+    if (instantiate_upd)
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
