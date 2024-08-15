@@ -200,7 +200,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     tmp.mem = NULL;
 
     /* We should do better here to avoid processing each every page. */
-    WT_ERR(__wti_page_inmem_updates(session, ref));
+    if (F_ISSIET(ref, WT_REF_FLAG_LEAF))
+        WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
