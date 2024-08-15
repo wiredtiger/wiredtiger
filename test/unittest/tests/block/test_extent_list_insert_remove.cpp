@@ -177,3 +177,63 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         verify_off_extent_list(extlist, expected_order);
     }
 }
+
+TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
+{
+    /* Build Mock session, this will automatically create a mock connection. */
+    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    SECTION("insert into an empty list has one element")
+    {
+        BREAK;
+        /* Empty extent list */
+        WT_EXTLIST extlist;
+        memset(&extlist, 0, sizeof(extlist));
+        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+
+        /* Insert one extent */
+        REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 4096) == 0);
+
+#ifdef DEBUG
+        print_list(extlist.off);
+        fflush(stdout);
+#endif
+
+        /* Verify */
+        REQUIRE(__ut_block_off_srch_last(&extlist.off[0], &stack[0]) == extlist.off[0]);
+    }
+
+    SECTION("insert multiple extents and retrieve in correct order")
+    {
+        BREAK;
+        /* Extents to insert */
+        std::vector<off_size> insert_list {
+            off_size(3*4096, 4096),
+            off_size(4096, 4096),
+            off_size(5*4096, 4096),
+        };
+            
+        /* Empty extent list */
+        WT_EXTLIST extlist;
+        memset(&extlist, 0, sizeof(extlist));
+        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+
+        /* Insert extents */
+        for (const off_size & to_insert: insert_list) {
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+        }
+
+#ifdef DEBUG
+        print_list(extlist.off);
+        fflush(stdout);
+#endif
+
+        /* Verify extents */
+        std::vector<off_size> expected_order { insert_list };
+        std::sort(expected_order.begin(), expected_order.end(), off_sizeLess);
+        verify_off_extent_list(extlist, expected_order);
+    }
+}
