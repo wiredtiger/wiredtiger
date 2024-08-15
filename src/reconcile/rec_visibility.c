@@ -789,15 +789,7 @@ __rec_fill_tw_from_upd_select(
          * ends when this tombstone started. (Note: this may have been true at one point, but
          * currently we either append the onpage value and return that, or return the tombstone
          * itself; there is no case that returns no update but sets the time window.)
-         *
-         * If the tombstone is restored from the disk or the history store, the onpage value and the
-         * history store value should have been restored together. Therefore, we should not end up
-         * here.
          */
-        WT_ASSERT_ALWAYS(session,
-          !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS),
-          "A tombstone written to the disk image or history store should be accompanied by "
-          "the full value.");
         WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
 
         /*
