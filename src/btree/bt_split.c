@@ -1697,8 +1697,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.addr != NULL);
 
-    /* If closing the file, there better not be any saved updates. */
-    WT_ASSERT(session, !closing || multi->supd == NULL);
+    /* If closing the file, there better not be any updates to restore. */
+    WT_ASSERT(session, !closing || !multi->supd_restore);
 
     /* If we don't have a disk image, we can't restore the saved updates. */
     WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
