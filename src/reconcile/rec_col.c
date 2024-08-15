@@ -1688,7 +1688,7 @@ next:
         WT_ASSERT(session, r->entries == 1);
         r->entries = 0;
         WT_STAT_CONN_DSRC_INCR(session, rec_vlcs_emptied_pages);
-        /* Don't bother adjusting r->space_avail or r->first_free. */
+        r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);;
     }
 
     /* Write the remnant page. */
