@@ -126,7 +126,7 @@ err:
  *     Create the actual update for a tombstone.
  */
 static int
-__page_inmem_tombstone(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
+__page_inmem_tombstone(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
     WT_DECL_RET;
@@ -240,7 +240,7 @@ __page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV 
     if (unpack->tw.prepare)
         return (__page_inmem_prepare_update(session, value, unpack, updp, sizep));
 
-    return (__page_inmem_tombstone(session, value, unpack, updp, sizep));
+    return (__page_inmem_tombstone(session, unpack, updp, sizep));
 }
 
 /*
