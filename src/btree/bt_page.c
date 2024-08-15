@@ -327,7 +327,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         for (tw = 0; tw < numtws; tw++) {
             cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-            if (!unpack.tw.prepare && WT_TIME_WINDOW_HAS_STOP(&unpack.tw))
+            if (!unpack.tw.prepare && !WT_TIME_WINDOW_HAS_STOP(&unpack.tw))
                 continue;
             recno = ref->ref_recno + page->pg_fix_tws[tw].recno_offset;
 
@@ -347,7 +347,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ROW_FOREACH (page, rip, i) {
             /* Search for prepare records. */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
-            if (!unpack.tw.prepare && WT_TIME_WINDOW_HAS_STOP(&unpack.tw))
+            if (!unpack.tw.prepare && !WT_TIME_WINDOW_HAS_STOP(&unpack.tw))
                 continue;
 
             /* Get the key/value pair and create an update to resolve the prepare. */
