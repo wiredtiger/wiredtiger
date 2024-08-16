@@ -180,11 +180,15 @@ __rec_append_orig_value(
         } else {
             /*
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
-             * WT_TS_NONE in the time window.
+             * WT_TS_NONE in the time window. In RTS in recovery, we may have cleared the trasaction
+             * id of the tombstone but we haven't cleared the transaction ids on the disk-image if
+             * we are still in recovery.
              */
             WT_ASSERT(session,
               (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
-                (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
+                (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE ||
+                  (oldest_upd->txnid == WT_TXN_NONE && F_ISSET(conn, WT_CONN_RECOVERING) &&
+                    F_ISSET(oldest_upd, WT_UPDATE_RESTORED_FROM_DS))));
 
             if (tombstone_globally_visible)
                 return (0);
