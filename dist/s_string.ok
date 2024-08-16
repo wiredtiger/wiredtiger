@@ -598,7 +598,6 @@ closedir
 clsm
 cmd
 cmp
-cnt
 cntvct
 colcheck
 colgroup
@@ -818,7 +817,6 @@ gcc
 gcp
 gdb
 ge
-getWtSessionImpl
 getenv
 getlasterror
 getline
@@ -1409,7 +1407,6 @@ userbad
 usercfg
 usleep
 usr
-ut
 utf
 util
 utils
