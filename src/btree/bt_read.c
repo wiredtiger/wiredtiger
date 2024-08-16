@@ -199,7 +199,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &instantiate_upd));
     tmp.mem = NULL;
 
-    if (instantiate_upd)
+    if (instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*

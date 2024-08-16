@@ -1430,7 +1430,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
      * underlying page functions to do it.
      */
-    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
     /*
