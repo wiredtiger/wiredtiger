@@ -28,7 +28,8 @@ public:
     };
 
     static std::shared_ptr<MockSession> buildTestMockSession();
-    WT_BLOCK_MGR_SESSION * setupBlockManagerSession();
+    WT_BLOCK_MGR_SESSION *setupBlockManagerSession();
+
 private:
     explicit MockSession(
       WT_SESSION_IMPL *sessionImpl, std::shared_ptr<MockConnection> mockConnection = nullptr);

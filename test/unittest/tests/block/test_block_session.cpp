@@ -10,7 +10,7 @@
  * [block_session]: block_session.c
  * The block manager extent list consists of both extent blocks and size blocks. This unit test
  * suite tests aims to test all of the allocation and frees of the extent and size block functions.
- * 
+ *
  * The block session manages an internal caching mechanism for both block and size blocks that are
  * created or discarded.
  */
@@ -18,20 +18,26 @@
 #include <catch2/catch.hpp>
 #include "../wrappers/mock_session.h"
 
-void validate_and_cleanup_ext_block(WT_EXT* ext) {
+void
+validate_and_cleanup_ext_block(WT_EXT *ext)
+{
     REQUIRE(ext != nullptr);
     REQUIRE(ext->depth != 0);
     __wt_free(nullptr, ext);
 }
 
-void validate_and_cleanup_size_block(WT_SIZE* size) {
+void
+validate_and_cleanup_size_block(WT_SIZE *size)
+{
     REQUIRE(size != nullptr);
     __wt_free(nullptr, size);
 }
 
-void cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms) {
-    WT_EXT* curr = bms->ext_cache;
-    WT_EXT* tmp;
+void
+cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms)
+{
+    WT_EXT *curr = bms->ext_cache;
+    WT_EXT *tmp;
     while (curr != NULL) {
         tmp = curr;
         curr = curr->next[0];
@@ -39,11 +45,13 @@ void cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms) {
     }
 }
 
-void validate_and_cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items) {
+void
+validate_and_cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
+{
     int i = 0;
-    
+
     REQUIRE(bms != nullptr);
-    WT_EXT* curr = bms->ext_cache;
+    WT_EXT *curr = bms->ext_cache;
 
     REQUIRE(bms->ext_cache_cnt == expected_items);
     for (; i < expected_items; i++) {
@@ -54,9 +62,11 @@ void validate_and_cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items
     cleanup_ext_list(bms);
 }
 
-void cleanup_size_list(WT_BLOCK_MGR_SESSION *bms) {
-    WT_SIZE* curr = bms->sz_cache;
-    WT_SIZE* tmp;
+void
+cleanup_size_list(WT_BLOCK_MGR_SESSION *bms)
+{
+    WT_SIZE *curr = bms->sz_cache;
+    WT_SIZE *tmp;
     while (curr != NULL) {
         tmp = curr;
         curr = curr->next[0];
@@ -64,11 +74,13 @@ void cleanup_size_list(WT_BLOCK_MGR_SESSION *bms) {
     }
 }
 
-void validate_and_cleanup_size_list(WT_BLOCK_MGR_SESSION *bms, int expected_items) {
+void
+validate_and_cleanup_size_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
+{
     int i = 0;
-    
+
     REQUIRE(bms != nullptr);
-    WT_SIZE* curr = bms->sz_cache;
+    WT_SIZE *curr = bms->sz_cache;
 
     REQUIRE(bms->sz_cache_cnt == expected_items);
     for (; i < expected_items; i++) {
@@ -228,7 +240,7 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session]")
         REQUIRE(__ut_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
 
         __wti_block_ext_free(session->getWtSessionImpl(), ext);
-        
+
         REQUIRE(ext != nullptr);
         REQUIRE(bms->ext_cache == ext);
 
@@ -272,7 +284,7 @@ TEST_CASE("Block session: __wti_block_size_alloc", "[block_session]")
 {
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
-    
+
     SECTION("Allocate with null block manager session and no size cache")
     {
         std::shared_ptr<MockSession> session_no_bm = MockSession::buildTestMockSession();
@@ -366,9 +378,8 @@ TEST_CASE("Block session: __block_manager_session_cleanup", "[block_session]")
 {
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
 
-
     SECTION("Free with null session block manager ")
-    {        
+    {
         REQUIRE(__ut_block_manager_session_cleanup(session->getWtSessionImpl()) == 0);
         REQUIRE(session->getWtSessionImpl()->block_manager == nullptr);
     }
@@ -378,8 +389,8 @@ TEST_CASE("Block session: __block_manager_session_cleanup", "[block_session]")
         WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
         REQUIRE(bms != nullptr);
         REQUIRE(__ut_block_manager_session_cleanup(session->getWtSessionImpl()) == 0);
-        
-        //REQUIRE(bms == nullptr);
+
+        // REQUIRE(bms == nullptr);
     }
 }
 
@@ -405,7 +416,7 @@ TEST_CASE("Block session: __block_ext_discard", "[block_session]")
     SECTION("Discard 1 item in extent list")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 1) == 0);
-        
+
         validate_and_cleanup_ext_list(bms, 1);
     }
 
@@ -415,13 +426,15 @@ TEST_CASE("Block session: __block_ext_discard", "[block_session]")
         validate_and_cleanup_ext_list(bms, 2);
     }
 
-    // FIXME-WT-13402: Fix error handling in mock session.
-    // SECTION("Fake cache count and discard every item in extent list")
-    // {
-    //     bms->ext_cache_cnt = 3;
-    //     REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
-    //     validate_and_cleanup_ext_list(bms, 0);
-    // }
+    /*
+     * FIXME-WT-13402: Fix error handling in mock session.
+     * SECTION("Fake cache count and discard every item in extent list")
+     * {
+     *     bms->ext_cache_cnt = 3;
+     *     REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
+     *     validate_and_cleanup_ext_list(bms, 0);
+     * }
+     */
 }
 
 TEST_CASE("Block session: __block_size_discard", "[block_session]")
@@ -446,7 +459,7 @@ TEST_CASE("Block session: __block_size_discard", "[block_session]")
     SECTION("Discard 1 item in extent list")
     {
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 1) == 0);
-        
+
         validate_and_cleanup_size_list(bms, 1);
     }
 
@@ -456,11 +469,13 @@ TEST_CASE("Block session: __block_size_discard", "[block_session]")
         validate_and_cleanup_size_list(bms, 2);
     }
 
-    // FIXME-WT-13402: Fix error handling in mock session.
-    // SECTION("Fake cache count and discard every item in extent list")
-    // {
-    //     bms->sz_cache_cnt = 3;
-    //     REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
-    //     validate_and_cleanup_size_list(bms, 0);
-    // }
+    /*
+     * FIXME-WT-13402: Fix error handling in mock session.
+     * SECTION("Fake cache count and discard every item in extent list")
+     * {
+     *     bms->sz_cache_cnt = 3;
+     *     REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
+     *     validate_and_cleanup_size_list(bms, 0);
+     * }
+     */
 }

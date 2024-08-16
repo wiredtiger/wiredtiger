@@ -42,7 +42,8 @@ MockSession::setupBlockManagerSession()
 {
     // Initialize rnd state because block manager requires it.
     __wt_random_init(&_sessionImpl->rnd);
-    utils::throwIfNonZero(__wt_calloc(nullptr, 1, sizeof(WT_BLOCK_MGR_SESSION), &_sessionImpl->block_manager));
+    utils::throwIfNonZero(
+      __wt_calloc(nullptr, 1, sizeof(WT_BLOCK_MGR_SESSION), &_sessionImpl->block_manager));
 
     return static_cast<WT_BLOCK_MGR_SESSION *>(_sessionImpl->block_manager);
 }
