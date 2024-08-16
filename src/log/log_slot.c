@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "log_internal_types.h"
 #include "wt_internal.h"
 
 /*

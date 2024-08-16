@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "log_internal_types.h"
 #include "wt_internal.h"
 
 static int __log_newfile(WT_SESSION_IMPL *, bool, bool *);
