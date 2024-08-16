@@ -7,8 +7,9 @@
  */
 
 /*
- * block_ext.c: [extent_list2] Test extent list insert/remove functions: __block_ext_insert,
- * __block_merge, __block_off_remove.
+ * block_ext.c: [extent_list2] Test extent list insert/remove functions: __block_ext_insert, __block_off_insert,
+ * __block_merge, and __block_off_remove. Test extent list search functions: __block_off_srch_pair, and __block_off_match.
+ * Not yet: __wti_block_alloc, __block_extend, and __block_append.
  */
 
 /* Choose one */
@@ -37,18 +38,24 @@ struct off_size {
         {}
 };
 
-int operator<(const off_size & left, const off_size right) {
-    return ((left.off < right.off) ||
-            ((left.off == right.off) && (left.size < right.size)));
-};
-
+// To sort off_size by off and size.
 struct
 {
     bool operator()(const off_size& left, const off_size& right) {
     return ((left.off < right.off) ||
             ((left.off == right.off) && (left.size < right.size)));
     }
-} off_sizeLess;
+} off_size_Less_off_and_size;
+
+#if 0
+// To sort off_size by just off
+struct
+{
+    bool operator()(const off_size& left, const off_size& right) {
+    return (left.off < right.off);
+    }
+} off_size_Less_off;
+#endif
 
 
 // Allocate WT_EXT
@@ -173,7 +180,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 
         /* Verify extents */
         std::vector<off_size> expected_order { insert_list };
-        std::sort(expected_order.begin(), expected_order.end(), off_sizeLess);
+        std::sort(expected_order.begin(), expected_order.end(), off_size_Less_off_and_size);
         verify_off_extent_list(extlist, expected_order);
     }
 }
@@ -233,7 +240,106 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 
         /* Verify extents */
         std::vector<off_size> expected_order { insert_list };
-        std::sort(expected_order.begin(), expected_order.end(), off_sizeLess);
+        std::sort(expected_order.begin(), expected_order.end(), off_size_Less_off_and_size);
         verify_off_extent_list(extlist, expected_order);
+    }
+}
+            
+/* Expected before/after */
+struct search_before_after {
+    wt_off_t off;
+    off_size * before;
+    off_size * after;
+
+    search_before_after(wt_off_t off, off_size * before, off_size * after)
+        : off(off), before(before), after(after)
+        {}
+};
+
+TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
+{
+    /* Build Mock session, this will automatically create a mock connection. */
+    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    SECTION("search an empty list")
+    {
+        BREAK;
+        /* Empty extent list */
+        WT_EXTLIST extlist;
+        memset(&extlist, 0, sizeof(extlist));
+        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+
+        /* Verify */
+        std::vector<wt_off_t> expected_list { 0, 4096, 3*4096 };
+        WT_EXT dummy;
+        for (wt_off_t expected : expected_list) {
+            WT_EXT * before = &dummy;
+            WT_EXT * after = &dummy;
+            __ut_block_off_srch_pair(&extlist, expected, &before, &after);
+            REQUIRE(before == nullptr);
+            REQUIRE(after == nullptr);
+        }
+    }
+
+    SECTION("search a non-empty list")
+    {
+        BREAK;
+        /* Extents to insert */
+        std::vector<off_size> insert_list {
+            off_size(3*4096, 4096), // Second
+            off_size(4096, 4096), // First
+            off_size(5*4096, 4096), // Third
+        };
+
+        std::vector<search_before_after> expected_before_after {
+            search_before_after(0, nullptr, &insert_list[1]), // Before first one.
+            search_before_after(4096, nullptr, &insert_list[1]), // At first one.
+            search_before_after(2*4096, &insert_list[1], &insert_list[0]), // Between first and second
+            search_before_after(3*4096, &insert_list[1], &insert_list[0]), // At second
+            search_before_after(4*4096, &insert_list[0], &insert_list[2]), // Between second and third
+            search_before_after(5*4096, &insert_list[0], &insert_list[2]), // At third
+            search_before_after(6*4096, &insert_list[2], nullptr),
+        };
+
+        /* Empty extent list */
+        WT_EXTLIST extlist;
+        memset(&extlist, 0, sizeof(extlist));
+        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+
+        /* Insert extents */
+        for (const off_size & to_insert: insert_list) {
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+        }
+
+#ifdef DEBUG
+        print_list(extlist.off);
+        fflush(stdout);
+#endif
+
+        /* Verify __block_srch_pair() versus expected_before_after */
+        WT_EXT dummy;
+        for (const search_before_after & expected: expected_before_after) {
+            WT_EXT * before = &dummy;
+            WT_EXT * after = &dummy;
+            __ut_block_off_srch_pair(&extlist, expected.off, &before, &after);
+            if (expected.before != nullptr) {
+                REQUIRE(before != nullptr);
+                REQUIRE(before->off == expected.before->off);
+                REQUIRE(before->size == expected.before->size);
+            } else {
+                REQUIRE(before == nullptr);
+            }
+
+            if (expected.after != nullptr) {
+                REQUIRE(after != nullptr);
+                REQUIRE(after->off == expected.after->off);
+                REQUIRE(after->size == expected.after->size);
+            } else {
+                REQUIRE(after == nullptr);
+            }
+        }
     }
 }
