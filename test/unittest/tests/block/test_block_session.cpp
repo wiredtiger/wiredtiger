@@ -368,9 +368,9 @@ TEST_CASE("Block session: __wti_block_size_free", "[block_session]")
         __wti_block_size_free(session->getWtSessionImpl(), sz2);
 
         REQUIRE(sz != nullptr);
-        validate_and_cleanup_size_list(bms, 2);
         REQUIRE(bms->sz_cache == sz2);
         REQUIRE(bms->sz_cache->next[0] == sz);
+        validate_and_cleanup_size_list(bms, 2);
     }
 }
 
@@ -426,15 +426,11 @@ TEST_CASE("Block session: __block_ext_discard", "[block_session]")
         validate_and_cleanup_ext_list(bms, 2);
     }
 
-    /*
-     * FIXME-WT-13402: Fix error handling in mock session.
-     * SECTION("Fake cache count and discard every item in extent list")
-     * {
-     *     bms->ext_cache_cnt = 3;
-     *     REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
-     *     validate_and_cleanup_ext_list(bms, 0);
-     * }
-     */
+    SECTION("Fake cache count and discard every item in extent list")
+    {
+        bms->ext_cache_cnt = 3;
+        REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
+    }
 }
 
 TEST_CASE("Block session: __block_size_discard", "[block_session]")
@@ -469,13 +465,9 @@ TEST_CASE("Block session: __block_size_discard", "[block_session]")
         validate_and_cleanup_size_list(bms, 2);
     }
 
-    /*
-     * FIXME-WT-13402: Fix error handling in mock session.
-     * SECTION("Fake cache count and discard every item in extent list")
-     * {
-     *     bms->sz_cache_cnt = 3;
-     *     REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
-     *     validate_and_cleanup_size_list(bms, 0);
-     * }
-     */
+    SECTION("Fake cache count and discard every item in extent list")
+    {
+        bms->sz_cache_cnt = 3;
+        REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
+    }
 }
