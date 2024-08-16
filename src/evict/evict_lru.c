@@ -493,8 +493,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         return (0);
 #endif
     /*
-     * If we're stuck for 5 minutes in diagnostic mode, or the verbose evict_stuck flag is
-     * configured, log the cache and transaction state.
+     * If we're stuck for 5 minutes in diagnostic mode, or the verbose eviction flag is configured,
+     * log the cache and transaction state.
      *
      * If we're stuck for 5 minutes in diagnostic mode, give up.
      *

@@ -88,8 +88,8 @@ static const char *const list[] = {",cache_overhead=13", ",cache_overhead=27", "
   ",statistics_log=(wait=37)", ",statistics_log=(wait=0)",
 
   ",verbose=(\"api\")", ",verbose=(\"block\")", ",verbose=(\"checkpoint\")",
-  ",verbose=(\"compact\")", ",verbose=(\"evict\")", ",verbose=(\"evictserver\")",
-  ",verbose=(\"fileops\")", ",verbose=(\"handleops\")", ",verbose=(\"log\")", ",verbose=(\"lsm\")",
+  ",verbose=(\"compact\")", ",verbose=(\"eviction\")", ",verbose=(\"fileops\")",
+  ",verbose=(\"handleops\")", ",verbose=(\"log\")", ",verbose=(\"lsm\")",
   ",verbose=(\"lsm_manager\")", ",verbose=(\"metadata\")", ",verbose=(\"mutex\")",
   ",verbose=(\"overflow\")", ",verbose=(\"read\")", ",verbose=(\"reconcile\")",
   ",verbose=(\"recovery\")", ",verbose=(\"salvage\")", ",verbose=(\"shared_cache\")",
