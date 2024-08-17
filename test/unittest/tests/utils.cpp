@@ -46,4 +46,26 @@ wiredtigerCleanup(std::string const &home)
     remove_wrapper(home);
 }
 
+void
+extPrintList(WT_EXT **head)
+{
+    WT_EXT *extp;
+    int i;
+
+    if (head == nullptr)
+        return;
+
+    for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+        printf("L%d: ", i);
+
+        extp = head[i];
+        while (extp != nullptr) {
+            printf("%p -> ", extp);
+            extp = extp->next[i];
+        }
+
+        printf("X\n");
+    }
+}
+
 } // namespace utils

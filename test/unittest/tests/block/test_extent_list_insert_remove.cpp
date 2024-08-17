@@ -23,42 +23,42 @@
 #include <catch2/catch.hpp>
 
 #include "test_util.h"
+#include "../utils.h"
 #include "../wrappers/mock_session.h"
 #include "wt_internal.h"
 
-extern void print_list(WT_EXT **head);
-
 // Wrappers and Utilities
 // For expected values
-struct off_size {
-    wt_off_t off;
-    wt_off_t size;
+struct OffSize {
+    wt_off_t _off;
+    wt_off_t _size;
 
-    off_size(wt_off_t off = 0, wt_off_t size = 0) : off(off), size(size) {}
+    OffSize(wt_off_t off = 0, wt_off_t size = 0) : _off(off), _size(size) {}
 };
 
-// To sort off_size by off and size.
+// To sort OffSize by _off and _size.
 struct {
     bool
-    operator()(const off_size &left, const off_size &right)
+    operator()(const OffSize &left, const OffSize &right)
     {
-        return ((left.off < right.off) || ((left.off == right.off) && (left.size < right.size)));
+        return (
+          (left._off < right._off) || ((left._off == right._off) && (left._size < right._size)));
     }
-} off_size_Less_off_and_size;
+} offSizeLessOffAndSize;
 
 #if 0
-// To sort off_size by just off
+// To sort OffSize by just _off
 struct
 {
-    bool operator()(const off_size& left, const off_size& right) {
-    return (left.off < right.off);
+    bool operator()(const OffSize& left, const OffSize& right) {
+    return (left._off < right._off);
     }
-} off_size_Less_off;
+} offSizeLessOff;
 #endif
 
 // Allocate WT_EXT
 WT_EXT *
-alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
+allocNewExt(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
 {
     WT_EXT *ext;
     REQUIRE(__wti_block_ext_alloc(session, &ext) == 0);
@@ -75,14 +75,14 @@ alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
 }
 
 WT_EXT *
-alloc_new_ext(WT_SESSION_IMPL *session, const off_size &one)
+allocNewExt(WT_SESSION_IMPL *session, const OffSize &one)
 {
-    return alloc_new_ext(session, one.off, one.size);
+    return allocNewExt(session, one._off, one._size);
 }
 
 // WT_EXTLIST operations
 WT_EXT *
-get_off_n(const WT_EXTLIST &extlist, uint32_t idx)
+extlistGetOffN(const WT_EXTLIST &extlist, uint32_t idx)
 {
     REQUIRE(idx < extlist.entries);
     if ((extlist.last != nullptr) && (idx == (extlist.entries - 1)))
@@ -91,39 +91,39 @@ get_off_n(const WT_EXTLIST &extlist, uint32_t idx)
 }
 
 void
-verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order)
+extlistVerifyOff(const WT_EXTLIST &extlist, const std::vector<OffSize> &expectedOrder)
 {
-    REQUIRE(extlist.entries == expected_order.size());
+    REQUIRE(extlist.entries == expectedOrder.size());
     uint32_t idx = 0;
-    for (const off_size &expected : expected_order) {
-        WT_EXT *ext = get_off_n(extlist, idx);
+    for (const OffSize &expected : expectedOrder) {
+        WT_EXT *ext = extlistGetOffN(extlist, idx);
 #ifdef DEBUG
         printf("Verify: %" PRIu32 ". Expected: off=%" PRId64 ", size=%" PRId64
                "; Actual: off=%" PRId64 ", size=%" PRId64 "\n",
-          idx, expected.off, expected.size, ext->off, ext->size);
+          idx, expected._off, expected._size, ext->off, ext->size);
         fflush(stdout);
 #endif
-        REQUIRE(ext->off == expected.off);
-        REQUIRE(ext->size == expected.size);
+        REQUIRE(ext->off == expected._off);
+        REQUIRE(ext->size == expected._size);
         ++idx;
     }
 }
 
-// break break_here for debugging.
+// break BreakHere for debugging.
 void
-break_here(const char *file, const char *func, int line)
+BreakHere(const char *file, const char *func, int line)
 {
     printf(">> %s line %d: %s\n", file, line, func);
     fflush(stdout);
 }
-#define BREAK break_here(__FILE__, __func__, __LINE__)
+#define BREAK BreakHere(__FILE__, __func__, __LINE__)
 
 // Test specific
 /*
  * Verify an extent list is empty.
  */
 void
-verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack)
+extlistVerifyEmpty(WT_EXT **head, WT_EXT ***stack)
 {
     REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == nullptr);
     for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
@@ -134,8 +134,8 @@ verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack)
 TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<MockSession> mockSession = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mockSession->getWtSessionImpl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -145,14 +145,14 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Insert one extent */
-        WT_EXT *first = alloc_new_ext(session, 4096, 4096);
+        WT_EXT *first = allocNewExt(session, 4096, 4096);
         REQUIRE(__ut_block_ext_insert(session, &extlist, first) == 0);
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::extPrintList(extlist.off);
         fflush(stdout);
 #endif
 
@@ -164,44 +164,44 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
     {
         BREAK;
         /* Extents to insert */
-        std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // [12,288, 16,383]
-          off_size(4096, 4096),     // [4,096, 8,191]
-          off_size(5 * 4096, 4096), // [20,480, 24,575]
+        std::vector<OffSize> insertList{
+          OffSize(3 * 4096, 4096), // [12,288, 16,383]
+          OffSize(4096, 4096),     // [4,096, 8,191]
+          OffSize(5 * 4096, 4096), // [20,480, 24,575]
         };
 
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Insert extents */
-        for (const off_size &to_insert : insert_list) {
+        for (const OffSize &toInsert : insertList) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", toInsert._off, toInsert._size);
             fflush(stdout);
 #endif
-            WT_EXT *insert_ext = alloc_new_ext(session, to_insert);
-            REQUIRE(__ut_block_ext_insert(session, &extlist, insert_ext) == 0);
+            WT_EXT *insertExt = allocNewExt(session, toInsert);
+            REQUIRE(__ut_block_ext_insert(session, &extlist, insertExt) == 0);
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::extPrintList(extlist.off);
         fflush(stdout);
 #endif
 
         /* Verify extents */
-        std::vector<off_size> expected_order{insert_list};
-        std::sort(expected_order.begin(), expected_order.end(), off_size_Less_off_and_size);
-        verify_off_extent_list(extlist, expected_order);
+        std::vector<OffSize> expectedOrder{insertList};
+        std::sort(expectedOrder.begin(), expectedOrder.end(), offSizeLessOffAndSize);
+        extlistVerifyOff(extlist, expectedOrder);
     }
 }
 
 TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<MockSession> mockSession = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mockSession->getWtSessionImpl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -211,13 +211,13 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Insert one extent */
         REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 4096) == 0);
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::extPrintList(extlist.off);
         fflush(stdout);
 #endif
 
@@ -229,46 +229,46 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
     {
         BREAK;
         /* Extents to insert */
-        std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // [12,288, 16,383]
-          off_size(4096, 4096),     // [4,096, 8,191]
-          off_size(5 * 4096, 4096), // [20,480, 24,575]
+        std::vector<OffSize> insertList{
+          OffSize(3 * 4096, 4096), // [12,288, 16,383]
+          OffSize(4096, 4096),     // [4,096, 8,191]
+          OffSize(5 * 4096, 4096), // [20,480, 24,575]
         };
 
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Insert extents */
-        for (const off_size &to_insert : insert_list) {
+        for (const OffSize &toInsert : insertList) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", toInsert._off, toInsert._size);
             fflush(stdout);
 #endif
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, toInsert._off, toInsert._size) == 0);
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::extPrintList(extlist.off);
         fflush(stdout);
 #endif
 
         /* Verify extents */
-        std::vector<off_size> expected_order{insert_list};
-        std::sort(expected_order.begin(), expected_order.end(), off_size_Less_off_and_size);
-        verify_off_extent_list(extlist, expected_order);
+        std::vector<OffSize> expectedOrder{insertList};
+        std::sort(expectedOrder.begin(), expectedOrder.end(), offSizeLessOffAndSize);
+        extlistVerifyOff(extlist, expectedOrder);
     }
 }
 
 /* Expected before/after */
-struct search_before_after {
-    wt_off_t off;
-    off_size *before;
-    off_size *after;
+struct SearchBeforeAfter {
+    wt_off_t _off;
+    OffSize *_before;
+    OffSize *_after;
 
-    search_before_after(wt_off_t off, off_size *before, off_size *after)
-        : off(off), before(before), after(after)
+    SearchBeforeAfter(wt_off_t off, OffSize *before, OffSize *after)
+        : _off(off), _before(before), _after(after)
     {
     }
 };
@@ -276,8 +276,8 @@ struct search_before_after {
 TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<MockSession> mockSession = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mockSession->getWtSessionImpl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -287,12 +287,12 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Verify */
-        std::vector<wt_off_t> expected_list{0, 4096, 3 * 4096}; // 3, 4096, 12,288
+        std::vector<wt_off_t> expectedList{0, 4096, 3 * 4096}; // 3, 4096, 12,288
         WT_EXT dummy;
-        for (const wt_off_t &expected : expected_list) {
+        for (const wt_off_t &expected : expectedList) {
 #ifdef DEBUG
             printf("Search: off=%" PRId64 "\n", expected);
             fflush(stdout);
@@ -309,60 +309,60 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
     {
         BREAK;
         /* Extents to insert */
-        std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-          off_size(4096, 4096),     // First [4,096, 8,191]
-          off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+        std::vector<OffSize> insertList{
+          OffSize(3 * 4096, 4096), // Second [12,288, 16,383]
+          OffSize(4096, 4096),     // First [4,096, 8,191]
+          OffSize(5 * 4096, 4096), // Third [20,480, 24,575]
         };
 
-        std::vector<search_before_after> expected_before_after{
-          search_before_after(0, nullptr, &insert_list[1]),    // Before first 0
-          search_before_after(4096, nullptr, &insert_list[1]), // At first 4,096
-          search_before_after(
-            2 * 4096, &insert_list[1], &insert_list[0]), // Between first and second 8,192
-          search_before_after(3 * 4096, &insert_list[1], &insert_list[0]), // At second 12,288
-          search_before_after(
-            4 * 4096, &insert_list[0], &insert_list[2]), // Between second and third 16,384
-          search_before_after(5 * 4096, &insert_list[0], &insert_list[2]), // At third 20,480
-          search_before_after(6 * 4096, &insert_list[2], nullptr),         // After third 24,576
+        std::vector<SearchBeforeAfter> expectedBeforeAfter{
+          SearchBeforeAfter(0, nullptr, &insertList[1]),    // Before first 0
+          SearchBeforeAfter(4096, nullptr, &insertList[1]), // At first 4,096
+          SearchBeforeAfter(
+            2 * 4096, &insertList[1], &insertList[0]), // Between first and second 8,192
+          SearchBeforeAfter(3 * 4096, &insertList[1], &insertList[0]), // At second 12,288
+          SearchBeforeAfter(
+            4 * 4096, &insertList[0], &insertList[2]), // Between second and third 16,384
+          SearchBeforeAfter(5 * 4096, &insertList[0], &insertList[2]), // At third 20,480
+          SearchBeforeAfter(6 * 4096, &insertList[2], nullptr),        // After third 24,576
         };
 
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Insert extents */
-        for (const off_size &to_insert : insert_list) {
+        for (const OffSize &toInsert : insertList) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", toInsert._off, toInsert._size);
             fflush(stdout);
 #endif
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, toInsert._off, toInsert._size) == 0);
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::extPrintList(extlist.off);
         fflush(stdout);
 #endif
 
-        /* Verify __block_srch_pair() versus expected_before_after */
+        /* Verify __block_srch_pair() versus expectedBeforeAfter */
         WT_EXT dummy;
         uint32_t idx = 0;
-        for (const search_before_after &expected : expected_before_after) {
+        for (const SearchBeforeAfter &expected : expectedBeforeAfter) {
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
-            __ut_block_off_srch_pair(&extlist, expected.off, &before, &after);
+            __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
 #ifdef DEBUG
-            printf("Verify: %" PRIu32 ". Expected: off=%" PRId64, idx, expected.off);
-            if (expected.before != nullptr)
-                printf("; before: off=%" PRId64 ", size=%" PRId64, expected.before->off,
-                  expected.before->size);
+            printf("Verify: %" PRIu32 ". Expected: off=%" PRId64, idx, expected._off);
+            if (expected._before != nullptr)
+                printf("; before: off=%" PRId64 ", size=%" PRId64, expected._before->_off,
+                  expected._before->_size);
             else
                 printf("; before == nullptr");
-            if (expected.after != nullptr)
-                printf("; after: off=%" PRId64 ", size=%" PRId64, expected.after->off,
-                  expected.after->size);
+            if (expected._after != nullptr)
+                printf("; after: off=%" PRId64 ", size=%" PRId64, expected._after->_off,
+                  expected._after->_size);
             else
                 printf("; after == nullptr");
 
@@ -378,18 +378,18 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             fflush(stdout);
             ++idx;
 #endif
-            if (expected.before != nullptr) {
+            if (expected._before != nullptr) {
                 REQUIRE(before != nullptr);
-                REQUIRE(before->off == expected.before->off);
-                REQUIRE(before->size == expected.before->size);
+                REQUIRE(before->off == expected._before->_off);
+                REQUIRE(before->size == expected._before->_size);
             } else {
                 REQUIRE(before == nullptr);
             }
 
-            if (expected.after != nullptr) {
+            if (expected._after != nullptr) {
                 REQUIRE(after != nullptr);
-                REQUIRE(after->off == expected.after->off);
-                REQUIRE(after->size == expected.after->size);
+                REQUIRE(after->off == expected._after->_off);
+                REQUIRE(after->size == expected._after->_size);
             } else {
                 REQUIRE(after == nullptr);
             }
@@ -398,49 +398,49 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 }
 
 /* Expected match */
-struct search_match {
-    wt_off_t off;
-    wt_off_t size;
-    bool match;
+struct SearchMatch {
+    wt_off_t _off;
+    wt_off_t _size;
+    bool _match;
 
-    search_match(wt_off_t off, wt_off_t size, bool match) : off(off), size(size), match(match) {}
+    SearchMatch(wt_off_t off, wt_off_t size, bool match) : _off(off), _size(size), _match(match) {}
 };
 
 TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<MockSession> mockSession = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mockSession->getWtSessionImpl();
 
     /* Extents to insert */
-    std::vector<off_size> insert_list{
-      off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-      off_size(4096, 4096),     // First [4,096, 8,191]
-      off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+    std::vector<OffSize> insertList{
+      OffSize(3 * 4096, 4096), // Second [12,288, 16,383]
+      OffSize(4096, 4096),     // First [4,096, 8,191]
+      OffSize(5 * 4096, 4096), // Third [20,480, 24,575]
     };
 
-    std::vector<search_match> expected_match{
-      search_match(0, 0, false),                 // Empty: Before first 0
-      search_match(4095, 0, false),              // Empty: Just before first 4,095
-      search_match(4096, 0, false),              // Empty: At the start of first 4,096
-      search_match(4096 + 4095, 0, false),       // Empty: At end first 8,191
-      search_match(2 * 4096, 0, false),          // Empty: Just after first 8,192
-      search_match(2 * 4096 + 64, 0, false),     // Empty: Between first and second 8,256
-      search_match(3 * 4096, 0, false),          // Empty: At the start of second 12,288
-      search_match(4 * 4096 + 64, 0, false),     // Empty: Between second and third 16,448
-      search_match(5 * 4096, 0, false),          // Empty: At the start of third 20,480
-      search_match(6 * 4096, 0, false),          // Empty: Just after third 24,576
-      search_match(4096 - 128, 64, false),       // Before first [3,968, 4,031]
-      search_match(4095, 1, false),              // Just before first, i.e. touching. [4,095, 4,095]
-      search_match(4096 - 64, 128, true),        // Overlapping the start of first [4,032, 4,160]
-      search_match(4096, 1, true),               // Just the start of first [4,096, 4,096]
-      search_match(4096, 64, true),              // At the start of first [4,096, 4,159]
-      search_match(4096 + 64, 64, true),         // Within first [4,160, 4,223]
-      search_match(2 * 4096 - 64, 64, true),     // At the end of first [8,128, 8,191]
-      search_match(2 * 4096 - 1, 1, true),       // Just the end of first [8,191, 8,191]
-      search_match(2 * 4096 - 64, 128, true),    // Overlapping the end of first [8,128, 8,255]
-      search_match(4096, 4096, true),            // The same as first [4,096, 8191]
-      search_match(4096 - 64, 4096 + 128, true), // Completely overlapping first [4,032, 8,255]
+    std::vector<SearchMatch> expectedMatch{
+      SearchMatch(0, 0, false),                 // Empty: Before first 0
+      SearchMatch(4095, 0, false),              // Empty: Just before first 4,095
+      SearchMatch(4096, 0, false),              // Empty: At the start of first 4,096
+      SearchMatch(4096 + 4095, 0, false),       // Empty: At end first 8,191
+      SearchMatch(2 * 4096, 0, false),          // Empty: Just after first 8,192
+      SearchMatch(2 * 4096 + 64, 0, false),     // Empty: Between first and second 8,256
+      SearchMatch(3 * 4096, 0, false),          // Empty: At the start of second 12,288
+      SearchMatch(4 * 4096 + 64, 0, false),     // Empty: Between second and third 16,448
+      SearchMatch(5 * 4096, 0, false),          // Empty: At the start of third 20,480
+      SearchMatch(6 * 4096, 0, false),          // Empty: Just after third 24,576
+      SearchMatch(4096 - 128, 64, false),       // Before first [3,968, 4,031]
+      SearchMatch(4095, 1, false),              // Just before first, i.e. touching. [4,095, 4,095]
+      SearchMatch(4096 - 64, 128, true),        // Overlapping the start of first [4,032, 4,160]
+      SearchMatch(4096, 1, true),               // Just the start of first [4,096, 4,096]
+      SearchMatch(4096, 64, true),              // At the start of first [4,096, 4,159]
+      SearchMatch(4096 + 64, 64, true),         // Within first [4,160, 4,223]
+      SearchMatch(2 * 4096 - 64, 64, true),     // At the end of first [8,128, 8,191]
+      SearchMatch(2 * 4096 - 1, 1, true),       // Just the end of first [8,191, 8,191]
+      SearchMatch(2 * 4096 - 64, 128, true),    // Overlapping the end of first [8,128, 8,255]
+      SearchMatch(4096, 4096, true),            // The same as first [4,096, 8191]
+      SearchMatch(4096 - 64, 4096 + 128, true), // Completely overlapping first [4,032, 8,255]
     };
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
@@ -451,16 +451,16 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Verify */
         uint32_t idx = 0;
-        for (const search_match &expected : expected_match) {
-            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
+        for (const SearchMatch &expected : expectedMatch) {
+            bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
 #ifdef DEBUG
             printf("Verify: %" PRIu32 ". Expected: off=%" PRId64 ", size=%" PRId64
                    ", match = false; Actual: match = %s\n",
-              idx, expected.off, expected.size, match ? "true" : "false");
+              idx, expected._off, expected._size, match ? "true" : "false");
             fflush(stdout);
             ++idx;
 #endif
@@ -474,35 +474,35 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         /* Empty extent list */
         WT_EXTLIST extlist;
         memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        extlistVerifyEmpty(&extlist.off[0], &stack[0]);
 
         /* Insert extents */
-        for (const off_size &to_insert : insert_list) {
+        for (const OffSize &toInsert : insertList) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", toInsert._off, toInsert._size);
             fflush(stdout);
 #endif
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, toInsert._off, toInsert._size) == 0);
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::extPrintList(extlist.off);
         fflush(stdout);
 #endif
 
-        /* Verify __block_srch_pair() versus expected_match */
+        /* Verify __block_srch_pair() versus expectedMatch */
         uint32_t idx = 0;
-        for (const search_match &expected : expected_match) {
-            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
+        for (const SearchMatch &expected : expectedMatch) {
+            bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
 #ifdef DEBUG
             printf("Verify: %" PRIu32 ". Expected: off=%" PRId64 ", size=%" PRId64
                    ", match=%s; Actual: match = %s\n",
-              idx, expected.off, expected.size, expected.match ? "true" : "false",
+              idx, expected._off, expected._size, expected._match ? "true" : "false",
               match ? "true" : "false");
             fflush(stdout);
             ++idx;
 #endif
-            REQUIRE(match == expected.match);
+            REQUIRE(match == expected._match);
         }
     }
 }
