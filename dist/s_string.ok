@@ -45,7 +45,6 @@ Bitfield
 Bitstring
 Bitwise
 BqRv
-BreakHere
 Brueckner
 Bsearch
 Btree
@@ -284,7 +283,6 @@ OPLOG
 OPTRACK
 OVFL
 ObWgfvgw
-OffSize
 Optane
 Outfmt
 PDEATHSIG
@@ -749,8 +747,6 @@ evictserver
 exactp
 exe
 existp
-expectedBeforeAfter
-expectedMatch
 extern
 extlist
 fadvise
@@ -1173,7 +1169,6 @@ quiesce
 qup
 rN
 rS
-rawList
 rbrace
 rbracket
 rc

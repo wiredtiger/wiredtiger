@@ -10,15 +10,9 @@
 
 #include <string>
 
-#include "wt_internal.h"
-
 #define DB_HOME "test_db"
 
 namespace utils {
-int remove_wrapper(std::string const &path);
 void throwIfNonZero(int result);
 void wiredtigerCleanup(const std::string &db_home);
-
-void extPrintList(WT_EXT **head);
-
 } // namespace utils
