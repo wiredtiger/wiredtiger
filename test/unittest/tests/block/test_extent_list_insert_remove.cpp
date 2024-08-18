@@ -23,10 +23,9 @@
 #include <catch2/catch.hpp>
 
 #include "test_util.h"
+#include "../utils.h"
 #include "../wrappers/mock_session.h"
 #include "wt_internal.h"
-
-extern void print_list(WT_EXT **head);
 
 // Wrappers and Utilities
 // For expected values
@@ -152,7 +151,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         REQUIRE(__ut_block_ext_insert(session, &extlist, first) == 0);
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::ext_print_list(extlist.off);
         fflush(stdout);
 #endif
 
@@ -186,7 +185,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::ext_print_list(extlist.off);
         fflush(stdout);
 #endif
 
@@ -217,7 +216,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 4096) == 0);
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::ext_print_list(extlist.off);
         fflush(stdout);
 #endif
 
@@ -250,7 +249,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::ext_print_list(extlist.off);
         fflush(stdout);
 #endif
 
@@ -342,7 +341,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::ext_print_list(extlist.off);
         fflush(stdout);
 #endif
 
@@ -486,7 +485,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        print_list(extlist.off);
+        utils::ext_print_list(extlist.off);
         fflush(stdout);
 #endif
 

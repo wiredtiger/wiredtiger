@@ -82,28 +82,6 @@ create_new_sz()
     return std::make_unique<SizeWrapper>(raw);
 }
 
-void
-print_list(WT_EXT **head)
-{
-    WT_EXT *extp;
-    int i;
-
-    if (head == nullptr)
-        return;
-
-    for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-        printf("L%d: ", i);
-
-        extp = head[i];
-        while (extp != nullptr) {
-            printf("%p -> ", extp);
-            extp = extp->next[i];
-        }
-
-        printf("X\n");
-    }
-}
-
 /*
  * Creates a sane-looking "default" extent list suitable for testing:
  * L0: 1 -> 2 -> 3 -> X
