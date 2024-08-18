@@ -431,6 +431,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
       search_match(6 * 4096, 0, false),          // Empty: Just after third 24,576
       search_match(4096 - 128, 64, false),       // Before first [3,968, 4,031]
       search_match(4095, 1, false),              // Just before first, i.e. touching. [4,095, 4,095]
+      search_match(2 * 4096, 1, false),          // Just after first [8,192, 8,192]
       search_match(4096 - 64, 128, true),        // Overlapping the start of first [4,032, 4,160]
       search_match(4096, 1, true),               // Just the start of first [4,096, 4,096]
       search_match(4096, 64, true),              // At the start of first [4,096, 4,159]
@@ -489,7 +490,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         fflush(stdout);
 #endif
 
-        /* Verify __block_srch_pair() versus expected_match */
+        /* Verify __block_off_match() versus expected_match */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
