@@ -31,27 +31,27 @@ extern void print_list(WT_EXT **head);
 // Wrappers and Utilities
 // For expected values
 struct off_size {
-    wt_off_t off;
-    wt_off_t size;
+    wt_off_t _off;
+    wt_off_t _size;
 
-    off_size(wt_off_t off = 0, wt_off_t size = 0) : off(off), size(size) {}
+    off_size(wt_off_t off = 0, wt_off_t size = 0) : _off(off), _size(size) {}
 };
 
-// To sort off_size by off and size.
+// To sort off_size by _off and _size.
 struct {
     bool
     operator()(const off_size &left, const off_size &right)
     {
-        return ((left.off < right.off) || ((left.off == right.off) && (left.size < right.size)));
+        return ((left._off < right._off) || ((left._off == right._off) && (left._size < right._size)));
     }
 } off_size_Less_off_and_size;
 
 #if 0
-// To sort off_size by just off
+// To sort off_size by just _off
 struct
 {
     bool operator()(const off_size& left, const off_size& right) {
-    return (left.off < right.off);
+    return (left._off < right._off);
     }
 } off_size_Less_off;
 #endif
@@ -77,7 +77,7 @@ alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
 WT_EXT *
 alloc_new_ext(WT_SESSION_IMPL *session, const off_size &one)
 {
-    return alloc_new_ext(session, one.off, one.size);
+    return alloc_new_ext(session, one._off, one._size);
 }
 
 // WT_EXTLIST operations
@@ -100,11 +100,11 @@ verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &e
 #ifdef DEBUG
         printf("Verify: %" PRIu32 ". Expected: off=%" PRId64 ", size=%" PRId64
                "; Actual: off=%" PRId64 ", size=%" PRId64 "\n",
-          idx, expected.off, expected.size, ext->off, ext->size);
+          idx, expected._off, expected._size, ext->off, ext->size);
         fflush(stdout);
 #endif
-        REQUIRE(ext->off == expected.off);
-        REQUIRE(ext->size == expected.size);
+        REQUIRE(ext->off == expected._off);
+        REQUIRE(ext->size == expected._size);
         ++idx;
     }
 }
@@ -178,7 +178,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert._off, to_insert._size);
             fflush(stdout);
 #endif
             WT_EXT *insert_ext = alloc_new_ext(session, to_insert);
@@ -243,10 +243,10 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert._off, to_insert._size);
             fflush(stdout);
 #endif
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
 #ifdef DEBUG
@@ -263,12 +263,12 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 
 /* Expected before/after */
 struct search_before_after {
-    wt_off_t off;
-    off_size *before;
-    off_size *after;
+    wt_off_t _off;
+    off_size *_before;
+    off_size *_after;
 
     search_before_after(wt_off_t off, off_size *before, off_size *after)
-        : off(off), before(before), after(after)
+        : _off(off), _before(before), _after(after)
     {
     }
 };
@@ -335,10 +335,10 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert._off, to_insert._size);
             fflush(stdout);
 #endif
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
 #ifdef DEBUG
@@ -352,17 +352,17 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         for (const search_before_after &expected : expected_before_after) {
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
-            __ut_block_off_srch_pair(&extlist, expected.off, &before, &after);
+            __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
 #ifdef DEBUG
-            printf("Verify: %" PRIu32 ". Expected: off=%" PRId64, idx, expected.off);
-            if (expected.before != nullptr)
-                printf("; before: off=%" PRId64 ", size=%" PRId64, expected.before->off,
-                  expected.before->size);
+            printf("Verify: %" PRIu32 ". Expected: off=%" PRId64, idx, expected._off);
+            if (expected._before != nullptr)
+                printf("; _before: off=%" PRId64 ", size=%" PRId64, expected._before->_off,
+                  expected._before->_size);
             else
-                printf("; before == nullptr");
-            if (expected.after != nullptr)
-                printf("; after: off=%" PRId64 ", size=%" PRId64, expected.after->off,
-                  expected.after->size);
+                printf("; _before == nullptr");
+            if (expected._after != nullptr)
+                printf("; after: off=%" PRId64 ", size=%" PRId64, expected._after->_off,
+                  expected._after->_size);
             else
                 printf("; after == nullptr");
 
@@ -374,22 +374,22 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             if (after != nullptr)
                 printf("; after: off=%" PRId64 ", size=%" PRId64 "\n", after->off, after->size);
             else
-                printf("; after == nullptr\n");
+                printf("; _after == nullptr\n");
             fflush(stdout);
             ++idx;
 #endif
-            if (expected.before != nullptr) {
+            if (expected._before != nullptr) {
                 REQUIRE(before != nullptr);
-                REQUIRE(before->off == expected.before->off);
-                REQUIRE(before->size == expected.before->size);
+                REQUIRE(before->off == expected._before->_off);
+                REQUIRE(before->size == expected._before->_size);
             } else {
                 REQUIRE(before == nullptr);
             }
 
-            if (expected.after != nullptr) {
+            if (expected._after != nullptr) {
                 REQUIRE(after != nullptr);
-                REQUIRE(after->off == expected.after->off);
-                REQUIRE(after->size == expected.after->size);
+                REQUIRE(after->off == expected._after->_off);
+                REQUIRE(after->size == expected._after->_size);
             } else {
                 REQUIRE(after == nullptr);
             }
@@ -399,11 +399,11 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
 /* Expected match */
 struct search_match {
-    wt_off_t off;
-    wt_off_t size;
-    bool match;
+    wt_off_t _off;
+    wt_off_t _size;
+    bool _match;
 
-    search_match(wt_off_t off, wt_off_t size, bool match) : off(off), size(size), match(match) {}
+    search_match(wt_off_t off, wt_off_t size, bool match) : _off(off), _size(size), _match(match) {}
 };
 
 TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
@@ -456,11 +456,11 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         /* Verify */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
-            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
+            bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
 #ifdef DEBUG
             printf("Verify: %" PRIu32 ". Expected: off=%" PRId64 ", size=%" PRId64
                    ", match = false; Actual: match = %s\n",
-              idx, expected.off, expected.size, match ? "true" : "false");
+              idx, expected._off, expected._size, match ? "true" : "false");
             fflush(stdout);
             ++idx;
 #endif
@@ -479,10 +479,10 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
 #ifdef DEBUG
-            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert.off, to_insert.size);
+            printf("Insert: off=%" PRId64 ", size=%" PRId64 "\n", to_insert._off, to_insert._size);
             fflush(stdout);
 #endif
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
 #ifdef DEBUG
@@ -493,16 +493,16 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         /* Verify __block_srch_pair() versus expected_match */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
-            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
+            bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
 #ifdef DEBUG
             printf("Verify: %" PRIu32 ". Expected: off=%" PRId64 ", size=%" PRId64
                    ", match=%s; Actual: match = %s\n",
-              idx, expected.off, expected.size, expected.match ? "true" : "false",
+              idx, expected._off, expected._size, expected._match ? "true" : "false",
               match ? "true" : "false");
             fflush(stdout);
             ++idx;
 #endif
-            REQUIRE(match == expected.match);
+            REQUIRE(match == expected._match);
         }
     }
 }
