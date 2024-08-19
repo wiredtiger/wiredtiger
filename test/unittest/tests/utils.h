@@ -15,9 +15,8 @@
 #define DB_HOME "test_db"
 
 namespace utils {
+void ext_print_list(WT_EXT **head);
+void extlist_print_off(WT_EXTLIST &extlist);
 void throwIfNonZero(int result);
 void wiredtigerCleanup(const std::string &db_home);
-
-void ext_print_list(WT_EXT **head);
-
 } // namespace utils
