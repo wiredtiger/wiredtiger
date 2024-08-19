@@ -7,7 +7,6 @@
  */
 
 #include "log_internal_types.h"
-#include "wt_internal.h"
 
 static int __log_newfile(WT_SESSION_IMPL *, bool, bool *);
 static int __log_openfile(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_FH **);
