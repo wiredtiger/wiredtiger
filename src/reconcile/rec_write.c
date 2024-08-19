@@ -826,6 +826,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->chunk_B.key);
     __wt_buf_free(session, &r->chunk_B.min_key);
     __wt_buf_free(session, &r->chunk_B.image);
+    __wt_buf_free(session, &r->delta);
 
     __wt_free(session, r->supd);
     __wt_free(session, r->delete_hs_upd);
@@ -2409,6 +2410,190 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 }
 
 /*
+ * __rec_build_delta_init --
+ *     Build delta init.
+ */
+static int
+__rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+    WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
+    memset(r->delta.mem, 0, WT_PAGE_HEADER_SIZE);
+    r->delta.size = WT_PAGE_HEADER_SIZE;
+
+    return (0);
+}
+
+/*
+ * __rec_delta_pack_key --
+ *     Pack the delta key
+ */
+static WT_INLINE int
+__rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INSERT *ins,
+  WT_ROW *rip, WT_ITEM *key)
+{
+    WT_DECL_RET;
+    uint8_t *p;
+
+    switch (r->page->type) {
+    case WT_PAGE_COL_FIX:
+    case WT_PAGE_COL_VAR:
+        p = key->mem;
+        WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
+        key->size = WT_PTRDIFF(p, key->data);
+        break;
+    case WT_PAGE_ROW_LEAF:
+        if (ins == NULL) {
+            WT_WITH_BTREE(
+              session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
+            WT_RET(ret);
+        } else {
+            key->data = WT_INSERT_KEY(ins);
+            key->size = WT_INSERT_KEY_SIZE(ins);
+        }
+        break;
+    default:
+        WT_RET(__wt_illegal_value(session, r->page->type));
+    }
+
+    return (ret);
+}
+
+/*
+ * __rec_pack_delta_leaf --
+ *     Pack a delta for a leaf page
+ */
+static int
+__rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *supd)
+{
+    WT_DECL_RET;
+    WT_ITEM *key;
+    size_t max_packed_size;
+    uint8_t flags;
+    uint8_t *p, *head;
+
+    head = r->delta.mem + r->delta.size;
+    p = head + 1;
+    max_packed_size = 1 + 4 * 9 + supd->onpage_upd->size;
+
+    if (r->delta.size + max_packed_size > r->delta.memsize)
+        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
+
+    flags = 0;
+
+    /* Ensure enough room for a column-store key without checking. */
+    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+    WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
+
+    if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
+        LF_SET(WT_DELTA_IS_DELETE);
+        WT_ERR(__wt_vpack_uint(&p, 0, key->size));
+        memcpy(p, key->data, key->size);
+        p += key->size;
+    } else {
+        if (supd->onpage_upd->start_ts != WT_TS_NONE) {
+            LF_SET(WT_DELTA_HAS_START_TS);
+            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+        }
+
+        if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
+            LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
+            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+        }
+
+        if (supd->onpage_tombstone != NULL) {
+            if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_HAS_STOP_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
+            }
+
+            if (supd->onpage_tombstone->durable_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_HAS_STOP_DURABLE_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->durable_ts));
+            }
+        }
+
+        WT_ERR(__wt_vpack_uint(&p, 0, key->size));
+        memcpy(p, key->data, key->size);
+        p += key->size;
+
+        WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
+        memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
+        p += supd->onpage_upd->size;
+    }
+
+    r->delta.size += p - head;
+    *head = flags;
+err:
+    __wt_scr_free(session, &key);
+    return (ret);
+}
+
+/*
+ * __rec_build_delta_leaf --
+ *     Build delta for leaf pages.
+ */
+static int
+__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+    WT_MULTI *multi;
+    WT_SAVE_UPD *supd;
+    uint32_t i, slot;
+
+    multi = &r->multi[0];
+
+    WT_RET(__rec_build_delta_init(session, r));
+
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        if (supd->onpage_upd == NULL)
+            continue;
+
+        if (supd->onpage_tombstone != NULL && F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
+            continue;
+
+        if (supd->onpage_tombstone == NULL && F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
+            continue;
+
+        WT_RET(__rec_pack_delta_leaf(session, r, supd));
+    }
+
+    /* TODO: write the delta to cloud. */
+
+    /* We cannot fail from here. */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        if (supd->onpage_upd == NULL)
+            continue;
+
+        if (supd->onpage_tombstone != NULL) {
+            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
+                continue;
+            else
+                F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+        }
+
+        if (!F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
+            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+    }
+
+    return (0);
+}
+
+/*
+ * __rec_build_delta --
+ *     Build delta.
+ */
+static int
+__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+    if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
+        if (WT_BUILD_DELTA_LEAF(session, r))
+            WT_RET(__rec_build_delta_leaf(session, r));
+    }
+
+    return (0);
+}
+
+/*
  * __rec_write_wrapup --
  *     Finish the reconciliation.
  */
@@ -2536,6 +2721,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         mod->rec_result = WT_PM_REC_EMPTY;
         break;
     case 1: /* 1-for-1 page swap */
+        WT_IGNORE_RET(__rec_build_delta(session, r));
+
         /*
          * Because WiredTiger's pages grow without splitting, we're replacing a single page with
          * another single page most of the time.
