@@ -419,6 +419,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
     }
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /* Tests and expected values for __block_off_match */
 struct search_match {
     wt_off_t _off;
@@ -534,6 +535,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         }
     }
 }
+#endif
 
 /* Tests and expected values for operations that need an off_size to modify a WT_EXTLIST */
 struct off_size_expected {
