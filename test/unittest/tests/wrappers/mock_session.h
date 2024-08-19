@@ -10,10 +10,11 @@
 #define WT_MOCK_SESSION_H
 
 #include <memory>
+#include <string>
 #include <vector>
+
 #include "wt_internal.h"
 #include "mock_connection.h"
-
 
 int handleWiredTigerError(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message);
 int handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message);
@@ -44,7 +45,7 @@ public:
 
     void
     add_callback_message(const char *message) {
-        _messages.push_back(message);
+        _messages.push_back(std::string(message));
     }
 
     const std::string&
