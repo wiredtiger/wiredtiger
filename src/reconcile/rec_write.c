@@ -2471,7 +2471,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     uint8_t flags;
     uint8_t *p, *head;
 
-    head = r->delta.mem + r->delta.size;
+    head = (uint8_t *)r->delta.mem + r->delta.size;
     p = head + 1;
     max_packed_size = 1 + 4 * 9 + supd->onpage_upd->size;
 
@@ -2522,7 +2522,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         p += supd->onpage_upd->size;
     }
 
-    r->delta.size += p - head;
+    r->delta.size += p - (uint8_t *)head;
     *head = flags;
 err:
     __wt_scr_free(session, &key);
@@ -2538,7 +2538,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
-    uint32_t i, slot;
+    uint32_t i;
 
     multi = &r->multi[0];
 
