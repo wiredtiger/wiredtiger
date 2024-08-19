@@ -177,7 +177,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         validate_and_cleanup_ext_block(ext);
     }
 
-    SECTION("Allocate with negative cache extent count")
+    SECTION("Allocate with fake zero cache extent count")
     {
         WT_EXT *ext;
         WT_EXT *cached_ext;
@@ -185,7 +185,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         // Construct extent cache with one item.
         bms->ext_cache = ext;
-        bms->ext_cache_cnt = -1;
+        bms->ext_cache_cnt = 0;
 
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &cached_ext) == 0);
         REQUIRE(cached_ext == ext);
@@ -243,7 +243,6 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session]")
         REQUIRE(ext != nullptr);
 
         __wti_block_ext_free(session_no_bm->getWtSessionImpl(), ext);
-
         // REQUIRE(ext == nullptr);
     }
 
@@ -312,7 +311,7 @@ TEST_CASE("Block session: __wti_block_size_alloc", "[block_session]")
         validate_and_cleanup_size_block(sz);
     }
 
-    SECTION("Allocate with negative cache size count")
+    SECTION("Allocate with fake zero cache size count")
     {
         WT_SIZE *sz;
         WT_SIZE *cached_sz;
@@ -320,7 +319,7 @@ TEST_CASE("Block session: __wti_block_size_alloc", "[block_session]")
         REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz) == 0);
         // Construct extent cache with one item.
         bms->sz_cache = sz;
-        bms->sz_cache_cnt = -1;
+        bms->sz_cache_cnt = 0;
 
         REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &cached_sz) == 0);
         REQUIRE(cached_sz == sz);
@@ -493,7 +492,7 @@ TEST_CASE("Block session: __block_size_discard", "[block_session]")
     SECTION("Discard nothing in the size list")
     {
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 3) == 0);
-        validate_and_cleanup_size_list(bms, 2);
+        validate_and_cleanup_size_list(bms, 3);
     }
 
     SECTION("Fake cache count and discard every item in size list")
