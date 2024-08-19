@@ -2473,10 +2473,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 
     head = (uint8_t *)r->delta.mem + r->delta.size;
     p = head + 1;
-    max_packed_size = 1 + 4 * 9 + supd->onpage_upd->size;
-
-    if (r->delta.size + max_packed_size > r->delta.memsize)
-        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
 
     flags = 0;
 
@@ -2484,6 +2480,20 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
+
+    /* 
+     * The max length of a delta:
+     * 1 header byte
+     * 4 timestamps (4 * 9)
+     * key size (5)
+     * key
+     * value size (5)
+     * value
+     */
+    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + supd->onpage_upd->size;
+
+    if (r->delta.size + max_packed_size > r->delta.memsize)
+        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
         LF_SET(WT_DELTA_IS_DELETE);
@@ -2536,6 +2546,7 @@ err:
 static int
 __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
+    WT_DELTA_HEADER *header;
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
     uint32_t i;
@@ -2556,6 +2567,10 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
         WT_RET(__rec_pack_delta_leaf(session, r, supd));
     }
+
+    header = (WT_DELTA_HEADER *)r->delta.data;
+    header->mem_size = r->delta.size;
+    header->type = r->ref->page->type;
 
     /* TODO: write the delta to cloud. */
 
