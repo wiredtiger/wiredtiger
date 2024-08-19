@@ -177,6 +177,21 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         validate_and_cleanup_ext_block(ext);
     }
 
+    SECTION("Allocate with negative cache extent count")
+    {
+        WT_EXT *ext;
+        WT_EXT *cached_ext;
+
+        REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
+        // Construct extent cache with one item.
+        bms->ext_cache = ext;
+        bms->ext_cache_cnt = -1;
+
+        REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &cached_ext) == 0);
+        REQUIRE(cached_ext == ext);
+        validate_and_cleanup_ext_block(ext);
+    }
+
     SECTION("Allocate with one extent in cache ")
     {
         WT_EXT *ext;
@@ -297,6 +312,21 @@ TEST_CASE("Block session: __wti_block_size_alloc", "[block_session]")
         validate_and_cleanup_size_block(sz);
     }
 
+    SECTION("Allocate with negative cache size count")
+    {
+        WT_SIZE *sz;
+        WT_SIZE *cached_sz;
+
+        REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz) == 0);
+        // Construct extent cache with one item.
+        bms->sz_cache = sz;
+        bms->sz_cache_cnt = -1;
+
+        REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &cached_sz) == 0);
+        REQUIRE(cached_sz == sz);
+        validate_and_cleanup_size_block(sz);
+    }
+
     SECTION("Allocate with one size in cache ")
     {
         WT_SIZE *sz;
@@ -396,39 +426,41 @@ TEST_CASE("Block session: __block_manager_session_cleanup", "[block_session]")
 
 TEST_CASE("Block session: __block_ext_discard", "[block_session]")
 {
-    WT_EXT *ext, *ext2;
+    WT_EXT *ext, *ext2, *ext3;
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
 
     REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
     REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext2) == 0);
+    REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext3) == 0);
 
-    // Construct extent cache with two items.
+    // Construct extent cache with three items.
+    ext2->next[0] = ext3;
     ext->next[0] = ext2;
     bms->ext_cache = ext;
-    bms->ext_cache_cnt = 2;
-    SECTION("Discard no items in extent list")
+    bms->ext_cache_cnt = 3;
+    SECTION("Discard every item in extent list")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == 0);
         validate_and_cleanup_ext_list(bms, 0);
     }
 
-    SECTION("Discard 1 item in extent list")
+    SECTION("Discard until only one item is in extent list")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 1) == 0);
 
         validate_and_cleanup_ext_list(bms, 1);
     }
 
-    SECTION("Discard 3 items in extent list")
+    SECTION("Discard nothing in the extent list")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 3) == 0);
-        validate_and_cleanup_ext_list(bms, 2);
+        validate_and_cleanup_ext_list(bms, 3);
     }
 
     SECTION("Fake cache count and discard every item in extent list")
     {
-        bms->ext_cache_cnt = 3;
+        bms->ext_cache_cnt = 4;
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
     }
 }
@@ -442,32 +474,31 @@ TEST_CASE("Block session: __block_size_discard", "[block_session]")
     REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz) == 0);
     REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz2) == 0);
 
-    // Construct extent cache with two items.
+    // Construct size cache with two items.
     sz->next[0] = sz2;
     bms->sz_cache = sz;
     bms->sz_cache_cnt = 2;
-    SECTION("Discard no items in extent list")
+    SECTION("Discard every item in size list")
     {
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == 0);
         validate_and_cleanup_size_list(bms, 0);
     }
 
-    SECTION("Discard 1 item in extent list")
+    SECTION("Discard until only one item is in size list")
     {
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 1) == 0);
-
         validate_and_cleanup_size_list(bms, 1);
     }
 
-    SECTION("Discard 3 items in extent list")
+    SECTION("Discard nothing in the size list")
     {
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 3) == 0);
         validate_and_cleanup_size_list(bms, 2);
     }
 
-    SECTION("Fake cache count and discard every item in extent list")
+    SECTION("Fake cache count and discard every item in size list")
     {
-        bms->sz_cache_cnt = 3;
+        bms->sz_cache_cnt = 4;
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
     }
 }
