@@ -8243,6 +8243,7 @@ typedef enum {
     WT_VERB_DEFAULT,
     WT_VERB_ERROR_RETURNS,
     WT_VERB_EVICT,                /*!< Eviction messages. */
+    WT_VERB_EVICTION,                /*!< Eviction messages. */
     WT_VERB_EVICTSERVER,          /*!< Eviction server messages. */
     WT_VERB_EVICT_STUCK,
     WT_VERB_EXTENSION,            /*!< Extension messages. */
