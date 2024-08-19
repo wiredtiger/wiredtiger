@@ -179,9 +179,9 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         BREAK;
         /* Extents to insert */
         std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // [12,288, 16,383]
-          off_size(4096, 4096),     // [4,096, 8,191]
-          off_size(5 * 4096, 4096), // [20,480, 24,575]
+          off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+          off_size(4096, 4096),     // First [4,096, 8,191]
+          off_size(5 * 4096, 4096), // Third [20,480, 24,575]
         };
 
         /* Empty extent list */
@@ -245,9 +245,9 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         BREAK;
         /* Extents to insert */
         std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // [12,288, 16,383]
-          off_size(4096, 4096),     // [4,096, 8,191]
-          off_size(5 * 4096, 4096), // [20,480, 24,575]
+          off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+          off_size(4096, 4096),     // First [4,096, 8,191]
+          off_size(5 * 4096, 4096), // Third [20,480, 24,575]
         };
 
         /* Empty extent list */
@@ -599,6 +599,9 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
         /* Empty block */
         WT_BLOCK block;
         memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
+        block.name = "__block_merge";
+        block.allocsize = 1024;
+        block.size = 4096; // Description information
 
         /* Insert/merge extents and verify */
         int idx = 0;
@@ -639,9 +642,9 @@ TEST_CASE("Extent Lists: block_remove", "[extent_list2]")
 
         /* Extents to insert to setup for __ut_block_remove */
         std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // [12,288, 16,383]
-          off_size(4096, 4096),     // [4,096, 8,191]
-          off_size(5 * 4096, 4096), // [20,480, 24,575]
+          off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+          off_size(4096, 4096),     // First [4,096, 8,191]
+          off_size(5 * 4096, 4096), // Third [20,480, 24,575]
         };
 
         /* Empty extent list */
@@ -687,6 +690,7 @@ TEST_CASE("Extent Lists: block_remove", "[extent_list2]")
         /* Remove extents and verify */
         WT_BLOCK block;
         memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
+
         int idx = 0;
         for (const off_expected &test : test_list) {
             /* For testing, half request ext returned, and half do not. */
@@ -710,5 +714,70 @@ TEST_CASE("Extent Lists: block_remove", "[extent_list2]")
 
         /* Verify empty extent list */
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
+    }
+}
+
+TEST_CASE("Extent Lists: block_append", "[extent_list2]")
+{
+    /* Build Mock session, this will automatically create a mock connection. */
+    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    SECTION("append multiple extents and verify all extents after each append")
+    {
+        BREAK;
+
+        /* Empty extent list */
+        WT_EXTLIST extlist;
+        memset(&extlist, 0, sizeof(extlist));
+        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+
+        /* Tests and expected values */
+        std::vector<off_size_expected> test_list{
+          {off_size(4096, 2048), // First half of First [4,096, 6,143]
+            {
+              off_size(4096, 2048), // First [4,096, 6,143]
+            }},
+          {off_size(4096 + 2048, 2048), // Second half of First [6,144, 8,191]
+            {
+              off_size(4096, 4096), // First [4,096, 8,191]
+            }},
+          {off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+            {
+              off_size(4096, 4096),     // First [4,096, 8,191]
+              off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+            }},
+          {off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+            {
+              off_size(4096, 4096),     // First [4,096, 8,191]
+              off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+              off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+            }},
+        };
+
+        /* Append extents and verify */
+        WT_BLOCK block;
+        memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
+        block.name = "__block_append";
+        block.allocsize = 1024;
+        block.size = 4096; // Description information
+
+        int idx = 0;
+        for (const off_size_expected &test : test_list) {
+            REQUIRE(__ut_block_append(
+                      session, &block, &extlist, test._off_size._off, test._off_size._size) == 0);
+#ifdef DEBUG
+            printf("%d. Append: off=%" PRId64 ", size=%" PRId64 ", end=%" PRId64 "\n", idx,
+              test._off_size._off, test._off_size._size,
+              (test._off_size._off + test._off_size._size - 1));
+            utils::ext_print_list(extlist.off);
+            fflush(stdout);
+#endif
+
+            verify_off_extent_list(extlist, test._expected_list, true);
+            ++idx;
+        }
     }
 }
