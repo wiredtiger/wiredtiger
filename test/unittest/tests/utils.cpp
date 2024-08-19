@@ -46,7 +46,6 @@ wiredtigerCleanup(std::string const &home)
     remove_wrapper(home);
 }
 
-
 void
 ext_print_list(WT_EXT **head)
 {
