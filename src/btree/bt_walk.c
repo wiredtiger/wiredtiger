@@ -629,7 +629,7 @@ __wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleaf
 /*
  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  *
- * Below is a set of function for computing the normalized position of a page and restoring a page
+ * Below is a set of functions for computing the normalized position of a page and restoring a page
  * from its normalized position. These functions are used by the eviction server for the sake of
  * not holding the hazard pointer for longer than necessary. Another user is "partition cursor".
  *
@@ -638,19 +638,18 @@ __wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleaf
  * tree is perfectly balanced, i.e. all internal pages at the same level have the same number of
  * children and the depth of all leaf pages is the same. In practice, the tree is not perfect, so
  * the normalized position is imprecise. However, it's totally fine for the eviction server because
- * it only an approximate position in the tree to continue from. Even when using a hazard pointer,
- * page splits can shift data so that some pages or sub-trees can be skipped in one pass.
+ * it only uses an approximate position in the tree to continue to walk from.
+ * Even when using a hazard pointer, page splits can shift data so that some pages or sub-trees can
+ * be skipped an eviction pass.
  *
- * Two major uses of the normalized position are: Eviction Server and Partition Cursor.
- *
- * The difference between them is that Eviction wants to be as non-intrusive as possible and never
- * loads pages into memory, while Partition Cursor wants to be as precise as possible. The behavior
- * is controlled by the flags passed to the functions. The overall set of flags is quite complex.
+ * Eviction wants to be as non-intrusive as possible and never loads pages into memory, while
+ * Partition Cursor can load pages or wait for them to be unlocked. The behavior is controlled by
+ * the flags passed to the functions. The overall set of flags is quite complex.
  * To simplify the use of this machinery, two helper functions are provided:
  *   - __wt_page_from_npos_for_eviction
  *   - __wt_page_from_npos_for_read
  *
- * === Detailed description.
+ *    === Detailed description.
  *
  * Normalized position is a number in the range of 0 .. 1 defining a page's position in the tree.
  * In fact, each page occupies a range of positions. For example, if there are 5 pages then
@@ -663,47 +662,64 @@ __wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleaf
  * The starting point is inclusive, the ending point is exclusive.
  *
  * When calculating a page's position, the returned result is always in the range of 0 .. 1. Because
- * of that, any number outside of this range can be used as an invalid position.
+ * of that, any number outside of this range can be used as an invalid position when storing it.
  *
  * When retrieving a page, any number below 0 will lead to the first page, any number above 1 will
  * lead to the last page. This has useful consequences discussed below.
  *
- * === Finding a page from its normalized position.
+ *    === Finding a page from its normalized position.
  *
- * If all leaf pages are attached straight to the root, then finding a page from its normalized is
- * just as simple as multiplying it by the number of leaf pages and using the integer part of the
- * result as the page's index.
+ * If all leaf pages are attached straight to the root, then finding a page from its normalized
+ * position is just as simple as multiplying it by the number of leaf pages and using the integer
+ * part of the result as the page's index.
  *
  * If there are multiple levels, then the process is similar: the integer part is used as an index
  * at the current level, and the fractional part is used as a normalized position at the next level.
  *
- * This process is repeated until we reach the leaf page.
+ * This process is repeated until we reach a leaf page.
  *
  * The remaining fractional part at the leaf page can be potentially used to find an exact key
  * on the page. This is not implemented since there's no need for it.
  *
- * === Calculating a page's normalized position.
+ *    === Calculating a page's normalized position.
  *
  * As opposed to finding a page from its normalized position, the process goes back from the page
  * up to the root. The process is a reverse of the finding process.
  *
  * A nuance is that because there is a whole range of numbers corresponding to a page, the user
- * is allowed to choose a starting position within the page. Say, number closer to 0 will point to
- * somewhere closer to the beginning of the page, and number closer to 1 will point close to the
- * end.
- *
- * NOTE! That 0 and 1 are corner cases and can lead you to an adjacent page when retrieving a page.
- * To reliably get back to the same page, the best starting position is 0.5.
- * A useful side effect is that using starting numbers outside of 0 .. 1 range will lead you to
- * adjacent pages. This can be used to iterate over pages without loading them into memory or
- * storing hazard pointers at all.
- * An example of this can be found in test.
+ * can choose a starting position within the page. Say, numbers closer to 0 will point to somewhere
+ * closer to the beginning of the page, and numbers closer to 1 will point close to the end.
  *
  * If there's only one level, then the normalized position is just the page's index (plus fractional
  * starting point) divided by the number of pages at the parent level.
  *
  * If there are multiple levels, the process is repeated until we reach the root with starting
  * point being whatever has been calculated at the previous level.
+ *
+ * NOTE that starting points 0 and 1 are corner cases and can lead you to an adjacent page when
+ * retrieving a page because of rounding errors.
+ * To reliably get back to the same page, the best starting point is 0.5.
+ *
+ * A useful side effect is that using starting numbers outside of 0 .. 1 range will lead you to
+ * adjacent pages. This can be used to iterate over pages without storing any hazard pointers.
+ * An example of this can be found in test.
+ *
+ *   === Precision considerations.
+ *
+ * Because the precision of the position if affected by tree's structure, it can be used to quantify
+ * the shape of the tree. The integral difference of all page's normalized positions and their
+ * actual positions can be used to estimate the tree's quality.
+ *
+ * Note that the tree shape in memory can significantly diverge from the tree shape on disk.
+ *
+ *   === How many pages can be addressed by a double precision number?
+ *
+ * The maximum number of pages that can be addressed by a double is roughly 2^53 = ~ 10^16
+ * (where 53 is the number of bits in a double mantissa).
+ * We have multiple orders of magnitude spare by now.
+ *
+ * For distributed storage it still can be not enough (the dataset size can exceed
+ * petabytes or exabytes), then we can shift to using 64-bit or 128-bit fixed-point numbers.
  *
  */
 
