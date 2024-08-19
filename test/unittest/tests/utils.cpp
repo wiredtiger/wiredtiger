@@ -60,7 +60,8 @@ ext_print_list(WT_EXT **head)
 
         extp = head[i];
         while (extp != nullptr) {
-            printf("%p -> ", extp);
+            printf("%p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "} -> ", extp, extp->off,
+              extp->size, (extp->off + extp->size - 1));
             extp = extp->next[i];
         }
 
