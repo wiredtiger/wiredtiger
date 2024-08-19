@@ -466,17 +466,19 @@ TEST_CASE("Block session: __block_ext_discard", "[block_session]")
 
 TEST_CASE("Block session: __block_size_discard", "[block_session]")
 {
-    WT_SIZE *sz, *sz2;
+    WT_SIZE *sz, *sz2, *sz3;
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
 
     REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz) == 0);
     REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz2) == 0);
+    REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &sz3) == 0);
 
     // Construct size cache with two items.
+    sz2->next[0] = sz3;
     sz->next[0] = sz2;
     bms->sz_cache = sz;
-    bms->sz_cache_cnt = 2;
+    bms->sz_cache_cnt = 3;
     SECTION("Discard every item in size list")
     {
         REQUIRE(__ut_block_size_discard(session->getWtSessionImpl(), 0) == 0);
