@@ -2534,6 +2534,8 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 
     r->delta.size += WT_PTRDIFF(p, head);
     *head = flags;
+
+    WT_ASSERT(session, p < head + max_packed_size);
 err:
     __wt_scr_free(session, &key);
     return (ret);
