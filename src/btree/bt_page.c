@@ -129,7 +129,6 @@ static int
 __page_inmem_tombstone(
   WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
 {
-    WT_DECL_RET;
     WT_UPDATE *tombstone;
     size_t size, total_size;
 
@@ -141,7 +140,7 @@ __page_inmem_tombstone(
 
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
 
-    WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
     total_size += size;
     tombstone->durable_ts = unpack->tw.durable_stop_ts;
     tombstone->start_ts = unpack->tw.stop_ts;
@@ -151,11 +150,6 @@ __page_inmem_tombstone(
     *sizep = total_size;
 
     return (0);
-
-err:
-    __wt_free(session, tombstone);
-
-    return (ret);
 }
 
 /*
