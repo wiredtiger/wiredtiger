@@ -2522,7 +2522,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         p += supd->onpage_upd->size;
     }
 
-    r->delta.size += p - (uint8_t *)head;
+    r->delta.size += WT_PTRDIFF(p, head);
     *head = flags;
 err:
     __wt_scr_free(session, &key);
