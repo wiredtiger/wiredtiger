@@ -20,7 +20,8 @@
  * Check a basic configuration that sets and clears a flag.
  */
 static void
-test_config_flag(std::shared_ptr<MockSession> session_mock, const std::string &config_param, const int flag)
+test_config_flag(
+  std::shared_ptr<MockSession> session_mock, const std::string &config_param, const int flag)
 {
     WT_SESSION_IMPL *session = session_mock->getWtSessionImpl();
     std::string param_true = config_param + "=true";

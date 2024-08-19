@@ -42,12 +42,17 @@ MockSession::buildTestMockSession()
     return std::shared_ptr<MockSession>(new MockSession(sessionImpl, mockConnection));
 }
 
-int handleWiredTigerError(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message) {
-    ((handler_wrap*)handler)->mock_session->add_callback_message(message);
+int
+handleWiredTigerError(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+{
+    ((handler_wrap *)handler)->mock_session->add_callback_message(message);
     return (0);
 }
 
-int handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message) {
-    ((handler_wrap*)handler)->mock_session->add_callback_message(message);
+int
+handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+{
+    ((handler_wrap *)handler)->mock_session->add_callback_message(message);
     return (0);
 }
