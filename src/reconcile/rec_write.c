@@ -2101,6 +2101,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
             __wt_free(session, multi->supd);
+            multi->supd_entries = 0;
             --r->multi_next;
             return (0);
         }
