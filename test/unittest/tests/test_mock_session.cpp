@@ -13,7 +13,7 @@
 
 /*
  * [mock_session]:
- * Test basic functionalities of the MockSession class.
+ * Test basic functionalities of the mock session class.
  */
 
 
