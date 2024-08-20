@@ -2472,9 +2472,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     uint8_t flags;
     uint8_t *p, *head;
 
-    head = (uint8_t *)r->delta.data + r->delta.size;
-    p = head + 1;
-
     flags = 0;
 
     /* Ensure enough room for a column-store key without checking. */
@@ -2495,6 +2492,9 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 
     if (r->delta.size + max_packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
+
+    head = (uint8_t *)r->delta.data + r->delta.size;
+    p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
         LF_SET(WT_DELTA_IS_DELETE);
