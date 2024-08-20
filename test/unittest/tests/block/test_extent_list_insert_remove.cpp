@@ -7,15 +7,13 @@
  */
 
 /*
- * block_ext.c: [extent_list2] Test extent list insert functions without block: __block_ext_insert,
- * and __block_off_insert.
+ * block_ext.c: [extent_list2] Test extent list functions part 2. (More to come.)
  *
- * Test extent list insert/remove functions with block: __block_merge, __block_off_remove,
- * __block_extend, and __block_append.
+ * Test insert functions without block: __block_ext_insert, and __block_off_insert.
+ *
+ * Test extent list insert/remove functions with block: __block_merge, __block_off_remove.
  *
  * Test extent list search functions: __block_off_srch_pair, and __block_off_match.
- *
- * Test extent allocation function: __wti_block_alloc.
  */
 
 /* Choose one */
@@ -720,70 +718,5 @@ TEST_CASE("Extent Lists: block_remove", "[extent_list2]")
 
         /* Verify empty extent list */
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
-    }
-}
-
-TEST_CASE("Extent Lists: block_append", "[extent_list2]")
-{
-    /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
-
-    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
-
-    SECTION("append multiple extents and verify all extents after each append")
-    {
-        BREAK;
-
-        /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
-
-        /* Tests and expected values */
-        std::vector<off_size_expected> test_list{
-          {off_size(4096, 2048), // First half of First [4,096, 6,143]
-            {
-              off_size(4096, 2048), // First [4,096, 6,143]
-            }},
-          {off_size(4096 + 2048, 2048), // Second half of First [6,144, 8,191]
-            {
-              off_size(4096, 4096), // First [4,096, 8,191]
-            }},
-          {off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-            {
-              off_size(4096, 4096),     // First [4,096, 8,191]
-              off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-            }},
-          {off_size(5 * 4096, 4096), // Third [20,480, 24,575]
-            {
-              off_size(4096, 4096),     // First [4,096, 8,191]
-              off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-              off_size(5 * 4096, 4096), // Third [20,480, 24,575]
-            }},
-        };
-
-        /* Append extents and verify */
-        WT_BLOCK block;
-        memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
-        block.name = "__block_append";
-        block.allocsize = 1024;
-        block.size = 4096; // Description information
-
-        int idx = 0;
-        for (const off_size_expected &test : test_list) {
-            REQUIRE(__ut_block_append(
-                      session, &block, &extlist, test._off_size._off, test._off_size._size) == 0);
-#ifdef DEBUG
-            printf("%d. Append: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", idx,
-              test._off_size._off, test._off_size._size,
-              (test._off_size._off + test._off_size._size - 1));
-            utils::extlist_print_off(extlist);
-            fflush(stdout);
-#endif
-
-            verify_off_extent_list(extlist, test._expected_list, true);
-            ++idx;
-        }
     }
 }
