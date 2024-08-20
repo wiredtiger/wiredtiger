@@ -2602,9 +2602,9 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     stop = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_PAGE_DELTA,
-      "Generated leaf page delta, original page size %d, delta size %zu, "
+      "Generated leaf page delta, original page size %d, delta size %d, "
       "total time %" PRIu64 "us",
-      r->ref->page->dsk->mem_size, r->delta.size, WT_CLOCKDIFF_US(stop, start));
+      (int)r->ref->page->dsk->mem_size, (int)r->delta.size, WT_CLOCKDIFF_US(stop, start));
 
     return (0);
 }
