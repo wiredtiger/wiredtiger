@@ -90,18 +90,17 @@ ext_print_list(WT_EXT **head)
  *     Print an WT_EXTLIST and it's off skip list.
  */
 void
-extlist_print_off(WT_EXTLIST & extlist)
+extlist_print_off(WT_EXTLIST &extlist)
 {
     printf("{name %s, bytes %" PRIu64 ", entries %" PRIu32 ", objectid %" PRIu32 ", offset %" PRId64
-           ", checksum 0x%" PRIu32 ", size %" PRIu32 ", track_size %s, last %p", extlist.name,
-           extlist.bytes, extlist.entries, extlist.objectid, extlist.offset, extlist.checksum,
-           extlist.size, extlist.track_size ? "true" : "false", extlist.last);
+           ", checksum 0x%" PRIu32 ", size %" PRIu32 ", track_size %s, last %p",
+      extlist.name, extlist.bytes, extlist.entries, extlist.objectid, extlist.offset,
+      extlist.checksum, extlist.size, extlist.track_size ? "true" : "false", extlist.last);
     if (extlist.last != nullptr)
         printf(" {off %" PRId64 ", size %" PRId64 ", depth %" PRIu8 ", next %p}", extlist.last->off,
-        extlist.last->size, extlist.last->depth, extlist.last->next);
+          extlist.last->size, extlist.last->depth, extlist.last->next);
     printf("\noff:\n");
     ext_print_list(extlist.off);
 }
-
 
 } // namespace utils
