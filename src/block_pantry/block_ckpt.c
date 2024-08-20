@@ -125,7 +125,7 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
      * a checkpoint when using the block pantry.
      */
     endp = root_addr;
-    WT_RET(__wt_block_pantry_addr_to_buffer(&endp, 0, 1024, 0));
+    WT_RET(__wt_block_pantry_addr_pack(&endp, 0, 1024, 0));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
     return (0);
 }

@@ -166,7 +166,7 @@ __wt_block_pantry_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
-    WT_RET(__wt_block_pantry_addr_to_buffer(&endp, pantry_id, size, checksum));
+    WT_RET(__wt_block_pantry_addr_pack(&endp, pantry_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);
