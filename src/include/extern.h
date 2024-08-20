@@ -242,13 +242,13 @@ extern int __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint3
   WT_BLOCK **blockp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_addr_invalid(const uint8_t *addr)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_addr_pack(uint8_t **pp, uint64_t pantry_id, uint32_t size,
+  uint32_t checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_addr_string(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry,
   WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_pantry_addr_pack(uint8_t **pp, uint64_t pantry_id, uint32_t size,
-  uint32_t checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_pantry_addr_unpack(const uint8_t *buf, uint64_t *pantry_idp,
-  uint32_t *sizep, uint32_t *checksump) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_addr_unpack(const uint8_t *buf, uint64_t *pantry_idp, uint32_t *sizep,
+  uint32_t *checksump) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_ckpt_pack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf,
   uint64_t root_id, uint32_t root_sz, uint32_t root_checksum)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

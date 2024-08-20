@@ -60,8 +60,8 @@ __wt_bmp_checkpoint(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(tmp);
     WT_DECL_ITEM(tmp2);
+    WT_DECL_RET;
     WT_FILE_HANDLE *handle;
-    int ret;
     char *value;
     const char *uri;
 
@@ -77,17 +77,19 @@ __wt_bmp_checkpoint(
      * Generate a checkpoint cookie used to find the checkpoint again (and distinguish it from a
      * fake checkpoint).
      */
-    WT_CKPT_FOREACH(ckptbase, ckpt)
+    WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             /* __wt_bmp_write_page(block_pantry, buf, root_addr); */
             WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, ckpt));
         }
 
-    WT_RET(__wt_buf_fmt(session, tmp, "file:%s", &handle->name[2])); /* TODO less hacky way to get URI */
+    WT_RET(
+      __wt_buf_fmt(session, tmp, "file:%s", &handle->name[2])); /* TODO less hacky way to get URI */
     uri = tmp->data;
     ret = __wt_metadata_search(session, uri, &value);
 
-    WT_RET(__wt_buf_fmt(session, tmp2, "%s\n%s\n", uri, value)); /* TODO less hacky way to get URI */
+    WT_RET(
+      __wt_buf_fmt(session, tmp2, "%s\n%s\n", uri, value)); /* TODO less hacky way to get URI */
 
     WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, tmp2));
 

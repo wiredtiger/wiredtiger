@@ -46,7 +46,7 @@
 #endif
 
 /* This is the size of a 64 bit number, don't use sizeof since sign-edness causes issues */
-#define STORED_VALUE_SIZE   8
+#define STORED_VALUE_SIZE 8
 
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
@@ -1569,7 +1569,8 @@ next_mul8(uint64_t i)
  *     Serialise our internal data structures to a given file handle.
  */
 static int
-dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, wt_off_t *nwritten)
+dir_store_ckpt_intl(
+  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, wt_off_t *nwritten)
 {
     WT_FILE_HANDLE *wt_fh;
     int ret;
@@ -1631,7 +1632,8 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
  *     Write out any extra data the block pantry wants associated with the checkpoint.
  */
 static int
-dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, wt_off_t *nwritten)
+dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin,
+  wt_off_t *nwritten)
 {
     WT_FILE_HANDLE *wt_fh;
     int ret;
@@ -1657,7 +1659,8 @@ dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *ex
  *     Serialise our the metadata for our URI to a given file handle.
  */
 static int
-dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin, wt_off_t extra_begin)
+dir_store_ckpt_finalize(
+  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin, wt_off_t extra_begin)
 {
     WT_FILE_HANDLE *wt_fh;
     int ret;
@@ -1675,8 +1678,8 @@ dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t
 
 /*
  * dir_store_obj_ckpt --
- *     Save any data necessary to restore our internal state, plus some extra
- *     data the user wants to keep alongside it.
+ *     Save any data necessary to restore our internal state, plus some extra data the user wants to
+ *     keep alongside it.
  */
 static int
 dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
@@ -1697,7 +1700,8 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
     dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO maybe reset alignment? */
     extra_start = (wt_off_t)dir_store_fh->object_next_offset;
 
-    ret = dir_store_ckpt_extra(dir_store_fh, session, extra, (wt_off_t)dir_store_fh->object_next_offset, &nwritten);
+    ret = dir_store_ckpt_extra(
+      dir_store_fh, session, extra, (wt_off_t)dir_store_fh->object_next_offset, &nwritten);
     if (ret != 0)
         return (ret);
     dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO align again? */
@@ -1707,15 +1711,15 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
 
 /*
  * dir_store_obj_ckpt_load --
- *     Load any data necessary to restore our internal state, plus some extra
- *     data the user kept alongside it.
+ *     Load any data necessary to restore our internal state, plus some extra data the user kept
+ *     alongside it.
  */
 static int
 dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *buf, size_t buf_sz)
 {
     /*
-     * This is really just fetching the extra data - we loaded our internal state on
-     * startup (see dir_store_ckpt_load_internal).
+     * This is really just fetching the extra data - we loaded our internal state on startup (see
+     * dir_store_ckpt_load_internal).
      */
     wt_off_t extra_len, extra_ptr, size;
     int ret;
@@ -1727,11 +1731,13 @@ dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *
         return (0);
 
     /* Look up the extra data's address. */
-    if ((ret = file_handle->fh_read(file_handle, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_ptr)) != 0)
+    if ((ret = file_handle->fh_read(
+           file_handle, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_ptr)) != 0)
         return (ret);
 
     /* Read the extra data's length. */
-    if ((ret = file_handle->fh_read(file_handle, session, extra_ptr, STORED_VALUE_SIZE, &extra_len)) != 0)
+    if ((ret = file_handle->fh_read(
+           file_handle, session, extra_ptr, STORED_VALUE_SIZE, &extra_len)) != 0)
         return (ret);
     extra_ptr += STORED_VALUE_SIZE;
 
