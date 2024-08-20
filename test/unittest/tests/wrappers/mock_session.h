@@ -11,7 +11,7 @@
 
 #include <memory>
 #include <string>
-#include <vector>
+#include <list>
 
 #include "wt_internal.h"
 #include "mock_connection.h"
@@ -24,11 +24,10 @@ int handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *session, cons
 class MockSession;
 
 /* This is a convenience type that lets us get back to our mock from the handler callback. */
-struct event_handler_wrapper {
+struct event_handler_wrap {
     WT_EVENT_HANDLER handler;
     MockSession *mock_session;
 };
-typedef struct event_handler_wrapper handler_wrap;
 
 class MockSession {
 public:
@@ -65,8 +64,8 @@ private:
 
     // This class is implemented such that it owns, and is responsible for freeing, this pointer
     WT_SESSION_IMPL *_sessionImpl;
-    handler_wrap _handler_wrap;
-    std::vector<std::string> _messages;
+    event_handler_wrap _handler_wrap;
+    std::list<std::string> _messages;
 };
 
 #endif // WT_MOCK_SESSION_H

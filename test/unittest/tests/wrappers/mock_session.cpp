@@ -55,6 +55,6 @@ handleWiredTigerError(
 int
 handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *, const char *message)
 {
-    reinterpret_cast<handler_wrap *>(handler)->mock_session->add_callback_message(message);
+    reinterpret_cast<event_handler_wrap *>(handler)->mock_session->add_callback_message(message);
     return (0);
 }
