@@ -16,9 +16,11 @@ MockSession::MockSession(WT_SESSION_IMPL *session, std::shared_ptr<MockConnectio
     : _sessionImpl(session), _mockConnection(std::move(mockConnection))
 {
     // We could initialize this in the list but order is important and this seems easier.
-    WT_CLEAR(_handler_wrap.handler);
-    _handler_wrap.handler.handle_error = handleWiredTigerError;
-    _handler_wrap.handler.handle_message = handleWiredTigerMessage;
+    _handler_wrap.handler = {.handle_error = handleWiredTigerError,
+      .handle_message = handleWiredTigerMessage,
+      .handle_progress = nullptr,
+      .handle_close = nullptr,
+      .handle_general = nullptr};
     _handler_wrap.mock_session = this;
 
     _sessionImpl->event_handler = &_handler_wrap.handler;
@@ -46,13 +48,13 @@ int
 handleWiredTigerError(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
 {
-    ((handler_wrap *)handler)->mock_session->add_callback_message(message);
+    handleWiredTigerMessage(handler, session, message);
     return (0);
 }
 
 int
-handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *, const char *message)
 {
-    ((handler_wrap *)handler)->mock_session->add_callback_message(message);
+    reinterpret_cast<handler_wrap *>(handler)->mock_session->add_callback_message(message);
     return (0);
 }
