@@ -94,7 +94,8 @@ class test_verbose04(test_verbose_base):
       'WT_VERB_TRANSACTION',
       'WT_VERB_VERIFY',
       'WT_VERB_VERSION',
-      'WT_VERB_WRITE'
+      'WT_VERB_WRITE',
+      'WT_VERB_PAGE_DELTA',
     ]
 
     # Enable all categories at once.

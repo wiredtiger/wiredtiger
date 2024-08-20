@@ -59,6 +59,7 @@
     "WT_VERB_VERIFY", \
     "WT_VERB_VERSION", \
     "WT_VERB_WRITE", \
+    "WT_VERB_PAGE_DELTA", \
     /* AUTOMATIC VERBOSE ENUM STRING GENERATION STOP */ \
     }
 /* clang-format on */

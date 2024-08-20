@@ -913,7 +913,8 @@ connection_runtime_config = [
             'transaction',
             'verify',
             'version',
-            'write']),
+            'write',
+            'page_delta']),
 ]
 
 # wiredtiger_open and WT_CONNECTION.reconfigure compatibility configurations.
