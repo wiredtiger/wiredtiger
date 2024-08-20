@@ -51,7 +51,8 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
         size_t addr_size;
         wt_off_t offset, expected_offset;
         pp = p;
-        expected_checksum = expected_offset = expected_size = 0;
+        expected_checksum = expected_size = 0;
+        expected_offset = 0;
 
         // Test the block manager's pack function with an address cookie containing all zero fields.
         begin = (const uint8_t *)pp;
@@ -78,7 +79,8 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
         size_t addr_size;
         wt_off_t offset, expected_offset;
         pp = p;
-        expected_checksum = expected_offset = expected_size = 0;
+        expected_checksum = expected_size = 0;
+        expected_offset = 0;
 
         // Test that packing an address cookie of size 0 just packs 0 into all the fields.
         begin = (const uint8_t *)pp;
