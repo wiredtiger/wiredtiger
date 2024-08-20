@@ -6,110 +6,30 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include <catch2/catch.hpp>
+// This file unit tests block manager functions relating to packing and unpacking address cookies.
+
 #include "wt_internal.h"
+#include <catch2/catch.hpp>
 
-TEST_CASE("Block addr pack", "[block_pack]")
+void unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize, wt_off_t expected_offset, uint32_t expected_size, uint32_t expected_checksum)
 {
-    WT_BLOCK b;
-    WT_BM bm, *bmp;
+    uint32_t unpacked_size, unpacked_checksum;
+    uint64_t o, s, c;
+    wt_off_t unpacked_offset;
+    REQUIRE(__wt_vunpack_uint(&packed, 0, &o) == 0);
+    REQUIRE(__wt_vunpack_uint(&packed, 0, &s) == 0);
+    REQUIRE(__wt_vunpack_uint(&packed, 0, &c) == 0);
 
-    b.allocsize = 2;
-    bmp = &bm;
-    bmp->block = &b;
+    unpacked_offset = (s > 0) ? (wt_off_t)(o + 1) * block_allocsize : 0;
+    unpacked_size = (s > 0) ? (uint32_t)s * block_allocsize : 0;
+    unpacked_checksum = (s > 0) ? (uint32_t)c : 0;
 
-    /*
-     * Address cookie 1 objectid 0 offset 0 size 0 checksum 0
-     */
-    SECTION("Pack address cookie 1")
-    {
-        uint8_t p, *pp;
-        const uint8_t *begin;
-        uint64_t checksum, offset, size;
-        uint64_t expected_checksum, expected_offset, expected_size;
-        pp = &p;
-        expected_checksum = expected_offset = expected_size = 0;
-
-        begin = (const uint8_t *)pp;
-        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, 0, 0, 0) == 0);
-
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &offset) == 0);
-        CHECK(offset == expected_offset);
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &size) == 0);
-        CHECK(size == expected_size);
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &checksum) == 0);
-        CHECK(checksum == expected_checksum);
-    }
-
-    /*
-     * Address cookie 2 objectid 0 offset 1 size 0 checksum 1
-     */
-    SECTION("Pack address cookie 2")
-    {
-        uint8_t p, *pp;
-        const uint8_t *begin;
-        uint64_t checksum, offset, size;
-        uint64_t expected_checksum, expected_offset, expected_size;
-        pp = &p;
-        expected_checksum = expected_offset = expected_size = 0;
-
-        // Test that packing an address cookie of size 0 just packs 0 into all the fields.
-        begin = (const uint8_t *)pp;
-        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, 1, 0, 1) == 0);
-
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &offset) == 0);
-        CHECK(offset == expected_offset);
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &size) == 0);
-        CHECK(size == expected_size);
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &checksum) == 0);
-        CHECK(checksum == expected_checksum);
-    }
-
-    /*
-     * Address cookie 3 objectid 0 offset 10 size 4 checksum 12345
-     */
-    SECTION("Pack address cookie 3")
-    {
-        uint8_t p, *pp;
-        const uint8_t *begin;
-        uint64_t checksum, offset, size;
-        uint64_t expected_checksum, expected_offset, expected_size;
-        pp = &p;
-        checksum = 12345;
-        offset = 10;
-        size = 4;
-        expected_checksum = 12345;
-        expected_offset = offset / b.allocsize - 1;
-        expected_size = size / b.allocsize;
-
-        // Test packing an address cookie with mostly non-zero fields.
-        begin = (const uint8_t *)pp;
-        REQUIRE(__wt_block_addr_pack(
-                  bmp->block, &pp, WT_TIERED_OBJECTID_NONE, offset, size, checksum) == 0);
-
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &offset) == 0);
-        CHECK(offset == expected_offset);
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &size) == 0);
-        CHECK(size == expected_size);
-        REQUIRE(__wt_vunpack_uint(&begin, 0, &checksum) == 0);
-        CHECK(checksum == expected_checksum);
-    }
+    CHECK(unpacked_offset == expected_offset);
+    CHECK(unpacked_size == expected_size);
+    CHECK(unpacked_checksum == expected_checksum);
 }
 
-// Generates an address cookie for testing purposes.
-static void
-generate_address_cookie(
-  uint8_t **pp, WT_BLOCK *b, uint64_t offset, uint64_t size, uint64_t checksum)
-{
-    uint64_t pack_offset, pack_size;
-    pack_offset = (offset > 0) ? offset / b->allocsize - 1 : 0;
-    pack_size = (size > 0) ? size / b->allocsize : 0;
-    REQUIRE(__wt_vpack_uint(pp, 0, pack_offset) == 0);
-    REQUIRE(__wt_vpack_uint(pp, 0, pack_size) == 0);
-    REQUIRE(__wt_vpack_uint(pp, 0, checksum) == 0);
-}
-
-TEST_CASE("Block addr unpack", "[block_unpack]")
+TEST_CASE("Block addr pack and unpack", "[block_addr]")
 {
     WT_BLOCK b;
     WT_BM bm, *bmp;
@@ -118,43 +38,82 @@ TEST_CASE("Block addr unpack", "[block_unpack]")
     bmp = &bm;
     bmp->block = &b;
 
-    SECTION("Unpack address cookie 1")
+    // Address cookie 1 object id 0 offset 0 size 0 checksum 0
+    SECTION("Pack and unpack address cookie 1")
     {
-        uint8_t p, *pp;
+        const uint8_t *begin;
+        uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
         uint32_t checksum, obj_id, size;
-        uint32_t expected_checksum, expected_size;
-        wt_off_t offset, expected_offset;
-
-        pp = &p;
+        uint64_t expected_checksum, expected_offset, expected_size;
+        size_t addr_size;
+        wt_off_t offset;
+        pp = p;
         expected_checksum = expected_offset = expected_size = 0;
 
-        // Manually generate an address cookie.
-        generate_address_cookie(&pp, bmp->block, expected_offset, expected_size, expected_checksum);
+        // Test the block manager's pack function with an address cookie containing all zero fields.
+        begin = (const uint8_t *)pp;
+        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, 0, 0, 0) == 0);
+        addr_size = WT_PTRDIFF(pp, begin);
+        unpack_addr_cookie_and_check(begin, b.allocsize, expected_offset, expected_size, expected_checksum);
 
-        // Check that the block manager unpack function generates the expected results.
+        // Test the block manager's unpack function.
         REQUIRE(
-          __wt_block_addr_unpack(NULL, bmp->block, &p, 3, &obj_id, &offset, &size, &checksum) == 0);
+          __wt_block_addr_unpack(NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
         CHECK(checksum == expected_checksum);
     }
 
-    SECTION("Unpack address cookie 2")
+    // Address cookie 2 object id 0 offset 1 size 0 checksum 1
+    SECTION("Pack and unpack address cookie 2")
     {
-        uint8_t p, *pp;
+        const uint8_t *begin;
+        uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
         uint32_t checksum, obj_id, size;
         uint32_t expected_checksum, expected_size;
+        size_t addr_size;
         wt_off_t offset, expected_offset;
-        pp = &p;
+        pp = p;
+        expected_checksum = expected_offset = expected_size = 0;
+
+        // Test that packing an address cookie of size 0 just packs 0 into all the fields.
+        begin = (const uint8_t *)pp;
+        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, expected_offset, expected_size, expected_checksum) == 0);
+        addr_size = WT_PTRDIFF(pp, begin);
+        unpack_addr_cookie_and_check(begin, b.allocsize, expected_offset, expected_size, expected_checksum);
+
+        // Test the block manager's unpack function.
+        REQUIRE(
+          __wt_block_addr_unpack(NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        CHECK(offset == expected_offset);
+        CHECK(size == expected_size);
+        CHECK(checksum == expected_checksum);
+    }
+
+    // Address cookie 3 object id 0 offset 10 size 4 checksum 12345
+    SECTION("Pack and unpack address cookie 3")
+    {
+        const uint8_t *begin;
+        uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
+        uint32_t checksum, obj_id, size;
+        uint32_t expected_checksum, expected_size;
+        size_t addr_size;
+        wt_off_t offset, expected_offset;
+        pp = p;
         expected_checksum = 12345;
         expected_offset = 10;
         expected_size = 4;
 
-        generate_address_cookie(&pp, bmp->block, expected_offset, expected_size, expected_checksum);
+        // Test packing an address cookie with mostly non-zero fields.
+        begin = (const uint8_t *)pp;
+        REQUIRE(__wt_block_addr_pack(
+                  bmp->block, &pp, WT_TIERED_OBJECTID_NONE, expected_offset, expected_size, expected_checksum) == 0);
+        addr_size = WT_PTRDIFF(pp, begin);
+        unpack_addr_cookie_and_check(begin, b.allocsize, expected_offset, expected_size, expected_checksum);
 
-        // Check that the block manager unpack function generates the expected results.
+        // Test the block manager's unpack function.
         REQUIRE(
-          __wt_block_addr_unpack(NULL, bmp->block, &p, 5, &obj_id, &offset, &size, &checksum) == 0);
+          __wt_block_addr_unpack(NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
         CHECK(checksum == expected_checksum);
