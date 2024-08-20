@@ -2553,6 +2553,8 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_SAVE_UPD *supd;
     uint32_t i;
 
+    WT_ASSRT(session, r->multi_next == 1);
+
     multi = &r->multi[0];
 
     WT_RET(__rec_build_delta_init(session, r));
