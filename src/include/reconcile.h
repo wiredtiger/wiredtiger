@@ -183,6 +183,8 @@ struct __wt_reconcile {
      */
     WT_REC_CHUNK chunk_A, chunk_B, *cur_ptr, *prev_ptr;
 
+    WT_ITEM delta;
+
     size_t disk_img_buf_size; /* Base size needed for a chunk memory image */
 
     /*
@@ -382,6 +384,16 @@ typedef struct {
         (upd_select)->no_ts_tombstone = false;  \
         WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
     } while (0)
+
+/* Called when building the leaf disk image. */
+#define WT_TRY_BUILD_DELTA_LEAF(session, r)                                                \
+    !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 0 && !r->ovfl_items && \
+      (r->ref->page)->dsk != NULL
+
+/* Called after leaf disk image has been built. */
+#define WT_BUILD_DELTA_LEAF(session, r)                                                    \
+    !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 1 && !r->ovfl_items && \
+      (r->ref->page)->dsk != NULL
 
 /*
  * Enumeration used to track the context of reconstructing modifies within a update list.

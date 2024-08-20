@@ -1407,7 +1407,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_UPDATE *prev_onpage, *tmp, *upd;
     uint64_t orig_read_gen, recno;
     uint32_t i, slot;
-    bool prepare;
+    bool instantiate_upd;
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1422,15 +1422,16 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
-    WT_RET(__wti_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &prepare));
+    WT_RET(__wti_page_inmem(
+      session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
     /*
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
      * underlying page functions to do it.
      */
-    if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-        WT_RET(__wti_page_inmem_prepare(session, ref));
+    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+        WT_RET(__wti_page_inmem_updates(session, ref));
 
     /*
      * Put the re-instantiated page in the same LRU queue location as the original page, unless this
@@ -1445,9 +1446,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
      */
-    if (multi->supd_entries == 0)
+    if (!multi->supd_restore)
         return (0);
-    WT_ASSERT(session, multi->supd_restore);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -1591,8 +1591,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     WT_UPDATE **tmp;
     uint32_t i, slot;
 
-    /* If we have saved updates, we must have decided to restore them to the new page. */
-    WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
+    if (!multi->supd_restore)
+        return;
 
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
@@ -1697,12 +1697,11 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.addr != NULL);
 
-    /* If closing the file, there better not be any saved updates. */
-    WT_ASSERT(session, !closing || multi->supd == NULL);
+    /* If closing the file, there better not be any updates to restore. */
+    WT_ASSERT(session, !closing || !multi->supd_restore);
 
     /* If we don't have a disk image, we can't restore the saved updates. */
-    WT_ASSERT(
-      session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
+    WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
 
     /* Verify any disk image we have. */
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,

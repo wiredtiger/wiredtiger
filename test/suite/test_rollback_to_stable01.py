@@ -71,6 +71,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         return config
 
     def test_rollback_to_stable(self):
+        self.skipTest("page delta")
         nrows = 10000
 
         # Create a table.

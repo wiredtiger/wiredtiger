@@ -175,11 +175,14 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
 
             /*
              * If we restore an update chain in update restore eviction, there should be no update
-             * on the existing update chain.
+             * or a restored tombstone on the existing update chain.
              */
-            WT_ASSERT_ALWAYS(session, !restore || *upd_entry == NULL,
-              "Update found on the existing update chain during an update restore eviction");
-
+            WT_ASSERT_ALWAYS(session,
+              !restore ||
+                (*upd_entry == NULL ||
+                  ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                    F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS))),
+              "Illegal update on chain during update restore eviction");
             /*
              * We can either put multiple new updates or a single update on the update chain.
              *
