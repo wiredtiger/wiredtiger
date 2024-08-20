@@ -42,3 +42,23 @@ MockConnection::setupChunkCache(
 
     return 0;
 }
+
+int
+MockConnection::setupBlockManager(WT_SESSION_IMPL *session) {
+    F_SET(_connectionImpl, WT_CONN_IN_MEMORY);
+    _connectionImpl->hash_size = 512;
+    _connectionImpl->home = "";
+    WT_RET(__wt_calloc_def(session, _connectionImpl->hash_size, &_connectionImpl->blockhash));
+    WT_RET(__wt_calloc_def(session, _connectionImpl->hash_size, &_connectionImpl->fhhash));
+    for (int i = 0; i < _connectionImpl->hash_size; ++i) {
+      TAILQ_INIT(&_connectionImpl->blockhash[i]);
+      TAILQ_INIT(&_connectionImpl->fhhash[i]);
+    }
+
+    WT_RET(__wt_spin_init(session, &_connectionImpl->block_lock, "block manager"));
+    TAILQ_INIT(&_connectionImpl->blockqh); /* Block manager list */
+    TAILQ_INIT(&_connectionImpl->fhqh);                  /* File list */
+
+    WT_RET(__wt_os_inmemory(session));
+    return 0;
+}
