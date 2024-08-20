@@ -47,9 +47,9 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
         const uint8_t *begin;
         uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
         uint32_t checksum, obj_id, size;
-        uint64_t expected_checksum, expected_offset, expected_size;
+        uint32_t expected_checksum, expected_size;
         size_t addr_size;
-        wt_off_t offset;
+        wt_off_t offset, expected_offset;
         pp = p;
         expected_checksum = expected_offset = expected_size = 0;
 
