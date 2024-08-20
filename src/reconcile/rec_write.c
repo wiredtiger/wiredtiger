@@ -2468,11 +2468,11 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 {
     WT_DECL_RET;
     WT_ITEM *key;
-    size_t max_packed_size;
+    size_t max_packed_size, data_size;
     uint8_t flags;
     uint8_t *p, *head;
 
-    head = (uint8_t *)r->delta.mem + r->delta.size;
+    head = (uint8_t *)r->delta.data + r->delta.size;
     p = head + 1;
 
     flags = 0;
@@ -2528,8 +2528,10 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         memcpy(p, key->data, key->size);
         p += key->size;
 
+        data_size = supd->onpage_upd->size;
         WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
         memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
+        WT_ASSERT(session, supd->onpage_upd->size == data_size);
         p += supd->onpage_upd->size;
     }
 
