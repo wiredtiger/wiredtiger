@@ -2333,7 +2333,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
       {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
       {"configuration", WT_VERB_CONFIGURATION}, {"error_returns", WT_VERB_ERROR_RETURNS},
-      {"eviction", WT_VERB_EVICTION}, {"evict", WT_VERB_EVICT},
+      {"evict", WT_VERB_EVICT}, {"eviction", WT_VERB_EVICTION},
       {"evict_stuck", WT_VERB_EVICT_STUCK}, {"evictserver", WT_VERB_EVICTSERVER},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
       {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
