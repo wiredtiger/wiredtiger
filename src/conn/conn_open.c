@@ -244,6 +244,8 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_hs_open(session, cfg));
 
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "starting WiredTiger utility threads");
+
     /*
      * Start the optional logging/removal threads. NOTE: The log manager must be started before
      * checkpoints so that the checkpoint server knows if logging is enabled. It must also be
@@ -274,6 +276,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the checkpoint cleanup thread. */
     WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
+
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads are started successfully");
 
     return (0);
 }
