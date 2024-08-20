@@ -16,8 +16,7 @@
  * Test basic functionalities of the mock session class.
  */
 
-
-TEST_CASE("Directly test the error handler on the MockSession", "[mock_session]")
+TEST_CASE("Directly test the error handler on the mock session", "[mock_session]")
 {
     // Build Mock session, this will automatically create a mock connection.
     std::shared_ptr<MockSession> session_mock = MockSession::buildTestMockSession();
@@ -40,7 +39,6 @@ TEST_CASE("Directly test the error handler on the MockSession", "[mock_session]"
     REQUIRE(handler->handle_message(handler, nullptr, "Message 3!") == 0);
     REQUIRE(session_mock->get_last_message() == "Message 3!");
 
-    REQUIRE((handler->handle_close == nullptr &&
-      handler->handle_general == nullptr &&
+    REQUIRE((handler->handle_close == nullptr && handler->handle_general == nullptr &&
       handler->handle_progress == nullptr));
 }
