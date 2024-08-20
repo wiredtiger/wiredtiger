@@ -2528,6 +2528,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         memcpy(p, key->data, key->size);
         p += key->size;
 
+        /* TODO: resolve modifies. Currently it works only for full values. */
         WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
         memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
         p += supd->onpage_upd->size;
