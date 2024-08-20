@@ -168,6 +168,6 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
         expected_packed_vals.push_back({0x87, 0, 0, 0, 0, 0, 0, 0});
         expected_packed_vals.push_back({0x87, 0, 0, 0, 0, 0, 0, 0});
         expected_packed_vals.push_back({0xaa, 0, 0, 0, 0, 0, 0, 0});
-        test_pack_and_unpack_ints(bmp->block, cookie_values, expected_packed_vals);
+        test_pack_and_unpack_ints(cookie_values, expected_packed_vals);
     }
 }
