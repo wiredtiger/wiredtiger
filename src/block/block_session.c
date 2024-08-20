@@ -8,19 +8,6 @@
 
 #include "wt_internal.h"
 
-#ifndef HAVE_UNITTEST
-/*
- * Per session handle cached block manager information.
- */
-typedef struct {
-    WT_EXT *ext_cache;   /* List of WT_EXT handles */
-    u_int ext_cache_cnt; /* Count */
-
-    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
-    u_int sz_cache_cnt; /* Count */
-} WT_BLOCK_MGR_SESSION;
-#endif
-
 /*
  * __block_ext_alloc --
  *     Allocate a new WT_EXT structure.

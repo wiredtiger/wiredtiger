@@ -104,7 +104,6 @@ struct __wt_size {
     WT_SIZE *next[WT_SKIP_MAXDEPTH]; /* Size skiplist */
 };
 
-#ifdef HAVE_UNITTEST
 /*
  * Per session handle cached block manager information.
  */
@@ -115,7 +114,7 @@ typedef struct {
     WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
     u_int sz_cache_cnt; /* Count */
 } WT_BLOCK_MGR_SESSION;
-#endif
+
 /*
  * WT_EXT_FOREACH --
  *	Walk a block manager skiplist.

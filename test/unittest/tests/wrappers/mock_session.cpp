@@ -15,8 +15,6 @@
 MockSession::MockSession(WT_SESSION_IMPL *session, std::shared_ptr<MockConnection> mockConnection)
     : _sessionImpl(session), _mockConnection(std::move(mockConnection))
 {
-    __wt_os_stdio(_sessionImpl);
-    __wt_event_handler_set(_sessionImpl, nullptr);
 }
 
 MockSession::~MockSession()
