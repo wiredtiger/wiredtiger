@@ -2553,9 +2553,12 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_DELTA_HEADER *header;
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
+    uint64_t start, stop;
     uint32_t i;
 
     WT_ASSERT(session, r->multi_next == 1);
+
+    start = __wt_clock(session);
 
     multi = &r->multi[0];
 
@@ -2595,6 +2598,14 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         if (!F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
             F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
     }
+
+    stop = __wt_clock(session);
+
+    __wt_verbose(session, WT_VERB_PAGE_DELTA,
+      "Generated leaf page delta, original page size %d, new page size %zu, delta size %zu, "
+      "total time %" PRIu64 "us",
+      r->ref->page->dsk->mem_size, ((WT_PAGE_HEADER *)multi->disk_image)->mem_size, r->delta.size,
+      WT_CLOCKDIFF_US(stop, start));
 
     return (0);
 }
