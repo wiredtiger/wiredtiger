@@ -859,7 +859,7 @@ restart: /* Restart the search from the root. */
             default: /* WT_REF_MEM, WT_REF_SPLIT */
                 goto descend;
             }
-            /* Unreachable */
+            /* Unreachable but it's ok to be here */
         } else {
             /* Not eviction */
             switch (WT_REF_GET_STATE(descent)) {
@@ -879,9 +879,9 @@ restart: /* Restart the search from the root. */
             default: /* WT_REF_DISK, WT_REF_MEM, WT_REF_SPLIT */
                 goto descend;
             }
-            /* Unreachable */
+            /* Unreachable but it's ok to be here */
         }
-        /* Unreachable */
+        /* Unreachable but it's ok to be here */
 
 descend:
         /*
