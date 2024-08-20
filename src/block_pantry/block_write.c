@@ -48,12 +48,12 @@ __wt_block_pantry_write_size(size_t *sizep)
 }
 
 /*
- * __block_pantry_write --
+ * __wt_block_pantry_write_internal --
  *     Write a buffer into a block, returning the block's id, size and checksum.
  */
-static int
-__block_pantry_write(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_ITEM *buf,
-  uint64_t *pantry_idp, uint32_t *sizep, uint32_t *checksump, bool data_checksum,
+int
+__wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry,
+  WT_ITEM *buf, uint64_t *pantry_idp, uint32_t *sizep, uint32_t *checksump, bool data_checksum,
   bool checkpoint_io)
 {
     WT_BLOCK_PANTRY_HEADER *blk;
@@ -161,7 +161,7 @@ __wt_block_pantry_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    WT_RET(__block_pantry_write(
+    WT_RET(__wt_block_pantry_write_internal(
       session, block_pantry, buf, &pantry_id, &size, &checksum, data_checksum, checkpoint_io));
     __wt_page_header_byteswap(buf->mem);
 

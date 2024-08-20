@@ -9,22 +9,62 @@
 #include "wt_internal.h"
 
 /*
+ * __bmp_checkpoint_pack_raw --
+ *     This function needs to do two things: Create a recovery point in the object store underlying
+ *     this table and create an address cookie that is saved to the metadata (and used to find the
+ *     checkpoint again).
+ */
+static int
+__bmp_checkpoint_pack_raw(
+  WT_BLOCK_PANTRY *block_pantry, WT_SESSION_IMPL *session, WT_ITEM *root_image, WT_CKPT *ckpt)
+{
+    uint64_t pantry_id;
+    uint32_t checksum, size;
+    uint8_t *endp;
+
+    /*
+     * !!!
+     * Our caller wants the final checkpoint size. Setting the size here violates layering,
+     * but the alternative is a call for the btree layer to crack the checkpoint cookie into
+     * its components, and that's a fair amount of work.
+     */
+    ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id);
+
+    /* Copy the checkpoint information into the checkpoint. */
+    WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
+    endp = ckpt->raw.mem;
+
+    /* Write the root page out, and get back the address information for that page
+     * which will be written into the block manager checkpoint cookie.
+     */
+    WT_RET(__wt_block_pantry_write_internal(
+      session, block_pantry, root_image, &pantry_id, &size, &checksum, true, true));
+
+    WT_RET(__wt_block_pantry_ckpt_pack(block_pantry, &endp, pantry_id, size, checksum));
+    ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+    return (0);
+}
+
+/*
  * __wt_bmp_checkpoint --
- *     Write a buffer into a block, creating a checkpoint.
+ *     This function needs to do three things: Create a recovery point in the object store
+ *     underlying this table and create an address cookie that is saved to the metadata (and used to
+ *     find the checkpoint again) and save the content of the binary data added as a root page that
+ *     can be retrieved to start finding content for the tree.
  */
 int
 __wt_bmp_checkpoint(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK_PANTRY *block_pantry;
-    WT_FILE_HANDLE *handle;
+    WT_CKPT *ckpt;
     WT_DECL_ITEM(tmp);
     WT_DECL_ITEM(tmp2);
+    WT_FILE_HANDLE *handle;
+    int ret;
     char *value;
     const char *uri;
-    int ret;
 
-    WT_UNUSED(buf);
     WT_UNUSED(ckptbase);
     WT_UNUSED(data_checksum);
 
@@ -32,6 +72,16 @@ __wt_bmp_checkpoint(
     handle = block_pantry->fh->handle;
     WT_RET(__wt_scr_alloc(session, 4096, &tmp));
     WT_RET(__wt_scr_alloc(session, 4096, &tmp2));
+
+    /*
+     * Generate a checkpoint cookie used to find the checkpoint again (and distinguish it from a
+     * fake checkpoint).
+     */
+    WT_CKPT_FOREACH(ckptbase, ckpt)
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+            /* __wt_bmp_write_page(block_pantry, buf, root_addr); */
+            WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, ckpt));
+        }
 
     WT_RET(__wt_buf_fmt(session, tmp, "file:%s", &handle->name[2])); /* TODO less hacky way to get URI */
     uri = tmp->data;
@@ -58,9 +108,9 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
 {
     WT_BLOCK_PANTRY *block_pantry;
     WT_FILE_HANDLE *handle;
-    char buf[4096], *key, *value;
-    int i;
+    uint8_t *endp;
 
+    WT_UNUSED(session);
     WT_UNUSED(addr);
     WT_UNUSED(addr_size);
     WT_UNUSED(root_addr);
@@ -70,27 +120,12 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
 
-    buf[0] = '\0';
-    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface, buf, 4096));
-
-    key = &buf[0];
-    for (i = 0; i < 4096; i++)
-        if (buf[i] == '\n')
-            break;
-    if (i == 4096)
-        return (EINVAL); /* TODO think this through */
-    buf[i] = '\0';
-    value = &buf[i+1];
-
-    /* Tidy up the final newline */
-    for (; i < 4096; i++)
-        if (buf[i] == '\n') {
-            buf[i] = '\0';
-            break;
-        }
-
-    /* TODO make this conditional - only on "secondary"? */
-    WT_RET(__wt_metadata_insert(session, key, value));
-
+    /*
+     * Pretend there is a root page for this checkpoint - at the moment we don't actually read from
+     * a checkpoint when using the block pantry.
+     */
+    endp = root_addr;
+    WT_RET(__wt_block_pantry_addr_to_buffer(&endp, 0, 1024, 0));
+    *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
     return (0);
 }

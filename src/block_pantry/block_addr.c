@@ -112,3 +112,46 @@ __wt_block_pantry_addr_string(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_p
 
     return (0);
 }
+
+/*
+ * __wt_block_pantry_ckpt_pack --
+ *     Pack the raw content of a checkpoint record for this pantry manager. It will be encoded in
+ *     the metadata for the table and used to find the checkpoint again in the future.
+ */
+int
+__wt_block_pantry_ckpt_pack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf, uint64_t root_id,
+  uint32_t root_sz, uint32_t root_checksum)
+{
+    size_t len;
+    WT_UNUSED(block_pantry);
+
+    /* Pretend there is a root page with ID 0 and size 1024, so it can be unpacked */
+    WT_RET(__wt_block_pantry_addr_to_buffer(buf, root_id, root_sz, root_checksum));
+    /* Add something fun - because we are fun! */
+    WT_RET(__wt_snprintf_len_set((char *)buf, WT_BLOCK_PANTRY_CHECKPOINT_BUFFER, &len, "%s",
+      "supercalafragalisticexpialadoshus"));
+    *buf += len;
+    return (0);
+}
+
+/*
+ * __wt_block_pantry_ckpt_unpack --
+ *     Pack the raw content of a checkpoint record for this pantry manager. It will be encoded in
+ *     the metadata for the table and used to find the checkpoint again in the future.
+ */
+int
+__wt_block_pantry_ckpt_unpack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf)
+{
+    size_t len;
+    uint64_t pantry_id;
+    uint32_t checksum, size;
+    WT_UNUSED(block_pantry);
+
+    /* Retrieve the root page information */
+    WT_RET(__wt_block_pantry_buffer_to_addr(*buf, &pantry_id, &size, &checksum));
+    /* Add something fun - because we are fun! */
+    WT_RET(__wt_snprintf_len_set((char *)buf, WT_BLOCK_PANTRY_CHECKPOINT_BUFFER, &len, "%s",
+      "supercalafragalisticexpialadoshus"));
+    *buf += len;
+    return (0);
+}
