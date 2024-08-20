@@ -23,7 +23,8 @@ unpack_int_and_check(std::vector<uint8_t> const &packed, int64_t expectedValue)
 }
 
 static void
-test_pack_and_unpack_ints(WT_BLOCK *block, std::vector<int64_t> values, std::vector<std::vector<uint8_t>> &expectedPacked)
+test_pack_and_unpack_ints(
+  std::vector<int64_t> values, std::vector<std::vector<uint8_t>> &expectedPacked)
 {
     std::vector<std::vector<uint8_t>> packed;
     packed.push_back({0, 0, 0, 0, 0, 0, 0, 0});
