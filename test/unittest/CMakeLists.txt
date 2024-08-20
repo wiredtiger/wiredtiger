@@ -18,6 +18,7 @@ else()
         tests/test_pow.cpp
         tests/test_prepare_mod_sort.cpp
         tests/test_reconciliation_tracking.cpp
+        tests/test_session_config.cpp
         tests/test_string_match.cpp
         tests/test_tailq.cpp
         tests/backup/test_incremental_blkmods.cpp
