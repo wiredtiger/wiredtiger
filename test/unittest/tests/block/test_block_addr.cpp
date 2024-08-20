@@ -11,11 +11,14 @@
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
 
-void unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize, wt_off_t expected_offset, uint32_t expected_size, uint32_t expected_checksum)
+void
+unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize,
+  wt_off_t expected_offset, uint32_t expected_size, uint32_t expected_checksum)
 {
     uint32_t unpacked_size, unpacked_checksum;
     uint64_t o, s, c;
     wt_off_t unpacked_offset;
+    c = o = s = 0;
     REQUIRE(__wt_vunpack_uint(&packed, 0, &o) == 0);
     REQUIRE(__wt_vunpack_uint(&packed, 0, &s) == 0);
     REQUIRE(__wt_vunpack_uint(&packed, 0, &c) == 0);
@@ -54,11 +57,12 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
         begin = (const uint8_t *)pp;
         REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, 0, 0, 0) == 0);
         addr_size = WT_PTRDIFF(pp, begin);
-        unpack_addr_cookie_and_check(begin, b.allocsize, expected_offset, expected_size, expected_checksum);
+        unpack_addr_cookie_and_check(
+          begin, b.allocsize, expected_offset, expected_size, expected_checksum);
 
         // Test the block manager's unpack function.
-        REQUIRE(
-          __wt_block_addr_unpack(NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        REQUIRE(__wt_block_addr_unpack(
+                  NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
         CHECK(checksum == expected_checksum);
@@ -78,13 +82,15 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
         // Test that packing an address cookie of size 0 just packs 0 into all the fields.
         begin = (const uint8_t *)pp;
-        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, expected_offset, expected_size, expected_checksum) == 0);
+        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, expected_offset,
+                  expected_size, expected_checksum) == 0);
         addr_size = WT_PTRDIFF(pp, begin);
-        unpack_addr_cookie_and_check(begin, b.allocsize, expected_offset, expected_size, expected_checksum);
+        unpack_addr_cookie_and_check(
+          begin, b.allocsize, expected_offset, expected_size, expected_checksum);
 
         // Test the block manager's unpack function.
-        REQUIRE(
-          __wt_block_addr_unpack(NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        REQUIRE(__wt_block_addr_unpack(
+                  NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
         CHECK(checksum == expected_checksum);
@@ -106,14 +112,15 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
         // Test packing an address cookie with mostly non-zero fields.
         begin = (const uint8_t *)pp;
-        REQUIRE(__wt_block_addr_pack(
-                  bmp->block, &pp, WT_TIERED_OBJECTID_NONE, expected_offset, expected_size, expected_checksum) == 0);
+        REQUIRE(__wt_block_addr_pack(bmp->block, &pp, WT_TIERED_OBJECTID_NONE, expected_offset,
+                  expected_size, expected_checksum) == 0);
         addr_size = WT_PTRDIFF(pp, begin);
-        unpack_addr_cookie_and_check(begin, b.allocsize, expected_offset, expected_size, expected_checksum);
+        unpack_addr_cookie_and_check(
+          begin, b.allocsize, expected_offset, expected_size, expected_checksum);
 
         // Test the block manager's unpack function.
-        REQUIRE(
-          __wt_block_addr_unpack(NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+        REQUIRE(__wt_block_addr_unpack(
+                  NULL, bmp->block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
         CHECK(offset == expected_offset);
         CHECK(size == expected_size);
         CHECK(checksum == expected_checksum);
