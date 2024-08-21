@@ -147,6 +147,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
 
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &cached_ext) == 0);
         REQUIRE(cached_ext == ext);
+        validate_and_cleanup_ext_list(bms, 0);
         validate_and_cleanup_ext_block(ext);
     }
 
@@ -183,6 +184,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         REQUIRE(ext == cached_ext);
         REQUIRE(ext2 != cached_ext);
         validate_and_cleanup_ext_list(bms, 1);
+        validate_and_cleanup_ext_block(cached_ext);
     }
 }
 
