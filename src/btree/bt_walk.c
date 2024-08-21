@@ -634,7 +634,7 @@ __wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleaf
  * not holding the hazard pointer for longer than necessary. Another user is "partition cursor".
  *
  * Normalized position is a number in the range of 0 .. 1 that represents a page's position across
- * all pages. It's primary design goal is to be cheap rather than precise. It works best when the
+ * all pages. It's primary goal is to be cheap rather than precise. It works best when the
  * tree is perfectly balanced, i.e. all internal pages at the same level have the same number of
  * children and the depth of all leaf pages is the same. In practice, the tree is not perfect, so
  * the normalized position is imprecise. However, it's totally fine for the eviction server because
@@ -829,6 +829,15 @@ restart: /* Restart the search from the root. */
     current = &btree->root;
     npos_local = npos;
     for (;;) {
+        /*
+         * This function will always return a leaf page even if the saved position was for an
+         * internal one. This potentially can lead to internal pages being skipped by eviction
+         * in case when eviction happened to pause on an internal page and some subsequent internal
+         * pages don't have any leafs and also are subject for eviction.
+         *
+         * This is a rare case. However, it doesn't lead to completely un-evictable internal pages
+         * because eviction will eventually reach these pages during other passes.
+         */
         if (F_ISSET(current, WT_REF_FLAG_LEAF))
             goto done;
 
