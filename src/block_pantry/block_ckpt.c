@@ -102,7 +102,10 @@ __wt_bmp_checkpoint(
 
 /*
  * __wt_bmp_checkpoint_load --
- *     Load a checkpoint.
+ *     Load a checkpoint. This involves
+ *     (1) cracking the checkpoint cookie open
+ *     (2) loading the root page from the object store,
+ *     (3) re-packing the root page's address cookie into root_addr.
  */
 int
 __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
@@ -111,23 +114,28 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_BLOCK_PANTRY *block_pantry;
     WT_FILE_HANDLE *handle;
     uint8_t *endp;
+    uint32_t root_size, root_checksum;
+    uint64_t root_id;
 
-    WT_UNUSED(session);
-    WT_UNUSED(addr);
     WT_UNUSED(addr_size);
-    WT_UNUSED(root_addr);
-    WT_UNUSED(root_addr_sizep);
     WT_UNUSED(checkpoint);
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
+
+    *root_addr_sizep = 0;
+
+    WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
+
+    /* TODO I think we don't need this because the caller should call btree_open with the cookie we put back into root_addr */
+    /* WT_RET(__wt_block_pantry_read_internal(session, block_pantry, root_id, root_sz, root_image, root_checksum)); */
 
     /*
      * Pretend there is a root page for this checkpoint - at the moment we don't actually read from
      * a checkpoint when using the block pantry.
      */
     endp = root_addr;
-    WT_RET(__wt_block_pantry_addr_pack(&endp, 0, 1024, 0));
+    WT_RET(__wt_block_pantry_addr_pack(&endp, root_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
     return (0);
 }

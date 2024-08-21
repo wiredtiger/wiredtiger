@@ -46,18 +46,18 @@ __wt_block_pantry_addr_pack(uint8_t **pp, uint64_t pantry_id, uint32_t size, uin
 
 /*
  * __wt_block_pantry_addr_unpack --
- *     Convert a filesystem address cookie into its components NOT UPDATING the caller's buffer
+ *     Convert a filesystem address cookie into its components UPDATING the caller's buffer
  *     reference.
  */
 int
 __wt_block_pantry_addr_unpack(
-  const uint8_t *buf, uint64_t *pantry_idp, uint32_t *sizep, uint32_t *checksump)
+  const uint8_t **buf, uint64_t *pantry_idp, uint32_t *sizep, uint32_t *checksump)
 {
     uint64_t c, p, s;
 
-    WT_RET(__wt_vunpack_uint(&buf, 0, &p));
-    WT_RET(__wt_vunpack_uint(&buf, 0, &s));
-    WT_RET(__wt_vunpack_uint(&buf, 0, &c));
+    WT_RET(__wt_vunpack_uint(buf, 0, &p));
+    WT_RET(__wt_vunpack_uint(buf, 0, &s));
+    WT_RET(__wt_vunpack_uint(buf, 0, &c));
 
     /*
      * Any pantry ID is valid, so use a size of 0 to define an out-of-band value.
@@ -84,7 +84,7 @@ __wt_block_pantry_addr_invalid(const uint8_t *addr)
     uint32_t checksum, size;
 
     /* Crack the cookie - there aren't further checks for object blocks. */
-    WT_RET(__wt_block_pantry_addr_unpack(addr, &pantry_id, &size, &checksum));
+    WT_RET(__wt_block_pantry_addr_unpack(&addr, &pantry_id, &size, &checksum));
 
     return (0);
 }
@@ -104,7 +104,7 @@ __wt_block_pantry_addr_string(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_p
     WT_UNUSED(addr_size);
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_pantry_addr_unpack(addr, &pantry_id, &size, &checksum));
+    WT_RET(__wt_block_pantry_addr_unpack(&addr, &pantry_id, &size, &checksum));
 
     /* Printable representation. */
     WT_RET(__wt_buf_fmt(session, buf, "[%" PRIuMAX "-%" PRIuMAX ", %" PRIu32 ", %" PRIu32 "]",
@@ -122,15 +122,14 @@ int
 __wt_block_pantry_ckpt_pack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf, uint64_t root_id,
   uint32_t root_sz, uint32_t root_checksum)
 {
-    size_t len;
+    /* size_t len; */
     WT_UNUSED(block_pantry);
 
-    /* Pretend there is a root page with ID 0 and size 1024, so it can be unpacked */
     WT_RET(__wt_block_pantry_addr_pack(buf, root_id, root_sz, root_checksum));
     /* Add something fun - because we are fun! */
-    WT_RET(__wt_snprintf_len_set((char *)buf, WT_BLOCK_PANTRY_CHECKPOINT_BUFFER, &len, "%s",
-      "supercalafragalisticexpialadoshus"));
-    *buf += len;
+    /* WT_RET(__wt_snprintf_len_set((char *)buf, WT_BLOCK_PANTRY_CHECKPOINT_BUFFER, &len, "%s", */
+    /*   "supercalafragalisticexpialadoshus")); */
+    /* *buf += len; */
     return (0);
 }
 
@@ -140,18 +139,15 @@ __wt_block_pantry_ckpt_pack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf, uint64
  *     the metadata for the table and used to find the checkpoint again in the future.
  */
 int
-__wt_block_pantry_ckpt_unpack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf)
+__wt_block_pantry_ckpt_unpack(WT_BLOCK_PANTRY *block_pantry, const uint8_t *buf, uint64_t *root_id,
+  uint32_t *root_sz, uint32_t *root_checksum)
 {
-    size_t len;
-    uint64_t pantry_id;
-    uint32_t checksum, size;
     WT_UNUSED(block_pantry);
 
     /* Retrieve the root page information */
-    WT_RET(__wt_block_pantry_addr_unpack(*buf, &pantry_id, &size, &checksum));
+    WT_RET(__wt_block_pantry_addr_unpack(&buf, root_id, root_sz, root_checksum));
     /* Add something fun - because we are fun! */
-    WT_RET(__wt_snprintf_len_set((char *)buf, WT_BLOCK_PANTRY_CHECKPOINT_BUFFER, &len, "%s",
-      "supercalafragalisticexpialadoshus"));
-    *buf += len;
+    /* WT_RET(__wt_snprintf_len_set((char *)buf, WT_BLOCK_PANTRY_CHECKPOINT_BUFFER, &len, "%s", */
+    /*   "supercalafragalisticexpialadoshus")); */
     return (0);
 }
