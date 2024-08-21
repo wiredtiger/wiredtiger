@@ -54,7 +54,8 @@ validate_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
     REQUIRE(curr == nullptr);
 }
 void
-validate_and_free_ext_block(WT_EXT *ext) {
+validate_and_free_ext_block(WT_EXT *ext)
+{
     validate_ext_block(ext);
     free_ext_block(ext);
 }
