@@ -157,6 +157,82 @@ verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &e
     REQUIRE(extlist.bytes == expected_bytes);
 }
 
+/*!
+ * ext_free_list --
+ *    Free a skip list of WT_EXT * for tests.
+ *    Return whether WT_EXTLIST.last was found and freed.
+ *
+ * @param session the session
+ * @param head the skip list
+ * @param last WT_EXTLIST.last
+ */
+bool
+ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last)
+{
+    WT_EXT *extp;
+    bool last_found = false;
+    WT_EXT *next_extp;
+
+    if (head == nullptr)
+        return false;
+
+    /* Free just the top level. Lower levels are duplicates. */
+    extp = head[0];
+    while (extp != nullptr) {
+        if (extp == last)
+            last_found = true;
+        next_extp = extp->next[0];
+        extp->next[0] = nullptr;
+        __wti_block_ext_free(session, extp);
+        extp = next_extp;
+    }
+    return last_found;
+}
+
+/*!
+ * size_free_list --
+ *    Free a skip list of WT_SIZE * for tests.
+ *    Return whether WT_EXTLIST.last was found and freed.
+ *
+ * @param session the session
+ * @param head the skip list
+ */
+void
+size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head)
+{
+    WT_SIZE *sizep;
+    WT_SIZE *next_sizep;
+
+    if (head == nullptr)
+        return;
+
+    /* Free just the top level. Lower levels are duplicates. */
+    sizep = head[0];
+    while (sizep != nullptr) {
+        next_sizep = sizep->next[0];
+        sizep->next[0] = nullptr;
+        __wti_block_size_free(session, sizep);
+        sizep = next_sizep;
+    }
+}
+
+/*!
+ * extlist_free --
+ *    Free the a skip lists of WT_EXTLIST * for tests.
+ *
+ * @param session the session
+ * @param extlist the extent list
+ */
+void
+extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST &extlist)
+{
+    if (!ext_free_list(session, extlist.off, extlist.last) && extlist.last != nullptr) {
+        __wti_block_ext_free(session, extlist.last);
+        extlist.last = nullptr;
+    }
+    size_free_list(session, extlist.sz);
+}
+
 /*
  * break_here --
  *     Make it easier to set a breakpoint within a unit test.
@@ -219,6 +295,9 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 
         /* Verify */
         REQUIRE(__ut_block_off_srch_last(&extlist.off[0], &stack[0]) == extlist.off[0]);
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 
     SECTION("insert multiple extents and retrieve in correct order")
@@ -259,6 +338,9 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         std::vector<off_size> expected_order{insert_list};
         std::sort(expected_order.begin(), expected_order.end(), off_size_Less_off_and_size);
         verify_off_extent_list(extlist, expected_order);
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 }
 
@@ -291,6 +373,9 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 
         /* Verify */
         REQUIRE(__ut_block_off_srch_last(&extlist.off[0], &stack[0]) == extlist.off[0]);
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 
     SECTION("insert multiple extents and retrieve in correct order")
@@ -330,6 +415,9 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         std::vector<off_size> expected_order{insert_list};
         std::sort(expected_order.begin(), expected_order.end(), off_size_Less_off_and_size);
         verify_off_extent_list(extlist, expected_order);
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 }
 
@@ -484,6 +572,9 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
                 REQUIRE(after == nullptr);
             }
         }
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 }
 
@@ -612,6 +703,9 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
             /* Verify */
             REQUIRE(match == expected._match);
         }
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 }
 #endif
@@ -710,6 +804,9 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
             verify_off_extent_list(extlist, test._expected_list, false);
             ++idx;
         }
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 }
 
@@ -812,5 +909,8 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
         /* Verify the result of all calls */
         /* Verify empty extent list */
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
+
+        /* Cleanup */
+        extlist_free(session, extlist);
     }
 }
