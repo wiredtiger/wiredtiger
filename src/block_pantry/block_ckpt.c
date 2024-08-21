@@ -102,10 +102,8 @@ __wt_bmp_checkpoint(
 
 /*
  * __wt_bmp_checkpoint_load --
- *     Load a checkpoint. This involves
- *     (1) cracking the checkpoint cookie open
- *     (2) loading the root page from the object store,
- *     (3) re-packing the root page's address cookie into root_addr.
+ *     Load a checkpoint. This involves (1) cracking the checkpoint cookie open (2) loading the root
+ *     page from the object store, (3) re-packing the root page's address cookie into root_addr.
  */
 int
 __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
@@ -113,9 +111,9 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
 {
     WT_BLOCK_PANTRY *block_pantry;
     WT_FILE_HANDLE *handle;
-    uint8_t *endp;
-    uint32_t root_size, root_checksum;
     uint64_t root_id;
+    uint32_t root_size, root_checksum;
+    uint8_t *endp;
 
     WT_UNUSED(addr_size);
     WT_UNUSED(checkpoint);
@@ -127,8 +125,10 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
 
     WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
 
-    /* TODO I think we don't need this because the caller should call btree_open with the cookie we put back into root_addr */
-    /* WT_RET(__wt_block_pantry_read_internal(session, block_pantry, root_id, root_sz, root_image, root_checksum)); */
+    /* TODO I think we don't need this because the caller should call btree_open with the cookie we
+     * put back into root_addr */
+    /* WT_RET(__wt_block_pantry_read_internal(session, block_pantry, root_id, root_sz, root_image,
+     * root_checksum)); */
 
     /*
      * Pretend there is a root page for this checkpoint - at the moment we don't actually read from
