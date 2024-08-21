@@ -2557,6 +2557,10 @@ static WT_INLINE void __wt_rec_incr(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size);
 static WT_INLINE void __wt_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session,
   WT_UPDATE_SELECT *upd_select, WT_CELL_UNPACK_KV *vpack, WT_RECONCILE *r);
+static WT_INLINE void __wt_ref_ascend(
+  WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp);
+static WT_INLINE void __wt_ref_index_slot(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp);
 static WT_INLINE void __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep);
 static WT_INLINE void __wt_ref_key_clear(WT_REF *ref);
 static WT_INLINE void __wt_ref_key_onpage_set(
