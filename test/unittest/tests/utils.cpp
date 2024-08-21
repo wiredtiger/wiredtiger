@@ -17,6 +17,8 @@ namespace utils {
 /*
  * throwIfNonZero --
  *     Test result. Throw if it is non-zero.
+ *
+ * @param result The value to test.
  */
 void
 throwIfNonZero(int result)
@@ -29,7 +31,9 @@ throwIfNonZero(int result)
 
 /*
  * remove_wrapper --
- *     Delete file with path path.
+ *     Delete a file or a directory.
+ *
+ * @param path The pathname of the file or directory to delete.
  */
 static int
 remove_wrapper(std::string const &path)
@@ -40,6 +44,8 @@ remove_wrapper(std::string const &path)
 /*
  * wiredtigerCleanup --
  *     Delete WiredTiger files in directory home and directory home.
+ *
+ * @param home The directory that contains WiredTiger files.
  */
 void
 wiredtigerCleanup(std::string const &home)
@@ -99,7 +105,8 @@ extlist_print_off(WT_EXTLIST &extlist)
     if (extlist.last != nullptr)
         printf(" {off %" PRId64 ", size %" PRId64 ", depth %" PRIu8 ", next %p}", extlist.last->off,
           extlist.last->size, extlist.last->depth, extlist.last->next);
-    printf("\noff:\n");
+    putc('\n');
+    printf("off:\n");
     ext_print_list(extlist.off);
 }
 
