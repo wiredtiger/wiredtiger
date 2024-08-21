@@ -278,7 +278,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
 
     __wt_verbose_info(
-      session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads are started successfully");
+      session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads started successfully");
 
     return (0);
 }
