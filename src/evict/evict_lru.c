@@ -897,8 +897,8 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
             pos = F_ISSET(ref, WT_REF_FLAG_LEAF) ? WT_NPOS_MID :
               btree->evict_start_type == WT_EVICT_WALK_NEXT ||
                 btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT ?
-                                                   WT_NPOS_NEXT :
-                                                   WT_NPOS_PREV;
+                                                   WT_NPOS_RIGHT :
+                                                   WT_NPOS_LEFT;
             btree->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
         } else {
             if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
@@ -907,10 +907,10 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
             } else {
                 if (btree->evict_start_type == WT_EVICT_WALK_NEXT ||
                   btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
-                    pos = WT_NPOS_NEXT;
+                    pos = WT_NPOS_RIGHT;
                     where = "RIGHT";
                 } else {
-                    pos = WT_NPOS_PREV;
+                    pos = WT_NPOS_LEFT;
                     where = "LEFT";
                 }
             }

@@ -68,9 +68,6 @@ create_btree(WT_CONNECTION *conn)
  *     soft position restores the same page.
  *
  * NOTE!! This is a white box test. It uses functions and types not available in the WiredTiger API.
- *
- * A possibility to reduce the test's flakiness is to traverse all connection's dhandles conn->dhqh
- * and set the btree->evict_disabled flag. This will prevent eviction and page splits.
  */
 static void
 test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
@@ -117,15 +114,14 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
             printf("npos = %f, page_ref = %p\n", npos, (void *)page_ref);
         if (page_ref == NULL)
             break;
-        /* This is a legitimate test but it's flaky because of eviction and sudden page splits */
-        /* !!!
+
         testutil_assertfmt(page_ref != page_ref2,
           "Got the same page twice: %p, npos = %lf, prev_npos = %lf", (void *)page_ref, npos,
           prev_npos);
-        */
+
         prev_npos = npos;
         page_ref2 = page_ref;
-        npos = __wt_page_npos(wt_session, page_ref, (1. + 1e-8), NULL, NULL, 0);
+        npos = __wt_page_npos(wt_session, page_ref, 1. + 1e-5, NULL, NULL, 0);
         testutil_assertfmt(
           npos > prev_npos, "next npos(%lf) must be greater than prev_npos(%lf)", npos, prev_npos);
         WT_WITH_DHANDLE(
@@ -154,15 +150,14 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
             printf("npos = %f, page_ref = %p\n", npos, (void *)page_ref);
         if (page_ref == NULL)
             break;
-        /* This is a legitimate test but it's flaky because of eviction and sudden page splits */
-        /* !!!
+
         testutil_assertfmt(page_ref != page_ref2,
           "Got the same page twice: %p, npos = %lf, prev_npos = %lf", (void *)page_ref, npos,
           prev_npos);
         prev_npos = npos;
-        */
+
         page_ref2 = page_ref;
-        npos = __wt_page_npos(wt_session, page_ref, -1e-8, NULL, NULL, 0);
+        npos = __wt_page_npos(wt_session, page_ref, -1e-5, NULL, NULL, 0);
         testutil_assertfmt(
           npos < prev_npos, "next npos(%lf) must be smaller than prev_npos(%lf)", npos, prev_npos);
         WT_WITH_DHANDLE(
@@ -196,7 +191,7 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
 
         /* Compute the soft position (npos) of the page */
         npos =
-          __wt_page_npos(wt_session, page_ref, 0.5, path_str[count & 1], &path_str_offset, 1024);
+          __wt_page_npos(wt_session, page_ref, WT_NPOS_MID, path_str[count & 1], &path_str_offset, 1024);
         if (verbose > 1)
             printf("key %d: npos = %f, path_str = %s\n", key, npos, path_str[count & 1]);
 
@@ -250,11 +245,15 @@ run(const char *working_dir, bool in_mem)
       in_mem ? "create,in_memory=true,cache_size=1GB" : "create,cache_size=1MB", &conn));
 
     create_btree(conn);
+
     if (verbose)
         printf(" evict\n");
+
     test_normalized_pos(conn, in_mem, __wt_page_from_npos_for_eviction);
+
     if (verbose)
         printf(" read\n");
+
     test_normalized_pos(conn, in_mem, __wt_page_from_npos_for_read);
 
     testutil_check(conn->close(conn, ""));
