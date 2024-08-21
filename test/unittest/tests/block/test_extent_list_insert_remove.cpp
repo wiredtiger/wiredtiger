@@ -445,7 +445,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         search_match(0, 0, false),      // Empty: Before first 0
           search_match(4095, 0, false), // Empty: Just before first 4,095
           search_match(4096, 0, false), // Empty: At the start of first 4,096
-#if 1 // Failed: Verify: 3. Expected: off=8191, size=0, end=8190, match=false; Actual: match = true
+#if 0 // Failed: Verify: 3. Expected: off=8191, size=0, end=8190, match=false; Actual: match = true
           search_match(4096 + 4095, 0, false), // Empty: At end first 8,191
 #endif
           search_match(2 * 4096, 0, false),      // Empty: Just after first 8,192
