@@ -43,7 +43,7 @@ MockSession::buildTestMockSession()
 
 int
 handleWiredTigerError(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int, const char *message)
 {
     handleWiredTigerMessage(handler, session, message);
     return (0);
