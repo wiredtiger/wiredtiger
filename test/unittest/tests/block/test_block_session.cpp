@@ -8,7 +8,7 @@
 
 /*
  * [block_session]: block_session.c
- * The block manager extent list consists of both extent blocks and size blocks. This unit test
+ * The block manager extent list consists of both extent and size type blocks. This unit test
  * suite tests aims to test all of the allocation and frees of the extent and size block functions.
  *
  * The block session manages an internal caching mechanism for both block and size blocks that are
@@ -18,7 +18,6 @@
 #include <catch2/catch.hpp>
 #include "../wrappers/mock_session.h"
 
-// Test unit extent block functions.
 void
 cleanup_ext_list(WT_BLOCK_MGR_SESSION *bms)
 {
