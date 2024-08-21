@@ -105,7 +105,7 @@ extlist_print_off(WT_EXTLIST &extlist)
     if (extlist.last != nullptr)
         printf(" {off %" PRId64 ", size %" PRId64 ", depth %" PRIu8 ", next %p}", extlist.last->off,
           extlist.last->size, extlist.last->depth, extlist.last->next);
-    putc('\n');
+    putchar('\n');
     printf("off:\n");
     ext_print_list(extlist.off);
 }
