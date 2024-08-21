@@ -87,8 +87,8 @@ test_pack_and_unpack_addr_cookie_manual(
     CHECK(packed[1] == expected_packed_vals[1]);
     CHECK(packed[2] == expected_packed_vals[2]);
 
-    unpack_addr_cookie_and_check(
-      begin, block->allocsize, (wt_off_t)cookie_vals[0], (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]);
+    unpack_addr_cookie_and_check(begin, block->allocsize, (wt_off_t)cookie_vals[0],
+      (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]);
 }
 
 TEST_CASE("Block addr pack and unpack", "[block_addr]")
