@@ -310,6 +310,7 @@ conn_stats = [
     CacheStat('cache_eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
+    CacheStat('cache_eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     CacheStat('cache_eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     CacheStat('cache_eviction_server_evict_fail', 'evict page failures by eviction server'),
     # Note cache_eviction_server_evict_attempt - cache_eviction_server_evict_fail = evict page successes by eviction server.
@@ -335,7 +336,6 @@ conn_stats = [
     CacheStat('cache_eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
     CacheStat('cache_eviction_walk_passes', 'eviction passes of a file'),
     CacheStat('cache_eviction_walk_sleeps', 'eviction walk most recent sleeps for checkpoint handle gathering'),
-    CacheStat('cache_eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
     CacheStat('cache_eviction_worker_created', 'eviction worker thread created'),
     CacheStat('cache_eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
