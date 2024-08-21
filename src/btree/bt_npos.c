@@ -217,7 +217,7 @@ restart: /* Restart the search from the root. */
          * case when eviction happened to pause on an internal page and some subsequent internal
          * pages don't have any leafs and also are subject for eviction.
          *
-         * This is a rare case. However, it doesn't lead to completely un-evictable internal pages
+         * This is a rare case. However, it doesn't lead to completely non-evictable internal pages
          * because eviction will eventually reach these pages during other passes.
          */
         if (F_ISSET(current, WT_REF_FLAG_LEAF))

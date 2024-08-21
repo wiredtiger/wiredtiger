@@ -64,6 +64,13 @@
  */
 #define WT_BTREE_MIN_SPLIT_PCT 50
 
+/*
+ * Normalized position constants
+ */
+#define WT_NPOS_MID 0.5           /* Middle of the current page */
+#define WT_NPOS_PREV -1e-15       /* Just before the current page (or previous page) */
+#define WT_NPOS_NEXT (1. + 1e-15) /* Just after the current page (or next page) */
+
 typedef enum __wt_btree_type {
     BTREE_COL_FIX = 1, /* Fixed-length column store */
     BTREE_COL_VAR = 2, /* Variable-length column store */

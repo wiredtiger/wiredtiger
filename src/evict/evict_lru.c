@@ -891,26 +891,26 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
         /*
          * If we're at an internal page, then we've just finished all its leafs, so get the position
          * of the very beginning or the very end of it depending on the direction of walk. For leaf
-         * pages, use the middle of the page (0.5).
+         * pages, use the middle of the page.
          */
         if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
-            pos = F_ISSET(ref, WT_REF_FLAG_LEAF) ? 0.5 :
+            pos = F_ISSET(ref, WT_REF_FLAG_LEAF) ? WT_NPOS_MID :
               btree->evict_start_type == WT_EVICT_WALK_NEXT ||
                 btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT ?
-                                                   1.0 :
-                                                   0.0;
+                                                   WT_NPOS_NEXT :
+                                                   WT_NPOS_PREV;
             btree->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
         } else {
             if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-                pos = 0.5;
+                pos = WT_NPOS_MID;
                 where = "MIDDLE";
             } else {
                 if (btree->evict_start_type == WT_EVICT_WALK_NEXT ||
                   btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
-                    pos = 1.0;
+                    pos = WT_NPOS_NEXT;
                     where = "RIGHT";
                 } else {
-                    pos = 0.0;
+                    pos = WT_NPOS_PREV;
                     where = "LEFT";
                 }
             }
