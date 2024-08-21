@@ -184,7 +184,7 @@ __find_closest_leaf(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
  * NOTE: Must be called within WT_WITH_PAGE_INDEX or WT_ENTER_PAGE_INDEX
  */
 static int
-__page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, double npos)
+__page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, double npos, uint32_t flags)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -313,11 +313,11 @@ done:
  */
 int
 __wt_page_from_npos(
-  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos)
+  WT_SESSION_IMPL *session, WT_REF **refp, double npos, uint32_t read_flags, uint32_t walk_flags)
 {
     WT_DECL_RET;
 
-    WT_WITH_PAGE_INDEX(session, ret = __page_from_npos_internal(session, refp, read_flags, npos));
+    WT_WITH_PAGE_INDEX(session, ret = __page_from_npos_internal(session, refp, npos, read_flags));
     WT_RET(ret);
     /* Return the first good page starting from here */
     return (__find_closest_leaf(session, refp, walk_flags));
@@ -331,10 +331,10 @@ __wt_page_from_npos(
  */
 int
 __wt_page_from_npos_for_eviction(
-  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos)
+  WT_SESSION_IMPL *session, WT_REF **refp, double npos, uint32_t read_flags, uint32_t walk_flags)
 {
-    return (__wt_page_from_npos(session, refp, read_flags | WT_READ_EVICT_READ_FLAGS,
-      walk_flags | WT_READ_EVICT_WALK_FLAGS, npos));
+    return (__wt_page_from_npos(session, refp, npos, read_flags | WT_READ_EVICT_READ_FLAGS,
+      walk_flags | WT_READ_EVICT_WALK_FLAGS));
 }
 
 /*
@@ -345,8 +345,8 @@ __wt_page_from_npos_for_eviction(
  */
 int
 __wt_page_from_npos_for_read(
-  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos)
+  WT_SESSION_IMPL *session, WT_REF **refp, double npos, uint32_t read_flags, uint32_t walk_flags)
 {
     return (__wt_page_from_npos(
-      session, refp, read_flags | WT_READ_DATA_FLAGS, walk_flags | WT_READ_DATA_FLAGS, npos));
+      session, refp, npos, read_flags | WT_READ_DATA_FLAGS, walk_flags | WT_READ_DATA_FLAGS));
 }

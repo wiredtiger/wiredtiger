@@ -1982,7 +1982,7 @@ __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uin
     if (WT_NPOS_IS_INVALID(btree->evict_pos))
         return (0); /* No restore point */
     WT_RET_ONLY(
-      __wt_page_from_npos_for_eviction(session, &btree->evict_ref, 0, walk_flags, btree->evict_pos),
+      __wt_page_from_npos_for_eviction(session, &btree->evict_ref, btree->evict_pos, 0, walk_flags),
       WT_PANIC);
 
     if (btree->evict_ref != NULL &&

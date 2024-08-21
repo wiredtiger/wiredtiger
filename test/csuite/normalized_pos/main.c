@@ -72,7 +72,7 @@ create_btree(WT_CONNECTION *conn)
 static void
 test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
   int (*page_from_npos_fn)(
-    WT_SESSION_IMPL *session, WT_REF **refp, uint32_t read_flags, uint32_t walk_flags, double npos))
+    WT_SESSION_IMPL *session, WT_REF **refp, double npos, uint32_t read_flags, uint32_t walk_flags))
 {
     WT_CURSOR *cursor;
     WT_DATA_HANDLE *dhandle;
@@ -109,7 +109,7 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
     count1 = 0;
     do {
         ++count1;
-        WT_WITH_DHANDLE(wt_session, dhandle, page_from_npos_fn(wt_session, &page_ref, 0, 0, npos));
+        WT_WITH_DHANDLE(wt_session, dhandle, page_from_npos_fn(wt_session, &page_ref, npos, 0, 0));
         if (verbose > 1)
             printf("npos = %f, page_ref = %p\n", npos, (void *)page_ref);
         if (page_ref == NULL)
@@ -145,7 +145,7 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
     do {
         ++count2;
         WT_WITH_DHANDLE(wt_session, dhandle,
-          page_from_npos_fn(wt_session, &page_ref, WT_READ_PREV, WT_READ_PREV, npos));
+          page_from_npos_fn(wt_session, &page_ref, npos, WT_READ_PREV, WT_READ_PREV));
         if (verbose > 1)
             printf("npos = %f, page_ref = %p\n", npos, (void *)page_ref);
         if (page_ref == NULL)
@@ -205,7 +205,7 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
         /* Now find which page npos restores to. We haven't modified the Btree so it should be the
          * exact same page */
         WT_WITH_DHANDLE(wt_session, dhandle,
-          testutil_check(page_from_npos_fn(wt_session, &page_ref2, 0, 0, npos)));
+          testutil_check(page_from_npos_fn(wt_session, &page_ref2, npos, 0, 0)));
 
         if (in_mem)
             testutil_assertfmt(page_ref == page_ref2,
