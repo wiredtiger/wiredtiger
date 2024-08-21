@@ -3159,7 +3159,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->page_size = __wt_get_vm_pagesize();
 
     /* Now that we know if verbose is configured, output the version. */
-    __wt_verbose_info(session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "opening the WiredTiger library");
+    __wt_verbose(session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
 
     /*
      * Open the connection, then reset the local session as the real one was allocated in the open

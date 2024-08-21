@@ -148,15 +148,15 @@ class test_verbose04(test_verbose_base):
     # for specified categories.
     def test_verbose_multiple(self):
         self.close_conn()
-        # Test passing multiple verbose categories, being 'api' & 'all' & 'rts' with different dedicated
+        # Test passing multiple verbose categories, being 'api' & 'all' & 'version' with different dedicated
         # verbosity levels to each category. Ensuring the only verbose output generated is related
         # to those two categories.
-        cfgs = ['api:0,all:1,rts:0', 'rts:0,all,api:0']
+        cfgs = ['api:0,all:1,version:0', 'version:0,all,api:0']
 
-        #all_verbose_categories_except_api_and_version contains all verbose flags except WT_VERB_API and WT_VERB_RTS.
+        #all_verbose_categories_except_api_and_version contains all verbose flags except WT_VERB_API and WT_VERB_VERSION.
         all_verbose_categories_except_api_and_version = self.all_verbose_categories.copy()
         all_verbose_categories_except_api_and_version.remove('WT_VERB_API')
-        all_verbose_categories_except_api_and_version.remove('WT_VERB_RTS')
+        all_verbose_categories_except_api_and_version.remove('WT_VERB_VERSION')
 
         for cfg in cfgs:
             with self.expect_verbose([cfg], all_verbose_categories_except_api_and_version, self.is_json) as conn:
