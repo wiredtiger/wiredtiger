@@ -1987,8 +1987,8 @@ __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uin
 
     if (btree->evict_ref != NULL &&
       WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
-        WT_UNUSED(unused = __wt_page_npos(
-                    session, btree->evict_ref, 0.5, path_str, &path_str_offset, PATH_STR_MAX));
+        WT_UNUSED(unused = __wt_page_npos(session, btree->evict_ref, WT_NPOS_MID, path_str,
+                    &path_str_offset, PATH_STR_MAX));
         __wt_verbose_debug1(session, WT_VERB_EVICTION,
           "Evict walk point recalled from position %lf %s page %s ref %p", btree->evict_pos,
           F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,

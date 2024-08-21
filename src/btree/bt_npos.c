@@ -193,7 +193,7 @@ __page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flag
     WT_REF *current, *descent;
     double npos_local;
     int idx, entries;
-    bool eviction;
+    bool read_cache;
 
     *refp = NULL;
 
@@ -203,7 +203,7 @@ __page_from_npos_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flag
      * This function is called by eviction to find a page in the cache. That case is indicated by
      * the WT_READ_CACHE flag. Ordinary lookups in a tree will read pages into cache as needed.
      */
-    eviction = LF_ISSET(WT_READ_CACHE);
+    read_cache = LF_ISSET(WT_READ_CACHE);
 
 restart: /* Restart the search from the root. */
 
@@ -235,7 +235,7 @@ restart: /* Restart the search from the root. */
         npos_local -= idx;
         descent = pindex->index[idx];
 
-        if (eviction) {
+        if (read_cache) {
             /*
              * In case of eviction, we never want to load pages from disk. Also, page_swap with
              * WT_READ_CACHE will fail anyway and we'll lose our pointer, so avoid making a call
@@ -285,7 +285,7 @@ descend:
             current = descent;
             continue;
         }
-        if (eviction && (ret == WT_NOTFOUND || ret == WT_RESTART))
+        if (read_cache && (ret == WT_NOTFOUND || ret == WT_RESTART))
             goto done;
         if (ret == WT_RESTART) {
             WT_RET(__wt_page_release(session, current, flags));
@@ -299,7 +299,7 @@ done:
      * indicate the end of walk. Also, eviction will never evict the root. Also, returning a NULL is
      * not an error for eviction but a signal to start over. So handle this case individually.
      */
-    if (eviction && __wt_ref_is_root(current)) {
+    if (read_cache && __wt_ref_is_root(current)) {
         WT_RET(__wt_page_release(session, current, flags));
         current = NULL;
     }

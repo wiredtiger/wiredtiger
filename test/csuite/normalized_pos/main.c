@@ -190,8 +190,8 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
         page_ref = ((WT_CURSOR_BTREE *)cursor)->ref;
 
         /* Compute the soft position (npos) of the page */
-        npos =
-          __wt_page_npos(wt_session, page_ref, WT_NPOS_MID, path_str[count & 1], &path_str_offset, 1024);
+        npos = __wt_page_npos(
+          wt_session, page_ref, WT_NPOS_MID, path_str[count & 1], &path_str_offset, 1024);
         if (verbose > 1)
             printf("key %d: npos = %f, path_str = %s\n", key, npos, path_str[count & 1]);
 
@@ -225,12 +225,14 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
 
 /*
  * run --
- *     Create a btree with one key per page. Soft positions work on the in-memory btree, so use an
+ *     Run the test.
+ *
+ * Create a btree with one key per page. Soft positions work on the in-memory btree, so use an
  *     in-memory version of WiredTiger to keep things simple when reasoning about the shape of the
  *     btree.
  *
  * Then, test that a computed npos returns to the same page it was derived from. This assumes no
- *     change the underlying btree during the test.
+ *     change of the underlying btree during the test.
  */
 static void
 run(const char *working_dir, bool in_mem)

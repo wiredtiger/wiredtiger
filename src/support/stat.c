@@ -1545,7 +1545,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction worker thread created",
   "cache: eviction worker thread removed",
   "cache: eviction worker thread stable number",
-  "cache: files with active eviction walks",
   "cache: files with new eviction walks started",
   "cache: force re-tuning of eviction workers once in a while",
   "cache: forced eviction - do not retry count to evict pages selected to evict during "
@@ -2319,7 +2318,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_worker_created = 0;
     stats->cache_eviction_worker_removed = 0;
     /* not clearing cache_eviction_stable_state_workers */
-    /* not clearing cache_eviction_walks_active */
     stats->cache_eviction_walks_started = 0;
     stats->cache_eviction_force_retune = 0;
     stats->cache_eviction_force_no_retry = 0;
@@ -3087,7 +3085,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_worker_removed += WT_STAT_CONN_READ(from, cache_eviction_worker_removed);
     to->cache_eviction_stable_state_workers +=
       WT_STAT_CONN_READ(from, cache_eviction_stable_state_workers);
-    to->cache_eviction_walks_active += WT_STAT_CONN_READ(from, cache_eviction_walks_active);
     to->cache_eviction_walks_started += WT_STAT_CONN_READ(from, cache_eviction_walks_started);
     to->cache_eviction_force_retune += WT_STAT_CONN_READ(from, cache_eviction_force_retune);
     to->cache_eviction_force_no_retry += WT_STAT_CONN_READ(from, cache_eviction_force_no_retry);

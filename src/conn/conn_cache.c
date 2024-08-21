@@ -349,14 +349,6 @@ __wti_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(
       session, stats, cache_eviction_stable_state_workers, cache->evict_tune_workers_best);
 
-    /*
-     * The number of files with active walks ~= number of hazard pointers in the walk session. Note:
-     * reading without locking.
-     */
-    if (__wt_atomic_loadbool(&conn->evict_server_running))
-        WT_STATP_CONN_SET(
-          session, stats, cache_eviction_walks_active, cache->walk_session->hazards.num_active);
-
     WT_STATP_CONN_SET(
       session, stats, rec_maximum_hs_wrapup_milliseconds, conn->rec_maximum_hs_wrapup_milliseconds);
     WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
