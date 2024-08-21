@@ -31,6 +31,7 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
+    bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
     bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
@@ -144,6 +145,36 @@ struct __wt_bucket_storage {
         e;                                                                  \
         (s)->bucket_storage = __saved_bstorage;                             \
     } while (0)
+
+/*
+ * WT_HEURISTIC_CONTROLS --
+ *  Heuristic controls configuration.
+ */
+struct __wt_heuristic_controls {
+    /* Number of btrees processed in the current checkpoint. */
+    wt_shared uint32_t obsolete_tw_btree_count;
+
+    /*
+     * The controls below deal with the cleanup of obsolete time window information. This process
+     * can be configured based on two configuration items, one that is shared among the subsystems
+     * which is the number of btrees and another one which is unique to each subsystem that is
+     * the number of pages.
+     *   - The maximum number of pages per btree to process in a single checkpoint by checkpoint
+     * cleanup.
+     *   - The maximum number of pages per btree to process in a single checkpoint by eviction
+     * threads.
+     *   - The maximum number of btrees to process in a single checkpoint.
+     */
+
+    /* Maximum number of pages that can be processed per btree by checkpoint cleanup. */
+    uint32_t checkpoint_cleanup_obsolete_tw_pages_dirty_max;
+
+    /* Maximum number of pages that can be processed per btree by eviction. */
+    uint32_t eviction_obsolete_tw_pages_dirty_max;
+
+    /* Maximum number of btrees that can be processed per checkpoint. */
+    uint32_t obsolete_tw_btree_max;
+};
 
 /*
  * WT_KEYED_ENCRYPTOR --
@@ -326,8 +357,8 @@ extern const WT_NAME_FLAG __wt_stress_types[];
 
 /*
  * Access the array of all sessions. This field uses the Slotted Array pattern to managed shared
- * accesses, if you are looking to walk all sessions please consider using the existing session walk
- * logic. FIXME-WT-10946 - Add link to Slotted Array docs.
+ * accesses, if you need to walk all sessions please call __wt_session_array_walk. For more details
+ * on this usage pattern see the architecture guide.
  */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
@@ -385,6 +416,8 @@ struct __wt_connection_impl {
     wt_shared const WT_CONFIG_ENTRY **config_entries;
 
     WT_BACKGROUND_COMPACT background_compact; /* Background compaction server */
+
+    WT_HEURISTIC_CONTROLS heuristic_controls; /* Heuristic controls configuration */
 
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
@@ -744,18 +777,19 @@ struct __wt_connection_impl {
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x001u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x002u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x004u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x008u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x010u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x020u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x040u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x080u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x100u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x200u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x400u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x800u
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0002u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0004u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0008u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0010u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0020u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0040u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0080u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0100u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0200u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x0400u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x0800u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x1000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 
@@ -803,21 +837,23 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00001000ull
 #define WT_TIMING_STRESS_HS_SEARCH 0x00002000ull
 #define WT_TIMING_STRESS_HS_SWEEP 0x00004000ull
-#define WT_TIMING_STRESS_PREFETCH_DELAY 0x00008000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00010000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00020000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00040000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00080000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00100000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x00200000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x00400000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x00800000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x01000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x02000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x04000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x08000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x10000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x20000000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x00008000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x00010000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x00020000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00040000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00080000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00100000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00200000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00400000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x00800000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x01000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x02000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x04000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x08000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x10000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x20000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x40000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x80000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -852,7 +888,7 @@ struct __wt_connection_impl {
 #define WT_CONN_CACHE_CURSORS 0x00000002u
 #define WT_CONN_CACHE_POOL 0x00000004u
 #define WT_CONN_CALL_LOG_ENABLED 0x00000008u
-#define WT_CONN_CKPT_CLEANUP_SKIP_INT 0x00000010u
+#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x00000010u
 #define WT_CONN_CKPT_GATHER 0x00000020u
 #define WT_CONN_CKPT_SYNC 0x00000040u
 #define WT_CONN_CLOSING 0x00000080u

@@ -255,6 +255,8 @@ struct __wt_hazard_array;
 typedef struct __wt_hazard_array WT_HAZARD_ARRAY;
 struct __wt_hazard_cookie;
 typedef struct __wt_hazard_cookie WT_HAZARD_COOKIE;
+struct __wt_heuristic_controls;
+typedef struct __wt_heuristic_controls WT_HEURISTIC_CONTROLS;
 struct __wt_ikey;
 typedef struct __wt_ikey WT_IKEY;
 struct __wt_import_entry;
@@ -277,10 +279,6 @@ struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
 typedef struct __wt_log_desc WT_LOG_DESC;
-struct __wt_log_op_desc;
-typedef struct __wt_log_op_desc WT_LOG_OP_DESC;
-struct __wt_log_rec_desc;
-typedef struct __wt_log_rec_desc WT_LOG_REC_DESC;
 struct __wt_log_record;
 typedef struct __wt_log_record WT_LOG_RECORD;
 struct __wt_logslot;
@@ -528,6 +526,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
+#include "futex.h"
 #include "generation.h"
 #include "hazard.h"
 #include "log.h"
@@ -552,6 +551,11 @@ typedef uint64_t wt_timestamp_t;
 #include "extern_win.h"
 #else
 #include "extern_posix.h"
+#ifdef __linux__
+#include "extern_linux.h"
+#elif __APPLE__
+#include "extern_darwin.h"
+#endif
 #endif
 #include "verify_build.h"
 

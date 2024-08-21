@@ -70,11 +70,14 @@ static int
 __rec_append_orig_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
     bool tombstone_globally_visible;
+
+    conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
       upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare,
@@ -105,7 +108,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
           unpack->tw.start_txn == upd->txnid && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -160,7 +163,15 @@ __rec_append_orig_value(
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
-            tombstone->txnid = unpack->tw.stop_txn;
+            /*
+             * When reconciling during recovery, we need to clear the transaction id as we haven't
+             * done so when we read the page into memory to avoid using the transaction id from the
+             * previous run.
+             */
+            if (F_ISSET(conn, WT_CONN_RECOVERING))
+                tombstone->txnid = WT_TXN_NONE;
+            else
+                tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
@@ -190,7 +201,15 @@ __rec_append_orig_value(
           unpack->cell == NULL || __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
         WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
-        append->txnid = unpack->tw.start_txn;
+        /*
+         * When reconciling during recovery, we need to clear the transaction id as we haven't done
+         * so when we read the page into memory to avoid using the transaction id from the previous
+         * run.
+         */
+        if (F_ISSET(conn, WT_CONN_RECOVERING))
+            append->txnid = WT_TXN_NONE;
+        else
+            append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
@@ -461,22 +480,39 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * reconciliations ondisk value that we will be comparing against.
      */
     if (vpack != NULL && !vpack->tw.prepare) {
-        WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts ||
-            prev_upd->durable_ts >= vpack->tw.durable_start_ts,
-          "Durable timestamps cannot be out of order for prepared updates");
-        WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
-            prev_upd->durable_ts >= vpack->tw.durable_stop_ts,
-          "Durable timestamps cannot be out of order for prepared updates");
-        if (prev_upd->start_ts < vpack->tw.start_ts ||
-          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
-            WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
-            return (EBUSY);
-        }
+        if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
+            WT_ASSERT_ALWAYS(session,
+              prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                prev_upd->start_ts == prev_upd->durable_ts ||
+                prev_upd->durable_ts >= vpack->tw.durable_stop_ts,
+              "Stop: Durable timestamps cannot be out of order for prepared updates");
+        else
+            WT_ASSERT_ALWAYS(session,
+              prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                prev_upd->start_ts == prev_upd->durable_ts ||
+                prev_upd->durable_ts >= vpack->tw.durable_start_ts,
+              "Start: Durable timestamps cannot be out of order for prepared updates");
+
+        if (prev_upd->start_ts == WT_TS_NONE) {
+            if (vpack->tw.start_ts != WT_TS_NONE ||
+              (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && vpack->tw.stop_ts != WT_TS_NONE)) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
+                return (EBUSY);
+            }
+        } else
+            /*
+             * Rollback to stable may recover updates from the history store that is out of order to
+             * the on-disk value. Normally these updates have the WT_UPDATE_RESTORED_FROM_HS flag on
+             * them. However, in rare cases, if the newer update becomes globally visible, the
+             * restored update may be removed by the obsolete check. This may lead to an out of
+             * order edge case but it is benign. Check the global visibility of the update and
+             * ignore this case.
+             */
+            WT_ASSERT(session,
+              __wt_txn_upd_visible_all(session, prev_upd) ||
+                (prev_upd->start_ts >= vpack->tw.start_ts &&
+                  (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
+                    prev_upd->start_ts >= vpack->tw.stop_ts)));
     }
 
     return (0);
@@ -594,18 +630,21 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
                 continue;
             } else {
                 /*
-                 * For prepared updates written to the date store in salvage, we write the same
-                 * prepared value to the data store. If there is still content for that key left in
-                 * the history store, rollback to stable will bring it back to the data store.
-                 * Otherwise, it removes the key.
+                 * If we are not in eviction, we must be in salvage to reach here. Since salvage
+                 * only works on data on-disk, the prepared update must be restored from the disk.
+                 * No need for us to rollback the prepared update in salvage here. If there is still
+                 * content for that key left in the history store, rollback to stable will bring it
+                 * back to the data store later. Otherwise, it removes the key.
                  */
                 WT_ASSERT_ALWAYS(session,
                   F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
-                  "rec_upd_select found an in-progress prepared update");
+                  "Should never salvage a prepared update not from disk.");
+                /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
                 WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "rec_upd_select found an in-progress prepared update");
+                  "Should never concurrently resolve a prepared update during reconciliation if we "
+                  "are not in a checkpoint.");
             }
         }
 
@@ -761,7 +800,8 @@ __rec_fill_tw_from_upd_select(
          */
         if (last_upd->next != NULL) {
             WT_ASSERT_ALWAYS(session,
-              last_upd->next->txnid == vpack->tw.start_txn &&
+              last_upd->next->txnid ==
+                  (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE : vpack->tw.start_txn) &&
                 last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
               "Tombstone is globally visible, but the tombstoned update is on the update "

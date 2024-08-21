@@ -632,6 +632,10 @@ connection_runtime_config = [
         Config('update_restore_evict', 'false', r'''
             if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
+        Config('eviction_checkpoint_ts_ordering', 'false', r'''
+            if true, act as if eviction is being run in parallel to checkpoint. We should return 
+            EBUSY in eviction if we detect any timestamp ordering issue.''',
+            type='boolean'),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
@@ -649,7 +653,7 @@ connection_runtime_config = [
                 current eviction load''',
                 min=1, max=20),
             Config('evict_sample_inmem', 'true', r'''
-                If no in-memory ref is found on the root page, attempt to locate a random 
+                If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
             ]),
@@ -730,6 +734,24 @@ connection_runtime_config = [
         the number of milliseconds to wait for a resource to drain before timing out in diagnostic
         mode. Default will wait for 4 minutes, 0 will wait forever''',
         min=0),
+    Config('heuristic_controls', '', r'''
+        control the behavior of various optimizations. This is primarily used as a mechanism for
+        rolling out changes to internal heuristics while providing a mechanism for quickly
+        reverting to prior behavior in the field''',
+        type='category', subconfig=[
+            Config('checkpoint_cleanup_obsolete_tw_pages_dirty_max', '100', r'''
+                maximum number of obsolete time window pages that can be marked as dirty per btree
+                in a single checkpoint by the checkpoint cleanup''',
+                min=0, max=100000),
+            Config('eviction_obsolete_tw_pages_dirty_max', '100', r'''
+                maximum number of obsolete time window pages that can be marked dirty per btree in a
+                single checkpoint by the eviction threads''',
+                min=0, max=100000),
+            Config('obsolete_tw_btree_max', '100', r'''
+                maximum number of btrees that can be checked for obsolete time window cleanup in a
+                single checkpoint''',
+                min=0, max=500000),
+        ]),
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -835,10 +857,10 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prefetch_delay', 'prefix_compare',
-        'prepare_checkpoint_delay', 'prepare_resolution_1','prepare_resolution_2',
-        'sleep_before_read_overflow_onpage','split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2',
+        'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
+        'prepare_resolution_2', 'sleep_before_read_overflow_onpage','split_1', 'split_2',
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -861,6 +883,7 @@ connection_runtime_config = [
             'configuration',
             'error_returns',
             'evict',
+            'eviction',
             'evict_stuck',
             'evictserver',
             'fileops',
@@ -1696,7 +1719,7 @@ methods = {
 'WT_SESSION.verify' : Method([
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
-        or failures. Note: History store validation is disabled when the configuration is set as 
+        or failures. Note: History store validation is disabled when the configuration is set as
         visibility rules may not work correctly because the transaction ids are not cleared.''',
         type='boolean'),
     Config('dump_address', 'false', r'''
@@ -1719,6 +1742,10 @@ methods = {
         type='boolean'),
     Config('dump_layout', 'false', r'''
         Display the layout of the files as they are verified, using the application's message
+        handler, intended for debugging; requires optional support from the block manager''',
+        type='boolean'),
+    Config('dump_tree_shape', 'false', r'''
+        Display the btree shapes as they are verified, using the application's message
         handler, intended for debugging; requires optional support from the block manager''',
         type='boolean'),
     Config('dump_offsets', '', r'''

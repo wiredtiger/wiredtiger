@@ -96,6 +96,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024, V_GLOBAL_CACHE_MINIMUM},
 
+  {"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, UINT_MAX, V_GLOBAL_CACHE_MAXIMUM},
+
   {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_CHECKPOINT},
 
@@ -121,6 +123,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
     V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
+
+  {"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0,
+    V_GLOBAL_DEBUG_BACKGROUND_COMPACT},
 
   {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},

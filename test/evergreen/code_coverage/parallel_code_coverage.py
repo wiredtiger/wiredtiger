@@ -27,12 +27,40 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
+import re
 import json
 import logging
-import os
 import sys
-from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel
+import subprocess
+import os
+from datetime import datetime
+from code_coverage_utils import check_build_dirs, run_task_lists_in_parallel, setup_build_dirs
 
+def run_task(index, task):
+    env = os.environ.copy()
+    build_dir = os.getcwd()
+
+    # GCOV doesn't like it that we have copied the base build directory to construct the other
+    # build directories. GCOV supports cross profiling for reference:
+    # https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
+    # The basic idea is that GCOV_PREFIX_STRIP, indicates how many directory path to strip away
+    # from the absolute path, and the GCOV_PREFIX prepends the directory path. In this case,
+    # we are stripping away /data/mci/wiredtiger/build and then applying the correct build path.
+    path_depth = build_dir.count("/")
+    env["GCOV_PREFIX_STRIP"] = str(path_depth)
+    env["GCOV_PREFIX"] = build_dir
+
+    logging.debug("Running task {} in {}".format(task, build_dir))
+    start_time = datetime.now()
+    try:
+        split_command = task.split()
+        subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+    except subprocess.CalledProcessError as exception:
+        logging.error(f'Command {exception.cmd} failed with error {exception.returncode}')
+    end_time = datetime.now()
+    diff = end_time - start_time
+    logging.debug("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
+    return (task, diff.total_seconds())
 
 def main():
     parser = argparse.ArgumentParser()
@@ -42,12 +70,17 @@ def main():
     parser.add_argument('-s', '--setup', action="store_true",
                         help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
+    parser.add_argument('-u', '--bucket', type=str, help='Run on only python tests in code coverage')
+    parser.add_argument('-o', '--optimize_test_order', action="store_true", help='Review test runtimes and update the test ordering for faster test execution')
     args = parser.parse_args()
 
     verbose = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+    optimize_test_order = args.optimize_test_order
     config_path = args.config_path
     build_dir_base = args.build_dir_base
     parallel_tests = args.parallel
+    bucket = args.bucket
     setup = args.setup
 
     logging.debug('Code Coverage')
@@ -57,6 +90,14 @@ def main():
     logging.debug('  Base name for build directories: {}'.format(build_dir_base))
     logging.debug('  Number of parallel tests:        {}'.format(parallel_tests))
     logging.debug('  Perform setup actions:           {}'.format(setup))
+
+    if (bucket and bucket != "python" and bucket != "other"):
+        sys.exit("Only buckets options \"python\" and \"other\" are allowed")
+
+    # optimize_test_order will rewrite the list of coverage tests. If we use this when running a
+    # subset of tests only that subset will be written and we'll lose the unscheduled tests.
+    if (bucket and optimize_test_order):
+        sys.exit("Analysis mode can not be done with bucket")
 
     if parallel_tests < 1:
         sys.exit("Number of parallel tests must be >= 1")
@@ -77,33 +118,45 @@ def main():
         sys.exit("No setup actions")
 
     logging.debug('  Setup actions: {}'.format(setup_actions))
-
-    build_dirs = check_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests, setup=setup)
-
-    setup_bucket_info = []
-    task_bucket_info = []
-    for build_dir in build_dirs:
-        if setup:
-            if len(os.listdir(build_dir)) > 0:
-                sys.exit("Directory {} is not empty".format(build_dir))
-            setup_bucket_info.append({'build_dir': build_dir, 'task_bucket': config['setup_actions']})
-        task_bucket_info.append({'build_dir': build_dir, 'task_bucket': []})
-
-    if setup:
-        # Perform setup operations
-        run_task_lists_in_parallel(label="setup", task_bucket_info=setup_bucket_info)
+    build_dirs_list = list()
+    if (setup):
+        build_dirs_list = setup_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests, setup_task_list=config['setup_actions'])
+    else:
+        build_dirs_list = check_build_dirs(build_dir_base=build_dir_base, parallel=parallel_tests)
 
     # Prepare to run the tasks in the list
+    task_list = list()
     for test_num in range(len(config['test_tasks'])):
         test = config['test_tasks'][test_num]
-        build_dir_number = test_num % parallel_tests
-        logging.debug("Prepping test [{}] as build number {}: {} ".format(test_num, build_dir_number, test))
-        task_bucket_info[build_dir_number]['task_bucket'].append(test)
+        # We currently have two machines that runs a subset of tests to reduce code coverage time.
+        # To do this we divide the tests into two buckets into either only python tests or
+        # non-python tests. If python is set, only include python tests in the task list.
+        is_python_test = re.search("python", test)
+        if (not is_python_test and bucket == "python"):
+            continue
+        # Else if other is set, only include non-python tests in the task list.
+        elif (is_python_test and bucket == "other"):
+            continue
+        logging.debug("Prepping test {} ".format(test))
+        task_list.append(test)
 
-    logging.debug("task_bucket_info: {}".format(task_bucket_info))
+    logging.debug("task_list: {}".format(task_list))
 
     # Perform task operations in parallel across the build directories
-    run_task_lists_in_parallel(label="tasks", task_bucket_info=task_bucket_info)
+    analyse_test_timings = run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_task, optimize_test_order=optimize_test_order)
+
+    # In analysis mode, we analyze the test and their timings, and sort them in descending order.
+    # Running the shortest tests last decreases the amount of time we spend waiting for the
+    # last thread to finish the last test, reducing overall runtime.
+    if (optimize_test_order):
+        analyse_test_timings.sort(key=lambda tup: tup[1], reverse=True)
+        assert(len(config['test_tasks']) == len(analyse_test_timings))
+        for test_num, (test, _) in enumerate(analyse_test_timings):
+            config['test_tasks'][test_num] = test
+
+        logging.debug("Rewriting test section portion based on sorted list: {}".format(config['test_tasks']))
+        with open(config_path, "w") as jsonFile:
+            json.dump(config, jsonFile, indent=2)
 
 
 if __name__ == '__main__':
