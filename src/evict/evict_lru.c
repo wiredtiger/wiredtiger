@@ -882,6 +882,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
 
     if (clear_pos) {
         btree->evict_pos = WT_NPOS_INVALID;
+        btree->evict_ref_saved = NULL;
     } else {
         /*
          * Remember the last position before clearing it so that we can restart from about the same
@@ -893,6 +894,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
          * of the very beginning or the very end of it depending on the direction of walk. For leaf
          * pages, use the middle of the page.
          */
+        btree->evict_ref_saved = ref;
         if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
             pos = F_ISSET(ref, WT_REF_FLAG_LEAF) ? WT_NPOS_MID :
               btree->evict_start_type == WT_EVICT_WALK_NEXT ||
@@ -1995,6 +1997,9 @@ __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uin
           (void *)btree->evict_ref);
     }
 
+    if (btree->evict_ref_saved != NULL && btree->evict_ref_saved != btree->evict_ref)
+        WT_STAT_CONN_INCR(session, cache_eviction_restored_pos_differ);
+
     return (0);
 #undef PATH_STR_MAX
 }
@@ -2301,6 +2306,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     btree->evict_ref = NULL;
     /* Clear the saved position just in case we never put it back. */
     btree->evict_pos = WT_NPOS_INVALID;
+    btree->evict_ref_saved = NULL;
 
     /*
      * Get the snapshot for the eviction server when we want to evict dirty content under cache

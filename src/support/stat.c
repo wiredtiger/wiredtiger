@@ -1523,6 +1523,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server waiting for a leaf page",
   "cache: eviction state",
   "cache: eviction walk most recent sleeps for checkpoint handle gathering",
+  "cache: eviction walk restored position differs from the saved one",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",
@@ -2296,6 +2297,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_walk_leaf_notfound = 0;
     /* not clearing cache_eviction_state */
     stats->cache_eviction_walk_sleeps = 0;
+    stats->cache_eviction_restored_pos_differ = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
@@ -3053,6 +3055,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_walk_leaf_notfound);
     to->cache_eviction_state += WT_STAT_CONN_READ(from, cache_eviction_state);
     to->cache_eviction_walk_sleeps += WT_STAT_CONN_READ(from, cache_eviction_walk_sleeps);
+    to->cache_eviction_restored_pos_differ +=
+      WT_STAT_CONN_READ(from, cache_eviction_restored_pos_differ);
     to->cache_eviction_target_page_lt10 += WT_STAT_CONN_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_CONN_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 +=

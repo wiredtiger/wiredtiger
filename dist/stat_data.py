@@ -335,6 +335,7 @@ conn_stats = [
     CacheStat('cache_eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
     CacheStat('cache_eviction_walk_passes', 'eviction passes of a file'),
     CacheStat('cache_eviction_walk_sleeps', 'eviction walk most recent sleeps for checkpoint handle gathering'),
+    CacheStat('cache_eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
     CacheStat('cache_eviction_worker_created', 'eviction worker thread created'),
     CacheStat('cache_eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
