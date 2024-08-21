@@ -13,37 +13,6 @@
 #include <iostream>
 #include <vector>
 
-static void
-unpack_int_and_check(std::vector<uint8_t> const &packed, int64_t expectedValue)
-{
-    uint8_t const *p = packed.data();
-    int64_t unpackedValue = 0;
-    REQUIRE(__wt_vunpack_int(&p, packed.size(), &unpackedValue) == 0);
-    REQUIRE(unpackedValue == expectedValue);
-}
-
-static void
-test_pack_and_unpack_ints(
-  std::vector<int64_t> values, std::vector<std::vector<uint8_t>> &expectedPacked)
-{
-    std::vector<std::vector<uint8_t>> packed;
-    packed.push_back({0, 0, 0, 0, 0, 0, 0, 0});
-    packed.push_back({0, 0, 0, 0, 0, 0, 0, 0});
-    packed.push_back({0, 0, 0, 0, 0, 0, 0, 0});
-    uint8_t *p0 = packed[0].data();
-    uint8_t *p1 = packed[1].data();
-    uint8_t *p2 = packed[2].data();
-    REQUIRE(__wt_vpack_int(&p0, packed[0].size(), values[0]) == 0);
-    REQUIRE(__wt_vpack_int(&p1, packed[1].size(), values[1]) == 0);
-    REQUIRE(__wt_vpack_int(&p2, packed[2].size(), values[2]) == 0);
-    CHECK(packed[0] == expectedPacked[0]);
-    CHECK(packed[1] == expectedPacked[1]);
-    CHECK(packed[2] == expectedPacked[2]);
-    unpack_int_and_check(packed[0], values[0]);
-    unpack_int_and_check(packed[1], values[1]);
-    unpack_int_and_check(packed[2], values[2]);
-}
-
 void
 unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize,
   wt_off_t expected_offset, uint32_t expected_size, uint32_t expected_checksum)
@@ -56,13 +25,31 @@ unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize,
     REQUIRE(__wt_vunpack_uint(&packed, 0, &s) == 0);
     REQUIRE(__wt_vunpack_uint(&packed, 0, &c) == 0);
 
-    unpacked_offset = (s > 0) ? (wt_off_t)(o + 1) * block_allocsize : 0;
-    unpacked_size = (s > 0) ? (uint32_t)s * block_allocsize : 0;
-    unpacked_checksum = (s > 0) ? (uint32_t)c : 0;
+    unpacked_offset = (s == 0) ? 0 : (wt_off_t)(o + 1) * block_allocsize;
+    unpacked_size = (s == 0) ? 0 : (uint32_t)s * block_allocsize;
+    unpacked_checksum = (s == 0) ? 0 : (uint32_t)c;
 
     CHECK(unpacked_offset == expected_offset);
     CHECK(unpacked_size == expected_size);
     CHECK(unpacked_checksum == expected_checksum);
+}
+
+static void
+test_pack_and_unpack_addr_cookie(
+  WT_BLOCK *block, std::vector<int64_t> cookie_vals, std::vector<uint8_t> &expected_packed_vals)
+{
+    const uint8_t *begin;
+    std::vector<uint8_t> packed(24, 0);
+    uint8_t *p = packed.data();
+    begin = (const uint8_t *)p;
+    REQUIRE(__wt_block_addr_pack(block, &p, WT_TIERED_OBJECTID_NONE, (wt_off_t)cookie_vals[0],
+              (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]) == 0);
+    CHECK(packed[0] == expected_packed_vals[0]);
+    CHECK(packed[1] == expected_packed_vals[1]);
+    CHECK(packed[2] == expected_packed_vals[2]);
+
+    unpack_addr_cookie_and_check(
+      begin, block->allocsize, cookie_vals[0], cookie_vals[1], cookie_vals[2]);
 }
 
 TEST_CASE("Block addr pack and unpack", "[block_addr]")
@@ -163,11 +150,11 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
     SECTION("Manually pack and unpack address cookie 4")
     {
-        std::vector<int64_t> cookie_values = {7, 7, 42};
-        std::vector<std::vector<uint8_t>> expected_packed_vals;
-        expected_packed_vals.push_back({0x87, 0, 0, 0, 0, 0, 0, 0});
-        expected_packed_vals.push_back({0x87, 0, 0, 0, 0, 0, 0, 0});
-        expected_packed_vals.push_back({0xaa, 0, 0, 0, 0, 0, 0, 0});
-        test_pack_and_unpack_ints(cookie_values, expected_packed_vals);
+        // The block manager will modify these values due to its logic that accounts for large
+        // offsets. The address cookie values that will actually be packed with an allocsize of 1:
+        // {7, 7, 42}.
+        std::vector<int64_t> cookie_vals = {8, 7, 42};
+        std::vector<uint8_t> expected_packed_vals = {0x87, 0x87, 0xaa};
+        test_pack_and_unpack_addr_cookie(bmp->block, cookie_vals, expected_packed_vals);
     }
 }
