@@ -1965,12 +1965,12 @@ __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
 }
 
 /*
- * __try_restore_walk_position --
+ * __evict_try_restore_walk_position --
  *     Try to restore the walk position from saved soft pos. Returns true if the walk position is
  *     restored.
  */
 static WT_INLINE int
-__try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t walk_flags)
+__evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t walk_flags)
 {
 #define PATH_STR_MAX 1024
     char path_str[PATH_STR_MAX];
@@ -2015,7 +2015,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         FLD_SET(*walk_flagsp, WT_READ_VISIBLE_ALL);
 
-    WT_RET(__try_restore_walk_position(session, btree, *walk_flagsp));
+    WT_RET(__evict_try_restore_walk_position(session, btree, *walk_flagsp));
     if (btree->evict_ref != NULL) {
         WT_STAT_CONN_INCR(session, cache_eviction_walk_saved_pos);
         WT_STAT_DSRC_INCR(session, cache_eviction_walk_saved_pos);

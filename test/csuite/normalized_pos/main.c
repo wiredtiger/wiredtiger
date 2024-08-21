@@ -68,6 +68,9 @@ create_btree(WT_CONNECTION *conn)
  *     soft position restores the same page.
  *
  * NOTE!! This is a white box test. It uses functions and types not available in the WiredTiger API.
+ *
+ * A possibility to reduce the test's flakiness is to traverse all connection's dhandles conn->dhqh
+ * and set the btree->evict_disabled flag. This will prevent eviction and page splits.
  */
 static void
 test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
