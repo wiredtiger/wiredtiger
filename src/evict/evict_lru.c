@@ -881,7 +881,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
     btree->evict_ref = NULL;
 
     if (clear_pos) {
-        btree->evict_pos = -1.0;
+        btree->evict_pos = WT_NPOS_INVALID;
     } else {
         /*
          * Remember the last position before clearing it so that we can restart from about the same
@@ -1979,7 +1979,7 @@ __try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t 
 
     if (btree->evict_ref != NULL)
         return (0); /* We've got a pointer already */
-    if (btree->evict_pos < 0.)
+    if (WT_NPOS_IS_INVALID(btree->evict_pos))
         return (0); /* No restore point */
     WT_RET_ONLY(
       __wt_page_from_npos_for_eviction(session, &btree->evict_ref, 0, walk_flags, btree->evict_pos),
@@ -2300,7 +2300,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     ref = btree->evict_ref;
     btree->evict_ref = NULL;
     /* Clear the saved position just in case we never put it back. */
-    btree->evict_pos = -1.0;
+    btree->evict_pos = WT_NPOS_INVALID;
 
     /*
      * Get the snapshot for the eviction server when we want to evict dirty content under cache

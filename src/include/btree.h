@@ -68,8 +68,10 @@
  * Normalized position constants
  */
 #define WT_NPOS_MID 0.5           /* Middle of the current page */
-#define WT_NPOS_PREV -1e-15       /* Just before the current page (or previous page) */
-#define WT_NPOS_NEXT (1. + 1e-15) /* Just after the current page (or next page) */
+#define WT_NPOS_LEFT -1e-8        /* Leftmost position in the current page or previous page */
+#define WT_NPOS_RIGHT (1. + 1e-8) /* Rightmost position in the current page or next page */
+#define WT_NPOS_INVALID -1.0      /* Store this as an invalid position */
+#define WT_NPOS_IS_INVALID(pos) ((pos) < 0.0)
 
 typedef enum __wt_btree_type {
     BTREE_COL_FIX = 1, /* Fixed-length column store */
