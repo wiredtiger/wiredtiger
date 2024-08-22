@@ -1,6 +1,5 @@
-## Describe the problem
-
-## Describe the solution
+## Describe the Problem and Solution
+<!-- Write 2-3 sentences summarising the reasons behind this change (this might be the problem you're solving, or the context around the request) and the solution you take. !-->  
 
 ## Risk & Testing considerations
 What is the risk level of this change (Low / Medium / High)? For Medium / High please elaborate.
