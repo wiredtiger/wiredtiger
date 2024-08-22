@@ -33,6 +33,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_oligarch06.py
 #    Start a second WT that shares the stable content with the first.
 class test_oligarch06(wttest.WiredTigerTestCase):
+    nitems = 100000
 
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
@@ -50,7 +51,6 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
-        nitems = 100000
         leader_create = 'key_format=S,value_format=S,role=leader'
         follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=foo'
         os.mkdir('foo') # Hard coded to match library for now.
