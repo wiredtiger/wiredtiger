@@ -16,5 +16,4 @@ What other testing is relevant for this change? This could include: stress testi
 
 - [ ] I have performed a self-review of my code.
 - [ ] I have made corresponding changes to the documentation (if applicable).
-- [ ] I have added/updated tests that prove my fix is effective or that my feature works.
-- [ ] New and updated tests pass locally with my changes.
+- [ ] I have added/updated tests that demostrate my fix is effective or that my feature works correctly.
