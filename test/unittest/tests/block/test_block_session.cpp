@@ -167,7 +167,9 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         WT_EXT *cached_ext;
 
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
-        // Construct extent cache with one item.
+        // Construct extent cache with one item with junk next.
+        for (int i = 0; i < ext->depth; i++)
+            ext->next[i + ext->depth] = reinterpret_cast<WT_EXT *>(0xdeadbeef);
         bms->ext_cache = ext;
         bms->ext_cache_cnt = 1;
 
@@ -185,7 +187,9 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext2) == 0);
 
-        // Construct extent cache with two items.
+        // Construct extent cache with two items and with one extent with junk next.
+        for (int i = 0; i < ext2->depth; i++)
+            ext2->next[i + ext2->depth] = reinterpret_cast<WT_EXT *>(0xdeadbeef);
         ext->next[0] = ext2;
         bms->ext_cache = ext;
         bms->ext_cache_cnt = 2;
