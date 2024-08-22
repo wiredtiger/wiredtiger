@@ -33,7 +33,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_oligarch04.py
 #    Add enough content to trigger a checkpoint in the stable table.
 class test_oligarch04(wttest.WiredTigerTestCase):
-
+    nitems = 1000000
     uri_base = "test_oligarch04"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
@@ -59,7 +59,7 @@ class test_oligarch04(wttest.WiredTigerTestCase):
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        for i in range(1000000):
+        for i in range(self.nitems):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
@@ -77,5 +77,5 @@ class test_oligarch04(wttest.WiredTigerTestCase):
         while cursor.next() == 0:
             item_count += 1
 
-        self.pr("Retrieved " + str(item_count) + " records. There should be three million")
+        self.assertEqual(item_count, self.nitems * 3)
         cursor.close()

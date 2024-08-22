@@ -1128,7 +1128,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
-#if 0
+#if 1
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false),storage_source=dir_store"));
 #else
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));

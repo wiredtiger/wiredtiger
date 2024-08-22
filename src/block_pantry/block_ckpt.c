@@ -123,6 +123,9 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
 
     *root_addr_sizep = 0;
 
+    if (addr == NULL || addr_size == 0)
+        return (0);
+
     WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
 
     /* TODO I think we don't need this because the caller should call btree_open with the cookie we
