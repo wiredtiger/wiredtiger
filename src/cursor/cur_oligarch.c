@@ -113,13 +113,9 @@ static WT_INLINE int
 __coligarch_enter(WT_CURSOR_OLIGARCH *coligarch, bool reset, bool update)
 {
     WT_DECL_RET;
-    WT_OLIGARCH *oligarch;
     WT_SESSION_IMPL *session;
-    WT_TXN *txn;
 
     session = CUR2S(coligarch);
-    oligarch = (WT_OLIGARCH *)session->dhandle;
-    txn = session->txn;
 
     if (reset) {
         WT_ASSERT(session, !F_ISSET(&coligarch->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
@@ -201,17 +197,14 @@ __coligarch_close_cursors(WT_CURSOR_OLIGARCH *coligarch)
 static int
 __coligarch_open_cursors(WT_CURSOR_OLIGARCH *coligarch, bool update)
 {
-    WT_CURSOR *c, *cursor;
+    WT_CURSOR *c;
     WT_DECL_RET;
     WT_OLIGARCH *oligarch;
     WT_SESSION_IMPL *session;
-    WT_TXN *txn;
     const char *ckpt_cfg[3];
 
     c = &coligarch->iface;
-    cursor = NULL;
     session = CUR2S(coligarch);
-    txn = session->txn;
     oligarch = (WT_OLIGARCH *)session->dhandle;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
@@ -653,12 +646,10 @@ __coligarch_lookup(WT_CURSOR_OLIGARCH *coligarch, WT_ITEM *value)
 {
     WT_CURSOR *c, *cursor;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
     bool found;
 
     c = NULL;
     cursor = &coligarch->iface;
-    session = CUR2S(cursor);
     found = false;
 
     c = coligarch->ingest_cursor;
@@ -749,12 +740,11 @@ __coligarch_search_near(WT_CURSOR *cursor, int *exactp)
     WT_CURSOR_OLIGARCH *coligarch;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int cmp, ingest_cmp, stable_cmp, exact;
+    int cmp, ingest_cmp, stable_cmp;
     bool deleted, ingest_found, stable_found;
 
     closest = NULL;
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
-    exact = 0;
     ingest_cmp = stable_cmp = 0;
     ingest_found = stable_found = false;
 

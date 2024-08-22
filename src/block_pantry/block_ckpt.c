@@ -60,7 +60,6 @@ __wt_bmp_checkpoint(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(tmp);
     WT_DECL_ITEM(tmp2);
-    WT_DECL_RET;
     WT_FILE_HANDLE *handle;
     char *value;
     const char *uri;
@@ -86,7 +85,7 @@ __wt_bmp_checkpoint(
     WT_RET(
       __wt_buf_fmt(session, tmp, "file:%s", &handle->name[2])); /* TODO less hacky way to get URI */
     uri = tmp->data;
-    ret = __wt_metadata_search(session, uri, &value);
+    WT_RET(__wt_metadata_search(session, uri, &value));
 
     WT_RET(
       __wt_buf_fmt(session, tmp2, "%s\n%s\n", uri, value)); /* TODO less hacky way to get URI */
@@ -110,16 +109,15 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
   uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_PANTRY *block_pantry;
-    WT_FILE_HANDLE *handle;
     uint64_t root_id;
     uint32_t root_size, root_checksum;
     uint8_t *endp;
 
+    WT_UNUSED(session);
     WT_UNUSED(addr_size);
     WT_UNUSED(checkpoint);
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
-    handle = block_pantry->fh->handle;
 
     *root_addr_sizep = 0;
 

@@ -1071,12 +1071,10 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
-    const char *metadata;
     const char *oligarch_cfg[4] = {WT_CONFIG_BASE(session, oligarch_meta), config, NULL, NULL};
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
 
     conn = S2C(session);
-    metadata = NULL;
     tablecfg = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));

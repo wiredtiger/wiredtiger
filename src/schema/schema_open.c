@@ -647,13 +647,11 @@ __schema_open_oligarch(WT_SESSION_IMPL *session)
     WT_CONFIG_ITEM cval;
     WT_OLIGARCH *oligarch;
     const char **oligarch_cfg;
-    const char *oligarchname;
 
     WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
       "handle type doesn't match oligarch");
     oligarch = (WT_OLIGARCH *)session->dhandle;
     oligarch_cfg = oligarch->iface.cfg;
-    oligarchname = oligarch->iface.name;
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
