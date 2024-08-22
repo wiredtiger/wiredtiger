@@ -17,16 +17,15 @@ void
 unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize, wt_off_t pack_offset,
   uint32_t pack_size, uint32_t pack_checksum)
 {
-    uint32_t unpacked_size, unpacked_checksum;
-    uint64_t o, s, c;
-    wt_off_t unpacked_offset;
-    c = o = s = 0;
+    uint64_t o = 0, s = 0, c = 0;
     REQUIRE(__wt_vunpack_uint(&packed, 0, &o) == 0);
     REQUIRE(__wt_vunpack_uint(&packed, 0, &s) == 0);
     REQUIRE(__wt_vunpack_uint(&packed, 0, &c) == 0);
 
     // Adjust the unpacked values as the block manager also does this to avoid storing large
     // offsets.
+    uint32_t unpacked_size, unpacked_checksum;
+    wt_off_t unpacked_offset;
     unpacked_offset = (s == 0) ? (wt_off_t)o : (wt_off_t)(o + 1) * block_allocsize;
     unpacked_size = (s == 0) ? (uint32_t)s : (uint32_t)s * block_allocsize;
     unpacked_checksum = (uint32_t)c;
@@ -46,18 +45,17 @@ static void
 test_pack_and_unpack_addr_cookie(
   WT_BLOCK *block, wt_off_t pack_offset, uint32_t pack_size, uint32_t pack_checksum)
 {
-    const uint8_t *begin;
     uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
-    uint32_t checksum, obj_id, size;
-    size_t addr_size;
-    wt_off_t offset;
     pp = p;
 
-    begin = (const uint8_t *)pp;
+    const uint8_t *begin = (const uint8_t *)pp;
     REQUIRE(__wt_block_addr_pack(
               block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
-    addr_size = WT_PTRDIFF(pp, begin);
+    size_t addr_size = WT_PTRDIFF(pp, begin);
     unpack_addr_cookie_and_check(begin, block->allocsize, pack_offset, pack_size, pack_checksum);
+
+    uint32_t checksum, obj_id, size;
+    wt_off_t offset;
 
     // Test the block manager's unpack function.
     REQUIRE(__wt_block_addr_unpack(
@@ -77,10 +75,9 @@ static void
 test_pack_and_unpack_addr_cookie_manual(
   WT_BLOCK *block, std::vector<int64_t> cookie_vals, std::vector<uint8_t> &expected_packed_vals)
 {
-    const uint8_t *begin;
     std::vector<uint8_t> packed(24, 0);
     uint8_t *p = packed.data();
-    begin = (const uint8_t *)p;
+    const uint8_t *begin = (const uint8_t *)p;
     REQUIRE(__wt_block_addr_pack(block, &p, WT_TIERED_OBJECTID_NONE, (wt_off_t)cookie_vals[0],
               (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]) == 0);
     CHECK(packed[0] == expected_packed_vals[0]);
@@ -102,10 +99,8 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
     SECTION("Pack and unpack address cookie 1")
     {
-        uint32_t pack_checksum, pack_size;
-        wt_off_t pack_offset;
-        pack_checksum = pack_size = 0;
-        pack_offset = 0;
+        uint32_t pack_checksum = 0, pack_size = 0;
+        wt_off_t pack_offset = 0;
 
         // Test the block manager's pack function with an address cookie containing all zero fields.
         test_pack_and_unpack_addr_cookie(bmp->block, pack_offset, pack_size, pack_checksum);
@@ -113,11 +108,8 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
     SECTION("Pack and unpack address cookie 2")
     {
-        uint32_t pack_checksum, pack_size;
-        wt_off_t pack_offset;
-        pack_checksum = 1;
-        pack_size = 0;
-        pack_offset = 1;
+        uint32_t pack_checksum = 1, pack_size = 0;
+        wt_off_t pack_offset = 1;
 
         /*
          * Test that packing an address cookie of size 0 just packs 0 into all the fields. The pack
@@ -129,11 +121,8 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
     SECTION("Pack and unpack address cookie 3")
     {
-        uint32_t pack_checksum, pack_size;
-        wt_off_t pack_offset;
-        pack_checksum = 12345;
-        pack_offset = 10;
-        pack_size = 4;
+        uint32_t pack_checksum = 12345, pack_size = 4;
+        wt_off_t pack_offset = 10;
 
         // Test packing an address cookie with mostly non-zero fields.
         test_pack_and_unpack_addr_cookie(bmp->block, pack_offset, pack_size, pack_checksum);
