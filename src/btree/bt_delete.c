@@ -128,6 +128,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         ret = 0;
     }
 
+    /* We cannot mark the ref dirty here as we can race with checkpoint here. Mark it dirty after we
+     * have locked it. */
+
     /*
      * Fast check to see if it's worth locking, then atomically switch the page's state to lock it.
      */
@@ -187,6 +190,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts),
         WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts)))
         goto err;
+
+    /* Mark the ref dirty if we fast delete it. */
+    F_SET(ref, WT_REF_FLAG_DIRTY);
 
     /*
      * This action dirties the parent page: mark it dirty now, there's no future reconciliation of

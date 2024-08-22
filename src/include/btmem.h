@@ -1145,8 +1145,9 @@ struct __wt_ref {
  * depending on it to be "!leaf" instead.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
-#define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
+#define WT_REF_FLAG_DIRTY 0x1u    /* Is the change of the ref persisted */
+#define WT_REF_FLAG_INTERNAL 0x2u /* Page is an internal page */
+#define WT_REF_FLAG_LEAF 0x4u     /* Page is a leaf page */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 

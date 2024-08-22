@@ -13,7 +13,7 @@ static int __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_hs_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
+static int __rec_root_write(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
 static int __rec_split_write(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REC_CHUNK *, WT_ITEM *, bool);
@@ -335,7 +335,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * any more.
      */
     if (__wt_ref_is_root(ref)) {
-        WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
+        WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, ref, flags));
         if (ret != 0)
             goto err;
         return (0);
@@ -465,15 +465,16 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Handle the write of a root page.
  */
 static int
-__rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
+__rec_root_write(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_DECL_RET;
-    WT_PAGE *next;
+    WT_PAGE *page, *next;
     WT_PAGE_INDEX *pindex;
     WT_PAGE_MODIFY *mod;
     WT_REF fake_ref;
     uint32_t i;
 
+    page = ref->page;
     mod = page->modify;
 
     /*
@@ -521,8 +522,8 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
         WT_ASSERT_ALWAYS(
           session, mod->mod_multi[i].disk_image == NULL, "Applying unnecessary error handling");
 
-        WT_ERR(
-          __wt_multi_to_ref(session, next, &mod->mod_multi[i], &pindex->index[i], NULL, false));
+        WT_ERR(__wt_multi_to_ref(
+          session, ref, next, &mod->mod_multi[i], &pindex->index[i], NULL, i == 0, false));
         pindex->index[i]->home = next;
     }
 
@@ -2279,6 +2280,17 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_ERR(__wti_rec_split_finish(session, r));
     WT_ERR(__rec_write_wrapup(session, r, r->page));
     __rec_write_page_status(session, r);
+
+    /*
+     * Mark the ref as dirty here as reconciliation cannot fail after this point.
+     *
+     * This flag should be visible to the parent's next reconciliation. If we are in eviction, the
+     * parent cannot be evicted and checkpoint cannot concurrently run on the same tree. If we are
+     * in a checkpoint, we will checkpoint the parent page later and we cannot evict the parent.
+     * Therefore, we are safe for now to mark the ref here until we want to allow checkpoint and
+     * eviction to run concurrently on the same tree.
+     */
+    F_SET(ref, WT_REF_FLAG_DIRTY);
 
     /* Mark the page's parent and the tree dirty. */
     parent = r->ref->home;
