@@ -872,6 +872,14 @@ err:
     API_END_RET(session, ret);
 }
 
+static int
+__coligarch_modify_check(WT_CURSOR_OLIGARCH *coligarch)
+{
+    if (!((WT_OLIGARCH *)coligarch->dhandle)->leader)
+        return (EINVAL);
+    return (0);
+}
+
 /*
  * __coligarch_put --
  *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
@@ -888,6 +896,8 @@ __coligarch_put(WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key, const WT_ITEM
      * anyway.
      */
     WT_RET(__coligarch_reset_cursors(coligarch, true));
+
+    WT_RET(__coligarch_modify_check(coligarch));
 
     /* If necessary, set the position for future scans. */
     if (position)
@@ -923,6 +933,7 @@ __coligarch_insert(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -971,6 +982,7 @@ __coligarch_update(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -1023,6 +1035,7 @@ __coligarch_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
@@ -1075,6 +1088,7 @@ __coligarch_reserve(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
