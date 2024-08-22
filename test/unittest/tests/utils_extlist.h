@@ -1,0 +1,37 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+#pragma once
+
+#include <string>
+#include <vector>
+
+#include "wt_internal.h"
+
+namespace utils {
+struct off_size {
+    wt_off_t _off;
+    wt_off_t _size;
+
+    off_size(wt_off_t off = 0, wt_off_t size = 0) : _off(off), _size(size) {}
+};
+
+void ext_print_list(WT_EXT **head);
+void extlist_print_off(WT_EXTLIST &extlist);
+WT_EXT *alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0);
+WT_EXT *alloc_new_ext(WT_SESSION_IMPL *session, const off_size &one);
+WT_EXT *get_off_n(const WT_EXTLIST &extlist, uint32_t idx);
+bool ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last);
+void size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head);
+void extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST &extlist);
+void verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack);
+void verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order,
+  bool verify_entries_bytes = true);
+} // namespace utils
+
+bool operator<(const utils::off_size &left, const utils::off_size &right);

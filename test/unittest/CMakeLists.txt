@@ -15,7 +15,6 @@ else()
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
         tests/test_futex.cpp
-        tests/test_mock_session.cpp
         tests/test_pow.cpp
         tests/test_prepare_mod_sort.cpp
         tests/test_reconciliation_tracking.cpp
@@ -25,6 +24,7 @@ else()
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
+        tests/block/test_extent_list_insert_remove.cpp
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
@@ -34,6 +34,7 @@ endif()
 set(unittest_sources
     tests/main.cpp
     tests/utils.cpp
+    tests/utils_extlist.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/item_wrapper.cpp

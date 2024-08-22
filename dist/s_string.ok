@@ -126,6 +126,7 @@ ETIME
 ETIMEDOUT
 EVICTSERVER
 EXTLIST
+EXTLIST's
 EXTSUBPATH
 Encryptor
 Encryptors
@@ -1083,6 +1084,7 @@ nullptr
 num
 numbare
 nvram
+objectid
 offpage
 ok
 oldv
@@ -1325,6 +1327,7 @@ tempdir
 testext
 testutil
 th
+throwIfNonZero
 tid
 timespec
 tinfo
@@ -1406,6 +1409,7 @@ userbad
 usercfg
 usleep
 usr
+ut
 utf
 util
 utils
@@ -1446,6 +1450,7 @@ whitespace
 wiredTiger
 wiredTigerTables
 wiredtiger
+wiredtigerCleanup
 workgen
 wrapup
 writeable
