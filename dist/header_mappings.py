@@ -9,7 +9,7 @@ header_mappings = {
     "block_inline.h": "block",
     "block.h": "block",
     "bloom.h": "bloom",
-    "btmem.h": "btmem",
+    "btmem.h": "btree",
     "btree_cmp_inline.h": "btree",
     "btree_inline.h": "btree",
     "btree.h": "btree",

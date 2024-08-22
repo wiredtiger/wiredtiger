@@ -125,12 +125,7 @@ def get_func_locations():
 # Walk the src/ folder and find all __wt_ or WT_ function calls. Map the module and file of the 
 # function call to the module that the function belongs to in a 
 def build_dependency_graph(func_locations, common_wt_macros) -> nx.DiGraph:
-    # This regex warrants an up front apology. It finds all __wt_ functions or WT_ macro calls 
-    # in the code. From the start:
-    #   (?:__wt|WT)_  means we start with either __wt_ or WT_ and ?: stops the group () from 
-    #                 being captured
-    #   \w+)\(        continues until we see an opening bracket indicating the function call
-    # As a result we capture just the function/macro's name in the capture group
+    # Any call that starts with __wt or WT_ and ends with a (
     function_call_regex = re.compile(r'((?:__wt|WT)_\w+)\(')
 
     graph = nx.DiGraph()
@@ -174,7 +169,7 @@ def build_dependency_graph(func_locations, common_wt_macros) -> nx.DiGraph:
                             # it's not the start of the function_name. Ignore them
                             continue
 
-                        comment_regex = re.compile(r"\s+(\*|//)")
+                        comment_regex = re.compile(r"\s*(\*|//)")
                         if comment_regex.match(line):
                             # This line is a comment
                             continue
@@ -266,6 +261,325 @@ def who_is_used_by(module: str, graph: nx.DiGraph, func_locations):
 
     print(f"\n'{module}' uses {len(modules)} modules calling {len(funcs)} functions.")
 
+def parse_structs_in_file(file_path: str, module_structs, struct_list, field_freq_list):
+
+    # Regex-palooza
+    struct_def_regex = re.compile(r"struct (\w+) \{")     # struct __wt_log {
+    end_of_typedef_regex = re.compile(r"} ([a-zA-Z_]+);") # } wt_thread_t;
+    func_ptr_regex = re.compile(r".*__F\(([^)]+)\)")      # int __F(next)(
+    other_func_ptr_regex = re.compile(r".*\(\*(\w+)\)\(") # bool (*chk_func)(...
+    comment_regex = re.compile(r"\s+(\*|//)") 
+    # Lines like `#define mod_col_update u2.column_leaf.update` that hide a field access
+    hash_define_regex = re.compile(r"#define ([a-z_]+) ([a-zA-Z0-9_.]|->)+$")
+
+    # Capture struct definitions. These can be pointers, pointers to pointers, tables, or 
+    # have multiple fields defined on the same line
+    # I'm making the asumption that definitions are always single line and ends on a semicolon
+    pointer = r"(?:\*+)?"     # **foo
+    table = r"(?:\[[^]]+\])?" # foo[SOME_LEN]
+    repeating_struct_field_regex = re.compile(rf"(?:{pointer}(\w+){table}[,;])+")
+
+    (module, _) = file_path_to_module_and_file(file_path)
+
+    with open(file_path, 'r') as f:
+
+        cur_struct = ""
+        in_struct = False
+        in_typedef_struct = False
+        for line in f:
+            assert(not (in_struct and in_typedef_struct))
+
+            # Strip trailing comments on the same line
+            # WT_VERB_TRANSACTION,          /*!< Transaction messages. */
+            trailing_comment_index = line.find("/*")
+            if trailing_comment_index != -1:
+                line = line[:trailing_comment_index]
+                pass
+
+            if (not in_struct) and (not in_typedef_struct):
+                if match := struct_def_regex.match(line):
+                    cur_struct = match[1]
+                    in_struct = True
+                    if cur_struct in struct_list:
+                        print("Struct found twice!")
+                        exit(1)
+
+                    struct_contents = []
+
+                elif line.startswith("typedef struct {"):
+                    in_typedef_struct = True
+                    struct_contents = []
+                    
+            else:
+                if line.startswith("};"):
+                    assert(in_struct)
+                    module_structs[module].append(cur_struct)
+                    struct_list[cur_struct] = struct_contents
+                    cur_struct = ""
+                    struct_contents = []
+                    in_struct = False
+
+                elif match := end_of_typedef_regex.match(line):
+                    assert(in_typedef_struct)
+                    cur_struct = match[1]
+                    module_structs[module].append(cur_struct)
+                    # TODO -> adding in upper case typename here
+                    struct_list[cur_struct] = struct_contents
+                    cur_struct = ""
+                    struct_contents = []
+                    in_typedef_struct = False
+
+                elif match := hash_define_regex.match(line):
+                    hash_def_field_name = match[1]
+                    field_freq_list[hash_def_field_name] += 1
+                    struct_contents += [hash_def_field_name]
+
+                else:
+                    if comment_regex.match(line):
+                        continue
+
+                    if match := func_ptr_regex.match(line):
+                        field_name = match[1]
+                        field_freq_list[field_name] += 1
+                        struct_contents += [field_name]
+                    elif match := other_func_ptr_regex.match(line):
+                        field_name = match[1]
+                        field_freq_list[field_name] += 1
+                        struct_contents += [field_name]
+                    else:
+            
+                        if ';' not in line:
+                            # not a field or func pointer definition
+                            # Down here because func pointers can break over multiple lines
+                            continue
+
+                        matches = repeating_struct_field_regex.finditer(line)
+                        # False positive on __wt_blkcache_hash in 
+                        # TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
+                        # Ignoring it
+                        n = 0
+                        for match in matches:
+                            n += 1
+                            field_name = match[1]
+                            field_freq_list[field_name] += 1
+                            struct_contents += [field_name]
+                            if line[match.end()] == ';':
+                                break
+
+def build_mappings(module_structs, struct_list, duplicate_field_names):
+        # Build mapping from field to module/file
+    struct_to_module = {}
+    for (module, structs) in module_structs.items():
+        for struct in structs:
+            struct_to_module[struct] = module
+
+    # field to structs
+    field_to_struct = {}
+    for (struct, struct_fields) in struct_list.items():
+        for field in struct_fields:
+            if field in duplicate_field_names:
+                field_to_struct[field] = "MULTIPLE_CANDIDATES"
+            else:
+                field_to_struct[field] = struct
+
+    # Lazy - hard code WT_LSN which is a union
+    # The script doesn't complain about __wt_rand_state so I'll ignore it
+    field_to_struct['l'] = "MULTIPLE_CANDIDATES"
+    field_to_struct['file'] = "__wt_lsn"
+    field_to_struct['offset'] = "MULTIPLE_CANDIDATES"
+    field_to_struct['file_offset'] = "MULTIPLE_CANDIDATES"
+    struct_to_module['__wt_lsn'] = "log"
+
+    # Packed structs
+    field_to_struct["indx"] = "__wt_col_rle"
+    struct_to_module['__wt_col_rle'] = "btree"
+
+    return (struct_to_module, field_to_struct)
+
+# Detecting struct field accesses via regex is a messy job. This function is a list of hacks to ignore false positives.
+# I make zero promises there aren't false positives for false negatives.
+def should_skip_match(line: str, match, used_field) -> bool:
+    following_char = line[match.end()]
+
+    if following_char == '(':
+        # The match is a function
+        return True
+
+    if following_char == '"':
+        # Special case: We've matched against something like
+        # foo = "WT_CACHE.bytes_image"
+        # Here's hoping there's never a foo = "WT_CACHE.bytes.image" in the future
+        return True
+
+    if "WiredTiger." in line: # Well that didn't take long: "WiredTiger.basecfg.set", "WiredTiger.backup.tmp"
+        return True
+
+    if "\"WT_CURSOR.next_random" in line: # Hack
+        return True
+
+    if used_field == "py": # Probably a python filename referenced in a comment. Skip
+        return True
+
+    if used_field == "deleted": # There's a struct defined locally in __wti_rec_col_var it's guaranteed to be local
+        return True
+
+    if "__asm__" in line: # Nope
+        return True
+
+    if "__wt_config_getones" in line: # We might lose a field or two, but the config strings are a massive distraction"
+        return True
+
+    if "__wt_conf_gets_def" in line: # As above
+        return True
+
+    if used_field == "op": # __meta_track defines an inline enum. Not dealing with that
+        return True
+
+    return False
+
+def find_field_uses(my_module: str, struct_to_module, field_to_struct):
+    comment_regex = re.compile(r"^\s*(?:\*|/\*)")
+    # `->foo` or `.foo`, there can be multiple fields one after the other: foo->bar.baz
+    field_use_regex = re.compile(r"(?:\.|->)([a-zA-Z]\w+)")
+    fields_used_in_file_set = defaultdict(set)
+
+    mod_struct_field_used_by = {}
+    my_module_fields_used_in_file_set = defaultdict(set)
+    
+    for file_path in source_files():
+
+        if not file_path.startswith("../src"):
+            continue
+
+        (module, file_name) = file_path_to_module_and_file(file_path)
+
+        if file_name == "queue.h":
+            # ignore. Macros making life hard again (tqh_first->field where field is a macro arg)
+            continue
+
+        if file_name == "stat.h":
+            # We ignore it for definitions above
+            continue
+
+        if module in ["os_common", "os_posix", "os_win"]:
+            # I'm not dealing with all those libc structs
+            # If the os layer is calling WT structs they're on their own
+            continue
+
+        if not file_name.endswith(".h") and not file_name.endswith(".c"):
+            # Death to .S files
+            continue
+
+        with open(file_path, 'r') as f:
+            for line in f:
+                if comment_regex.match(line):
+                    continue
+
+                for match in field_use_regex.finditer(line):
+                    used_field = match.group(1)
+
+                    if should_skip_match(line, match, used_field):
+                        continue
+
+                    owning_struct = field_to_struct[used_field]
+                    if owning_struct == "MULTIPLE_CANDIDATES":
+                        fields_used_in_file_set["These fields belong to multiple structs. Please check them manually"].add(used_field)
+                        if module == my_module:
+                            my_module_fields_used_in_file_set["These fields belong to multiple structs. Please check them manually"].add(used_field)
+                    else:
+                        owning_module = struct_to_module[owning_struct]
+                        fields_used_in_file_set[f"{owning_module}  {owning_struct}"].add(used_field)
+                        if module == my_module:
+                            my_module_fields_used_in_file_set[f"{owning_module}  {owning_struct}"].add(used_field)
+
+                    if owning_struct != "MULTIPLE_CANDIDATES":
+                        owning_module = struct_to_module[owning_struct]
+                        if owning_module not in mod_struct_field_used_by:
+                            mod_struct_field_used_by[owning_module] = {}
+
+                        if owning_struct not in mod_struct_field_used_by[owning_module]:
+                            mod_struct_field_used_by[owning_module][owning_struct] = {}
+
+                        if used_field not in mod_struct_field_used_by[owning_module][owning_struct]:
+                            mod_struct_field_used_by[owning_module][owning_struct][used_field] = set()
+
+                        mod_struct_field_used_by[owning_module][owning_struct][used_field].add(module)
+
+    return mod_struct_field_used_by, my_module_fields_used_in_file_set
+
+def print_fields_and_where_they_are_accessed(my_module: str, module_structs, struct_list, mod_struct_field_used_by, duplicate_field_names):
+    print("==============")
+    print(f"All structs in `{my_module}` and who they are accessed by")
+    print("note: 'not found in usage map!' is probably a script error. This code is pretty jank")
+    print("==============")
+    for struct in sorted(module_structs[my_module]):
+        print(f"\n{struct}")
+        if struct not in mod_struct_field_used_by[my_module]:
+            print("    struct not found! Either its field names are all ambiguous (present in mutiple structs) or not used in the code")
+            continue
+
+        for field in sorted(struct_list[struct]):
+            if field not in mod_struct_field_used_by[my_module][struct]:
+                if field in duplicate_field_names:
+                    print(f"        {field}: present in many structs. Please review manually")    
+                else:
+                    print(f"        {field}: not found in usage map!")
+                continue
+            used_by = mod_struct_field_used_by[my_module][struct][field]
+            assert(len(used_by) > 0)
+            used_by -= {my_module}
+            if used_by == set():
+                print(f"        {field}: is private")
+            else:
+                print(f"        {field}: {used_by}")
+
+def print_struct_fields_used_by(my_module, my_module_fields_used_in_file_set):
+    print()
+    print("=================================")
+    print(f"Struct fields that are accessed by the '{my_module}' module (Disclaimer: This code is *rough*)")
+    print("=================================")
+    for owner in sorted(my_module_fields_used_in_file_set):
+        print(f"\n{owner}:\n     {sorted(my_module_fields_used_in_file_set[owner])}")
+
+
+def find_all_structs(my_module: str, command: str):
+    struct_list = {}
+    field_freq_list = Counter()
+
+    module_structs = defaultdict(list)
+
+    # =====================
+    # Build struct mapping
+    # =====================
+    # Format
+    # module_struct: {module: [struct_name]}
+    # struct_list: {struct_name: [fields]}
+    # duplicate_field_names: set()
+
+    for file_path in source_files():
+        if not file_path.startswith("../src"):
+            continue
+
+        parse_structs_in_file(file_path, module_structs, struct_list, field_freq_list)
+
+    parse_structs_in_file("../src/include/wiredtiger.in", module_structs, struct_list, field_freq_list)
+
+    duplicate_field_names = {}
+    for (field, in_n_structs) in field_freq_list.items():
+        if in_n_structs > 1:
+            duplicate_field_names[field] = field_freq_list[field]
+
+    (struct_to_module, field_to_struct) = build_mappings(module_structs, struct_list, duplicate_field_names)
+    (mod_struct_field_used_by, my_module_fields_used_in_file_set) = find_field_uses(my_module, struct_to_module, field_to_struct)
+
+
+    if command == "who_uses_structs_in":
+        print_fields_and_where_they_are_accessed(my_module, module_structs, struct_list, mod_struct_field_used_by, duplicate_field_names)
+    elif command == "structs_used_by":
+        print_struct_fields_used_by(my_module, my_module_fields_used_in_file_set)
+    else:
+        print(f"Unexpected command for find_all_structs!: {command}")
+        exit(1)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="TODO")
@@ -278,6 +592,18 @@ def parse_args():
     who_is_used_by_parser = subparsers.add_parser(
         'who_is_used_by', help='Who this module is used by')
     who_is_used_by_parser.add_argument('name', type=str, help='module name')
+
+    data_usage_parser = subparsers.add_parser('data_usage', help='')
+    data_usage_parser.add_argument('name', type=str, help='module name')
+
+    who_uses_structs_in_parser = subparsers.add_parser('who_uses_structs_in', help='List a structs in a module, and which fields are used by which other modules')
+    who_uses_structs_in_parser.add_argument('name', type=str, help='module name')
+
+    structs_used_by_parser = subparsers.add_parser('structs_used_by', help='List all structs and their fields that are accessed from inside the specified module')
+    structs_used_by_parser.add_argument('name', type=str, help='module name')
+
+    who_uses_parser = subparsers.add_parser('list_cycles', help='What cycles is this module involved in?')
+    who_uses_parser.add_argument('name', type=str, help='module name')
 
     return parser.parse_args()
 
@@ -292,8 +618,15 @@ def main():
         who_uses(args.name, graph)
     elif args.command == "who_is_used_by":
         who_is_used_by(args.name, graph, func_locations)
+    elif args.command == "list_cycles":
+        for c in nx.simple_cycles(graph, length_bound=5):
+            if args.name in c:
+                print(c)
+    elif args.command == "who_uses_structs_in":
+        find_all_structs(args.name, "who_uses_structs_in")
+    elif args.command == "structs_used_by":
+        find_all_structs(args.name, "structs_used_by")
+
 
 if __name__ == "__main__":
     main()
-
-

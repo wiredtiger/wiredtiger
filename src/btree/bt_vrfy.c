@@ -34,8 +34,8 @@ typedef struct {
     bool read_corrupt;
 
     /* Page layout information. */
-    uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
-      key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
+    uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100];
+    uint64_t key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
 
