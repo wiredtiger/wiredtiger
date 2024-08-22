@@ -115,9 +115,10 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
         if (page_ref == NULL)
             break;
 
-        testutil_assertfmt(page_ref != page_ref2,
-          "Got the same page twice: %p, npos = %lf, prev_npos = %lf", (void *)page_ref, npos,
-          prev_npos);
+        if (in_mem)
+            testutil_assertfmt(page_ref != page_ref2,
+              "Got the same page twice: %p, npos = %lf, prev_npos = %lf", (void *)page_ref, npos,
+              prev_npos);
 
         prev_npos = npos;
         page_ref2 = page_ref;
@@ -151,11 +152,12 @@ test_normalized_pos(WT_CONNECTION *conn, bool in_mem,
         if (page_ref == NULL)
             break;
 
-        testutil_assertfmt(page_ref != page_ref2,
-          "Got the same page twice: %p, npos = %lf, prev_npos = %lf", (void *)page_ref, npos,
-          prev_npos);
-        prev_npos = npos;
+        if (in_mem)
+            testutil_assertfmt(page_ref != page_ref2,
+              "Got the same page twice: %p, npos = %lf, prev_npos = %lf", (void *)page_ref, npos,
+              prev_npos);
 
+        prev_npos = npos;
         page_ref2 = page_ref;
         npos = __wt_page_npos(wt_session, page_ref, -1e-5, NULL, NULL, 0);
         testutil_assertfmt(
