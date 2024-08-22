@@ -2290,7 +2290,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
      * Therefore, we are safe for now to mark the ref here until we want to allow checkpoint and
      * eviction to run concurrently on the same tree.
      */
-    F_SET(ref, WT_REF_FLAG_DIRTY);
+    F_SET(r->ref, WT_REF_FLAG_DIRTY);
 
     /* Mark the page's parent and the tree dirty. */
     parent = r->ref->home;
