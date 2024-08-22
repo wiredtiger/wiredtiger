@@ -168,8 +168,9 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
 
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         // Construct extent cache with one item with junk next.
+        uint64_t addr = 0xdeadbeef;
         for (int i = 0; i < ext->depth; i++)
-            ext->next[i + ext->depth] = reinterpret_cast<WT_EXT *>(0xdeadbeef);
+            ext->next[i + ext->depth] = reinterpret_cast<WT_EXT *>(addr);
         bms->ext_cache = ext;
         bms->ext_cache_cnt = 1;
 
