@@ -15,7 +15,10 @@
 
 #include <catch2/catch.hpp>
 
+#include "utils_extlist.h"
 #include "wt_internal.h"
+
+using namespace utils;
 
 struct ExtentWrapper {
     ExtentWrapper(WT_EXT *raw) : _raw(raw) {}
@@ -144,11 +147,7 @@ TEST_CASE("Extent Lists: block_off_srch_last", "[extent_list]")
     {
         std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
 
-        REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == nullptr);
-
-        for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-            REQUIRE(stack[i] == &head[i]);
-        }
+        verify_empty_extent_list(&head[0], &stack[0]);
     }
 
     SECTION("list with one element has non-empty final element")

@@ -27,20 +27,11 @@
 
 #include "test_util.h"
 #include "../utils.h"
+#include "../utils_extlist.h"
 #include "../wrappers/mock_session.h"
 #include "wt_internal.h"
 
-// Wrappers and Utilities
-/*!
- * An offset, size pair. Two usages: Specify parameters of a test to run, or specify the expected
- * result of a test.
- */
-struct off_size {
-    wt_off_t _off;
-    wt_off_t _size;
-
-    off_size(wt_off_t off = 0, wt_off_t size = 0) : _off(off), _size(size) {}
-};
+using namespace utils;
 
 /*!
  * To sort off_size by _off and _size
@@ -49,221 +40,9 @@ struct {
     bool
     operator()(const off_size &left, const off_size &right)
     {
-        return (
-          (left._off < right._off) || ((left._off == right._off) && (left._size < right._size)));
+        return (left < right);
     }
 } off_size_Less_off_and_size;
-
-#if 0
-/*!
- * To sort off_size by just _off.
- */
-struct
-{
-    bool operator()(const off_size& left, const off_size& right) {
-    return (left._off < right._off);
-    }
-} off_size_Less_off;
-#endif
-
-/*!
- * alloc_new_ext --
- *     Allocate and initialize a WT_EXT structure for tests. Require that the allocation succeeds. A
- *     convenience wrapper for __wti_block_ext_alloc().
- *
- * @param off The offset.
- * @param size The size.
- */
-WT_EXT *
-alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0)
-{
-    WT_EXT *ext;
-    REQUIRE(__wti_block_ext_alloc(session, &ext) == 0);
-    ext->off = off;
-    ext->size = size;
-
-#ifdef DEBUG
-    printf("Allocated WT_EXT %p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 ", depth %" PRIu8
-           ", next[0] %p}\n",
-      ext, ext->off, ext->size, (ext->off + ext->size - 1), ext->depth, ext->next[0]);
-    fflush(stdout);
-#endif
-
-    return ext;
-}
-
-/*!
- * alloc_new_ext --
- *     Allocate and initialize a WT_EXT structure for tests. Require that the allocation succeeds. A
- *     convenience wrapper for __wti_block_ext_alloc().
- *
- * @param off_size The offset and the size.
- */
-WT_EXT *
-alloc_new_ext(WT_SESSION_IMPL *session, const off_size &one)
-{
-    return alloc_new_ext(session, one._off, one._size);
-}
-
-// WT_EXTLIST operations
-/*
- * get_off_n --
- *     Get the nth level [0] member of a WT_EXTLIST's offset skiplist. Use case: Scan the offset
- *     skiplist to verify the contents.
- */
-WT_EXT *
-get_off_n(const WT_EXTLIST &extlist, uint32_t idx)
-{
-    REQUIRE(idx < extlist.entries);
-    if ((extlist.last != nullptr) && (idx == (extlist.entries - 1))) {
-        return extlist.last;
-    }
-    return extlist.off[idx];
-}
-
-/*!
- * verify_off_extent_list --
- *     Verify the offset skiplist of a WT_EXTLIST is as expected. Also optionally verify the entries
- *     and bytes of a WT_EXTLIST are as expected.
- *
- * @param extlist the extent list to verify
- * @param expected_order the expected offset skip list
- * @param verify_entries_bytes whether to verify entries and bytes
- */
-void
-verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order,
-  bool verify_entries_bytes = true)
-{
-    REQUIRE(extlist.entries == expected_order.size());
-    uint32_t idx = 0;
-    uint64_t expected_bytes = 0;
-    for (const off_size &expected : expected_order) {
-        WT_EXT *ext = get_off_n(extlist, idx);
-#ifdef DEBUG
-        printf("Verify: %" PRIu32 ". Expected: {off %" PRId64 ", size %" PRId64 ", end %" PRId64
-               "}; Actual: %p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n",
-          idx, expected._off, expected._size, (expected._off + expected._size - 1), ext, ext->off,
-          ext->size, (ext->off + ext->size - 1));
-        fflush(stdout);
-#endif
-        REQUIRE(ext->off == expected._off);
-        REQUIRE(ext->size == expected._size);
-        ++idx;
-        expected_bytes += ext->size;
-    }
-    if (!verify_entries_bytes)
-        return;
-    REQUIRE(extlist.entries == idx);
-    REQUIRE(extlist.bytes == expected_bytes);
-}
-
-/*!
- * ext_free_list --
- *    Free a skip list of WT_EXT * for tests.
- *    Return whether WT_EXTLIST.last was found and freed.
- *
- * @param session the session
- * @param head the skip list
- * @param last WT_EXTLIST.last
- */
-bool
-ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last)
-{
-    WT_EXT *extp;
-    bool last_found = false;
-    WT_EXT *next_extp;
-
-    if (head == nullptr)
-        return false;
-
-    /* Free just the top level. Lower levels are duplicates. */
-    extp = head[0];
-    while (extp != nullptr) {
-        if (extp == last)
-            last_found = true;
-        next_extp = extp->next[0];
-        extp->next[0] = nullptr;
-        __wti_block_ext_free(session, extp);
-        extp = next_extp;
-    }
-    return last_found;
-}
-
-/*!
- * size_free_list --
- *    Free a skip list of WT_SIZE * for tests.
- *    Return whether WT_EXTLIST.last was found and freed.
- *
- * @param session the session
- * @param head the skip list
- */
-void
-size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head)
-{
-    WT_SIZE *sizep;
-    WT_SIZE *next_sizep;
-
-    if (head == nullptr)
-        return;
-
-    /* Free just the top level. Lower levels are duplicates. */
-    sizep = head[0];
-    while (sizep != nullptr) {
-        next_sizep = sizep->next[0];
-        sizep->next[0] = nullptr;
-        __wti_block_size_free(session, sizep);
-        sizep = next_sizep;
-    }
-}
-
-/*!
- * extlist_free --
- *    Free the a skip lists of WT_EXTLIST * for tests.
- *
- * @param session the session
- * @param extlist the extent list
- */
-void
-extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST &extlist)
-{
-    if (!ext_free_list(session, extlist.off, extlist.last) && extlist.last != nullptr) {
-        __wti_block_ext_free(session, extlist.last);
-        extlist.last = nullptr;
-    }
-    size_free_list(session, extlist.sz);
-}
-
-/*
- * break_here --
- *     Make it easier to set a breakpoint within a unit test.
- *
- * Functions generated for TEST_CASE() have undocumented names. Call break_here via BREAK at the
- *     start of a TEST_CASE() and then set a gdb breakpoint via "break break_here".
- */
-void
-break_here(const char *file, const char *func, int line)
-{
-    printf(">> %s line %d: %s\n", file, line, func);
-    fflush(stdout);
-}
-#define BREAK break_here(__FILE__, __func__, __LINE__)
-
-// Test specific
-/*!
- * verify_empty_extent_list --
- *     Verify an extent list is empty. This was derived from the tests for __block_off_srch_last.
- *
- * @param head the extlist
- * @param stack the stack for appending returned by __block_off_srch_last
- */
-void
-verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack)
-{
-    REQUIRE(__ut_block_off_srch_last(&head[0], &stack[0]) == nullptr);
-    for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-        REQUIRE(stack[i] == &head[i]);
-    }
-}
 
 TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 {
@@ -289,7 +68,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         REQUIRE(__ut_block_ext_insert(session, &extlist, first) == 0);
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
@@ -330,7 +109,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
@@ -367,7 +146,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 4096) == 0);
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
@@ -407,7 +186,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
@@ -456,7 +235,6 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
-        /* Verify __block_off_srch_pair for the above offsets. */
         WT_EXT dummy;
         for (const wt_off_t &test : test_list) {
 #ifdef DEBUG
@@ -514,12 +292,11 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
         /* Test */
-        /* Verify __block_srch_pair() versus expected_before_after */
         WT_EXT dummy;
         uint32_t idx = 0;
         for (const search_before_after &expected : expected_before_after) {
@@ -644,7 +421,6 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
-        /* Verify __block_off_match for the above offsets. */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call */
@@ -682,12 +458,11 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
         /* Test */
-        /* Verify __block_off_match versus expected_match */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call */
@@ -796,7 +571,7 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
             printf("%d. Insert/merge: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", idx,
               test._off_size._off, test._off_size._size,
               (test._off_size._off + test._off_size._size - 1));
-            utils::extlist_print_off(extlist);
+            extlist_print_off(extlist);
             fflush(stdout);
 #endif
 
@@ -869,7 +644,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
         }
 
 #ifdef DEBUG
-        utils::extlist_print_off(extlist);
+        extlist_print_off(extlist);
         fflush(stdout);
 #endif
 
@@ -879,7 +654,6 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
         verify_off_extent_list(extlist, expected_order);
 
         /* Test */
-        /* Remove extents and verify */
         WT_BLOCK block;
         memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
         int idx = 0;
@@ -897,7 +671,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
             }
 #ifdef DEBUG
             printf("%d. Remove: off %" PRId64 "\n", idx, test._off);
-            utils::extlist_print_off(extlist);
+            extlist_print_off(extlist);
             fflush(stdout);
 #endif
 

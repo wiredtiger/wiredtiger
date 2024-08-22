@@ -10,13 +10,11 @@
 
 #include <string>
 
-#include "wt_internal.h"
-
 #define DB_HOME "test_db"
 
 namespace utils {
-void ext_print_list(WT_EXT **head);
-void extlist_print_off(WT_EXTLIST &extlist);
+#define BREAK utils::break_here(__FILE__, __func__, __LINE__)
+void break_here(const char *file, const char *func, int line);
 void throwIfNonZero(int result);
 void wiredtigerCleanup(const std::string &db_home);
 } // namespace utils

@@ -65,49 +65,16 @@ wiredtigerCleanup(std::string const &home)
 }
 
 /*
- * ext_print_list --
- *     Print a skip list of WT_EXT *.
+ * break_here --
+ *     Make it easier to set a breakpoint within a unit test.
+ *
+ * Functions generated for TEST_CASE() have undocumented names. Call break_here via BREAK at the
+ *     start of a TEST_CASE() and then set a gdb breakpoint via "break break_here".
  */
 void
-ext_print_list(WT_EXT **head)
+break_here(const char *file, const char *func, int line)
 {
-    WT_EXT *extp;
-    int i;
-
-    if (head == nullptr)
-        return;
-
-    for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-        printf("L%d: ", i);
-
-        extp = head[i];
-        while (extp != nullptr) {
-            printf("%p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "} -> ", extp, extp->off,
-              extp->size, (extp->off + extp->size - 1));
-            extp = extp->next[i];
-        }
-
-        printf("X\n");
-    }
+    printf(">> %s line %d: %s\n", file, line, func);
+    fflush(stdout);
 }
-
-/*
- * extlist_print_off --
- *     Print an WT_EXTLIST and it's off skip list.
- */
-void
-extlist_print_off(WT_EXTLIST &extlist)
-{
-    printf("{name %s, bytes %" PRIu64 ", entries %" PRIu32 ", objectid %" PRIu32 ", offset %" PRId64
-           ", checksum 0x%" PRIu32 ", size %" PRIu32 ", track_size %s, last %p",
-      extlist.name, extlist.bytes, extlist.entries, extlist.objectid, extlist.offset,
-      extlist.checksum, extlist.size, extlist.track_size ? "true" : "false", extlist.last);
-    if (extlist.last != nullptr)
-        printf(" {off %" PRId64 ", size %" PRId64 ", depth %" PRIu8 ", next %p}", extlist.last->off,
-          extlist.last->size, extlist.last->depth, extlist.last->next);
-    putchar('\n');
-    printf("off:\n");
-    ext_print_list(extlist.off);
-}
-
 } // namespace utils
