@@ -2319,6 +2319,34 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
     btree = S2BT(session);
     mod = page->modify;
 
+    WT_RET(__wti_ovfl_track_wrapup(session, page));
+
+    if (mod->previous_m.multi_entries > 0) {
+        for (multi = mod->previous_m.multi, i = 0; i < mod->previous_m.multi_entries;
+             ++multi, ++i) {
+            if (btree->type == BTREE_ROW)
+                __wt_free(session, multi->key);
+
+            WT_ASSERT(session, multi->disk_image == NULL);
+            WT_ASSERT(session, multi->supd == NULL);
+
+            /*
+             * If the page was re-written free the backing disk blocks used in the previous write.
+             * The page may instead have been a disk image with associated saved updates: ownership
+             * of the disk image is transferred when rewriting the page in-memory and there may not
+             * have been saved updates. We've gotten this wrong a few times, so use the existence of
+             * an address to confirm backing blocks we care about, and free any disk image/saved
+             * updates.
+             */
+            if (multi->addr.addr != NULL) {
+                WT_RET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
+                __wt_free(session, multi->addr.addr);
+            }
+        }
+        __wt_free(session, mod->previous_m.multi);
+        mod->previous_m.multi_entries = 0;
+    }
+
     /*
      * A page that split is being reconciled for the second, or subsequent time; discard underlying
      * block space used in the last reconciliation that is not being reused for this reconciliation.
@@ -2679,6 +2707,32 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     WT_RET(__wti_ovfl_track_wrapup(session, page));
 
+    if (mod->previous_m.multi_entries > 0) {
+        for (multi = mod->previous_m.multi, i = 0; i < mod->previous_m.multi_entries;
+             ++multi, ++i) {
+            if (btree->type == BTREE_ROW)
+                __wt_free(session, multi->key);
+
+            WT_ASSERT(session, multi->disk_image == NULL);
+            WT_ASSERT(session, multi->supd == NULL);
+
+            /*
+             * If the page was re-written free the backing disk blocks used in the previous write.
+             * The page may instead have been a disk image with associated saved updates: ownership
+             * of the disk image is transferred when rewriting the page in-memory and there may not
+             * have been saved updates. We've gotten this wrong a few times, so use the existence of
+             * an address to confirm backing blocks we care about, and free any disk image/saved
+             * updates.
+             */
+            if (multi->addr.addr != NULL) {
+                WT_RET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
+                __wt_free(session, multi->addr.addr);
+            }
+        }
+        __wt_free(session, mod->previous_m.multi);
+        mod->previous_m.multi_entries = 0;
+    }
+
     /*
      * This page may have previously been reconciled, and that information is now about to be
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
@@ -2705,6 +2759,15 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                                /*
                                 * Discard the multiple replacement blocks.
                                 */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            /* Only free the disk image and saved updates. */
+            __wt_free(session, multi->disk_image);
+            __wt_free(session, multi->supd);
+        }
+        mod->previous_m.multi = mod->mod_multi;
+        mod->previous_m.multi_entries = mod->mod_multi_entries;
+        mod->mod_multi_entries = 0;
+
         WT_RET(__rec_split_discard(session, page));
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
