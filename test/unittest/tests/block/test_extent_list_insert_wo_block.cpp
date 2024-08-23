@@ -49,8 +49,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         BREAK;
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
+        WT_EXTLIST extlist = {};
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
@@ -83,8 +82,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
+        WT_EXTLIST extlist = {};
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
@@ -125,8 +123,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         BREAK;
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
+        WT_EXTLIST extlist = {};
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
@@ -158,8 +155,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
+        WT_EXTLIST extlist = {};
         verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
