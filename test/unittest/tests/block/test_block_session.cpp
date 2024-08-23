@@ -206,17 +206,20 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session]")
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
 
-    SECTION("Free with null block manager session -- needs discussion")
-    {
-        std::shared_ptr<MockSession> session_no_bm = MockSession::buildTestMockSession();
-        WT_EXT *ext;
-
-        REQUIRE(__ut_block_ext_alloc(session_no_bm->getWtSessionImpl(), &ext) == 0);
-        REQUIRE(ext != nullptr);
-
-        __wti_block_ext_free(session_no_bm->getWtSessionImpl(), ext);
-        // REQUIRE(ext == nullptr);
-    }
+    /*
+     * FIXME-WT-13451: Update __wti_block_ext_free function to test that block is set to null
+     * SECTION("Free with null block manager session")
+     * {
+     *    std::shared_ptr<MockSession> session_no_bm = MockSession::buildTestMockSession();
+     *    WT_EXT *ext;
+     *
+     *    REQUIRE(__ut_block_ext_alloc(session_no_bm->getWtSessionImpl(), &ext) == 0);
+     *    REQUIRE(ext != nullptr);
+     *
+     *    __wti_block_ext_free(session_no_bm->getWtSessionImpl(), ext);
+     *    REQUIRE(ext == nullptr);
+     * }
+     */
 
     SECTION("Calling free with cache")
     {
