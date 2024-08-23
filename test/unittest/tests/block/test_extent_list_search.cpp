@@ -12,12 +12,10 @@
  * Test extent list search functions: __block_off_srch_pair, and __block_off_match.
  */
 
-/* Choose one */
-#define DEBUG /* Print debugging output */
-//#undef DEBUG
-
 #include <algorithm>
 #include <memory>
+#include <sstream>
+#include <string>
 
 #include <catch2/catch.hpp>
 
@@ -59,17 +57,12 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Test */
         WT_EXT dummy;
         for (const wt_off_t &test : test_list) {
-#ifdef DEBUG
-            printf("Search: off %" PRId64 "\n", test);
-            fflush(stdout);
-#endif
+            INFO("Search: off " << test);
             /* Set to an invalid value to determine whether __block_off_srch_pair changed them. */
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
@@ -106,61 +99,59 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
-#ifdef DEBUG
-            printf("Insert: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", to_insert._off,
-              to_insert._size, (to_insert._off + to_insert._size - 1));
-            fflush(stdout);
-#endif
+            INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
+                                 << ", end " << to_insert.end() << "}");
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Test */
         WT_EXT dummy;
         uint32_t idx = 0;
+        std::ostringstream line_stream;
+
         for (const search_before_after &expected : expected_before_after) {
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
             /* Call */
             __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
-#ifdef DEBUG
-            printf("Verify: %" PRIu32 ". off %" PRId64, idx, expected._off);
+
+            line_stream.clear();
+            line_stream << "Verify: " << idx << ". off " << expected._off;
             if (expected._before != nullptr)
-                printf("; Expected: _before: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}",
-                  expected._before->_off, expected._before->_size,
-                  (expected._before->_off + expected._before->_size - 1));
+                line_stream << "; Expected: _before: {off " << expected._before->_off << ", size "
+                            << expected._before->_size << ", end " << expected._before->end()
+                            << "}";
             else
-                printf("; Expected: _before == nullptr");
+                line_stream << "; Expected: _before == nullptr";
+
             if (expected._after != nullptr)
-                printf(", after: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}",
-                  expected._after->_off, expected._after->_size,
-                  (expected._after->_off + expected._after->_size - 1));
+                line_stream << ", after: {off " << expected._after->_off << ", size "
+                            << expected._after->_size << ", end " << expected._after->end() << "}";
             else
-                printf(", after == nullptr");
+                line_stream << ", after == nullptr";
 
             if (before != nullptr)
-                printf("; Actual: before: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}",
-                  before->off, before->size, (before->off + before->size - 1));
+                line_stream << "; Actual: before: {off " << before->off << ", size " << before->size
+                            << ", end " << (before->off + before->size - 1) << "}";
             else
-                printf("; Actual: before == nullptr");
+                line_stream << "; Actual: before == nullptr";
+
             if (after != nullptr)
-                printf(", after: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n",
-                  after->off, after->size, (after->off + after->size - 1));
+                line_stream << ", after: {off " << after->off << ", size " << after->size
+                            << ", end " << (after->off + after->size - 1) << "}";
             else
-                printf(", _after == nullptr\n");
-            fflush(stdout);
+                line_stream << ", _after == nullptr";
+
+            std::string line = line_stream.str();
+            INFO(line);
+
             ++idx;
-#endif
             /* Verify */
             if (expected._before != nullptr) {
                 REQUIRE(before != nullptr);
@@ -194,6 +185,16 @@ struct search_match {
     bool _match;
 
     search_match(wt_off_t off, wt_off_t size, bool match) : _off(off), _size(size), _match(match) {}
+
+    /*!
+     * end --
+     *     Return the end of the closed interval represented by _off and _size.
+     */
+    wt_off_t
+    end(void) const
+    {
+        return (_off + _size - 1);
+    }
 };
 
 TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
@@ -245,23 +246,20 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         BREAK;
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Test */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call */
             bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
-#ifdef DEBUG
-            printf("Verify: %" PRIu32 ". Expected: {off %" PRId64 ", size %" PRId64 ", end %" PRId64
-                   "}, match false; Actual: match %s\n",
-              idx, expected._off, expected._size, (expected._off + expected._size - 1),
-              match ? "true" : "false");
-            fflush(stdout);
+
+            const char *match_str = match ? "true" : "false";
+            INFO("Verify: " << idx << ". Expected: {off " << expected._off << ", size "
+                            << expected._size << ", end " << expected.end()
+                            << "}, match false; Actual: match " << match_str);
+
             ++idx;
-#endif
             /* Verify: All should be not found. */
             REQUIRE(match == false);
         }
@@ -272,38 +270,29 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         BREAK;
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
-#ifdef DEBUG
-            printf("Insert: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", to_insert._off,
-              to_insert._size, (to_insert._off + to_insert._size - 1));
-            fflush(stdout);
-#endif
+            INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
+                                 << ", end " << to_insert.end() << "}");
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Test */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call */
             bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
-#ifdef DEBUG
-            printf("Verify: %" PRIu32 ". Expected: {off %" PRId64 ", size %" PRId64 ", end %" PRId64
-                   "}, match %s; Actual: match %s\n",
-              idx, expected._off, expected._size, (expected._off + expected._size - 1),
-              expected._match ? "true" : "false", match ? "true" : "false");
-            fflush(stdout);
+
+            const char *match_str = match ? "true" : "false";
+            INFO("Verify: " << idx << ". Expected: {off " << expected._off << ", size "
+                            << expected._size << ", end " << expected.end()
+                            << "}, match false; Actual: match " << match_str);
+
             ++idx;
-#endif
             /* Verify */
             REQUIRE(match == expected._match);
         }
