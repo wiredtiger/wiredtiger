@@ -17,16 +17,18 @@ void
 unpack_addr_cookie_and_check(const uint8_t *packed, uint32_t block_allocsize, wt_off_t pack_offset,
   uint32_t pack_size, uint32_t pack_checksum)
 {
-    uint64_t o = 0, s = 0, c = 0;
-    REQUIRE(__wt_vunpack_uint(&packed, 0, &o) == 0);
-    REQUIRE(__wt_vunpack_uint(&packed, 0, &s) == 0);
-    REQUIRE(__wt_vunpack_uint(&packed, 0, &c) == 0);
+    uint64_t offset = 0, size = 0, checksum = 0;
+    REQUIRE(__wt_vunpack_uint(&packed, 0, &offset) == 0);
+    REQUIRE(__wt_vunpack_uint(&packed, 0, &size) == 0);
+    REQUIRE(__wt_vunpack_uint(&packed, 0, &checksum) == 0);
 
     // Adjust the unpacked values as the block manager also does this to avoid storing large
     // offsets.
-    wt_off_t unpacked_offset = (s == 0) ? (wt_off_t)o : (wt_off_t)(o + 1) * block_allocsize;
-    uint32_t unpacked_size = (s == 0) ? (uint32_t)s : (uint32_t)s * block_allocsize;
-    uint32_t unpacked_checksum = (uint32_t)c;
+    wt_off_t unpacked_offset = (size == 0) ? static_cast<wt_off_t>(offset) :
+                                             static_cast<wt_off_t>(offset + 1) * block_allocsize;
+    uint32_t unpacked_size =
+      (size == 0) ? static_cast<uint32_t>(size) : static_cast<uint32_t>(size) * block_allocsize;
+    uint32_t unpacked_checksum = static_cast<uint32_t>(checksum);
 
     if (pack_size != 0) {
         CHECK(unpacked_offset == pack_offset);
@@ -44,22 +46,18 @@ static void
 test_pack_addr_cookie(uint8_t *pp, WT_BLOCK *block, size_t *addr_size, wt_off_t pack_offset,
   uint32_t pack_size, uint32_t pack_checksum)
 {
-    const uint8_t *begin = (const uint8_t *)pp;
+    const uint8_t *begin = static_cast<const uint8_t *>(pp);
     REQUIRE(__wt_block_addr_pack(
               block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
     *addr_size = WT_PTRDIFF(pp, begin);
     unpack_addr_cookie_and_check(begin, block->allocsize, pack_offset, pack_size, pack_checksum);
 }
 
-// Test the block manager's unpack function.
+// Check that the unpacked values of a block's address cookie match the values we expected to pack.
 static void
-test_unpack_addr_cookie(const uint8_t *begin, WT_BLOCK *block, size_t addr_size,
-  wt_off_t pack_offset, uint32_t pack_size, uint32_t pack_checksum)
+check_block_addr(wt_off_t offset, wt_off_t pack_offset, uint32_t size, uint32_t pack_size,
+  uint32_t checksum, uint32_t pack_checksum)
 {
-    uint32_t checksum, obj_id, size;
-    wt_off_t offset;
-    REQUIRE(__wt_block_addr_unpack(
-              NULL, block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
     if (size != 0) {
         CHECK(offset == pack_offset);
         CHECK(size == pack_size);
@@ -71,6 +69,18 @@ test_unpack_addr_cookie(const uint8_t *begin, WT_BLOCK *block, size_t addr_size,
     }
 }
 
+// Test the block manager's unpack function.
+static void
+test_unpack_addr_cookie(const uint8_t *begin, WT_BLOCK *block, size_t addr_size,
+  wt_off_t pack_offset, uint32_t pack_size, uint32_t pack_checksum)
+{
+    uint32_t checksum, obj_id, size;
+    wt_off_t offset;
+    REQUIRE(__wt_block_addr_unpack(
+              NULL, block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+    check_block_addr(offset, pack_offset, size, pack_size, checksum, pack_checksum);
+}
+
 static void
 test_pack_and_unpack_addr_cookie(
   WT_BLOCK *block, wt_off_t pack_offset, uint32_t pack_size, uint32_t pack_checksum)
@@ -78,7 +88,7 @@ test_pack_and_unpack_addr_cookie(
     uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
     pp = p;
 
-    const uint8_t *begin = (const uint8_t *)pp;
+    const uint8_t *begin = static_cast<const uint8_t *>(pp);
     size_t addr_size;
 
     test_pack_addr_cookie(pp, block, &addr_size, pack_offset, pack_size, pack_checksum);
@@ -91,15 +101,16 @@ test_pack_and_unpack_addr_cookie_manual(
 {
     std::vector<uint8_t> packed(24, 0);
     uint8_t *p = packed.data();
-    const uint8_t *begin = (const uint8_t *)p;
-    REQUIRE(__wt_block_addr_pack(block, &p, WT_TIERED_OBJECTID_NONE, (wt_off_t)cookie_vals[0],
-              (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]) == 0);
+    const uint8_t *begin = static_cast<const uint8_t *>(p);
+    REQUIRE(__wt_block_addr_pack(block, &p, WT_TIERED_OBJECTID_NONE,
+              static_cast<wt_off_t>(cookie_vals[0]), static_cast<uint32_t>(cookie_vals[1]),
+              static_cast<uint32_t>(cookie_vals[2])) == 0);
     CHECK(packed[0] == expected_packed_vals[0]);
     CHECK(packed[1] == expected_packed_vals[1]);
     CHECK(packed[2] == expected_packed_vals[2]);
 
-    unpack_addr_cookie_and_check(begin, block->allocsize, (wt_off_t)cookie_vals[0],
-      (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]);
+    unpack_addr_cookie_and_check(begin, block->allocsize, static_cast<wt_off_t>(cookie_vals[0]),
+      static_cast<uint32_t>(cookie_vals[1]), static_cast<uint32_t>(cookie_vals[2]));
 }
 
 TEST_CASE("Block addr pack and unpack", "[block_addr]")
@@ -114,10 +125,8 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
     // Test the block manager's pack function with an address cookie containing all zero fields.
     SECTION("Pack and unpack address cookie 1")
     {
-        uint32_t pack_checksum = 0, pack_size = 0;
-        wt_off_t pack_offset = 0;
-
-        test_pack_and_unpack_addr_cookie(bmp->block, pack_offset, pack_size, pack_checksum);
+        // (0, 0, 0) -> (offset, size, checksum)
+        test_pack_and_unpack_addr_cookie(bmp->block, 0, 0, 0);
     }
 
     /*
@@ -127,19 +136,15 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
      */
     SECTION("Pack and unpack address cookie 2")
     {
-        uint32_t pack_checksum = 1, pack_size = 0;
-        wt_off_t pack_offset = 1;
-
-        test_pack_and_unpack_addr_cookie(bmp->block, pack_offset, pack_size, pack_checksum);
+        // (1, 0, 1) -> (offset, size, checksum)
+        test_pack_and_unpack_addr_cookie(bmp->block, 1, 0, 1);
     }
 
     // Test packing an address cookie with mostly non-zero fields.
     SECTION("Pack and unpack address cookie 3")
     {
-        uint32_t pack_checksum = 12345, pack_size = 4;
-        wt_off_t pack_offset = 10;
-
-        test_pack_and_unpack_addr_cookie(bmp->block, pack_offset, pack_size, pack_checksum);
+        // (10 ,4, 12345) -> (offset, size, checksum)
+        test_pack_and_unpack_addr_cookie(bmp->block, 10, 4, 12345);
     }
 
     // Test the block manager's packing function against hardcoded values rather than relying on
@@ -164,9 +169,9 @@ TEST_CASE("Block addr pack and unpack", "[block_addr]")
 
         std::vector<uint8_t> packed(24, 0);
         uint8_t *p = packed.data();
-        REQUIRE(
-          __wt_block_addr_pack(bmp->block, &p, WT_TIERED_OBJECTID_NONE, (wt_off_t)cookie_vals[0],
-            (uint32_t)cookie_vals[1], (uint32_t)cookie_vals[2]) == 0);
+        REQUIRE(__wt_block_addr_pack(bmp->block, &p, WT_TIERED_OBJECTID_NONE,
+                  static_cast<wt_off_t>(cookie_vals[0]), static_cast<uint32_t>(cookie_vals[1]),
+                  static_cast<uint32_t>(cookie_vals[2])) == 0);
         CHECK(packed[0] != expected_packed_vals[0]);
         CHECK(packed[1] != expected_packed_vals[1]);
         CHECK(packed[2] != expected_packed_vals[2]);
