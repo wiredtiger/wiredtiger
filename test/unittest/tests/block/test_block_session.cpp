@@ -179,7 +179,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
 
     SECTION("Allocate with two extents in cache ")
     {
-        WT_EXT *ext, ext2;
+        WT_EXT *ext, *ext2;
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext2) == 0);
 
