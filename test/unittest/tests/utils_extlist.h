@@ -23,6 +23,15 @@ struct off_size {
     wt_off_t _size;
 
     off_size(wt_off_t off = 0, wt_off_t size = 0) : _off(off), _size(size) {}
+    /*!
+     * end --
+     *     Return the end of the closed interval represented by _off and _size.
+     */
+    wt_off_t
+    end(void) const
+    {
+        return (_off + _size - 1);
+    }
 };
 
 void ext_print_list(WT_EXT **head);
