@@ -14,6 +14,10 @@
 #include "wt_internal.h"
 
 namespace utils {
+/*!
+ * An offset (_off) and a size (_size) of a WT_EXT for two use cases: specifying a test setup or an
+ * expected result.
+ */
 struct off_size {
     wt_off_t _off;
     wt_off_t _size;
