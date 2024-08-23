@@ -41,12 +41,11 @@ void
 validate_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
 {
     REQUIRE(bms != nullptr);
-    WT_EXT *curr = bms->ext_cache;
-
     if (bms->ext_cache_cnt == 0)
         REQUIRE(bms->ext_cache == nullptr);
 
     REQUIRE(bms->ext_cache_cnt == expected_items);
+    WT_EXT *curr = bms->ext_cache;
     for (int i = 0; i < expected_items; i++) {
         validate_ext_block(curr);
         curr = curr->next[0];
@@ -81,10 +80,9 @@ validate_and_free_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
 TEST_CASE("Block session: __block_ext_alloc", "[block_session]")
 {
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
-    WT_EXT *ext = nullptr;
-
     __wt_random_init(&session->getWtSessionImpl()->rnd);
 
+    WT_EXT *ext = nullptr;
     REQUIRE(__ut_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
     validate_and_free_ext_block(ext);
 }
@@ -135,8 +133,8 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
     SECTION("Allocate with null block manager session and no extent cache")
     {
         std::shared_ptr<MockSession> session_test_bm = MockSession::buildTestMockSession();
-        WT_EXT *ext;
 
+        WT_EXT *ext;
         REQUIRE(__wti_block_ext_alloc(session_test_bm->getWtSessionImpl(), &ext) == 0);
         validate_and_free_ext_block(ext);
 
@@ -148,13 +146,13 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
     SECTION("Allocate with fake zero cache extent count")
     {
         WT_EXT *ext;
-        WT_EXT *cached_ext;
 
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         // Construct extent cache with one item.
         bms->ext_cache = ext;
         bms->ext_cache_cnt = 0;
 
+        WT_EXT *cached_ext;
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &cached_ext) == 0);
         REQUIRE(cached_ext == ext);
         validate_and_free_ext_list(bms, 0);
@@ -164,7 +162,6 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
     SECTION("Allocate with one extent in cache")
     {
         WT_EXT *ext;
-        WT_EXT *cached_ext;
 
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         // Construct extent cache with one item with junk next.
@@ -174,6 +171,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         bms->ext_cache = ext;
         bms->ext_cache_cnt = 1;
 
+        WT_EXT *cached_ext;
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &cached_ext) == 0);
         REQUIRE(cached_ext == ext);
         validate_and_free_ext_block(ext);
@@ -181,10 +179,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
 
     SECTION("Allocate with two extents in cache ")
     {
-        WT_EXT *ext;
-        WT_EXT *ext2;
-        WT_EXT *cached_ext;
-
+        WT_EXT *ext, ext2;
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &ext2) == 0);
 
@@ -193,6 +188,7 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session]")
         bms->ext_cache = ext;
         bms->ext_cache_cnt = 2;
 
+        WT_EXT *cached_ext;
         REQUIRE(__wti_block_ext_alloc(session->getWtSessionImpl(), &cached_ext) == 0);
         REQUIRE(ext == cached_ext);
         REQUIRE(ext2 != cached_ext);
@@ -224,8 +220,6 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session]")
     SECTION("Calling free with cache")
     {
         WT_EXT *ext;
-        WT_EXT *ext2;
-
         REQUIRE(__ut_block_ext_alloc(session->getWtSessionImpl(), &ext) == 0);
 
         __wti_block_ext_free(session->getWtSessionImpl(), ext);
@@ -234,6 +228,7 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session]")
         REQUIRE(bms->ext_cache == ext);
         validate_ext_list(bms, 1);
 
+        WT_EXT *ext2;
         REQUIRE(__ut_block_ext_alloc(session->getWtSessionImpl(), &ext2) == 0);
         __wti_block_ext_free(session->getWtSessionImpl(), ext2);
 
