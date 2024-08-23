@@ -126,6 +126,9 @@ get_off_n(const WT_EXTLIST &extlist, uint32_t idx)
 {
     REQUIRE(idx < extlist.entries);
     if ((extlist.last != nullptr) && (idx == (extlist.entries - 1))) {
+        WT_EXT *last = extlist.off[idx];
+        if (last != nullptr)
+            REQUIRE(last == extlist.last);
         return extlist.last;
     }
     return extlist.off[idx];
