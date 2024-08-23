@@ -6,7 +6,10 @@
  * See the file LICENSE for redistribution information.
  */
 
-// This file unit tests block manager functions relating to packing and unpacking address cookies.
+/*
+ * [block_addr]: block_addr.c
+ * This file unit tests block manager functions relating to packing and unpacking address cookies.
+ */
 
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
