@@ -472,11 +472,6 @@ struct __wt_page_modify {
 #define mod_row_update u2.row_leaf.update
     } u2;
 
-    struct {
-        WT_MULTI *multi;        /* Multiple replacement blocks */
-        uint32_t multi_entries; /* Multiple blocks element count */
-    } previous_m;
-
     /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 

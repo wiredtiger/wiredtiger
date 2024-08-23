@@ -158,22 +158,6 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* In some failed-split cases, we can't discard updates. */
     update_ignore = F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE);
 
-    if (mod->previous_m.multi_entries > 0) {
-        for (multi = mod->previous_m.multi, i = 0; i < mod->previous_m.multi_entries;
-             ++multi, ++i) {
-            switch (page->type) {
-            case WT_PAGE_ROW_INT:
-            case WT_PAGE_ROW_LEAF:
-                __wt_free(session, multi->key.ikey);
-                break;
-            }
-            /* We only remember the multi address for now. */
-            WT_ASSERT(session, multi->supd == NULL);
-            WT_ASSERT(session, multi->disk_image == NULL);
-            __wt_free(session, multi->addr.addr);
-        }
-    }
-
     switch (mod->rec_result) {
     case WT_PM_REC_MULTIBLOCK:
         /* Free list of replacement blocks. */
