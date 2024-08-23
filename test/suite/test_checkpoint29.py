@@ -31,7 +31,7 @@ import wiredtiger, wttest
 # test_checkpoint29.py
 #
 # Test opening a checkpoint cursor after bulk operations.
-@wttest.skip_for_hook("tiered", "Fails with tiered")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
 
     def test_checkpoint(self):
