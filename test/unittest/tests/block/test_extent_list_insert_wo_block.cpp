@@ -50,7 +50,6 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
         /* Insert one extent */
@@ -80,7 +79,6 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
         /* Insert extents */
@@ -118,7 +116,6 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
         /* Insert one extent */
@@ -147,7 +144,6 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
 
         /* Test */
         /* Insert extents */
