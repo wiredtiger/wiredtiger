@@ -241,7 +241,6 @@ def function_scoping():
             module = parts[2]
         else:
             module = parts[1]
-            
 
         # Porting layer contains duplicate function names across platforms. So treat as a single
         # module to avoid false duplicates below.
