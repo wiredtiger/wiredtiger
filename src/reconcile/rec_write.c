@@ -13,7 +13,7 @@ static int __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_hs_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static int __rec_root_write(WT_SESSION_IMPL *, WT_REF *, uint32_t);
+static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
 static int __rec_split_write(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REC_CHUNK *, WT_ITEM *, bool);
@@ -335,7 +335,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * any more.
      */
     if (__wt_ref_is_root(ref)) {
-        WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, ref, flags));
+        WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
         if (ret != 0)
             goto err;
         return (0);
@@ -465,16 +465,15 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Handle the write of a root page.
  */
 static int
-__rec_root_write(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 {
     WT_DECL_RET;
-    WT_PAGE *page, *next;
+    WT_PAGE *next;
     WT_PAGE_INDEX *pindex;
     WT_PAGE_MODIFY *mod;
     WT_REF fake_ref;
     uint32_t i;
 
-    page = ref->page;
     mod = page->modify;
 
     /*
@@ -523,7 +522,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
           session, mod->mod_multi[i].disk_image == NULL, "Applying unnecessary error handling");
 
         WT_ERR(__wt_multi_to_ref(
-          session, ref, next, &mod->mod_multi[i], &pindex->index[i], NULL, i == 0, false));
+          session, NULL, next, &mod->mod_multi[i], &pindex->index[i], NULL, false, false));
         pindex->index[i]->home = next;
     }
 
