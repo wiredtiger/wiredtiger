@@ -116,8 +116,8 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
             /* Call */
             REQUIRE(__ut_block_merge(
                       session, &block, &extlist, test._off_size._off, test._off_size._size) == 0);
-            INFO("" << idx << ". Insert/merge: {off " << test._off_size._off << ", size "
-                    << test._off_size._size << ", end %" << test._off_size.end() << "}");
+            INFO("After " << idx << ". Insert/merge: {off " << test._off_size._off << ", size "
+                          << test._off_size._size << ", end %" << test._off_size.end() << "}");
 
             utils::extlist_print_off(extlist);
 
@@ -207,7 +207,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
                 __wti_block_ext_free(session, ext);
             }
 
-            INFO("" << idx << ". Remove: off " << test._off);
+            INFO("After " << idx << ". Remove: off " << test._off);
             extlist_print_off(extlist);
 
             /* Verify */
@@ -274,8 +274,8 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
             REQUIRE(__ut_block_append(
                       session, &block, &extlist, test._off_size._off, test._off_size._size) == 0);
 
-            INFO("" << idx << ". Append: {off " << test._off_size._off << ", size "
-                    << test._off_size._size << ", end " << test._off_size.end() << "}");
+            INFO("After " << idx << ". Append: {off " << test._off_size._off << ", size "
+                          << test._off_size._size << ", end " << test._off_size.end() << "}");
             utils::extlist_print_off(extlist);
 
             /* Verify */
