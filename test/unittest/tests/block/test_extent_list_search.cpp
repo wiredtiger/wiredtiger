@@ -122,7 +122,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
 
             line_stream.clear();
-            line_stream << "Verify: " << idx << ". off " << expected._off;
+            line_stream << "After " << idx << ". Verify: off " << expected._off;
             if (expected._before != nullptr)
                 line_stream << "; Expected: _before: {off " << expected._before->_off << ", size "
                             << expected._before->_size << ", end " << expected._before->end()
