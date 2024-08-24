@@ -13,10 +13,6 @@
  * __block_extend, and __block_append.
  */
 
-/* Choose one */
-#define DEBUG /* Print debugging output */
-//#undef DEBUG
-
 #include <algorithm>
 #include <memory>
 
@@ -41,10 +37,9 @@ struct {
     }
 } off_size_Less_off_and_size;
 
-
 /*!
- * A test (_off_size) and the expected value (_expected_list) for operations that need an off_size to modify a
- * WT_EXTLIST
+ * A test (_off_size) and the expected value (_expected_list) for operations that need an off_size
+ * to modify a WT_EXTLIST
  */
 struct off_size_expected {
     off_size _off_size;
@@ -106,13 +101,10 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Empty block */
-        WT_BLOCK block;
-        memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
+        WT_BLOCK block = {};
         block.name = "__block_merge";
         block.allocsize = 1024;
         block.size = 4096; // Description information
@@ -124,13 +116,10 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
             /* Call */
             REQUIRE(__ut_block_merge(
                       session, &block, &extlist, test._off_size._off, test._off_size._size) == 0);
-#ifdef DEBUG
-            printf("%d. Insert/merge: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", idx,
-              test._off_size._off, test._off_size._size,
-              (test._off_size._off + test._off_size._size - 1));
+            INFO("" << idx << ". Insert/merge: {off " << test._off_size._off << ", size "
+                    << test._off_size._size << ", end %" << test._off_size.end() << "}");
+
             utils::extlist_print_off(extlist);
-            fflush(stdout);
-#endif
 
             /* Verify */
             verify_off_extent_list(extlist, test._expected_list, false);
@@ -186,24 +175,16 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
-#ifdef DEBUG
-            printf("Insert: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", to_insert._off,
-              to_insert._size, (to_insert._off + to_insert._size - 1));
-            fflush(stdout);
-#endif
+            INFO("Insert: {off " << to_insert._off << ", size " << to_insert._size << ", end "
+                                 << to_insert.end() << "}n");
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Verify extents */
         std::vector<off_size> expected_order{insert_list};
@@ -211,8 +192,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
         verify_off_extent_list(extlist, expected_order);
 
         /* Test */
-        WT_BLOCK block;
-        memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
+        WT_BLOCK block = {};
         int idx = 0;
         for (const off_expected &test : test_list) {
             /* For testing, half request ext returned, and half do not. */
@@ -226,11 +206,9 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
                 REQUIRE(ext != nullptr);
                 __wti_block_ext_free(session, ext);
             }
-#ifdef DEBUG
-            printf("%d. Remove: off %" PRId64 "\n", idx, test._off);
+
+            INFO("" << idx << ". Remove: off " << test._off);
             extlist_print_off(extlist);
-            fflush(stdout);
-#endif
 
             /* Verify */
             verify_off_extent_list(extlist, test._expected_list, false);
@@ -281,12 +259,9 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
-        WT_BLOCK block;
-        memset(reinterpret_cast<void *>(&block), 0, sizeof(block));
+        WT_BLOCK block = {};
         block.name = "__block_append";
         block.allocsize = 1024;
         block.size = 4096; // Description information
@@ -298,13 +273,10 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
             /* Call */
             REQUIRE(__ut_block_append(
                       session, &block, &extlist, test._off_size._off, test._off_size._size) == 0);
-#ifdef DEBUG
-            printf("%d. Append: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", idx,
-              test._off_size._off, test._off_size._size,
-              (test._off_size._off + test._off_size._size - 1));
+
+            INFO("" << idx << ". Append: {off " << test._off_size._off << ", size "
+                    << test._off_size._size << ", end " << test._off_size.end() << "}");
             utils::extlist_print_off(extlist);
-            fflush(stdout);
-#endif
 
             /* Verify */
             verify_off_extent_list(extlist, test._expected_list, true);
