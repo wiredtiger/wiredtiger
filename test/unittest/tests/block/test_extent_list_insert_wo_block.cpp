@@ -12,10 +12,6 @@
  * Test insert functions without block: __block_ext_insert, and __block_off_insert.
  */
 
-/* Choose one */
-#define DEBUG /* Print debugging output */
-//#undef DEBUG
-
 #include <algorithm>
 #include <memory>
 
@@ -53,9 +49,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         BREAK;
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Test */
         /* Insert one extent */
@@ -63,10 +57,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Call */
         REQUIRE(__ut_block_ext_insert(session, &extlist, first) == 0);
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Verify */
         REQUIRE(__ut_block_off_srch_last(&extlist.off[0], &stack[0]) == extlist.off[0]);
@@ -87,27 +78,19 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Test */
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
-#ifdef DEBUG
-            printf("Insert: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", to_insert._off,
-              to_insert._size, (to_insert._off + to_insert._size - 1));
-            fflush(stdout);
-#endif
+            INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
+                                 << ", end " << to_insert.end() << "}");
             WT_EXT *insert_ext = alloc_new_ext(session, to_insert);
             /* Call */
             REQUIRE(__ut_block_ext_insert(session, &extlist, insert_ext) == 0);
         }
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Verify the result of all calls */
         std::vector<off_size> expected_order{insert_list};
@@ -132,19 +115,14 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         BREAK;
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Test */
         /* Insert one extent */
         /* Call */
         REQUIRE(__ut_block_off_insert(session, &extlist, 4096, 4096) == 0);
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Verify */
         REQUIRE(__ut_block_off_srch_last(&extlist.off[0], &stack[0]) == extlist.off[0]);
@@ -165,26 +143,18 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 
         /* Setup */
         /* Empty extent list */
-        WT_EXTLIST extlist;
-        memset(&extlist, 0, sizeof(extlist));
-        verify_empty_extent_list(&extlist.off[0], &stack[0]);
+        WT_EXTLIST extlist = {};
 
         /* Test */
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
-#ifdef DEBUG
-            printf("Insert: {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n", to_insert._off,
-              to_insert._size, (to_insert._off + to_insert._size - 1));
-            fflush(stdout);
-#endif
+            INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
+                                 << ", end " << to_insert.end() << "}");
             /* Call */
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
         }
 
-#ifdef DEBUG
         extlist_print_off(extlist);
-        fflush(stdout);
-#endif
 
         /* Verify the result of all calls */
         std::vector<off_size> expected_order{insert_list};

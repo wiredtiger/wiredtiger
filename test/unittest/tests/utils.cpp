@@ -10,6 +10,8 @@
 #include <string>
 #include <stdexcept>
 
+#include <catch2/catch.hpp>
+
 #include "utils.h"
 
 namespace utils {
@@ -74,7 +76,6 @@ wiredtigerCleanup(std::string const &home)
 void
 break_here(const char *file, const char *func, int line)
 {
-    printf(">> %s line %d: %s\n", file, line, func);
-    fflush(stdout);
+    INFO(">> " << file << " line " << line << ": " << func);
 }
 } // namespace utils

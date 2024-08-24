@@ -6,11 +6,9 @@
  * See the file LICENSE for redistribution information.
  */
 
-/* Choose one */
-#define DEBUG /* Print debugging output */
-//#undef DEBUG
-
 #include <cstdio>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <stdexcept>
 
@@ -35,21 +33,25 @@ ext_print_list(WT_EXT **head)
 {
     WT_EXT *extp;
     int i;
+    std::ostringstream line_stream;
 
     if (head == nullptr)
         return;
 
     for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-        printf("L%d: ", i);
+        line_stream.clear();
+        line_stream << "L" << i << ": ";
 
         extp = head[i];
         while (extp != nullptr) {
-            printf("%p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "} -> ", extp, extp->off,
-              extp->size, (extp->off + extp->size - 1));
+            line_stream << extp << " {off " << extp->off << ", size " << extp->size << ", end "
+                        << (extp->off + extp->size - 1);
             extp = extp->next[i];
         }
 
-        printf("X\n");
+        line_stream << 'X' << std::endl;
+        std::string line = line_stream.str();
+        INFO(line);
     }
 }
 
@@ -60,15 +62,20 @@ ext_print_list(WT_EXT **head)
 void
 extlist_print_off(WT_EXTLIST &extlist)
 {
-    printf("{name %s, bytes %" PRIu64 ", entries %" PRIu32 ", objectid %" PRIu32 ", offset %" PRId64
-           ", checksum 0x%" PRIu32 ", size %" PRIu32 ", track_size %s, last %p",
-      extlist.name, extlist.bytes, extlist.entries, extlist.objectid, extlist.offset,
-      extlist.checksum, extlist.size, extlist.track_size ? "true" : "false", extlist.last);
+    std::ostringstream line_stream;
+    const char *track_size = extlist.track_size ? "true" : "false";
+    line_stream << std::showbase << "{name " << extlist.name << ", bytes " << extlist.bytes
+                << ", entries " << extlist.entries << ", objectid " << extlist.objectid
+                << ", offset " << extlist.offset << ", checksum " << std::hex << extlist.checksum
+                << std::dec << ", size " << extlist.size << ", track_size " << track_size
+                << ", last " << extlist.last;
     if (extlist.last != nullptr)
-        printf(" {off %" PRId64 ", size %" PRId64 ", depth %" PRIu8 ", next %p}", extlist.last->off,
-          extlist.last->size, extlist.last->depth, extlist.last->next);
-    putchar('\n');
-    printf("off:\n");
+        line_stream << " {off " << extlist.last->off << ", size " << extlist.last->size
+                    << ", depth " << static_cast<unsigned>(extlist.last->depth) << ", next "
+                    << extlist.last->next << "}";
+    line_stream << std::endl << "off:" << std::endl;
+    std::string line = line_stream.str();
+    INFO(line);
     ext_print_list(extlist.off);
 }
 
@@ -88,12 +95,10 @@ alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off, wt_off_t size)
     ext->off = off;
     ext->size = size;
 
-#ifdef DEBUG
-    printf("Allocated WT_EXT %p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 ", depth %" PRIu8
-           ", next[0] %p}\n",
-      ext, ext->off, ext->size, (ext->off + ext->size - 1), ext->depth, ext->next[0]);
-    fflush(stdout);
-#endif
+    INFO("Allocated WT_EXT " << ext << " {off " << ext->off << ", size " << ext->size << ", end "
+                             << (ext->off + ext->size - 1) << ", depth "
+                             << static_cast<unsigned>(ext->depth) << ", next[0] " << ext->next[0]
+                             << "}");
 
     return ext;
 }
@@ -121,6 +126,9 @@ get_off_n(const WT_EXTLIST &extlist, uint32_t idx)
 {
     REQUIRE(idx < extlist.entries);
     if ((extlist.last != nullptr) && (idx == (extlist.entries - 1))) {
+        WT_EXT *last = extlist.off[idx];
+        if (last != nullptr)
+            REQUIRE(last == extlist.last);
         return extlist.last;
     }
     return extlist.off[idx];
@@ -236,13 +244,10 @@ verify_off_extent_list(
     uint64_t expected_bytes = 0;
     for (const off_size &expected : expected_order) {
         WT_EXT *ext = get_off_n(extlist, idx);
-#ifdef DEBUG
-        printf("Verify: %" PRIu32 ". Expected: {off %" PRId64 ", size %" PRId64 ", end %" PRId64
-               "}; Actual: %p {off %" PRId64 ", size %" PRId64 ", end %" PRId64 "}\n",
-          idx, expected._off, expected._size, (expected._off + expected._size - 1), ext, ext->off,
-          ext->size, (ext->off + ext->size - 1));
-        fflush(stdout);
-#endif
+        INFO("Verify: " << std::showbase << idx << ". Expected: {off " << expected._off << ", size "
+                        << expected._size << ", end " << expected.end() << "}; Actual: " << ext
+                        << " {off " << ext->off << ", size " << ext->size << ", end "
+                        << (ext->off + ext->size - 1) << "}");
         REQUIRE(ext->off == expected._off);
         REQUIRE(ext->size == expected._size);
         ++idx;
