@@ -409,11 +409,12 @@ def parse_wiredtiger_files(debug=False) -> List[File]:
     files.append("../../src/include/wiredtiger.in")
 
     # Remove extern files. They just contain externs
-    files.remove("../../src/include/extern.h")
-    files.remove("../../src/include/extern_darwin.h")
-    files.remove("../../src/include/extern_linux.h")
-    files.remove("../../src/include/extern_posix.h")
-    files.remove("../../src/include/extern_win.h")
+    # Use comprehensions to remove the files. list.remove() throws an error if they aren't present
+    files = [f for f in files if f != "../../src/include/extern.h"]
+    files = [f for f in files if f != "../../src/include/extern_darwin.h"]
+    files = [f for f in files if f != "../../src/include/extern_linux.h"]
+    files = [f for f in files if f != "../../src/include/extern_posix.h"]
+    files = [f for f in files if f != "../../src/include/extern_win.h"]
 
     parsed_files: list[File] = []
     
