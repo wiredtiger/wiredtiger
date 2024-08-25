@@ -1717,34 +1717,10 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
 static int
 dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *buf, size_t buf_sz)
 {
-    /*
-     * This is really just fetching the extra data - we loaded our internal state on startup (see
-     * dir_store_ckpt_load_internal).
-     */
-    wt_off_t extra_len, extra_ptr, size;
-    int ret;
-
-    /* Check the size before we read. */
-    if ((ret = file_handle->fh_size(file_handle, session, &size)) != 0)
-        return (ret);
-    if (size <= STORED_VALUE_SIZE)
-        return (0);
-
-    /* Look up the extra data's address. */
-    if ((ret = file_handle->fh_read(
-           file_handle, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_ptr)) != 0)
-        return (ret);
-
-    /* Read the extra data's length. */
-    if ((ret = file_handle->fh_read(
-           file_handle, session, extra_ptr, STORED_VALUE_SIZE, &extra_len)) != 0)
-        return (ret);
-    extra_ptr += STORED_VALUE_SIZE;
-
-    if (extra_len > (wt_off_t)buf_sz)
-        return (ENOMEM);
-
-    return (file_handle->fh_read(file_handle, session, extra_ptr, (size_t)extra_len, buf));
+    (void)buf;
+    (void)buf_sz;
+    fprintf(stderr, "dir_store_obj_ckpt_load\n");
+    return (dir_store_ckpt_load_internal((DIR_STORE_FILE_HANDLE *)file_handle, session));
 }
 
 /*
@@ -1813,8 +1789,8 @@ dir_store_obj_get(
     } else if (object_size > buf->memsize)
         return (ENOSPC);
 
-    fprintf(stderr, "PBM reading object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id,
-      dir_store_fh->object_id_map[object_id]);
+    /* fprintf(stderr, "PBM reading object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id, */
+    /*   dir_store_fh->object_id_map[object_id]); */
 
     dir_store_fh->dir_store->object_get_ops++;
     ret = wt_fh->fh_read(

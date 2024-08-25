@@ -42,6 +42,7 @@ __bmp_checkpoint_pack_raw(
 
     WT_RET(__wt_block_pantry_ckpt_pack(block_pantry, &endp, pantry_id, size, checksum));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+
     return (0);
 }
 
@@ -58,19 +59,12 @@ __wt_bmp_checkpoint(
 {
     WT_BLOCK_PANTRY *block_pantry;
     WT_CKPT *ckpt;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_ITEM(tmp2);
     WT_FILE_HANDLE *handle;
-    char *value;
-    const char *uri;
 
-    WT_UNUSED(ckptbase);
     WT_UNUSED(data_checksum);
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
-    WT_RET(__wt_scr_alloc(session, 4096, &tmp));
-    WT_RET(__wt_scr_alloc(session, 4096, &tmp2));
 
     /*
      * Generate a checkpoint cookie used to find the checkpoint again (and distinguish it from a
@@ -82,19 +76,7 @@ __wt_bmp_checkpoint(
             WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, ckpt));
         }
 
-    WT_RET(
-      __wt_buf_fmt(session, tmp, "file:%s", &handle->name[2])); /* TODO less hacky way to get URI */
-    uri = tmp->data;
-    WT_RET(__wt_metadata_search(session, uri, &value));
-
-    WT_RET(
-      __wt_buf_fmt(session, tmp2, "%s\n%s\n", uri, value)); /* TODO less hacky way to get URI */
-
-    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, tmp2));
-
-    /* TODO WT_ERR etc otherwise this leaks on error */
-    __wt_scr_free(session, &tmp);
-    __wt_scr_free(session, &tmp2);
+    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, root_image));
 
     return (0);
 }
@@ -109,6 +91,8 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
   uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_PANTRY *block_pantry;
+    WT_FILE_HANDLE *handle;
+    unsigned i;
     uint64_t root_id;
     uint32_t root_size, root_checksum;
     uint8_t *endp;
@@ -118,6 +102,7 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_UNUSED(checkpoint);
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
+    handle = block_pantry->fh->handle;
 
     *root_addr_sizep = 0;
 
@@ -131,6 +116,8 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     /* WT_RET(__wt_block_pantry_read_internal(session, block_pantry, root_id, root_sz, root_image,
      * root_checksum)); */
 
+    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface, NULL, 0));
+
     /*
      * Pretend there is a root page for this checkpoint - at the moment we don't actually read from
      * a checkpoint when using the block pantry.
@@ -138,5 +125,12 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     endp = root_addr;
     WT_RET(__wt_block_pantry_addr_pack(&endp, root_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
+
+    fprintf(stderr, "__wt_bmp_checkpoint_load(%s): 0x", block_pantry->fh->handle->name);
+    for (i = 0; i < *root_addr_sizep; i++) {
+        fprintf(stderr, "%02x", root_addr[i]);
+    }
+    fprintf(stderr, "\n");
+
     return (0);
 }

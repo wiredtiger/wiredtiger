@@ -2078,6 +2078,8 @@ struct __wt_session {
      * @errors
      */
     int __F(breakpoint)(WT_SESSION *session);
+
+    int __F(notify_new_checkpoint)(WT_SESSION *session);
 #endif
 };
 
