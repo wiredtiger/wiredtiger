@@ -361,14 +361,25 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
     # Special case: We have 5 os_* folders but they're all in the os_interface layer
     if module.startswith("os_"):
         module = "os_layer"
+        return (module, file_name)
+
+    # Each of the folders in wiredtiger/src is considered a de facto module.
+    folder_modules = os.listdir("../../src/")
 
     # Special handling. include/*.h files are located in include/ but they belong to a module in src
-    if module == "include" and file_name.endswith(".h"):
+    if module == "include" and file_name.endswith(".h") and file_name[:-2] in folder_modules:
+        # If an include/*.h file has the same name as a module (txn txn.h) then map it to that module
+        # (Nothing to do, it's already mapped). We just want this branch to avoid calling the header_mapping logic
+        pass
+    elif module == "include" and file_name.endswith("_inline.h") and file_name[:-9] in folder_modules:
+        # Similarly for _inline.h files
+        pass
+    elif module == "include" and file_name.endswith(".h"):
         if file_name in header_mappings:
             module = header_mappings[file_name]
         else:
             if file_name not in skip_files:
-                raise Exception(f"Unexpected file name! {file_name}")
+                raise Exception(f"Unexpected file name! {file_name}. Please make sure it is defined in header_mappings.py")
 
     return (module, file_name)
 
