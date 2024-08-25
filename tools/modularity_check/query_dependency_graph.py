@@ -1,6 +1,8 @@
 import networkx as nx
 
-from typing import List
+from typing import List, Set
+
+from parse_wt_ast import File, Struct
 
 # Print the links that form the dependency of `from_node` on `to_node`
 # This function assumes that the dependency exists
@@ -46,3 +48,42 @@ def explain_cycle(cycle: List[str], graph: nx.DiGraph):
         next_node = cycle[(i + 1) % len(cycle)]
         print(f"From {cur_node} to {next_node}:")
         print_edge(graph, cur_node, next_node)
+
+# Report which structs and struct fields are private to the module
+def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Set[str]):
+
+    incoming_edges = graph.in_edges(module)
+    link_data = nx.get_edge_attributes(graph, 'link_data')
+
+    all_structs: List[Struct] = []
+    num_private, num_fields = 0, 0
+
+    for file in parsed_files:
+        if file.module == module:
+            all_structs += file.structs
+
+    for struct in sorted(all_structs, key=lambda s: s.name):
+        print(struct.name)
+        for field in sorted(struct.fields):
+            if field in ambigious_fields:
+                print(f"    {field}: Ambigous! Please check manually")
+                continue
+
+            num_fields += 1
+            used_by_modules = set()
+            for edge in incoming_edges:
+                (caller, _) = edge
+                if link_data[edge]:
+                    if link_data[edge].struct_accesses[struct.name][field]:
+                        used_by_modules.add(caller)
+
+            if len(used_by_modules) == 0:
+                print(f"    {field}: Private")
+                num_private += 1
+            else:
+                print(f"    {field}: {sorted(used_by_modules)}")
+        print()
+
+    private_pct = round((num_private / num_fields) * 100, 2)
+    print(f"{num_private} of {num_fields} non-ambiguous fields ({private_pct}%) are private")
+    return

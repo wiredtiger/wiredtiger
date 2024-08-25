@@ -6,27 +6,6 @@ from parse_wt_ast import File
 
 import networkx as nx
 
-def incr_edge_struct_access(graph, calling_module, dest_module, field, struct):
-    if calling_module != dest_module: # No need to add reference to self
-        if not graph.has_edge(calling_module, dest_module):
-            graph.add_edge(calling_module, dest_module)
-            graph[calling_module][dest_module]['link_data'] = Link()
-        graph[calling_module][dest_module]['link_data'].struct_accesses[struct][field] += 1
-
-def incr_edge_func_call(graph, calling_module, dest_module, func_call):
-    if calling_module != dest_module: # No need to add reference to self
-        if not graph.has_edge(calling_module, dest_module):
-            graph.add_edge(calling_module, dest_module)
-            graph[calling_module][dest_module]['link_data'] = Link()
-        graph[calling_module][dest_module]['link_data'].func_calls[func_call] += 1
-
-def incr_edge_type_use(graph, calling_module, dest_module, type_use):
-    if calling_module != dest_module: # No need to add reference to self
-        if not graph.has_edge(calling_module, dest_module):
-            graph.add_edge(calling_module, dest_module)
-            graph[calling_module][dest_module]['link_data'] = Link()
-        graph[calling_module][dest_module]['link_data'].types_used[type_use] += 1
-
 @dataclass
 class Link:
     func_calls: Counter= field(default_factory=lambda: Counter())
@@ -59,6 +38,28 @@ class Link:
         print(f"    types_used: {sorted(self.types_used)}")
 
 
+def incr_edge_struct_access(graph, calling_module, dest_module, field, struct):
+    if calling_module != dest_module: # No need to add reference to self
+        if not graph.has_edge(calling_module, dest_module):
+            graph.add_edge(calling_module, dest_module)
+            graph[calling_module][dest_module]['link_data'] = Link()
+        graph[calling_module][dest_module]['link_data'].struct_accesses[struct][field] += 1
+
+def incr_edge_func_call(graph, calling_module, dest_module, func_call):
+    if calling_module != dest_module: # No need to add reference to self
+        if not graph.has_edge(calling_module, dest_module):
+            graph.add_edge(calling_module, dest_module)
+            graph[calling_module][dest_module]['link_data'] = Link()
+        graph[calling_module][dest_module]['link_data'].func_calls[func_call] += 1
+
+def incr_edge_type_use(graph, calling_module, dest_module, type_use):
+    if calling_module != dest_module: # No need to add reference to self
+        if not graph.has_edge(calling_module, dest_module):
+            graph.add_edge(calling_module, dest_module)
+            graph[calling_module][dest_module]['link_data'] = Link()
+        graph[calling_module][dest_module]['link_data'].types_used[type_use] += 1
+
+
 # Walk all files and create a module-to-module dependency graph.
 # We'll stick reason for the dependency (function call, struct access, 
 # use of type) in the edge metadata
@@ -83,6 +84,8 @@ def build_graph(parsed_files: List[File]):
             type_to_module_map[type].add(file.module)
 
     graph = nx.DiGraph()
+    ambiguous_fields = set()
+
     # If we can't determine the module something links to track it in the ambiguous node.
     # These can be reviewed manually
     AMBIG_NODE = "Ambiguous linking or parsing failed"
@@ -103,9 +106,11 @@ def build_graph(parsed_files: List[File]):
                         incr_edge_struct_access(graph, calling_module, dest_module, field_access, dest_struct)
                     else:
                         incr_edge_struct_access(graph, calling_module, AMBIG_NODE, field_access, dest_struct)
+                        ambiguous_fields.add(field_access)
                 else:
                     unknown_struct = "These fields belong to multiple structs! Please check manually"
                     incr_edge_struct_access(graph, calling_module, AMBIG_NODE, field_access, unknown_struct)
+                    ambiguous_fields.add(field_access)
 
             for called_func in func.functions_called:
                 called_modules = func_to_module_map[called_func]
@@ -123,4 +128,4 @@ def build_graph(parsed_files: List[File]):
                 else:
                     incr_edge_type_use(graph, calling_module, AMBIG_NODE, type_use)
 
-    return graph
+    return graph, ambiguous_fields
