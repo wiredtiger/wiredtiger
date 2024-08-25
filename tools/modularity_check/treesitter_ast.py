@@ -8,9 +8,10 @@ from collections import defaultdict, Counter
 from typing import Tuple, Dict, List
 import multiprocessing
 import re
+import glob
+import os
 
 from header_mappings import header_mappings, skip_files
-from dist import source_files
 
 import networkx as nx
 
@@ -342,7 +343,7 @@ def process_file(file_path):
         return file
 
 
-# Convert a file path (../src/evict/evict_lru.c) into it's module and file_name: 
+# Convert a file path (../../src/evict/evict_lru.c) into it's module and file_name: 
 #     (evict, evict_lru.c)
 # NOTE!! This contains special handling for include/*.h files
 # NOTE!! This assumes a flat directory. src/checksum has subfolders so we merge them all 
@@ -350,8 +351,8 @@ def process_file(file_path):
 def file_path_to_module_and_file(file_path: str) -> (str, str):
 
     # strip the leading path. We only care about details at the module level
-    assert(file_path.startswith("../src/"))
-    fp = file_path[7:]
+    assert(file_path.startswith("../../src/"))
+    fp = file_path[10:]
 
     fp_split = fp.split("/")
 
@@ -378,17 +379,17 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
 
 def parse_wiredtiger_files(debug=False):
     # We only want C files in the src/ folder
-    files = [f for f in source_files() if f.startswith("../src/")]
+    files = [f for f in source_files() if f.startswith("../../src/")]
     files = [f for f in files if f.endswith(".h") or f.endswith(".c")]
     # Other than wiredtiger.in which contains structs and functions
-    files.append("../src/include/wiredtiger.in")
+    files.append("../../src/include/wiredtiger.in")
 
     # Remove extern files. They just contain externs
-    files.remove("../src/include/extern.h")
-    files.remove("../src/include/extern_darwin.h")
-    files.remove("../src/include/extern_linux.h")
-    files.remove("../src/include/extern_posix.h")
-    files.remove("../src/include/extern_win.h")
+    files.remove("../../src/include/extern.h")
+    files.remove("../../src/include/extern_darwin.h")
+    files.remove("../../src/include/extern_linux.h")
+    files.remove("../../src/include/extern_posix.h")
+    files.remove("../../src/include/extern_win.h")
 
     parsed_files: list[File] = []
     
@@ -545,11 +546,27 @@ def who_is_used_by(module: str, graph: nx.DiGraph):
         link_data[edge].print_func_calls()
 
 
+# source_files --
+#    Return a list of the WiredTiger source file names.
+#    Fuction copied and adapted from dist/dist.py
+def source_files():
+    file_re = re.compile(r'^\w')
+    for line in glob.iglob('../../src/include/*.h'):
+        yield line
+    for line in open('../../dist/filelist', 'r'):
+        if file_re.match(line):
+            yield os.path.join('../..', line.split()[0])
+    for line in open('../../dist/extlist', 'r'):
+        if file_re.match(line):
+            yield os.path.join('../..', line.split()[0])
+
+
+
 def main():
     parsed_files = parse_wiredtiger_files(debug=False)
     graph = build_graph(parsed_files)
-    # who_uses("log", graph)
-    who_is_used_by("log", graph)
+    who_uses("log", graph)
+    # who_is_used_by("log", graph)
 
 if __name__ == "__main__":
     main()
