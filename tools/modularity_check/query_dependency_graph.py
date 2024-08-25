@@ -86,4 +86,3 @@ def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Se
 
     private_pct = round((num_private / num_fields) * 100, 2)
     print(f"{num_private} of {num_fields} non-ambiguous fields ({private_pct}%) are private")
-    return

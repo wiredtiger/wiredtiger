@@ -29,7 +29,7 @@ def parse_args():
         help="The cycle to explain. It must be in the format \"['meta', 'conn', 'log']\"")
 
     privacy_check_parser = subparsers.add_parser('privacy_report', 
-        help='Reprot which structs and struct fields in the module are private to the module')
+        help='Report which structs and struct fields in the module are private to the module')
     privacy_check_parser.add_argument('module', type=str, help='module name')
 
     return parser.parse_args()
