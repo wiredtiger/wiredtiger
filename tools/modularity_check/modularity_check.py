@@ -2,6 +2,7 @@
 
 import argparse
 import ast
+import os
 
 import networkx as nx
 
@@ -65,4 +66,8 @@ def main():
         exit(1)
 
 if __name__ == "__main__":
+    # Always run this script from its containing directory. We have some 
+    # hardcoded paths that require it.
+    working_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(working_dir)
     main()
