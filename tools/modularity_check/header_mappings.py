@@ -38,6 +38,7 @@ header_mappings = {
     "os_fstream_inline.h": "os_layer",
     "os_windows.h": "os_layer",
     "os.h": "os_layer",
+    "pagestat_inline.h": "include",
     "posix.h": "os_layer",
     "queue.h": "include",
     "ref_inline.h": "btree",

@@ -379,7 +379,7 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
             module = header_mappings[file_name]
         else:
             if file_name not in skip_files:
-                raise Exception(f"Unexpected file name! {file_name}. Please make sure it is defined in header_mappings.py")
+                print(f"Unexpected file name '{file_name}'!. Please make sure it's defined in header_mappings.py. Defaulting to module 'include/'")
 
     return (module, file_name)
 
