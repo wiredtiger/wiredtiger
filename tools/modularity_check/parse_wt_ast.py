@@ -1,10 +1,7 @@
-#!/usr/bin/env python
-
 import tree_sitter_c as tsc
 from tree_sitter import Language, Parser
 
 from dataclasses import dataclass, field
-from collections import defaultdict, Counter
 from typing import Tuple, Dict, List
 import multiprocessing
 import re
@@ -12,8 +9,6 @@ import glob
 import os
 
 from header_mappings import header_mappings, skip_files
-
-import networkx as nx
 
 # Create a C parser for TreeSitter to use
 parser = Parser()
@@ -377,10 +372,28 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
 
     return (module, file_name)
 
-def parse_wiredtiger_files(debug=False):
+# source_files --
+#    Return a list of the WiredTiger source file names.
+#    Fuction copied and adapted from dist/dist.py
+def source_files():
+    file_re = re.compile(r'^\w')
+    for line in glob.iglob('../../src/include/*.h'):
+        yield line
+    for line in open('../../dist/filelist', 'r'):
+        if file_re.match(line):
+            yield os.path.join('../..', line.split()[0])
+    for line in open('../../dist/extlist', 'r'):
+        if file_re.match(line):
+            yield os.path.join('../..', line.split()[0])
+
+# Walk the Wiredtiger source tree and parse all the relvant C source files.
+# Return the processed results as a list of files
+def parse_wiredtiger_files(debug=False) -> List[File]:
+
     # We only want C files in the src/ folder
     files = [f for f in source_files() if f.startswith("../../src/")]
     files = [f for f in files if f.endswith(".h") or f.endswith(".c")]
+
     # Other than wiredtiger.in which contains structs and functions
     files.append("../../src/include/wiredtiger.in")
 
@@ -403,170 +416,3 @@ def parse_wiredtiger_files(debug=False):
             parsed_files = pool.map(process_file, files)
 
     return parsed_files
-
-def incr_edge_struct_access(graph, calling_module, dest_module, field, struct):
-    if calling_module != dest_module: # No need to add reference to self
-        if not graph.has_edge(calling_module, dest_module):
-            graph.add_edge(calling_module, dest_module)
-            graph[calling_module][dest_module]['link_data'] = Link()
-        graph[calling_module][dest_module]['link_data'].struct_accesses[struct][field] += 1
-
-def incr_edge_func_call(graph, calling_module, dest_module, func_call):
-    if calling_module != dest_module: # No need to add reference to self
-        if not graph.has_edge(calling_module, dest_module):
-            graph.add_edge(calling_module, dest_module)
-            graph[calling_module][dest_module]['link_data'] = Link()
-        graph[calling_module][dest_module]['link_data'].func_calls[func_call] += 1
-
-def incr_edge_type_use(graph, calling_module, dest_module, type_use):
-    if calling_module != dest_module: # No need to add reference to self
-        if not graph.has_edge(calling_module, dest_module):
-            graph.add_edge(calling_module, dest_module)
-            graph[calling_module][dest_module]['link_data'] = Link()
-        graph[calling_module][dest_module]['link_data'].types_used[type_use] += 1
-
-@dataclass
-class Link:
-    func_calls: Counter= field(default_factory=lambda: Counter())
-    types_used: Counter= field(default_factory=lambda: Counter())
-    # struct -> field: num_accesses
-    struct_accesses: defaultdict = field(default_factory=lambda: defaultdict(Counter)) 
-
-    def print_struct_accesses(self):
-        if len(self.struct_accesses) == 0:
-            return
- 
-        print("    struct_accesses:")
-        for struct, fields in sorted(self.struct_accesses.items()):
-            print(f"        {struct}")
-            for field in sorted(fields):
-                print(f"            {field}: {fields[field]}")
-            print()
-
-    def print_func_calls(self):
-        if len(self.func_calls) == 0:
-            return
-        print("    function_calls:")
-        for func, num_calls in sorted(self.func_calls.items()):
-            print(f"        {func}: {num_calls}")
-        print()
-
-    def print_type_uses(self):
-        if len(self.types_used) == 0:
-            return
-        print(f"    types_used: {sorted(self.types_used)}")
-
-
-# Walk all files and create a module-to-module dependency graph.
-# We'll stick reason for the dependency (function call, struct access, 
-# use of type) in the edge metadata
-def build_graph(parsed_files: List[File]):
-
-    field_to_struct_map = defaultdict(set)
-    struct_to_module_map = defaultdict(set)
-    type_to_module_map = defaultdict(set)
-    func_to_module_map = defaultdict(set)
-
-    # Build up the reverse mappings
-    for file in parsed_files:
-        for func in file.functions:
-            func_to_module_map[func.name].add(file.module)
-
-        for struct in file.structs:
-            struct_to_module_map[struct.name].add(file.module)
-            for field in struct.fields:
-                field_to_struct_map[field].add(struct.name)
-
-        for type in file.types_defined:
-            type_to_module_map[type].add(file.module)
-
-    graph = nx.DiGraph()
-    # If we can't determine the module something links to track it in the ambiguous node.
-    # These can be reviewed manually
-    AMBIG_NODE = "Ambiguous linking or parsing failed"
-    graph.add_node(AMBIG_NODE)
-
-    for file in parsed_files:
-        calling_module = file.module
-        graph.add_node(file.module)
-        # TODO - struct type decls
-        for func in file.functions:
-            for field_access in func.fields_accessed:
-                structs_with_field = field_to_struct_map[field_access]
-                if len(structs_with_field) == 1:
-                    dest_struct = list(structs_with_field)[0]
-                    dest_modules = struct_to_module_map[dest_struct]
-                    if len(dest_modules) == 1:
-                        dest_module = list(dest_modules)[0]
-                        incr_edge_struct_access(graph, calling_module, dest_module, field_access, dest_struct)
-                    else:
-                        incr_edge_struct_access(graph, calling_module, AMBIG_NODE, field_access, dest_struct)
-                else:
-                    unknown_struct = "These fields belong to multiple structs! Please check manually"
-                    incr_edge_struct_access(graph, calling_module, AMBIG_NODE, field_access, unknown_struct)
-
-            for called_func in func.functions_called:
-                called_modules = func_to_module_map[called_func]
-                if len(called_modules) == 1:
-                    dest_module = list(called_modules)[0]
-                    incr_edge_func_call(graph, calling_module, dest_module, called_func)
-                else:
-                    incr_edge_func_call(graph, calling_module, AMBIG_NODE, called_func)
-
-            for type_use in func.types_used:
-                type_modules = type_to_module_map[type_use]
-                if len(type_modules) == 1:
-                    dest_module = list(type_modules)[0]
-                    incr_edge_type_use(graph, calling_module, dest_module, type_use)
-                else:
-                    incr_edge_type_use(graph, calling_module, AMBIG_NODE, type_use)
-
-    return graph
-
-def who_uses(module: str, graph: nx.DiGraph):
-    incoming_edges = graph.in_edges(module)
-    link_data = nx.get_edge_attributes(graph, 'link_data')
-
-    for edge in sorted(incoming_edges):
-        (caller, _) = edge
-        print(f"\n{caller}/")
-        link_data[edge].print_type_uses()
-        link_data[edge].print_struct_accesses()
-        link_data[edge].print_func_calls()
-
-def who_is_used_by(module: str, graph: nx.DiGraph):
-    incoming_edges = graph.out_edges(module)
-    link_data = nx.get_edge_attributes(graph, 'link_data')
-
-    for edge in sorted(incoming_edges):
-        (_, callee) = edge
-        print(f"\n{callee}/")
-        link_data[edge].print_type_uses()
-        link_data[edge].print_struct_accesses()
-        link_data[edge].print_func_calls()
-
-
-# source_files --
-#    Return a list of the WiredTiger source file names.
-#    Fuction copied and adapted from dist/dist.py
-def source_files():
-    file_re = re.compile(r'^\w')
-    for line in glob.iglob('../../src/include/*.h'):
-        yield line
-    for line in open('../../dist/filelist', 'r'):
-        if file_re.match(line):
-            yield os.path.join('../..', line.split()[0])
-    for line in open('../../dist/extlist', 'r'):
-        if file_re.match(line):
-            yield os.path.join('../..', line.split()[0])
-
-
-
-def main():
-    parsed_files = parse_wiredtiger_files(debug=False)
-    graph = build_graph(parsed_files)
-    who_uses("log", graph)
-    # who_is_used_by("log", graph)
-
-if __name__ == "__main__":
-    main()
