@@ -7,7 +7,7 @@ import networkx as nx
 
 from parse_wt_ast import parse_wiredtiger_files
 from build_dependency_graph import build_graph
-from query_dependency_graph import who_uses, who_is_used_by, explain_cycle, privacy_report
+from query_dependency_graph import who_uses, who_is_used_by, explain_cycle, privacy_report, generate_dependency_file
 
 def parse_args():
     parser = argparse.ArgumentParser(description="TODO")
@@ -32,13 +32,16 @@ def parse_args():
         help='Report which structs and struct fields in the module are private to the module')
     privacy_check_parser.add_argument('module', type=str, help='module name')
 
+    subparsers.add_parser('generate_dependency_file', 
+        help='Generate a file that reports all dependencies')
+
     return parser.parse_args()
 
 def main():
 
     args = parse_args()
 
-    parsed_files = parse_wiredtiger_files(debug=False)
+    parsed_files = parse_wiredtiger_files(debug=True)
     graph, ambiguous_fields = build_graph(parsed_files)
 
     if args.command == "who_uses":
@@ -55,6 +58,8 @@ def main():
         explain_cycle(cycle, graph)
     elif args.command == "privacy_report":
         privacy_report(args.module, graph, parsed_files, ambiguous_fields)
+    elif args.command == "generate_dependency_file":
+        generate_dependency_file(graph)
     else:
         print(f"Unrecognised command {args.command}!")
         exit(1)

@@ -3,6 +3,7 @@ import networkx as nx
 from typing import List, Set
 
 from parse_wt_ast import File, Struct
+from build_dependency_graph import AMBIG_NODE
 
 # Print the links that form the dependency of `from_node` on `to_node`
 # This function assumes that the dependency exists
@@ -86,3 +87,20 @@ def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Se
 
     private_pct = round((num_private / num_fields) * 100, 2)
     print(f"{num_private} of {num_fields} non-ambiguous fields ({private_pct}%) are private")
+
+def generate_dependency_file(graph: nx.DiGraph):
+    with open("dep_file.new", 'w') as f:
+        f.write("# ====================================================== #\n")
+        f.write("# WiredTiger has the following inter-module dependencies #\n")
+        f.write("# ====================================================== #\n")
+        for module in sorted(graph.nodes()):
+            incoming_edges = graph.out_edges(module)
+            for (caller, callee) in sorted(incoming_edges):
+                if caller == AMBIG_NODE or callee == AMBIG_NODE:
+                    # Don't report the ambigious node
+                    continue
+                f.write(f"{caller} -> {callee}\n")
+
+    # TODO - Add logic to check for changes to a pre-existing dep_file. 
+    # This should warn when a new line is added and notify when one is removed.
+    # To check - if this is infrequent over past commits we might be able to add it to s_all

@@ -6,6 +6,10 @@ from parse_wt_ast import File
 
 import networkx as nx
 
+# If we can't determine the module something links to track it in the ambiguous node.
+# These can be reviewed manually
+AMBIG_NODE = "Ambiguous linking or parsing failed"
+
 @dataclass
 class Link:
     func_calls: Counter= field(default_factory=lambda: Counter())
@@ -86,9 +90,6 @@ def build_graph(parsed_files: List[File]):
     graph = nx.DiGraph()
     ambiguous_fields = set()
 
-    # If we can't determine the module something links to track it in the ambiguous node.
-    # These can be reviewed manually
-    AMBIG_NODE = "Ambiguous linking or parsing failed"
     graph.add_node(AMBIG_NODE)
 
     for file in parsed_files:
