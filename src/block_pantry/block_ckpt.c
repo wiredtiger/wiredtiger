@@ -77,7 +77,6 @@ __wt_bmp_checkpoint(
         }
 
     WT_RET(handle->fh_obj_checkpoint(handle, &session->iface));
-    fprintf(stderr, "__wt_bmp_checkpoint\n");
 
     return (0);
 }
@@ -89,11 +88,49 @@ __wt_bmp_checkpoint(
 int
 __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-    WT_UNUSED(bm);
-    WT_UNUSED(session);
-    WT_UNUSED(failed);
+    WT_BLOCK_PANTRY *block_pantry;
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
+    WT_FH *metadata_fh;
+    char *entry, *tablename;
+    const char *md_value;
+    size_t len;
+    wt_off_t filesize;
 
-    fprintf(stderr, "__wt_bmp_checkpoint_resolve\n");
+    block_pantry = (WT_BLOCK_PANTRY *)bm->block;
+
+    if (failed)
+        return (0);
+
+    metadata_fh = S2C(session)->oligarch_manager.metadata_fh;
+    if (metadata_fh == NULL)
+        /* TODO I think this is only during shutdown... */
+        return (0);
+
+    /* Get a metadata cursor pointing to this table */
+    WT_RET(__wt_metadata_cursor(session, &md_cursor));
+    /* TODO less hacky way to get URI */
+    len = strlen("file:") + strlen(block_pantry->name) + 1;
+    WT_RET(__wt_calloc_def(session, len, &tablename));
+    WT_ERR(__wt_snprintf(tablename, len, "file:%s", block_pantry->name));
+    md_cursor->set_key(md_cursor, tablename);
+    WT_ERR(md_cursor->search(md_cursor));
+
+    /* Get the config we want to print to the metadata file */
+    WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+    WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
+
+    len += cval.len + 2; /* +2 for the separator and the newline */
+    WT_ERR(__wt_calloc_def(session, len, &entry));
+    WT_ERR(__wt_snprintf(entry, len, "%s=%.*s\n", tablename, (int)cval.len, cval.str));
+
+    WT_ERR(__wt_filesize(session, metadata_fh, &filesize));
+    WT_ERR(__wt_write(session, metadata_fh, filesize, len, entry));
+
+ err:
+    __wt_free(session, tablename);
+    __wt_free(session, entry); /* TODO may not have been allocated */
 
     return (0);
 }
