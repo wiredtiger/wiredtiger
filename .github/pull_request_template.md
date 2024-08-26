@@ -3,12 +3,15 @@
 
 ## What makes this change safe?
 <!-- DELETE WHEN COMPLETED
-A good answer to this question helps the reviewer understand where they should focus their attention, consider these questions:
-- Is the change risky or not? Why?
+A good answer to this question helps the reviewers understand where they should focus their attention, consider these questions:
+- Is the change risky or not? Why? 
 - What tests are you adding? Why?
 - What existing tests are you relying on? 
 - What are you worried about that you'd like the reviewer to focus on?
+References:
+- [Risk level guide](https://github.com/wiredtiger/wiredtiger/blob/develop/.github/risk_level_guide.md)
 !-->
+
 ## Checklist before requesting a review
 
 - [ ] I have performed a self-review of my code.
