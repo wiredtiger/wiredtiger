@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "log_internal_types.h"
+#include "log_internal.h"
 
 /*
  * __log_slot_dump --

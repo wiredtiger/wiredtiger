@@ -7,11 +7,14 @@
 #include <string.h>
 
 /* Order is significant. */
+#include "wt_internal.h"
 #include "error.h"
 #include "misc.h"
 #include "mutex.h"
 #include "dhandle.h"
 #include "session.h"
+
+#include "log.h"
 
 
 /*
@@ -31,6 +34,16 @@ typedef struct __wt_log_desc {
     uint16_t unused;   /* 06-07: Unused */
     uint64_t log_size; /* 08-15: Log file size */
 } WT_LOG_DESC;
+
+/*
+ * Simple structure for sorting written slots.
+ */
+typedef struct {
+    WT_LSN lsn;
+    uint32_t slot_index;
+} WT_LOG_WRLSN_ENTRY;
+
+
 
 /*
  * __wt_log_desc_byteswap --

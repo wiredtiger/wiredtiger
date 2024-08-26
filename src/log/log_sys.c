@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "log_internal_types.h"
+#include "log_internal.h"
 
 /*
  * __wt_log_system_backup_id --
