@@ -788,7 +788,7 @@ __evict_pass(WT_SESSION_IMPL *session)
         if (!__evict_update_work(session))
             break;
 
-        __wt_verbose_info(session, WT_VERB_EVICTION,
+        __wt_verbose_debug2(session, WT_VERB_EVICTION,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
           " Updates: %" PRIu64,
           conn->cache_size, __wt_atomic_load64(&cache->bytes_inmem),
