@@ -319,7 +319,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_IGNORE_RET(__rec_write_err(session, r, page));
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
-        F_SET(r->ref, WT_REF_FLAG_REC_FAIL);
+        F_SET(ref, WT_REF_FLAG_REC_FAIL);
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
          * a panic. Conversely, no return prior to this point should use the "err" label.
@@ -382,10 +382,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
 err:
     if (ret != 0) {
-        F_SET(r->ref, WT_REF_FLAG_REC_FAIL);
+        F_SET(ref, WT_REF_FLAG_REC_FAIL);
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
     } else
-        F_CLR(r->ref, WT_REF_FLAG_REC_FAIL);
+        F_CLR(ref, WT_REF_FLAG_REC_FAIL);
     return (ret);
 }
 
