@@ -28,9 +28,11 @@ int
 __wt_block_pantry_addr_pack(uint8_t **pp, uint64_t pantry_id, uint32_t size, uint32_t checksum)
 {
     uint64_t c, p, s;
+    /*
     uint8_t *orig;
 
     orig = *pp;
+    */
 
     /* See the comment above: this is the reverse operation. */
     if (size == 0) {
@@ -45,12 +47,14 @@ __wt_block_pantry_addr_pack(uint8_t **pp, uint64_t pantry_id, uint32_t size, uin
     WT_RET(__wt_vpack_uint(pp, 0, s));
     WT_RET(__wt_vpack_uint(pp, 0, c));
 
+    /*
     fprintf(stderr, "__wt_block_pantry_addr_pack: 0x");
     while (orig != *pp) {
         fprintf(stderr, "%02x", *orig);
         orig++;
     }
     fprintf(stderr, "\n");
+    */
     return (0);
 }
 

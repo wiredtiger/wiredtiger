@@ -159,6 +159,8 @@ struct __wt_oligarch_manager {
 
     WT_LSN max_replay_lsn;
     uint64_t max_applied_txnid;
+
+    WT_FH *metadata_fh;
 };
 
 /*

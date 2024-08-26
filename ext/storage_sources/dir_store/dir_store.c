@@ -200,7 +200,7 @@ static int dir_store_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
 /* Object interface */
-static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
+static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, void *, size_t);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1610,7 +1610,7 @@ dir_store_ckpt_intl(
  * isn't aligned like a hex dump or anything, it's just to give the pointers
  * something to reference.
  *
- *     0 | Data pointer (8B) | Extra pointer (8B)
+ *     0 | Data pointer (8B)
  *   ... | Normal keys/values
  *   ... | More keys/values...
  *   ... | Normal keys/values
@@ -1621,59 +1621,22 @@ dir_store_ckpt_intl(
  *   ... | object_size_map[1] | object_size_map[2]
  *   ... | More object size entries...
  *   ... | object_size_map[max - 1] | object_size_map[max]
- * Extra | Length of extra data (8B) | extra_data[0] (1B)
- *   ... | extra_data[1]
- *   ... | More extra data...
- *   ... | extra_data[max]
  *   ... | Normal keys/values
  */
-
-/* dir_store_ckpt_extra --
- *     Write out any extra data the block pantry wants associated with the checkpoint.
- */
-static int
-dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin,
-  wt_off_t *nwritten)
-{
-    WT_FILE_HANDLE *wt_fh;
-    int ret;
-
-    wt_fh = fh->fh;
-    *nwritten = 0;
-
-    ret = wt_fh->fh_write(wt_fh, session, begin, STORED_VALUE_SIZE, &extra->size);
-    if (ret != 0)
-        return (ret);
-    begin += STORED_VALUE_SIZE;
-
-    ret = wt_fh->fh_write(wt_fh, session, begin, extra->size, extra->data);
-    if (ret != 0)
-        return (ret);
-
-    *nwritten = (wt_off_t)extra->size;
-
-    return (0);
-}
 
 /* dir_store_ckpt_finalize --
  *     Serialise our the metadata for our URI to a given file handle.
  */
 static int
 dir_store_ckpt_finalize(
-  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin, wt_off_t extra_begin)
+  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
 {
     WT_FILE_HANDLE *wt_fh;
-    int ret;
 
     wt_fh = fh->fh;
 
     /* TODO add some magic bytes? Version? Checksum? More thought. */
-    ret = wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin);
-    if (ret != 0)
-        return (ret);
-
-    /* TODO this probably ought to be one indivisible write with the ckpt_begin */
-    return (wt_fh->fh_write(wt_fh, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_begin));
+    return(wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin));
 }
 
 /*
@@ -1682,10 +1645,10 @@ dir_store_ckpt_finalize(
  *     keep alongside it.
  */
 static int
-dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
+dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
-    wt_off_t start, extra_start, nwritten;
+    wt_off_t start, nwritten;
     int ret;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
@@ -1698,15 +1661,8 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
     if (ret != 0)
         return (ret);
     dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO maybe reset alignment? */
-    extra_start = (wt_off_t)dir_store_fh->object_next_offset;
 
-    ret = dir_store_ckpt_extra(
-      dir_store_fh, session, extra, (wt_off_t)dir_store_fh->object_next_offset, &nwritten);
-    if (ret != 0)
-        return (ret);
-    dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO align again? */
-
-    return (dir_store_ckpt_finalize(dir_store_fh, session, start, extra_start));
+    return (dir_store_ckpt_finalize(dir_store_fh, session, start));
 }
 
 /*

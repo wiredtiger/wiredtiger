@@ -76,7 +76,24 @@ __wt_bmp_checkpoint(
             WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, ckpt));
         }
 
-    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface, root_image));
+    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface));
+    fprintf(stderr, "__wt_bmp_checkpoint\n");
+
+    return (0);
+}
+
+/*
+ * __wt_bmp_checkpoint_resolve --
+ *     Resolve the checkpoint.
+ */
+int
+__wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
+{
+    WT_UNUSED(bm);
+    WT_UNUSED(session);
+    WT_UNUSED(failed);
+
+    fprintf(stderr, "__wt_bmp_checkpoint_resolve\n");
 
     return (0);
 }

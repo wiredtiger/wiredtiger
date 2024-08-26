@@ -8,6 +8,14 @@
 
 #include "wt_internal.h"
 
+/* Set up the file that contains metadata for the stable tables. */
+static int
+__oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
+{
+    fprintf(stderr, "__oligarch_metadata_create\n");
+    return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
+}
+
 /*
  * __wt_oligarch_manager_start --
  *     Start the oligarch manager thread
@@ -54,6 +62,9 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
       __wt_oligarch_manager_thread_chk, __wt_oligarch_manager_thread_run, NULL));
 
     WT_MAX_LSN(&manager->max_replay_lsn);
+
+    WT_ERR(__oligarch_metadata_create(session, manager));
+
     WT_STAT_CONN_SET(session, oligarch_manager_running, 1);
     __wt_verbose_level(
       session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5, "%s", "__wt_oligarch_manager_start");
@@ -677,6 +688,8 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     __wt_free(session, manager->entries);
     manager->open_oligarch_table_count = 0;
     WT_MAX_LSN(&manager->max_replay_lsn);
+
+    WT_RET(__wt_close(session, &manager->metadata_fh));
 
     __wt_atomic_store32(&manager->state, WT_OLIGARCH_MANAGER_OFF);
     WT_STAT_CONN_SET(session, oligarch_manager_running, 0);

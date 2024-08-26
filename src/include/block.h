@@ -447,6 +447,7 @@ struct __wt_block_pantry {
 
     wt_shared uint64_t next_pantry_id;
     WT_FH *fh;
+    WT_FH *metadata_fh;
 };
 
 /*
