@@ -63,7 +63,7 @@ validate_size_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
     REQUIRE(bms->sz_cache_cnt == expected_items);
     for (int i = 0; i < expected_items; i++)
         validate_size_block(curr);
-        curr = curr->next[0];
+    curr = curr->next[0];
 
     REQUIRE(curr == nullptr);
 }

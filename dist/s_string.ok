@@ -306,7 +306,6 @@ Podir
 Posix
 PostgreSQL
 Pre
-Prealloc
 Precompiled
 Prefetch
 Preload
@@ -533,7 +532,6 @@ blkincr
 blkmod
 blkmods
 bm
-bms
 bnd
 bool
 boolean
