@@ -34,6 +34,15 @@ struct off_size {
     }
 };
 
+/*!
+ * A test (_off_size) and the expected value (_expected_list) for operations that need an off_size
+ * to modify a WT_EXTLIST
+ */
+struct off_size_expected {
+    off_size _off_size;
+    std::vector<off_size> _expected_list;
+};
+
 void ext_print_list(WT_EXT **head);
 void extlist_print_off(WT_EXTLIST &extlist);
 WT_EXT *alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0);
@@ -43,8 +52,8 @@ bool ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last);
 void size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head);
 void extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST &extlist);
 void verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack);
-void verify_off_extent_list(const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order,
-  bool verify_entries_bytes = true);
+void verify_off_extent_list(
+  const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order, bool verify_bytes = true);
 } // namespace utils
 
 bool operator<(const utils::off_size &left, const utils::off_size &right);

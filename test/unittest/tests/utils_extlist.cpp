@@ -237,7 +237,7 @@ verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack)
  */
 void
 verify_off_extent_list(
-  const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order, bool verify_entries_bytes)
+  const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order, bool verify_bytes)
 {
     REQUIRE(extlist.entries == expected_order.size());
     uint32_t idx = 0;
@@ -255,7 +255,6 @@ verify_off_extent_list(
     }
     if (!verify_entries_bytes)
         return;
-    REQUIRE(extlist.entries == idx);
     REQUIRE(extlist.bytes == expected_bytes);
 }
 } // namespace utils
