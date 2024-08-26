@@ -8,8 +8,7 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/mock_session.h"
-#include "../wrappers/block_mods.h"
+#include "wrappers/mock_session.h"
 /*
  * [test_template]: source_file.c
  * Add comment describing the what the unit test file tests.
