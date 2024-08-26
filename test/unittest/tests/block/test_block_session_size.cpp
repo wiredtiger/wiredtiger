@@ -191,7 +191,7 @@ TEST_CASE("Block session: __wti_block_size_alloc", "[block_session_size]")
         REQUIRE(sz == cached_sz);
         REQUIRE(sz2 != cached_sz);
         validate_and_free_size_list(bms, 1);
-        validate_and_free_size_block(cached_ext);
+        validate_and_free_size_block(cached_sz);
     }
 }
 
