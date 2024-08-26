@@ -2178,6 +2178,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__debug_mode_log_retention_config(session, cfg));
     WT_RET(__debug_mode_background_compact_config(session, cfg));
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
@@ -2333,8 +2339,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
       {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
       {"configuration", WT_VERB_CONFIGURATION}, {"error_returns", WT_VERB_ERROR_RETURNS},
-      {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
-      {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
+      {"eviction", WT_VERB_EVICTION}, {"fileops", WT_VERB_FILEOPS},
       {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
       {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
       {"lsm", WT_VERB_LSM}, {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
@@ -3159,6 +3164,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->page_size = __wt_get_vm_pagesize();
 
     /* Now that we know if verbose is configured, output the version. */
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "opening the WiredTiger library");
     __wt_verbose(session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
 
     /*
@@ -3230,6 +3236,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Configuration completed; optionally write a base configuration file.
      */
     WT_ERR(__conn_write_base_config(session, cfg));
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "connection configuration string parsing completed");
 
     /*
      * Check on the turtle and metadata files, creating them if necessary (which avoids application
@@ -3245,6 +3253,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Verify the metadata file. */
     if (verify_meta) {
+        __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata verify");
         wt_session = &session->iface;
         ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
         WT_ERR(ret);
@@ -3256,6 +3265,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * overwrite any salvage we did if done before that call.
      */
     if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+        __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata salvage");
         wt_session = &session->iface;
         WT_ERR(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
@@ -3314,6 +3324,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     F_SET(conn, WT_CONN_READY);
     F_CLR(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "the WiredTiger library has successfully opened");
 
 err:
     /* Discard the scratch buffers. */

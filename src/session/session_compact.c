@@ -340,35 +340,12 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
             }
 
-            /*
-             * If compaction failed because checkpoint was running, continue with the next handle.
-             * We might continue to race with checkpoint on each handle, but that's OK, we'll step
-             * through all the handles, and then we'll block until a checkpoint completes.
-             *
-             * Just quit if eviction is the problem.
-             */
-            else if (ret == EBUSY) {
-                if (__wt_cache_stuck(session)) {
-                    WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
-                    WT_ERR_MSG(session, EBUSY,
-                      "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
-                      session->op_handle[i]->name);
-                }
-
-                WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
-
-                __wt_verbose_info(session, WT_VERB_COMPACT,
-                  "The compaction of the data handle %s returned EBUSY due to an in-progress "
-                  "conflicting checkpoint.%s",
-                  session->op_handle[i]->name,
-                  background_compaction ? "" : " Compaction of this data handle will be retried.");
-
-                ret = 0;
-
-                /* Don't retry in the case of background compaction, move on. */
-                if (!background_compaction)
-                    another_pass = true;
-
+            /* Compact will return EBUSY if eviction is a problem. */
+            if (ret == EBUSY) {
+                WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
+                WT_ERR_MSG(session, EBUSY,
+                  "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
+                  session->op_handle[i]->name);
             }
 
             /* Compaction was interrupted internally. */
@@ -426,9 +403,6 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     u_int i;
-    bool ignore_cache_size_set;
-
-    ignore_cache_size_set = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, compact, config, cfg);
@@ -478,15 +452,6 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 
     __wt_verbose_debug1(session, WT_VERB_COMPACT, "Compacting %s", uri);
-
-    /*
-     * The compaction thread should not block when the cache is full: it is holding locks blocking
-     * checkpoints and once the cache is full, it can spend a long time doing eviction.
-     */
-    if (!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
-        ignore_cache_size_set = true;
-        F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
-    }
 
     /* In-memory ignores compaction operations. */
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
@@ -571,9 +536,6 @@ err:
      * reconciliation structures/memory).
      */
     WT_TRET(__wt_session_release_resources(session));
-
-    if (ignore_cache_size_set)
-        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_compact_fail);
