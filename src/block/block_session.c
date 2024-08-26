@@ -10,6 +10,7 @@
 
 #ifndef HAVE_UNITTEST
 /*
+<<<<<<< HEAD
  * Per session handle cached block manager information.
  */
 typedef struct {
@@ -22,7 +23,7 @@ typedef struct {
 #endif
 
 /*
- * __block_ext_alloc --
+ * ======= >>>>>>> develop __block_ext_alloc --
  *     Allocate a new WT_EXT structure.
  */
 static int

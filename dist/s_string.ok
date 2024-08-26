@@ -252,6 +252,7 @@ Marsaglia
 Marsaglia's
 Mellor
 Mitzenmacher
+MockSession
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -551,6 +552,7 @@ btree's
 btrees
 buf
 bufsz
+buildTestMockSession
 builddir
 builtins
 bursty
@@ -818,6 +820,7 @@ gcc
 gcp
 gdb
 ge
+getWtSessionImpl
 getenv
 getlasterror
 getline
@@ -1408,6 +1411,7 @@ userbad
 usercfg
 usleep
 usr
+ut
 utf
 util
 utils
