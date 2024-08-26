@@ -1,17 +1,14 @@
 ## Describe the Problem and Solution
 <!-- Write 2-3 sentences summarising the reasons behind this change (this might be the problem you're solving, or the context around the request) and the solution you take. !-->  
 
-## Risk & Testing considerations
-What is the risk level of this change (Low / Medium / High)? For Medium / High please elaborate.
-
-Which modules are impacted by this change?
-
-Which integration tests and or unit tests are applicable for it? This could be a whole suite of Python tests or specific tests.
-
-Has new tests been written which exercises the relevant code paths? If yes, please identify this via the code coverage report. If not, explain why.
-
-What other testing is relevant for this change? This could include: stress testing, MongoDB patch builds, etc.
-
+## What makes this change safe?
+<!-- DELETE WHEN COMPLETED
+A good answer to this question helps the reviewer understand where they should focus their attention, consider these questions:
+- Is the change risky or not? Why?
+- What tests are you adding? Why?
+- What existing tests are you relying on? 
+- What are you worried about that you'd like the reviewer to focus on?
+!-->
 ## Checklist before requesting a review
 
 - [ ] I have performed a self-review of my code.
