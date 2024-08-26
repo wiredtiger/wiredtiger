@@ -247,7 +247,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         switch (cms.state) {
         case WT_CHILD_IGNORE:
             /* Ignored child. */
-            WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+            WT_CHILD_RELEASE_ERR(session, cms.hazard, cms.locked, cms.previous_state, ref);
             continue;
 
         case WT_CHILD_MODIFIED:
@@ -256,11 +256,11 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
              */
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
-                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, cms.locked, cms.previous_state, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
                 WT_ERR(__rec_col_merge(session, r, child));
-                WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+                WT_CHILD_RELEASE_ERR(session, cms.hazard, cms.locked, cms.previous_state, ref);
                 continue;
             case WT_PM_REC_REPLACE:
                 addr = &child->modify->mod_replace;
@@ -310,7 +310,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         }
         if (page_del != NULL)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
-        WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+        WT_CHILD_RELEASE_ERR(session, cms.hazard, cms.locked, cms.previous_state, ref);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -328,7 +328,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     return (__wti_rec_split_finish(session, r));
 
 err:
-    WT_CHILD_RELEASE(session, cms.hazard, ref);
+    WT_CHILD_RELEASE(session, cms.hazard, cms.locked, cms.previous_state, ref);
     return (ret);
 }
 

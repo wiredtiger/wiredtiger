@@ -199,6 +199,8 @@ __wti_rec_child_modify(
     /* We may acquire a hazard pointer our caller must release. */
     cmsp->hazard = false;
 
+    cmsp->locked = false;
+
     /* Default to using the original child address. */
     cmsp->state = WT_CHILD_ORIGINAL;
 
@@ -232,7 +234,10 @@ __wti_rec_child_modify(
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
             ret = __rec_child_deleted(session, r, ref, cmsp);
-            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            if (ret != 0)
+                WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            cmsp->locked = true;
+            cmsp->previous_state = WT_REF_DELETED;
             goto done;
 
         case WT_REF_LOCKED:

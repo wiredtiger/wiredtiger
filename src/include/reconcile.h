@@ -338,17 +338,21 @@ typedef struct {
  *	Macros to clean up during internal-page reconciliation, releasing the hazard pointer we're
  * holding on a child page.
  */
-#define WT_CHILD_RELEASE(session, hazard, ref)                          \
+#define WT_CHILD_RELEASE(session, hazard, locked, previous_state, ref)  \
     do {                                                                \
         if (hazard) {                                                   \
             (hazard) = false;                                           \
             WT_TRET(__wt_page_release(session, ref, WT_READ_NO_EVICT)); \
         }                                                               \
+        if (locked) {                                                   \
+            (locked) = false;                                           \
+            WT_REF_SET_STATE(ref, previous_state);                      \
+        }                                                               \
     } while (0)
-#define WT_CHILD_RELEASE_ERR(session, hazard, ref) \
-    do {                                           \
-        WT_CHILD_RELEASE(session, hazard, ref);    \
-        WT_ERR(ret);                               \
+#define WT_CHILD_RELEASE_ERR(session, hazard, locked, previous_state, ref) \
+    do {                                                                   \
+        WT_CHILD_RELEASE(session, hazard, locked, previous_state, ref);    \
+        WT_ERR(ret);                                                       \
     } while (0)
 
 /*
@@ -367,6 +371,8 @@ typedef struct {
     WT_PAGE_DELETED del; /* WT_CHILD_PROXY state fast-truncate information */
 
     bool hazard; /* If currently holding a child hazard pointer */
+    bool locked; /* If currently holding a ref lock */
+    uint8_t previous_state;
 } WT_CHILD_MODIFY_STATE;
 
 /*
@@ -394,6 +400,16 @@ typedef struct {
 #define WT_BUILD_DELTA_LEAF(session, r)                                                    \
     !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 1 && !r->ovfl_items && \
       (r->ref->page)->dsk != NULL
+
+/* Called when building the internal disk image. */
+#define WT_TRY_BUILD_DELTA_INTERNAL(session, r)                                            \
+    !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 0 && !r->ovfl_items && \
+      (r->ref->page)->dsk != NULL && !F_ISSET(r->ref, WT_REF_FLAG_REC_FAIL)
+
+/* Called after internal disk image has been built. */
+#define WT_BUILD_DELTA_INTERNAL(session, r)                                                \
+    !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && (r)->multi_next == 1 && !r->ovfl_items && \
+      (r->ref->page)->dsk != NULL && !F_ISSET(r->ref, WT_REF_FLAG_REC_FAIL)
 
 /*
  * Enumeration used to track the context of reconstructing modifies within a update list.
