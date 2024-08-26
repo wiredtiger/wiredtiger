@@ -80,7 +80,7 @@ test_unpack_addr_cookie(const uint8_t *begin, WT_BLOCK *block, size_t addr_size,
     uint32_t checksum, obj_id, size;
     wt_off_t offset;
     REQUIRE(__wt_block_addr_unpack(
-              NULL, block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
+              nullptr, block, begin, addr_size, &obj_id, &offset, &size, &checksum) == 0);
     check_block_addr(offset, pack_offset, size, pack_size, checksum, pack_checksum);
 }
 
