@@ -188,7 +188,7 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     # Time how long it takes to compare each file.
     start = time.asctime()
     # Compare the bytes in cmp_size blocks between both files.
-    for b in range(0, num_cmp_blocks + 1):
+    for b in range(0, num_cmp_blocks):
         # Compare the two blocks. We know both files are at least min_size so all reads should work.
         buf1 = fp1.read(cmp_size)
         buf2 = fp2.read(cmp_size)
