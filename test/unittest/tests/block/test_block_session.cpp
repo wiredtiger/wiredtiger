@@ -254,26 +254,26 @@ TEST_CASE("Block session: __block_ext_discard", "[block_session]")
     ext->next[0] = ext2;
     bms->ext_cache = ext;
     bms->ext_cache_cnt = 3;
-    SECTION("Discard every item in extent list")
+    SECTION("Discard every item in extent list with 0 max items in the cache")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == 0);
         validate_and_free_ext_list(bms, 0);
     }
 
-    SECTION("Discard until only one item is in extent list")
+    SECTION("Discard until only one item with 1 max item in extent list")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 1) == 0);
 
         validate_and_free_ext_list(bms, 1);
     }
 
-    SECTION("Discard nothing in the extent list")
+    SECTION("Discard nothing in the extent list because cache already has 3 items")
     {
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 3) == 0);
         validate_and_free_ext_list(bms, 3);
     }
 
-    SECTION("Fake cache count and discard every item in extent list")
+    SECTION("Fake cache count and discard everything in extent list with 0 max items in cache")
     {
         bms->ext_cache_cnt = 4;
         REQUIRE(__ut_block_ext_discard(session->getWtSessionImpl(), 0) == WT_ERROR);
