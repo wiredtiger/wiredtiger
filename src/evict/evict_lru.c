@@ -2238,9 +2238,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages == 0)
         return (0);
 
-    __wt_verbose_info(
-      session, WT_VERB_EVICTION, "%s walk: target %" PRIu32, session->dhandle->name, target_pages);
-
     end = start + target_pages;
 
     min_pages = __evict_get_min_pages(session, target_pages);
@@ -2334,8 +2331,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
-      session->dhandle->name, pages_seen, pages_queued);
+    __wt_verbose_info(session, WT_VERB_EVICTION,
+      "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
+      target_pages, pages_seen, pages_queued);
 
     /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
     evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
