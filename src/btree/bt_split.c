@@ -621,6 +621,8 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     /* Free any backing fast-truncate memory. */
     __wt_free(session, ref->page_del);
 
+    __wt_free(session, ref->rec_keys);
+
     /* Free the backing block and address. */
     WT_TRET(__wt_ref_block_free(session, ref));
 
@@ -712,7 +714,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
-              !F_ISSET(next_ref, WT_REF_FLAG_DIRTY) &&
+              (!F_ISSET(next_ref, WT_REF_FLAG_DIRTY) || F_ISSET(next_ref, WT_REF_FLAG_REC_FAIL)) &&
               __wti_delete_page_skip(session, next_ref, true) &&
               WT_REF_CAS_STATE(session, next_ref, WT_REF_DELETED, WT_REF_LOCKED)) {
                 if (scr == NULL)

@@ -1136,7 +1136,7 @@ struct __wt_ref {
     wt_shared WT_PAGE *volatile home;        /* Reference page */
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused; /* Padding: before the flags field so flags can be easily expanded. */
+    uint8_t rec_count; /* Number of entries written in the internal page reconciliation. */
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -1148,6 +1148,7 @@ struct __wt_ref {
 #define WT_REF_FLAG_DIRTY 0x1u    /* Is the change of the ref persisted */
 #define WT_REF_FLAG_INTERNAL 0x2u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x4u     /* Page is a leaf page */
+#define WT_REF_FLAG_REC_FAIL 0x8u /* Is the last reconciliation successful or not. */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
@@ -1183,7 +1184,7 @@ struct __wt_ref {
     union {
         uint64_t recno;       /* Column-store: starting recno */
         wt_shared void *ikey; /* Row-store: key */
-    } key;
+    } key, *rec_keys;
 #undef ref_recno
 #define ref_recno key.recno
 #undef ref_ikey
@@ -1322,9 +1323,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 
