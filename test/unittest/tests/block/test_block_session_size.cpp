@@ -25,7 +25,6 @@ validate_size_block(WT_SIZE *size)
     REQUIRE(size->depth == 0);
     REQUIRE(size->off[0] == nullptr);
     REQUIRE(size->size == 0);
-    REQUIRE(size->next[0] == nullptr);
 }
 
 void
@@ -55,16 +54,15 @@ void
 validate_size_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
 {
     REQUIRE(bms != nullptr);
-    WT_SIZE *curr = bms->sz_cache;
-
     if (bms->sz_cache_cnt == 0)
         REQUIRE(bms->sz_cache == nullptr);
 
     REQUIRE(bms->sz_cache_cnt == expected_items);
-    for (int i = 0; i < expected_items; i++)
+    WT_SIZE *curr = bms->sz_cache;
+    for (int i = 0; i < expected_items; i++) {
         validate_size_block(curr);
-    curr = curr->next[0];
-
+        curr = curr->next[0];
+    }
     REQUIRE(curr == nullptr);
 }
 
