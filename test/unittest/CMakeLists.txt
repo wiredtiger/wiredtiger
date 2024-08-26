@@ -22,6 +22,7 @@ else()
         tests/test_session_config.cpp
         tests/test_string_match.cpp
         tests/test_tailq.cpp
+        tests/test_unit_test_template.cpp
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
