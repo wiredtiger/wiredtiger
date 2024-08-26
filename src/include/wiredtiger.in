@@ -651,6 +651,8 @@ struct __wt_cursor {
      * @errors
      */
     uint64_t __F(checkpoint_id)(WT_CURSOR *cursor);
+
+    int __F(notify_new_checkpoint)(WT_CURSOR *cursor);
 #endif
 
     /*!
@@ -2078,8 +2080,6 @@ struct __wt_session {
      * @errors
      */
     int __F(breakpoint)(WT_SESSION *session);
-
-    int __F(notify_new_checkpoint)(WT_SESSION *session);
 #endif
 };
 

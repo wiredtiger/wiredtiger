@@ -97,8 +97,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
 
-        session_follow.notify_new_checkpoint()
         cursor_follow = session_follow.open_cursor(self.uri, None, None)
+        cursor_follow.notify_new_checkpoint()
         item_count = 0
         while cursor_follow.next() == 0:
             item_count += 1
