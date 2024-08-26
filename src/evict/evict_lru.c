@@ -481,7 +481,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     if (*did_work) {
 #if !defined(HAVE_DIAGNOSTIC)
         /* Need verbose check only if not in diagnostic build */
-        if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
+        if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION))
 #endif
             __wt_epoch(session, &cache->stuck_time);
         return (0);
@@ -489,12 +489,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
 #if !defined(HAVE_DIAGNOSTIC)
     /* Need verbose check only if not in diagnostic build */
-    if (!WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
+    if (!WT_VERBOSE_ISSET(session, WT_VERB_EVICTION))
         return (0);
 #endif
     /*
-     * If we're stuck for 5 minutes in diagnostic mode, or the verbose evict_stuck flag is
-     * configured, log the cache and transaction state.
+     * If we're stuck for 5 minutes in diagnostic mode, or the verbose eviction flag is configured,
+     * log the cache and transaction state.
      *
      * If we're stuck for 5 minutes in diagnostic mode, give up.
      *
@@ -513,12 +513,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #ifdef HAVE_DIAGNOSTIC
         /* Enable extra logs 20ms before timing out. */
         if (cache->cache_stuck_timeout_ms < 20 ||
-          (time_diff_ms > cache->cache_stuck_timeout_ms - 20)) {
-            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
+          (time_diff_ms > cache->cache_stuck_timeout_ms - 20))
             WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1);
-            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-            WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-        }
 #endif
 
         if (time_diff_ms >= cache->cache_stuck_timeout_ms) {
@@ -528,7 +524,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             WT_RET(__wt_verbose_dump_cache(session));
             return (__wt_set_return(session, ETIMEDOUT));
 #else
-            if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
+            if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION)) {
                 WT_RET(__wt_verbose_dump_txn(session));
                 WT_RET(__wt_verbose_dump_cache(session));
 
