@@ -22,10 +22,41 @@ else()
         tests/test_session_config.cpp
         tests/test_string_match.cpp
         tests/test_tailq.cpp
-        tests/test_unit_test_template.cpp
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
+        tests/block/test_hi.cpp
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
