@@ -82,6 +82,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             cursor["OK " + str(i)] = "Go"
             if i % 10000 == 0:
                 time.sleep(1)
+                session_follow.checkpoint()
                 if i == 10000:
                     cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
 

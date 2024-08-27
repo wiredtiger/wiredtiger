@@ -12,15 +12,18 @@ static WT_THREAD_RET
 __oligarch_metadata_watcher(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *md_cursor;
     WT_DECL_RET;
     WT_FH *md_fh;
     WT_SESSION_IMPL *session;
-    char *md_path;
+    char buf[4096], *cfg_ret, *md_path, *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
+    const char *value, *cfg[3];
     size_t len;
-    wt_off_t last_sz, new_sz;
+    wt_off_t last_sep, last_sz, name_ptr, new_sz;
 
     session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
+    memset(buf, 0, 4096);
 
     fprintf(stderr, "created metadata watcher thread\n");
 
@@ -36,8 +39,52 @@ __oligarch_metadata_watcher(void *arg)
         if (new_sz == last_sz)
             continue;
 
-        fprintf(stderr, "saw new content in metadata\n");
         last_sz = new_sz;
+
+        /* Read 4095 characters from before EOF */
+        WT_ERR(__wt_read(session, md_fh, WT_MAX(0, last_sz - 4095), (size_t)WT_MIN(4095, last_sz), buf));
+
+        /* Parse out the key and new checkpoint config */
+        last_sep = 0;
+        for (new_sz = 4095; new_sz >= 0; new_sz--) {
+            if (buf[new_sz] == '|') {
+                last_sep = new_sz;
+                break;
+            }
+        }
+
+        buf[last_sep] = '\0';
+        name_ptr = last_sep;
+        while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
+            name_ptr--;
+
+        fprintf(stderr, "name=%s\n", &buf[name_ptr]);
+        /* fprintf(stderr, "value=%s\n", &buf[last_sep+1]); */
+
+        /* Open up a metadata cursor pointing at our table */
+        WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+        md_cursor->set_key(md_cursor, &buf[name_ptr]);
+        WT_ERR(md_cursor->search(md_cursor));
+
+        /* Pull the value out */
+        WT_ERR(md_cursor->get_value(md_cursor, &value));
+        len = strlen(&buf[last_sep + 1]);
+        buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
+        fprintf(stderr, "value=%s\n", &buf[last_sep + 1]);
+        len += strlen("checkpoint="); /* -1 for trailing newline */
+
+        /* Allocate/create a new config we're going to insert */
+        WT_ERR(__wt_calloc_def(session, len, &new_md_value));
+        WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
+        cfg[0] = value;
+        cfg[1] = new_md_value;
+        cfg[2] = NULL;
+        WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+        fprintf(stderr, "collapsed=%s\n", cfg_ret);
+
+        /* Put our new config in */
+        WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
+        WT_ERR(md_cursor->close(md_cursor));
     }
 
 err:
