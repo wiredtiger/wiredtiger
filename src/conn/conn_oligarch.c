@@ -82,9 +82,12 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
         /* fprintf(stderr, "collapsed=%s\n", cfg_ret); */
 
+        /* TODO call into dir store here and re-read internal maps */
+
         /* Put our new config in */
         WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
-        WT_ERR(md_cursor->close(md_cursor));
+        WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
+        md_cursor = NULL;
     }
 
 err:
