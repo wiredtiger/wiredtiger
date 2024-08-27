@@ -25,38 +25,6 @@ else()
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
-        tests/block/test_hi.cpp
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
