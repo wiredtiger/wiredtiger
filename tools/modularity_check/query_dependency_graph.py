@@ -85,8 +85,11 @@ def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Se
                 print(f"    {field}: {sorted(used_by_modules)}")
         print()
 
-    private_pct = round((num_private / num_fields) * 100, 2)
-    print(f"{num_private} of {num_fields} non-ambiguous fields ({private_pct}%) are private")
+    if num_fields == 0:
+        print(f"Either no structs were found in {module}, or all fields are ambiguous")
+    else:
+        private_pct = round((num_private / num_fields) * 100, 2)
+        print(f"{num_private} of {num_fields} non-ambiguous fields ({private_pct}%) are private")
 
 def generate_dependency_file(graph: nx.DiGraph):
     with open("dep_file.new", 'w') as f:
