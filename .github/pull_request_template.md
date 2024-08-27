@@ -1,13 +1,13 @@
 ## Describe the Problem and Solution
-<!-- Write 2-3 sentences summarising the reasons behind this change (this might be the problem you're solving, or the context around the request) and the solution you take. !-->  
+<!-- Write 2-3 sentences summarising the reasons behind this change (this might be the problem you're solving, or the context around the request) and the solution you have chosen. !-->  
 
 ## What makes this change safe?
 <!-- DELETE WHEN COMPLETED
-A good answer to this question helps the reviewers understand where they should focus their attention, consider these questions:
+A good answer to this question helps the reviewers understand where they should focus their attention, so please consider these questions:
 - Is the change risky or not? Why? 
-- What tests are you adding? Why?
+- What tests are you adding or changing? Why?
 - What existing tests are you relying on? 
-- What are you worried about that you'd like the reviewer to focus on?
+- What, if anything, are you concerned about that you'd like the reviewer to focus on?
 References:
 - [Risk level guide](https://github.com/wiredtiger/wiredtiger/blob/develop/.github/risk_level_guide.md)
 - [Testing frameworks](https://github.com/wiredtiger/wiredtiger/blob/develop/.github/testing_frameworks.md)
@@ -17,4 +17,4 @@ References:
 
 - [ ] I have performed a self-review of my code.
 - [ ] I have made corresponding changes to the documentation (if applicable).
-- [ ] I have added/updated tests that demostrate my fix is effective or that my feature works correctly.
+- [ ] I have added/updated tests that demonstrate my fix is effective or that my feature works correctly.
