@@ -10,7 +10,7 @@ A good answer to this question helps the reviewers understand where they should 
 - What, if anything, are you concerned about that you'd like the reviewer to focus on?
 References:
 - [Risk level guide](https://github.com/wiredtiger/wiredtiger/blob/develop/.github/risk_level_guide.md)
-- [Testing frameworks](https://github.com/wiredtiger/wiredtiger/blob/develop/.github/testing_frameworks.md)
+- [Testing frameworks](https://github.com/wiredtiger/wiredtiger/blob/develop/test/testing_frameworks.md)
 !-->
 
 ## Checklist before requesting a review
