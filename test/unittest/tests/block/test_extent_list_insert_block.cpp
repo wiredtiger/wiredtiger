@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #include <catch2/catch.hpp>
 
@@ -36,15 +37,6 @@ struct {
         return (left < right);
     }
 } off_size_Less_off_and_size;
-
-/*!
- * A test (_off_size) and the expected value (_expected_list) for operations that need an off_size
- * to modify a WT_EXTLIST
- */
-struct off_size_expected {
-    off_size _off_size;
-    std::vector<off_size> _expected_list;
-};
 
 TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
 {
@@ -102,8 +94,8 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
+        extlist.name = const_cast<char *>("__block_merge");
 
-        /* Empty block */
         WT_BLOCK block = {};
         block.name = "__block_merge";
         block.allocsize = 1024;
@@ -122,7 +114,7 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
             utils::extlist_print_off(extlist);
 
             /* Verify */
-            verify_off_extent_list(extlist, test._expected_list, false);
+            verify_off_extent_list(extlist, test._expected_list, true);
             ++idx;
         }
 
@@ -176,6 +168,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
+        extlist.name = const_cast<char *>("__block_off_remove");
 
         /* Insert extents */
         for (const off_size &to_insert : insert_list) {
@@ -192,7 +185,8 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
         verify_off_extent_list(extlist, expected_order);
 
         /* Test */
-        WT_BLOCK block = {};
+        WT_BLOCK block = {}; // __block_off_remove used only in error checking.
+        block.name = const_cast<char *>("__block_off_remove");
         int idx = 0;
         for (const off_expected &test : test_list) {
             /* For testing, half request ext returned, and half do not. */
@@ -211,7 +205,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
             extlist_print_off(extlist);
 
             /* Verify */
-            verify_off_extent_list(extlist, test._expected_list, false);
+            verify_off_extent_list(extlist, test._expected_list, true);
             ++idx;
         }
 
@@ -235,24 +229,26 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
     {
         BREAK;
         /* Tests and expected values */
-        std::vector<off_size_expected> test_list{
-          {off_size(4096, 2048), // First half of First [4,096, 6,143]
-            {
-              off_size(4096, 2048), // First [4,096, 6,143]
-            }},
-          {off_size(4096 + 2048, 2048), // Second half of First [6,144, 8,191]
-            {
-              off_size(4096, 4096), // First [4,096, 8,191]
-            }},
-#if 0 // FAILED: REQUIRE( last == extlist.last ) with expansion: 0x0000000012173e40 == 0x00000000121746a0
-          {off_size(3 * 4096, 4096), // Second [12,288, 16,383]
+        std::vector<off_size_expected> test_list
+        {
+            {off_size(4096, 2048), // First half of First [4,096, 6,143]
+              {
+                off_size(4096, 2048), // First [4,096, 6,143]
+              }},
+              {off_size(4096 + 2048, 2048), // Adjacent: Second half of First [6,144, 8,191]
+                {
+                  off_size(4096, 4096), // First [4,096, 8,191]
+                }},
+#if 0 // FAILED: REQUIRE( last == extlist.last ) with expansion: 0x0000000040319c10 ==
+      // 0x0000000040334d60
+          {off_size(3 * 4096, 4096), // Not adjacent: Second [12,288, 16,383]
             {
               off_size(4096, 4096),     // First [4,096, 8,191]
               off_size(3 * 4096, 4096), // Second [12,288, 16,383]
             }},
 #endif
-#if 0 // FAILED: REQUIRE( extlist.entries == expected_order.size() ) with expansion: 2 == 3
-          {off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+#if 0 // Not run after previous failure
+          {off_size(5 * 4096, 4096), // Not adjacent: Third [20,480, 24,575]
             {
               off_size(4096, 4096),     // First [4,096, 8,191]
               off_size(3 * 4096, 4096), // Second [12,288, 16,383]
@@ -264,9 +260,10 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
         /* Setup */
         /* Empty extent list */
         WT_EXTLIST extlist = {};
-
-        WT_BLOCK block = {};
-        block.name = "__block_append";
+        extlist.name = const_cast<char *>("__block_append");
+        /* Initial block */
+        WT_BLOCK block = {}; // Not used by __block_append
+        block.name = const_cast<char *>("__block_append");
         block.allocsize = 1024;
         block.size = 4096; // Description information
 
@@ -289,5 +286,103 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
 
         /* Cleanup */
         extlist_free(session, extlist);
+    }
+}
+
+/*!
+ * A test (_size), expected values extension offset(_extension_off), block size(_block_size), and
+ * err(_err) for __block_extend.
+ */
+struct block_append_test {
+    wt_off_t _size;
+    wt_off_t _extension_off;
+    wt_off_t _block_size;
+    int _err;
+};
+
+TEST_CASE("Extent Lists: block_extend", "[extent_list2]")
+{
+    /* Build Mock session, this will automatically create a mock connection. */
+    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+
+    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
+
+    SECTION("fail to extend an invalid block")
+    {
+        BREAK;
+        /* Test and expected values */
+        block_append_test test = {4096, 0, 1024, EINVAL};
+
+        /* Setup */
+        /* Empty extent list */
+        WT_EXTLIST extlist = {};
+        extlist.name = const_cast<char *>("__block_extend");
+        /* Invalid initial block */
+        WT_BLOCK block = {};
+        block.name = const_cast<char *>("__block_extend");
+        block.allocsize = 4096;
+        block.size = 1024; // Description information
+
+        /* Test */
+        /* Fail to extend */
+        wt_off_t size_before = block.size;
+        wt_off_t extension_off = 0;
+        /* Call */
+        int err = __ut_block_extend(session, &block, &extlist, &extension_off, test._size);
+
+        INFO("After extend: Before: size "
+          << size_before << "; Test: size " << test._size << "; Expected: extension offset "
+          << test._extension_off << ", block size " << test._block_size << ", err " << test._err
+          << "; Actual: extension offset " << extension_off << ", block size " << block.size
+          << ", err " << err);
+
+        /* Verify */
+        REQUIRE(err == test._err);
+        REQUIRE(extension_off == test._extension_off);
+        REQUIRE(block.size == test._block_size);
+    }
+
+    SECTION("extend a block and verify it after each extension")
+    {
+        BREAK;
+        /* Tests and expected values */
+        std::vector<block_append_test> test_list{
+          {2048, 4096, 4096 + 2048, 0},     // Extend by 2,048 from 4,096 to 6,144
+          {2048, 4096 + 2048, 2 * 4096, 0}, // Extend from 6,144 to 8,192
+          {(wt_off_t)INT64_MAX - 2 * 4096 + 1024, 0, 2 * 4096, WT_ERROR}, // Block size too big
+        };
+
+        /* Setup */
+        /* Empty extent list */
+        WT_EXTLIST extlist = {};
+        extlist.name = const_cast<char *>("__block_extend");
+        /* Initial valid block */
+        WT_BLOCK block = {};
+        block.name = const_cast<char *>("__block_extend");
+        block.allocsize = 1024;
+        block.size = 4096; // Description information
+
+        /* Test */
+        /* Append size and verify */
+        int idx = 0;
+        for (const block_append_test &test : test_list) {
+            wt_off_t size_before = block.size;
+            wt_off_t extension_off = 0;
+            /* Call */
+            int err = __ut_block_extend(session, &block, &extlist, &extension_off, test._size);
+
+            INFO("After " << idx << ". Extend: Before: size " << size_before << "; Test: size "
+                          << test._size << "; Expected: extension offset " << test._extension_off
+                          << ", block size " << test._block_size << ", err " << test._err
+                          << "; Actual: extension offset " << extension_off << ", block size "
+                          << block.size << ", err " << err);
+
+            /* Verify */
+            REQUIRE(err == test._err);
+            REQUIRE(extension_off == test._extension_off);
+            REQUIRE(block.size == test._block_size);
+            ++idx;
+        }
     }
 }
