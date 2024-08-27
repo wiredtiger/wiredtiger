@@ -49,7 +49,7 @@ static void
 test_pack_addr_cookie(uint8_t *pp, WT_BLOCK *block, size_t *addr_size, wt_off_t pack_offset,
   uint32_t pack_size, uint32_t pack_checksum)
 {
-    const uint8_t *begin = static_cast<const uint8_t *>(pp);
+    const uint8_t *begin = pp;
     REQUIRE(__wt_block_addr_pack(
               block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
     *addr_size = WT_PTRDIFF(pp, begin);
@@ -91,11 +91,10 @@ test_pack_and_unpack_addr_cookie(
     uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
     pp = p;
 
-    const uint8_t *begin = static_cast<const uint8_t *>(pp);
     size_t addr_size;
 
     test_pack_addr_cookie(pp, block, &addr_size, pack_offset, pack_size, pack_checksum);
-    test_unpack_addr_cookie(begin, block, addr_size, pack_offset, pack_size, pack_checksum);
+    test_unpack_addr_cookie(pp, block, addr_size, pack_offset, pack_size, pack_checksum);
 }
 
 static void
@@ -104,7 +103,9 @@ test_pack_and_unpack_addr_cookie_manual(
 {
     std::vector<uint8_t> packed(24, 0);
     uint8_t *p = packed.data();
-    const uint8_t *begin = static_cast<const uint8_t *>(p);
+
+    // Save the location where the address cookie starts as the manual checks will move the pointer.
+    const uint8_t *begin = p;
     REQUIRE(__wt_block_addr_pack(block, &p, WT_TIERED_OBJECTID_NONE,
               static_cast<wt_off_t>(cookie_vals[0]), static_cast<uint32_t>(cookie_vals[1]),
               static_cast<uint32_t>(cookie_vals[2])) == 0);
