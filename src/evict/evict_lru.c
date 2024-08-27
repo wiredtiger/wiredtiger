@@ -2331,7 +2331,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
 
-    __wt_verbose_debug1(session, WT_VERB_EVICTION,
+    __wt_verbose_debug2(session, WT_VERB_EVICTION,
       "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
       target_pages, pages_seen, pages_queued);
 
