@@ -12,7 +12,7 @@ Here are the frequently-used WiredTiger testing frameworks (broken down by testi
   - [format test](https://github.com/wiredtiger/wiredtiger/tree/develop/test/format)
   - [checkpoint test](https://github.com/wiredtiger/wiredtiger/tree/develop/test/checkpoint)
   - [CPP Suite](https://github.com/wiredtiger/wiredtiger/tree/develop/test/cppsuite)
-  - [testy] (https://github.com/wiredtiger/testy)
+  - [testy](https://github.com/wiredtiger/testy)
 - Performance testing
   - [wtperf](https://github.com/wiredtiger/wiredtiger/tree/develop/bench/wtperf)
   - [workgen](https://github.com/wiredtiger/wiredtiger/tree/develop/bench/workgen)
