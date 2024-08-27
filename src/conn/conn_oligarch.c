@@ -58,7 +58,7 @@ __oligarch_metadata_watcher(void *arg)
         while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
             name_ptr--;
 
-        fprintf(stderr, "name=%s\n", &buf[name_ptr]);
+        /* fprintf(stderr, "name=%s\n", &buf[name_ptr]); */
         /* fprintf(stderr, "value=%s\n", &buf[last_sep+1]); */
 
         /* Open up a metadata cursor pointing at our table */
@@ -70,7 +70,7 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(md_cursor->get_value(md_cursor, &value));
         len = strlen(&buf[last_sep + 1]);
         buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
-        fprintf(stderr, "value=%s\n", &buf[last_sep + 1]);
+        /* fprintf(stderr, "value=%s\n", &buf[last_sep + 1]); */
         len += strlen("checkpoint="); /* -1 for trailing newline */
 
         /* Allocate/create a new config we're going to insert */
@@ -80,7 +80,7 @@ __oligarch_metadata_watcher(void *arg)
         cfg[1] = new_md_value;
         cfg[2] = NULL;
         WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
-        fprintf(stderr, "collapsed=%s\n", cfg_ret);
+        /* fprintf(stderr, "collapsed=%s\n", cfg_ret); */
 
         /* Put our new config in */
         WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
