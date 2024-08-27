@@ -125,13 +125,10 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
         if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
-            if (LF_ISSET(WT_EVICT_STATS_CLEAN)) {
+            if (LF_ISSET(WT_EVICT_STATS_CLEAN))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
-                WT_STAT_CONN_INCRV(session, cache_eviction_force_clean_time, eviction_time);
-            } else {
+            else
                 WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
-                WT_STAT_CONN_INCRV(session, cache_eviction_force_dirty_time, eviction_time);
-            }
         }
 
         if (LF_ISSET(WT_EVICT_STATS_CLEAN))
@@ -147,7 +144,6 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
                 WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
             WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
-            WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time, eviction_time);
         }
 
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_fail);
