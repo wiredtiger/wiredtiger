@@ -1,10 +1,10 @@
 ## Risk level guide
 
-**Low risk**: with high confidence the change won’t unexpectedly change the behaviors, or the change touches a non-critical area.
+**Low risk**: with high confidence the change won’t unexpectedly change the behavior, or the change touches a non-critical area.
 
-**Medium risk**: with medium confidence the change won’t unexpectedly change the behaviors, or the change touches an area you are not familiar with or easy to break.
+**Medium risk**: with medium confidence the change won’t unexpectedly change the behavior, or the change touches an area you are not familiar with or easy to break.
 
-**High risk**: can't tell a clear story about what tests give us confidence that the change won’t unexpectedly change the behaviors.
+**High risk**: can't tell a clear story about what tests give us confidence that the change won’t unexpectedly change the behavior.
 
 Try asking yourself a few questions to figure out (or elaborate on) the risk level:
 
