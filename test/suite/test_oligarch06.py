@@ -52,6 +52,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
         leader_create = 'key_format=S,value_format=S,role=leader'
+        # FIXME: This shouldn't take an absolute path
+        # Peter's stable_follower_prefix: /home/peter.macko/Projects/wt-13134-willk-checkpoints-take2/build/WT_TEST/test_oligarch06.test_oligarch06.test_oligarch06
         follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=/home/ubuntu/dev/wt-13134/wiredtiger/build/WT_TEST/test_oligarch06.0'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
@@ -105,5 +107,35 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         while cursor_follow2.next() == 0:
             item_count += 1
         self.assertEqual(item_count, self.nitems * 3)
+
+        self.tty('---------------------- PART 1 SUCCESS ----------------------')
+
+        # Add a second set of items to ensure that the follower can pick them up
+        self.pr('add another set of items')
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        for i in range(self.nitems):
+            cursor["** Hello " + str(i)] = "World"
+            cursor["** Hi " + str(i)] = "There"
+            cursor["** OK " + str(i)] = "Go"
+            if i % 10000 == 0:
+                time.sleep(1)
+                session_follow.checkpoint()
+
+        cursor.reset()
+        cursor.close()
+        time.sleep(10)
+
+        cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor_follow3.next() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 6)
+
+        # Close cursors
         cursor_follow1.close()
         cursor_follow2.close()
+        cursor_follow3.close()
+
+        # FIXME: Remove this once the cleanup & unexpected log output are fixed.
+        self.tty('---------------------- SUCCESS (ignore errors below) ----------------------')
