@@ -370,10 +370,10 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
     if module == "include" and file_name.endswith(".h") and file_name[:-2] in folder_modules:
         # If an include/*.h file has the same name as a module (txn txn.h) then map it to that module
         # (Nothing to do, it's already mapped). We just want this branch to avoid calling the header_mapping logic
-        pass
+        module = file_name[:-2]
     elif module == "include" and file_name.endswith("_inline.h") and file_name[:-9] in folder_modules:
         # Similarly for _inline.h files
-        pass
+        module = file_name[:-9]
     elif module == "include" and file_name.endswith(".h"):
         if file_name in header_mappings:
             module = header_mappings[file_name]
