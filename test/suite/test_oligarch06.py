@@ -52,7 +52,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
         leader_create = 'key_format=S,value_format=S,role=leader'
-        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=foo'
+        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=/home/ubuntu/dev/wt-13134/wiredtiger/build/WT_TEST/test_oligarch06.0'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
@@ -82,12 +82,14 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             cursor["OK " + str(i)] = "Go"
             if i % 10000 == 0:
                 time.sleep(1)
+                if i == 10000:
+                    cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
 
         cursor.reset()
 
         self.pr('opening cursor')
         cursor.close()
-        time.sleep(1)
+        time.sleep(10)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
@@ -97,10 +99,10 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
 
-        cursor_follow = session_follow.open_cursor(self.uri, None, None)
-        cursor_follow.notify_new_checkpoint()
+        cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
-        while cursor_follow.next() == 0:
+        while cursor_follow2.next() == 0:
             item_count += 1
         self.assertEqual(item_count, self.nitems * 3)
-        cursor_follow.close()
+        cursor_follow1.close()
+        cursor_follow2.close()

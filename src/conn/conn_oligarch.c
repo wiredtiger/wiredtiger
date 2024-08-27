@@ -8,6 +8,71 @@
 
 #include "wt_internal.h"
 
+static WT_THREAD_RET
+__oligarch_metadata_watcher(void *arg)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_FH *md_fh;
+    WT_SESSION_IMPL *session;
+    char *md_path;
+    size_t len;
+    wt_off_t last_sz, new_sz;
+
+    session = (WT_SESSION_IMPL *)arg;
+    conn = S2C(session);
+
+    fprintf(stderr, "created metadata watcher thread\n");
+
+    len = strlen(conn->iface.stable_follower_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    WT_ERR(__wt_calloc_def(session, len, &md_path));
+    WT_ERR(__wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_follower_prefix, WT_OLIGARCH_METADATA_FILE));
+    WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
+    WT_ERR(__wt_filesize(session, md_fh, &last_sz));
+
+    for (;;) {
+        __wt_sleep(0, 1000);
+        WT_ERR(__wt_filesize(session, md_fh, &new_sz));
+        if (new_sz == last_sz)
+            continue;
+
+        fprintf(stderr, "saw new content in metadata\n");
+        last_sz = new_sz;
+    }
+
+err:
+    fprintf(stderr, "ret=%d\n", ret);
+    __wt_free(session, md_path);
+    /* WT_IGNORE_RET(__wt_close(session, &md_fh)); */
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/* TODO the model here is a bit wrong, enforce singleton-ness some other way */
+int
+__wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_OLIGARCH_MANAGER *manager;
+
+    conn = S2C(session);
+    manager = &conn->oligarch_manager;
+
+    if (!__wt_atomic_cas32(&manager->watcher_state, WT_OLIGARCH_WATCHER_OFF, WT_OLIGARCH_WATCHER_STARTING)) {
+        while (__wt_atomic_load32(&manager->watcher_state) != WT_OLIGARCH_WATCHER_RUNNING)
+            __wt_sleep(0, 1000);
+        return (0);
+    }
+
+    WT_RET(__wt_open_internal_session(
+      conn, "oligarch-metadata-server", true, 0, 0, &conn->oligarch_metadata_session));
+    WT_RET(__wt_thread_create(conn->oligarch_metadata_session, &manager->watcher_tid, __oligarch_metadata_watcher, conn->oligarch_metadata_session));
+    manager->watcher_tid_set = true;
+
+    fprintf(stderr, "oligarch watcher started\n");
+    return (0);
+}
+
 /* Set up the file that contains metadata for the stable tables. */
 static int
 __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)

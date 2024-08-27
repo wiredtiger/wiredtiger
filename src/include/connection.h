@@ -139,6 +139,14 @@ struct __wt_oligarch_manager {
 #define WT_OLIGARCH_MANAGER_STOPPING 3 /* The oligarch manager is being shut down */
     wt_shared uint32_t state; /* Atomic: Indicating whether the manager is already running */
 
+#define WT_OLIGARCH_WATCHER_OFF 0
+#define WT_OLIGARCH_WATCHER_RUNNING 1
+#define WT_OLIGARCH_WATCHER_STARTING 2
+#define WT_OLIGARCH_WATCHER_STOPPING 3
+    wt_shared uint32_t watcher_state;
+    wt_thread_t watcher_tid;
+    bool watcher_tid_set;
+
     wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
 
     WT_SPINLOCK oligarch_lock; /* Lock used for managing changes to global oligarch state */
@@ -664,6 +672,7 @@ struct __wt_connection_impl {
     wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
 
     WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunk cache metadata server thread session */
+    WT_SESSION_IMPL *oligarch_metadata_session; /* Chunk cache metadata server thread session */
     wt_thread_t chunkcache_metadata_tid;          /* Chunk cache metadata thread */
     bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */

@@ -660,10 +660,16 @@ __schema_open_oligarch(WT_SESSION_IMPL *session)
     oligarch->collator_owned = 0;
 
     WT_RET(__wt_config_gets(session, oligarch_cfg, "role", &cval));
-    if (WT_STRING_LIT_MATCH("follower", cval.str, cval.len))
+    if (WT_STRING_LIT_MATCH("follower", cval.str, cval.len)) {
         oligarch->leader = false;
-    else
+
+        /* Start utility thread to watch the leader's metadata and update our metadata */
+        WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_follower_prefix", &cval));
+        /* TODO use this config */
+        WT_RET(__wt_oligarch_watcher_start(session));
+    } else {
         oligarch->leader = true;
+    }
 
     WT_RET(__wt_config_gets(session, oligarch_cfg, "key_format", &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->key_format));
