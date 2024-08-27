@@ -54,6 +54,6 @@ void extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST &extlist);
 void verify_empty_extent_list(WT_EXT **head, WT_EXT ***stack);
 void verify_off_extent_list(
   const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order, bool verify_bytes = true);
-} // namespace utils
+} // namespace utils.
 
 bool operator<(const utils::off_size &left, const utils::off_size &right);

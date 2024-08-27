@@ -18,4 +18,4 @@ namespace utils {
 void break_here(const char *file, const char *func, int line);
 void throwIfNonZero(int result);
 void wiredtigerCleanup(const std::string &db_home);
-} // namespace utils
+} // namespace utils.
