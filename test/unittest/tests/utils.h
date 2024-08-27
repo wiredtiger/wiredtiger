@@ -12,8 +12,9 @@
 
 #define DB_HOME "test_db"
 
-namespace utils {
 #define BREAK utils::break_here(__FILE__, __func__, __LINE__)
+
+namespace utils {
 void break_here(const char *file, const char *func, int line);
 void throwIfNonZero(int result);
 void wiredtigerCleanup(const std::string &db_home);
