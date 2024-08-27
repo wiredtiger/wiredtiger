@@ -13,11 +13,10 @@
  */
 
 #include <algorithm>
+#include <catch2/catch.hpp>
 #include <memory>
 #include <sstream>
 #include <string>
-
-#include <catch2/catch.hpp>
 
 #include "test_util.h"
 #include "../utils.h"
@@ -113,16 +112,14 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         /* Test */
         WT_EXT dummy;
         uint32_t idx = 0;
-        std::ostringstream line_stream;
-
         for (const search_before_after &expected : expected_before_after) {
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
             /* Call */
             __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
 
-            line_stream.clear();
-            line_stream << "After " << idx << ". Verify: off " << expected._off;
+            std::ostringstream line_stream;
+            line_stream << "Verify: " << idx << ". off " << expected._off;
             if (expected._before != nullptr)
                 line_stream << "; Expected: _before: {off " << expected._before->_off << ", size "
                             << expected._before->_size << ", end " << expected._before->end()
@@ -151,7 +148,6 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             std::string line = line_stream.str();
             INFO(line);
 
-            ++idx;
             /* Verify */
             if (expected._before != nullptr) {
                 REQUIRE(before != nullptr);
@@ -168,6 +164,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             } else {
                 REQUIRE(after == nullptr);
             }
+            ++idx;
         }
 
         /* Cleanup */
@@ -259,9 +256,9 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
                             << expected._size << ", end " << expected.end()
                             << "}, match false; Actual: match " << match_str);
 
-            ++idx;
             /* Verify: All should be not found. */
             REQUIRE(match == false);
+            ++idx;
         }
     }
 
@@ -292,9 +289,9 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
                             << expected._size << ", end " << expected.end()
                             << "}, match false; Actual: match " << match_str);
 
-            ++idx;
             /* Verify */
             REQUIRE(match == expected._match);
+            ++idx;
         }
 
         /* Cleanup */
