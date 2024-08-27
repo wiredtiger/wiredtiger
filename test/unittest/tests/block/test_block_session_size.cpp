@@ -148,8 +148,12 @@ TEST_CASE("Block session: __wti_block_size_alloc with block manager", "[block_se
     // Construct extent cache with one item.
     bms->sz_cache = sz;
     bms->sz_cache_cnt = 1;
+
+    // Fake the cache count, the function should protect the count from becoming negative and still
+    // return the cached size.
     SECTION("Fake the cache size count to 0")
     {
+        bms->sz_cache_cnt = 0;
         WT_SIZE *cached_sz = nullptr;
         REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &cached_sz) == 0);
         // If an size is in the cache, the function should be returning the cached size.
@@ -158,6 +162,8 @@ TEST_CASE("Block session: __wti_block_size_alloc with block manager", "[block_se
         validate_and_free_size_block(sz);
     }
 
+    // Modify the cache size to a junk next, the function should clear the next reference and
+    // return the cached size.
     SECTION("Modify the existing size to junk next")
     {
         // Modify extent with junk next.
@@ -172,6 +178,7 @@ TEST_CASE("Block session: __wti_block_size_alloc with block manager", "[block_se
         validate_and_free_size_block(sz);
     }
 
+    // With two items in the cache, ensure we return the correct one.
     SECTION("Test with two sizes in the constructed cache")
     {
         WT_SIZE *sz2 = nullptr;
