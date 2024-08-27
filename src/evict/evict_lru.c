@@ -413,7 +413,7 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
 
-    __wt_verbose(session, WT_VERB_EVICTION, "%s", "cache eviction thread exiting");
+    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "cache eviction thread exiting");
 
     if (0) {
 err:
@@ -548,6 +548,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     uint32_t session_flags;
 
     conn = S2C(session);
+    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "starting eviction threads");
 
     /*
      * In case recovery has allocated some transaction IDs, bump to the current state. This will
@@ -600,6 +601,8 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     if (!__wt_atomic_loadbool(&conn->evict_server_running))
         return (0);
 
+    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "stopping eviction threads");
+
     /* Wait for any eviction thread group changes to stabilize. */
     __wt_writelock(session, &conn->evict_threads.lock);
 
@@ -610,7 +613,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     __wt_atomic_storebool(&conn->evict_server_running, false);
     __wt_evict_server_wake(session);
 
-    __wt_verbose(session, WT_VERB_EVICTION, "%s", "waiting for helper threads");
+    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "waiting for eviction threads to stop");
 
     /*
      * We call the destroy function still holding the write lock. It assumes it is called locked.
@@ -849,7 +852,7 @@ __evict_pass(WT_SESSION_IMPL *session)
             }
 
             WT_STAT_CONN_INCR(session, cache_eviction_slow);
-            __wt_verbose(session, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
+            __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
             break;
         }
         if (__wt_atomic_load32(&cache->evict_aggressive_score) > 0)
@@ -949,6 +952,9 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         return (0);
     }
 
+    __wt_verbose_info(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
+      btree->dhandle->name);
+
     /*
      * Special operations don't enable eviction, however the underlying command (e.g. verify) may
      * choose to turn on eviction. This falls outside of the typical eviction flow, and here
@@ -1034,6 +1040,8 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #else
     (void)__wt_atomic_subi32(&btree->evict_disabled, 1);
 #endif
+    __wt_verbose_info(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
+      btree->dhandle->name);
 }
 
 #define EVICT_TUNE_BATCH 1 /* Max workers to add each period */
@@ -1192,7 +1200,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
          */
         for (i = cur_threads; i < target_threads; ++i) {
             __wt_thread_group_start_one(session, &conn->evict_threads, false);
-            __wt_verbose(session, WT_VERB_EVICTION, "%s", "added worker thread");
+            __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "added worker thread");
         }
         cache->evict_tune_last_action_time = current_time;
     }
@@ -2178,8 +2186,8 @@ fast:
         return;
 
     *queuedp = true;
-    __wt_verbose(session, WT_VERB_EVICTION, "walk select: %p, size %" WT_SIZET_FMT, (void *)page,
-      __wt_atomic_loadsize(&page->memory_footprint));
+    __wt_verbose_debug2(session, WT_VERB_EVICTION, "walk select: %p, size %" WT_SIZET_FMT,
+      (void *)page, __wt_atomic_loadsize(&page->memory_footprint));
 
     return;
 }
@@ -2315,8 +2323,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     *slotp += (u_int)(evict - start);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
 
-    __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s walk: seen %" PRIu64 ", queued %" PRIu64,
-      session->dhandle->name, pages_seen, pages_queued);
+    __wt_verbose_debug2(session, WT_VERB_EVICTION,
+      "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
+      target_pages, pages_seen, pages_queued);
 
     /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
     evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
