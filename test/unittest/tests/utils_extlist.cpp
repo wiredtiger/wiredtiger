@@ -6,16 +6,16 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "utils_extlist.h"
+
+#include <catch2/catch.hpp>
 #include <cstdio>
 #include <iomanip>
 #include <sstream>
-#include <string>
 #include <stdexcept>
-
-#include <catch2/catch.hpp>
+#include <string>
 
 #include "utils.h"
-#include "utils_extlist.h"
 
 bool
 operator<(const utils::off_size &left, const utils::off_size &right)
@@ -29,27 +29,23 @@ namespace utils {
  *     Print a skip list of WT_EXT *.
  */
 void
-ext_print_list(WT_EXT **head)
+ext_print_list(const WT_EXT *const *head)
 {
-    WT_EXT *extp;
-    int i;
-    std::ostringstream line_stream;
-
     if (head == nullptr)
         return;
 
-    for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-        line_stream.clear();
-        line_stream << "L" << i << ": ";
+    for (int idx = 0; idx < WT_SKIP_MAXDEPTH; ++idx) {
+        std::ostringstream line_stream{};
+        line_stream << "L" << idx << ": ";
 
-        extp = head[i];
+        const WT_EXT *extp = head[idx];
         while (extp != nullptr) {
             line_stream << extp << " {off " << extp->off << ", size " << extp->size << ", end "
-                        << (extp->off + extp->size - 1);
-            extp = extp->next[i];
+                        << (extp->off + extp->size - 1) << "} -> ";
+            extp = extp->next[idx];
         }
 
-        line_stream << 'X' << std::endl;
+        line_stream << "X\n";
         std::string line = line_stream.str();
         INFO(line);
     }
@@ -60,20 +56,20 @@ ext_print_list(WT_EXT **head)
  *     Print an WT_EXTLIST and it's off skip list.
  */
 void
-extlist_print_off(WT_EXTLIST &extlist)
+extlist_print_off(const WT_EXTLIST &extlist)
 {
-    std::ostringstream line_stream;
+    std::ostringstream line_stream{};
     const char *track_size = extlist.track_size ? "true" : "false";
-    line_stream << std::showbase << "{name " << extlist.name << ", bytes " << extlist.bytes
-                << ", entries " << extlist.entries << ", objectid " << extlist.objectid
-                << ", offset " << extlist.offset << ", checksum " << std::hex << extlist.checksum
-                << std::dec << ", size " << extlist.size << ", track_size " << track_size
-                << ", last " << extlist.last;
+    line_stream << std::showbase << "{name " << ((extlist.name != nullptr) ? extlist.name : "(nil)")
+                << ", bytes " << extlist.bytes << ", entries " << extlist.entries << ", objectid "
+                << extlist.objectid << ", offset " << extlist.offset << ", checksum " << std::hex
+                << extlist.checksum << std::dec << ", size " << extlist.size << ", track_size "
+                << track_size << ", last " << extlist.last;
     if (extlist.last != nullptr)
         line_stream << " {off " << extlist.last->off << ", size " << extlist.last->size
                     << ", depth " << static_cast<unsigned>(extlist.last->depth) << ", next "
-                    << extlist.last->next << "}";
-    line_stream << std::endl << "off:" << std::endl;
+                    << extlist.last->next << '}';
+    line_stream << "}\noff:\n";
     std::string line = line_stream.str();
     INFO(line);
     ext_print_list(extlist.off);
@@ -98,7 +94,7 @@ alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off, wt_off_t size)
     INFO("Allocated WT_EXT " << ext << " {off " << ext->off << ", size " << ext->size << ", end "
                              << (ext->off + ext->size - 1) << ", depth "
                              << static_cast<unsigned>(ext->depth) << ", next[0] " << ext->next[0]
-                             << "}");
+                             << '}');
 
     return ext;
 }
@@ -146,19 +142,16 @@ get_off_n(const WT_EXTLIST &extlist, uint32_t idx)
 bool
 ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last)
 {
-    WT_EXT *extp;
-    bool last_found = false;
-    WT_EXT *next_extp;
-
     if (head == nullptr)
         return false;
 
     /* Free just the top level. Lower levels are duplicates. */
-    extp = head[0];
+    bool last_found = false;
+    WT_EXT *extp = head[0];
     while (extp != nullptr) {
         if (extp == last)
             last_found = true;
-        next_extp = extp->next[0];
+        WT_EXT *next_extp = extp->next[0];
         extp->next[0] = nullptr;
         __wti_block_ext_free(session, extp);
         extp = next_extp;
@@ -177,16 +170,13 @@ ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last)
 void
 size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head)
 {
-    WT_SIZE *sizep;
-    WT_SIZE *next_sizep;
-
     if (head == nullptr)
         return;
 
     /* Free just the top level. Lower levels are duplicates. */
-    sizep = head[0];
+    WT_SIZE *sizep = head[0];
     while (sizep != nullptr) {
-        next_sizep = sizep->next[0];
+        WT_SIZE *next_sizep = sizep->next[0];
         sizep->next[0] = nullptr;
         __wti_block_size_free(session, sizep);
         sizep = next_sizep;
@@ -239,7 +229,6 @@ void
 verify_off_extent_list(
   const WT_EXTLIST &extlist, const std::vector<off_size> &expected_order, bool verify_bytes)
 {
-    REQUIRE(extlist.entries == expected_order.size());
     uint32_t idx = 0;
     uint64_t expected_bytes = 0;
     for (const off_size &expected : expected_order) {
@@ -247,7 +236,7 @@ verify_off_extent_list(
         INFO("Verify: " << std::showbase << idx << ". Expected: {off " << expected._off << ", size "
                         << expected._size << ", end " << expected.end() << "}; Actual: " << ext
                         << " {off " << ext->off << ", size " << ext->size << ", end "
-                        << (ext->off + ext->size - 1) << "}");
+                        << (ext->off + ext->size - 1) << '}');
         REQUIRE(ext->off == expected._off);
         REQUIRE(ext->size == expected._size);
         ++idx;

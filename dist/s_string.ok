@@ -1063,6 +1063,7 @@ nocase
 noclear
 nocrypto
 noexcept
+noff
 nolock
 nonces
 nonliteral

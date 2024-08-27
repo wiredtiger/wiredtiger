@@ -13,9 +13,8 @@
  */
 
 #include <algorithm>
-#include <memory>
-
 #include <catch2/catch.hpp>
+#include <memory>
 
 #include "test_util.h"
 #include "../utils.h"
@@ -91,7 +90,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
 
             INFO("After " << idx << ". Insert: {off " << std::showbase << test._off_size._off
                           << ", size " << test._off_size._size << ", end " << test._off_size.end()
-                          << "}");
+                          << '}');
             extlist_print_off(extlist);
 
             /* Verify */
@@ -169,7 +168,7 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
 
             INFO("After " << idx << ". Insert: {off " << std::showbase << test._off_size._off
                           << ", size " << test._off_size._size << ", end " << test._off_size.end()
-                          << "}");
+                          << '}');
             extlist_print_off(extlist);
 
             /* Verify */

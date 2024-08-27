@@ -43,8 +43,8 @@ struct off_size_expected {
     std::vector<off_size> _expected_list;
 };
 
-void ext_print_list(WT_EXT **head);
-void extlist_print_off(WT_EXTLIST &extlist);
+void ext_print_list(const WT_EXT *const *head);
+void extlist_print_off(const WT_EXTLIST &extlist);
 WT_EXT *alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off = 0, wt_off_t size = 0);
 WT_EXT *alloc_new_ext(WT_SESSION_IMPL *session, const off_size &one);
 WT_EXT *get_off_n(const WT_EXTLIST &extlist, uint32_t idx);
