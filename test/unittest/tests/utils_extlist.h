@@ -36,7 +36,7 @@ struct off_size {
 
 /*!
  * A test (_off_size) and the expected value (_expected_list) for operations that need an off_size
- * to modify a WT_EXTLIST
+ * to modify a WT_EXTLIST.
  */
 struct off_size_expected {
     off_size _off_size;
