@@ -53,8 +53,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     def test_oligarch06(self):
         leader_create = 'key_format=S,value_format=S,role=leader'
         # FIXME: This shouldn't take an absolute path
-        # Peter's stable_follower_prefix: /home/peter.macko/Projects/wt-13134-willk-checkpoints-take2/build/WT_TEST/test_oligarch06.test_oligarch06.test_oligarch06
-        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=/home/ubuntu/dev/wt-13134/wiredtiger/build/WT_TEST/test_oligarch06.0'
+        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=.'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
