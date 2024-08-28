@@ -201,7 +201,7 @@ static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t
 
 /* Object interface */
 static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
-static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, void *, size_t);
+static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
 static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -1673,11 +1673,8 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
  *     alongside it.
  */
 static int
-dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *buf, size_t buf_sz)
+dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
-    (void)buf;
-    (void)buf_sz;
-    fprintf(stderr, "dir_store_obj_ckpt_load\n");
     return (dir_store_ckpt_load_internal((DIR_STORE_FILE_HANDLE *)file_handle, session));
 }
 
