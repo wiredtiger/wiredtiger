@@ -144,8 +144,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             else
                 line_stream << ", after == nullptr";
 
-            std::string line = line_stream.str();
-            INFO(line);
+            INFO(line_stream.str());
 
             /* Verify. */
             if (expected.before != nullptr) {
