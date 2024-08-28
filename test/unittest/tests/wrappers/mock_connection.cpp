@@ -15,6 +15,12 @@ MockConnection::MockConnection(WT_CONNECTION_IMPL *connectionImpl) : _connection
 
 MockConnection::~MockConnection()
 {
+    if (_connectionImpl->blockhash != nullptr)
+        __wt_free(nullptr, _connectionImpl->blockhash);
+    if (_connectionImpl->fhhash != nullptr)
+        __wt_free(nullptr, _connectionImpl->fhhash);
+    if (_connectionImpl->block_lock.initialized == 1)
+        __wt_spin_destroy(nullptr, &_connectionImpl->block_lock);
     __wt_free(nullptr, _connectionImpl->chunkcache.free_bitmap);
     __wt_free(nullptr, _connectionImpl);
 }
