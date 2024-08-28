@@ -16,7 +16,7 @@
  */
 #include <catch2/catch.hpp>
 
-#include "wt_internal.h"
+#include "util_block.h"
 #include "../wrappers/mock_session.h"
 
 void
