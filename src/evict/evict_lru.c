@@ -1113,11 +1113,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
         thread_surplus = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads) -
           (int32_t)conn->evict_threads_min;
 
-        if (thread_surplus > 0) {
+        if (thread_surplus > 0)
             __wt_thread_group_stop_one(session, &conn->evict_threads);
-            WT_STAT_CONN_INCR(session, cache_eviction_worker_removed);
-        }
-        WT_STAT_CONN_INCR(session, cache_eviction_force_retune);
+
     } else if (time_diff < EVICT_TUNE_PERIOD)
         /*
          * If we have not reached stable state, don't do anything unless enough time has passed
@@ -1178,10 +1176,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
             thread_surplus = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads) -
               (int32_t)cache->evict_tune_workers_best;
 
-            for (i = 0; i < thread_surplus; i++) {
+            for (i = 0; i < thread_surplus; i++)
                 __wt_thread_group_stop_one(session, &conn->evict_threads);
-                WT_STAT_CONN_INCR(session, cache_eviction_worker_removed);
-            }
+
             cache->evict_tune_stable = true;
             goto done;
         }
@@ -1203,7 +1200,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
          */
         for (i = cur_threads; i < target_threads; ++i) {
             __wt_thread_group_start_one(session, &conn->evict_threads, false);
-            WT_STAT_CONN_INCR(session, cache_eviction_worker_created);
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "added worker thread");
         }
         cache->evict_tune_last_action_time = current_time;
@@ -2416,8 +2412,6 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     urgent_ok = (!is_app && !is_server) || !WT_EVICT_HAS_WORKERS(session) ||
       (is_app && F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD));
     urgent_queue = cache->evict_urgent_queue;
-
-    WT_STAT_CONN_INCR(session, cache_eviction_get_ref);
 
     /* Avoid the LRU lock if no pages are available. */
     if (__evict_queue_empty(cache->evict_current_queue, is_server) &&
