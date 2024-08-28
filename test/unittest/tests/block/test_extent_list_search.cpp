@@ -7,7 +7,8 @@
  */
 
 /*
- * block_ext.c: [extent_list2] Test extent list functions part 3. (More to come.)
+ * [extent_list2]: block_ext.c
+ * Test extent list functions part 3. (More to come.)
  *
  * Test extent list search functions: __block_off_srch_pair, and __block_off_match.
  */
@@ -18,11 +19,11 @@
 #include <sstream>
 #include <string>
 
+#include "wt_internal.h"
+#include "../wrappers/mock_session.h"
 #include "test_util.h"
 #include "../utils.h"
 #include "../utils_extlist.h"
-#include "../wrappers/mock_session.h"
-#include "wt_internal.h"
 
 using namespace utils;
 

@@ -7,20 +7,21 @@
  */
 
 /*
- * block_ext.c: [extent_list2] Test extent list functions part 2. (More to come.)
+ * [extent_list2]: block_ext.c
+ * Test extent list functions part 2. (More to come.)
  *
  * Test insert functions without block: __block_ext_insert, and __block_off_insert.
  */
 
 #include <algorithm>
-#include <catch2/catch.hpp>
 #include <memory>
 
+#include <catch2/catch.hpp>
+#include "wt_internal.h"
+#include "../wrappers/mock_session.h"
 #include "test_util.h"
 #include "../utils.h"
 #include "../utils_extlist.h"
-#include "../wrappers/mock_session.h"
-#include "wt_internal.h"
 
 using namespace utils;
 
