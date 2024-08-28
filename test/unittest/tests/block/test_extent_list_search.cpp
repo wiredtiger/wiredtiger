@@ -7,7 +7,8 @@
  */
 
 /*
- * block_ext.c: [extent_list2] Test extent list functions part 3. (More to come.)
+ * [extent_list2]: block_ext.c
+ * Test extent list functions part 3. (More to come.)
  *
  * Test extent list search functions: __block_off_srch_pair, and __block_off_match.
  */
@@ -18,11 +19,11 @@
 #include <sstream>
 #include <string>
 
+#include "wt_internal.h"
+#include "../wrappers/mock_session.h"
 #include "test_util.h"
 #include "../utils.h"
 #include "../utils_extlist.h"
-#include "../wrappers/mock_session.h"
-#include "wt_internal.h"
 
 using namespace utils;
 
@@ -52,7 +53,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
     {
         BREAK;
         /* Offsets to search for */
-        std::vector<wt_off_t> test_list{0, 4096, 3 * 4096}; // 3, 4096, 12,288
+        std::vector<wt_off_t> test_list{0, 4096, 3 * 4096}; // 3, 4096, 12,288.
 
         /* Setup */
         /* Empty extent list */
@@ -78,22 +79,22 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         BREAK;
         /* Extents to insert to create an extent list to search */
         std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-          off_size(4096, 4096),     // First [4,096, 8,191]
-          off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+          off_size(3 * 4096, 4096), // Second [12,288, 16,383].
+          off_size(4096, 4096),     // First [4,096, 8,191].
+          off_size(5 * 4096, 4096), // Third [20,480, 24,575].
         };
 
         /* Tests and expected values for __block_srch_pair */
         std::vector<search_before_after> expected_before_after{
-          search_before_after(0, nullptr, &insert_list[1]),    // Before first 0
-          search_before_after(4096, nullptr, &insert_list[1]), // At first 4,096
+          search_before_after(0, nullptr, &insert_list[1]),    // Before first 0.
+          search_before_after(4096, nullptr, &insert_list[1]), // At first 4,096.
           search_before_after(
-            2 * 4096, &insert_list[1], &insert_list[0]), // Between first and second 8,192
-          search_before_after(3 * 4096, &insert_list[1], &insert_list[0]), // At second 12,288
+            2 * 4096, &insert_list[1], &insert_list[0]), // Between first and second 8,192.
+          search_before_after(3 * 4096, &insert_list[1], &insert_list[0]), // At second 12,288.
           search_before_after(
-            4 * 4096, &insert_list[0], &insert_list[2]), // Between second and third 16,384
-          search_before_after(5 * 4096, &insert_list[0], &insert_list[2]), // At third 20,480
-          search_before_after(6 * 4096, &insert_list[2], nullptr),         // After third 24,576
+            4 * 4096, &insert_list[0], &insert_list[2]), // Between second and third 16,384.
+          search_before_after(5 * 4096, &insert_list[0], &insert_list[2]), // At third 20,480.
+          search_before_after(6 * 4096, &insert_list[2], nullptr),         // After third 24,576.
         };
 
         /* Setup */
@@ -202,38 +203,38 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
 
     /* Extents to insert to create an extent list to search */
     std::vector<off_size> insert_list{
-      off_size(3 * 4096, 4096), // Second [12,288, 16,383]
-      off_size(4096, 4096),     // First [4,096, 8,191]
-      off_size(5 * 4096, 4096), // Third [20,480, 24,575]
+      off_size(3 * 4096, 4096), // Second [12,288, 16,383].
+      off_size(4096, 4096),     // First [4,096, 8,191].
+      off_size(5 * 4096, 4096), // Third [20,480, 24,575].
     };
 
-    /* Tests and expected values for __block_off_match */
+    /* Tests and expected values for __block_off_match. */
     std::vector<search_match> expected_match
     {
-        search_match(0, 0, false),      // Empty: Before first 0
-          search_match(4095, 0, false), // Empty: Just before first 4,095
-          search_match(4096, 0, false), // Empty: At the start of first 4,096
-#if 0 // Failed: Verify: 3. Expected: off=8191, size=0, end=8190, match=false; Actual: match = true
-          search_match(4096 + 4095, 0, false), // Empty: At end first 8,191
+        search_match(0, 0, false),      // Empty: Before first 0.
+          search_match(4095, 0, false), // Empty: Just before first 4,095.
+          search_match(4096, 0, false), // Empty: At the start of first 4,096.
+#if 0 // Failed: Verify: 3. Expected: off=8191, size=0, end=8190, match=false; Actual: match = true.
+          search_match(4096 + 4095, 0, false), // Empty: At end first 8,191.
 #endif
-          search_match(2 * 4096, 0, false),      // Empty: Just after first 8,192
-          search_match(2 * 4096 + 64, 0, false), // Empty: Between first and second 8,256
-          search_match(3 * 4096, 0, false),      // Empty: At the start of second 12,288
-          search_match(4 * 4096 + 64, 0, false), // Empty: Between second and third 16,448
-          search_match(5 * 4096, 0, false),      // Empty: At the start of third 20,480
-          search_match(6 * 4096, 0, false),      // Empty: Just after third 24,576
-          search_match(4096 - 128, 64, false),   // Before first [3,968, 4,031]
-          search_match(4095, 1, false),          // Just before first, i.e. touching. [4,095, 4,095]
-          search_match(2 * 4096, 1, false),      // Just after first [8,192, 8,192]
-          search_match(4096 - 64, 128, true),    // Overlapping the start of first [4,032, 4,160]
-          search_match(4096, 1, true),           // Just the start of first [4,096, 4,096]
-          search_match(4096, 64, true),          // At the start of first [4,096, 4,159]
-          search_match(4096 + 64, 64, true),     // Within first [4,160, 4,223]
-          search_match(2 * 4096 - 64, 64, true), // At the end of first [8,128, 8,191]
-          search_match(2 * 4096 - 1, 1, true),   // Just the end of first [8,191, 8,191]
-          search_match(2 * 4096 - 64, 128, true),    // Overlapping the end of first [8,128, 8,255]
-          search_match(4096, 4096, true),            // The same as first [4,096, 8191]
-          search_match(4096 - 64, 4096 + 128, true), // Completely overlapping first [4,032, 8,255]
+          search_match(2 * 4096, 0, false),      // Empty: Just after first 8,192.
+          search_match(2 * 4096 + 64, 0, false), // Empty: Between first and second 8,256.
+          search_match(3 * 4096, 0, false),      // Empty: At the start of second 12,288.
+          search_match(4 * 4096 + 64, 0, false), // Empty: Between second and third 16,448.
+          search_match(5 * 4096, 0, false),      // Empty: At the start of third 20,480.
+          search_match(6 * 4096, 0, false),      // Empty: Just after third 24,576.
+          search_match(4096 - 128, 64, false),   // Before first [3,968, 4,031].
+          search_match(4095, 1, false),          // Just before first, i.e. touching [4,095, 4,095].
+          search_match(2 * 4096, 1, false),      // Just after first [8,192, 8,192].
+          search_match(4096 - 64, 128, true),    // Overlapping the start of first [4,032, 4,160].
+          search_match(4096, 1, true),           // Just the start of first [4,096, 4,096].
+          search_match(4096, 64, true),          // At the start of first [4,096, 4,159].
+          search_match(4096 + 64, 64, true),     // Within first [4,160, 4,223].
+          search_match(2 * 4096 - 64, 64, true), // At the end of first [8,128, 8,191].
+          search_match(2 * 4096 - 1, 1, true),   // Just the end of first [8,191, 8,191].
+          search_match(2 * 4096 - 64, 128, true),    // Overlapping the end of first [8,128, 8,255].
+          search_match(4096, 4096, true),            // The same as first [4,096, 8191].
+          search_match(4096 - 64, 4096 + 128, true), // Completely overlapping first [4,032, 8,255].
     };
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
@@ -241,14 +242,13 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
     SECTION("search an empty list")
     {
         BREAK;
-        /* Setup */
-        /* Empty extent list */
+        /* Setup. */
         WT_EXTLIST extlist = {};
 
-        /* Test */
+        /* Test. */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
-            /* Call */
+            /* Call. */
             bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
 
             const char *match_str = match ? "true" : "false";
@@ -265,11 +265,10 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
     SECTION("search a non-empty list")
     {
         BREAK;
-        /* Setup */
-        /* Empty extent list */
+        /* Setup. */
         WT_EXTLIST extlist = {};
 
-        /* Insert extents */
+        /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
             INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
                                  << ", end " << to_insert.end() << "}");
@@ -278,10 +277,10 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
 
         extlist_print_off(extlist);
 
-        /* Test */
+        /* Test. */
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
-            /* Call */
+            /* Call. */
             bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
 
             const char *match_str = match ? "true" : "false";
@@ -289,12 +288,12 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
                             << expected._size << ", end " << expected.end()
                             << "}, match false; Actual: match " << match_str);
 
-            /* Verify */
+            /* Verify. */
             REQUIRE(match == expected._match);
             ++idx;
         }
 
-        /* Cleanup */
+        /* Cleanup. */
         extlist_free(session, extlist);
     }
 }
