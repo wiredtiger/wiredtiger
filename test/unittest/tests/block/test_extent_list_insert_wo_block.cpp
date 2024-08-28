@@ -83,17 +83,17 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
         /* Insert extents and verify. */
         int idx = 0;
         for (const off_size_expected &test : test_list) {
-            WT_EXT *insert_ext = alloc_new_ext(session, test._off_size);
+            WT_EXT *insert_ext = alloc_new_ext(session, test.an_off_size);
             /* Call. */
             REQUIRE(__ut_block_ext_insert(session, &extlist, insert_ext) == 0);
 
-            INFO("After " << idx << ". Insert: {off " << std::showbase << test._off_size._off
-                          << ", size " << test._off_size._size << ", end " << test._off_size.end()
-                          << '}');
+            INFO("After " << idx << ". Insert: {off " << std::showbase << test.an_off_size.off
+                          << ", size " << test.an_off_size.size << ", end "
+                          << test.an_off_size.end() << '}');
             extlist_print_off(extlist);
 
             /* Verify. */
-            verify_off_extent_list(extlist, test._expected_list, true);
+            verify_off_extent_list(extlist, test.expected_list, true);
             ++idx;
         }
 
@@ -161,15 +161,15 @@ TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
         for (const off_size_expected &test : test_list) {
             /* Call. */
             REQUIRE(__ut_block_off_insert(
-                      session, &extlist, test._off_size._off, test._off_size._size) == 0);
+                      session, &extlist, test.an_off_size.off, test.an_off_size.size) == 0);
 
-            INFO("After " << idx << ". Insert: {off " << std::showbase << test._off_size._off
-                          << ", size " << test._off_size._size << ", end " << test._off_size.end()
-                          << '}');
+            INFO("After " << idx << ". Insert: {off " << std::showbase << test.an_off_size.off
+                          << ", size " << test.an_off_size.size << ", end "
+                          << test.an_off_size.end() << '}');
             extlist_print_off(extlist);
 
             /* Verify. */
-            verify_off_extent_list(extlist, test._expected_list, true);
+            verify_off_extent_list(extlist, test.expected_list, true);
             ++idx;
         }
 

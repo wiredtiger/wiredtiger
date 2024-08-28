@@ -20,7 +20,7 @@
 bool
 operator<(const utils::off_size &left, const utils::off_size &right)
 {
-    return ((left._off < right._off) || ((left._off == right._off) && (left._size < right._size)));
+    return ((left.off < right.off) || ((left.off == right.off) && (left.size < right.size)));
 }
 
 namespace utils {
@@ -109,7 +109,7 @@ alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off, wt_off_t size)
 WT_EXT *
 alloc_new_ext(WT_SESSION_IMPL *session, const off_size &one)
 {
-    return alloc_new_ext(session, one._off, one._size);
+    return alloc_new_ext(session, one.off, one.size);
 }
 
 /*
@@ -233,12 +233,12 @@ verify_off_extent_list(
     uint64_t expected_bytes = 0;
     for (const off_size &expected : expected_order) {
         WT_EXT *ext = get_off_n(extlist, idx);
-        INFO("Verify: " << std::showbase << idx << ". Expected: {off " << expected._off << ", size "
-                        << expected._size << ", end " << expected.end() << "}; Actual: " << ext
+        INFO("Verify: " << std::showbase << idx << ". Expected: {off " << expected.off << ", size "
+                        << expected.size << ", end " << expected.end() << "}; Actual: " << ext
                         << " {off " << ext->off << ", size " << ext->size << ", end "
                         << (ext->off + ext->size - 1) << '}');
-        REQUIRE(ext->off == expected._off);
-        REQUIRE(ext->size == expected._size);
+        REQUIRE(ext->off == expected.off);
+        REQUIRE(ext->size == expected.size);
         ++idx;
         expected_bytes += ext->size;
     }

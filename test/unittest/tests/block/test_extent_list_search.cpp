@@ -28,15 +28,15 @@
 using namespace utils;
 
 /*!
- * A test (_off) and expected values (_before and _after) for __block_srch_pair.
+ * A test (off) and expected values (before and after) for __block_srch_pair.
  */
 struct search_before_after {
-    wt_off_t _off;
-    off_size *_before;
-    off_size *_after;
+    wt_off_t off;
+    off_size *before;
+    off_size *after;
 
     search_before_after(wt_off_t off, off_size *before, off_size *after)
-        : _off(off), _before(before), _after(after)
+        : off(off), before(before), after(after)
     {
     }
 };
@@ -101,9 +101,10 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
         /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
-            INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
+
+            INFO("Insert: {off " << std::showbase << to_insert.off << ", size " << to_insert.size
                                  << ", end " << to_insert.end() << "}");
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
         }
 
         extlist_print_off(extlist);
@@ -115,20 +116,19 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
             /* Call. */
-            __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
+            __ut_block_off_srch_pair(&extlist, expected.off, &before, &after);
 
             std::ostringstream line_stream;
-            line_stream << "Verify: " << idx << ". off " << expected._off;
-            if (expected._before != nullptr)
-                line_stream << "; Expected: _before: {off " << expected._before->_off << ", size "
-                            << expected._before->_size << ", end " << expected._before->end()
-                            << "}";
+            line_stream << "Verify: " << idx << ". off " << expected.off;
+            if (expected.before != nullptr)
+                line_stream << "; Expected: before: {off " << expected.before->off << ", size "
+                            << expected.before->size << ", end " << expected.before->end() << "}";
             else
-                line_stream << "; Expected: _before == nullptr";
+                line_stream << "; Expected: before == nullptr";
 
-            if (expected._after != nullptr)
-                line_stream << ", after: {off " << expected._after->_off << ", size "
-                            << expected._after->_size << ", end " << expected._after->end() << "}";
+            if (expected.after != nullptr)
+                line_stream << ", after: {off " << expected.after->off << ", size "
+                            << expected.after->size << ", end " << expected.after->end() << "}";
             else
                 line_stream << ", after == nullptr";
 
@@ -142,24 +142,24 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
                 line_stream << ", after: {off " << after->off << ", size " << after->size
                             << ", end " << (after->off + after->size - 1) << "}";
             else
-                line_stream << ", _after == nullptr";
+                line_stream << ", after == nullptr";
 
             std::string line = line_stream.str();
             INFO(line);
 
             /* Verify. */
-            if (expected._before != nullptr) {
+            if (expected.before != nullptr) {
                 REQUIRE(before != nullptr);
-                REQUIRE(before->off == expected._before->_off);
-                REQUIRE(before->size == expected._before->_size);
+                REQUIRE(before->off == expected.before->off);
+                REQUIRE(before->size == expected.before->size);
             } else {
                 REQUIRE(before == nullptr);
             }
 
-            if (expected._after != nullptr) {
+            if (expected.after != nullptr) {
                 REQUIRE(after != nullptr);
-                REQUIRE(after->off == expected._after->_off);
-                REQUIRE(after->size == expected._after->_size);
+                REQUIRE(after->off == expected.after->off);
+                REQUIRE(after->size == expected.after->size);
             } else {
                 REQUIRE(after == nullptr);
             }
@@ -173,23 +173,23 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
 #ifdef HAVE_DIAGNOSTIC
 /*!
- * A test (_off and _size) and the expected value (_match) for __block_off_match.
+ * A test (off and size) and the expected value (match) for __block_off_match.
  */
 struct search_match {
-    wt_off_t _off;
-    wt_off_t _size;
-    bool _match;
+    wt_off_t off;
+    wt_off_t size;
+    bool match;
 
-    search_match(wt_off_t off, wt_off_t size, bool match) : _off(off), _size(size), _match(match) {}
+    search_match(wt_off_t off, wt_off_t size, bool match) : off(off), size(size), match(match) {}
 
     /*!
      * end --
-     *     Return the end of the closed interval represented by _off and _size.
+     *     Return the end of the closed interval represented by off and size.
      */
     wt_off_t
     end(void) const
     {
-        return (_off + _size - 1);
+        return (off + size - 1);
     }
 };
 
@@ -247,11 +247,11 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call. */
-            bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
+            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
 
             const char *match_str = match ? "true" : "false";
-            INFO("Verify: " << idx << ". Expected: {off " << expected._off << ", size "
-                            << expected._size << ", end " << expected.end()
+            INFO("Verify: " << idx << ". Expected: {off " << expected.off << ", size "
+                            << expected.size << ", end " << expected.end()
                             << "}, match false; Actual: match " << match_str);
 
             /* Verify: All should be not found. */
@@ -268,9 +268,9 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
 
         /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
-            INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
+            INFO("Insert: {off " << std::showbase << to_insert.off << ", size " << to_insert.size
                                  << ", end " << to_insert.end() << "}");
-            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert._off, to_insert._size) == 0);
+            REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
         }
 
         extlist_print_off(extlist);
@@ -279,15 +279,15 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call. */
-            bool match = __ut_block_off_match(&extlist, expected._off, expected._size);
+            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
 
             const char *match_str = match ? "true" : "false";
-            INFO("Verify: " << idx << ". Expected: {off " << expected._off << ", size "
-                            << expected._size << ", end " << expected.end()
+            INFO("Verify: " << idx << ". Expected: {off " << expected.off << ", size "
+                            << expected.size << ", end " << expected.end()
                             << "}, match false; Actual: match " << match_str);
 
             /* Verify. */
-            REQUIRE(match == expected._match);
+            REQUIRE(match == expected.match);
             ++idx;
         }
 
