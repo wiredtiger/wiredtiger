@@ -234,9 +234,7 @@ def function_scoping():
         # Otherwise it is the top-level directory, such as "test."
         if parts[1] == 'src':
             module = parts[2]
-        elif parts[1] != "test":
-            module = parts[1]
-        elif parts[2] == "unittest":
+        elif parts[1] == "test" and parts[2] == "unittest":
             # Treat test/unittests special since they are allowed to call __wti_ functions.
             module = parts[2]
         else:
