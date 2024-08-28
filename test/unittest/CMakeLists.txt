@@ -15,6 +15,7 @@ else()
         tests/test_extent_list.cpp
         tests/test_fnv.cpp
         tests/test_futex.cpp
+        tests/test_mock_session.cpp
         tests/test_pow.cpp
         tests/test_prepare_mod_sort.cpp
         tests/test_reconciliation_tracking.cpp
@@ -24,6 +25,7 @@ else()
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
+        tests/block/test_block_session.cpp
         tests/block/test_extent_list_insert_wo_block.cpp
         tests/block/test_extent_list_search.cpp
         tests/block/test_extent_list_insert_block.cpp

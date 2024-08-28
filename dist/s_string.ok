@@ -124,7 +124,6 @@ EOF
 ERANGE
 ETIME
 ETIMEDOUT
-EVICTSERVER
 EXTLIST
 EXTLIST's
 EXTSUBPATH
@@ -253,6 +252,7 @@ Marsaglia
 Marsaglia's
 Mellor
 Mitzenmacher
+MockSession
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -344,6 +344,7 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reify
 Rogerio
 Runtime
 SDK
@@ -550,6 +551,7 @@ btree's
 btrees
 buf
 bufsz
+buildTestMockSession
 builddir
 builtins
 bursty
@@ -744,7 +746,6 @@ ev
 evd
 eventv
 evictable
-evictserver
 exactp
 exe
 existp
@@ -817,6 +818,7 @@ gcc
 gcp
 gdb
 ge
+getWtSessionImpl
 getenv
 getlasterror
 getline

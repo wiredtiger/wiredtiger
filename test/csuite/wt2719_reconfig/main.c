@@ -51,11 +51,11 @@ static const char *const list[] = {",cache_overhead=13", ",cache_overhead=27", "
   ",eviction=(threads_min=3,threads_max=7)", ",eviction=(threads_max=12,threads_min=10)",
   ",eviction=(threads_max=18,threads_min=16)", ",eviction=(threads_max=10,threads_min=9)",
 
-  ",eviction_dirty_target=45", ",eviction_dirty_target=87", ",eviction_dirty_target=8",
+  ",eviction_dirty_target=19", ",eviction_dirty_target=5", ",eviction_dirty_target=8",
 
-  ",eviction_dirty_trigger=37", ",eviction_dirty_trigger=98", ",eviction_dirty_trigger=7",
+  ",eviction_dirty_trigger=50", ",eviction_dirty_trigger=98", ",eviction_dirty_trigger=46",
 
-  ",eviction_target=22", ",eviction_target=84", ",eviction_target=30",
+  ",eviction_target=22", ",eviction_target=64", ",eviction_target=30",
 
   ",eviction_trigger=75", ",eviction_trigger=95", ",eviction_trigger=66",
 
@@ -88,14 +88,13 @@ static const char *const list[] = {",cache_overhead=13", ",cache_overhead=27", "
   ",statistics_log=(wait=37)", ",statistics_log=(wait=0)",
 
   ",verbose=(\"api\")", ",verbose=(\"block\")", ",verbose=(\"checkpoint\")",
-  ",verbose=(\"compact\")", ",verbose=(\"evict\")", ",verbose=(\"eviction\")",
-  ",verbose=(\"evictserver\")", ",verbose=(\"fileops\")", ",verbose=(\"handleops\")",
-  ",verbose=(\"log\")", ",verbose=(\"lsm\")", ",verbose=(\"lsm_manager\")",
-  ",verbose=(\"metadata\")", ",verbose=(\"mutex\")", ",verbose=(\"overflow\")",
-  ",verbose=(\"read\")", ",verbose=(\"reconcile\")", ",verbose=(\"recovery\")",
-  ",verbose=(\"salvage\")", ",verbose=(\"shared_cache\")", ",verbose=(\"split\")",
-  ",verbose=(\"transaction\")", ",verbose=(\"verify\")", ",verbose=(\"version\")",
-  ",verbose=(\"write\")", ",verbose=()"};
+  ",verbose=(\"compact\")", ",verbose=(\"eviction\")", ",verbose=(\"fileops\")",
+  ",verbose=(\"handleops\")", ",verbose=(\"log\")", ",verbose=(\"lsm\")",
+  ",verbose=(\"lsm_manager\")", ",verbose=(\"metadata\")", ",verbose=(\"mutex\")",
+  ",verbose=(\"overflow\")", ",verbose=(\"read\")", ",verbose=(\"reconcile\")",
+  ",verbose=(\"recovery\")", ",verbose=(\"salvage\")", ",verbose=(\"shared_cache\")",
+  ",verbose=(\"split\")", ",verbose=(\"transaction\")", ",verbose=(\"verify\")",
+  ",verbose=(\"version\")", ",verbose=(\"write\")", ",verbose=()"};
 
 /*
  * handle_message --
