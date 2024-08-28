@@ -93,10 +93,10 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     WT_CURSOR *md_cursor;
     WT_DECL_RET;
     WT_FH *metadata_fh;
+    wt_off_t filesize;
+    size_t len;
     char *entry, *tablename;
     const char *md_value;
-    size_t len;
-    wt_off_t filesize;
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
 
@@ -128,7 +128,7 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     WT_ERR(__wt_filesize(session, metadata_fh, &filesize));
     WT_ERR(__wt_write(session, metadata_fh, filesize, len - 1, entry)); /* len-1, don't write NUL */
 
- err:
+err:
     __wt_free(session, tablename);
     __wt_free(session, entry); /* TODO may not have been allocated */
 

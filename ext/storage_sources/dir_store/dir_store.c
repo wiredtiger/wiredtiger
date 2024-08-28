@@ -1631,15 +1631,14 @@ dir_store_ckpt_intl(
  *     Serialise our the metadata for our URI to a given file handle.
  */
 static int
-dir_store_ckpt_finalize(
-  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
+dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
 {
     WT_FILE_HANDLE *wt_fh;
 
     wt_fh = fh->fh;
 
     /* TODO add some magic bytes? Version? Checksum? More thought. */
-    return(wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin));
+    return (wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin));
 }
 
 /*

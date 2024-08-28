@@ -16,7 +16,8 @@ __oligarch_metadata_watcher(void *arg)
     WT_DECL_RET;
     WT_FH *md_fh;
     WT_SESSION_IMPL *session;
-    char buf[4096], *cfg_ret, *md_path, *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
+    char buf[4096], *cfg_ret, *md_path,
+      *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
     const char *value, *cfg[3];
     size_t len;
     wt_off_t last_sep, last_sz, name_ptr, new_sz;
@@ -29,7 +30,8 @@ __oligarch_metadata_watcher(void *arg)
 
     len = strlen(conn->iface.stable_follower_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
     WT_ERR(__wt_calloc_def(session, len, &md_path));
-    WT_ERR(__wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_follower_prefix, WT_OLIGARCH_METADATA_FILE));
+    WT_ERR(__wt_snprintf(
+      md_path, len, "%s/%s", conn->iface.stable_follower_prefix, WT_OLIGARCH_METADATA_FILE));
     WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
     WT_ERR(__wt_filesize(session, md_fh, &last_sz));
 
@@ -45,7 +47,8 @@ __oligarch_metadata_watcher(void *arg)
         last_sz = new_sz;
 
         /* Read 4095 characters from before EOF */
-        WT_ERR(__wt_read(session, md_fh, WT_MAX(0, last_sz - 4095), (size_t)WT_MIN(4095, last_sz), buf));
+        WT_ERR(
+          __wt_read(session, md_fh, WT_MAX(0, last_sz - 4095), (size_t)WT_MIN(4095, last_sz), buf));
 
         /* Parse out the key and new checkpoint config */
         last_sep = 0;
@@ -114,7 +117,8 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
     conn = S2C(session);
     manager = &conn->oligarch_manager;
 
-    if (!__wt_atomic_cas32(&manager->watcher_state, WT_OLIGARCH_WATCHER_OFF, WT_OLIGARCH_WATCHER_STARTING)) {
+    if (!__wt_atomic_cas32(
+          &manager->watcher_state, WT_OLIGARCH_WATCHER_OFF, WT_OLIGARCH_WATCHER_STARTING)) {
         while (__wt_atomic_load32(&manager->watcher_state) != WT_OLIGARCH_WATCHER_RUNNING)
             __wt_sleep(0, 1000);
         return (0);
@@ -122,7 +126,8 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_open_internal_session(
       conn, "oligarch-metadata-server", true, 0, 0, &conn->oligarch_metadata_session));
-    WT_RET(__wt_thread_create(conn->oligarch_metadata_session, &manager->watcher_tid, __oligarch_metadata_watcher, conn->oligarch_metadata_session));
+    WT_RET(__wt_thread_create(conn->oligarch_metadata_session, &manager->watcher_tid,
+      __oligarch_metadata_watcher, conn->oligarch_metadata_session));
     manager->watcher_tid_set = true;
 
     fprintf(stderr, "oligarch watcher started\n");
@@ -134,7 +139,8 @@ static int
 __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
 {
     fprintf(stderr, "__oligarch_metadata_create\n");
-    return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
+    return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA,
+      WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
 }
 
 /*

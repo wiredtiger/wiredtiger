@@ -672,7 +672,7 @@ struct __wt_connection_impl {
     wt_timestamp_t flush_ts;            /* Timestamp of most recent flush_tier */
 
     WT_SESSION_IMPL *chunkcache_metadata_session; /* Chunk cache metadata server thread session */
-    WT_SESSION_IMPL *oligarch_metadata_session; /* Chunk cache metadata server thread session */
+    WT_SESSION_IMPL *oligarch_metadata_session;   /* Chunk cache metadata server thread session */
     wt_thread_t chunkcache_metadata_tid;          /* Chunk cache metadata thread */
     bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */

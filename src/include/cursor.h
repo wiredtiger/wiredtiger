@@ -23,8 +23,8 @@
       NULL, /* key_format */                                                                     \
       NULL, /* value_format */                                                                   \
       get_key, get_value, get_raw_key_value, set_key, set_value, compare, equals, next, prev,    \
-      reset, search, search_near, insert, modify, update, remove, reserve, checkpoint_id,        \
-      close, largest_key, reconfigure, bound, cache, reopen, 0, /* uri_hash */                   \
+      reset, search, search_near, insert, modify, update, remove, reserve, checkpoint_id, close, \
+      largest_key, reconfigure, bound, cache, reopen, 0, /* uri_hash */                          \
       {NULL, NULL},                                      /* TAILQ_ENTRY q */                     \
       0,                                                 /* recno key */                         \
       {0},                                               /* recno raw buffer */                  \
