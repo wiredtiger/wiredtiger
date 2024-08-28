@@ -53,8 +53,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     def test_oligarch06(self):
         leader_create = 'key_format=S,value_format=S,role=leader'
         # FIXME: This shouldn't take an absolute path
-        cwd = os.getcwd()
-        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=%s' % cwd
+        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=.'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
@@ -148,7 +147,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
         self.session.checkpoint()
-        time.sleep(10)
+        session_follow.checkpoint()
+        time.sleep(2)
 
         # Reopen the follower connection.
         session_follow.close()
