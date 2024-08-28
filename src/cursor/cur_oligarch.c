@@ -1171,13 +1171,6 @@ err:
     API_END_RET(session, ret);
 }
 
-static int
-__coligarch_new_ckpt(WT_CURSOR *cursor)
-{
-    WT_UNUSED(cursor);
-    return (0);
-}
-
 /*
  * __wt_coligarch_open --
  *     WT_SESSION->open_cursor method for oligarch cursors.
@@ -1210,7 +1203,6 @@ __wt_coligarch_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
-      __coligarch_new_ckpt,                           /* notify-new-ckpt */
       __wt_coligarch_close);                          /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_OLIGARCH *coligarch;

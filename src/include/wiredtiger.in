@@ -651,8 +651,6 @@ struct __wt_cursor {
      * @errors
      */
     uint64_t __F(checkpoint_id)(WT_CURSOR *cursor);
-
-    int __F(notify_new_checkpoint)(WT_CURSOR *cursor);
 #endif
 
     /*!
