@@ -78,4 +78,4 @@ break_here(const char *file, const char *func, int line)
 {
     INFO(">> " << file << " line " << line << ": " << func);
 }
-} // namespace utils
+} // namespace utils.
