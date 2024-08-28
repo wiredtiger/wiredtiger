@@ -35,6 +35,9 @@ __oligarch_metadata_watcher(void *arg)
 
     for (;;) {
         __wt_sleep(0, 1000);
+        if (F_ISSET(conn, WT_CONN_CLOSING))
+            break;
+
         WT_ERR(__wt_filesize(session, md_fh, &new_sz));
         if (new_sz == last_sz)
             continue;
@@ -94,9 +97,9 @@ __oligarch_metadata_watcher(void *arg)
     }
 
 err:
-    fprintf(stderr, "ret=%d\n", ret);
     __wt_free(session, md_path);
-    /* WT_IGNORE_RET(__wt_close(session, &md_fh)); */
+    __wt_free(session, new_md_value);
+    WT_IGNORE_RET(__wt_close(session, &md_fh));
 
     return (WT_THREAD_RET_VALUE);
 }
