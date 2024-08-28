@@ -202,7 +202,6 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session_ext]")
     std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
     WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
 
-    
     SECTION("Free with null block manager session")
     {
         std::shared_ptr<MockSession> session_no_bm = MockSession::buildTestMockSession();
@@ -210,7 +209,7 @@ TEST_CASE("Block session: __wti_block_ext_free", "[block_session_ext]")
 
         REQUIRE(__ut_block_ext_alloc(session_no_bm->getWtSessionImpl(), &ext) == 0);
         REQUIRE(ext != nullptr);
-    
+
         __wti_block_ext_free(session_no_bm->getWtSessionImpl(), &ext);
         REQUIRE(ext == nullptr);
     }

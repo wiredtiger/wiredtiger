@@ -210,15 +210,14 @@ TEST_CASE("Block session: __wti_block_size_free", "[block_session_size]")
     {
         std::shared_ptr<MockSession> session_no_bm = MockSession::buildTestMockSession();
         WT_SIZE *sz;
-    
+
         REQUIRE(__ut_block_size_alloc(session_no_bm->getWtSessionImpl(), &sz) == 0);
         REQUIRE(sz != nullptr);
-    
+
         __wti_block_size_free(session_no_bm->getWtSessionImpl(), &sz);
-    
+
         REQUIRE(sz == nullptr);
     }
-     
 
     SECTION("Calling free with cache")
     {
