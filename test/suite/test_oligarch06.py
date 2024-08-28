@@ -53,7 +53,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     def test_oligarch06(self):
         leader_create = 'key_format=S,value_format=S,role=leader'
         # FIXME: This shouldn't take an absolute path
-        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=.'
+        cwd = os.getcwd()
+        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=%s' % cwd
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
@@ -64,6 +65,10 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         # non fixed-location files
         os.mkdir('follower/foo/follower')
         os.mkdir('follower/bar/follower')
+
+        #
+        # Part 1: Create an oligarch table and check that follower has all the data.
+        #
 
         self.pr("create oligarch tree")
         self.session.create(self.uri, leader_create)
@@ -107,9 +112,10 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             item_count += 1
         self.assertEqual(item_count, self.nitems * 3)
 
-        self.tty('---------------------- PART 1 SUCCESS ----------------------')
+        #
+        # Part 2: Add a second set of items to ensure that the follower can pick them up.
+        #
 
-        # Add a second set of items to ensure that the follower can pick them up
         self.pr('add another set of items')
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -136,5 +142,31 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         cursor_follow2.close()
         cursor_follow3.close()
 
-        # FIXME: Remove this once the cleanup & unexpected log output are fixed.
-        self.tty('---------------------- SUCCESS (ignore errors below) ----------------------')
+        #
+        # Part 3: Reopen the follower to ensure it can open an existing table.
+        #
+
+        # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
+        self.session.checkpoint()
+        time.sleep(10)
+
+        # Reopen the follower connection.
+        session_follow.close()
+        conn_follow.close()
+        self.pr("reopen the follower")
+        # TODO figure out self.extensionsConfig()
+        conn_follow = self.wiredtiger_open('follower', 'extensions=["../../ext/storage_sources/dir_store/libwiredtiger_dir_store.so"],create,' + self.conn_config)
+        session_follow = conn_follow.open_session('')
+
+        cursor_follow = session_follow.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor_follow.next() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 6)
+
+        cursor_follow.close()
+        session_follow.close()
+        conn_follow.close()
+
+        # TODO shouldn't need this
+        self.ignoreStderrPatternIfExists('No such file or directory')
