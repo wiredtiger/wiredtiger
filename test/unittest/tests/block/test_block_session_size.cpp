@@ -156,7 +156,7 @@ TEST_CASE("Block session: __wti_block_size_alloc with block manager", "[block_se
         bms->sz_cache_cnt = 0;
         WT_SIZE *cached_sz = nullptr;
         REQUIRE(__wti_block_size_alloc(session->getWtSessionImpl(), &cached_sz) == 0);
-        // If an size is in the cache, the function should be returning the cached size.
+        // If a size is in the cache, the function should be returning the cached size.
         REQUIRE(cached_sz == sz);
         validate_and_free_size_list(bms, 0);
         validate_and_free_size_block(sz);
