@@ -113,13 +113,9 @@ static WT_INLINE int
 __coligarch_enter(WT_CURSOR_OLIGARCH *coligarch, bool reset, bool update)
 {
     WT_DECL_RET;
-    WT_OLIGARCH *oligarch;
     WT_SESSION_IMPL *session;
-    WT_TXN *txn;
 
     session = CUR2S(coligarch);
-    oligarch = (WT_OLIGARCH *)session->dhandle;
-    txn = session->txn;
 
     if (reset) {
         WT_ASSERT(session, !F_ISSET(&coligarch->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
@@ -201,17 +197,14 @@ __coligarch_close_cursors(WT_CURSOR_OLIGARCH *coligarch)
 static int
 __coligarch_open_cursors(WT_CURSOR_OLIGARCH *coligarch, bool update)
 {
-    WT_CURSOR *c, *cursor;
+    WT_CURSOR *c;
     WT_DECL_RET;
     WT_OLIGARCH *oligarch;
     WT_SESSION_IMPL *session;
-    WT_TXN *txn;
     const char *ckpt_cfg[3];
 
     c = &coligarch->iface;
-    cursor = NULL;
     session = CUR2S(coligarch);
-    txn = session->txn;
     oligarch = (WT_OLIGARCH *)session->dhandle;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
@@ -653,12 +646,10 @@ __coligarch_lookup(WT_CURSOR_OLIGARCH *coligarch, WT_ITEM *value)
 {
     WT_CURSOR *c, *cursor;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
     bool found;
 
     c = NULL;
     cursor = &coligarch->iface;
-    session = CUR2S(cursor);
     found = false;
 
     c = coligarch->ingest_cursor;
@@ -749,12 +740,11 @@ __coligarch_search_near(WT_CURSOR *cursor, int *exactp)
     WT_CURSOR_OLIGARCH *coligarch;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int cmp, ingest_cmp, stable_cmp, exact;
+    int cmp, ingest_cmp, stable_cmp;
     bool deleted, ingest_found, stable_found;
 
     closest = NULL;
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
-    exact = 0;
     ingest_cmp = stable_cmp = 0;
     ingest_found = stable_found = false;
 
@@ -882,6 +872,14 @@ err:
     API_END_RET(session, ret);
 }
 
+static int
+__coligarch_modify_check(WT_CURSOR_OLIGARCH *coligarch)
+{
+    if (!((WT_OLIGARCH *)coligarch->dhandle)->leader)
+        return (EINVAL);
+    return (0);
+}
+
 /*
  * __coligarch_put --
  *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
@@ -898,6 +896,8 @@ __coligarch_put(WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key, const WT_ITEM
      * anyway.
      */
     WT_RET(__coligarch_reset_cursors(coligarch, true));
+
+    WT_RET(__coligarch_modify_check(coligarch));
 
     /* If necessary, set the position for future scans. */
     if (position)
@@ -933,6 +933,7 @@ __coligarch_insert(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -981,6 +982,7 @@ __coligarch_update(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -1033,6 +1035,7 @@ __coligarch_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
@@ -1085,6 +1088,7 @@ __coligarch_reserve(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, coligarch->dhandle);
+    WT_RET(__coligarch_modify_check(coligarch));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));

@@ -9,19 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_bmp_checkpoint_resolve --
- *     Resolve the checkpoint.
- */
-int
-__wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
-{
-    WT_UNUSED(bm);
-    WT_UNUSED(session);
-    WT_UNUSED(failed);
-    return (0);
-}
-
-/*
  * __wt_bmp_checkpoint_start --
  *     Start the checkpoint.
  */

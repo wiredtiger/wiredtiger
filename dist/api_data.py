@@ -481,14 +481,17 @@ index_meta = format_meta + source_meta + index_only_config + [
 table_meta = format_meta + table_only_config
 
 oligarch_config = [
-    Config('oligarch_test_config', '', r'''
-        placeholder for oligarch config options''',
-        type='int', undoc=True),
     Config('ingest', '', r'''
-        URI for ingest table''',
+        URI for oligarch ingest table''',
         type='string', undoc=True),
+    Config('role', '', r'''
+        whether the oligarch stable table should lead or follow''',
+        choices=['leader', 'follower'], undoc=True),
     Config('stable', '', r'''
-        URI for stable table''',
+        URI for oligarch stable table''',
+        type='string', undoc=True),
+    Config('stable_follower_prefix', '', r'''
+        directory of another WT oligarch stable table''',
         type='string', undoc=True),
 ]
 

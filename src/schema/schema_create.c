@@ -1061,6 +1061,7 @@ err:
 static int
 __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
@@ -1071,12 +1072,10 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
-    const char *metadata;
     const char *oligarch_cfg[4] = {WT_CONFIG_BASE(session, oligarch_meta), config, NULL, NULL};
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
 
     conn = S2C(session);
-    metadata = NULL;
     tablecfg = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
@@ -1112,6 +1111,12 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     oligarch_cfg[2] = tmp->data;
 
     WT_ERR(__wt_config_collapse(session, oligarch_cfg, &tablecfg));
+    WT_RET(__wt_config_gets(session, oligarch_cfg, "role", &cval));
+    if (WT_STRING_LIT_MATCH("follower", cval.str, cval.len)) {
+        WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_follower_prefix", &cval));
+        WT_RET(
+          __wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_follower_prefix));
+    }
 
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
@@ -1128,7 +1133,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
-#if 0
+#if 1
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false),storage_source=dir_store"));
 #else
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));

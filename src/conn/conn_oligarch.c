@@ -8,6 +8,141 @@
 
 #include "wt_internal.h"
 
+static WT_THREAD_RET
+__oligarch_metadata_watcher(void *arg)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
+    WT_FH *md_fh;
+    WT_SESSION_IMPL *session;
+    char buf[4096], *cfg_ret, *md_path,
+      *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
+    const char *value, *cfg[3];
+    size_t len;
+    wt_off_t last_sep, last_sz, name_ptr, new_sz;
+
+    session = (WT_SESSION_IMPL *)arg;
+    conn = S2C(session);
+    memset(buf, 0, 4096);
+
+    fprintf(stderr, "created metadata watcher thread\n");
+
+    len = strlen(conn->iface.stable_follower_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    WT_ERR(__wt_calloc_def(session, len, &md_path));
+    WT_ERR(__wt_snprintf(
+      md_path, len, "%s/%s", conn->iface.stable_follower_prefix, WT_OLIGARCH_METADATA_FILE));
+    WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
+    WT_ERR(__wt_filesize(session, md_fh, &last_sz));
+
+    for (;;) {
+        __wt_sleep(0, 1000);
+        if (F_ISSET(conn, WT_CONN_CLOSING))
+            break;
+
+        WT_ERR(__wt_filesize(session, md_fh, &new_sz));
+        if (new_sz == last_sz)
+            continue;
+
+        last_sz = new_sz;
+
+        /* Read 4095 characters from before EOF */
+        WT_ERR(
+          __wt_read(session, md_fh, WT_MAX(0, last_sz - 4095), (size_t)WT_MIN(4095, last_sz), buf));
+
+        /* Parse out the key and new checkpoint config */
+        last_sep = 0;
+        for (new_sz = 4095; new_sz >= 0; new_sz--) {
+            if (buf[new_sz] == '|') {
+                last_sep = new_sz;
+                break;
+            }
+        }
+
+        buf[last_sep] = '\0';
+        name_ptr = last_sep;
+        while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
+            name_ptr--;
+
+        /* fprintf(stderr, "name=%s\n", &buf[name_ptr]); */
+        /* fprintf(stderr, "value=%s\n", &buf[last_sep+1]); */
+
+        /* Open up a metadata cursor pointing at our table */
+        WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+        md_cursor->set_key(md_cursor, &buf[name_ptr]);
+        WT_ERR(md_cursor->search(md_cursor));
+
+        /* Pull the value out */
+        WT_ERR(md_cursor->get_value(md_cursor, &value));
+        len = strlen(&buf[last_sep + 1]);
+        buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
+        /* fprintf(stderr, "value=%s\n", &buf[last_sep + 1]); */
+        len += strlen("checkpoint="); /* -1 for trailing newline */
+
+        /* Allocate/create a new config we're going to insert */
+        WT_ERR(__wt_calloc_def(session, len, &new_md_value));
+        WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
+        cfg[0] = value;
+        cfg[1] = new_md_value;
+        cfg[2] = NULL;
+        WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+        /* fprintf(stderr, "collapsed=%s\n", cfg_ret); */
+
+        /* Put our new config in */
+        WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
+        WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
+        md_cursor = NULL;
+
+        /*
+         * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
+         * cursor triggers __wt_btree_open (even if the file has been opened before).
+         */
+    }
+
+err:
+    __wt_free(session, md_path);
+    __wt_free(session, new_md_value);
+    WT_IGNORE_RET(__wt_close(session, &md_fh));
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/* TODO the model here is a bit wrong, enforce singleton-ness some other way */
+int
+__wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_OLIGARCH_MANAGER *manager;
+
+    conn = S2C(session);
+    manager = &conn->oligarch_manager;
+
+    if (!__wt_atomic_cas32(
+          &manager->watcher_state, WT_OLIGARCH_WATCHER_OFF, WT_OLIGARCH_WATCHER_STARTING)) {
+        while (__wt_atomic_load32(&manager->watcher_state) != WT_OLIGARCH_WATCHER_RUNNING)
+            __wt_sleep(0, 1000);
+        return (0);
+    }
+
+    WT_RET(__wt_open_internal_session(
+      conn, "oligarch-metadata-server", true, 0, 0, &conn->oligarch_metadata_session));
+    WT_RET(__wt_thread_create(conn->oligarch_metadata_session, &manager->watcher_tid,
+      __oligarch_metadata_watcher, conn->oligarch_metadata_session));
+    manager->watcher_tid_set = true;
+
+    fprintf(stderr, "oligarch watcher started\n");
+    return (0);
+}
+
+/* Set up the file that contains metadata for the stable tables. */
+static int
+__oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
+{
+    fprintf(stderr, "__oligarch_metadata_create\n");
+    return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA,
+      WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
+}
+
 /*
  * __wt_oligarch_manager_start --
  *     Start the oligarch manager thread
@@ -54,6 +189,9 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
       __wt_oligarch_manager_thread_chk, __wt_oligarch_manager_thread_run, NULL));
 
     WT_MAX_LSN(&manager->max_replay_lsn);
+
+    WT_ERR(__oligarch_metadata_create(session, manager));
+
     WT_STAT_CONN_SET(session, oligarch_manager_running, 1);
     __wt_verbose_level(
       session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5, "%s", "__wt_oligarch_manager_start");
@@ -677,6 +815,8 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     __wt_free(session, manager->entries);
     manager->open_oligarch_table_count = 0;
     WT_MAX_LSN(&manager->max_replay_lsn);
+
+    WT_RET(__wt_close(session, &manager->metadata_fh));
 
     __wt_atomic_store32(&manager->state, WT_OLIGARCH_MANAGER_OFF);
     WT_STAT_CONN_SET(session, oligarch_manager_running, 0);

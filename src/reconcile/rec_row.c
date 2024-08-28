@@ -540,13 +540,9 @@ __rec_row_garbage_collect_fixup_insert_list(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
-    WT_PAGE *page;
-    WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone;
 
     btree = S2BT(session);
-    page = r->page;
-    mod = page->modify;
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
         return (0);

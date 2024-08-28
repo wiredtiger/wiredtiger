@@ -303,14 +303,12 @@ __btree_setup_storage_source(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_BUCKET_STORAGE *new;
     WT_CONFIG_ITEM storage_source_item;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_STORAGE_SOURCE *storage;
     const char **cfg;
 
     cfg = btree->dhandle->cfg;
-    conn = S2C(session);
     nstorage = NULL;
 
     /* Setup any configured storage source on the data handle */

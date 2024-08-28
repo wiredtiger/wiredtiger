@@ -46,7 +46,7 @@
 #endif
 
 /* This is the size of a 64 bit number, don't use sizeof since sign-edness causes issues */
-#define STORED_VALUE_SIZE   8
+#define STORED_VALUE_SIZE 8
 
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
@@ -200,7 +200,7 @@ static int dir_store_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
 /* Object interface */
-static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *, WT_ITEM *);
+static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *, void *, size_t);
 static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
 static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
@@ -471,6 +471,9 @@ dir_store_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, c
         while (*name == '/')
             name++;
     }
+    // XXX FIXME XXX The follower is not opening the correct file.
+    if (strcmp(dir, "follower/foo") == 0)
+        dir = "./foo";
     len = strlen(dir) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (dir_store_err(FS2DS(file_system), NULL, ENOMEM, "dir_store_path"));
@@ -1569,7 +1572,8 @@ next_mul8(uint64_t i)
  *     Serialise our internal data structures to a given file handle.
  */
 static int
-dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, wt_off_t *nwritten)
+dir_store_ckpt_intl(
+  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, wt_off_t *nwritten)
 {
     WT_FILE_HANDLE *wt_fh;
     int ret;
@@ -1609,7 +1613,7 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
  * isn't aligned like a hex dump or anything, it's just to give the pointers
  * something to reference.
  *
- *     0 | Data pointer (8B) | Extra pointer (8B)
+ *     0 | Data pointer (8B)
  *   ... | Normal keys/values
  *   ... | More keys/values...
  *   ... | Normal keys/values
@@ -1620,69 +1624,33 @@ dir_store_ckpt_intl(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t beg
  *   ... | object_size_map[1] | object_size_map[2]
  *   ... | More object size entries...
  *   ... | object_size_map[max - 1] | object_size_map[max]
- * Extra | Length of extra data (8B) | extra_data[0] (1B)
- *   ... | extra_data[1]
- *   ... | More extra data...
- *   ... | extra_data[max]
  *   ... | Normal keys/values
  */
-
-/* dir_store_ckpt_extra --
- *     Write out any extra data the block pantry wants associated with the checkpoint.
- */
-static int
-dir_store_ckpt_extra(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, WT_ITEM *extra, wt_off_t begin, wt_off_t *nwritten)
-{
-    WT_FILE_HANDLE *wt_fh;
-    int ret;
-
-    wt_fh = fh->fh;
-    *nwritten = 0;
-
-    ret = wt_fh->fh_write(wt_fh, session, begin, STORED_VALUE_SIZE, &extra->size);
-    if (ret != 0)
-        return (ret);
-    begin += STORED_VALUE_SIZE;
-
-    ret = wt_fh->fh_write(wt_fh, session, begin, extra->size, extra->data);
-    if (ret != 0)
-        return (ret);
-
-    *nwritten = (wt_off_t)extra->size;
-
-    return (0);
-}
 
 /* dir_store_ckpt_finalize --
  *     Serialise our the metadata for our URI to a given file handle.
  */
 static int
-dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin, wt_off_t extra_begin)
+dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
 {
     WT_FILE_HANDLE *wt_fh;
-    int ret;
 
     wt_fh = fh->fh;
 
     /* TODO add some magic bytes? Version? Checksum? More thought. */
-    ret = wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin);
-    if (ret != 0)
-        return (ret);
-
-    /* TODO this probably ought to be one indivisible write with the ckpt_begin */
-    return (wt_fh->fh_write(wt_fh, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_begin));
+    return (wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin));
 }
 
 /*
  * dir_store_obj_ckpt --
- *     Save any data necessary to restore our internal state, plus some extra
- *     data the user wants to keep alongside it.
+ *     Save any data necessary to restore our internal state, plus some extra data the user wants to
+ *     keep alongside it.
  */
 static int
-dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra)
+dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
-    wt_off_t start, extra_start, nwritten;
+    wt_off_t start, nwritten;
     int ret;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
@@ -1695,50 +1663,22 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *ex
     if (ret != 0)
         return (ret);
     dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO maybe reset alignment? */
-    extra_start = (wt_off_t)dir_store_fh->object_next_offset;
 
-    ret = dir_store_ckpt_extra(dir_store_fh, session, extra, (wt_off_t)dir_store_fh->object_next_offset, &nwritten);
-    if (ret != 0)
-        return (ret);
-    dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO align again? */
-
-    return (dir_store_ckpt_finalize(dir_store_fh, session, start, extra_start));
+    return (dir_store_ckpt_finalize(dir_store_fh, session, start));
 }
 
 /*
  * dir_store_obj_ckpt_load --
- *     Load any data necessary to restore our internal state, plus some extra
- *     data the user kept alongside it.
+ *     Load any data necessary to restore our internal state, plus some extra data the user kept
+ *     alongside it.
  */
 static int
 dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session, void *buf, size_t buf_sz)
 {
-    /*
-     * This is really just fetching the extra data - we loaded our internal state on
-     * startup (see dir_store_ckpt_load_internal).
-     */
-    wt_off_t extra_len, extra_ptr, size;
-    int ret;
-
-    /* Check the size before we read. */
-    if ((ret = file_handle->fh_size(file_handle, session, &size)) != 0)
-        return (ret);
-    if (size <= STORED_VALUE_SIZE)
-        return (0);
-
-    /* Look up the extra data's address. */
-    if ((ret = file_handle->fh_read(file_handle, session, STORED_VALUE_SIZE, STORED_VALUE_SIZE, &extra_ptr)) != 0)
-        return (ret);
-
-    /* Read the extra data's length. */
-    if ((ret = file_handle->fh_read(file_handle, session, extra_ptr, STORED_VALUE_SIZE, &extra_len)) != 0)
-        return (ret);
-    extra_ptr += STORED_VALUE_SIZE;
-
-    if (extra_len > (wt_off_t)buf_sz)
-        return (ENOMEM);
-
-    return (file_handle->fh_read(file_handle, session, extra_ptr, (size_t)extra_len, buf));
+    (void)buf;
+    (void)buf_sz;
+    fprintf(stderr, "dir_store_obj_ckpt_load\n");
+    return (dir_store_ckpt_load_internal((DIR_STORE_FILE_HANDLE *)file_handle, session));
 }
 
 /*
@@ -1807,8 +1747,8 @@ dir_store_obj_get(
     } else if (object_size > buf->memsize)
         return (ENOSPC);
 
-    fprintf(stderr, "PBM reading object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id,
-      dir_store_fh->object_id_map[object_id]);
+    /* fprintf(stderr, "PBM reading object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id, */
+    /*   dir_store_fh->object_id_map[object_id]); */
 
     dir_store_fh->dir_store->object_get_ops++;
     ret = wt_fh->fh_read(

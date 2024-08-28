@@ -447,6 +447,7 @@ struct __wt_block_pantry {
 
     wt_shared uint64_t next_pantry_id;
     WT_FH *fh;
+    WT_FH *metadata_fh;
 };
 
 /*
@@ -485,3 +486,4 @@ struct __wt_block_pantry_header {
 #define WT_BLOCK_PANTRY_HEADER_SIZE 16
 #define WT_BLOCK_PANTRY_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_PANTRY_HEADER_SIZE)
 #define WT_BLOCK_PANTRY_ID_INVALID UINT64_MAX
+#define WT_BLOCK_PANTRY_CHECKPOINT_BUFFER (1024)
