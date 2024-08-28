@@ -2902,6 +2902,8 @@ struct __wt_connection {
      */
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
+
+    char *stable_follower_prefix;
 };
 
 /*!
@@ -5213,9 +5215,8 @@ struct __wt_file_handle {
      *
      * @param file_handle the WT_FILE_HANDLE
      * @param session the current WiredTiger session
-     * @param extra any extra data to be associated with the checkpoint
      */
-    int (*fh_obj_checkpoint)(WT_FILE_HANDLE *file_handle, WT_SESSION *session, WT_ITEM *extra);
+    int (*fh_obj_checkpoint)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
 
     /*!
      * Load an object store checkpoint - open the current state so it's available after a restart

@@ -242,13 +242,19 @@ extern int __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint3
   WT_BLOCK **blockp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_addr_invalid(const uint8_t *addr)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_addr_pack(uint8_t **pp, uint64_t pantry_id, uint32_t size,
+  uint32_t checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_addr_string(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry,
   WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_pantry_addr_to_buffer(uint8_t **pp, uint64_t pantry_id, uint32_t size,
-  uint32_t checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_pantry_buffer_to_addr(const uint8_t *buf, uint64_t *pantry_idp,
-  uint32_t *sizep, uint32_t *checksump) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_addr_unpack(const uint8_t **buf, uint64_t *pantry_idp, uint32_t *sizep,
+  uint32_t *checksump) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_ckpt_pack(WT_BLOCK_PANTRY *block_pantry, uint8_t **buf,
+  uint64_t root_id, uint32_t root_sz, uint32_t root_checksum)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_ckpt_unpack(WT_BLOCK_PANTRY *block_pantry, const uint8_t *buf,
+  uint64_t *root_id, uint32_t *root_sz, uint32_t *root_checksum)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_close(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_manager_create(WT_SESSION_IMPL *session, WT_BUCKET_STORAGE *bstorage,
@@ -266,6 +272,9 @@ extern int __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename
 extern int __wt_block_pantry_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
   uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry,
+  WT_ITEM *buf, uint64_t *pantry_idp, uint32_t *sizep, uint32_t *checksump, bool data_checksum,
+  bool checkpoint_io) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_write_size(size_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
@@ -331,8 +340,8 @@ extern int __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_addr_string(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
   const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bmp_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase,
-  bool data_checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bmp_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
+  WT_CKPT *ckptbase, bool data_checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1378,6 +1387,8 @@ extern int __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shu
 extern int __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type,
   u_int flags, WT_FH **fhp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

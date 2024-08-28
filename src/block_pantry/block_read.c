@@ -25,7 +25,7 @@ __wt_bmp_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_
     WT_ERR(__wt_bmp_read(bm, session, tmp, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wt_block_pantry_buffer_to_addr(addr, &page_id, &size, &checksum));
+    WT_ERR(__wt_block_pantry_addr_unpack(&addr, &page_id, &size, &checksum));
     WT_ERR(__wt_bm_corrupt_dump(session, tmp, 0, (wt_off_t)page_id, size, checksum));
 
 err:
@@ -130,7 +130,7 @@ __wt_bmp_read(
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_pantry_buffer_to_addr(addr, &page_id, &size, &checksum));
+    WT_RET(__wt_block_pantry_addr_unpack(&addr, &page_id, &size, &checksum));
 
     /* Read the block. */
     WT_RET(__block_pantry_read(session, block_pantry, buf, page_id, size, checksum));
