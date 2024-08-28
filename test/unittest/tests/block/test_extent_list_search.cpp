@@ -52,23 +52,22 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
     SECTION("search an empty list")
     {
         BREAK;
-        /* Offsets to search for */
+        /* Offsets to search for. */
         std::vector<wt_off_t> test_list{0, 4096, 3 * 4096}; // 3, 4096, 12,288.
 
-        /* Setup */
-        /* Empty extent list */
+        /* Setup. */
         WT_EXTLIST extlist = {};
 
-        /* Test */
+        /* Test. */
         WT_EXT dummy;
         for (const wt_off_t &test : test_list) {
             INFO("Search: off " << test);
             /* Set to an invalid value to determine whether __block_off_srch_pair changed them. */
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
-            /* Call */
+            /* Call. */
             __ut_block_off_srch_pair(&extlist, test, &before, &after);
-            /* Verify: All should be not found */
+            /* Verify: All should be not found. */
             REQUIRE(before == nullptr);
             REQUIRE(after == nullptr);
         }
@@ -77,14 +76,14 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
     SECTION("search a non-empty list")
     {
         BREAK;
-        /* Extents to insert to create an extent list to search */
+        /* Extents to insert to create an extent list to search. */
         std::vector<off_size> insert_list{
           off_size(3 * 4096, 4096), // Second [12,288, 16,383].
           off_size(4096, 4096),     // First [4,096, 8,191].
           off_size(5 * 4096, 4096), // Third [20,480, 24,575].
         };
 
-        /* Tests and expected values for __block_srch_pair */
+        /* Tests and expected values for __block_srch_pair. */
         std::vector<search_before_after> expected_before_after{
           search_before_after(0, nullptr, &insert_list[1]),    // Before first 0.
           search_before_after(4096, nullptr, &insert_list[1]), // At first 4,096.
@@ -97,11 +96,10 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
           search_before_after(6 * 4096, &insert_list[2], nullptr),         // After third 24,576.
         };
 
-        /* Setup */
-        /* Empty extent list */
+        /* Setup. */
         WT_EXTLIST extlist = {};
 
-        /* Insert extents */
+        /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
             INFO("Insert: {off " << std::showbase << to_insert._off << ", size " << to_insert._size
                                  << ", end " << to_insert.end() << "}");
@@ -110,13 +108,13 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
         extlist_print_off(extlist);
 
-        /* Test */
+        /* Test. */
         WT_EXT dummy;
         uint32_t idx = 0;
         for (const search_before_after &expected : expected_before_after) {
             WT_EXT *before = &dummy;
             WT_EXT *after = &dummy;
-            /* Call */
+            /* Call. */
             __ut_block_off_srch_pair(&extlist, expected._off, &before, &after);
 
             std::ostringstream line_stream;
@@ -149,7 +147,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             std::string line = line_stream.str();
             INFO(line);
 
-            /* Verify */
+            /* Verify. */
             if (expected._before != nullptr) {
                 REQUIRE(before != nullptr);
                 REQUIRE(before->off == expected._before->_off);
@@ -168,7 +166,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             ++idx;
         }
 
-        /* Cleanup */
+        /* Cleanup. */
         extlist_free(session, extlist);
     }
 }
@@ -201,7 +199,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
     WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
 
-    /* Extents to insert to create an extent list to search */
+    /* Extents to insert to create an extent list to search. */
     std::vector<off_size> insert_list{
       off_size(3 * 4096, 4096), // Second [12,288, 16,383].
       off_size(4096, 4096),     // First [4,096, 8,191].
