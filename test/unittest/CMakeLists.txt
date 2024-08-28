@@ -24,8 +24,10 @@ else()
         tests/test_tailq.cpp
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
+        tests/block/test_block_addr.cpp
         tests/block/test_block_ckpt.cpp
-        tests/block/test_block_session.cpp
+        tests/block/test_block_session_ext.cpp
+        tests/block/test_block_session_size.cpp
         tests/block/test_extent_list_insert_wo_block.cpp
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
