@@ -152,17 +152,15 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
                 REQUIRE(before != nullptr);
                 REQUIRE(before->off == expected.before->off);
                 REQUIRE(before->size == expected.before->size);
-            } else {
+            } else
                 REQUIRE(before == nullptr);
-            }
 
             if (expected.after != nullptr) {
                 REQUIRE(after != nullptr);
                 REQUIRE(after->off == expected.after->off);
                 REQUIRE(after->size == expected.after->size);
-            } else {
+            } else
                 REQUIRE(after == nullptr);
-            }
             ++idx;
         }
 
