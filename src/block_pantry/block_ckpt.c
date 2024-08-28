@@ -165,12 +165,10 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
 
     WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
 
-    /* TODO I think we don't need this because the caller should call btree_open with the cookie we
-     * put back into root_addr */
-    /* WT_RET(__wt_block_pantry_read_internal(session, block_pantry, root_id, root_sz, root_image,
-     * root_checksum)); */
-
-    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface, NULL, 0));
+    /* Give our backing storage a chance to reload whatever internal state it associates with a
+     * checkpoint
+     */
+    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface));
 
     /*
      * Pretend there is a root page for this checkpoint - at the moment we don't actually read from
