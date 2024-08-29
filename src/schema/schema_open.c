@@ -665,6 +665,8 @@ __schema_open_oligarch(WT_SESSION_IMPL *session)
 
         /* Start utility thread to watch the leader's metadata and update our metadata */
         WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_follower_prefix", &cval));
+        WT_RET(
+          __wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_follower_prefix));
         /* TODO use this config */
         WT_RET(__wt_oligarch_watcher_start(session));
     } else {

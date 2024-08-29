@@ -97,6 +97,7 @@ __oligarch_metadata_watcher(void *arg)
          * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
          * cursor triggers __wt_btree_open (even if the file has been opened before).
          */
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints_refreshed);
     }
 
 err:
@@ -587,7 +588,8 @@ __oligarch_log_replay_op_apply(
           "%" PRIu32,
           optype);
     } else {
-        WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_logops_applied);
+        if (applied)
+            WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_logops_applied);
     }
 
 done:

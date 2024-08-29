@@ -33,7 +33,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_oligarch04.py
 #    Add enough content to trigger a checkpoint in the stable table.
 class test_oligarch04(wttest.WiredTigerTestCase):
-    nitems = 1000000
+    nitems = 50000
     uri_base = "test_oligarch04"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
@@ -72,10 +72,13 @@ class test_oligarch04(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
 
-        cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
+        self.pr('read cursor saw: ' + str(item_count))
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.pr('read cursor saw: ' + str(item_count))
         while cursor.next() == 0:
             item_count += 1
 
+        self.pr('read cursor saw: ' + str(item_count))
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()

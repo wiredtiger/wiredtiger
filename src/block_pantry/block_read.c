@@ -47,6 +47,7 @@ __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %" PRIu32,
       (uintmax_t)pantry_id, size, checksum);
 
+    WT_STAT_CONN_INCR(session, pantry_block_get);
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
