@@ -106,10 +106,9 @@ TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
         int idx = 0;
         for (const off_size_expected &test : test_list) {
             /* Call. */
-            REQUIRE(__ut_block_merge(
-                      session, &block, &extlist, test.an_off_size.off, test.an_off_size.size) == 0);
-            INFO("After " << idx << ". Insert/merge: {off " << test.an_off_size.off << ", size "
-                          << test.an_off_size.size << ", end %" << test.an_off_size.end() << "}");
+            REQUIRE(__ut_block_merge(session, &block, &extlist, test.test_off_size.off,
+                      test.test_off_size.size) == 0);
+            INFO("After " << idx << ". Insert/merge: " << &test.test_off_size);
 
             utils::extlist_print_off(extlist);
 
@@ -171,8 +170,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
 
         /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
-            INFO("Insert: {off " << to_insert.off << ", size " << to_insert.size << ", end "
-                                 << to_insert.end() << "}n");
+            INFO("Insert: " << &to_insert);
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
         }
 
@@ -271,11 +269,10 @@ TEST_CASE("Extent Lists: block_append", "[extent_list2]")
         int idx = 0;
         for (const off_size_expected &test : test_list) {
             /* Call. */
-            REQUIRE(__ut_block_append(
-                      session, &block, &extlist, test.an_off_size.off, test.an_off_size.size) == 0);
+            REQUIRE(__ut_block_append(session, &block, &extlist, test.test_off_size.off,
+                      test.test_off_size.size) == 0);
 
-            INFO("After " << idx << ". Append: {off " << test.an_off_size.off << ", size "
-                          << test.an_off_size.size << ", end " << test.an_off_size.end() << "}");
+            INFO("After " << idx << ". Append: " << &test.test_off_size);
             utils::extlist_print_off(extlist);
 
             /* Verify. */
