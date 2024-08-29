@@ -286,7 +286,7 @@ operator<<(std::ostream &out, const WT_EXT *ext)
 }
 
 /*!
- * operator<<(std::ostream &out, const WT_EXTLIST *) --
+ * operator<<(std::ostream &out, const WT_EXTLIST *extlist) --
  *     Print function for const WT_EXTLIST *.
  *
  * @param out ostream
