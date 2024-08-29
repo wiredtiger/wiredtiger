@@ -43,7 +43,18 @@ typedef struct {
     uint32_t slot_index;
 } WT_LOG_WRLSN_ENTRY;
 
+typedef struct __wt_myslot {
+    WT_LOGSLOT *slot;    /* Slot I'm using */
+    wt_off_t end_offset; /* My end offset in buffer */
+    wt_off_t offset;     /* Slot buffer offset */
 
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_MYSLOT_CLOSE 0x1u         /* This thread is closing the slot */
+#define WT_MYSLOT_NEEDS_RELEASE 0x2u /* This thread is releasing the slot */
+#define WT_MYSLOT_UNBUFFERED 0x4u    /* Write directly */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
+} WT_MYSLOT;
 
 /*
  * __wt_log_desc_byteswap --
@@ -62,3 +73,11 @@ __wt_log_desc_byteswap(WT_LOG_DESC *desc)
 #endif
 }
 
+extern int __wti_log_fill(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool force, WT_ITEM *record,
+  WT_LSN *lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_log_slot_switch(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool retry,
+  bool forced, bool *did_work) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int64_t __wti_log_slot_release(WT_MYSLOT *myslot, int64_t size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wti_log_slot_join(
+  WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot);

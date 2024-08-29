@@ -223,19 +223,6 @@ struct __wt_logslot {
         WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
     } while (0)
 
-struct __wt_myslot {
-    WT_LOGSLOT *slot;    /* Slot I'm using */
-    wt_off_t end_offset; /* My end offset in buffer */
-    wt_off_t offset;     /* Slot buffer offset */
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_MYSLOT_CLOSE 0x1u         /* This thread is closing the slot */
-#define WT_MYSLOT_NEEDS_RELEASE 0x2u /* This thread is releasing the slot */
-#define WT_MYSLOT_UNBUFFERED 0x4u    /* Write directly */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t flags;
-};
-
 #define WT_LOG_END_HEADER log->allocsize
 
 struct __wt_log {
