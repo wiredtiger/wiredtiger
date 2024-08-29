@@ -99,7 +99,6 @@ src/cursor/cur_hs.c
 src/cursor/cur_index.c
 src/cursor/cur_join.c
 src/cursor/cur_json.c
-src/cursor/cur_log.c
 src/cursor/cur_metadata.c
 src/cursor/cur_stat.c
 src/cursor/cur_std.c
@@ -113,6 +112,7 @@ src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
 src/history/hs_verify.c
+src/log/cur_log.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c
