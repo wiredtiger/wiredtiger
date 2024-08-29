@@ -178,7 +178,7 @@ size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head)
     while (sizep != nullptr) {
         WT_SIZE *next_sizep = sizep->next[0];
         sizep->next[0] = nullptr;
-        __wti_block_size_free(session, sizep);
+        __wti_block_size_free(session, &sizep);
         sizep = next_sizep;
     }
 }
