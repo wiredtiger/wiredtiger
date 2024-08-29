@@ -9,41 +9,46 @@
 #include "wt_internal.h"
 
 /*
- * __cache_config_local --
- *     Configure the underlying cache.
+ * __wti_cache_config --
+ *     Configure or reconfigure the current cache and shared cache.
  */
-static int
-__cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
+int
+__wti_cache_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    bool now_shared, was_shared;
 
     conn = S2C(session);
-    cache = conn->cache;
+    was_shared = F_ISSET(conn, WT_CONN_CACHE_POOL);
+
+    WT_ASSERT(session, conn->cache != NULL);
+
+    WT_RET(__wt_config_gets_none(session, cfg, "shared_cache.name", &cval));
+    now_shared = cval.len != 0;
 
     /*
      * If not using a shared cache configure the cache size, otherwise check for a reserved size.
      * All other settings are independent of whether we are using a shared cache or not.
      */
-    if (!shared) {
+    if (!now_shared && !was_shared) {
         WT_RET(__wt_config_gets(session, cfg, "cache_size", &cval));
         conn->cache_size = (uint64_t)cval.val;
     }
 
     /* Set config values as percentages. */
     WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
-    cache->overhead_pct = (u_int)cval.val;
+    conn->cache->overhead_pct = (u_int)cval.val;
 
     return (0);
 }
 
 /*
- * __wti_cache_config --
- *     Configure or reconfigure the current cache and shared cache.
+ * __wti_cache_pool_create --
+ *     Create shared cache.
  */
 int
-__wti_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wti_cache_pool_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -68,10 +73,6 @@ __wti_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
          */
         conn->cache_size = 0;
 
-    /*
-     * Always setup the local cache - it's used even if we are participating in a shared cache.
-     */
-    WT_RET(__cache_config_local(session, now_shared, cfg));
     if (now_shared) {
         WT_RET(__wti_cache_pool_config(session, cfg));
         WT_ASSERT(session, F_ISSET(conn, WT_CONN_CACHE_POOL));
@@ -98,7 +99,7 @@ __wti_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_calloc_one(session, &conn->cache));
 
     /* Use a common routine for run-time configuration options. */
-    WT_RET(__wti_cache_config(session, cfg, false));
+    WT_RET(__wti_cache_config(session, cfg));
 
     /*
      * We get/set some values in the cache statistics (rather than have two copies), configure them.

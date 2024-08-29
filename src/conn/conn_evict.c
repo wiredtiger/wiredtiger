@@ -18,7 +18,8 @@
  *     converts an absolute size to a percentage.
  */
 static WT_INLINE int
-__evict_config_abs_to_pct(WT_SESSION_IMPL *session, double *param, const char *param_name)
+__evict_config_abs_to_pct(
+  WT_SESSION_IMPL *session, double *param, const char *param_name, bool shared)
 {
     WT_CONNECTION_IMPL *conn;
     double input;
@@ -36,7 +37,7 @@ __evict_config_abs_to_pct(WT_SESSION_IMPL *session, double *param, const char *p
          * In a shared cache configuration the cache size changes regularly. Therefore, we require a
          * percentage setting and do not allow an absolute size setting.
          */
-        if (F_ISSET(conn, WT_CONN_CACHE_POOL))
+        if (shared)
             WT_RET_MSG(session, EINVAL,
               "Shared cache configuration requires a percentage value for %s", param_name);
         /* An absolute value can't exceed the cache size. */
@@ -59,9 +60,13 @@ __validate_evict_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
+    bool shared;
 
     conn = S2C(session);
     evict = conn->evict;
+
+    WT_RET(__wt_config_gets_none(session, cfg, "shared_cache.name", &cval));
+    shared = cval.len != 0;
 
     /* Debug flags are not yet set when this function runs during connection open. Set it now. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
@@ -72,36 +77,38 @@ __validate_evict_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
     evict->eviction_target = (double)cval.val;
-    WT_RET(__evict_config_abs_to_pct(session, &(evict->eviction_target), "eviction target"));
+    WT_RET(
+      __evict_config_abs_to_pct(session, &(evict->eviction_target), "eviction target", shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
     evict->eviction_trigger = (double)cval.val;
-    WT_RET(__evict_config_abs_to_pct(session, &(evict->eviction_trigger), "eviction trigger"));
+    WT_RET(
+      __evict_config_abs_to_pct(session, &(evict->eviction_trigger), "eviction trigger", shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
     evict->eviction_dirty_target = (double)cval.val;
-    WT_RET(
-      __evict_config_abs_to_pct(session, &(evict->eviction_dirty_target), "eviction dirty target"));
+    WT_RET(__evict_config_abs_to_pct(
+      session, &(evict->eviction_dirty_target), "eviction dirty target", shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_trigger", &cval));
     evict->eviction_dirty_trigger = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
-      session, &(evict->eviction_dirty_trigger), "eviction dirty trigger"));
+      session, &(evict->eviction_dirty_trigger), "eviction dirty trigger", shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_target", &cval));
     evict->eviction_updates_target = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
-      session, &(evict->eviction_updates_target), "eviction updates target"));
+      session, &(evict->eviction_updates_target), "eviction updates target", shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
     evict->eviction_updates_trigger = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
-      session, &(evict->eviction_updates_trigger), "eviction updates trigger"));
+      session, &(evict->eviction_updates_trigger), "eviction updates trigger", shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
     evict->eviction_checkpoint_target = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
-      session, &(evict->eviction_checkpoint_target), "eviction checkpoint target"));
+      session, &(evict->eviction_checkpoint_target), "eviction checkpoint target", shared));
 
     /* Check for invalid configurations and automatically fix them to suitable values. */
     if (evict->eviction_dirty_target > evict->eviction_target) {
