@@ -78,21 +78,21 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         BREAK;
         /* Extents to insert to create an extent list to search. */
         std::vector<off_size> insert_list{
-          off_size(3 * 4096, 4096), // Second [12,288, 16,383].
           off_size(4096, 4096),     // First [4,096, 8,191].
+          off_size(3 * 4096, 4096), // Second [12,288, 16,383].
           off_size(5 * 4096, 4096), // Third [20,480, 24,575].
         };
 
         /* Tests and expected values for __block_srch_pair. */
         std::vector<search_before_after> expected_before_after{
-          search_before_after(0, nullptr, &insert_list[1]),    // Before first 0.
-          search_before_after(4096, nullptr, &insert_list[1]), // At first 4,096.
+          search_before_after(0, nullptr, &insert_list[0]),    // Before first 0.
+          search_before_after(4096, nullptr, &insert_list[0]), // At first 4,096.
           search_before_after(
-            2 * 4096, &insert_list[1], &insert_list[0]), // Between first and second 8,192.
-          search_before_after(3 * 4096, &insert_list[1], &insert_list[0]), // At second 12,288.
+            2 * 4096, &insert_list[0], &insert_list[1]), // Between first and second 8,192.
+          search_before_after(3 * 4096, &insert_list[0], &insert_list[1]), // At second 12,288.
           search_before_after(
-            4 * 4096, &insert_list[0], &insert_list[2]), // Between second and third 16,384.
-          search_before_after(5 * 4096, &insert_list[0], &insert_list[2]), // At third 20,480.
+            4 * 4096, &insert_list[1], &insert_list[2]), // Between second and third 16,384.
+          search_before_after(5 * 4096, &insert_list[1], &insert_list[2]), // At third 20,480.
           search_before_after(6 * 4096, &insert_list[2], nullptr),         // After third 24,576.
         };
 
@@ -101,7 +101,6 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
         /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
-
             INFO("Insert: " << &to_insert);
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
         }
@@ -182,8 +181,8 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
 
     /* Extents to insert to create an extent list to search. */
     std::vector<off_size> insert_list{
-      off_size(3 * 4096, 4096), // Second [12,288, 16,383].
       off_size(4096, 4096),     // First [4,096, 8,191].
+      off_size(3 * 4096, 4096), // Second [12,288, 16,383].
       off_size(5 * 4096, 4096), // Third [20,480, 24,575].
     };
 
