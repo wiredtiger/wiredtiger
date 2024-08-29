@@ -58,6 +58,6 @@ void verify_off_extent_list(
 } // namespace utils.
 
 bool operator<(const utils::off_size &left, const utils::off_size &right);
-std::ostream &operator<<(std::ostream &os, const utils::off_size *offset_size);
+std::ostream &operator<<(std::ostream &out, const utils::off_size *os);
 std::ostream &operator<<(std::ostream &out, const WT_EXT *ext);
-std::ostream &operator<<(std::ostream &os, const WT_EXTLIST *extlist);
+std::ostream &operator<<(std::ostream &out, const WT_EXTLIST *extlist);
