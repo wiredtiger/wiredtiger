@@ -41,7 +41,7 @@ test_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
 
 TEST_CASE("Block header byteswap copy", "[block_other]")
 {
-    WT_BLOCK_HEADER expected, from, to;
+    WT_BLOCK_HEADER from, to;
 
     SECTION("Test case 1")
     {
