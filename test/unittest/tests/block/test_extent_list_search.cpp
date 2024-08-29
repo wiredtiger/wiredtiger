@@ -7,8 +7,8 @@
  */
 
 /*
- * [extent_list2]: block_ext.c
- * Test extent list functions part 3. (More to come.)
+ * [extent_list]: block_ext.c
+ * Test extent list functions part 3.
  *
  * Test extent list search functions: __block_off_srch_pair, and __block_off_match.
  */
@@ -41,7 +41,7 @@ struct search_before_after {
     }
 };
 
-TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
+TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
@@ -173,7 +173,7 @@ struct search_match {
     }
 };
 
-TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
+TEST_CASE("Extent Lists: block_off_match", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();

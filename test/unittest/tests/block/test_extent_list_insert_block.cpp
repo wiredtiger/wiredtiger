@@ -7,7 +7,8 @@
  */
 
 /*
- * block_ext.c: [extent_list2] Test extent list functions part 4. (More to come.)
+ * [extent_list]: block_ext.c
+ * Test extent list functions part 4.
  *
  * Test extent list insert/remove functions with block: __block_merge, __block_off_remove,
  * __block_extend, and __block_append.
@@ -38,7 +39,7 @@ struct {
     }
 } off_size_Less_off_and_size;
 
-TEST_CASE("Extent Lists: block_merge", "[extent_list2]")
+TEST_CASE("Extent Lists: block_merge", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
@@ -131,7 +132,7 @@ struct off_expected {
     std::vector<off_size> expected_list;
 };
 
-TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
+TEST_CASE("Extent Lists: block_off_remove", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
@@ -214,7 +215,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list2]")
     }
 }
 
-TEST_CASE("Extent Lists: block_append", "[extent_list2]")
+TEST_CASE("Extent Lists: block_append", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection.*/
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
@@ -296,7 +297,7 @@ struct block_append_test {
     int err;
 };
 
-TEST_CASE("Extent Lists: block_extend", "[extent_list2]")
+TEST_CASE("Extent Lists: block_extend", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
