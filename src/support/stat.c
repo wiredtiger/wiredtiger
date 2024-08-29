@@ -263,10 +263,28 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "oligarch: Oligarch table cursor insert operations",
+  "oligarch: Oligarch table cursor next operations",
+  "oligarch: Oligarch table cursor next operations from ingest table",
+  "oligarch: Oligarch table cursor next operations from stable table",
+  "oligarch: Oligarch table cursor prev operations",
+  "oligarch: Oligarch table cursor prev operations from ingest table",
+  "oligarch: Oligarch table cursor prev operations from stable table",
+  "oligarch: Oligarch table cursor remove operations",
+  "oligarch: Oligarch table cursor search near operations",
+  "oligarch: Oligarch table cursor search near operations from ingest table",
+  "oligarch: Oligarch table cursor search near operations from stable table",
+  "oligarch: Oligarch table cursor search operations",
+  "oligarch: Oligarch table cursor search operations from ingest table",
+  "oligarch: Oligarch table cursor search operations from stable table",
+  "oligarch: Oligarch table cursor update operations",
   "oligarch: checkpoints performed on this table by the oligarch manager",
+  "oligarch: checkpoints refreshed on shared oligarch constituents",
   "oligarch: how many log applications the oligarch manager applied on this tree",
   "oligarch: how many log applications the oligarch manager skipped on this tree",
   "oligarch: how many previously-applied LSNs the oligarch manager skipped on this tree",
+  "pantry: Pantry block manager get",
+  "pantry: Pantry block manager put ",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -614,10 +632,28 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->oligarch_curs_insert = 0;
+    stats->oligarch_curs_next = 0;
+    stats->oligarch_curs_next_ingest = 0;
+    stats->oligarch_curs_next_stable = 0;
+    stats->oligarch_curs_prev = 0;
+    stats->oligarch_curs_prev_ingest = 0;
+    stats->oligarch_curs_prev_stable = 0;
+    stats->oligarch_curs_remove = 0;
+    stats->oligarch_curs_search_near = 0;
+    stats->oligarch_curs_search_near_ingest = 0;
+    stats->oligarch_curs_search_near_stable = 0;
+    stats->oligarch_curs_search = 0;
+    stats->oligarch_curs_search_ingest = 0;
+    stats->oligarch_curs_search_stable = 0;
+    stats->oligarch_curs_update = 0;
     stats->oligarch_manager_checkpoints = 0;
+    stats->oligarch_manager_checkpoints_refreshed = 0;
     stats->oligarch_manager_logops_applied = 0;
     stats->oligarch_manager_logops_skipped = 0;
     stats->oligarch_manager_skip_lsn = 0;
+    stats->pantry_block_get = 0;
+    stats->pantry_block_put = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -956,10 +992,28 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->oligarch_curs_insert += from->oligarch_curs_insert;
+    to->oligarch_curs_next += from->oligarch_curs_next;
+    to->oligarch_curs_next_ingest += from->oligarch_curs_next_ingest;
+    to->oligarch_curs_next_stable += from->oligarch_curs_next_stable;
+    to->oligarch_curs_prev += from->oligarch_curs_prev;
+    to->oligarch_curs_prev_ingest += from->oligarch_curs_prev_ingest;
+    to->oligarch_curs_prev_stable += from->oligarch_curs_prev_stable;
+    to->oligarch_curs_remove += from->oligarch_curs_remove;
+    to->oligarch_curs_search_near += from->oligarch_curs_search_near;
+    to->oligarch_curs_search_near_ingest += from->oligarch_curs_search_near_ingest;
+    to->oligarch_curs_search_near_stable += from->oligarch_curs_search_near_stable;
+    to->oligarch_curs_search += from->oligarch_curs_search;
+    to->oligarch_curs_search_ingest += from->oligarch_curs_search_ingest;
+    to->oligarch_curs_search_stable += from->oligarch_curs_search_stable;
+    to->oligarch_curs_update += from->oligarch_curs_update;
     to->oligarch_manager_checkpoints += from->oligarch_manager_checkpoints;
+    to->oligarch_manager_checkpoints_refreshed += from->oligarch_manager_checkpoints_refreshed;
     to->oligarch_manager_logops_applied += from->oligarch_manager_logops_applied;
     to->oligarch_manager_logops_skipped += from->oligarch_manager_logops_skipped;
     to->oligarch_manager_skip_lsn += from->oligarch_manager_skip_lsn;
+    to->pantry_block_get += from->pantry_block_get;
+    to->pantry_block_put += from->pantry_block_put;
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
@@ -1319,10 +1373,31 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->oligarch_curs_insert += WT_STAT_DSRC_READ(from, oligarch_curs_insert);
+    to->oligarch_curs_next += WT_STAT_DSRC_READ(from, oligarch_curs_next);
+    to->oligarch_curs_next_ingest += WT_STAT_DSRC_READ(from, oligarch_curs_next_ingest);
+    to->oligarch_curs_next_stable += WT_STAT_DSRC_READ(from, oligarch_curs_next_stable);
+    to->oligarch_curs_prev += WT_STAT_DSRC_READ(from, oligarch_curs_prev);
+    to->oligarch_curs_prev_ingest += WT_STAT_DSRC_READ(from, oligarch_curs_prev_ingest);
+    to->oligarch_curs_prev_stable += WT_STAT_DSRC_READ(from, oligarch_curs_prev_stable);
+    to->oligarch_curs_remove += WT_STAT_DSRC_READ(from, oligarch_curs_remove);
+    to->oligarch_curs_search_near += WT_STAT_DSRC_READ(from, oligarch_curs_search_near);
+    to->oligarch_curs_search_near_ingest +=
+      WT_STAT_DSRC_READ(from, oligarch_curs_search_near_ingest);
+    to->oligarch_curs_search_near_stable +=
+      WT_STAT_DSRC_READ(from, oligarch_curs_search_near_stable);
+    to->oligarch_curs_search += WT_STAT_DSRC_READ(from, oligarch_curs_search);
+    to->oligarch_curs_search_ingest += WT_STAT_DSRC_READ(from, oligarch_curs_search_ingest);
+    to->oligarch_curs_search_stable += WT_STAT_DSRC_READ(from, oligarch_curs_search_stable);
+    to->oligarch_curs_update += WT_STAT_DSRC_READ(from, oligarch_curs_update);
     to->oligarch_manager_checkpoints += WT_STAT_DSRC_READ(from, oligarch_manager_checkpoints);
+    to->oligarch_manager_checkpoints_refreshed +=
+      WT_STAT_DSRC_READ(from, oligarch_manager_checkpoints_refreshed);
     to->oligarch_manager_logops_applied += WT_STAT_DSRC_READ(from, oligarch_manager_logops_applied);
     to->oligarch_manager_logops_skipped += WT_STAT_DSRC_READ(from, oligarch_manager_logops_skipped);
     to->oligarch_manager_skip_lsn += WT_STAT_DSRC_READ(from, oligarch_manager_skip_lsn);
+    to->pantry_block_get += WT_STAT_DSRC_READ(from, pantry_block_get);
+    to->pantry_block_put += WT_STAT_DSRC_READ(from, pantry_block_put);
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
@@ -1909,7 +1984,23 @@ static const char *const __stats_connection_desc[] = {
   "log: total size of compressed records",
   "log: written slots coalesced",
   "log: yields waiting for previous log file close",
+  "oligarch: Oligarch table cursor insert operations",
+  "oligarch: Oligarch table cursor next operations",
+  "oligarch: Oligarch table cursor next operations from ingest table",
+  "oligarch: Oligarch table cursor next operations from stable table",
+  "oligarch: Oligarch table cursor prev operations",
+  "oligarch: Oligarch table cursor prev operations from ingest table",
+  "oligarch: Oligarch table cursor prev operations from stable table",
+  "oligarch: Oligarch table cursor remove operations",
+  "oligarch: Oligarch table cursor search near operations",
+  "oligarch: Oligarch table cursor search near operations from ingest table",
+  "oligarch: Oligarch table cursor search near operations from stable table",
+  "oligarch: Oligarch table cursor search operations",
+  "oligarch: Oligarch table cursor search operations from ingest table",
+  "oligarch: Oligarch table cursor search operations from stable table",
+  "oligarch: Oligarch table cursor update operations",
   "oligarch: checkpoints performed on this table by the oligarch manager",
+  "oligarch: checkpoints refreshed on shared oligarch constituents",
   "oligarch: how many log applications the oligarch manager applied on this tree",
   "oligarch: how many log applications the oligarch manager skipped on this tree",
   "oligarch: how many previously-applied LSNs the oligarch manager skipped on this tree",
@@ -1919,6 +2010,8 @@ static const char *const __stats_connection_desc[] = {
   "ID",
   "oligarch: whether the oligarch manager thread has been started",
   "oligarch: whether the oligarch manager thread is currently busy doing work",
+  "pantry: Pantry block manager get",
+  "pantry: Pantry block manager put ",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
   "perf: file system read latency histogram (bucket 2) - 10-49ms",
   "perf: file system read latency histogram (bucket 3) - 50-99ms",
@@ -2658,7 +2751,23 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_compress_len = 0;
     stats->log_slot_coalesced = 0;
     stats->log_close_yields = 0;
+    stats->oligarch_curs_insert = 0;
+    stats->oligarch_curs_next = 0;
+    stats->oligarch_curs_next_ingest = 0;
+    stats->oligarch_curs_next_stable = 0;
+    stats->oligarch_curs_prev = 0;
+    stats->oligarch_curs_prev_ingest = 0;
+    stats->oligarch_curs_prev_stable = 0;
+    stats->oligarch_curs_remove = 0;
+    stats->oligarch_curs_search_near = 0;
+    stats->oligarch_curs_search_near_ingest = 0;
+    stats->oligarch_curs_search_near_stable = 0;
+    stats->oligarch_curs_search = 0;
+    stats->oligarch_curs_search_ingest = 0;
+    stats->oligarch_curs_search_stable = 0;
+    stats->oligarch_curs_update = 0;
     stats->oligarch_manager_checkpoints = 0;
+    stats->oligarch_manager_checkpoints_refreshed = 0;
     stats->oligarch_manager_logops_applied = 0;
     stats->oligarch_manager_logops_skipped = 0;
     stats->oligarch_manager_skip_lsn = 0;
@@ -2667,6 +2776,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->oligarch_manager_pinned_id_tables_searched = 0;
     stats->oligarch_manager_running = 0;
     stats->oligarch_manager_active = 0;
+    stats->pantry_block_get = 0;
+    stats->pantry_block_put = 0;
     stats->perf_hist_fsread_latency_lt10 = 0;
     stats->perf_hist_fsread_latency_lt50 = 0;
     stats->perf_hist_fsread_latency_lt100 = 0;
@@ -3460,7 +3571,26 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_compress_len += WT_STAT_CONN_READ(from, log_compress_len);
     to->log_slot_coalesced += WT_STAT_CONN_READ(from, log_slot_coalesced);
     to->log_close_yields += WT_STAT_CONN_READ(from, log_close_yields);
+    to->oligarch_curs_insert += WT_STAT_CONN_READ(from, oligarch_curs_insert);
+    to->oligarch_curs_next += WT_STAT_CONN_READ(from, oligarch_curs_next);
+    to->oligarch_curs_next_ingest += WT_STAT_CONN_READ(from, oligarch_curs_next_ingest);
+    to->oligarch_curs_next_stable += WT_STAT_CONN_READ(from, oligarch_curs_next_stable);
+    to->oligarch_curs_prev += WT_STAT_CONN_READ(from, oligarch_curs_prev);
+    to->oligarch_curs_prev_ingest += WT_STAT_CONN_READ(from, oligarch_curs_prev_ingest);
+    to->oligarch_curs_prev_stable += WT_STAT_CONN_READ(from, oligarch_curs_prev_stable);
+    to->oligarch_curs_remove += WT_STAT_CONN_READ(from, oligarch_curs_remove);
+    to->oligarch_curs_search_near += WT_STAT_CONN_READ(from, oligarch_curs_search_near);
+    to->oligarch_curs_search_near_ingest +=
+      WT_STAT_CONN_READ(from, oligarch_curs_search_near_ingest);
+    to->oligarch_curs_search_near_stable +=
+      WT_STAT_CONN_READ(from, oligarch_curs_search_near_stable);
+    to->oligarch_curs_search += WT_STAT_CONN_READ(from, oligarch_curs_search);
+    to->oligarch_curs_search_ingest += WT_STAT_CONN_READ(from, oligarch_curs_search_ingest);
+    to->oligarch_curs_search_stable += WT_STAT_CONN_READ(from, oligarch_curs_search_stable);
+    to->oligarch_curs_update += WT_STAT_CONN_READ(from, oligarch_curs_update);
     to->oligarch_manager_checkpoints += WT_STAT_CONN_READ(from, oligarch_manager_checkpoints);
+    to->oligarch_manager_checkpoints_refreshed +=
+      WT_STAT_CONN_READ(from, oligarch_manager_checkpoints_refreshed);
     to->oligarch_manager_logops_applied += WT_STAT_CONN_READ(from, oligarch_manager_logops_applied);
     to->oligarch_manager_logops_skipped += WT_STAT_CONN_READ(from, oligarch_manager_logops_skipped);
     to->oligarch_manager_skip_lsn += WT_STAT_CONN_READ(from, oligarch_manager_skip_lsn);
@@ -3471,6 +3601,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, oligarch_manager_pinned_id_tables_searched);
     to->oligarch_manager_running += WT_STAT_CONN_READ(from, oligarch_manager_running);
     to->oligarch_manager_active += WT_STAT_CONN_READ(from, oligarch_manager_active);
+    to->pantry_block_get += WT_STAT_CONN_READ(from, pantry_block_get);
+    to->pantry_block_put += WT_STAT_CONN_READ(from, pantry_block_put);
     to->perf_hist_fsread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt10);
     to->perf_hist_fsread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt50);
     to->perf_hist_fsread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt100);

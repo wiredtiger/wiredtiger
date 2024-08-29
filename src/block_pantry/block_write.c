@@ -120,6 +120,7 @@ __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *bloc
     /* Write the block. */
     WT_RET(fh->handle->fh_obj_put(fh->handle, &session->iface, pantry_id, buf));
 
+    WT_STAT_CONN_INCR(session, pantry_block_put);
     WT_STAT_CONN_INCR(session, block_write);
     WT_STAT_CONN_INCRV(session, block_byte_write, buf->size);
     if (checkpoint_io)
