@@ -10,7 +10,8 @@
  * [extent_list2]: block_ext.c
  * Test extent list functions part 3. (More to come.)
  *
- * Test extent list search functions: __block_off_srch_pair, and __block_off_match.
+ * Test extent list search functions: __block_off_srch_pair, and __block_off_match which is
+ * HAVE_DIAGNOSTIC only except for unit tests.
  */
 
 #include <algorithm>
