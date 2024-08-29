@@ -5,6 +5,8 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#pragma once
+
 #include "wt_internal.h"
 #include <map>
 #include <string>
