@@ -225,6 +225,8 @@ struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
 typedef struct __wt_dsrc_stats WT_DSRC_STATS;
+struct __wt_evict;
+typedef struct __wt_evict WT_EVICT;
 struct __wt_evict_entry;
 typedef struct __wt_evict_entry WT_EVICT_ENTRY;
 struct __wt_evict_queue;
@@ -516,6 +518,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
+#include "evict.h"
 #include "capacity.h"
 #include "cell.h"
 #include "checkpoint.h"
@@ -560,6 +563,7 @@ typedef uint64_t wt_timestamp_t;
 #include "verify_build.h"
 
 #include "cache_inline.h"   /* required by misc_inline.h */
+#include "evict_inline.h"   /* required by misc_inline.h */
 #include "ctype_inline.h"   /* required by packing_inline.h */
 #include "intpack_inline.h" /* required by cell_inline.h, packing_inline.h */
 #include "misc_inline.h"    /* required by mutex_inline.h */
