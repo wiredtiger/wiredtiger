@@ -5,9 +5,11 @@
  *
  * See the file LICENSE for redistribution information.
  */
+#pragma once
+
 #include "wt_internal.h"
 
-// Extent validation functions.
+/* Extent validation functions. */
 void validate_and_free_ext_list(WT_BLOCK_MGR_SESSION *bms, int);
 void free_ext_list(WT_BLOCK_MGR_SESSION *);
 void validate_and_free_ext_block(WT_EXT *);
@@ -15,7 +17,7 @@ void validate_ext_list(WT_BLOCK_MGR_SESSION *, int);
 void free_ext_block(WT_EXT *);
 void validate_ext_block(WT_EXT *);
 
-// Size validation functions.
+/* Size validation functions. */
 void validate_and_free_size_list(WT_BLOCK_MGR_SESSION *, int);
 void free_size_list(WT_BLOCK_MGR_SESSION *);
 void validate_and_free_size_block(WT_SIZE *);

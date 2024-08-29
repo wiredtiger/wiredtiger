@@ -10,7 +10,7 @@
  * [block_session_bms]: block_session.c
  * The block manager extent list consists of both extent and size type blocks. This unit test
  * suite tests aims to test all of the allocation and frees of combined extent and size functions.
- * 
+ *
  * The file aims to test the management of the block manager session.
  */
 #include "wt_internal.h"
@@ -68,7 +68,7 @@ TEST_CASE("Block session: __block_manager_session_cleanup", "[block_session_bms]
     WT_SESSION_IMPL *session_impl = session->getWtSessionImpl();
 
     SECTION("Free with null session block manager ")
-    {   
+    {
         std::shared_ptr<MockSession> session_no_bms = MockSession::buildTestMockSession();
         REQUIRE(__ut_block_manager_session_cleanup(session_no_bms->getWtSessionImpl()) == 0);
         REQUIRE(session_no_bms->getWtSessionImpl()->block_manager == nullptr);
