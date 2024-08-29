@@ -40,14 +40,12 @@ ext_print_list(const WT_EXT *const *head)
 
         const WT_EXT *extp = head[idx];
         while (extp != nullptr) {
-            line_stream << extp << " {off " << extp->off << ", size " << extp->size << ", end "
-                        << (extp->off + extp->size - 1) << "} -> ";
+            line_stream << reinterpret_cast<const void *>(extp) << ' ' << extp << " -> ";
             extp = extp->next[idx];
         }
 
         line_stream << "X\n";
-        std::string line = line_stream.str();
-        INFO(line);
+        INFO(line_stream.str());
     }
 }
 
@@ -60,18 +58,19 @@ extlist_print_off(const WT_EXTLIST &extlist)
 {
     std::ostringstream line_stream{};
     const char *track_size = extlist.track_size ? "true" : "false";
-    line_stream << std::showbase << "{name " << ((extlist.name != nullptr) ? extlist.name : "(nil)")
-                << ", bytes " << extlist.bytes << ", entries " << extlist.entries << ", objectid "
+    line_stream << std::showbase << "{name "
+                << ((extlist.name != nullptr) ? extlist.name : "(nullptr)") << ", bytes "
+                << extlist.bytes << ", entries " << extlist.entries << ", objectid "
                 << extlist.objectid << ", offset " << extlist.offset << ", checksum " << std::hex
                 << extlist.checksum << std::dec << ", size " << extlist.size << ", track_size "
-                << track_size << ", last " << extlist.last;
-    if (extlist.last != nullptr)
-        line_stream << " {off " << extlist.last->off << ", size " << extlist.last->size
-                    << ", depth " << static_cast<unsigned>(extlist.last->depth) << ", next "
-                    << extlist.last->next << '}';
+                << track_size << ", last " << extlist.last << ' ';
+    if (extlist.last != nullptr) {
+        off_size last_off_size = {extlist.last->off, extlist.last->size};
+        line_stream << &last_off_size;
+    } else
+        line_stream << static_cast<off_size *>(nullptr);
     line_stream << "}\noff:\n";
-    std::string line = line_stream.str();
-    INFO(line);
+    INFO(line_stream.str());
     ext_print_list(extlist.off);
 }
 
@@ -247,3 +246,69 @@ verify_off_extent_list(
     REQUIRE(extlist.bytes == expected_bytes);
 }
 } // namespace utils.
+
+/*!
+ * operator<<(std::ostream &out, const utils::off_size *os) --
+ *     Print function for const utils::off_size *.
+ *
+ * @param out ostream
+ * @param os To be printed
+ */
+std::ostream &
+operator<<(std::ostream &out, const utils::off_size *os)
+{
+    if (os == nullptr) {
+        out << "(nullptr)";
+        return out;
+    }
+    out << "{off " << os->off << ", size " << os->size << ", end " << os->end() << '}';
+    return out;
+}
+
+/*!
+ * operator<<(std::ostream &out, const WT_EXT *ext) --
+ *     Print function for const WT_EXT *.
+ *
+ * @param out ostream
+ * @param ext To be printed
+ */
+std::ostream &
+operator<<(std::ostream &out, const WT_EXT *ext)
+{
+    if (ext == nullptr) {
+        out << "(nullptr)";
+        return out;
+    }
+
+    out << "{off " << ext->off << ", size " << ext->size << ", end " << (ext->off + ext->size - 1)
+        << '}';
+    return out;
+}
+
+/*!
+ * operator<<(std::ostream &out, const WT_EXTLIST *) --
+ *     Print function for const WT_EXTLIST *.
+ *
+ * @param out ostream
+ * @param extlist To be printed
+ */
+std::ostream &
+operator<<(std::ostream &out, const WT_EXTLIST *extlist)
+{
+    if (extlist == nullptr) {
+        out << "(nullptr)";
+        return out;
+    }
+
+    out << std::showbase << "{name " << ((extlist->name != nullptr) ? extlist->name : "(nullptr)")
+        << ", bytes " << extlist->bytes << ", entries " << extlist->entries << ", objectid "
+        << extlist->objectid << ", offset " << extlist->offset << ", checksum " << std::hex
+        << extlist->checksum << std::dec << ", size " << extlist->size << ", track_size "
+        << (extlist->track_size ? "true" : "false") << ", last " << extlist->last << ' ';
+    if (extlist->last != nullptr) {
+        utils::off_size last_off_size = {extlist->last->off, extlist->last->size};
+        out << &last_off_size;
+    } else
+        out << static_cast<utils::off_size *>(nullptr);
+    return out;
+}

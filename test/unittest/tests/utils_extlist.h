@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,7 @@ struct off_size {
      *     Return the end of the closed interval represented by off and size.
      */
     wt_off_t
-    end(void) const
+    end(void) const noexcept
     {
         return (off + size - 1);
     }
@@ -39,7 +40,7 @@ struct off_size {
  * to modify a WT_EXTLIST.
  */
 struct off_size_expected {
-    off_size an_off_size;
+    off_size test_off_size;
     std::vector<off_size> expected_list;
 };
 
@@ -57,3 +58,6 @@ void verify_off_extent_list(
 } // namespace utils.
 
 bool operator<(const utils::off_size &left, const utils::off_size &right);
+std::ostream &operator<<(std::ostream &os, const utils::off_size *offset_size);
+std::ostream &operator<<(std::ostream &out, const WT_EXT *ext);
+std::ostream &operator<<(std::ostream &os, const WT_EXTLIST *extlist);

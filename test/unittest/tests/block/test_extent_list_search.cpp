@@ -102,8 +102,7 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
         /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
 
-            INFO("Insert: {off " << std::showbase << to_insert.off << ", size " << to_insert.size
-                                 << ", end " << to_insert.end() << "}");
+            INFO("Insert: " << &to_insert);
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
         }
 
@@ -119,30 +118,10 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
             __ut_block_off_srch_pair(&extlist, expected.off, &before, &after);
 
             std::ostringstream line_stream;
-            line_stream << "Verify: " << idx << ". off " << expected.off;
-            if (expected.before != nullptr)
-                line_stream << "; Expected: before: {off " << expected.before->off << ", size "
-                            << expected.before->size << ", end " << expected.before->end() << "}";
-            else
-                line_stream << "; Expected: before == nullptr";
-
-            if (expected.after != nullptr)
-                line_stream << ", after: {off " << expected.after->off << ", size "
-                            << expected.after->size << ", end " << expected.after->end() << "}";
-            else
-                line_stream << ", after == nullptr";
-
-            if (before != nullptr)
-                line_stream << "; Actual: before: {off " << before->off << ", size " << before->size
-                            << ", end " << (before->off + before->size - 1) << "}";
-            else
-                line_stream << "; Actual: before == nullptr";
-
-            if (after != nullptr)
-                line_stream << ", after: {off " << after->off << ", size " << after->size
-                            << ", end " << (after->off + after->size - 1) << "}";
-            else
-                line_stream << ", after == nullptr";
+            line_stream << "Verify: " << idx << ". off " << expected.off
+                        << "; Expected: before: " << expected.before
+                        << ", after: " << expected.after << "; Actual: before: " << before
+                        << ", after: " << after;
 
             INFO(line_stream.str());
 
@@ -170,23 +149,28 @@ TEST_CASE("Extent Lists: block_off_srch_pair", "[extent_list2]")
 
 #ifdef HAVE_DIAGNOSTIC
 /*!
- * A test (off and size) and the expected value (match) for __block_off_match.
+ * A test (test_off_size) and the expected value (match) for __block_off_match.
  */
 struct search_match {
-    wt_off_t off;
-    wt_off_t size;
+    off_size test_off_size;
     bool match;
 
-    search_match(wt_off_t off, wt_off_t size, bool match) : off(off), size(size), match(match) {}
+    search_match(const off_size &test_off_size, bool match)
+        : test_off_size(test_off_size), match(match)
+    {
+    }
+    search_match(wt_off_t off, wt_off_t size, bool match) : test_off_size(off, size), match(match)
+    {
+    }
 
     /*!
      * end --
-     *     Return the end of the closed interval represented by off and size.
+     *     Return the end of the closed interval represented by test_off_size.
      */
     wt_off_t
     end(void) const
     {
-        return (off + size - 1);
+        return (test_off_size.off + test_off_size.size - 1);
     }
 };
 
@@ -245,12 +229,12 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call. */
-            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
+            bool match = __ut_block_off_match(
+              &extlist, expected.test_off_size.off, expected.test_off_size.size);
 
             const char *match_str = match ? "true" : "false";
-            INFO("Verify: " << idx << ". Expected: {off " << expected.off << ", size "
-                            << expected.size << ", end " << expected.end()
-                            << "}, match false; Actual: match " << match_str);
+            INFO("Verify: " << idx << ". Expected: " << &expected.test_off_size
+                            << ", match false; Actual: match " << match_str);
 
             /* Verify: All should be not found. */
             REQUIRE(match == false);
@@ -266,8 +250,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
 
         /* Insert extents. */
         for (const off_size &to_insert : insert_list) {
-            INFO("Insert: {off " << std::showbase << to_insert.off << ", size " << to_insert.size
-                                 << ", end " << to_insert.end() << "}");
+            INFO("Insert: " << &to_insert);
             REQUIRE(__ut_block_off_insert(session, &extlist, to_insert.off, to_insert.size) == 0);
         }
 
@@ -277,12 +260,12 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         uint32_t idx = 0;
         for (const search_match &expected : expected_match) {
             /* Call. */
-            bool match = __ut_block_off_match(&extlist, expected.off, expected.size);
+            bool match = __ut_block_off_match(
+              &extlist, expected.test_off_size.off, expected.test_off_size.size);
 
             const char *match_str = match ? "true" : "false";
-            INFO("Verify: " << idx << ". Expected: {off " << expected.off << ", size "
-                            << expected.size << ", end " << expected.end()
-                            << "}, match false; Actual: match " << match_str);
+            INFO("Verify: " << idx << ". Expected: " << &expected.test_off_size
+                            << ", match false; Actual: match " << match_str);
 
             /* Verify. */
             REQUIRE(match == expected.match);
