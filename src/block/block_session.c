@@ -329,9 +329,4 @@ __ut_block_size_discard(WT_SESSION_IMPL *session, u_int max)
 {
     return (__block_size_discard(session, max));
 }
-
-__ut_block_manager_session_cleanup(WT_SESSION_IMPL *session)
-{
-    return (__block_manager_session_cleanup(session));
-}
 #endif

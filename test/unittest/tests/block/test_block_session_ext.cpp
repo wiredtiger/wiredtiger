@@ -42,10 +42,10 @@ void
 validate_ext_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
 {
     REQUIRE(bms != nullptr);
+    REQUIRE(bms->ext_cache_cnt == expected_items);
     if (bms->ext_cache_cnt == 0)
         REQUIRE(bms->ext_cache == nullptr);
 
-    REQUIRE(bms->ext_cache_cnt == expected_items);
     WT_EXT *curr = bms->ext_cache;
     for (int i = 0; i < expected_items; i++) {
         validate_ext_block(curr);
