@@ -843,6 +843,7 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval

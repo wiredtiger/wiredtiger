@@ -63,7 +63,7 @@ validate_block(WT_BLOCK *block, std::map<std::string, std::string> &config_map, 
 {
     REQUIRE(block != nullptr);
 
-    // Test Block members.
+    // Test Block immediate members.
     INFO(block->name << name)
     REQUIRE(std::string(block->name).compare(name) == 0);
     REQUIRE(block->objectid == WT_TIERED_OBJECTID_NONE);
@@ -103,7 +103,6 @@ TEST_CASE("Block: __wt_block_open", "[block_file]")
     SECTION("Normal case")
     {
         WT_BLOCK *block;
-        std::cout << cp.get_config_array()[0] << std::endl;
         REQUIRE(
           (__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
             WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0, &block)) == 0);
@@ -116,13 +115,15 @@ TEST_CASE("Block: __wt_block_open", "[block_file]")
             WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0, &block2)) == 0);
         validate_block(block2, cp.get_config_map(), 2, DEFAULT_FILE_NAME);
 
-        // Test already made item in hashmap but with different configuration.
-        // WT_BLOCK *block3;
-        // cp.get_config_map()["allocation_size"] = "1024";
-        // REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
-        // WT_TIERED_OBJECTID_NONE,
-        //           cp.get_config_array(), false, false, false, 0, &block3)) == 0);
-        // validate_and_free_block(session->getWtSessionImpl(), block, cp, 3, DEFAULT_FILE_NAME);
+        /*
+         * Test already made item in hashmap but with different configuration.
+         * WT_BLOCK *block3;
+         * cp.get_config_map()["allocation_size"] = "1024";
+         * REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
+         * WT_TIERED_OBJECTID_NONE,
+         *           cp.get_config_array(), false, false, false, 0, &block3)) == 0);
+         * validate_and_free_block(session->getWtSessionImpl(), block, cp, 3, DEFAULT_FILE_NAME);
+         */
     }
 
     SECTION("Test the configuration of allocation size")
@@ -160,10 +161,12 @@ TEST_CASE("Block: __wt_block_open", "[block_file]")
                   &block)) == WT_NOTFOUND);
         REQUIRE(block == nullptr);
 
-        // cp.get_config_map()["block_allocation"] = "garbage";
-        // REQUIRE((__wt_block_open(session->getWtSessionImpl(), "test3.txt",
-        // WT_TIERED_OBJECTID_NONE, cfg, false, false, false, 512, &block)) == 0);
-        // validate_and_free_block(session->getWtSessionImpl(), block, cp, 1, "test3.txt");
+        // If block allocation is set to garbage, it should default back to "best".
+        cp.get_config_map()["block_allocation"] = "garbage";
+        REQUIRE((__wt_block_open(session->getWtSessionImpl(), "test3.txt", WT_TIERED_OBJECTID_NONE,
+                  cp.get_config_array(), false, false, false, 512, &block)) == 0);
+        cp.get_config_map()["block_allocation"] = "best";
+        validate_and_free_block(session->getWtSessionImpl(), block, cp, 1, "test3.txt");
     }
 
     SECTION("Test os_cache_max and os_cache_dirty_max configuration")
@@ -199,31 +202,12 @@ TEST_CASE("Block: __wt_block_open", "[block_file]")
           session->getWtSessionImpl(), block, cp, 1, DEFAULT_FILE_NAME.c_str());
     }
 
-    SECTION("Test functional arguments")
+    SECTION("Test read only")
     {
-        // Test that read only is set.
         WT_BLOCK *block;
         REQUIRE(
           (__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
             WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, true, false, 0, &block)) == 0);
         validate_and_free_block(session->getWtSessionImpl(), block, cp, 1, DEFAULT_FILE_NAME, true);
-
-        // char buf[512];
-        // WT_FILE_HANDLE* handle = block->fh->handle;
-        // REQUIRE(handle->fh_write(handle, (WT_SESSION *)session->getWtSessionImpl(), 0,
-        // std::stoi(ALLOCATION_SIZE), buf) == 0);
-        // F_SET(session->getMockConnection()->getWtConnectionImpl(), WT_CONN_INCR_BACKUP);
-        // REQUIRE((__wt_block_open(session->getWtSessionImpl(), "test2.txt",
-        // WT_TIERED_OBJECTID_NONE,
-        //     cp.get_config_array(), false, true, false, 0, &block)) == 0);
-        // REQUIRE(block->size == std::stoi(ALLOCATION_SIZE));
-        // validate_and_free_block(session->getWtSessionImpl(), block, cp, 1, "test2.txt", false,
-        // true);
     }
 }
-
-TEST_CASE("Block: __wt_block_close", "[block_file]") {}
-
-TEST_CASE("Block: __wti_bm_close_block", "[block_file]") {}
-
-TEST_CASE("Block: __bm_corrupt_dump", "[block_file]") {}
