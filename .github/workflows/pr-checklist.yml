@@ -2,6 +2,8 @@ name: Add PR Checklist
 
 on:
   pull_request:
+    types:
+      - opened
 
 jobs:
   auto-comment:
@@ -11,14 +13,16 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '
+            const comment = `
             ## Checklist before requesting a review
             - [ ] I have performed a self-review of my code.
             - [ ] I have made corresponding changes to the documentation (if applicable).
             - [ ] I have added/updated tests that demonstrate my fix is effective or that my feature works correctly.
-              '
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
             })
