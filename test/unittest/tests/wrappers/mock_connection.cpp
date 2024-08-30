@@ -62,6 +62,7 @@ MockConnection::setupBlockManager(WT_SESSION_IMPL *session)
         TAILQ_INIT(&_connectionImpl->fhhash[i]);
     }
 
+    WT_RET(__wt_spin_init(session, &_connectionImpl->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &_connectionImpl->block_lock, "block manager"));
     TAILQ_INIT(&_connectionImpl->blockqh); /* Block manager list */
     TAILQ_INIT(&_connectionImpl->fhqh);    /* File list */
