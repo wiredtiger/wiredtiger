@@ -14,9 +14,3 @@ References:
 - [Risk level guide](https://github.com/wiredtiger/wiredtiger/blob/develop/.github/risk_level_guide.md)
 - [Testing frameworks](https://github.com/wiredtiger/wiredtiger/blob/develop/test/testing_frameworks.md)
 !-->
-
-## Checklist before requesting a review
-
-- [ ] I have performed a self-review of my code.
-- [ ] I have made corresponding changes to the documentation (if applicable).
-- [ ] I have added/updated tests that demonstrate my fix is effective or that my feature works correctly.
