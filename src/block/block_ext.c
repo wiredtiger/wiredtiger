@@ -139,9 +139,6 @@ __block_off_srch_pair(WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **a
 
     *beforep = *afterp = NULL;
 
-    if (WT_UNLIKELY(size == 0))
-        return;
-
     head = el->off;
 
     /*
@@ -270,6 +267,9 @@ static bool
 __block_off_match(WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
     WT_EXT *after, *before;
+
+    if (WT_UNLIKELY(size == 0))
+        return (false);
 
     /* Search for before and after entries for the offset. */
     __block_off_srch_pair(el, off, &before, &after);
