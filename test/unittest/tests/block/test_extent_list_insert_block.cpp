@@ -237,23 +237,17 @@ TEST_CASE("Extent Lists: block_append", "[extent_list]")
                 {
                   off_size(4096, 4096), // First [4,096, 8,191].
                 }},
-#if 0 // FAILED: REQUIRE( last == extlist.last ) with expansion: 0x0000000040319c10 ==.
-      // 0x0000000040334d60. When FIXME-WT-13456 is fixed, enable this test. It is a reproducer.
           {off_size(3 * 4096, 4096), // Not adjacent: Second [12,288, 16,383].
             {
               off_size(4096, 4096),     // First [4,096, 8,191].
               off_size(3 * 4096, 4096), // Second [12,288, 16,383].
             }},
-#endif
-#if 0 // Not run after previous failure. When FIXME-WT-13456 is fixed, enable this test. It is a
-      // reproducer.
           {off_size(5 * 4096, 4096), // Not adjacent: Third [20,480, 24,575].
             {
               off_size(4096, 4096),     // First [4,096, 8,191].
               off_size(3 * 4096, 4096), // Second [12,288, 16,383].
               off_size(5 * 4096, 4096), // Third [20,480, 24,575].
             }},
-#endif
         };
 
         /* Setup. */
