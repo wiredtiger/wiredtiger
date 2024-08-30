@@ -509,6 +509,12 @@ retry:
     if ((ret = __coligarch_get_current(session, coligarch, true, &deleted)) == 0 && deleted)
         goto retry;
 
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_next);
+    if (coligarch->current_cursor == coligarch->ingest_cursor)
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_next_ingest);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_next_stable);
+
 err:
     __coligarch_leave(coligarch);
     if (ret == 0)
@@ -571,6 +577,12 @@ retry:
     /* Find the cursor(s) with the largest key. */
     if ((ret = __coligarch_get_current(session, coligarch, false, &deleted)) == 0 && deleted)
         goto retry;
+
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_prev);
+    if (coligarch->current_cursor == coligarch->ingest_cursor)
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_prev_ingest);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_prev_stable);
 
 err:
     __coligarch_leave(coligarch);
@@ -722,6 +734,12 @@ __coligarch_search(WT_CURSOR *cursor)
 
     ret = __coligarch_lookup(coligarch, &cursor->value);
 
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_search);
+    if (coligarch->current_cursor == coligarch->ingest_cursor)
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_search_ingest);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_search_stable);
+
 err:
     __coligarch_leave(coligarch);
     if (ret == 0)
@@ -858,6 +876,12 @@ __coligarch_search_near(WT_CURSOR *cursor, int *exactp)
     }
     *exactp = cmp;
 
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_search_near);
+    if (coligarch->current_cursor == coligarch->ingest_cursor)
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_search_near_ingest);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_search_near_stable);
+
 err:
     __coligarch_leave(coligarch);
     if (closest != NULL)
@@ -959,6 +983,7 @@ __coligarch_insert(WT_CURSOR *cursor)
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_insert);
 err:
     __wt_scr_free(session, &buf);
     __coligarch_leave(coligarch);
@@ -1008,6 +1033,8 @@ __coligarch_update(WT_CURSOR *cursor)
     WT_ASSERT(
       session, F_MASK(coligarch->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_update);
 
 err:
     __wt_scr_free(session, &buf);
@@ -1066,6 +1093,7 @@ __coligarch_remove(WT_CURSOR *cursor)
         F_SET(cursor, WT_CURSTD_KEY_INT);
     else
         WT_TRET(cursor->reset(cursor));
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_curs_remove);
 
 err:
     __coligarch_leave(coligarch);

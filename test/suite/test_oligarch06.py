@@ -74,7 +74,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         self.pr("create second WT")
         # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', 'extensions=["../../ext/storage_sources/dir_store/libwiredtiger_dir_store.so"],create,' + self.conn_config)
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, follower_create)
 
@@ -87,7 +87,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             cursor["OK " + str(i)] = "Go"
             if i % 10000 == 0:
                 time.sleep(1)
-                session_follow.checkpoint()
+                #session_follow.checkpoint()
                 if i == 10000:
                     cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
 
@@ -95,7 +95,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         self.pr('opening cursor')
         cursor.close()
-        time.sleep(10)
+        time.sleep(2)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
@@ -104,6 +104,11 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
+
+        # Ensure that all data makes it to the follower before we check.
+        self.session.checkpoint()
+        session_follow.checkpoint()
+        time.sleep(2)
 
         cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -124,11 +129,16 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             cursor["** OK " + str(i)] = "Go"
             if i % 10000 == 0:
                 time.sleep(1)
-                session_follow.checkpoint()
+                #session_follow.checkpoint()
 
         cursor.reset()
         cursor.close()
-        time.sleep(10)
+        time.sleep(2)
+
+        # Ensure that all data makes it to the follower before we check.
+        self.session.checkpoint()
+        session_follow.checkpoint()
+        time.sleep(2)
 
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -142,7 +152,22 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         cursor_follow3.close()
 
         #
-        # Part 3: Reopen the follower to ensure it can open an existing table.
+        # Part 3: Check stats.
+        #
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.next() == 0:
+            item_count += 1
+
+        self.assertEqual(item_count, self.nitems * 6)
+        cursor.close()
+
+        # Allow time for stats to be updated
+        time.sleep(2)
+
+        #
+        # Part 4: Reopen the follower to ensure it can open an existing table.
         #
 
         # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
@@ -168,5 +193,5 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         session_follow.close()
         conn_follow.close()
 
-        # TODO shouldn't need this
+        # FIXME: Remove this once the cleanup & unexpected log output are fixed.
         self.ignoreStderrPatternIfExists('No such file or directory')

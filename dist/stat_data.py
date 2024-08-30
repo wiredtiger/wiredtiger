@@ -121,6 +121,10 @@ class OligarchStat(Stat):
     prefix = 'oligarch'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, OligarchStat.prefix, desc, flags)
+class PantryStat(Stat):
+    prefix = 'pantry'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, PantryStat.prefix, desc, flags)
 class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
@@ -1140,10 +1144,33 @@ conn_dsrc_stats = [
     ##########################################
     # Oligarch statistics
     ##########################################
+    OligarchStat('oligarch_curs_insert', 'Oligarch table cursor insert operations'),
+    OligarchStat('oligarch_curs_next', 'Oligarch table cursor next operations'),
+    OligarchStat('oligarch_curs_prev', 'Oligarch table cursor prev operations'),
+    OligarchStat('oligarch_curs_remove', 'Oligarch table cursor remove operations'),
+    OligarchStat('oligarch_curs_search', 'Oligarch table cursor search operations'),
+    OligarchStat('oligarch_curs_search_near', 'Oligarch table cursor search near operations'),
+    OligarchStat('oligarch_curs_update', 'Oligarch table cursor update operations'),
+    OligarchStat('oligarch_curs_next_ingest', 'Oligarch table cursor next operations from ingest table'),
+    OligarchStat('oligarch_curs_prev_ingest', 'Oligarch table cursor prev operations from ingest table'),
+    OligarchStat('oligarch_curs_search_ingest', 'Oligarch table cursor search operations from ingest table'),
+    OligarchStat('oligarch_curs_search_near_ingest', 'Oligarch table cursor search near operations from ingest table'),
+    OligarchStat('oligarch_curs_next_stable', 'Oligarch table cursor next operations from stable table'),
+    OligarchStat('oligarch_curs_prev_stable', 'Oligarch table cursor prev operations from stable table'),
+    OligarchStat('oligarch_curs_search_stable', 'Oligarch table cursor search operations from stable table'),
+    OligarchStat('oligarch_curs_search_near_stable', 'Oligarch table cursor search near operations from stable table'),
+
     OligarchStat('oligarch_manager_checkpoints', 'checkpoints performed on this table by the oligarch manager'),
+    OligarchStat('oligarch_manager_checkpoints_refreshed', 'checkpoints refreshed on shared oligarch constituents'),
     OligarchStat('oligarch_manager_logops_applied', 'how many log applications the oligarch manager applied on this tree'),
     OligarchStat('oligarch_manager_logops_skipped', 'how many log applications the oligarch manager skipped on this tree'),
     OligarchStat('oligarch_manager_skip_lsn', 'how many previously-applied LSNs the oligarch manager skipped on this tree'),
+
+    ##########################################
+    # Pantry block manager statistics
+    ##########################################
+    PantryStat('pantry_block_get', 'Pantry block manager get'),
+    PantryStat('pantry_block_put', 'Pantry block manager put '),
 
     ##########################################
     # Reconciliation statistics
