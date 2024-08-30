@@ -1033,7 +1033,7 @@ __block_append(
             el->last = ext;
         } else
             /* ext intersects or is below off/size */
-            return __block_merge(session, block, el, off, size);
+            return (__block_merge(session, block, el, off, size));
     }
     el->bytes += (uint64_t)size;
 
