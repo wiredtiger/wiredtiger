@@ -999,12 +999,12 @@ __block_append(
      * object in the skiplist, check for a simple extension, and otherwise append a new structure.
      */
     if ((ext = el->last) != NULL && ext->off + ext->size == off)
-        /* ext is adjacent to off/size. */
+        /* off/size is adjacent to and above ext. */
         ext->size += size;
     else {
         ext = __block_off_srch_last(el->off, astack);
         if (ext != NULL && ext->off + ext->size == off)
-            /* ext is adjacent to off/size. */
+            /* off/size is adjacent to and above ext. */
             ext->size += size;
         else if (ext == NULL) {
             WT_RET(__wti_block_ext_alloc(session, &ext));
@@ -1017,8 +1017,8 @@ __block_append(
 
             /* Update the cached end-of-list */
             el->last = ext;
-        } else if (ext->off >= (off + size)) {
-            /* ext is above off/size */
+        } else if (ext->off + ext->size < off) {
+            /* off/size is above and not adjacent to ext */
             WT_RET(__wti_block_ext_alloc(session, &ext));
             ext->off = off;
             ext->size = size;
@@ -1032,7 +1032,7 @@ __block_append(
             /* Update the cached end-of-list */
             el->last = ext;
         } else
-            /* ext intersects or is below off/size */
+            /* off/size intersects or is below ext */
             return (__block_merge(session, block, el, off, size));
     }
     el->bytes += (uint64_t)size;
