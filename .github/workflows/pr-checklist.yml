@@ -2,8 +2,8 @@ name: Add PR Checklist
 
 on:
   pull_request:
-    types:
-      - opened
+    # types:
+    #   - opened
 
 jobs:
   auto-comment:
