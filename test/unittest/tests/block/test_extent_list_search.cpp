@@ -193,10 +193,7 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list2]")
         search_match(0, 0, false),      // Empty: Before first 0.
           search_match(4095, 0, false), // Empty: Just before first 4,095.
           search_match(4096, 0, false), // Empty: At the start of first 4,096.
-#if 0 // Failed: Verify: 3. Expected: off=8191, size=0, end=8190, match=false; Actual: match = true.
-      // When FIXME-WT-13440 is fixed, enable this test. It is a reproducer.
           search_match(4096 + 4095, 0, false), // Empty: At end first 8,191.
-#endif
           search_match(2 * 4096, 0, false),      // Empty: Just after first 8,192.
           search_match(2 * 4096 + 64, 0, false), // Empty: Between first and second 8,256.
           search_match(3 * 4096, 0, false),      // Empty: At the start of second 12,288.
