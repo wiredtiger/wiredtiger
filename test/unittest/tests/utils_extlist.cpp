@@ -147,6 +147,7 @@ ext_free_list(WT_SESSION_IMPL *session, WT_EXT **head, WT_EXT *last)
     /* Free just the top level. Lower levels are duplicates. */
     bool last_found = false;
     WT_EXT *extp = head[0];
+    head[0] = nullptr;
     while (extp != nullptr) {
         if (extp == last)
             last_found = true;
@@ -174,6 +175,7 @@ size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head)
 
     /* Free just the top level. Lower levels are duplicates. */
     WT_SIZE *sizep = head[0];
+    head[0] = nullptr;
     while (sizep != nullptr) {
         WT_SIZE *next_sizep = sizep->next[0];
         sizep->next[0] = nullptr;
@@ -192,10 +194,10 @@ size_free_list(WT_SESSION_IMPL *session, WT_SIZE **head)
 void
 extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST &extlist)
 {
-    if (!ext_free_list(session, extlist.off, extlist.last) && extlist.last != nullptr) {
-        __wti_block_ext_free(session, &extlist.last);
+    if (ext_free_list(session, extlist.off, extlist.last))
         extlist.last = nullptr;
-    }
+    else if (extlist.last != nullptr)
+        __wti_block_ext_free(session, &extlist.last);
     size_free_list(session, extlist.sz);
 }
 
