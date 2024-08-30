@@ -65,6 +65,10 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         os.mkdir('follower/foo/follower')
         os.mkdir('follower/bar/follower')
 
+        #
+        # Part 1: Create an oligarch table and check that follower has all the data.
+        #
+
         self.pr("create oligarch tree")
         self.session.create(self.uri, leader_create)
 
@@ -101,15 +105,21 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
 
+        # Ensure that all data makes it to the follower before we check.
+        self.session.checkpoint()
+        session_follow.checkpoint()
+        time.sleep(2)
+
         cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor_follow2.next() == 0:
             item_count += 1
         self.assertEqual(item_count, self.nitems * 3)
 
-        self.tty('---------------------- PART 1 SUCCESS ----------------------')
+        #
+        # Part 2: Add a second set of items to ensure that the follower can pick them up.
+        #
 
-        # Add a second set of items to ensure that the follower can pick them up
         self.pr('add another set of items')
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -125,6 +135,11 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(2)
 
+        # Ensure that all data makes it to the follower before we check.
+        self.session.checkpoint()
+        session_follow.checkpoint()
+        time.sleep(2)
+
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor_follow3.next() == 0:
@@ -136,6 +151,10 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         cursor_follow2.close()
         cursor_follow3.close()
 
+        #
+        # Part 3: Check stats.
+        #
+
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor.next() == 0:
@@ -146,5 +165,33 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Allow time for stats to be updated
         time.sleep(2)
+
+        #
+        # Part 4: Reopen the follower to ensure it can open an existing table.
+        #
+
+        # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
+        self.session.checkpoint()
+        session_follow.checkpoint()
+        time.sleep(2)
+
+        # Reopen the follower connection.
+        session_follow.close()
+        conn_follow.close()
+        self.pr("reopen the follower")
+        # TODO figure out self.extensionsConfig()
+        conn_follow = self.wiredtiger_open('follower', 'extensions=["../../ext/storage_sources/dir_store/libwiredtiger_dir_store.so"],create,' + self.conn_config)
+        session_follow = conn_follow.open_session('')
+
+        cursor_follow = session_follow.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor_follow.next() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 6)
+
+        cursor_follow.close()
+        session_follow.close()
+        conn_follow.close()
+
         # FIXME: Remove this once the cleanup & unexpected log output are fixed.
-        self.tty('---------------------- SUCCESS (ignore errors below) ----------------------')
+        self.ignoreStderrPatternIfExists('No such file or directory')
