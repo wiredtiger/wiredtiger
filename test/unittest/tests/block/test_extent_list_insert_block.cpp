@@ -196,7 +196,7 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list]")
                 /* Call. */
                 REQUIRE(__ut_block_off_remove(session, &block, &extlist, test.off, &ext) == 0);
                 REQUIRE(ext != nullptr);
-                __wti_block_ext_free(session, ext);
+                __wti_block_ext_free(session, &ext);
             }
 
             INFO("After " << idx << ". Remove: off " << test.off);
