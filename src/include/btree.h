@@ -65,12 +65,17 @@
 #define WT_BTREE_MIN_SPLIT_PCT 50
 
 /*
- * Normalized position constants
+ * Normalized position constants for "start" when calculating the page's position.
  */
 #define WT_NPOS_MID 0.5           /* Middle of the current page */
 #define WT_NPOS_LEFT -1e-8        /* Leftmost position in the current page or previous page */
 #define WT_NPOS_RIGHT (1. + 1e-8) /* Rightmost position in the current page or next page */
-#define WT_NPOS_INVALID -1.0      /* Store this as an invalid position */
+/*
+ * Invalid position. This is used to indicate that there is no stored position. The constant -1
+ * employs the fact that __wt_page_npos returns a number in range 0...1, therefore storing anything
+ * outside of this range can be used as an invalid position.
+ */
+#define WT_NPOS_INVALID -1.0 /* Store this as an invalid position */
 #define WT_NPOS_IS_INVALID(pos) ((pos) < 0.0)
 
 typedef enum __wt_btree_type {
