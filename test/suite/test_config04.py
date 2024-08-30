@@ -245,7 +245,7 @@ class test_config04(wttest.WiredTigerTestCase):
                                  'eviction_updates_target=10MB'),
             '/eviction updates target must be lower than the eviction updates trigger/')
 
-    def test_invalid_config(self):
+    def test_unbalanced_brackets(self):
         # The tiered hook modifies the wiredtiger_open configuration string.
         # This may influence what particular error message occurs in certain cases.
         if self.runningHook('tiered'):
@@ -265,6 +265,25 @@ class test_config04(wttest.WiredTigerTestCase):
             lambda: self.wiredtiger_open('.', '(create=]}'), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.wiredtiger_open('.', '(create='), msg)
+
+    def test_unbalanced_quotes(self):
+        # The tiered hook modifies the wiredtiger_open configuration string.
+        # This may influence what particular error message occurs in certain cases.
+        if self.runningHook('tiered'):
+            msg = '/./'
+        else:
+            msg = '/Unbalanced quotes/'
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', '"'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', '"""'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', '",'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', '"create='), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', 'create=,"'), msg)
 
     def test_error_prefix(self):
         self.common_test('error_prefix="MyOwnPrefix"')

@@ -408,11 +408,14 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
     if (conf->depth <= conf->top && key->len > 0)
         return (0);
 
-    /* We're either at the end of the string or we failed to parse. */
-    if (conf->depth == 0)
-        return (WT_NOTFOUND);
+    if (key->len == 0 && conf->go == gostring)
+        return (__config_err(conf, "Unbalanced quotes", EINVAL));
 
-    return (__config_err(conf, "Unbalanced brackets", EINVAL));
+    if (conf->depth != 0)
+        return (__config_err(conf, "Unbalanced brackets", EINVAL));
+
+    /* We're either at the end of the string or we failed to parse. */
+    return (WT_NOTFOUND);
 }
 
 /*
