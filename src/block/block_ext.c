@@ -139,6 +139,9 @@ __block_off_srch_pair(WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **a
 
     *beforep = *afterp = NULL;
 
+    if (WT_UNLIKELY(size == 0))
+        return;
+
     head = el->off;
 
     /*
