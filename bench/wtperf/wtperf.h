@@ -250,7 +250,12 @@ typedef struct {
      */
     uint64_t ops;         /* Total operations */
     uint64_t latency_ops; /* Total ops sampled for latency */
-    uint64_t latency;     /* Total latency */
+#define TRACK_MIN_LATENCY 0
+#define TRACK_MAX_LATENCY 1
+#define TRACK_AVERAGE_LATENCY 2
+    uint64_t latency;           /* Total latency */
+    uint64_t total_min_latency; /* Total min latency */
+    uint64_t total_max_latency; /* Total max latency */
 
     uint64_t last_latency_ops; /* Last read by monitor thread */
     uint64_t last_latency;
@@ -259,7 +264,7 @@ typedef struct {
      * Minimum/maximum latency, shared with the monitor thread, that is, the monitor thread clears
      * it so it's recalculated again for each period.
      */
-    uint32_t min_latency; /* Minimum latency (uS) */
+    uint32_t min_latency; /* Minimum latency (us) */
     uint32_t max_latency; /* Maximum latency (uS) */
 
     /*
@@ -315,6 +320,7 @@ int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
 void generate_index_key(WTPERF_THREAD *, bool, char *, uint64_t);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+uint64_t get_track_latency(WTPERF *wtperf, size_t field_offset, int type);
 void latency_print(WTPERF *);
 void latency_read(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_update(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
