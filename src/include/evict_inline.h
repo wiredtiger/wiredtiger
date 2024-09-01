@@ -473,3 +473,14 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only, b
     } else if (!init_only)
         __wt_cache_read_gen_bump(session, page);
 }
+
+/*
+ * __wt_evict_page_needed --
+ *     We are using a page, so it was marked as not needed, that is no longer the case.
+ */
+static WT_INLINE void
+__wt_evict_page_needed(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
+        __wt_cache_read_gen_new(session, page);
+}

@@ -2542,6 +2542,7 @@ static WT_INLINE void __wt_cursor_free_cached_memory(WT_CURSOR *cursor);
 static WT_INLINE void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
 static WT_INLINE void __wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
+static WT_INLINE void __wt_evict_page_needed(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only,
   bool wont_need);
 static WT_INLINE void __wt_op_timer_start(WT_SESSION_IMPL *session);

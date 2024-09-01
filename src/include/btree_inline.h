@@ -693,12 +693,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_atomic_load32(&page->modify->page_state) < WT_PAGE_DIRTY &&
       __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         __wt_cache_dirty_incr(session, page);
-        /*
-         * In the event we dirty a page which is flagged for eviction soon, we update its read
-         * generation to avoid evicting a dirty page prematurely.
-         */
-        if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
-            __wt_cache_read_gen_new(session, page);
+
+        /* Update eviction state to avoid evicting a dirty page prematuraly. */
+        __wt_evict_page_needed(session, page);
 
         /*
          * We won the race to dirty the page, but another thread could have committed in the
