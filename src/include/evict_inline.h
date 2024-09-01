@@ -4,6 +4,9 @@
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
+ *
+ * This file contains inline functions that are part of the public API to the eviction
+ * module.
  */
 
 #pragma once
@@ -393,4 +396,14 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
         *didworkp = true;
 
     return (__wt_cache_eviction_worker(session, busy, readonly, pct_full));
+}
+
+/*
+ * __wt_evict_page_init --
+ *     Initialize eviction state for a newly created page.
+ */
+static WT_INLINE void
+__wt_evict_page_init(WT_PAGE *page)
+{
+    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 }
