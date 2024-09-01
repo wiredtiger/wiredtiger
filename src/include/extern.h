@@ -2094,6 +2094,8 @@ static WT_INLINE bool __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, 
   double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_evict_page_is_soon(uint64_t *readgen)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag,
   u_int probability) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_isalnum(u_char c) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2129,8 +2131,6 @@ static WT_INLINE bool __wt_page_is_empty(WT_PAGE *page)
 static WT_INLINE bool __wt_page_is_modified(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_page_is_reconciling(WT_PAGE *page)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_readgen_evict_soon(uint64_t *readgen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_rec_need_split(WT_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

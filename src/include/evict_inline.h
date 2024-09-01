@@ -407,3 +407,20 @@ __wt_evict_page_init(WT_PAGE *page)
 {
     __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 }
+ 
+/*
+ * __wt_readgen_evict_soon --
+ *     Return whether a page's read generation makes it eligible for immediate eviction. Read
+ *     generations reserve a range of low numbers for special meanings and currently - with the
+ *     exception of the generation not being set - these indicate the page may be evicted
+ *     immediately.
+ */
+static WT_INLINE bool
+__wt_evict_page_is_soon(uint64_t *readgen)
+{
+    uint64_t gen;
+
+    WT_READ_ONCE(gen, *readgen);
+    return (gen != WT_READGEN_NOTSET && gen < WT_READGEN_START_VALUE);
+}
+
