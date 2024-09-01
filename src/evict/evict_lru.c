@@ -70,7 +70,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
 
     /* Any page set to the oldest generation should be discarded. */
-    if (__wt_evict_page_is_soon(&page->read_gen))
+    if (__wt_readgen_evict_soon(&page->read_gen))
         return (WT_READGEN_OLDEST);
 
     /* Any page from a dead tree is a great choice. */
@@ -1368,7 +1368,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         read_gen_oldest = WT_READGEN_START_VALUE;
         for (candidates = 0; candidates < entries; ++candidates) {
             WT_READ_ONCE(read_gen_oldest, queue->evict_queue[candidates].score);
-            if (!__wt_evict_page_is_soon(&read_gen_oldest))
+            if (!__wt_readgen_evict_soon(&read_gen_oldest))
                 break;
         }
 
@@ -1380,7 +1380,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
          * 50% of the entries were at the oldest read generation, take
          * all of them.
          */
-        if (__wt_evict_page_is_soon(&read_gen_oldest))
+        if (__wt_readgen_evict_soon(&read_gen_oldest))
             queue->evict_candidates = entries;
         else if (candidates > entries / 2)
             queue->evict_candidates = candidates;
@@ -2377,7 +2377,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         } else {
             while (ref != NULL &&
               (WT_REF_GET_STATE(ref) != WT_REF_MEM ||
-                __wt_evict_page_is_soon(&ref->page->read_gen)))
+                __wt_readgen_evict_soon(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
         btree->evict_ref = ref;

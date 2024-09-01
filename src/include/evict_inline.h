@@ -410,17 +410,26 @@ __wt_evict_page_init(WT_PAGE *page)
  
 /*
  * __wt_readgen_evict_soon --
- *     Return whether a page's read generation makes it eligible for immediate eviction. Read
+ *     Return whether a read generation value makes a page eligible for immediate eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
  *     immediately.
  */
 static WT_INLINE bool
-__wt_evict_page_is_soon(uint64_t *readgen)
+__wt_readgen_evict_soon(uint64_t *read_gen)
 {
     uint64_t gen;
 
-    WT_READ_ONCE(gen, *readgen);
+    WT_READ_ONCE(gen, *read_gen);
     return (gen != WT_READGEN_NOTSET && gen < WT_READGEN_START_VALUE);
 }
 
+/*
+ * __wt_evict_page_is_soon()
+ *     Return whether the page is eligible for immeidate eviction.
+ */
+static WT_INLINE bool
+__wt_evict_page_is_soon(WT_PAGE *page)
+{
+    return(__wt_readgen_evict_soon(&page->read_gen));
+}
