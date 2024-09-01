@@ -252,7 +252,6 @@ Marsaglia
 Marsaglia's
 Mellor
 Mitzenmacher
-MockSession
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -551,7 +550,6 @@ btree's
 btrees
 buf
 bufsz
-buildTestMockSession
 builddir
 builtins
 bursty
@@ -618,6 +616,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -818,7 +817,6 @@ gcc
 gcp
 gdb
 ge
-getWtSessionImpl
 getenv
 getlasterror
 getline
@@ -1107,6 +1105,7 @@ optype
 ori
 origstartrecno
 os
+ostream
 oversized
 ovfl
 ownp
