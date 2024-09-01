@@ -453,3 +453,23 @@ __wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
      */
     __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
 }
+
+/*
+ * __wt_evict_touch_page --
+ *     Tell eviction when we use a page so it can update its state for that page. The caller may
+ *     set flags indicating that it doesn't expect to need the page again or that it only wants
+ *     to initialize eviction state for the page. The latter is used by operations such as compact,
+ *     and eviction, itself, so internal operations don't update eviction state.
+ */
+static WT_INLINE void
+__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only, bool wont_need)
+{
+    /* Is this the first use of the page? */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
+        if (wont_need)
+            __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
+        else
+            __wt_cache_read_gen_new(session, page);
+    } else if (!init_only)
+        __wt_cache_read_gen_bump(session, page);
+}
