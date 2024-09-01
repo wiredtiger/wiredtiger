@@ -407,7 +407,7 @@ __wt_evict_page_init(WT_PAGE *page)
 {
     __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 }
- 
+
 /*
  * __wt_readgen_evict_soon --
  *     Return whether a read generation value makes a page eligible for immediate eviction. Read
@@ -425,11 +425,31 @@ __wt_readgen_evict_soon(uint64_t *read_gen)
 }
 
 /*
- * __wt_evict_page_is_soon()
- *     Return whether the page is eligible for immeidate eviction.
+ * __wt_evict_page_is_soon --
+ *     Return whether the page is eligible for immediate eviction.
  */
 static WT_INLINE bool
 __wt_evict_page_is_soon(WT_PAGE *page)
 {
-    return(__wt_readgen_evict_soon(&page->read_gen));
+    return (__wt_readgen_evict_soon(&page->read_gen));
+}
+
+/*
+ * __wt_evict_copy_page_state --
+ *     When creating a new page from an existing page, for example during split, initialize the read
+ *     generation on the new page using the state of the original page.
+ */
+static WT_INLINE void
+__wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
+{
+    uint64_t orig_read_gen;
+
+    WT_READ_ONCE(orig_read_gen, orig_page->read_gen);
+
+    /*
+     * In the current use case, we are initializing/splitting the new page and it should be
+     * impossible to have a race during the store. But to protect against future uses that violate
+     * this assumption use an atomic store.
+     */
+    __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
 }
