@@ -952,7 +952,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         return (0);
     }
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
       btree->dhandle->name);
 
     /*
@@ -1040,7 +1040,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #else
     (void)__wt_atomic_subi32(&btree->evict_disabled, 1);
 #endif
-    __wt_verbose_info(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
       btree->dhandle->name);
 }
 
