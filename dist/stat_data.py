@@ -464,7 +464,7 @@ conn_stats = [
     EvictionServerStat('cache_eviction_internal_pages_queued', 'internal pages queued for eviction'),
     EvictionServerStat('cache_eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
     EvictionServerStat('cache_eviction_pages_already_queued', 'pages seen by eviction walk that are already queued'),
-    EvictionServerStat('cache_eviction_pages_queued', 'pages queued for eviction'),
+    EvictionServerStat('cache_eviction_pages_ordinary_queued', 'pages queued for eviction'),
     EvictionServerStat('cache_eviction_pages_queued_oldest', 'pages queued for urgent eviction during walk'),
     EvictionServerStat('cache_eviction_pages_queued_post_lru', 'pages queued for eviction post lru sorting'),
     EvictionServerStat('cache_eviction_pages_queued_urgent', 'pages queued for urgent eviction'),

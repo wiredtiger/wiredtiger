@@ -2565,7 +2565,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_internal_pages_queued = 0;
     stats->cache_eviction_internal_pages_seen = 0;
     stats->cache_eviction_internal_pages_already_queued = 0;
-    stats->cache_eviction_pages_queued = 0;
+    stats->cache_eviction_pages_ordinary_queued = 0;
     stats->cache_eviction_pages_queued_post_lru = 0;
     stats->cache_eviction_pages_queued_urgent = 0;
     stats->cache_eviction_pages_queued_oldest = 0;
@@ -3356,7 +3356,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_internal_pages_seen);
     to->cache_eviction_internal_pages_already_queued +=
       WT_STAT_CONN_READ(from, cache_eviction_internal_pages_already_queued);
-    to->cache_eviction_pages_queued += WT_STAT_CONN_READ(from, cache_eviction_pages_queued);
+    to->cache_eviction_pages_ordinary_queued +=
+      WT_STAT_CONN_READ(from, cache_eviction_pages_ordinary_queued);
     to->cache_eviction_pages_queued_post_lru +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_post_lru);
     to->cache_eviction_pages_queued_urgent +=

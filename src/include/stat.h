@@ -803,7 +803,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_internal_pages_queued;
     int64_t cache_eviction_internal_pages_seen;
     int64_t cache_eviction_internal_pages_already_queued;
-    int64_t cache_eviction_pages_queued;
+    int64_t cache_eviction_pages_ordinary_queued;
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
     int64_t cache_eviction_pages_queued_oldest;
