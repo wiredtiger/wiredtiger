@@ -133,7 +133,6 @@ TEST_CASE("Block header byteswap", "[block_other]")
      * used for byte swap copy and simply passes in the same struct as both the 'to' and 'from'
      * headers.
      */
-
     test_block_header_byteswap_copy(&to, &to);
 
     // Test manually against known results.
