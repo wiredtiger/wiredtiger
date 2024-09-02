@@ -37,12 +37,19 @@ test_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
     REQUIRE(to->disk_size == prev_to.disk_size);
     REQUIRE(to->checksum == prev_to.checksum);
 #endif
+
+    // Test that the block header we are copying from is not changed.
+    if (from != to) {
+        REQUIRE(from->disk_size == prev_from.disk_size);
+        REQUIRE(from->checksum == prev_from.checksum);
+    }
 }
 
 TEST_CASE("Block header byteswap copy", "[block_other]")
 {
     WT_BLOCK_HEADER from, to;
 
+    // Test the block header byteswap logic with non-zero values.
     SECTION("Test case 1")
     {
         from.disk_size = 12121;
@@ -61,6 +68,7 @@ TEST_CASE("Block header byteswap copy", "[block_other]")
 #endif
     }
 
+    // Test the block header byteswap logic with zero values.
     SECTION("Test case 2")
     {
         from.disk_size = from.checksum = to.disk_size = to.checksum = 0;
@@ -75,6 +83,7 @@ TEST_CASE("Block header byteswap copy", "[block_other]")
 #endif
     }
 
+    // Test the block header byteswap logic with non-zero values.
     SECTION("Test case 3")
     {
         from.disk_size = 28;
@@ -92,6 +101,48 @@ TEST_CASE("Block header byteswap copy", "[block_other]")
         REQUIRE(to.checksum == 1778647296);
 #endif
     }
+
+    // Test the block header byteswap logic with values containing all non-zero bytes.
+    SECTION("Test case 4")
+    {
+        from.disk_size = 440156763;
+        from.checksum = 2024418449;
+        to.disk_size = to.checksum = 0;
+
+        // Test using WiredTiger byte swap functions.
+        test_block_header_byteswap_copy(&from, &to);
+
+        // Test manually against known results.
+#ifdef WORDS_BIGENDIAN
+        // 440156763 (1A 3C 42 5B) -> 1531067418 (5B 42 3C 1A).
+        // 2024418449 (78 AA 2C 91) -> 2435623544 (91 2C AA 78).
+        REQUIRE(to.disk_size == 1531067418);
+        REQUIRE(to.checksum == 2435623544);
+#endif
+    }
+}
+
+TEST_CASE("Block header byteswap", "[block_other]")
+{
+    WT_BLOCK_HEADER to;
+    to.disk_size = 12121;
+    to.checksum = 24358;
+
+    /*
+     * The block manager function that does the byte swap in place simply calls the same function
+     * used for byte swap copy and simply passes in the same struct as both the 'to' and 'from'
+     * headers.
+     */
+
+    test_block_header_byteswap_copy(&to, &to);
+
+    // Test manually against known results.
+#ifdef WORDS_BIGENDIAN
+    // 12121 (59 2F 00 00) -> 1496252416 (00 00 2F 59).
+    // 24358 (26 5F 00 00) -> 643760128 (00 00 5F 26).
+    REQUIRE(to.disk_size == 1496252416);
+    REQUIRE(to.checksum == 643760128);
+#endif
 }
 
 TEST_CASE("Block eligible for sweep", "[block_other]")
