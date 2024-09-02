@@ -8,8 +8,8 @@
 
 /*
  * [block_other]: block.h
- * This file unit tests the __wt_block_header_byteswap_copy and __wt_block_eligible_for_sweep
- * functions.
+ * This file unit tests the __wt_block_header_byteswap, __wt_block_header_byteswap_copy and
+ * __wt_block_eligible_for_sweep functions.
  */
 
 #include "wt_internal.h"
