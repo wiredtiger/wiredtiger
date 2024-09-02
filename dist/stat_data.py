@@ -110,7 +110,7 @@ class EvictionServerStat(Stat):
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, EvictionServerStat.prefix, desc, flags)
 class EvictionAppThreadStat(Stat):
-    prefix = 'eviction-app-thread'
+    prefix = 'eviction-application-thread'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, EvictionAppThreadStat.prefix, desc, flags)
 class EvictionThreadStat(Stat):
