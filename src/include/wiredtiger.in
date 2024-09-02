@@ -6489,61 +6489,61 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! evict-server: waiting for a leaf page */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALK_LEAF_NOTFOUND	1412
 /*!
- * eviction-app-thread: forced eviction - do not retry count to evict
- * pages selected to evict during reconciliation
+ * eviction-application-thread: forced eviction - do not retry count to
+ * evict pages selected to evict during reconciliation
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_NO_RETRY	1413
 /*!
- * eviction-app-thread: forced eviction - history store pages failed to
- * evict while session has history store cursor open
+ * eviction-application-thread: forced eviction - history store pages
+ * failed to evict while session has history store cursor open
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_HS_FAIL	1414
 /*!
- * eviction-app-thread: forced eviction - history store pages selected
- * while session has history store cursor open
+ * eviction-application-thread: forced eviction - history store pages
+ * selected while session has history store cursor open
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_HS		1415
 /*!
- * eviction-app-thread: forced eviction - history store pages
+ * eviction-application-thread: forced eviction - history store pages
  * successfully evicted while session has history store cursor open
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_HS_SUCCESS	1416
 /*!
- * eviction-app-thread: forced eviction - pages evicted that were clean
- * count
+ * eviction-application-thread: forced eviction - pages evicted that were
+ * clean count
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_CLEAN		1417
 /*!
- * eviction-app-thread: forced eviction - pages evicted that were dirty
- * count
+ * eviction-application-thread: forced eviction - pages evicted that were
+ * dirty count
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DIRTY		1418
 /*!
- * eviction-app-thread: forced eviction - pages selected because of a
- * large number of updates to a single item
+ * eviction-application-thread: forced eviction - pages selected because
+ * of a large number of updates to a single item
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_LONG_UPDATE_LIST	1419
 /*!
- * eviction-app-thread: forced eviction - pages selected because of too
- * many deleted items count
+ * eviction-application-thread: forced eviction - pages selected because
+ * of too many deleted items count
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DELETE	1420
-/*! eviction-app-thread: forced eviction - pages selected count */
+/*! eviction-application-thread: forced eviction - pages selected count */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE		1421
 /*!
- * eviction-app-thread: forced eviction - pages selected unable to be
- * evicted count
+ * eviction-application-thread: forced eviction - pages selected unable
+ * to be evicted count
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1422
-/*! eviction-app-thread: modified page evict attempts */
+/*! eviction-application-thread: modified page evict attempts */
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY_ATTEMPT	1423
-/*! eviction-app-thread: modified page evict failures */
+/*! eviction-application-thread: modified page evict failures */
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY_FAIL	1424
-/*! eviction-app-thread: page evict attempts */
+/*! eviction-application-thread: page evict attempts */
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_ATTEMPT		1425
-/*! eviction-app-thread: page evict failures */
+/*! eviction-application-thread: page evict failures */
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_FAIL		1426
-/*! eviction-app-thread: time evicting (usecs) */
+/*! eviction-application-thread: time evicting (usecs) */
 #define	WT_STAT_CONN_CACHE_EVICTION_APP_TIME		1427
 /*! eviction-thread: evict page attempts by eviction worker threads */
 #define	WT_STAT_CONN_CACHE_EVICTION_WORKER_EVICT_ATTEMPT	1428

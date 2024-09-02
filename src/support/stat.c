@@ -1825,26 +1825,27 @@ static const char *const __stats_connection_desc[] = {
   "evict-server: slept, because we did not make progress with eviction",
   "evict-server: unable to reach eviction goal",
   "evict-server: waiting for a leaf page",
-  "eviction-app-thread: forced eviction - do not retry count to evict pages selected to evict "
-  "during reconciliation",
-  "eviction-app-thread: forced eviction - history store pages failed to evict while session has "
+  "eviction-application-thread: forced eviction - do not retry count to evict pages selected to "
+  "evict during reconciliation",
+  "eviction-application-thread: forced eviction - history store pages failed to evict while "
+  "session has history store cursor open",
+  "eviction-application-thread: forced eviction - history store pages selected while session has "
   "history store cursor open",
-  "eviction-app-thread: forced eviction - history store pages selected while session has history "
-  "store cursor open",
-  "eviction-app-thread: forced eviction - history store pages successfully evicted while session "
-  "has history store cursor open",
-  "eviction-app-thread: forced eviction - pages evicted that were clean count",
-  "eviction-app-thread: forced eviction - pages evicted that were dirty count",
-  "eviction-app-thread: forced eviction - pages selected because of a large number of updates to a "
-  "single item",
-  "eviction-app-thread: forced eviction - pages selected because of too many deleted items count",
-  "eviction-app-thread: forced eviction - pages selected count",
-  "eviction-app-thread: forced eviction - pages selected unable to be evicted count",
-  "eviction-app-thread: modified page evict attempts",
-  "eviction-app-thread: modified page evict failures",
-  "eviction-app-thread: page evict attempts",
-  "eviction-app-thread: page evict failures",
-  "eviction-app-thread: time evicting (usecs)",
+  "eviction-application-thread: forced eviction - history store pages successfully evicted while "
+  "session has history store cursor open",
+  "eviction-application-thread: forced eviction - pages evicted that were clean count",
+  "eviction-application-thread: forced eviction - pages evicted that were dirty count",
+  "eviction-application-thread: forced eviction - pages selected because of a large number of "
+  "updates to a single item",
+  "eviction-application-thread: forced eviction - pages selected because of too many deleted items "
+  "count",
+  "eviction-application-thread: forced eviction - pages selected count",
+  "eviction-application-thread: forced eviction - pages selected unable to be evicted count",
+  "eviction-application-thread: modified page evict attempts",
+  "eviction-application-thread: modified page evict failures",
+  "eviction-application-thread: page evict attempts",
+  "eviction-application-thread: page evict failures",
+  "eviction-application-thread: time evicting (usecs)",
   "eviction-thread: evict page attempts by eviction worker threads",
   "eviction-thread: evict page failures by eviction worker threads",
   "eviction-thread: eviction calls to get a page found queue empty",
