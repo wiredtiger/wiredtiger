@@ -132,6 +132,9 @@ typedef struct dir_store_file_handle {
 
     TAILQ_ENTRY(dir_store_file_handle) q; /* Queue of handles */
 
+    /* Protects object ID and size maps. */
+    pthread_rwlock_t obj_map_lock;
+
     /* Object based directory stores keep an array that tracks ID->offset */
     uint64_t *object_id_map;
     uint64_t *object_size_map;
@@ -1086,12 +1089,15 @@ dir_store_ckpt_load_internal(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
     if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &entries)) != 0)
         return (ret);
     offset += STORED_VALUE_SIZE;
+
+    if ((ret = pthread_rwlock_wrlock(&fh->obj_map_lock)) != 0)
+        return (ret);
     dir_store_obj_resize_map(fh, entries);
 
     /* Go over the entries and rebuild the dir store's internal state. */
     for (i = 0; i < entries; i++) {
         if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &tmp)) != 0)
-            return (ret);
+            goto err;
 
         fh->object_id_map[i] = tmp;
         offset += STORED_VALUE_SIZE;
@@ -1099,13 +1105,15 @@ dir_store_ckpt_load_internal(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
 
     for (i = 0; i < entries; i++) {
         if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &tmp)) != 0)
-            return (ret);
+            goto err;
 
         fh->object_size_map[i] = tmp;
         offset += STORED_VALUE_SIZE;
     }
 
-    return (0);
+err:
+    pthread_rwlock_unlock(&fh->obj_map_lock);
+    return (ret);
 }
 
 /*
@@ -1212,6 +1220,11 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     dir_store->object_reads++;
     dir_store_fh->fh = wt_fh;
     dir_store_fh->dir_store = dir_store;
+
+    if ((ret = pthread_rwlock_init(&dir_store_fh->obj_map_lock, NULL)) != 0) {
+        ret = dir_store_err(dir_store, session, ret, "pthread_rwlock_init for obj_map");
+        goto err;
+    }
 
     /*
      * First eight bytes are reserved as out-of-band. This is a 64 bit space so we can write an
@@ -1473,6 +1486,7 @@ dir_store_file_close_internal(
     if (wt_fh != NULL && (ret = wt_fh->close(wt_fh, session)) != 0)
         ret = dir_store_err(dir_store, session, ret, "WT_FILE_HANDLE->close: close");
 
+    ret = pthread_rwlock_destroy(&dir_store_fh->obj_map_lock);
     free(dir_store_fh->iface.name);
     free(dir_store_fh);
 
@@ -1518,6 +1532,9 @@ dir_store_file_read(
 /*
  * dir_store_obj_resize_map --
  *     Resize the object mapping array for object based stores.
+ *
+ * NOTE: assumes the caller is holding the object map lock, this is possibly worth changing since it
+ *     means we do a (slow) memory allocation with the lock held.
  */
 static int
 dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
@@ -1693,14 +1710,16 @@ dir_store_obj_put(
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
     wt_fh = dir_store_fh->fh;
 
-    if (object_id >= dir_store_fh->object_map_size)
-        dir_store_obj_resize_map(dir_store_fh, object_id);
-
     dir_store_fh->dir_store->object_put_ops++;
     ret = wt_fh->fh_write(
       wt_fh, session, (wt_off_t)dir_store_fh->object_next_offset, buf->size, buf->data);
     if (ret != 0)
         return (ret);
+
+    if ((ret = pthread_rwlock_wrlock(&dir_store_fh->obj_map_lock)) != 0)
+        return (ret);
+    if (object_id >= dir_store_fh->object_map_size)
+        dir_store_obj_resize_map(dir_store_fh, object_id);
 
     /*
     fprintf(stderr, "PBM writing object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id,
@@ -1709,7 +1728,7 @@ dir_store_obj_put(
     dir_store_fh->object_id_map[object_id] = dir_store_fh->object_next_offset;
     dir_store_fh->object_size_map[object_id] = buf->size;
     dir_store_fh->object_next_offset += buf->size;
-    return (0);
+    return (pthread_rwlock_unlock(&dir_store_fh->obj_map_lock));
 }
 
 /*
@@ -1722,16 +1741,24 @@ dir_store_obj_get(
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
     WT_FILE_HANDLE *wt_fh;
+    wt_off_t object_offset;
     int ret;
     uint64_t object_size;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
     wt_fh = dir_store_fh->fh;
 
+    if ((ret = pthread_rwlock_rdlock(&dir_store_fh->obj_map_lock)) != 0)
+        return (ret);
+
     if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0)
         return (EINVAL);
 
+    object_offset = (wt_off_t)dir_store_fh->object_id_map[object_id];
     object_size = dir_store_fh->object_size_map[object_id];
+
+    if ((ret = pthread_rwlock_unlock(&dir_store_fh->obj_map_lock)) != 0)
+        return (ret);
 
     /*
      * A buffer without memory indicates that this API should allocate the space, otherwise check to
@@ -1748,8 +1775,7 @@ dir_store_obj_get(
     /*   dir_store_fh->object_id_map[object_id]); */
 
     dir_store_fh->dir_store->object_get_ops++;
-    ret = wt_fh->fh_read(
-      wt_fh, session, (wt_off_t)(dir_store_fh->object_id_map[object_id]), object_size, buf->mem);
+    ret = wt_fh->fh_read(wt_fh, session, object_offset, object_size, buf->mem);
     buf->size = object_size;
     /* TODO: cleanup allocated memory on error */
     return (ret);
@@ -1763,10 +1789,14 @@ static int
 dir_store_obj_delete(WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t object_id)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh;
+    int ret;
 
     (void)session;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
+
+    if ((ret = pthread_rwlock_wrlock(&dir_store_fh->obj_map_lock)) != 0)
+        return (ret);
 
     /* Deleting an already deleted thing is fine */
     if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0)
@@ -1774,6 +1804,9 @@ dir_store_obj_delete(WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t 
 
     dir_store_fh->object_id_map[object_id] = 0;
     dir_store_fh->object_size_map[object_id] = 0;
+
+    if ((ret = pthread_rwlock_unlock(&dir_store_fh->obj_map_lock)) != 0)
+        return (ret);
 
     return (0);
 }
