@@ -14,7 +14,7 @@ jobs:
         with:
           script: |
             const comment = `
-            Thanks for creating a pull request! The below questions and checklist are intended to help with verifying your change is well tested. Filling out the questions and checklist is optional.
+            Thanks for creating a pull request! The below questions and checklist are intended to help with verifying your change is well tested. Response is optional, but if you choose to respond please edit this comment.
 
             ## What makes this change safe?
             A good answer to this question helps the reviewers understand where they should focus their attention, so please consider these questions:
