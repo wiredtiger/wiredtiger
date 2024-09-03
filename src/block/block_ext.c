@@ -988,7 +988,7 @@ static int
 __block_append(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext, *new_ext;
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
     u_int i;
 
     WT_UNUSED(block);
@@ -996,11 +996,8 @@ __block_append(
 
     /*
      * Identical to __block_merge, when we know the file is being extended, that is, the information
-     * is either going to be used to extend the last object on the list, or become a new object
-     * ending the list.
-     *
-     * The terminating element of the list is cached, check it; otherwise, get a stack for the last
-     * object in the skiplist, check for a simple extension, and otherwise append a new structure.
+     * is either going to be used to extend the last object on the list, or the extent list is
+     * empty.
      */
     if ((ext = el->last) != NULL && ext->off + ext->size == off)
         /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
@@ -1021,22 +1018,6 @@ __block_append(
 
             /* Update the cached end-of-list */
             el->last = ext;
-        } else if (ext->off + ext->size < off) {
-            /* Add a new object ending the list. */
-            WT_RET(__wti_block_ext_alloc(session, &new_ext));
-            new_ext->off = off;
-            new_ext->size = size;
-
-            for (i = 0; i < ext->depth; ++i) {
-                if ((*astack[i] != NULL) && (*astack[i] != ext))
-                    break;
-                ext->next[i] = new_ext;
-                *astack[i] = new_ext;
-            }
-            ++el->entries;
-
-            /* Update the cached end-of-list */
-            el->last = new_ext;
         } else
             /* off/size intersects or is below ext */
             return (__block_merge(session, block, el, off, size));
