@@ -456,10 +456,10 @@ __wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 
 /*
  * __wt_evict_touch_page --
- *     Tell eviction when we use a page so it can update its state for that page. The caller may
- *     set flags indicating that it doesn't expect to need the page again or that it only wants
- *     to initialize eviction state for the page. The latter is used by operations such as compact,
- *     and eviction, itself, so internal operations don't update eviction state.
+ *     Tell eviction when we use a page so it can update its state for that page. The caller may set
+ *     flags indicating that it doesn't expect to need the page again or that it only wants to
+ *     initialize eviction state for the page. The latter is used by operations such as compact, and
+ *     eviction, itself, so internal operations don't trash the cache when they walk trees.
  */
 static WT_INLINE void
 __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only, bool wont_need)
