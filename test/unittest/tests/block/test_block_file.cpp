@@ -28,7 +28,7 @@ const std::string ACCESS_PATTERN = "random";
 const std::string DEFAULT_FILE_NAME = "test.txt";
 
 void
-validate_block_fh(WT_BLOCK *block, std::string const& name)
+validate_block_fh(WT_BLOCK *block, std::string const &name)
 {
     REQUIRE(block->fh != nullptr);
     REQUIRE(std::string(block->fh->name) == name);
@@ -37,7 +37,7 @@ validate_block_fh(WT_BLOCK *block, std::string const& name)
 }
 
 void
-validate_block_config(WT_BLOCK *block, config_parser& cp)
+validate_block_config(WT_BLOCK *block, config_parser &cp)
 {
     std::map<std::string, std::string> config_map = cp.get_config_map();
     auto it = config_map.find("allocation_size");
@@ -55,8 +55,8 @@ validate_block_config(WT_BLOCK *block, config_parser& cp)
 }
 
 void
-validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser& cp,
-  uint expected_ref, std::string const& name, bool readonly = false)
+validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser &cp,
+  uint expected_ref, std::string const &name, bool readonly = false)
 {
 
     REQUIRE(block != nullptr);
@@ -85,12 +85,12 @@ validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_par
 }
 
 void
-validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser& cp,
-  uint expected_ref, std::string const& name, bool readonly = false)
+validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser &cp,
+  uint expected_ref, std::string const &name, bool readonly = false)
 {
     WT_CONNECTION_IMPL *conn = session->getMockConnection()->getWtConnectionImpl();
     if (expected_ref == 0) {
-        //REQUIRE(block == nullptr);
+        // REQUIRE(block == nullptr);
 
         uint64_t hash = __wt_hash_city64(name.c_str(), name.length());
         uint64_t bucket = hash & (conn->hash_size - 1);
@@ -162,7 +162,7 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
 
         REQUIRE(__wti_bm_close_block(session->getWtSessionImpl(), block) == 0);
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
-  
+
         // Test that no allocation size in configuration should fail.
         REQUIRE(cp.get_config_map().erase("allocation_size") == 1);
         REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
@@ -252,11 +252,12 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         REQUIRE(__wti_bm_close_block(session->getWtSessionImpl(), block) == 0);
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
     }
-
-    // SECTION("Test block close with nullptr")
-    // {
-    //     REQUIRE(__wti_bm_close_block(session->getWtSessionImpl(), nullptr) == 0);
-    // }
+    /*
+     * SECTION("Test block close with nullptr")
+     * {
+     *     REQUIRE(__wti_bm_close_block(session->getWtSessionImpl(), nullptr) == 0);
+     * }
+     */
 
     SECTION("Test block close with block sync")
     {
