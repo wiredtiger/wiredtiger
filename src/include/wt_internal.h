@@ -267,10 +267,6 @@ struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
 typedef struct __wt_log_desc WT_LOG_DESC;
-struct __wt_log_op_desc;
-typedef struct __wt_log_op_desc WT_LOG_OP_DESC;
-struct __wt_log_rec_desc;
-typedef struct __wt_log_rec_desc WT_LOG_REC_DESC;
 struct __wt_log_record;
 typedef struct __wt_log_record WT_LOG_RECORD;
 struct __wt_logslot;
@@ -569,6 +565,7 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_inline.h"
 #include "cursor_inline.h"
 #include "log_inline.h"
+#include "modify_inline.h"
 #include "os_fhandle_inline.h"
 #include "os_fs_inline.h"
 #include "os_fstream_inline.h"
