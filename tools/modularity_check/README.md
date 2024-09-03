@@ -21,6 +21,8 @@ virtualenv venv
 ./modularity_check.py who_is_used_by evict                   # Report all other modules used by the log module
 ./modularity_check.py list_cycles conn                       # Report all dependency cycles up to length 3 that include conn/
 ./modularity_check.py explain_cycle "['log', 'meta', 'txn']" # Explain why the provided depenency cycle exists
+./modularity_check.py privacy_report txn                     # Report which structs and fields in a module are private
+./modularity_check.py generate_dependency_file               # WIP: Generate a text representation of the dependency graph. Can be used to detect dependency changes over time.
 ```
 
 ## Important notes:
