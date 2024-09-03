@@ -19,6 +19,12 @@ config_parser::get_config_map()
     return _config_map;
 }
 
+std::map<std::string, std::string> const&
+config_parser::get_config_map() const
+{
+    return _config_map;
+}
+
 void
 config_parser::construct_config_string()
 {
