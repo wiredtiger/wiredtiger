@@ -1019,7 +1019,7 @@ __block_append(
             /* Update the cached end-of-list */
             el->last = ext;
         } else
-            /* off/size intersects or is below ext */
+            /* off is not adjacent to the end of the last extent. */
             return (__block_merge(session, block, el, off, size));
     }
     el->bytes += (uint64_t)size;
