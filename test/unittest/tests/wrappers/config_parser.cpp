@@ -8,14 +8,13 @@
 #include "config_parser.h"
 #include <string>
 
-config_parser::config_parser(const std::map<std::string, std::string>& map) :
-    _config_map(std::move(map)),
-    _cfg{nullptr, nullptr, nullptr}
+config_parser::config_parser(const std::map<std::string, std::string> &map)
+    : _config_map(std::move(map)), _cfg{nullptr, nullptr, nullptr}
 {
 }
 
-std::map<std::string, std::string>&
-config_parser::get_config_map()     
+std::map<std::string, std::string> &
+config_parser::get_config_map()
 {
     return _config_map;
 }

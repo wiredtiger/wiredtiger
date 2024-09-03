@@ -13,11 +13,11 @@
 
 class config_parser {
 public:
-    explicit config_parser(const std::map<std::string, std::string>& map);
+    explicit config_parser(const std::map<std::string, std::string> &map);
     ~config_parser() = default;
 
     std::map<std::string, std::string> &get_config_map();
-    std::map<std::string, std::string> const& get_config_map() const;
+    std::map<std::string, std::string> const &get_config_map() const;
     void construct_config_string();
     const char **get_config_array();
 
