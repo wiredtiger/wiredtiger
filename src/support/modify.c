@@ -114,7 +114,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
 #ifdef HAVE_DIAGNOSTIC
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
 #endif
-    WT_ASSERT(session, value->memsize >= item_offset + offset + data_size + (sformat ? 1 : 0));
+    WT_ASSERT_ALWAYS(session,
+      value->memsize >= item_offset + offset + data_size + (sformat ? 1 : 0), "buffer overflow");
 
     /*
      * Fast-path the common case, where we're overwriting a set of bytes that already exist in the
@@ -361,7 +362,8 @@ __wt_modify_apply_item(
         goto done;
 
     if (!overlap) {
-        WT_ASSERT(session, value->memsize >= item_offset + destsz + (sformat ? 1 : 0));
+        WT_ASSERT_ALWAYS(
+          session, value->memsize >= item_offset + destsz + (sformat ? 1 : 0), "buffer overflow");
 
         __modify_apply_no_overlap(session, value, p, nentries, napplied, datasz, destsz);
         goto done;
