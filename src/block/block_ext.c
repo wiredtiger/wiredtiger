@@ -988,7 +988,11 @@ static int
 __block_append(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
+#if 1
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext, *new_ext;
+#else
     WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
+#endif
     u_int i;
 
     WT_UNUSED(block);
@@ -1003,12 +1007,12 @@ __block_append(
      * object in the skiplist, check for a simple extension, and otherwise append a new structure.
      */
     if ((ext = el->last) != NULL && ext->off + ext->size == off)
-        /* off/size is adjacent to and above ext. */
+        /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
         ext->size += size;
     else {
         ext = __block_off_srch_last(el->off, astack);
         if (ext != NULL && ext->off + ext->size == off)
-            /* off/size is adjacent to and above ext. */
+            /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
             ext->size += size;
         else if (ext == NULL) {
             WT_RET(__wti_block_ext_alloc(session, &ext));
@@ -1022,19 +1026,21 @@ __block_append(
             /* Update the cached end-of-list */
             el->last = ext;
         } else if (ext->off + ext->size < off) {
-            /* off/size is above and not adjacent to ext */
-            WT_RET(__wti_block_ext_alloc(session, &ext));
-            ext->off = off;
-            ext->size = size;
+            /* Add a new object ending the list. */
+            WT_RET(__wti_block_ext_alloc(session, &new_ext));
+            new_ext->off = off;
+            new_ext->size = size;
 
             for (i = 0; i < ext->depth; ++i) {
-                ext->next[i] = *astack[i];
-                *astack[i] = ext;
+                if ((*astack[i] != NULL) && (*astack[i] != ext))
+                    break;
+                ext->next[i] = new_ext;
+                *astack[i] = new_ext;
             }
             ++el->entries;
 
             /* Update the cached end-of-list */
-            el->last = ext;
+            el->last = new_ext;
         } else
             /* off/size intersects or is below ext */
             return (__block_merge(session, block, el, off, size));
