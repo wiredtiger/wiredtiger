@@ -196,8 +196,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
 
         if (modifies.size > 0) {
-            max_memsize = hs_value->size;
-            __wt_modifies_max_memsize(&modifies, value_format, &max_memsize);
+            __wt_modifies_max_memsize(&modifies, value_format, hs_value->size, &max_memsize);
             WT_ERR(__wt_buf_set_and_grow(
               session, hs_value, hs_value->data, hs_value->size, max_memsize));
         }

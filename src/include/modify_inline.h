@@ -40,16 +40,17 @@
 
 /*
  * __wt_modify_max_memsize --
- *     Calculate the maximum memory usage when applying a packed modify. The caller needs to
- *     initialize the max_memsize to include the base value size in the calculation.
+ *     Calculate the maximum memory usage when applying a packed modify.
  */
 static WT_INLINE void
-__wt_modify_max_memsize(const void *modify, size_t *max_memsize)
+__wt_modify_max_memsize(const void *modify, size_t base_value_size, size_t *max_memsize)
 {
     WT_MODIFY mod;
     size_t tmp;
     const size_t *p;
     int nentries;
+
+    *max_memsize = base_value_size;
 
     /* Get the number of modify entries. */
     p = (const size_t *)modify;
@@ -65,13 +66,13 @@ __wt_modify_max_memsize(const void *modify, size_t *max_memsize)
 /*
  * __wt_modify_max_memsize_format --
  *     Calculate the maximum memory usage when applying a packed modify. This function also
- *     considers the memory usage of the string terminator. The caller needs to initialize the
- *     max_memsize to include the base value size in the calculation.
+ *     considers the memory usage of the string terminator.
  */
 static WT_INLINE void
-__wt_modify_max_memsize_format(const void *modify, const char *value_format, size_t *max_memsize)
+__wt_modify_max_memsize_format(
+  const void *modify, const char *value_format, size_t base_value_size, size_t *max_memsize)
 {
-    __wt_modify_max_memsize(modify, max_memsize);
+    __wt_modify_max_memsize(modify, base_value_size, max_memsize);
 
     if (value_format[0] == 'S')
         ++(*max_memsize);
@@ -80,14 +81,15 @@ __wt_modify_max_memsize_format(const void *modify, const char *value_format, siz
 /*
  * __wt_modify_max_memsize_unpacked --
  *     Calculate the maximum memory usage when applying an unpacked modify. This function also
- *     considers the memory usage of the string terminator. The caller needs to initialize the
- *     max_memsize to include the base value size in the calculation.
+ *     considers the memory usage of the string terminator.
  */
 static WT_INLINE void
-__wt_modify_max_memsize_unpacked(
-  WT_MODIFY *entries, int nentries, const char *value_format, size_t *max_memsize)
+__wt_modify_max_memsize_unpacked(WT_MODIFY *entries, int nentries, const char *value_format,
+  size_t base_value_size, size_t *max_memsize)
 {
     int i;
+
+    *max_memsize = base_value_size;
 
     for (i = 0; i < nentries; ++i)
         *max_memsize = WT_MAX(*max_memsize, entries[i].offset) + entries[i].data.size;
@@ -99,18 +101,20 @@ __wt_modify_max_memsize_unpacked(
 /*
  * __wt_modifies_max_memsize --
  *     Calculate the maximum memory usage when applying a series of modifies. This function also
- *     considers the memory usage of the string terminator. The caller needs to initialize the
- *     max_memsize to include the base value size in the calculation.
+ *     considers the memory usage of the string terminator.
  */
 static WT_INLINE void
-__wt_modifies_max_memsize(WT_UPDATE_VECTOR *modifies, const char *value_format, size_t *max_memsize)
+__wt_modifies_max_memsize(
+  WT_UPDATE_VECTOR *modifies, const char *value_format, size_t base_value_size, size_t *max_memsize)
 {
     WT_UPDATE *upd;
     int i;
 
+    *max_memsize = base_value_size;
+
     for (i = (int)modifies->size - 1; i >= 0; --i) {
         upd = modifies->listp[i];
-        __wt_modify_max_memsize(upd->data, max_memsize);
+        __wt_modify_max_memsize(upd->data, *max_memsize, max_memsize);
     }
 
     if (value_format[0] == 'S')

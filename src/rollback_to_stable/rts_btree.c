@@ -432,9 +432,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          */
         if (hs_tw->start_ts <= tw->start_ts || tw->prepare) {
             if (type == WT_UPDATE_MODIFY) {
-                max_memsize = full_value->size;
                 __wt_modify_max_memsize_format(
-                  hs_value->data, S2BT(session)->value_format, &max_memsize);
+                  hs_value->data, S2BT(session)->value_format, full_value->size, &max_memsize);
                 WT_ERR(__wt_buf_set_and_grow(
                   session, full_value, full_value->data, full_value->size, max_memsize));
                 WT_ERR(__wt_modify_apply_item(

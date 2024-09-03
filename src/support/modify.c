@@ -100,20 +100,16 @@ static int
 __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, bool sformat)
 {
     size_t data_size, offset, size;
+    size_t item_offset;
     uint8_t *to;
     const uint8_t *data, *from;
-#ifdef HAVE_DIAGNOSTIC
-    size_t item_offset;
-#endif
 
     data = modify->data.data;
     data_size = modify->data.size;
     offset = modify->offset;
     size = modify->size;
-
-#ifdef HAVE_DIAGNOSTIC
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
-#endif
+
     WT_ASSERT_ALWAYS(session,
       value->memsize >= item_offset + offset + data_size + (sformat ? 1 : 0), "buffer overflow");
 
@@ -321,12 +317,10 @@ __wt_modify_apply_item(
 {
     WT_MODIFY mod;
     size_t datasz, destsz, tmp;
+    size_t item_offset;
     const size_t *p;
     int napplied, nentries;
     bool overlap, sformat;
-#ifdef HAVE_DIAGNOSTIC
-    size_t item_offset;
-#endif
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -341,10 +335,7 @@ __wt_modify_apply_item(
      */
     WT_ASSERT(session, value_format[1] == '\0');
     sformat = value_format[0] == 'S';
-
-#ifdef HAVE_DIAGNOSTIC
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
-#endif
 
     /*
      * Decrement the size to discard the trailing nul (done after growing the buffer to ensure it
@@ -395,8 +386,8 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
-    max_memsize = cursor->value.size;
-    __wt_modify_max_memsize_unpacked(entries, nentries, cursor->value_format, &max_memsize);
+    __wt_modify_max_memsize_unpacked(
+      entries, nentries, cursor->value_format, cursor->value.size, &max_memsize);
 
     WT_ERR(__wt_buf_set_and_grow(
       CUR2S(cursor), &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
@@ -422,7 +413,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
-    size_t item_offset, max_memsize;
+    size_t base_value_size, item_offset, max_memsize;
     bool onpage_retry;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
@@ -495,15 +486,15 @@ retry:
         item_offset = WT_DATA_IN_ITEM(&upd_value->buf) ?
           WT_PTRDIFF(upd_value->buf.data, upd_value->buf.mem) :
           0;
-        max_memsize = upd_value->buf.size + item_offset;
+        base_value_size = upd_value->buf.size + item_offset;
     } else {
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-        max_memsize = upd->size;
+        base_value_size = upd->size;
     }
 
     if (modifies.size > 0) {
-        __wt_modifies_max_memsize(&modifies, cursor->value_format, &max_memsize);
+        __wt_modifies_max_memsize(&modifies, cursor->value_format, base_value_size, &max_memsize);
 
         if (upd == NULL)
             WT_ERR(__wt_buf_set_and_grow(

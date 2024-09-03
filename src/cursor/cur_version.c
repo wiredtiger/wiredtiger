@@ -391,8 +391,8 @@ __curversion_next_int(WT_CURSOR *cursor)
          * value.
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
-            max_memsize = cbt->upd_value->buf.size;
-            __wt_modify_max_memsize_format(hs_value->data, file_cursor->value_format, &max_memsize);
+            __wt_modify_max_memsize_format(
+              hs_value->data, file_cursor->value_format, cbt->upd_value->buf.size, &max_memsize);
             WT_ERR(__wt_buf_set_and_grow(session, &cbt->upd_value->buf, cbt->upd_value->buf.data,
               cbt->upd_value->buf.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
