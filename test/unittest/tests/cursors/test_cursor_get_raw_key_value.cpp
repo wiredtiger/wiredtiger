@@ -93,8 +93,8 @@ insert_sample_values(WT_CURSOR *cursor)
 
 TEST_CASE("Cursor: get key and value()", "[cursor]")
 {
-    ConnectionWrapper conn(DB_HOME);
-    WT_SESSION_IMPL *session_impl = conn.createSession();
+    connection_wrapper conn(DB_HOME);
+    WT_SESSION_IMPL *session_impl = conn.create_session();
     std::string uri = "table:cursor_test";
     std::string file = "file:cursor_test.wt";
 

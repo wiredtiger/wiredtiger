@@ -12,57 +12,58 @@
 #include "mock_connection.h"
 #include "../utils.h"
 
-MockSession::MockSession(WT_SESSION_IMPL *session, std::shared_ptr<MockConnection> mockConnection)
-    : _sessionImpl(session), _mockConnection(std::move(mockConnection))
+mock_session::mock_session(
+  WT_SESSION_IMPL *session, std::shared_ptr<mock_connection> mock_connection)
+    : _session_impl(session), _mock_connection(std::move(mock_connection))
 {
     // We could initialize this in the list but order is important and this seems easier.
     _handler_wrap.handler = {
-      handleWiredTigerError, handleWiredTigerMessage, nullptr, nullptr, nullptr};
+      handle_wiredtiger_error, handle_wiredtiger_message, nullptr, nullptr, nullptr};
     _handler_wrap.mock_session = this;
 
-    _sessionImpl->event_handler = &_handler_wrap.handler;
+    _session_impl->event_handler = &_handler_wrap.handler;
 }
 
-MockSession::~MockSession()
+mock_session::~mock_session()
 {
-    if (_sessionImpl->block_manager != nullptr)
-        __wt_free(nullptr, _sessionImpl->block_manager);
-    __wt_free(nullptr, _sessionImpl);
+    if (_session_impl->block_manager != nullptr)
+        __wt_free(nullptr, _session_impl->block_manager);
+    __wt_free(nullptr, _session_impl);
 }
 
-std::shared_ptr<MockSession>
-MockSession::buildTestMockSession()
+std::shared_ptr<mock_session>
+mock_session::build_test_mock_session()
 {
-    auto mockConnection = MockConnection::buildTestMockConnection();
+    auto mock_connection = mock_connection::build_test_mock_connection();
 
-    WT_SESSION_IMPL *sessionImpl = nullptr;
-    utils::throwIfNonZero(__wt_calloc(nullptr, 1, sizeof(WT_SESSION_IMPL), &sessionImpl));
-    sessionImpl->iface.connection = mockConnection->getWtConnection();
+    WT_SESSION_IMPL *session_impl = nullptr;
+    utils::throw_if_non_zero(__wt_calloc(nullptr, 1, sizeof(WT_SESSION_IMPL), &session_impl));
+    session_impl->iface.connection = mock_connection->get_wt_connection();
 
     // Construct an object that will now own the two pointers passed in.
-    return std::shared_ptr<MockSession>(new MockSession(sessionImpl, mockConnection));
+    return std::shared_ptr<mock_session>(new mock_session(session_impl, mock_connection));
 }
 
 WT_BLOCK_MGR_SESSION *
-MockSession::setupBlockManagerSession()
+mock_session::setup_block_manager_session()
 {
     // Initialize rnd state because block manager requires it.
-    __wt_random_init(&_sessionImpl->rnd);
-    utils::throwIfNonZero(
-      __wt_calloc(nullptr, 1, sizeof(WT_BLOCK_MGR_SESSION), &_sessionImpl->block_manager));
+    __wt_random_init(&_session_impl->rnd);
+    utils::throw_if_non_zero(
+      __wt_calloc(nullptr, 1, sizeof(WT_BLOCK_MGR_SESSION), &_session_impl->block_manager));
 
-    return static_cast<WT_BLOCK_MGR_SESSION *>(_sessionImpl->block_manager);
+    return static_cast<WT_BLOCK_MGR_SESSION *>(_session_impl->block_manager);
 }
 
 int
-handleWiredTigerError(WT_EVENT_HANDLER *handler, WT_SESSION *session, int, const char *message)
+handle_wiredtiger_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int, const char *message)
 {
-    handleWiredTigerMessage(handler, session, message);
+    handle_wiredtiger_message(handler, session, message);
     return (0);
 }
 
 int
-handleWiredTigerMessage(WT_EVENT_HANDLER *handler, WT_SESSION *, const char *message)
+handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *, const char *message)
 {
     reinterpret_cast<event_handler_wrap *>(handler)->mock_session->add_callback_message(message);
     return (0);
