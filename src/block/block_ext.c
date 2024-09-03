@@ -1018,9 +1018,12 @@ __block_append(
 
             /* Update the cached end-of-list */
             el->last = ext;
-        } else
+        } else {
+            /* Assert that this is appending an extent after the last extent. */
+            WT_ASSERT(session, ext->off + ext->size < off);
             /* off is not adjacent to the end of the last extent. */
             return (__block_merge(session, block, el, off, size));
+        }
     }
     el->bytes += (uint64_t)size;
 
