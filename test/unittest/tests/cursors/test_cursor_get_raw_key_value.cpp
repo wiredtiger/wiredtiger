@@ -7,6 +7,7 @@
  */
 
 #include <catch2/catch.hpp>
+
 #include "wiredtiger.h"
 #include "wt_internal.h"
 #include "../utils.h"

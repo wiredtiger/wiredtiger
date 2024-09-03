@@ -14,8 +14,9 @@
  * The block session manages an internal caching mechanism for both block and size blocks that are
  * created or discarded.
  */
-#include "wt_internal.h"
 #include <catch2/catch.hpp>
+
+#include "wt_internal.h"
 #include "../wrappers/mock_session.h"
 
 void

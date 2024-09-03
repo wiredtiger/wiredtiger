@@ -7,9 +7,10 @@
  */
 
 #include <catch2/catch.hpp>
+
 #include "wt_internal.h"
-#include "../wrappers/mock_session.h"
 #include "../wrappers/block_mods.h"
+#include "../wrappers/mock_session.h"
 
 TEST_CASE("Block helper: __wt_rduppo2", "[block]")
 {

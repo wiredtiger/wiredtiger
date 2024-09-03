@@ -20,11 +20,11 @@
 #include <sstream>
 #include <string>
 
-#include "wt_internal.h"
-#include "../wrappers/mock_session.h"
 #include "test_util.h"
+#include "wt_internal.h"
 #include "../utils.h"
 #include "../utils_extlist.h"
+#include "../wrappers/mock_session.h"
 
 using namespace utils;
 

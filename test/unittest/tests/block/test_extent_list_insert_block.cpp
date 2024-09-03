@@ -15,16 +15,15 @@
  */
 
 #include <algorithm>
+#include <catch2/catch.hpp>
 #include <memory>
 #include <vector>
 
-#include <catch2/catch.hpp>
-
 #include "test_util.h"
+#include "wt_internal.h"
 #include "../utils.h"
 #include "../utils_extlist.h"
 #include "../wrappers/mock_session.h"
-#include "wt_internal.h"
 
 using namespace utils;
 

@@ -6,8 +6,9 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "wt_internal.h"
 #include <catch2/catch.hpp>
+
+#include "wt_internal.h"
 
 TEST_CASE("Bitstring macros: __bit_byte", "[bitstring]")
 {
