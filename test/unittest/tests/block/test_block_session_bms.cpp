@@ -37,6 +37,7 @@ TEST_CASE("Block session: __wti_block_ext_prealloc", "[block_session_bms]")
          */
         REQUIRE(session->getWtSessionImpl()->block_manager_cleanup != nullptr);
         REQUIRE(bms != nullptr);
+        __wt_free(nullptr, bms);
     }
 
     WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
