@@ -335,7 +335,6 @@ __wt_modify_apply_item(
      */
     WT_ASSERT(session, value_format[1] == '\0');
     sformat = value_format[0] == 'S';
-    item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
 
     /*
      * Decrement the size to discard the trailing nul (done after growing the buffer to ensure it
@@ -353,6 +352,7 @@ __wt_modify_apply_item(
         goto done;
 
     if (!overlap) {
+        item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
         WT_ASSERT_ALWAYS(
           session, value->memsize >= item_offset + destsz + (sformat ? 1 : 0), "buffer overflow");
 
