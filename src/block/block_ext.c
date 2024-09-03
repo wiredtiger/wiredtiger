@@ -988,11 +988,7 @@ static int
 __block_append(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-#if 1
     WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext, *new_ext;
-#else
-    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
-#endif
     u_int i;
 
     WT_UNUSED(block);
