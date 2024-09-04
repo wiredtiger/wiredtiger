@@ -864,8 +864,16 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         if (page != NULL &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
-            WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
-            WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+            /* If checkpoint is happening on the btree, we can only evict clean content. */
+            if (__wt_btree_syncing_by_other_session(session)) {
+                if (!__wt_page_is_modified(page)) {
+                    __wt_page_evict_soon(session, cbt->ref);
+                    WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+                }
+            } else {
+                WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
+                WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+            }
         }
         cbt->page_deleted_count = 0;
 
