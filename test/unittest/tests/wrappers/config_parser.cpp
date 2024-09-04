@@ -13,16 +13,26 @@ config_parser::config_parser(const std::map<std::string, std::string> &map)
 {
 }
 
-std::map<std::string, std::string> &
-config_parser::get_config_map()
+const std::string &
+config_parser::get_config_value(std::string config) const
 {
-    return _config_map;
+    return _config_map.at(config);
 }
 
-std::map<std::string, std::string> const&
-config_parser::get_config_map() const
+void
+config_parser::insert_config(std::string config, std::string value)
 {
-    return _config_map;
+    _config_map[config] = value;
+}
+
+bool
+config_parser::erase_config(std::string config)
+{
+    auto it = _config_map.find(config);
+    if (it == _config_map.end())
+        return false;
+    _config_map.erase(it);
+    return true;
 }
 
 void

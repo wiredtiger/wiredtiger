@@ -9,6 +9,8 @@
 #include "mock_connection.h"
 #include "../utils.h"
 
+const int DEFAULT_HASH_SIZE = 512;
+
 MockConnection::MockConnection(WT_CONNECTION_IMPL *connectionImpl) : _connectionImpl(connectionImpl)
 {
 }
@@ -52,9 +54,11 @@ MockConnection::setupChunkCache(
 int
 MockConnection::setupBlockManager(WT_SESSION_IMPL *session)
 {
-    F_SET(_connectionImpl, WT_CONN_IN_MEMORY);
-    _connectionImpl->hash_size = 512;
-    _connectionImpl->home = "";
+    // Check that there should be no connection flags set.
+    WT_ASSERT(session, _connectionImpl->flags == 0);
+
+    // Initialize block and file hashmap.
+    _connectionImpl->hash_size = DEFAULT_HASH_SIZE;
     WT_RET(__wt_calloc_def(session, _connectionImpl->hash_size, &_connectionImpl->blockhash));
     WT_RET(__wt_calloc_def(session, _connectionImpl->hash_size, &_connectionImpl->fhhash));
     for (int i = 0; i < _connectionImpl->hash_size; ++i) {
@@ -62,11 +66,17 @@ MockConnection::setupBlockManager(WT_SESSION_IMPL *session)
         TAILQ_INIT(&_connectionImpl->fhhash[i]);
     }
 
+    // Initialize block and file handle queue.
+    TAILQ_INIT(&_connectionImpl->blockqh);
+    TAILQ_INIT(&_connectionImpl->fhqh);
+
+    // Initialize the block manager and file list lock.
     WT_RET(__wt_spin_init(session, &_connectionImpl->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &_connectionImpl->block_lock, "block manager"));
-    TAILQ_INIT(&_connectionImpl->blockqh); /* Block manager list */
-    TAILQ_INIT(&_connectionImpl->fhqh);    /* File list */
 
+    // Initialize an in-memory file system layer used for testing purposes.
+    F_SET(_connectionImpl, WT_CONN_IN_MEMORY);
+    _connectionImpl->home = "";
     WT_RET(__wt_os_inmemory(session));
     return 0;
 }
