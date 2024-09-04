@@ -363,34 +363,52 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
  * __txn_op_delete_commit_apply_page_del_timestamp --
  *     Apply the correct start and durable timestamps to the page delete structure.
  */
-static WT_INLINE void
-__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref)
+static WT_INLINE int
+__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
+    WT_ADDR_COPY addr;
+    WT_DECL_RET;
     WT_PAGE_DELETED *page_del;
+    WT_REF *ref;
     WT_TXN *txn;
 
+    ref = op->u.ref;
     txn = session->txn;
     page_del = ref->page_del;
 
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
+
+        /* Validate the commit timestamp against the maximum durable timestamp on the page. */
+        WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+        if (__wt_ref_addr_copy(session, ref, &addr))
+            ret = __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp,
+              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+        WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+        WT_RET(ret);
+
         page_del->timestamp = txn->commit_timestamp;
         page_del->durable_timestamp = txn->durable_timestamp;
     }
+
+    return (ret);
 }
 
 /*
  * __wt_txn_op_delete_commit_apply_timestamps --
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
-static WT_INLINE void
-__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
+static WT_INLINE int
+__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
+    WT_DECL_RET;
+    WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TXN *txn;
     WT_UPDATE **updp;
 
+    ref = op->u.ref;
     txn = session->txn;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
@@ -424,6 +442,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
              */
             if (*updp != NULL && (*updp)->start_ts == WT_TS_NONE) {
                 do {
+                    WT_ERR(__wt_txn_timestamp_usage_check(
+                      session, op, txn->commit_timestamp, (*updp)->prev_durable_ts));
                     (*updp)->start_ts = txn->commit_timestamp;
                     (*updp)->durable_ts = txn->durable_timestamp;
                     ++updp;
@@ -432,9 +452,11 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
         }
     }
 
-    __txn_op_delete_commit_apply_page_del_timestamp(session, ref);
+    ret = __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
+err:
     WT_REF_UNLOCK(ref, previous_state);
+    return (ret);
 }
 
 /*
@@ -457,12 +479,91 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
+ * __wt_txn_timestamp_usage_check --
+ *     Check if a commit will violate timestamp rules.
+ */
+static WT_INLINE int
+__wt_txn_timestamp_usage_check(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)
+{
+    WT_BTREE *btree;
+    WT_TXN *txn;
+    uint16_t flags;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    const char *name;
+    bool no_ts_ok, txn_has_ts;
+
+    btree = op->btree;
+    txn = session->txn;
+    flags = btree->dhandle->ts_flags;
+    name = btree->dhandle->name;
+    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
+
+    /* Timestamps are ignored on logged files. */
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
+        return (0);
+
+    /*
+     * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
+     * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        return (0);
+
+    /* Check for disallowed timestamps. */
+    if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
+        if (!txn_has_ts)
+            return (0);
+
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
+          name, __wt_timestamp_to_string(op_ts, ts_string[0]));
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
+        return (EINVAL);
+    }
+
+    /*
+     * Ordered consistency requires all updates use timestamps, once they are first used, but this
+     * test can be turned off on a per-transaction basis.
+     */
+    no_ts_ok = F_ISSET(txn, WT_TXN_TS_NOT_SET);
+    if (!txn_has_ts && prev_op_durable_ts != WT_TS_NONE && !no_ts_ok) {
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX
+          "no timestamp provided for an update to a table configured to always use timestamps "
+          "once they are first used",
+          name);
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
+        return (EINVAL);
+    }
+
+    /* Ordered consistency requires all updates be in timestamp order. */
+    if (txn_has_ts && prev_op_durable_ts > op_ts) {
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX
+          "updating a value with a timestamp %s before the previous update %s",
+          name, __wt_timestamp_to_string(op_ts, ts_string[0]),
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
+        return (EINVAL);
+    }
+
+    return (0);
+}
+
+/*
  * __wt_txn_op_set_timestamp --
  *     Decide whether to copy a commit timestamp into an update. If the op structure doesn't have a
  *     populated update or ref field or is in prepared state there won't be any check for an
  *     existing timestamp.
  */
-static WT_INLINE void
+static WT_INLINE int
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_TXN *txn;
@@ -471,7 +572,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     txn = session->txn;
 
     if (!__txn_should_assign_timestamp(session, op))
-        return;
+        return (0);
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
         /*
@@ -488,19 +589,23 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref);
+            WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op));
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
              * durable timestamps need to be updated.
              */
             upd = op->u.op_upd;
+            WT_RET(__wt_txn_timestamp_usage_check(
+              session, op, txn->commit_timestamp, upd->prev_durable_ts));
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
             }
         }
     }
+
+    return (0);
 }
 
 /*
@@ -540,7 +645,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    WT_RET(__wt_txn_op_set_timestamp(session, op));
 
     return (0);
 }
@@ -569,7 +674,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     ref->page_del->txnid = txn->id;
 
     if (__txn_should_assign_timestamp(session, op))
-        __txn_op_delete_commit_apply_page_del_timestamp(session, op->u.ref);
+        __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
     if (__wt_log_op(session))
         WT_ERR(__wt_txn_log_op(session, NULL));

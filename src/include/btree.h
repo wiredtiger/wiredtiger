@@ -94,6 +94,23 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
 /*
+ * WT_ADDR_COPY --
+ *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ * copy of the WT_REF address information.
+ */
+struct __wt_addr_copy {
+    uint8_t type;
+
+    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t size;
+
+    WT_TIME_AGGREGATE ta;
+
+    WT_PAGE_DELETED del; /* Fast-truncate page information */
+    bool del_set;
+};
+
+/*
  * WT_BTREE --
  *	A btree handle.
  */
