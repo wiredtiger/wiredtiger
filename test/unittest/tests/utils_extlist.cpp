@@ -247,6 +247,7 @@ verify_off_extent_list(
         ++idx;
         expected_bytes += ext->size;
     }
+    REQUIRE(idx == extlist.entries);
     if (!verify_bytes)
         return;
     REQUIRE(extlist.bytes == expected_bytes);
