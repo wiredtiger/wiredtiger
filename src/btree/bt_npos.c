@@ -25,7 +25,7 @@
  * be skipped an eviction pass.
  *
  * Eviction wants to be as non-intrusive as possible and never loads pages into memory, while
- * Partition Cursor can load pages or wait for them to be unlocked. The behavior is controlled by
+ * Partition Cursors can load pages or wait for them to be unlocked. The behavior is controlled by
  * the flags passed to the functions. The overall set of flags is quite complex.
  * To simplify the use of this machinery, two helper functions are provided:
  *   - __wt_page_from_npos_for_eviction
@@ -86,6 +86,17 @@
  * adjacent pages. This can be used to iterate over pages without storing any hazard pointers.
  * An example of this can be found in test.
  *
+ * Here's an example: Suppose we have a depth 2 tree, at the lowest level we are the 6th out of 10
+ * pages and at the higher level the 3rd out of 5 pages. Furthermore we want to start around quarter
+ * of the way into the page.
+ *
+ * Initially we have a starting position of 0.25, our page is at the 6/10th position in this level
+ * of the tree. This gives us the following calculation:
+ * Level 2 position = (6 + 0.25)/10  = 0.625
+ *
+ * Then we add the position from level 1:
+ * Final position = (3 + Level 2 position)/5 = (3 + 0.625)/5 = 0.725.
+ *
  *   === Precision considerations.
  *
  * Because the precision of the position if affected by tree's structure, it can be used to quantify
@@ -109,8 +120,8 @@
  * !!!
  * __wt_page_npos --
  *     Get the page's normalized position in the tree.
- *     - If `path_str_offsetp` is set, return a string representation of the page's path.
- *     - `start` is a position within the leaf page: 0 .. 1.
+ *     - If 'path_str_offsetp' is set, return a string representation of the page's path.
+ *     - 'start' is a position within the leaf page: 0 .. 1.
  *       * When calculating a leaf page's position, use 0.5 to get the middle of the page.
  *       * 0 and 1 are corner cases and can lead you to an adjacent page.
  *       * Numbers outside of 0 .. 1 range will lead you to a prev/next page.
@@ -122,7 +133,7 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
     WT_PAGE_INDEX *pindex;
     double npos;
     uint32_t entries, slot;
-    int unused = 1; /* WT_UNUSED(snprintf) is cooked in GCC */
+    int unused = 1; /* WT_UNUSED(snprintf) is cooked in GCC. */
 
     npos = start;
     if (path_str)
@@ -130,12 +141,12 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
 
     WT_ENTER_PAGE_INDEX(session);
     while (!__wt_ref_is_root(ref)) {
-        slot = UINT32_MAX; /* We get this invalid value in case of error */
+        slot = UINT32_MAX; /* We get this invalid value in case of error. */
         __wt_ref_index_slot(session, ref, &pindex, &slot);
         entries = pindex->entries;
         /*
-         * Depending on the implementation, `__wt_ref_index_slot` might return an error or `slot`
-         * outside of range. Check for `slot < entries` ensures that it's a valid number. If it's
+         * Depending on the implementation, '__wt_ref_index_slot' might return an error or 'slot'
+         * outside of range. Check for 'slot < entries' ensures that it's a valid number. If it's
          * not, then just skip the adjustment: the resulting number will be wrong but still within
          * the range of the current page. Alternatively, could assign it any "reasonable" estimate
          * like 0.5 or 0 / 1 depending on the walk direction.
@@ -150,9 +161,8 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
     }
     WT_LEAVE_PAGE_INDEX(session);
 
-    if (path_str) {
+    if (path_str)
         path_str[*path_str_offsetp] = 0;
-    }
 
     return (WT_CLAMP(npos, 0.0, 1.0));
 }
@@ -245,12 +255,12 @@ restart: /* Restart the search from the root. */
             case WT_REF_DISK:
             case WT_REF_LOCKED:
             case WT_REF_DELETED:
-                /* Can't go down from here but it's ok to return this page */
+                /* Can't go down from here but it's ok to return this page. */
                 goto done;
             default: /* WT_REF_MEM, WT_REF_SPLIT */
                 goto descend;
             }
-            /* Unreachable but it's ok to be here */
+            /* Unreachable but it's ok to be here. */
         } else {
             /* Not eviction */
             switch (WT_REF_GET_STATE(descent)) {
@@ -270,9 +280,9 @@ restart: /* Restart the search from the root. */
             default: /* WT_REF_DISK, WT_REF_MEM, WT_REF_SPLIT */
                 goto descend;
             }
-            /* Unreachable but it's ok to be here */
+            /* Unreachable but it's ok to be here. */
         }
-        /* Unreachable but it's ok to be here */
+        /* Unreachable but it's ok to be here. */
 
 descend:
         /*
@@ -319,7 +329,7 @@ __wt_page_from_npos(
 
     WT_WITH_PAGE_INDEX(session, ret = __page_from_npos_internal(session, refp, npos, read_flags));
     WT_RET(ret);
-    /* Return the first good page starting from here */
+    /* Return the first good page starting from here. */
     return (__find_closest_leaf(session, refp, walk_flags));
 }
 
