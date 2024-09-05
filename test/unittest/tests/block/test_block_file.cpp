@@ -56,7 +56,7 @@ validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_par
     // Test Block immediate members.
     CHECK(std::string(block->name) == name);
     CHECK(block->objectid == WT_TIERED_OBJECTID_NONE);
-    // CHECK(block->compact_session_id = WT_SESSION_ID_INVALID);
+    CHECK(block->compact_session_id == WT_SESSION_ID_INVALID);
     CHECK(block->ref == expected_ref);
     CHECK(block->readonly == readonly);
     CHECK(block->created_during_backup == false);
@@ -82,6 +82,7 @@ validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, confi
 {
     WT_CONNECTION_IMPL *conn = session->getMockConnection()->getWtConnectionImpl();
     if (expected_ref == 0) {
+        // FIXME-WT-13467: Enable once free function adheres to WiredTiger free pattern.
         // REQUIRE(block == nullptr);
 
         uint64_t hash = __wt_hash_city64(name.c_str(), name.length());
@@ -130,16 +131,6 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
 
         REQUIRE(__wti_bm_close_block(session->getWtSessionImpl(), block) == 0);
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
-
-        /*
-         * Test already made item in hashmap but with different configuration.
-         * WT_BLOCK *block3;
-         * cp.get_config_map()["allocation_size"] = "1024";
-         * REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
-         * WT_TIERED_OBJECTID_NONE,
-         *           cp.get_config_array(), false, false, false, 0, &block3)) == 0);
-         * validate_and_free_block(session->getWtSessionImpl(), block, cp, 3, DEFAULT_FILE_NAME);
-         */
     }
 
     SECTION("Test the configuration of allocation size")
@@ -157,7 +148,7 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
 
         // Test that no allocation size in configuration should fail.
-        REQUIRE(cp.erase_config("allocation_size") == true);
+        REQUIRE(cp.erase_config("allocation_size"));
         REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
                   WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0,
                   &block)) == WT_NOTFOUND);
@@ -190,7 +181,7 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
 
         // Test when block allocation is not configured.
-        REQUIRE(cp.erase_config("block_allocation") == 1);
+        REQUIRE(cp.erase_config("block_allocation"));
         REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
                   WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0,
                   &block)) == WT_NOTFOUND);
@@ -201,7 +192,7 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
     {
         // Test when os_cache_max is not configured.
         WT_BLOCK *block = nullptr;
-        REQUIRE(cp.erase_config("os_cache_max") == true);
+        REQUIRE(cp.erase_config("os_cache_max"));
         REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
                   WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0,
                   &block)) == WT_NOTFOUND);
@@ -218,7 +209,7 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
 
         // Test when os_cache_dirty_max is not configured.
-        REQUIRE(cp.erase_config("os_cache_dirty_max") == true);
+        REQUIRE(cp.erase_config("os_cache_dirty_max"));
         REQUIRE((__wt_block_open(session->getWtSessionImpl(), DEFAULT_FILE_NAME.c_str(),
                   WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0,
                   &block)) == WT_NOTFOUND);
@@ -247,6 +238,7 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         validate_free_block(session, block, cp, 0, DEFAULT_FILE_NAME);
     }
     /*
+     * FIXME-WT-13504: Enable once segmentation fault is fixed.
      * SECTION("Test block close with nullptr")
      * {
      *     REQUIRE(__wti_bm_close_block(session->getWtSessionImpl(), nullptr) == 0);

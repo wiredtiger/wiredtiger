@@ -35,19 +35,13 @@ config_parser::erase_config(std::string config)
     return true;
 }
 
-void
-config_parser::construct_config_string()
+const char **
+config_parser::get_config_array()
 {
     std::string config_string;
     for (const auto &config : _config_map)
         config_string += config.first + "=" + config.second + ",";
     _config_string = config_string;
     _cfg[0] = _config_string.data();
-}
-
-const char **
-config_parser::get_config_array()
-{
-    construct_config_string();
     return const_cast<const char **>(_cfg);
 }
