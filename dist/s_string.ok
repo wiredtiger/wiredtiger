@@ -1067,6 +1067,7 @@ noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
