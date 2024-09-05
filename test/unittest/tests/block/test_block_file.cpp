@@ -27,6 +27,14 @@ const std::string OS_CACHE_DIRTY_MAX = "0";
 const std::string ACCESS_PATTERN = "random";
 const std::string DEFAULT_FILE_NAME = "test.txt";
 
+// Added function declarations to allow default values to be set.
+void validate_block_fh(WT_BLOCK *block, std::string const &name);
+void validate_block_config(WT_BLOCK *block, config_parser const &cp);
+void validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const &cp,
+  int expected_ref, std::string const &name, bool readonly = false);
+void validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block,
+  config_parser const &cp, int expected_ref, std::string const &name, bool readonly = false);
+
 void
 validate_block_fh(WT_BLOCK *block, std::string const &name)
 {
@@ -48,12 +56,12 @@ validate_block_config(WT_BLOCK *block, config_parser const &cp)
 
 void
 validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const &cp,
-  uint expected_ref, std::string const &name, bool readonly = false)
+  int expected_ref, std::string const &name, bool readonly = false)
 {
 
     REQUIRE(block != nullptr);
 
-    // Test Block immediate members.
+    // Test block immediate members.
     CHECK(std::string(block->name) == name);
     CHECK(block->objectid == WT_TIERED_OBJECTID_NONE);
     CHECK(block->compact_session_id == WT_SESSION_ID_INVALID);
@@ -62,12 +70,12 @@ validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_par
     CHECK(block->created_during_backup == false);
     CHECK(block->extend_len == 0);
 
-    // Test Block file handle members.
+    // Test block file handle members.
     validate_block_fh(block, name);
     CHECK(std::string(block->live_lock.name) == std::string("block manager"));
     CHECK(block->live_lock.initialized == true);
 
-    // Test Block configuration members.
+    // Test block configuration members.
     validate_block_config(block, cp);
 
     // Connection block lock should not be locked after the function completes.
