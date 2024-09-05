@@ -14,11 +14,11 @@
  * The block session manages an internal caching mechanism for both block and size blocks that are
  * created or discarded.
  */
-#include "wt_internal.h"
 #include <catch2/catch.hpp>
+#include <iostream>
 #include "../wrappers/mock_session.h"
 #include "../wrappers/config_parser.h"
-#include <iostream>
+#include "wt_internal.h"
 
 const std::string ALLOCATION_SIZE = "512";
 const std::string BLOCK_ALLOCATION = "best";

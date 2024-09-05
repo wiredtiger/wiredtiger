@@ -5,8 +5,8 @@
  *
  * See the file LICENSE for redistribution information.
  */
-#include "config_parser.h"
 #include <string>
+#include "config_parser.h"
 
 config_parser::config_parser(const std::map<std::string, std::string> &map)
     : _config_map(std::move(map)), _cfg{nullptr, nullptr, nullptr}

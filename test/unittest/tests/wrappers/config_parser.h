@@ -7,9 +7,9 @@
  */
 #pragma once
 
-#include "wt_internal.h"
 #include <map>
 #include <string>
+#include "wt_internal.h"
 /*
  * WiredTiger requires a config string that is separated by "," to be passed into functions that
  * configure the system. The class aims to create a config parser where the creation of the config
