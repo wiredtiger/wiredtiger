@@ -56,7 +56,7 @@ validate_block_config(WT_BLOCK *block, config_parser const &cp)
 
 void
 validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const &cp,
-  int expected_ref, std::string const &name, bool readonly = false)
+  int expected_ref, std::string const &name, bool readonly)
 {
 
     REQUIRE(block != nullptr);
@@ -86,7 +86,7 @@ validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_par
 
 void
 validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const &cp,
-  uint expected_ref, std::string const &name, bool readonly = false)
+  int expected_ref, std::string const &name, bool readonly)
 {
     WT_CONNECTION_IMPL *conn = session->getMockConnection()->getWtConnectionImpl();
     if (expected_ref == 0) {
