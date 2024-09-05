@@ -16,9 +16,9 @@
  */
 #include <catch2/catch.hpp>
 #include <iostream>
+#include "wt_internal.h"
 #include "../wrappers/mock_session.h"
 #include "../wrappers/config_parser.h"
-#include "wt_internal.h"
 
 const std::string ALLOCATION_SIZE = "512";
 const std::string BLOCK_ALLOCATION = "best";
