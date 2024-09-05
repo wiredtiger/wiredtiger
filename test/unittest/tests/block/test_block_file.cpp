@@ -73,14 +73,14 @@ validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_par
     // Test block file handle members.
     validate_block_fh(block, name);
     CHECK(std::string(block->live_lock.name) == std::string("block manager"));
-    CHECK(block->live_lock.initialized == true);
+    CHECK(static_cast<bool>(block->live_lock.initialized) == true);
 
     // Test block configuration members.
     validate_block_config(block, cp);
 
     // Connection block lock should not be locked after the function completes.
     WT_CONNECTION_IMPL *conn = session->getMockConnection()->getWtConnectionImpl();
-    CHECK(conn->block_lock.initialized == true);
+    CHECK(static_cast<bool>(conn->block_lock.initialized) == true);
     CHECK(conn->block_lock.session_id != session->getWtSessionImpl()->id);
 }
 
@@ -104,7 +104,7 @@ validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, confi
     }
 
     // Connection block lock should not be locked after the function completes.
-    REQUIRE(conn->block_lock.initialized == true);
+    REQUIRE(static_cast<bool>(conn->block_lock.initialized) == true);
     REQUIRE(conn->block_lock.session_id != session->getWtSessionImpl()->id);
 }
 
