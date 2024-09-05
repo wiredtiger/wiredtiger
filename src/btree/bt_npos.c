@@ -255,7 +255,7 @@ restart: /* Restart the search from the root. */
             case WT_REF_DISK:
             case WT_REF_LOCKED:
             case WT_REF_DELETED:
-                /* Can't go down from here but it's ok to return this page. */
+                /* Can't go down from here but it's ok to return the "current" page. */
                 goto done;
             default: /* WT_REF_MEM, WT_REF_SPLIT */
                 goto descend;
@@ -273,8 +273,8 @@ restart: /* Restart the search from the root. */
                 /* Fall through */
             case WT_REF_DELETED:
                 /*
-                 * Can't go down from here. Return this page and __find_closest_leaf will finish the
-                 * job.
+                 * Can't go down from here. Return the "current" page and
+                 * __find_closest_leaf will finish the job.
                  */
                 goto done;
             default: /* WT_REF_DISK, WT_REF_MEM, WT_REF_SPLIT */
