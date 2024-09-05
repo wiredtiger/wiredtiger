@@ -13,5 +13,15 @@ if(CODE_COVERAGE_MEASUREMENT)
     list(APPEND clang_flags "-Wno-unused-function")
 endif ()
 
+if(CODE_STATIC_CHECK)
+    #set(CMAKE_C_COMPILE_OBJECT "<CMAKE_CXX_COMPILER> -cc1 <DEFINES> <INCLUDES> <FLAGS> -o <OBJECT> -c <SOURCE>")
+    #list(INSERT flags 0 "-cc1")
+    #list(APPEND clang_flags -fmacro-backtrace-limit=0 -ferror-limit=1000 -Wno-unused-function -fno-inline -fstandalone-debug -O0)
+    list(REMOVE_ITEM clang_flags -Werror)
+    list(REMOVE_ITEM clang_flags -Weverything)
+    list(APPEND clang_flags -Wno-unused-value -Wno-parentheses-equality -save-temps=obj)
+    #set(clang_flags "")
+endif ()
+
 # Set our common compiler flags that can be used by the rest of our build.
 set(COMPILER_DIAGNOSTIC_C_FLAGS ${clang_flags})

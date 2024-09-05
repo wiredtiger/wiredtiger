@@ -289,3 +289,7 @@ endif()
 
 # Build other tools.
 add_subdirectory(tools/checksum_bitflip)
+
+
+#set(CMAKE_C_COMPILE_OBJECT "<CMAKE_CXX_COMPILER> -cc1 <DEFINES> <INCLUDES> <FLAGS> -o <OBJECT> -c <SOURCE>")
+

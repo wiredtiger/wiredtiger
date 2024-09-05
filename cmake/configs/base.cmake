@@ -145,6 +145,12 @@ config_bool(
 )
 
 config_bool(
+    CODE_STATIC_CHECK
+    "Code static checks"
+    DEFAULT OFF
+)
+
+config_bool(
     INLINE_FUNCTIONS_INSTEAD_OF_MACROS
     "Switch from macros to inline functions where available"
     DEFAULT OFF
