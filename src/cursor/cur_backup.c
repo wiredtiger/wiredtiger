@@ -833,6 +833,7 @@ __backup_start(
          * backup file list until it is complete and valid.
          */
         WT_WITH_HOTBACKUP_WRITE_LOCK(session, WT_CONN_HOTBACKUP_START(conn));
+        conn->hot_backup_timestamp = conn->txn_global.last_ckpt_timestamp;
 
         /* We're the lock holder, we own cleanup. */
         F_SET(cb, WT_CURBACKUP_LOCKER);
