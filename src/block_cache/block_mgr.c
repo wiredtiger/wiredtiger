@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static void __bm_method_set(WT_BM *, bool);
 static int __bm_sync_tiered_handles(WT_BM *, WT_SESSION_IMPL *);
 
 /*
@@ -243,7 +242,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
          * it. Although the btree layer prevents attempts to write a checkpoint reference, paranoia
          * is healthy.
          */
-        __bm_method_set(bm, true);
+        __wt_bm_method_set(bm, true);
     }
 
     return (0);
@@ -891,11 +890,11 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 }
 
 /*
- * __bm_method_set --
+ * __wt_bm_method_set --
  *     Set up the legal methods.
  */
-static void
-__bm_method_set(WT_BM *bm, bool readonly)
+void
+__wt_bm_method_set(WT_BM *bm, bool readonly)
 {
     bm->addr_invalid = __bm_addr_invalid;
     bm->addr_string = __bm_addr_string;
@@ -971,7 +970,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
     __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
 
     WT_RET(__wt_calloc_one(session, &bm));
-    __bm_method_set(bm, false);
+    __wt_bm_method_set(bm, false);
     bm->is_multi_handle = false;
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
@@ -1008,5 +1007,5 @@ void
 __wt_blkcache_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     /* Switch the handle into read-only mode. */
-    __bm_method_set(S2BT(session)->bm, true);
+    __wt_bm_method_set(S2BT(session)->bm, true);
 }
