@@ -26,8 +26,13 @@ mock_session::mock_session(
 
 mock_session::~mock_session()
 {
+    WT_CONNECTION_IMPL *connection_impl = _mock_connection->get_wt_connection_impl();
     if (_session_impl->block_manager != nullptr)
         __wt_free(nullptr, _session_impl->block_manager);
+    // FIXME-WT-13505: Move terminate function to connection once circular dependency is fixed.
+    if (connection_impl->file_system != nullptr)
+        utils::throw_if_non_zero(connection_impl->file_system->terminate(
+          connection_impl->file_system, reinterpret_cast<WT_SESSION *>(_session_impl)));
     __wt_free(nullptr, _session_impl);
 }
 
