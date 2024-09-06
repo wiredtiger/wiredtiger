@@ -2982,7 +2982,7 @@ tasks:
         params:
           expansion_name: github_token
           permissions:
-              pull-requests: write
+            pull-requests: write
       - command: shell.exec
         vars:
           dependent_task: "generate-coverage-report"
