@@ -490,8 +490,8 @@ oligarch_config = [
     Config('stable', '', r'''
         URI for oligarch stable table''',
         type='string', undoc=True),
-    Config('stable_follower_prefix', '', r'''
-        directory of another WT oligarch stable table''',
+    Config('stable_prefix', '', r'''
+        directory of WT oligarch stable table''',
         type='string', undoc=True),
 ]
 
@@ -1432,6 +1432,9 @@ methods = {
         information or creating a checkpoint. The update will also only be applied to table
         URI entries in the metadata, not their sub-entries.''',
         type='boolean', undoc=True),
+    Config('role', '', r'''
+        whether the oligarch stable table should lead or follow''',
+        choices=['leader', 'follower'], undoc=True),
 ]),
 
 'WT_SESSION.close' : Method([]),

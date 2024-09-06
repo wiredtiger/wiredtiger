@@ -28,10 +28,10 @@ __oligarch_metadata_watcher(void *arg)
 
     fprintf(stderr, "created metadata watcher thread\n");
 
-    len = strlen(conn->iface.stable_follower_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
     WT_ERR(__wt_calloc_def(session, len, &md_path));
     WT_ERR(__wt_snprintf(
-      md_path, len, "%s/%s", conn->iface.stable_follower_prefix, WT_OLIGARCH_METADATA_FILE));
+      md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
     WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
     WT_ERR(__wt_filesize(session, md_fh, &last_sz));
 
@@ -39,6 +39,9 @@ __oligarch_metadata_watcher(void *arg)
         __wt_sleep(0, 1000);
         if (F_ISSET(conn, WT_CONN_CLOSING))
             break;
+
+        if (((WT_OLIGARCH *)(S2BT(session)->dhandle))->leader)
+            continue;
 
         WT_ERR(__wt_filesize(session, md_fh, &new_sz));
         if (new_sz == last_sz)

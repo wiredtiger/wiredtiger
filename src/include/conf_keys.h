@@ -291,7 +291,7 @@
 #define WT_CONF_ID_split_pct 47ULL
 #define WT_CONF_ID_src_id 138ULL
 #define WT_CONF_ID_stable 91ULL
-#define WT_CONF_ID_stable_follower_prefix 92ULL
+#define WT_CONF_ID_stable_prefix 92ULL
 #define WT_CONF_ID_stable_timestamp 158ULL
 #define WT_CONF_ID_start_generation 82ULL
 #define WT_CONF_ID_statistics 146ULL
@@ -694,7 +694,7 @@ static const struct {
     uint64_t split_deepen_per_child;
     uint64_t split_pct;
     uint64_t stable;
-    uint64_t stable_follower_prefix;
+    uint64_t stable_prefix;
     uint64_t stable_timestamp;
     uint64_t statistics;
     uint64_t storage_source;
@@ -1067,7 +1067,7 @@ static const struct {
   WT_CONF_ID_split_deepen_per_child,
   WT_CONF_ID_split_pct,
   WT_CONF_ID_stable,
-  WT_CONF_ID_stable_follower_prefix,
+  WT_CONF_ID_stable_prefix,
   WT_CONF_ID_stable_timestamp,
   WT_CONF_ID_statistics,
   WT_CONF_ID_storage_source,

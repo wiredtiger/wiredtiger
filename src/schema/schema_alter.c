@@ -112,6 +112,46 @@ __alter_object(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 }
 
 /*
+ * __alter_oligarch --
+ *     Alter an oligarch table.
+ */
+static int
+__alter_oligarch(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[], uint32_t flags)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_OLIGARCH *oligarch;
+
+    if (!WT_PREFIX_MATCH(uri, "oligarch:"))
+        return (__wt_unexpected_object_type(session, uri, "oligarch:"));
+
+    if (LF_ISSET(WT_DHANDLE_EXCLUSIVE)) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(
+          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false, false));
+        WT_RET(ret);
+    }
+
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
+    oligarch = (WT_OLIGARCH *)session->dhandle;
+
+    WT_ERR_NOTFOUND_OK(__wt_config_gets(session, newcfg, "role", &cval), true);
+    if (ret != WT_NOTFOUND) {
+        if (WT_CONFIG_LIT_MATCH("leader", cval))
+            oligarch->leader = true;
+        else if (WT_CONFIG_LIT_MATCH("follower", cval))
+            oligarch->leader = false;
+        else
+            /* TODO better error message. */
+            WT_RET(EINVAL);
+    }
+    ret = 0;
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __alter_get_object_id_range --
  *     Get current and oldest object IDs for the tiered object.
  */
@@ -424,6 +464,8 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
         return (__wt_lsm_tree_worker(session, uri, __alter_file, NULL, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "object:"))
         return (__alter_object(session, uri, newcfg));
+    if (WT_PREFIX_MATCH(uri, "oligarch:"))
+        return (__alter_oligarch(session, uri, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "table:"))
         return (__alter_table(session, uri, newcfg, exclusive_refreshed));
     if (WT_PREFIX_MATCH(uri, "tier:"))

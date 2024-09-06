@@ -834,6 +834,11 @@ static const uint8_t confchk_WT_SESSION_create_log_subconfigs_jump[WT_CONFIG_JUM
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+const char __WT_CONFIG_CHOICE_leader[] = "leader";
+const char __WT_CONFIG_CHOICE_follower[] = "follower";
+
+static const char *confchk_role_choices[] = {
+  __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
 const char __WT_CONFIG_CHOICE_write_timestamp[] = "write_timestamp";
 
 static const char *confchk_verbose2_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
@@ -866,6 +871,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_alter[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
+  {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN, INT64_MAX, confchk_role_choices},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX, confchk_verbose2_choices},
   {"write_timestamp_usage", "string", NULL,
@@ -879,7 +886,7 @@ static const uint8_t confchk_WT_SESSION_alter_jump[WT_CONFIG_JUMP_TABLE_SIZE] = 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 5, 5, 6, 6, 6,
-  6, 6, 6, 6, 7, 7, 7, 9, 9, 9, 9, 9, 9, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11};
+  6, 6, 6, 6, 7, 7, 7, 9, 9, 9, 10, 10, 10, 10, 11, 12, 12, 12, 12, 12, 12, 12, 12};
 const char __WT_CONFIG_CHOICE_false[] = "false";
 const char __WT_CONFIG_CHOICE_force[] = "force";
 const char __WT_CONFIG_CHOICE_true[] = "true";
@@ -1137,10 +1144,8 @@ static const uint8_t confchk_WT_SESSION_create_lsm_subconfigs_jump[WT_CONFIG_JUM
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 6,
   9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
   12};
-const char __WT_CONFIG_CHOICE_leader[] = "leader";
-const char __WT_CONFIG_CHOICE_follower[] = "follower";
 
-static const char *confchk_role_choices[] = {
+static const char *confchk_role2_choices[] = {
   __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_tiered_storage_subconfigs[] = {
@@ -1266,7 +1271,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
     0, INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN, INT64_MAX, confchk_role_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN, INT64_MAX, confchk_role2_choices},
   {"source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 8, INT64_MIN,
     INT64_MAX, NULL},
   {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
@@ -1277,8 +1282,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     100, NULL},
   {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 91, INT64_MIN,
     INT64_MAX, NULL},
-  {"stable_follower_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    92, INT64_MIN, INT64_MAX, NULL},
+  {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 92,
+    INT64_MIN, INT64_MAX, NULL},
   {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
@@ -2210,7 +2215,7 @@ static const uint8_t confchk_object_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 18, 18,
   20, 26, 26, 28, 33, 35, 35, 37, 39, 39, 40, 44, 46, 46, 49, 50, 50, 50, 50, 50, 50, 50, 50};
 
-static const char *confchk_role2_choices[] = {
+static const char *confchk_role3_choices[] = {
   __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
 
 static const char *confchk_verbose10_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
@@ -2234,11 +2239,11 @@ static const WT_CONFIG_CHECK confchk_oligarch_meta[] = {
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_FORMAT,
     30, INT64_MIN, INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN, INT64_MAX, confchk_role2_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN, INT64_MAX, confchk_role3_choices},
   {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 91, INT64_MIN,
     INT64_MAX, NULL},
-  {"stable_follower_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    92, INT64_MIN, INT64_MAX, NULL},
+  {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 92,
+    INT64_MIN, INT64_MAX, NULL},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_FORMAT, 57, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0, NULL,
@@ -3846,8 +3851,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "read_timestamp=none,write_timestamp=off),cache_resident=false,"
     "checkpoint=,exclusive_refreshed=true,log=(enabled=true,"
     "oligarch_constituent=false),os_cache_dirty_max=0,os_cache_max=0,"
-    "verbose=[],write_timestamp_usage=none",
-    confchk_WT_SESSION_alter, 11, confchk_WT_SESSION_alter_jump, 18, WT_CONF_SIZING_NONE, false},
+    "role=,verbose=[],write_timestamp_usage=none",
+    confchk_WT_SESSION_alter, 12, confchk_WT_SESSION_alter_jump, 18, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.begin_transaction",
     "ignore_prepare=false,isolation=,name=,no_timestamp=false,"
     "operation_timeout_ms=0,priority=0,read_timestamp=,"
@@ -3891,12 +3896,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "merge_min=0),memory_page_image_max=0,memory_page_max=5MB,"
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,role=,source=,split_deepen_min_child=0,"
-    "split_deepen_per_child=0,split_pct=90,stable=,"
-    "stable_follower_prefix=,storage_source=,"
-    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "cache_directory=,local_retention=300,name=,object_target_size=0,"
-    "shared=false),type=file,value_format=u,verbose=[],"
-    "write_timestamp_usage=none",
+    "split_deepen_per_child=0,split_pct=90,stable=,stable_prefix=,"
+    "storage_source=,tiered_storage=(auth_token=,bucket=,"
+    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
+    "object_target_size=0,shared=false),type=file,value_format=u,"
+    "verbose=[],write_timestamp_usage=none",
     confchk_WT_SESSION_create, 53, confchk_WT_SESSION_create_jump, 24, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
@@ -4060,7 +4064,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,ingest=,key_format=u,role=,stable=,"
-    "stable_follower_prefix=,value_format=u,verbose=[],"
+    "stable_prefix=,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
     confchk_oligarch_meta, 12, confchk_oligarch_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"table.meta",
