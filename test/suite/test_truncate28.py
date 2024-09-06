@@ -44,12 +44,6 @@ class test_truncate28(wttest.WiredTigerTestCase):
         evict_cursor.close()
         self.session.rollback_transaction()
 
-    def get_fast_truncated_pages(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        stat_cursor.close()
-        return pages
-
     def test_truncate28(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
@@ -93,8 +87,7 @@ class test_truncate28(wttest.WiredTigerTestCase):
         self.evict_cursor(uri, nrows + 1)
         self.session.checkpoint()
 
-        # Do a fast truncate.
-        # The commit timestamp is less than the previous durable timestamp.
+        # Do a fast truncate with a commit timestamp is less than the previous durable timestamp on the page.
         truncate_ts = nrows
         truncate_session = self.conn.open_session()
         truncate_session.begin_transaction()
@@ -102,11 +95,9 @@ class test_truncate28(wttest.WiredTigerTestCase):
         cursor_start.set_key(nrows // 2)
         truncate_session.truncate(None, cursor_start, None, None)
 
+        # The commit fails because the commit timestamp is less than the previous durable timestamp.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: truncate_session.commit_transaction('commit_timestamp=' + self.timestamp_str(truncate_ts)),
             '/unexpected timestamp usage/')
         cursor_start.close()
-
-        # Make the fast truncate stable.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(durable_ts))
-        self.session.checkpoint()
+        truncate_session.close()
