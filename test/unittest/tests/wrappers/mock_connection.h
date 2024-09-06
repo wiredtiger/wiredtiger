@@ -35,7 +35,7 @@ public:
     int setup_chunk_cache(WT_SESSION_IMPL *, uint64_t, size_t, WT_CHUNKCACHE *&);
     // Initialize the data structures, in-memory file system and variables used for file handles and
     // blocks. The block manager requires both to perform file type operations.
-    int setupBlockManager(WT_SESSION_IMPL *);
+    int setup_block_manager(WT_SESSION_IMPL *);
 
 private:
     explicit mock_connection(WT_CONNECTION_IMPL *connection_impl);

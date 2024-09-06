@@ -55,7 +55,7 @@ mock_connection::setup_chunk_cache(
 }
 
 int
-MockConnection::setupBlockManager(WT_SESSION_IMPL *session)
+mock_connection::setup_block_manager(WT_SESSION_IMPL *session)
 {
     // Check that there should be no connection flags set.
     WT_ASSERT(session, _connection_impl->flags == 0);
