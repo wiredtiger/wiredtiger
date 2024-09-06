@@ -11,7 +11,6 @@
 #include <regex>
 #include <sstream>
 
-#include "extern.h"
 #include "wiredtiger.h"
 #include "wt_internal.h"
 #include "../utils.h"

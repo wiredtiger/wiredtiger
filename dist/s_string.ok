@@ -817,7 +817,6 @@ gcc
 gcp
 gdb
 ge
-getWtSessionImpl
 getenv
 getlasterror
 getline
