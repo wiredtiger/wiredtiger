@@ -31,6 +31,13 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
 /*
  * __block_off_srch_last --
  *     Return the last element in the list, along with a stack for appending.
+ *
+ * If head[i] == NULL then stack[i] = &head[i]. Thus setting *stack[i] in __block_append updates
+ *     WT_EXTLIST.off[i] to point to the new last extent since __block_off_srch_last is called with
+ *     head = WT_EXTLIST.off[].
+ *
+ * If head[i] != NULL stack[i] is not changed. Thus setting *stack[i] in __block_append updates
+ *     WT_EXT.next[] of the former last extent to point to the new last extent.
  */
 static WT_INLINE WT_EXT *
 __block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
@@ -390,6 +397,7 @@ __block_off_remove(
 
     /* Update the cached end-of-list. */
     if (el->last == ext)
+        /* Request a lazy update of el->last in __block_append. */
         el->last = NULL;
 
     return (0);
@@ -996,18 +1004,25 @@ __block_append(
 
     /*
      * Identical to __block_merge, when we know the file is being extended, that is, the information
-     * is either going to be used to extend the last object on the list, or the extent list is
-     * empty.
+     * is either going to be used to extend the last object on the list, or become a new object
+     * ending the list.
+     *
+     * The terminating element of the list is cached, check it; otherwise, get a stack for the last
+     * object in the skiplist, check for a simple extension, and otherwise append a new structure.
      */
     if ((ext = el->last) != NULL && ext->off + ext->size == off)
         /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
         ext->size += size;
     else {
+        /* Do the lazy update of el->last requested in __block_off_remove. */
         ext = __block_off_srch_last(el->off, astack);
         if (ext != NULL && ext->off + ext->size == off)
             /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
             ext->size += size;
-        else if (ext == NULL) {
+        else {
+            if (ext != NULL)
+                /* Assert that this is appending an extent after the last extent. */
+                WT_ASSERT(session, ext->off + ext->size < off);
             WT_RET(__wti_block_ext_alloc(session, &ext));
             ext->off = off;
             ext->size = size;
@@ -1015,15 +1030,10 @@ __block_append(
             for (i = 0; i < ext->depth; ++i)
                 *astack[i] = ext;
             ++el->entries;
-
-            /* Update the cached end-of-list */
-            el->last = ext;
-        } else {
-            /* Assert that this is appending an extent after the last extent. */
-            WT_ASSERT(session, ext->off + ext->size < off);
-            /* off is not adjacent to the end of the last extent. */
-            return (__block_merge(session, block, el, off, size));
         }
+
+        /* Update the cached end-of-list */
+        el->last = ext;
     }
     el->bytes += (uint64_t)size;
 
