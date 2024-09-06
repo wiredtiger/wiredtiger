@@ -35,7 +35,7 @@ TEST_CASE("Block helper: __wt_rduppo2", "[block]")
 }
 
 static void
-test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
+test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expected_bits)
 {
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
     block_mods block_mods;
@@ -50,8 +50,8 @@ test_ckpt_add_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expectedBits)
       session->get_wt_session_impl(), block_mods.get_wt_block_mods(), offset, len);
     REQUIRE(result == 0);
 
-    REQUIRE(block_mods.get_wt_block_mods()->nbits == expectedBits);
-    REQUIRE(block_mods.get_wt_block_mods()->bitstring.memsize == (expectedBits / 8));
+    REQUIRE(block_mods.get_wt_block_mods()->nbits == expected_bits);
+    REQUIRE(block_mods.get_wt_block_mods()->bitstring.memsize == (expected_bits / 8));
     REQUIRE(block_mods.get_wt_block_mods()->bitstring.mem != nullptr);
     REQUIRE(block_mods.get_wt_block_mods()->bitstring.data != nullptr);
 }
