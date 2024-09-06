@@ -1172,6 +1172,8 @@ __coligarch_close_int(WT_CURSOR *cursor)
 
     __wt_cursor_close(cursor);
 
+    WT_TRET(__wt_session_release_dhandle(session));
+
     return (ret);
 }
 
