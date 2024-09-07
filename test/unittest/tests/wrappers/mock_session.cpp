@@ -19,7 +19,7 @@ mock_session::mock_session(
     // We could initialize this in the list but order is important and this seems easier.
     _handler_wrap.handler = {
       handle_wiredtiger_error, handle_wiredtiger_message, nullptr, nullptr, nullptr};
-    _handler_wrap.mock_session = this;
+    _handler_wrap.ms = this;
 
     _session_impl->event_handler = &_handler_wrap.handler;
 }
@@ -70,6 +70,6 @@ handle_wiredtiger_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int, con
 int
 handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *, const char *message)
 {
-    reinterpret_cast<event_handler_wrap *>(handler)->mock_session->add_callback_message(message);
+    reinterpret_cast<event_handler_wrap *>(handler)->ms->add_callback_message(message);
     return (0);
 }

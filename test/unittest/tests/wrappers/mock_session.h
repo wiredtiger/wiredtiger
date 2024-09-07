@@ -25,7 +25,7 @@ class mock_session;
 /* This is a convenience type that lets us get back to our mock from the handler callback. */
 struct event_handler_wrap {
     WT_EVENT_HANDLER handler;
-    mock_session *mock_session;
+    mock_session *ms;
 };
 
 class mock_session {
