@@ -26,8 +26,6 @@ mock_connection::~mock_connection()
         __wt_spin_destroy(nullptr, &_connection_impl->block_lock);
     __wt_free(nullptr, _connection_impl->chunkcache.free_bitmap);
     __wt_free(nullptr, _connection_impl);
-    __wt_free(nullptr, _connection_impl->chunkcache.free_bitmap);
-    __wt_free(nullptr, _connection_impl);
 }
 
 std::shared_ptr<mock_connection>
