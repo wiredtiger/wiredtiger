@@ -32,12 +32,10 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
  * __block_off_srch_last --
  *     Return the last element in the list, along with a stack for appending.
  *
- * If head[i] == NULL then stack[i] = &head[i]. Thus setting *stack[i] in __block_append updates
- *     WT_EXTLIST.off[i] to point to the new last extent since __block_off_srch_last is called with
- *     head = WT_EXTLIST.off[].
- *
- * If head[i] != NULL stack[i] is not changed. Thus setting *stack[i] in __block_append updates
- *     WT_EXT.next[] of the former last extent to point to the new last extent.
+ * Return a stack such that the caller can append a new entry to the skip list by inserting it after
+ *     each element in the stack. For non-empty levels, this will be the last element at that level
+ *     of the skip list. For a level with no entries, this will be the corresponding entry in the
+ *     head stack.
  */
 static WT_INLINE WT_EXT *
 __block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
@@ -397,7 +395,7 @@ __block_off_remove(
 
     /* Update the cached end-of-list. */
     if (el->last == ext)
-        /* Request a lazy update of el->last in __block_append. */
+        /* To save time, update to the correct value later. */
         el->last = NULL;
 
     return (0);
@@ -1014,7 +1012,6 @@ __block_append(
         /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
         ext->size += size;
     else {
-        /* Do the lazy update of el->last requested in __block_off_remove. */
         ext = __block_off_srch_last(el->off, astack);
         if (ext != NULL && ext->off + ext->size == off)
             /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
