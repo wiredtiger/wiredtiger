@@ -589,11 +589,11 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_evict_destroy --
+ * __wt_evict_threads_destroy --
  *     Destroy the eviction threads.
  */
 int
-__wt_evict_destroy(WT_SESSION_IMPL *session)
+__wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 

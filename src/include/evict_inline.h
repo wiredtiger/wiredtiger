@@ -57,6 +57,31 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_cache_read_gen_bump --
+ *     Update the page's read generation.
+ */
+static WT_INLINE void
+__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /* Ignore pages set for forcible eviction. */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
+        return;
+
+    /* Ignore pages already in the future. */
+    if (__wt_atomic_load64(&page->read_gen) > __wt_cache_read_gen(session))
+        return;
+
+    /*
+     * We set read-generations in the future (where "the future" is measured by increments of the
+     * global read generation). The reason is because when acquiring a new hazard pointer for a
+     * page, we can check its read generation, and if the read generation isn't less than the
+     * current global generation, we don't bother updating the page. In other words, the goal is to
+     * avoid some number of updates immediately after each update we have to make.
+     */
+    __wt_atomic_store64(&page->read_gen, __wt_cache_read_gen(session) + WT_READGEN_STEP);
+}
+
+/*
  * __wt_cache_stuck --
  *     Indicate if the cache is stuck (i.e., not making progress).
  */

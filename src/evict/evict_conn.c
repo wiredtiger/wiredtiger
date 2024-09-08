@@ -222,11 +222,11 @@ __evict_config_local(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wti_eviction_config --
+ * __wt_eviction_config --
  *     Configure or reconfigure eviction.
  */
 int
-__wti_eviction_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wt_eviction_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -248,11 +248,11 @@ __wti_eviction_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig
 }
 
 /*
- * __wti_eviction_stats_update --
+ * __wt_eviction_stats_update --
  *     Update the eviction statistics for return to the application.
  */
 void
-__wti_eviction_stats_update(WT_SESSION_IMPL *session)
+__wt_eviction_stats_update(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
@@ -288,11 +288,11 @@ __wti_eviction_stats_update(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_eviction_create --
+ * __wt_eviction_create --
  *     Initialize Eviction.
  */
 int
-__wti_eviction_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_eviction_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -308,7 +308,7 @@ __wti_eviction_create(WT_SESSION_IMPL *session, const char *cfg[])
     evict = conn->evict;
 
     /* Use a common routine for run-time configuration options. */
-    WT_RET(__wti_eviction_config(session, cfg, false));
+    WT_RET(__wt_eviction_config(session, cfg, false));
 
     /*
      * The lowest possible page read-generation has a special meaning, it marks a page for forcible
@@ -341,16 +341,16 @@ __wti_eviction_create(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * We get/set some values in the cache statistics (rather than have two copies), configure them.
      */
-    __wti_eviction_stats_update(session);
+    __wt_eviction_stats_update(session);
     return (0);
 }
 
 /*
- * __wti_eviction_destroy --
+ * __wt_eviction_destroy --
  *     Destroy Eviction.
  */
 int
-__wti_eviction_destroy(WT_SESSION_IMPL *session)
+__wt_eviction_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

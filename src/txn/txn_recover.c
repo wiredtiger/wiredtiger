@@ -1184,7 +1184,7 @@ done:
      * expects a clean tree.
      */
     if (eviction_started)
-        WT_TRET(__wt_evict_destroy(session));
+        WT_TRET(__wt_evict_threads_destroy(session));
 
     if (do_checkpoint || rts_executed) {
         __wt_timer_start(session, &checkpoint_timer);
@@ -1245,7 +1245,7 @@ err:
      * once the history store table is created.
      */
     if (eviction_started)
-        WT_TRET(__wt_evict_destroy(session));
+        WT_TRET(__wt_evict_threads_destroy(session));
 
     WT_TRET(__wt_session_close_internal(session));
     F_SET(conn, WT_CONN_RECOVERY_COMPLETE);
