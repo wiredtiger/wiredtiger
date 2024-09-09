@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "evict_private.h"
 
 static int __evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *);
 static void __evict_list_clear_page_locked(WT_SESSION_IMPL *, WT_REF *, bool);
@@ -644,7 +645,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     cache = conn->cache;
     evict = conn->evict;
 
-    dirty_target = __wti_eviction_dirty_target(session);
+    dirty_target = __eviction_dirty_target(session);
     dirty_trigger = evict->eviction_dirty_trigger;
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
@@ -773,7 +774,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * currently required, so that pages have some relative read generation when the eviction
          * server does need to do some work.
          */
-        __wti_cache_read_gen_incr(session);
+        __cache_read_gen_incr(session);
         __wt_atomic_add64(&evict->evict_pass_gen, 1);
 
         /*
@@ -1591,7 +1592,7 @@ retry:
          * its pages.
          */
         if (btree->evict_priority != 0 && !__wt_cache_aggressive(session) &&
-          !__wti_btree_dominating_cache(session, btree)) {
+          !__btree_dominating_cache(session, btree)) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_stick_in_cache);
             continue;
         }
@@ -1888,7 +1889,7 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
      * can generate even more HS content and will not help with the cache pressure, and will
      * probably just amplify it further.
      */
-    if (!WT_IS_HS(btree->dhandle) && __wti_cache_hs_dirty(session)) {
+    if (!WT_IS_HS(btree->dhandle) && __cache_hs_dirty(session)) {
         /* If target pages are less than 10, keep it like that. */
         if (target_pages >= 10) {
             target_pages = target_pages / 10;
@@ -2133,7 +2134,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
      * configured cache size during checkpoints where reconciling non-HS pages can generate a
      * significant amount of HS dirty content very quickly.
      */
-    if (WT_IS_HS(btree->dhandle) && __wti_cache_hs_dirty(session)) {
+    if (WT_IS_HS(btree->dhandle) && __cache_hs_dirty(session)) {
         WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
         if (__wt_page_evict_urgent(session, ref))
             *urgent_queuedp = true;
