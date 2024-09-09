@@ -87,7 +87,7 @@ def prototypes_extern():
     fns = []
     tests = []
     for name in source_files():
-        if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
+        if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*/*_inline.h'):
             continue;
         if fnmatch.fnmatch(name, '*/checksum/arm64/*'):
             continue
