@@ -33,11 +33,11 @@ __cache_read_gen(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_cache_read_gen_new --
+ * __wt_cache_read_gen_new --
  *     Get the read generation for a new page in memory.
  */
 static WT_INLINE void
-__wti_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_EVICT *evict;
 
@@ -46,11 +46,11 @@ __wti_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wti_cache_read_gen_bump --
+ * __wt_cache_read_gen_bump --
  *     Update the page's read generation.
  */
 static WT_INLINE void
-__wti_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
@@ -186,12 +186,12 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 /*
- * __wti_eviction_updates_needed --
+ * __wt_eviction_updates_needed --
  *     Return if an application thread should do eviction due to the total volume of updates in
  *     cache.
  */
 static WT_INLINE bool
-__wti_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+__wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     WT_EVICT *evict;
     uint64_t bytes_max, bytes_updates;
@@ -237,7 +237,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
         pct_dirty = pct_updates = 0.0;
     } else {
         dirty_needed = __wt_eviction_dirty_needed(session, &pct_dirty);
-        updates_needed = __wti_eviction_updates_needed(session, &pct_updates);
+        updates_needed = __wt_eviction_updates_needed(session, &pct_updates);
     }
 
     /*
@@ -340,7 +340,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     if (didworkp != NULL)
         *didworkp = true;
 
-    return (__wti_cache_eviction_worker(session, busy, readonly, pct_full));
+    return (__wt_cache_eviction_worker(session, busy, readonly, pct_full));
 }
 
 /*
@@ -354,14 +354,14 @@ __wt_evict_page_init(WT_PAGE *page)
 }
 
 /*
- * __wti_readgen_evict_soon --
+ * __wt_readgen_evict_soon --
  *     Return whether a read generation value makes a page eligible for immediate eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
  *     immediately.
  */
 static WT_INLINE bool
-__wti_readgen_evict_soon(uint64_t *read_gen)
+__wt_readgen_evict_soon(uint64_t *read_gen)
 {
     uint64_t gen;
 
@@ -376,7 +376,7 @@ __wti_readgen_evict_soon(uint64_t *read_gen)
 static WT_INLINE bool
 __wt_evict_page_is_soon(WT_PAGE *page)
 {
-    return (__wti_readgen_evict_soon(&page->read_gen));
+    return (__wt_readgen_evict_soon(&page->read_gen));
 }
 
 /*
@@ -414,9 +414,9 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only, b
         if (wont_need)
             __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
         else
-            __wti_cache_read_gen_new(session, page);
+            __wt_cache_read_gen_new(session, page);
     } else if (!init_only)
-        __wti_cache_read_gen_bump(session, page);
+        __wt_cache_read_gen_bump(session, page);
 }
 
 /*
@@ -427,5 +427,5 @@ static WT_INLINE void
 __wt_evict_page_needed(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
-        __wti_cache_read_gen_new(session, page);
+        __wt_cache_read_gen_new(session, page);
 }

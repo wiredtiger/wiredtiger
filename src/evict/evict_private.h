@@ -86,3 +86,13 @@ __cache_hs_dirty(WT_SESSION_IMPL *session)
               conn->cache, __wt_atomic_load64(&conn->cache->bytes_hs_dirty)) >=
       ((uint64_t)(evict->eviction_dirty_trigger * bytes_max) / 100));
 }
+
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+extern void __wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref);
+
+#ifdef HAVE_UNITTEST
+
+#endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */

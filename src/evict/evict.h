@@ -178,3 +178,72 @@ struct __wt_evict {
 #define WT_EVICT_CALL_NO_SPLIT 0x2u /* Splits not allowed */
 #define WT_EVICT_CALL_URGENT 0x4u   /* Urgent eviction */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+extern bool __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  double pct_full) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state,
+  uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_threads_create(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_eviction_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_eviction_create(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_eviction_destroy(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
+extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
+extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
+extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
+extern void __wt_evict_server_wake(WT_SESSION_IMPL *session);
+extern void __wt_eviction_stats_update(WT_SESSION_IMPL *session);
+static WT_INLINE bool __wt_cache_aggressive(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_cache_stuck(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_evict_page_is_soon(WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_eviction_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_eviction_clean_pressure(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_readgen_evict_soon(uint64_t *read_gen)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_page_dirty_and_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE void __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
+static WT_INLINE void __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+static WT_INLINE void __wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
+static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
+static WT_INLINE void __wt_evict_page_needed(WT_SESSION_IMPL *session, WT_PAGE *page);
+static WT_INLINE void __wt_evict_touch_page(
+  WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only, bool wont_need);
+static WT_INLINE void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);
+
+#ifdef HAVE_UNITTEST
+
+#endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */

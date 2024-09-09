@@ -53,12 +53,12 @@ def extract_prototypes(filename, regexp):
     return ret
 
 # Build function prototypes from a list of files.
-def fn_prototypes(fns, tests, name):
+def fn_prototypes(ext_fns, int_fns, tests, name):
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wt_[^{]*'):
-        fns.append(sig)
+        ext_fns.append(sig)
 
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wti_[^{]*'):
-        fns.append(sig)
+        int_fns.append(sig)
 
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__ut_[^{]*'):
         tests.append(sig)
@@ -66,29 +66,74 @@ def fn_prototypes(fns, tests, name):
 # Write results and compare to the current file.
 # Unit-testing functions are exposed separately in their own section to
 # allow them to be ifdef'd out.
-def output(fns, tests, f):
+def output(ext_fns, tests, f):
     tmp_file = '__tmp_prototypes' + str(os.getpid())
-    tfile = open(tmp_file, 'w')
-    tfile.write("#pragma once\n\n")
-    for e in sorted(list(set(fns))):
-        tfile.write(e)
 
-    tfile.write('\n#ifdef HAVE_UNITTEST\n')
-    for e in sorted(list(set(tests))):
-        tfile.write(e)
-    tfile.write('\n#endif\n')
+    if not os.path.isfile(f):
+        # No such file. Write it from scratch
+        tfile = open(tmp_file, 'w')
+        tfile.write("#pragma once\n\n")
 
-    tfile.close()
+        tfile.write("/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n\n")
+        for e in sorted(list(set(ext_fns))):
+            tfile.write(e)
+
+        tfile.write('\n#ifdef HAVE_UNITTEST\n')
+        for e in sorted(list(set(tests))):
+            tfile.write(e)
+        tfile.write('\n#endif\n')
+        tfile.write("\n\n/* DO NOT EDIT: automatically built by prototypes.py: END */\n")
+
+        tfile.close()
+    else:
+        # File exists. We want to modify the contents
+        with open(f, 'r') as file:
+            lines = file.readlines()
+
+        # Modify protoypes
+        start_line = lines.index('/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n')
+        end_line = lines.index('/* DO NOT EDIT: automatically built by prototypes.py: END */\n')
+
+        # Safety check: We should always have some functions defined in the file
+        assert(start_line + 1 != end_line)
+
+        # All content before START
+        new_lines = lines[:start_line + 1]
+        new_lines.append("\n") # maintain the new line after START
+
+        # Replace the function prototypes
+        for e in sorted(list(set(ext_fns))):
+            new_lines.append(e)
+
+        new_lines.append('\n#ifdef HAVE_UNITTEST\n')
+        for e in sorted(list(set(tests))):
+            new_lines.append(e)
+        new_lines.append('\n#endif\n')
+
+        # All content after END
+        new_lines.append("\n") # maintain the new line before END
+        new_lines.extend(lines[end_line:])
+
+        with open(tmp_file, 'w') as file:
+            file.writelines(new_lines)
     format_srcfile(tmp_file)
     compare_srcfile(tmp_file, f)
 
+from collections import defaultdict
+
 # Update generic function prototypes.
 def prototypes_extern():
-    fns = []
-    tests = []
+    ext_func_dict = defaultdict(list)
+    int_func_dict = defaultdict(list)
+    test_dict = defaultdict(list)
+
+    # This is the list of components that have been modularised as part of Q3 and following work.
+    # They place header files inside the src/foo folder rather than in src/include
+    modularised_components = ["evict"]
+
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*/*_inline.h'):
-            continue;
+            continue
         if fnmatch.fnmatch(name, '*/checksum/arm64/*'):
             continue
         if fnmatch.fnmatch(name, '*/checksum/loongarch64/*'):
@@ -99,15 +144,44 @@ def prototypes_extern():
             continue
         if fnmatch.fnmatch(name, '*/checksum/zseries/*'):
             continue
+        if fnmatch.fnmatch(name, '*/checksum/*'):
+            # TODO - checksum is a multi-level directory and this script assumes a flat hierarchy.
+            # For now throw these functions into extern.h where they were already located
+            fn_prototypes(ext_func_dict["include"], int_func_dict["include"], 
+                          test_dict["include"], name)
+            continue
         if re.match(r'^.*/os_(?:posix|win|linux|darwin)/.*', name):
             # Handled separately in prototypes_os().
             continue
         if fnmatch.fnmatch(name, '*/ext/*'):
             continue
-        fn_prototypes(fns, tests, name)
 
-    output(fns, tests, "../src/include/extern.h")
+        if fnmatch.fnmatch(name, '../src/*'):
+            # NOTE: This assumes a flat directory with no subdirectories
+            comp = os.path.basename(os.path.dirname(name))
+            if comp not in modularised_components:
+                # Non modularised components put all their function prototypes in 
+                # src/include/extern.h
+                fn_prototypes(ext_func_dict["include"], int_func_dict["include"], 
+                              test_dict["include"], name)
+            else:
+                fn_prototypes(ext_func_dict[comp], int_func_dict[comp], test_dict[comp], name)
+        else:
+            print(f"Unexpected filepath {name}")
+            exit(1)
 
+
+    for comp in ext_func_dict.keys():
+        if comp == "include":
+            # All of these functions go in extern.h
+            output(ext_func_dict[comp] + int_func_dict[comp], test_dict[comp], 
+                   f"../src/include/extern.h")
+        else:
+            output(ext_func_dict[comp], test_dict[comp], f"../src/{comp}/{comp}.h")
+            if len(int_func_dict[comp]) > 0:
+                # empty dict for tests. These functions only exist to expose code to unit tests
+                output(int_func_dict[comp], {}, f"../src/{comp}/{comp}_private.h")
+        
 def prototypes_os():
     """
     The operating system abstraction layer duplicates function names. So each 
@@ -120,7 +194,8 @@ def prototypes_os():
         if m := re.match(r'^.*/os_(posix|win|linux|darwin)/.*', name):
             port = m.group(1)
             assert port in ports
-            fn_prototypes(fns[port], tests[port], name)
+            # TODO - just using the same fns dict for internal and external
+            fn_prototypes(fns[port], fns[port], tests[port], name)
 
     for p in ports:
         output(fns[p], tests[p], f"../src/include/extern_{p}.h")
