@@ -952,7 +952,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         return (0);
     }
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
       btree->dhandle->name);
 
     /*
@@ -1040,7 +1040,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #else
     (void)__wt_atomic_subi32(&btree->evict_disabled, 1);
 #endif
-    __wt_verbose_info(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
       btree->dhandle->name);
 }
 
@@ -2267,7 +2267,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          evict < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
-        if (__evict_should_give_up_walk(session, pages_seen, pages_queued, min_pages, target_pages))
+
+        if ((give_up = __evict_should_give_up_walk(
+               session, pages_seen, pages_queued, min_pages, target_pages)))
             break;
 
         if (ref == NULL) {
@@ -2321,7 +2323,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_RET_NOTFOUND_OK(ret);
 
     *slotp += (u_int)(evict - start);
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued, (u_int)(evict - start));
+    WT_STAT_CONN_INCRV(session, cache_eviction_pages_ordinary_queued, (u_int)(evict - start));
 
     __wt_verbose_debug2(session, WT_VERB_EVICTION,
       "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
