@@ -146,6 +146,8 @@ __alter_oligarch(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[]
     }
     ret = 0;
 
+    WT_RET(__alter_apply(session, uri, newcfg, WT_CONFIG_BASE(session, oligarch_meta)));
+
 err:
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);

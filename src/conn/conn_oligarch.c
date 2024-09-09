@@ -35,13 +35,11 @@ __oligarch_metadata_watcher(void *arg)
     WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
     WT_ERR(__wt_filesize(session, md_fh, &last_sz));
 
+    /* TODO this will need to handle multiple tables */
     for (;;) {
         __wt_sleep(0, 1000);
         if (F_ISSET(conn, WT_CONN_CLOSING))
             break;
-
-        if (((WT_OLIGARCH *)(S2BT(session)->dhandle))->leader)
-            continue;
 
         WT_ERR(__wt_filesize(session, md_fh, &new_sz));
         if (new_sz == last_sz)
@@ -72,6 +70,12 @@ __oligarch_metadata_watcher(void *arg)
 
         /* Open up a metadata cursor pointing at our table */
         WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+
+        /*
+         * TODO get a handle and check it's not a leader before reloading the checkpoint data.
+         * I'm not totally convinced that reloading the checkpoint for "our own" table is bad,
+         * but it's at least redundant.
+         */
         md_cursor->set_key(md_cursor, &buf[name_ptr]);
         WT_ERR(md_cursor->search(md_cursor));
 
@@ -135,6 +139,7 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
     manager->watcher_tid_set = true;
 
     fprintf(stderr, "oligarch watcher started\n");
+    __wt_atomic_store32(&manager->watcher_state, WT_OLIGARCH_WATCHER_RUNNING);
     return (0);
 }
 
