@@ -106,8 +106,8 @@ __config_merge_scan(
     WT_DECL_ITEM(kb);
     WT_DECL_ITEM(vb);
     WT_DECL_RET;
-    bool is_struct;
     size_t i, len;
+    bool is_struct;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &kb));
     WT_ERR(__wt_scr_alloc(session, 1024, &vb));
