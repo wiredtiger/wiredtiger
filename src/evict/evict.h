@@ -14,26 +14,7 @@
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
-/*
- * Tuning constants: I hesitate to call this tuning, but we want to review some number of pages from
- * each file's in-memory tree for each page we evict.
- */
-#define WT_EVICT_MAX_TREES WT_THOUSAND /* Maximum walk points */
-#define WT_EVICT_WALK_BASE 300         /* Pages tracked across file visits */
-#define WT_EVICT_WALK_INCR 100         /* Pages added each walk */
-
-/*
- * WT_EVICT_ENTRY --
- *	Encapsulation of an eviction candidate.
- */
-struct __wt_evict_entry {
-    WT_BTREE *btree; /* Enclosing btree object */
-    WT_REF *ref;     /* Page to flush/evict */
-    uint64_t score;  /* Relative eviction priority */
-};
-
 #define WT_EVICT_QUEUE_MAX 3    /* Two ordinary queues plus urgent */
-#define WT_EVICT_URGENT_QUEUE 2 /* Urgent queue index */
 
 /*
  * WT_EVICT_QUEUE --
@@ -166,11 +147,6 @@ struct __wt_evict {
     (WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD)
     uint32_t flags;
 };
-
-#define WT_WITH_PASS_LOCK(session, op)                                                   \
-    do {                                                                                 \
-        WT_WITH_LOCK_WAIT(session, &evict->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
-    } while (0)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
