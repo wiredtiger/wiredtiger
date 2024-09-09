@@ -806,6 +806,8 @@ gb
 gcc
 gcp
 gdb
+ge
+getWtSessionImpl
 getenv
 getlasterror
 getline
@@ -832,6 +834,7 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
