@@ -35,12 +35,16 @@ import wttest
 # test_reconfig05.py
 #    Test WT_SESSION::reconfigure
 class test_reconfig05(wttest.WiredTigerTestCase):
+
+    # Test whether the reconfiguration can handle structs without the "=" separator.
     conn_config = 'log=(enabled)'
     create_session_config = 'key_format=S,value_format=S,'
     uri = "table:reconfig05"
 
     def test_reconfig05(self):
         self.session.create(self.uri, self.create_session_config)
+
+        # Check whether the following calls succeed.
         self.conn.reconfigure("cache_size=1GB")
         self.conn.reconfigure("cache_size=1GB,log=(os_cache_dirty_pct=30)")
         self.conn.reconfigure("log=(os_cache_dirty_pct=50)")
