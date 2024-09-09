@@ -75,8 +75,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
-    btree->evict_pos = WT_NPOS_INVALID;
-    btree->evict_ref_saved = NULL;
+    __wt_eviction_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */

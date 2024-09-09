@@ -880,10 +880,9 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
      */
     btree->evict_ref = NULL;
 
-    if (clear_pos) {
-        btree->evict_pos = WT_NPOS_INVALID;
-        btree->evict_ref_saved = NULL;
-    } else {
+    if (clear_pos)
+        __wt_eviction_clear_npos(btree);
+    else {
         /*
          * Remember the last position before clearing it so that we can restart from about the same
          * point later.
@@ -895,27 +894,22 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
          * pages, use the middle of the page.
          */
         btree->evict_ref_saved = ref;
-        if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
-            pos = F_ISSET(ref, WT_REF_FLAG_LEAF) ? WT_NPOS_MID :
-              btree->evict_start_type == WT_EVICT_WALK_NEXT ||
-                btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT ?
-                                                   WT_NPOS_RIGHT :
-                                                   WT_NPOS_LEFT;
-            btree->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
+        if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+            pos = WT_NPOS_MID;
+            where = "MIDDLE";
         } else {
-            if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-                pos = WT_NPOS_MID;
-                where = "MIDDLE";
+            if (btree->evict_start_type == WT_EVICT_WALK_NEXT ||
+              btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
+                pos = WT_NPOS_RIGHT;
+                where = "RIGHT";
             } else {
-                if (btree->evict_start_type == WT_EVICT_WALK_NEXT ||
-                  btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
-                    pos = WT_NPOS_RIGHT;
-                    where = "RIGHT";
-                } else {
-                    pos = WT_NPOS_LEFT;
-                    where = "LEFT";
-                }
+                pos = WT_NPOS_LEFT;
+                where = "LEFT";
             }
+        }
+        if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1))
+            btree->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
+        else {
             btree->evict_pos =
               __wt_page_npos(session, ref, pos, path_str, &path_str_offset, PATH_STR_MAX);
             __wt_verbose_debug1(session, WT_VERB_EVICTION,
@@ -2038,11 +2032,13 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
         if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
+            /* Alternate with rand_prev so that the start of the tree is visited more often */
             goto rand_prev;
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
         if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
+            /* Alternate with rand_next so that the end of the tree is visited more often */
             goto rand_next;
         FLD_SET(*walk_flagsp, WT_READ_PREV);
         break;
@@ -2305,8 +2301,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     ref = btree->evict_ref;
     btree->evict_ref = NULL;
     /* Clear the saved position just in case we never put it back. */
-    btree->evict_pos = WT_NPOS_INVALID;
-    btree->evict_ref_saved = NULL;
+    __wt_eviction_clear_npos(btree);
 
     /*
      * Get the snapshot for the eviction server when we want to evict dirty content under cache

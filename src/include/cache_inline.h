@@ -549,3 +549,14 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
 
     return (__wt_cache_eviction_worker(session, busy, readonly, pct_full));
 }
+
+/*
+ * __wt_eviction_clear_npos --
+ *     Clear saved eviction walk position.
+ */
+static WT_INLINE void
+__wt_eviction_clear_npos(WT_BTREE *btree)
+{
+    btree->evict_pos = WT_NPOS_INVALID;
+    btree->evict_ref_saved = NULL;
+}
