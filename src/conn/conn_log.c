@@ -218,21 +218,16 @@ __wti_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
-    enabled = cval.val != 0;
 
     /*
-     * If we're reconfiguring, enabled must match the already existing setting.
-     *
-     * If it is off and the user it turning it on, or it is on and the user is turning it off,
-     * return an error.
-     *
-     * See above: should never happen.
+     * If we're reconfiguring, do not evaluate the log=(enabled) setting, because it cannot be even
+     * specified (see the comment above). Get the value of "enabled" from the current state.
      */
-    if (reconfig &&
-      ((enabled && !FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) ||
-        (!enabled && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))))
-        WT_RET_MSG(
-          session, EINVAL, "log manager reconfigure: enabled mismatch with existing setting");
+    if (reconfig) {
+        WT_ASSERT(session, cval.val == 0); /* log=(enabled) is not turned on in the config. */
+        enabled = FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
+    } else
+        enabled = cval.val != 0;
 
     /* Logging is incompatible with in-memory */
     if (enabled) {
