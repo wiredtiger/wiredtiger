@@ -15,16 +15,15 @@
  */
 
 #include <algorithm>
+#include <catch2/catch.hpp>
 #include <memory>
 #include <vector>
 
-#include <catch2/catch.hpp>
-
 #include "test_util.h"
+#include "wt_internal.h"
 #include "../utils.h"
 #include "../utils_extlist.h"
 #include "../wrappers/mock_session.h"
-#include "wt_internal.h"
 
 using namespace utils;
 
@@ -42,8 +41,8 @@ struct {
 TEST_CASE("Extent Lists: block_merge", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -135,8 +134,8 @@ struct off_expected {
 TEST_CASE("Extent Lists: block_off_remove", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -218,8 +217,8 @@ TEST_CASE("Extent Lists: block_off_remove", "[extent_list]")
 TEST_CASE("Extent Lists: block_append", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection.*/
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
@@ -300,8 +299,8 @@ struct block_append_test {
 TEST_CASE("Extent Lists: block_extend", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
-    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
+    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
