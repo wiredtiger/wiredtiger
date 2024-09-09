@@ -23,52 +23,51 @@ __wt_cache_aggressive(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_cache_read_gen --
+ * __cache_read_gen --
  *     Get the current read generation number.
  */
 static WT_INLINE uint64_t
-__wt_cache_read_gen(WT_SESSION_IMPL *session)
+__cache_read_gen(WT_SESSION_IMPL *session)
 {
     return (__wt_atomic_load64(&S2C(session)->evict->read_gen));
 }
 
 /*
- * __wt_cache_read_gen_incr --
+ * __wti_cache_read_gen_incr --
  *     Increment the current read generation number.
  */
 static WT_INLINE void
-__wt_cache_read_gen_incr(WT_SESSION_IMPL *session)
+__wti_cache_read_gen_incr(WT_SESSION_IMPL *session)
 {
     (void)__wt_atomic_add64(&S2C(session)->evict->read_gen, 1);
 }
 
 /*
- * __wt_cache_read_gen_new --
+ * __wti_cache_read_gen_new --
  *     Get the read generation for a new page in memory.
  */
 static WT_INLINE void
-__wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_EVICT *evict;
 
     evict = S2C(session)->evict;
-    __wt_atomic_store64(
-      &page->read_gen, (__wt_cache_read_gen(session) + evict->read_gen_oldest) / 2);
+    __wt_atomic_store64(&page->read_gen, (__cache_read_gen(session) + evict->read_gen_oldest) / 2);
 }
 
 /*
- * __wt_cache_read_gen_bump --
+ * __wti_cache_read_gen_bump --
  *     Update the page's read generation.
  */
 static WT_INLINE void
-__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
         return;
 
     /* Ignore pages already in the future. */
-    if (__wt_atomic_load64(&page->read_gen) > __wt_cache_read_gen(session))
+    if (__wt_atomic_load64(&page->read_gen) > __cache_read_gen(session))
         return;
 
     /*
@@ -78,7 +77,7 @@ __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * current global generation, we don't bother updating the page. In other words, the goal is to
      * avoid some number of updates immediately after each update we have to make.
      */
-    __wt_atomic_store64(&page->read_gen, __wt_cache_read_gen(session) + WT_READGEN_STEP);
+    __wt_atomic_store64(&page->read_gen, __cache_read_gen(session) + WT_READGEN_STEP);
 }
 
 /*
@@ -172,11 +171,11 @@ __wt_eviction_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 /*
- * __wt_eviction_dirty_target --
+ * __wti_eviction_dirty_target --
  *     Return the effective dirty target (including checkpoint scrubbing).
  */
 static WT_INLINE double
-__wt_eviction_dirty_target(WT_SESSION_IMPL *session)
+__wti_eviction_dirty_target(WT_SESSION_IMPL *session)
 {
     WT_EVICT *evict;
     double dirty_target, scrub_target;
@@ -215,12 +214,12 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 /*
- * __wt_eviction_updates_needed --
+ * __wti_eviction_updates_needed --
  *     Return if an application thread should do eviction due to the total volume of updates in
  *     cache.
  */
 static WT_INLINE bool
-__wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     WT_EVICT *evict;
     uint64_t bytes_max, bytes_updates;
@@ -240,11 +239,11 @@ __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 /*
- * __wt_btree_dominating_cache --
+ * __wti_btree_dominating_cache --
  *     Return if a single btree is occupying at least half of any of our target's cache usage.
  */
 static WT_INLINE bool
-__wt_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__wti_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_EVICT *evict;
     uint64_t bytes_dirty;
@@ -298,7 +297,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
         pct_dirty = pct_updates = 0.0;
     } else {
         dirty_needed = __wt_eviction_dirty_needed(session, &pct_dirty);
-        updates_needed = __wt_eviction_updates_needed(session, &pct_updates);
+        updates_needed = __wti_eviction_updates_needed(session, &pct_updates);
     }
 
     /*
@@ -323,11 +322,11 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
 }
 
 /*
- * __wt_cache_hs_dirty --
+ * __wti_cache_hs_dirty --
  *     Return if a major portion of the cache is dirty due to history store content.
  */
 static WT_INLINE bool
-__wt_cache_hs_dirty(WT_SESSION_IMPL *session)
+__wti_cache_hs_dirty(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
@@ -420,7 +419,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     if (didworkp != NULL)
         *didworkp = true;
 
-    return (__wt_cache_eviction_worker(session, busy, readonly, pct_full));
+    return (__wti_cache_eviction_worker(session, busy, readonly, pct_full));
 }
 
 /*
@@ -434,14 +433,14 @@ __wt_evict_page_init(WT_PAGE *page)
 }
 
 /*
- * __wt_readgen_evict_soon --
+ * __wti_readgen_evict_soon --
  *     Return whether a read generation value makes a page eligible for immediate eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
  *     immediately.
  */
 static WT_INLINE bool
-__wt_readgen_evict_soon(uint64_t *read_gen)
+__wti_readgen_evict_soon(uint64_t *read_gen)
 {
     uint64_t gen;
 
@@ -456,7 +455,7 @@ __wt_readgen_evict_soon(uint64_t *read_gen)
 static WT_INLINE bool
 __wt_evict_page_is_soon(WT_PAGE *page)
 {
-    return (__wt_readgen_evict_soon(&page->read_gen));
+    return (__wti_readgen_evict_soon(&page->read_gen));
 }
 
 /*
@@ -494,9 +493,9 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool init_only, b
         if (wont_need)
             __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
         else
-            __wt_cache_read_gen_new(session, page);
+            __wti_cache_read_gen_new(session, page);
     } else if (!init_only)
-        __wt_cache_read_gen_bump(session, page);
+        __wti_cache_read_gen_bump(session, page);
 }
 
 /*
@@ -507,5 +506,5 @@ static WT_INLINE void
 __wt_evict_page_needed(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
-        __wt_cache_read_gen_new(session, page);
+        __wti_cache_read_gen_new(session, page);
 }
