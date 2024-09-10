@@ -438,3 +438,11 @@ define_c_test(
     # This test takes over 15 minutes under TSan testing
     LABEL "long_running"
 )
+
+define_c_test(
+    TARGET tsc_ratio
+    SOURCES tsc_ratio/main.c
+    DIR_NAME tsc_ratio
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
