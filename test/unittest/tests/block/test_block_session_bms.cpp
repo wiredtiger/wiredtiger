@@ -20,43 +20,43 @@
 
 TEST_CASE("Block session: __wti_block_ext_prealloc", "[block_session_bms]")
 {
-    std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
+    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
     SECTION("Prealloc with null block manager")
     {
         WT_BLOCK_MGR_SESSION *bms = nullptr;
 
-        __wt_random_init(&session->getWtSessionImpl()->rnd);
+        __wt_random_init(&session->get_wt_session_impl()->rnd);
 
-        REQUIRE(__wti_block_ext_prealloc(session->getWtSessionImpl(), 0) == 0);
-        bms = static_cast<WT_BLOCK_MGR_SESSION *>(session->getWtSessionImpl()->block_manager);
+        REQUIRE(__wti_block_ext_prealloc(session->get_wt_session_impl(), 0) == 0);
+        bms = static_cast<WT_BLOCK_MGR_SESSION *>(session->get_wt_session_impl()->block_manager);
 
         /*
          * Check that the session block manager clean up function is set. This is important for
          * cleaning up the blocks that get allocated.
          */
-        REQUIRE(session->getWtSessionImpl()->block_manager_cleanup != nullptr);
+        REQUIRE(session->get_wt_session_impl()->block_manager_cleanup != nullptr);
         REQUIRE(bms != nullptr);
         __wt_free(nullptr, bms);
     }
 
-    WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
+    WT_BLOCK_MGR_SESSION *bms = session->setup_block_manager_session();
     SECTION("Prealloc with block manager")
     {
-        REQUIRE(__wti_block_ext_prealloc(session->getWtSessionImpl(), 2) == 0);
-        REQUIRE(session->getWtSessionImpl()->block_manager == bms);
+        REQUIRE(__wti_block_ext_prealloc(session->get_wt_session_impl(), 2) == 0);
+        REQUIRE(session->get_wt_session_impl()->block_manager == bms);
         validate_and_free_ext_list(bms, 2);
         validate_and_free_size_list(bms, 2);
     }
 
     SECTION("Prealloc with existing cache")
     {
-        REQUIRE(__wti_block_ext_prealloc(session->getWtSessionImpl(), 2) == 0);
-        REQUIRE(session->getWtSessionImpl()->block_manager == bms);
+        REQUIRE(__wti_block_ext_prealloc(session->get_wt_session_impl(), 2) == 0);
+        REQUIRE(session->get_wt_session_impl()->block_manager == bms);
         validate_ext_list(bms, 2);
         validate_size_list(bms, 2);
 
-        REQUIRE(__wti_block_ext_prealloc(session->getWtSessionImpl(), 5) == 0);
+        REQUIRE(__wti_block_ext_prealloc(session->get_wt_session_impl(), 5) == 0);
         validate_and_free_ext_list(bms, 5);
         validate_and_free_size_list(bms, 5);
     }
@@ -64,15 +64,15 @@ TEST_CASE("Block session: __wti_block_ext_prealloc", "[block_session_bms]")
 
 TEST_CASE("Block session: __block_manager_session_cleanup", "[block_session_bms]")
 {
-    std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
-    WT_BLOCK_MGR_SESSION *bms = session->setupBlockManagerSession();
-    WT_SESSION_IMPL *session_impl = session->getWtSessionImpl();
+    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
+    WT_BLOCK_MGR_SESSION *bms = session->setup_block_manager_session();
+    WT_SESSION_IMPL *session_impl = session->get_wt_session_impl();
 
     SECTION("Free with null session block manager ")
     {
-        std::shared_ptr<MockSession> session_no_bms = MockSession::buildTestMockSession();
-        REQUIRE(__ut_block_manager_session_cleanup(session_no_bms->getWtSessionImpl()) == 0);
-        REQUIRE(session_no_bms->getWtSessionImpl()->block_manager == nullptr);
+        std::shared_ptr<mock_session> session_no_bms = mock_session::build_test_mock_session();
+        REQUIRE(__ut_block_manager_session_cleanup(session_no_bms->get_wt_session_impl()) == 0);
+        REQUIRE(session_no_bms->get_wt_session_impl()->block_manager == nullptr);
     }
 
     SECTION("Calling free with session block manager")
