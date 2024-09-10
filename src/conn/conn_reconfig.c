@@ -417,6 +417,7 @@ __wt_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wt_logmgr_reconfig(session, cfg));
     WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
+    WT_ERR(__wt_oligarch_setup(session, cfg, true));
     WT_ERR(__wt_statlog_create(session, cfg));
     WT_ERR(__wt_tiered_conn_config(session, cfg, true));
     WT_ERR(__wt_sweep_config(session, cfg));

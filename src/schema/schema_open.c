@@ -663,15 +663,6 @@ __schema_open_oligarch(WT_SESSION_IMPL *session)
     WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_prefix", &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
 
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "role", &cval));
-    if (WT_CONFIG_LIT_MATCH("follower", cval))
-        oligarch->leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
-        oligarch->leader = true;
-    else
-        /* TODO better error message. */
-        WT_RET(EINVAL);
-
     /* Start utility thread to watch the leader's metadata and update our metadata. */
     WT_RET(__wt_oligarch_watcher_start(session));
 

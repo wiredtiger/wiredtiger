@@ -2415,6 +2415,9 @@ struct __wt_connection {
      * threads to manage merging LSM trees in the database.  Each worker thread uses a session
      * handle from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
      * @config{ ),,}
+     * @config{oligarch = (, WT-wide oligarch config., a set of related configuration options
+     * defined as follows.}
+     * @config{ ),,}
      * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
      * compatibility., an integer greater than or equal to \c 0; default \c 0.}
      * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
@@ -3304,6 +3307,9 @@ struct __wt_connection {
  * @config{multiprocess, permit sharing between processes (will automatically start an RPC server
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
+ * @config{oligarch = (, WT-wide oligarch config., a set of related configuration options defined as
+ * follows.}
+ * @config{ ),,}
  * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
  * compatibility., an integer greater than or equal to \c 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref

@@ -169,6 +169,8 @@ struct __wt_oligarch_manager {
     uint64_t max_applied_txnid;
 
     WT_FH *metadata_fh;
+
+    bool leader;
 };
 
 /*

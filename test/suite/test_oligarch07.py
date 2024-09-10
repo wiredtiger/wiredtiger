@@ -35,7 +35,10 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch07(wttest.WiredTigerTestCase):
     nitems = 100000
 
-    conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
+    conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = conn_base_config + 'oligarch=(role="leader")'
+
+    create_session_config = 'key_format=S,value_format=S,stable_prefix=.'
 
     uri = "oligarch:test_oligarch07"
 
@@ -48,9 +51,8 @@ class test_oligarch07(wttest.WiredTigerTestCase):
 
     # Test inserting records into a follower that turned into a leader
     def test_oligarch07(self):
-        leader_create = 'key_format=S,value_format=S,role=leader,stable_prefix=.'
         # FIXME: This shouldn't take an absolute path
-        follower_create = 'key_format=S,value_format=S,role=follower,stable_prefix=.'
+        follower_create = 'key_format=S,value_format=S,stable_prefix=.'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
@@ -67,13 +69,13 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         #
 
         self.pr("create oligarch tree")
-        self.session.create(self.uri, leader_create)
+        self.session.create(self.uri, self.create_session_config)
 
         self.pr("create second WT")
         # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'oligarch=(role="follower")')
         session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, follower_create)
+        session_follow.create(self.uri, self.create_session_config)
 
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -98,8 +100,8 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         #
         # Part 2: The big switcheroo
         #
-        self.session.alter(self.uri, "role=follower")
-        session_follow.alter(self.uri, "role=leader")
+        self.conn.reconfigure("oligarch=(role=\"follower\")")
+        conn_follow.reconfigure("oligarch=(role=\"leader\")")
 
         #
         # Part 3: insert content to old follower
@@ -113,11 +115,11 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             if i % 10000 == 0:
                 time.sleep(1)
 
-        self.session.checkpoint()
-        session_follow.checkpoint()
-        cursor.reset()
-        cursor.close()
-        time.sleep(2)
+        # self.session.checkpoint()
+        # session_follow.checkpoint()
+        # cursor.reset()
+        # cursor.close()
+        # time.sleep(2)
 
         # Ensure that all data is in both leader and follower.
         # cursor = session_follow.open_cursor(self.uri, None, None)

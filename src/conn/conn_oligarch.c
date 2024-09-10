@@ -30,8 +30,8 @@ __oligarch_metadata_watcher(void *arg)
 
     len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
     WT_ERR(__wt_calloc_def(session, len, &md_path));
-    WT_ERR(__wt_snprintf(
-      md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
+    WT_ERR(
+      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
     WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
     WT_ERR(__wt_filesize(session, md_fh, &last_sz));
 
@@ -40,6 +40,9 @@ __oligarch_metadata_watcher(void *arg)
         __wt_sleep(0, 1000);
         if (F_ISSET(conn, WT_CONN_CLOSING))
             break;
+
+        if (S2C(session)->oligarch_manager.leader)
+            continue;
 
         WT_ERR(__wt_filesize(session, md_fh, &new_sz));
         if (new_sz == last_sz)
@@ -72,9 +75,9 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(__wt_metadata_cursor(session, &md_cursor));
 
         /*
-         * TODO get a handle and check it's not a leader before reloading the checkpoint data.
-         * I'm not totally convinced that reloading the checkpoint for "our own" table is bad,
-         * but it's at least redundant.
+         * TODO get a handle and check it's not a leader before reloading the checkpoint data. I'm
+         * not totally convinced that reloading the checkpoint for "our own" table is bad, but it's
+         * at least redundant.
          */
         md_cursor->set_key(md_cursor, &buf[name_ptr]);
         WT_ERR(md_cursor->search(md_cursor));
@@ -150,6 +153,36 @@ __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manage
     fprintf(stderr, "__oligarch_metadata_create\n");
     return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA,
       WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
+}
+
+int
+__wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    if (reconfig) {
+        if ((ret = __wt_config_gets(session, cfg + 1, "oligarch", &cval)) == WT_NOTFOUND)
+            return (0);
+        WT_RET(ret);
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "oligarch.role", &cval));
+    if (cval.len == 0)
+        return (0);
+
+    if (WT_CONFIG_LIT_MATCH("follower", cval))
+        conn->oligarch_manager.leader = false;
+    else if (WT_CONFIG_LIT_MATCH("leader", cval))
+        conn->oligarch_manager.leader = true;
+    else
+        /* TODO better error message. */
+        WT_RET(EINVAL);
+
+    return (0);
 }
 
 /*

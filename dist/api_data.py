@@ -484,9 +484,6 @@ oligarch_config = [
     Config('ingest', '', r'''
         URI for oligarch ingest table''',
         type='string', undoc=True),
-    Config('role', '', r'''
-        whether the oligarch stable table should lead or follow''',
-        choices=['leader', 'follower'], undoc=True),
     Config('stable', '', r'''
         URI for oligarch stable table''',
         type='string', undoc=True),
@@ -797,6 +794,13 @@ connection_runtime_config = [
         Config('merge', 'true', r'''
             merge LSM chunks where possible''',
             type='boolean')
+        ]),
+    Config('oligarch', '', r'''
+        WT-wide oligarch config''',
+        type='category', subconfig=[
+        Config('role', '', r'''
+            whether the oligarch stable table should lead or follow''',
+            choices=['leader', 'follower'], undoc=True)
         ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
