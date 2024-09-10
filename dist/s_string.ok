@@ -124,8 +124,8 @@ EOF
 ERANGE
 ETIME
 ETIMEDOUT
-EVICTSERVER
 EXTLIST
+EXTLIST's
 EXTSUBPATH
 Encryptor
 Encryptors
@@ -306,6 +306,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Prealloc
 Precompiled
 Prefetch
 Preload
@@ -344,6 +345,7 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reify
 Rogerio
 Runtime
 SDK
@@ -532,6 +534,7 @@ blkincr
 blkmod
 blkmods
 bm
+bms
 bnd
 bool
 boolean
@@ -616,6 +619,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -745,7 +749,6 @@ ev
 evd
 eventv
 evictable
-evictserver
 exactp
 exe
 existp
@@ -844,6 +847,7 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
@@ -1064,9 +1068,11 @@ nocase
 noclear
 nocrypto
 noexcept
+noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
@@ -1086,6 +1092,7 @@ nullptr
 num
 numbare
 nvram
+objectid
 offpage
 offsetp
 ok
@@ -1106,6 +1113,7 @@ optype
 ori
 origstartrecno
 os
+ostream
 oversized
 ovfl
 ownp
@@ -1412,6 +1420,7 @@ userbad
 usercfg
 usleep
 usr
+ut
 utf
 util
 utils
