@@ -25,7 +25,7 @@
 
 TEST_CASE("Block manager invalid address", "[block_api_misc]")
 {
-    std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
+    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
     WT_BLOCK b;
     b.allocsize = 2;
     b.objectid = 5;
@@ -46,22 +46,22 @@ TEST_CASE("Block manager invalid address", "[block_api_misc]")
     WT_BLOCK_CKPT ci;
     WT_CLEAR(ci);
     bmp->block->live = ci;
-    REQUIRE(__wt_spin_init(session->getWtSessionImpl(), &b.live_lock, "block manager") == 0);
-    REQUIRE(__wti_block_ckpt_init(session->getWtSessionImpl(), &bmp->block->live, "live") == 0);
+    REQUIRE(__wt_spin_init(session->get_wt_session_impl(), &b.live_lock, "block manager") == 0);
+    REQUIRE(__wti_block_ckpt_init(session->get_wt_session_impl(), &bmp->block->live, "live") == 0);
     SECTION("Test valid address")
     {
         pp = p;
-        REQUIRE(bmp->addr_invalid(bmp, session->getWtSessionImpl(), pp, addr_size) == 0);
+        REQUIRE(bmp->addr_invalid(bmp, session->get_wt_session_impl(), pp, addr_size) == 0);
     }
 
     SECTION("Test addr string")
     {
         WT_ITEM *buf;
-        REQUIRE(__wt_scr_alloc(session->getWtSessionImpl(), 0, &buf) == 0);
+        REQUIRE(__wt_scr_alloc(session->get_wt_session_impl(), 0, &buf) == 0);
         pp = p;
-        REQUIRE(bmp->addr_string(bmp, session->getWtSessionImpl(), buf, pp, addr_size) == 0);
+        REQUIRE(bmp->addr_string(bmp, session->get_wt_session_impl(), buf, pp, addr_size) == 0);
         CHECK(static_cast<std::string>(((char *)(buf->data))).compare("[0: 10-14, 4, 12345]") == 0);
-        __wt_scr_free(session->getWtSessionImpl(), &buf);
+        __wt_scr_free(session->get_wt_session_impl(), &buf);
     }
 
     SECTION("Test address past end of file")
@@ -69,10 +69,10 @@ TEST_CASE("Block manager invalid address", "[block_api_misc]")
         b.objectid = 0;
         b.size = 10;
         pp = p;
-        REQUIRE(bmp->addr_invalid(bmp, session->getWtSessionImpl(), pp, addr_size) == EINVAL);
+        REQUIRE(bmp->addr_invalid(bmp, session->get_wt_session_impl(), pp, addr_size) == EINVAL);
     }
 
-    __wti_block_ckpt_destroy(session->getWtSessionImpl(), &ci);
+    __wti_block_ckpt_destroy(session->get_wt_session_impl(), &bmp->block->live);
 }
 
 TEST_CASE("Block header", "[block_api_misc]")
@@ -135,7 +135,7 @@ TEST_CASE("Block manager size", "[block_api_misc]")
 
 TEST_CASE("Block manager stat", "[block_api_misc]")
 {
-    std::shared_ptr<MockSession> session = MockSession::buildTestMockSession();
+    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
     WT_BM bm;
     WT_BM *bmp;
 
@@ -158,8 +158,8 @@ TEST_CASE("Block manager stat", "[block_api_misc]")
 
     WT_DSRC_STATS stats;
 
-    S2C(session->getWtSessionImpl())->stat_flags = 1;
-    REQUIRE(bmp->stat(bmp, session->getWtSessionImpl(), &stats) == 0);
+    S2C(session->get_wt_session_impl())->stat_flags = 1;
+    REQUIRE(bmp->stat(bmp, session->get_wt_session_impl(), &stats) == 0);
     CHECK(stats.allocation_size == b.allocsize);
     CHECK(stats.block_checkpoint_size == (int64_t)b.live.ckpt_size);
     CHECK(stats.block_magic == WT_BLOCK_MAGIC);
