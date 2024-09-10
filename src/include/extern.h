@@ -2628,6 +2628,9 @@ extern int __ut_block_size_discard(WT_SESSION_IMPL *session, u_int max)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
+  wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
+  bool caller_locked) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_ckpt_add_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod,

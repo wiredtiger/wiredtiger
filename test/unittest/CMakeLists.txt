@@ -27,6 +27,7 @@ else()
         tests/block/test_block_addr.cpp
         tests/block/test_block_ckpt.cpp
         tests/block/test_block_file.cpp
+        tests/block/test_block_file_write.cpp
         tests/block/test_block_session_ext.cpp
         tests/block/test_block_session_size.cpp
         tests/block/test_extent_list_insert_wo_block.cpp

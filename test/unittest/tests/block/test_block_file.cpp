@@ -28,7 +28,7 @@ const std::string ACCESS_PATTERN = "random";
 const std::string DEFAULT_FILE_NAME = "test.txt";
 
 void
-validate_block_fh(WT_BLOCK *block, std::string const& name)
+validate_block_fh(WT_BLOCK *block, std::string const &name)
 {
     REQUIRE(block->fh != nullptr);
     REQUIRE(std::string(block->fh->name) == name);
@@ -37,9 +37,9 @@ validate_block_fh(WT_BLOCK *block, std::string const& name)
 }
 
 void
-validate_block_config(WT_BLOCK *block, config_parser const& cp)
+validate_block_config(WT_BLOCK *block, config_parser const &cp)
 {
-    std::map<std::string, std::string> const& config_map = cp.get_config_map();
+    std::map<std::string, std::string> const &config_map = cp.get_config_map();
     auto it = config_map.find("allocation_size");
     uint32_t expected_alloc_size =
       it != config_map.end() ? std::stoi(it->second) : std::stoi(ALLOCATION_SIZE);
@@ -55,8 +55,8 @@ validate_block_config(WT_BLOCK *block, config_parser const& cp)
 }
 
 void
-validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const& cp,
-  uint expected_ref, std::string const& name, bool readonly = false)
+validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const &cp,
+  uint expected_ref, std::string const &name, bool readonly = false)
 {
 
     REQUIRE(block != nullptr);
@@ -85,8 +85,8 @@ validate_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_par
 }
 
 void
-validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const& cp,
-  uint expected_ref, std::string const& name, bool readonly = false)
+validate_free_block(std::shared_ptr<MockSession> session, WT_BLOCK *block, config_parser const &cp,
+  uint expected_ref, std::string const &name, bool readonly = false)
 {
     WT_CONNECTION_IMPL *conn = session->getMockConnection()->getWtConnectionImpl();
     if (expected_ref == 0) {
