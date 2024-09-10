@@ -56,12 +56,12 @@ TEST_CASE("Block manager invalid address", "[block_api_misc]")
 
     SECTION("Test addr string")
     {
-        WT_ITEM *buf;
-        REQUIRE(__wt_scr_alloc(session->get_wt_session_impl(), 0, &buf) == 0);
+        WT_ITEM buf;
+        WT_CLEAR(buf);
         pp = p;
-        REQUIRE(bmp->addr_string(bmp, session->get_wt_session_impl(), buf, pp, addr_size) == 0);
-        CHECK(static_cast<std::string>(((char *)(buf->data))).compare("[0: 10-14, 4, 12345]") == 0);
-        __wt_scr_free(session->get_wt_session_impl(), &buf);
+        REQUIRE(bmp->addr_string(bmp, session->get_wt_session_impl(), &buf, pp, addr_size) == 0);
+        CHECK(static_cast<std::string>(((char *)(buf.data))).compare("[0: 10-14, 4, 12345]") == 0);
+        __wt_free(session->get_wt_session_impl(), buf.data);
     }
 
     SECTION("Test address past end of file")
