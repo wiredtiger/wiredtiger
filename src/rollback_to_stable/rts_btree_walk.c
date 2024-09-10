@@ -225,10 +225,7 @@ __rts_btree_int(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollba
     WT_DECL_RET;
 
     /* Open a handle for processing. */
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-    if (ret != 0)
-        WT_RET_MSG(session, ret, "%s: unable to open handle%s", uri,
-          ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
     ret = __wt_rts_btree_walk_btree(session, rollback_timestamp);
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);

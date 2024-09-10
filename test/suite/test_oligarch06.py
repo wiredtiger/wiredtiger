@@ -192,6 +192,3 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         cursor_follow.close()
         session_follow.close()
         conn_follow.close()
-
-        # FIXME: Remove this once the cleanup & unexpected log output are fixed.
-        self.ignoreStderrPatternIfExists('No such file or directory')
