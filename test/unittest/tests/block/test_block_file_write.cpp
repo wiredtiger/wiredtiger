@@ -7,12 +7,9 @@
  */
 
 /*
- * [block_file]: block_open.c
- * The block manager extent list consists of both extent blocks and size blocks. This unit test
- * suite tests aims to test all of the allocation and frees of the extent and size block functions.
- *
- * The block session manages an internal caching mechanism for both block and size blocks that are
- * created or discarded.
+ * [block_write]: block_write.c
+ * The block manager performs file operations on specific blocks which eventually gets translated 
+ * onto files. This test suite aims to test the possible cases for the file write operation. 
  */
 #include <catch2/catch.hpp>
 #include <iostream>
@@ -145,7 +142,6 @@ TEST_CASE("Block: __wti_block_write_off", "[block_write]")
                   &checksum, false, false, false)) == 0);
         validate_block_write(session->get_wt_session_impl(), block, offset, size, checksum,
           expected_str, buf->size, expected_offset);
-
         REQUIRE(block->fh->written == DEFAULT_BLOCK_SIZE);
 
         // At this point the file written is greater than os_cache_dirty_max, make sure that
@@ -154,7 +150,6 @@ TEST_CASE("Block: __wti_block_write_off", "[block_write]")
                   &checksum, false, false, false)) == 0);
         validate_block_write(session->get_wt_session_impl(), block, offset, size, checksum,
           expected_str, buf->size, expected_offset);
-
         REQUIRE(block->fh->written == DEFAULT_BLOCK_SIZE * 2);
 
         // Flag is now set, the block write should flushed with fsync.
@@ -163,7 +158,6 @@ TEST_CASE("Block: __wti_block_write_off", "[block_write]")
                   &checksum, false, false, false)) == 0);
         validate_block_write(session->get_wt_session_impl(), block, offset, size, checksum,
           expected_str, buf->size, expected_offset);
-
         REQUIRE(block->fh->written == 0);
     }
 
