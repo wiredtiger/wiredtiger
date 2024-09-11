@@ -496,11 +496,6 @@ descend:
     } else
         *refp = current;
 
-    if (F_ISSET(*refp, WT_REF_FLAG_LEAF))
-        printf("random descent returning LEAF\n");
-    else if (F_ISSET(*refp, WT_REF_FLAG_INTERNAL))
-        printf("random descent returning INTERNAL\n");
-    printf("ref was %d\n", ret);
     return (0);
 }
 
