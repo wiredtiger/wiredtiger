@@ -98,13 +98,13 @@ TEST_CASE("Block manager is mapped", "[block_api_misc]")
     {
         uint8_t i;
         bmp->map = &i;
-        REQUIRE(bmp->is_mapped(bmp, NULL) == true);
+        REQUIRE(bmp->is_mapped(bmp, nullptr) == true);
     }
 
     SECTION("Test block manager is not mapped")
     {
-        bmp->map = NULL;
-        REQUIRE(bmp->is_mapped(bmp, NULL) == false);
+        bmp->map = nullptr;
+        REQUIRE(bmp->is_mapped(bmp, nullptr) == false);
     }
 }
 
@@ -124,12 +124,12 @@ TEST_CASE("Block manager size", "[block_api_misc]")
     // Test that block manager returns the expected size.
     wt_off_t result;
     bmp->block = &b1;
-    REQUIRE(bmp->size(bmp, NULL, &result) == 0);
+    REQUIRE(bmp->size(bmp, nullptr, &result) == 0);
     CHECK(result == 10);
 
     // Test that block manager returns the correct size once its block is updated.
     bmp->block = &b2;
-    REQUIRE(bmp->size(bmp, NULL, &result) == 0);
+    REQUIRE(bmp->size(bmp, nullptr, &result) == 0);
     CHECK(result == 20);
 }
 
