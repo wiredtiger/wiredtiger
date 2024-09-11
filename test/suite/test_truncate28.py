@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from helper import simulate_crash_restart
 
 # test_truncate28.py
-# Test that out of order truncate commit timestamp doesn't allowed.
+# Test that out of order commit timestamps aren't allowed when performing truncate operations.
 class test_truncate28(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     def evict_cursor(self, uri, nrows):
@@ -87,7 +87,8 @@ class test_truncate28(wttest.WiredTigerTestCase):
         self.evict_cursor(uri, nrows + 1)
         self.session.checkpoint()
 
-        # Do a fast truncate with a commit timestamp is less than the previous durable timestamp on the page.
+        # Do a fast truncate with a commit timestamp that is less than the previous durable timestamp
+        # on the page.
         truncate_ts = nrows
         truncate_session = self.conn.open_session()
         truncate_session.begin_transaction()
