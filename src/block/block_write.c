@@ -397,8 +397,11 @@ __wti_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, w
 }
 
 #ifdef HAVE_UNITTEST
-int __ut_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
-  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked) {
-    return __block_write_off(session, block, buf, offsetp, sizep, checksump, data_checksum, checkpoint_io, caller_locked);
+int
+__ut_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
+  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked)
+{
+    return (__block_write_off(
+      session, block, buf, offsetp, sizep, checksump, data_checksum, checkpoint_io, caller_locked));
 }
 #endif
