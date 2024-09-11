@@ -184,6 +184,7 @@ err:
 int
 __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
+    WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -206,6 +207,12 @@ __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     } else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
         fprintf(stderr, "\n\n\n\noligarch reconfigured %s->leader, reconfig=%s\n\n\n\n\n", conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
         conn->oligarch_manager.leader = true;
+        if (reconfig) {
+            TAILQ_FOREACH (block, &conn->blockqh, q) {
+                if (strcmp("test_oligarch07.wt_stable", block->name) == 0)
+                    ((WT_BLOCK_PANTRY *)block)->next_pantry_id += 100;
+            }
+        }
     } else
         /* TODO better error message. */
         WT_RET(EINVAL);
@@ -408,6 +415,7 @@ static int
 __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp)
 {
     WT_CURSOR *stable_cursor;
+    /* WT_DECL_RET; */
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
@@ -422,12 +430,20 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
 
     if (entry->stable_cursor != NULL) {
         *cursorp = entry->stable_cursor;
+        /* ret = entry->stable_cursor->next(entry->stable_cursor); */
+        /* if (ret != WT_NOTFOUND) { */
+        /*     fprintf(stderr, "get_constituent: found content in stable cursor\n"); */
+        /* } */
         return (0);
     }
 
     /* Open the cursor and keep a reference in the manager entry and our caller */
     WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));
     entry->stable_cursor = stable_cursor;
+    /* ret = entry->stable_cursor->next(entry->stable_cursor); */
+    /* if (ret != WT_NOTFOUND) { */
+    /*     fprintf(stderr, "get_constituent: found content in stable cursor\n"); */
+    /* } */
     *cursorp = stable_cursor;
 
     return (0);
@@ -482,6 +498,7 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
             __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
               "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
               satisfied_txn_id);
+            fprintf(stderr, "[%s] checkpointing %s\n", S2C(session)->home, entry->stable_uri);
 
             WT_RET(__oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
             /*

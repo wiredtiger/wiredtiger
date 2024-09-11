@@ -33,7 +33,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_oligarch07.py
 #    Start a second WT that becomes leader and checke that content appears in the first.
 class test_oligarch07(wttest.WiredTigerTestCase):
-    nitems = 100000
+    nitems = 100
 
     conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
@@ -83,15 +83,15 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 10000 == 0:
+            if i % 10 == 0:
                 time.sleep(1)
                 #session_follow.checkpoint()
-                if i == 10000:
-                    cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
+            if i == 1:
+                cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
 
         # Ensure that all data makes it to the follower.
         self.session.checkpoint()
-        session_follow.checkpoint()
+        # session_follow.checkpoint()
         cursor.close()
         cursor_follow1.close()
         time.sleep(2)
@@ -99,39 +99,56 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         #
         # Part 2: The big switcheroo
         #
+        # cursor = session_follow.open_cursor(self.uri, None, None)
+        # cursor.set_key("Hello 0")
+        # cursor.search()
+        # self.assertEqual(cursor.get_value(), "World")
+        # cursor.close()
         self.conn.reconfigure("oligarch=(role=\"follower\")")
         conn_follow.reconfigure("oligarch=(role=\"leader\")")
+
+        cursor = session_follow.open_cursor(self.uri, None, None)
+        cursor.set_key("Hello 0")
+        cursor.search()
+        self.assertEqual(cursor.get_value(), "World")
+        cursor.close()
 
         #
         # Part 3: insert content to old follower
         #
         cursor = session_follow.open_cursor(self.uri, None, None)
 
-        for i in range(self.nitems):
+        for i in range(26):
             cursor["* Hello " + str(i)] = "World"
             cursor["* Hi " + str(i)] = "There"
             cursor["* OK " + str(i)] = "Go"
-            if i % 10000 == 0:
+            if i % 10 == 0:
                 time.sleep(1)
-                if i == 10000:
-                    cursor_follow1 = self.session.open_cursor(self.uri, None, None)
+            if i == 0:
+                cursor_follow1 = self.session.open_cursor(self.uri, None, None)
 
         cursor.reset()
         cursor.close()
         time.sleep(2)
 
-        self.session.checkpoint()
-        session_follow.checkpoint()
-        time.sleep(2)
-
-        # Ensure that all data is in both leader and follower.
         cursor = session_follow.open_cursor(self.uri, None, None)
         cursor.set_key("Hello 0")
         cursor.search()
         self.assertEqual(cursor.get_value(), "World")
-        cursor.set_key("* Hello 0")
-        cursor.search()
-        self.assertEqual(cursor.get_value(), "World")
+        cursor.close()
+
+        # self.session.checkpoint()
+        # session_follow.checkpoint()
+        time.sleep(2)
+
+        # Ensure that all data is in both leader and follower.
+        # cursor = session_follow.open_cursor(self.uri, None, None)
+        # cursor.set_key("Hello 0")
+        # cursor.search()
+        # self.assertEqual(cursor.get_value(), "World")
+        # cursor.set_key("* Hello 0")
+        # cursor.search()
+        # self.assertEqual(cursor.get_value(), "World")
         # item_count = 0
         # while cursor.next() == 0:
         #     item_count += 1

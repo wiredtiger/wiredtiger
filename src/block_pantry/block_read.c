@@ -65,6 +65,7 @@ __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_
         bufsize = WT_MAX(size, buf->memsize + 10);
     }
     WT_RET(__wt_buf_init(session, buf, bufsize));
+    fprintf(stderr, "%s reading pantry_id=%lu\n", S2C(session)->home, pantry_id);
     WT_RET(block_pantry->fh->handle->fh_obj_get(
       block_pantry->fh->handle, &session->iface, pantry_id, buf));
 

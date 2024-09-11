@@ -156,13 +156,18 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_UNUSED(addr_size);
     WT_UNUSED(checkpoint);
 
+    fprintf(stderr, "checkpoint=%s\n", checkpoint ? "true" : "false");
+
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
 
     *root_addr_sizep = 0;
 
-    if (addr == NULL || addr_size == 0)
+    /* If the checkpoint has an on-disk root page, load it. */
+    if (addr == NULL || addr_size == 0) {
+        fprintf(stderr, "addr null or sz 0, sz=%lu\n", addr_size);
         return (0);
+    }
 
     WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
 
@@ -179,7 +184,7 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_RET(__wt_block_pantry_addr_pack(&endp, root_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
-    fprintf(stderr, "__wt_bmp_checkpoint_load(%s): 0x", block_pantry->fh->handle->name);
+    fprintf(stderr, "[%s] __wt_bmp_checkpoint_load(%s): 0x", S2C(session)->home, block_pantry->fh->handle->name);
     for (i = 0; i < *root_addr_sizep; i++) {
         fprintf(stderr, "%02x", root_addr[i]);
     }
