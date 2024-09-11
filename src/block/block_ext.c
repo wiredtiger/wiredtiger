@@ -31,6 +31,11 @@ static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, 
 /*
  * __block_off_srch_last --
  *     Return the last element in the list, along with a stack for appending.
+ *
+ * Return a stack such that the caller can append a new entry to the skip list by inserting it after
+ *     each element in the stack. For non-empty levels, this will be the last element at that level
+ *     of the skip list. For a level with no entries, this will be the corresponding entry in the
+ *     head stack.
  */
 static WT_INLINE WT_EXT *
 __block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
@@ -258,7 +263,7 @@ __wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
         return (after);
 }
 
-#ifdef HAVE_DIAGNOSTIC
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_UNITTEST)
 /*
  * __block_off_match --
  *     Return if any part of a specified range appears on a specified extent list.
@@ -267,6 +272,9 @@ static bool
 __block_off_match(WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
     WT_EXT *after, *before;
+
+    if (WT_UNLIKELY(size == 0))
+        return (false);
 
     /* Search for before and after entries for the offset. */
     __block_off_srch_pair(el, off, &before, &after);
@@ -362,7 +370,7 @@ __block_off_remove(
         if (szp->off[0] == NULL) {
             for (i = 0; i < szp->depth; ++i)
                 *sstack[i] = szp->next[i];
-            __wti_block_size_free(session, szp);
+            __wti_block_size_free(session, &szp);
         }
     }
 #ifdef HAVE_DIAGNOSTIC
@@ -379,13 +387,15 @@ __block_off_remove(
     el->bytes -= (uint64_t)ext->size;
 
     /* Return the record if our caller wants it, otherwise free it. */
-    if (extp == NULL)
-        __wti_block_ext_free(session, ext);
-    else
+    if (extp == NULL) {
+        WT_EXT *ext_to_free = ext;
+        __wti_block_ext_free(session, &ext_to_free);
+    } else
         *extp = ext;
 
     /* Update the cached end-of-list. */
     if (el->last == ext)
+        /* To save time, update to the correct value later. */
         el->last = NULL;
 
     return (0);
@@ -480,7 +490,7 @@ __wti_block_off_remove_overlap(
         }
     }
     if (ext != NULL)
-        __wti_block_ext_free(session, ext);
+        __wti_block_ext_free(session, &ext);
     return (0);
 }
 
@@ -597,7 +607,7 @@ append:
         __wt_verbose(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
           block->live.avail.name, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
 
-        __wti_block_ext_free(session, ext);
+        __wti_block_ext_free(session, &ext);
     }
 
     /* Add the newly allocated extent to the list of allocations. */
@@ -984,7 +994,7 @@ static int
 __block_append(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *last_ext;
     u_int i;
 
     WT_UNUSED(block);
@@ -998,24 +1008,30 @@ __block_append(
      * The terminating element of the list is cached, check it; otherwise, get a stack for the last
      * object in the skiplist, check for a simple extension, and otherwise append a new structure.
      */
-    if ((ext = el->last) != NULL && ext->off + ext->size == off)
-        ext->size += size;
+    if ((last_ext = el->last) != NULL && last_ext->off + last_ext->size == off)
+        /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
+        last_ext->size += size;
     else {
-        ext = __block_off_srch_last(el->off, astack);
-        if (ext != NULL && ext->off + ext->size == off)
-            ext->size += size;
+        /* Update last_ext and, in case appending an extent, determine where to append an extent. */
+        last_ext = __block_off_srch_last(el->off, astack);
+        if (last_ext != NULL && last_ext->off + last_ext->size == off)
+            /* Extend the last object on the list. off is adjacent to the end of the last extent.*/
+            last_ext->size += size;
         else {
-            WT_RET(__wti_block_ext_alloc(session, &ext));
-            ext->off = off;
-            ext->size = size;
+            if (last_ext != NULL)
+                /* Assert that this is appending an extent after the last extent. */
+                WT_ASSERT(session, last_ext->off + last_ext->size < off);
+            WT_RET(__wti_block_ext_alloc(session, &last_ext));
+            last_ext->off = off;
+            last_ext->size = size;
 
-            for (i = 0; i < ext->depth; ++i)
-                *astack[i] = ext;
+            for (i = 0; i < last_ext->depth; ++i)
+                *astack[i] = last_ext;
             ++el->entries;
         }
 
         /* Update the cached end-of-list */
-        el->last = ext;
+        el->last = last_ext;
     }
     el->bytes += (uint64_t)size;
 
@@ -1496,13 +1512,11 @@ __ut_block_off_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t off, wt
     return (__block_off_insert(session, el, off, size));
 }
 
-#ifdef HAVE_DIAGNOSTIC
 bool
 __ut_block_off_match(WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
     return (__block_off_match(el, off, size));
 }
-#endif
 
 int
 __ut_block_off_remove(
