@@ -34,21 +34,21 @@ struct __wt_evict_entry {
     } while (0)
 
 /*
- * __cache_read_gen_incr --
+ * __wti_cache_read_gen_incr --
  *     Increment the current read generation number.
  */
 static WT_INLINE void
-__cache_read_gen_incr(WT_SESSION_IMPL *session)
+__wti_cache_read_gen_incr(WT_SESSION_IMPL *session)
 {
     (void)__wt_atomic_add64(&S2C(session)->evict->read_gen, 1);
 }
 
 /*
- * __eviction_dirty_target --
+ * __wti_eviction_dirty_target --
  *     Return the effective dirty target (including checkpoint scrubbing).
  */
 static WT_INLINE double
-__eviction_dirty_target(WT_SESSION_IMPL *session)
+__wti_eviction_dirty_target(WT_SESSION_IMPL *session)
 {
     WT_EVICT *evict;
     double dirty_target, scrub_target;
@@ -62,11 +62,11 @@ __eviction_dirty_target(WT_SESSION_IMPL *session)
 }
 
 /*
- * __btree_dominating_cache --
+ * __wti_btree_dominating_cache --
  *     Return if a single btree is occupying at least half of any of our target's cache usage.
  */
 static WT_INLINE bool
-__btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__wti_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_EVICT *evict;
     uint64_t bytes_dirty;
@@ -94,11 +94,11 @@ __btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __cache_hs_dirty --
+ * __wti_cache_hs_dirty --
  *     Return if a major portion of the cache is dirty due to history store content.
  */
 static WT_INLINE bool
-__cache_hs_dirty(WT_SESSION_IMPL *session)
+__wti_cache_hs_dirty(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
