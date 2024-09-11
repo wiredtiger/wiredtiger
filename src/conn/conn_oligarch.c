@@ -19,6 +19,7 @@ __oligarch_metadata_watcher(void *arg)
     char buf[4096], *cfg_ret, *md_path,
       *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
     const char *value, *cfg[3];
+    int i;
     size_t len;
     wt_off_t last_sep, last_sz, name_ptr, new_sz;
 
@@ -26,13 +27,22 @@ __oligarch_metadata_watcher(void *arg)
     conn = S2C(session);
     memset(buf, 0, 4096);
 
-    fprintf(stderr, "created metadata watcher thread\n");
-
     len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
     WT_ERR(__wt_calloc_def(session, len, &md_path));
     WT_ERR(
       __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
-    WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
+    for (i = 0; i < 1000; i++) {
+        fprintf(stderr, "md_path=%s\n", md_path);
+        ret = __wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh);
+        if (ret == ENOENT)
+            __wt_sleep(1, 0);
+        else if (ret == 0)
+            break;
+        else
+            WT_ERR(ret);
+    }
+    if (i == 1000)
+        WT_ERR(WT_NOTFOUND);
     WT_ERR(__wt_filesize(session, md_fh, &last_sz));
 
     /* TODO this will need to handle multiple tables */
@@ -68,9 +78,6 @@ __oligarch_metadata_watcher(void *arg)
         while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
             name_ptr--;
 
-        /* fprintf(stderr, "name=%s\n", &buf[name_ptr]); */
-        /* fprintf(stderr, "value=%s\n", &buf[last_sep+1]); */
-
         /* Open up a metadata cursor pointing at our table */
         WT_ERR(__wt_metadata_cursor(session, &md_cursor));
 
@@ -86,17 +93,16 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(md_cursor->get_value(md_cursor, &value));
         len = strlen(&buf[last_sep + 1]);
         buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
-        /* fprintf(stderr, "value=%s\n", &buf[last_sep + 1]); */
         len += strlen("checkpoint="); /* -1 for trailing newline */
 
         /* Allocate/create a new config we're going to insert */
         WT_ERR(__wt_calloc_def(session, len, &new_md_value));
         WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
+        /* fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value); */
         cfg[0] = value;
         cfg[1] = new_md_value;
         cfg[2] = NULL;
         WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
-        /* fprintf(stderr, "collapsed=%s\n", cfg_ret); */
 
         /* Put our new config in */
         WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
@@ -111,6 +117,7 @@ __oligarch_metadata_watcher(void *arg)
     }
 
 err:
+    fprintf(stderr, "metadata watcher returning %d\n", ret);
     __wt_free(session, md_path);
     __wt_free(session, new_md_value);
     WT_IGNORE_RET(__wt_close(session, &md_fh));
@@ -150,9 +157,28 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
 static int
 __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    char *md_path;
+    size_t len;
+
+    conn = S2C(session);
+
     fprintf(stderr, "__oligarch_metadata_create\n");
-    return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA,
-      WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
+
+    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    WT_RET(__wt_calloc_def(session, len, &md_path));
+    WT_ERR(
+      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
+
+    if (manager->leader)
+        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
+    else
+        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
+
+err:
+    __wt_free(session, md_path);
+    return (ret);
 }
 
 int
@@ -174,13 +200,17 @@ __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.len == 0)
         return (0);
 
-    if (WT_CONFIG_LIT_MATCH("follower", cval))
+    if (WT_CONFIG_LIT_MATCH("follower", cval)) {
+        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->follower, reconfig=%s\n\n\n\n\n", conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
         conn->oligarch_manager.leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
+    } else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
+        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->leader, reconfig=%s\n\n\n\n\n", conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
         conn->oligarch_manager.leader = true;
-    else
+    } else
         /* TODO better error message. */
         WT_RET(EINVAL);
+
+
 
     return (0);
 }
@@ -256,6 +286,8 @@ err:
 bool
 __wt_oligarch_manager_thread_chk(WT_SESSION_IMPL *session)
 {
+    if (!S2C(session)->oligarch_manager.leader)
+        return (false);
     return (
       __wt_atomic_load32(&S2C(session)->oligarch_manager.state) == WT_OLIGARCH_MANAGER_RUNNING);
 }
@@ -438,8 +470,8 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
 
     /* The table count never shrinks, so this is safe. It probably needs the oligarch lock */
     for (i = 0; i < manager->open_oligarch_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL &&
-          entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
+        if ((entry = manager->entries[i]) != NULL) {
+          if (entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
             /*
              * Retrieve the current transaction ID - ensure it actually gets read from the shared
              * variable here, it would lead to data loss if it was read later and included
@@ -483,10 +515,11 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
 
             /* We've done (or tried to do) a checkpoint - that's it. */
             return (ret);
-        } else if (entry != NULL) {
-            __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-              "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-              entry->accumulated_write_bytes);
+          } else if (entry != NULL) {
+              __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
+                "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
+                entry->accumulated_write_bytes);
+          }
         }
     }
 

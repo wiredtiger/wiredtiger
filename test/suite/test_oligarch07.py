@@ -38,7 +38,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
     conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
-    create_session_config = 'key_format=S,value_format=S,stable_prefix=.'
+    create_session_config = 'key_format=S,value_format=S,stable_prefix=/home/ubuntu/dev/labs-854/wiredtiger/build/WT_TEST/test_oligarch07.0'
 
     uri = "oligarch:test_oligarch07"
 
@@ -52,7 +52,6 @@ class test_oligarch07(wttest.WiredTigerTestCase):
     # Test inserting records into a follower that turned into a leader
     def test_oligarch07(self):
         # FIXME: This shouldn't take an absolute path
-        follower_create = 'key_format=S,value_format=S,stable_prefix=.'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
@@ -114,15 +113,25 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             cursor["* OK " + str(i)] = "Go"
             if i % 10000 == 0:
                 time.sleep(1)
+                if i == 10000:
+                    cursor_follow1 = self.session.open_cursor(self.uri, None, None)
 
-        # self.session.checkpoint()
-        # session_follow.checkpoint()
-        # cursor.reset()
-        # cursor.close()
-        # time.sleep(2)
+        cursor.reset()
+        cursor.close()
+        time.sleep(2)
+
+        self.session.checkpoint()
+        session_follow.checkpoint()
+        time.sleep(2)
 
         # Ensure that all data is in both leader and follower.
-        # cursor = session_follow.open_cursor(self.uri, None, None)
+        cursor = session_follow.open_cursor(self.uri, None, None)
+        cursor.set_key("Hello 0")
+        cursor.search()
+        self.assertEqual(cursor.get_value(), "World")
+        cursor.set_key("* Hello 0")
+        cursor.search()
+        self.assertEqual(cursor.get_value(), "World")
         # item_count = 0
         # while cursor.next() == 0:
         #     item_count += 1
