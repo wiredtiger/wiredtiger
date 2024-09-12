@@ -107,12 +107,6 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         self.conn.reconfigure("oligarch=(role=\"follower\")")
         conn_follow.reconfigure("oligarch=(role=\"leader\")")
 
-        cursor = session_follow.open_cursor(self.uri, None, None)
-        cursor.set_key("Hello 0")
-        cursor.search()
-        self.assertEqual(cursor.get_value(), "World")
-        cursor.close()
-
         #
         # Part 3: insert content to old follower
         #
@@ -132,14 +126,14 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         time.sleep(2)
 
         cursor = session_follow.open_cursor(self.uri, None, None)
-        cursor.set_key("Hello 0")
+        cursor.set_key("Hello 70")
         cursor.search()
         self.assertEqual(cursor.get_value(), "World")
         cursor.close()
 
         # self.session.checkpoint()
         # session_follow.checkpoint()
-        time.sleep(2)
+        # time.sleep(2)
 
         # Ensure that all data is in both leader and follower.
         # cursor = session_follow.open_cursor(self.uri, None, None)

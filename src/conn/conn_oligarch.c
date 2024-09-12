@@ -8,11 +8,13 @@
 
 #include "wt_internal.h"
 
+static int __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp);
+
 static WT_THREAD_RET
 __oligarch_metadata_watcher(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *md_cursor;
+    WT_CURSOR *md_cursor, *stable_cursor;
     WT_DECL_RET;
     WT_FH *md_fh;
     WT_SESSION_IMPL *session;
@@ -98,7 +100,27 @@ __oligarch_metadata_watcher(void *arg)
         /* Allocate/create a new config we're going to insert */
         WT_ERR(__wt_calloc_def(session, len, &new_md_value));
         WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
-        /* fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value); */
+        fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value);
+        if (strcmp(S2C(session)->home, "follower") == 0) {
+            for (i = 0; i < (int)S2C(session)->oligarch_manager.open_oligarch_table_count; i++) {
+                if (S2C(session)->oligarch_manager.entries[i] != NULL) {
+                    if (strcmp(S2C(session)->oligarch_manager.entries[i]->stable_uri,
+                          "file:test_oligarch07.wt_stable") == 0) {
+                        ret = __oligarch_get_constituent_cursor(session, S2C(session)->oligarch_manager.entries[i]->ingest_id, &stable_cursor);
+                        if (ret != 0) {
+                            ret = 0;
+                            break;
+                        }
+
+                        stable_cursor->set_key(stable_cursor, "Hello 70");
+                        ret = stable_cursor->search(stable_cursor);
+                        fprintf(stderr, "checkpoint load: search returned %d\n", ret);
+                        ret = 0;
+                        break;
+                    }
+                }
+            }
+        }
         cfg[0] = value;
         cfg[1] = new_md_value;
         cfg[2] = NULL;
@@ -311,6 +333,7 @@ __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, ui
     WT_OLIGARCH_MANAGER_ENTRY *entry;
 
     manager = &S2C(session)->oligarch_manager;
+    fprintf(stderr, "adding %u to oligarch manager\n", ingest_id);
 
     WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
       "Adding an oligarch tree to tracking without the right dhandle context.");
@@ -372,6 +395,7 @@ __oligarch_manager_remove_table_inlock(
         if (!from_shutdown && entry->stable_cursor != NULL)
             entry->stable_cursor->close(entry->stable_cursor);
         __wt_free(session, entry);
+        fprintf(stderr, "oligarch mgr clearing %u\n", ingest_id);
         manager->entries[ingest_id] = NULL;
     }
 }
@@ -415,7 +439,6 @@ static int
 __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp)
 {
     WT_CURSOR *stable_cursor;
-    /* WT_DECL_RET; */
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
@@ -428,22 +451,14 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
     if (entry == NULL)
         return (0);
 
-    if (entry->stable_cursor != NULL) {
+    if (false && entry->stable_cursor != NULL) {
         *cursorp = entry->stable_cursor;
-        /* ret = entry->stable_cursor->next(entry->stable_cursor); */
-        /* if (ret != WT_NOTFOUND) { */
-        /*     fprintf(stderr, "get_constituent: found content in stable cursor\n"); */
-        /* } */
         return (0);
     }
 
     /* Open the cursor and keep a reference in the manager entry and our caller */
     WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));
     entry->stable_cursor = stable_cursor;
-    /* ret = entry->stable_cursor->next(entry->stable_cursor); */
-    /* if (ret != WT_NOTFOUND) { */
-    /*     fprintf(stderr, "get_constituent: found content in stable cursor\n"); */
-    /* } */
     *cursorp = stable_cursor;
 
     return (0);
@@ -518,6 +533,8 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
              * Turn on metadata tracking to ensure the checkpoint gets the necessary handle locks.
              */
             WT_RET(__wt_meta_track_on(session));
+            if (strcmp(S2C(session)->home, "follower") != 0)
+                fprintf(stderr, "checkpointing in follower-land\n");
             WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
               ret = __oligarch_manager_checkpoint_locked(session));
             WT_TRET(__wt_meta_track_off(session, false, ret != 0));
@@ -608,6 +625,8 @@ __oligarch_log_replay_op_apply(
                  */
                 WT_ERR(__wt_modify_apply_item(CUR2S(stable_cursor), stable_cursor->value_format,
                   &stable_cursor->value, value.data));
+                if (strcmp(S2C(session)->home, "follower") == 0)
+                    fprintf(stderr, "log replay: stable cursor insert modify\n");
                 WT_ERR(stable_cursor->insert(stable_cursor));
                 entry->accumulated_write_bytes += (key.size + stable_cursor->value.size);
                 applied = true;
@@ -623,6 +642,14 @@ __oligarch_log_replay_op_apply(
           "oligarch log application row store put applying to stable table %s", entry->ingest_uri);
           */
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
+            if (strcmp(S2C(session)->home, "follower") == 0) {
+                fprintf(stderr, "log replay: stable cursor insert put\n");
+            }
+            stable_cursor->set_key(stable_cursor, "Hello 70");
+            ret = stable_cursor->search(stable_cursor);
+            fprintf(stderr, "search old data on insert: ret=%d\n", ret);
+            ret = 0;
+
             __wt_cursor_set_raw_key(stable_cursor, &key);
             __wt_cursor_set_raw_value(stable_cursor, &value);
             WT_ERR(stable_cursor->insert(stable_cursor));
@@ -646,6 +673,8 @@ __oligarch_log_replay_op_apply(
              * forward may race with a remove, resulting in the key not being in the tree, but
              * recovery still processing the log record of the remove.
              */
+            if (strcmp(S2C(session)->home, "follower") == 0)
+                fprintf(stderr, "log replay: stable cursor remove\n");
             WT_ERR_NOTFOUND_OK(stable_cursor->remove(stable_cursor), false);
             entry->accumulated_write_bytes += (key.size + value.size);
             applied = true;

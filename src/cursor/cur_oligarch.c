@@ -727,6 +727,7 @@ __coligarch_search(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, search, coligarch->dhandle);
+    fprintf(stderr, "__coligarch_search enter\n");
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__coligarch_enter(coligarch, true, false));
@@ -742,6 +743,7 @@ __coligarch_search(WT_CURSOR *cursor)
 
 err:
     __coligarch_leave(coligarch);
+    fprintf(stderr, "__coligarch_search leave\n");
     if (ret == 0)
         __coligarch_deleted_decode(&cursor->value);
     API_END_RET(session, ret);
