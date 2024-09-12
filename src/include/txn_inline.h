@@ -384,9 +384,10 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
         /* Validate the commit timestamp against the maximum durable timestamp on the page. */
         WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
         WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
-        if (addr_found)
-            ret = __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp,
-              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+        WT_ASSERT_ALWAYS(
+          session, addr_found == true, "Found a fast truncated page without an address");
+        ret = __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp,
+          WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
         WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         WT_RET(ret);
 
