@@ -23,7 +23,7 @@ else()
         tests/test_string_match.cpp
         tests/test_tailq.cpp
         tests/backup/test_incremental_blkmods.cpp
-        tests/block/test_bitstring.cpp
+        tests/block/test_block_api_write.cpp
         tests/block/test_block_addr.cpp
         tests/block/test_block_ckpt.cpp
         tests/block/test_block_file.cpp
@@ -31,6 +31,7 @@ else()
         tests/block/test_block_other.cpp
         tests/block/test_block_session_ext.cpp
         tests/block/test_block_session_size.cpp
+        tests/block/test_bitstring.cpp
         tests/block/test_extent_list_insert_wo_block.cpp
         tests/block/test_extent_list_search.cpp
         tests/block/test_extent_list_insert_block.cpp

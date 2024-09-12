@@ -8,8 +8,8 @@
 
 /*
  * [block_write]: block_write.c
- * The block manager performs file operations on specific blocks which eventually gets translated 
- * onto files. This test suite aims to test the possible cases for the file write operation. 
+ * The block manager performs file operations on specific blocks which eventually gets translated
+ * onto files. This test suite aims to test the possible cases for the file write operation.
  */
 #include <catch2/catch.hpp>
 #include <iostream>
@@ -31,7 +31,7 @@ void
 validate_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset, uint32_t size,
   uint32_t checksum, const std::string &expected_str, uint32_t expected_size,
   wt_off_t &expected_offset)
-{ 
+{
     // Test offset, size and checksum.
     expected_offset += expected_size;
     REQUIRE(offset == expected_offset);
@@ -73,7 +73,8 @@ TEST_CASE("Block: __wti_block_write_off", "[block_write]")
       {"os_cache_max", OS_CACHE_MAX}, {"os_cache_dirty_max", OS_CACHE_DIRTY_MAX},
       {"access_pattern_hint", ACCESS_PATTERN}});
 
-    REQUIRE((session->get_mock_connection()->setup_block_manager(session->get_wt_session_impl())) == 0);
+    REQUIRE(
+      (session->get_mock_connection()->setup_block_manager(session->get_wt_session_impl())) == 0);
 
     // Initialize the correct checksum function.
     __wt_process.checksum = wiredtiger_crc32c_func();
@@ -177,8 +178,8 @@ TEST_CASE("Block: __wti_block_write_off", "[block_write]")
          * std::cout << str2 << std::endl;
          * REQUIRE((__ut_block_write_off(session->get_wt_session_impl(), block, buf, &offset, &size,
          *   &checksum, false, false, false)) == 0);
-         * validate_block_write(session->get_wt_session_impl(), block, str2, offset, size, checksum, 2,
-         * buf);
+         * validate_block_write(session->get_wt_session_impl(), block, str2, offset, size, checksum,
+         * 2, buf);
          */
     }
 
@@ -189,8 +190,8 @@ TEST_CASE("Block: __wti_block_write_off", "[block_write]")
      *     __wt_spin_lock(session->get_wt_session_impl(), &block->live_lock);
      *     REQUIRE((__ut_block_write_off(session->get_wt_session_impl(), block, buf, &offset, &size,
      *       &checksum, false, false, true)) == 0);
-     *     validate_block_write(session->get_wt_session_impl(), block, str, offset, size, checksum, 1,
-     *     buf);
+     *     validate_block_write(session->get_wt_session_impl(), block, str, offset, size, checksum,
+     * 1, buf);
      *     __wt_spin_unlock(session->get_wt_session_impl(), &block->live_lock);
      * }
      */
