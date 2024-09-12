@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static void __bm_method_set(WT_BM *, bool);
 static int __bm_sync_tiered_handles(WT_BM *, WT_SESSION_IMPL *);
 
 /*
@@ -242,7 +243,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
          * it. Although the btree layer prevents attempts to write a checkpoint reference, paranoia
          * is healthy.
          */
-        __wt_bm_method_set(bm, true);
+        __bm_method_set(bm, true);
     }
 
     return (0);
@@ -890,11 +891,11 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 }
 
 /*
- * __wt_bm_method_set --
+ * __bm_method_set --
  *     Set up the legal methods.
  */
-void
-__wt_bm_method_set(WT_BM *bm, bool readonly)
+static void
+__bm_method_set(WT_BM *bm, bool readonly)
 {
     bm->addr_invalid = __bm_addr_invalid;
     bm->addr_string = __bm_addr_string;
@@ -970,7 +971,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
     __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
 
     WT_RET(__wt_calloc_one(session, &bm));
-    __wt_bm_method_set(bm, false);
+    __bm_method_set(bm, false);
     bm->is_multi_handle = false;
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
@@ -1007,5 +1008,38 @@ void
 __wt_blkcache_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     /* Switch the handle into read-only mode. */
-    __wt_bm_method_set(S2BT(session)->bm, true);
+    __bm_method_set(S2BT(session)->bm, true);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_bm_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    return (__bm_addr_invalid(bm, session, addr, addr_size));
+}
+
+int
+__ut_bm_addr_string(
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+{
+    return (__bm_addr_string(bm, session, buf, addr, addr_size));
+}
+
+u_int
+__ut_bm_block_header(WT_BM *bm)
+{
+    return (__bm_block_header(bm));
+}
+
+bool
+__ut_bm_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
+{
+    return (__bm_is_mapped(bm, session));
+}
+
+int
+__ut_bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
+{
+    return (__bm_stat(bm, session, stats));
+}
+#endif

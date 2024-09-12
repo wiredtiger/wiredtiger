@@ -492,3 +492,11 @@ __wt_block_manager_named_size(WT_SESSION_IMPL *session, const char *name, wt_off
 {
     return (__wt_fs_size(session, name, sizep));
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
+{
+    return (__wt_block_manager_size(bm, session, sizep));
+}
+#endif
