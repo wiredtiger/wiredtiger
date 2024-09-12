@@ -47,14 +47,6 @@
  */
 #define WT_BTREE_MAX_OBJECT_SIZE ((uint32_t)(UINT32_MAX - 1024))
 
-/*
- * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
- * create temporary space in which to store them. (Locations can't be much larger than this anyway,
- * they must fit onto the minimum size page because a reference to an overflow page is itself a
- * location.)
- */
-#define WT_BTREE_MAX_ADDR_COOKIE 255 /* Maximum address cookie */
-
 /* Evict pages if we see this many consecutive deleted records. */
 #define WT_BTREE_DELETE_THRESHOLD WT_THOUSAND
 
@@ -92,23 +84,6 @@ typedef enum { /* Start position for eviction walk */
 
 /* An invalid btree file ID value. ID 0 is reserved for the metadata file. */
 #define WT_BTREE_ID_INVALID UINT32_MAX
-
-/*
- * WT_ADDR_COPY --
- *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
- * copy of the WT_REF address information.
- */
-struct __wt_addr_copy {
-    uint8_t type;
-
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    uint8_t size;
-
-    WT_TIME_AGGREGATE ta;
-
-    WT_PAGE_DELETED del; /* Fast-truncate page information */
-    bool del_set;
-};
 
 /*
  * WT_BTREE --
