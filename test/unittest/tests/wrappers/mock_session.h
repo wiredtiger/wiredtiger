@@ -56,6 +56,7 @@ public:
     }
     static std::shared_ptr<mock_session> build_test_mock_session();
     WT_BLOCK_MGR_SESSION *setup_block_manager_session();
+    void setup_block_manager_file_operations();
 
 private:
     explicit mock_session(

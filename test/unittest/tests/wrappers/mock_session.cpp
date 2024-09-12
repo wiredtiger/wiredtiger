@@ -60,6 +60,16 @@ mock_session::setup_block_manager_session()
     return static_cast<WT_BLOCK_MGR_SESSION *>(_session_impl->block_manager);
 }
 
+void mock_session::setup_block_manager_file_operations()
+{
+    // Initialize the checksum function.
+    __wt_process.checksum = wiredtiger_crc32c_func();
+    utils::throw_if_non_zero(
+      __wt_calloc(nullptr, 1, sizeof(WT_DATA_HANDLE), &_session_impl->dhandle));
+    utils::throw_if_non_zero(
+      __wt_calloc(nullptr, 1, sizeof(WT_BTREE), &_session_impl->dhandle->handle));
+}
+
 int
 handle_wiredtiger_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int, const char *message)
 {
