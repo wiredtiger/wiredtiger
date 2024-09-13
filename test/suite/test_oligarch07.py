@@ -38,7 +38,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
     conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
-    create_session_config = 'key_format=S,value_format=S,stable_prefix=/home/ubuntu/dev/labs-854/wiredtiger/build/WT_TEST/test_oligarch07.0'
+    create_session_config = 'key_format=S,value_format=S,stable_prefix=.'
 
     uri = "oligarch:test_oligarch07"
 

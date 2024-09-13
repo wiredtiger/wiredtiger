@@ -777,7 +777,8 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
  *     the handle's reference count while holding the handle list lock.
  */
 static int
-__session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool force)
+__session_find_shared_dhandle(
+  WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool force)
 {
     WT_DECL_RET;
 

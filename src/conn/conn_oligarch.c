@@ -33,8 +33,8 @@ __oligarch_metadata_watcher(void *arg)
       __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
 
     /*
-     * TODO this loop is currently needed so that we don't ENOENT out of the watcher thread while the primary is
-     * starting up and hasn't yet created the shared file.
+     * TODO this loop is currently needed so that we don't ENOENT out of the watcher thread while
+     * the primary is starting up and hasn't yet created the shared file.
      */
     for (i = 0; i < 1000; i++) {
         ret = __wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh);
@@ -105,7 +105,8 @@ __oligarch_metadata_watcher(void *arg)
         /* Put our new config in */
         WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
         WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
-        S2C(session)->oligarch_manager.update_dhandle = true; /* TODO concurrency hazard, needs better design */
+        S2C(session)->oligarch_manager.update_dhandle =
+          true; /* TODO concurrency hazard, needs better design */
         md_cursor = NULL;
 
         /*
@@ -418,8 +419,7 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
 
-    const char *cfg[] = {
-        WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     manager = &S2C(session)->oligarch_manager;
     entry = manager->entries[ingest_id];
@@ -487,35 +487,32 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
         if ((entry = manager->entries[i]) != NULL &&
           entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
             /*
-             * Retrieve the current transaction ID - ensure it actually gets read from the
-             * shared variable here, it would lead to data loss if it was read later and
-             * included transaction IDs that aren't included in the checkpoint. It's OK for it
-             * to miss IDs - this requires an "at least as much" guarantee, not an exact match
-             * guarantee.
+             * Retrieve the current transaction ID - ensure it actually gets read from the shared
+             * variable here, it would lead to data loss if it was read later and included
+             * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs -
+             * this requires an "at least as much" guarantee, not an exact match guarantee.
              */
             WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
             __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-              "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64,
-              entry->stable_uri, satisfied_txn_id);
+              "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
+              satisfied_txn_id);
 
-            WT_RET(
-              __oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
+            WT_RET(__oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
             /*
-             * Clear out the byte count before checkpointing - otherwise any writes done during
-             * the checkpoint won't count towards the next threshold.
+             * Clear out the byte count before checkpointing - otherwise any writes done during the
+             * checkpoint won't count towards the next threshold.
              */
             entry->accumulated_write_bytes = 0;
 
             /*
-             * We know all content in the table is visible - use the cheapest check we can
-             * during reconciliation.
+             * We know all content in the table is visible - use the cheapest check we can during
+             * reconciliation.
              */
             saved_isolation = session->txn->isolation;
             session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
             /*
-             * Turn on metadata tracking to ensure the checkpoint gets the necessary handle
-             * locks.
+             * Turn on metadata tracking to ensure the checkpoint gets the necessary handle locks.
              */
             WT_RET(__wt_meta_track_on(session));
             WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
