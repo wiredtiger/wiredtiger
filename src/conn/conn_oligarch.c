@@ -15,7 +15,7 @@ static WT_THREAD_RET
 __oligarch_metadata_watcher(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *md_cursor, *stable_cursor;
+    WT_CURSOR *md_cursor;
     WT_DECL_RET;
     WT_FH *md_fh;
     WT_SESSION_IMPL *session;
@@ -102,6 +102,7 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(__wt_calloc_def(session, len, &new_md_value));
         WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
         fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value);
+        /*
         if (strcmp(S2C(session)->home, "follower") == 0) {
             for (i = 0; i < (int)S2C(session)->oligarch_manager.open_oligarch_table_count; i++) {
                 if (S2C(session)->oligarch_manager.entries[i] != NULL) {
@@ -123,6 +124,7 @@ __oligarch_metadata_watcher(void *arg)
                 }
             }
         }
+         */
         cfg[0] = value;
         cfg[1] = new_md_value;
         cfg[2] = NULL;
@@ -131,6 +133,7 @@ __oligarch_metadata_watcher(void *arg)
         /* Put our new config in */
         WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
         WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
+        S2C(session)->oligarch_manager.update_dhandle = true;
         md_cursor = NULL;
 
         /*
@@ -445,18 +448,24 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
     WT_CURSOR *stable_cursor;
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
+
     const char *cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite,force=true", NULL};
+        WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     manager = &S2C(session)->oligarch_manager;
     entry = manager->entries[ingest_id];
 
     *cursorp = NULL;
 
+    if (manager->update_dhandle) {
+        manager->update_dhandle = false;
+        cfg[2] = "force=true";
+    }
+
     if (entry == NULL)
         return (0);
 
-    if (false && entry->stable_cursor != NULL) {
+    if (entry->stable_cursor != NULL) {
         *cursorp = entry->stable_cursor;
         return (0);
     }

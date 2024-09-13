@@ -112,6 +112,11 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         #
         cursor = session_follow.open_cursor(self.uri, None, None)
 
+        # cursor.set_key("Hello 70")
+        # cursor.search()
+        # self.assertEqual(cursor.get_value(), "World")
+        # cursor.close()
+
         for i in range(26):
             cursor["* Hello " + str(i)] = "World"
             cursor["* Hi " + str(i)] = "There"

@@ -146,6 +146,7 @@ struct __wt_oligarch_manager {
     wt_shared uint32_t watcher_state;
     wt_thread_t watcher_tid;
     bool watcher_tid_set;
+    bool update_dhandle;
 
     wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
 
