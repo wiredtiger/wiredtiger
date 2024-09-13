@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-#include "evict_private.h"
 
 /*
  * __wt_evict_file --
