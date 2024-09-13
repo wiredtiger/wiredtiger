@@ -101,30 +101,7 @@ __oligarch_metadata_watcher(void *arg)
         /* Allocate/create a new config we're going to insert */
         WT_ERR(__wt_calloc_def(session, len, &new_md_value));
         WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
-        fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value);
-        /*
-        if (strcmp(S2C(session)->home, "follower") == 0) {
-            for (i = 0; i < (int)S2C(session)->oligarch_manager.open_oligarch_table_count; i++) {
-                if (S2C(session)->oligarch_manager.entries[i] != NULL) {
-                    if (strcmp(S2C(session)->oligarch_manager.entries[i]->stable_uri,
-                          "file:test_oligarch07.wt_stable") == 0) {
-                        ret = __oligarch_get_constituent_cursor(session,
-                          S2C(session)->oligarch_manager.entries[i]->ingest_id, &stable_cursor);
-                        if (ret != 0) {
-                            ret = 0;
-                            break;
-                        }
-
-                        stable_cursor->set_key(stable_cursor, "Hello 70");
-                        ret = stable_cursor->search(stable_cursor);
-                        fprintf(stderr, "checkpoint load: search returned %d\n", ret);
-                        ret = 0;
-                        break;
-                    }
-                }
-            }
-        }
-         */
+        /* fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value); */
         cfg[0] = value;
         cfg[1] = new_md_value;
         cfg[2] = NULL;
@@ -230,13 +207,9 @@ __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.len == 0)
         return (0);
 
-    if (WT_CONFIG_LIT_MATCH("follower", cval)) {
-        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->follower, reconfig=%s\n\n\n\n\n",
-          conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
+    if (WT_CONFIG_LIT_MATCH("follower", cval))
         conn->oligarch_manager.leader = false;
-    } else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
-        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->leader, reconfig=%s\n\n\n\n\n",
-          conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
+    else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
         conn->oligarch_manager.leader = true;
         if (reconfig) {
             TAILQ_FOREACH (block, &conn->blockqh, q) {
@@ -528,7 +501,6 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
                 __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
                   "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64,
                   entry->stable_uri, satisfied_txn_id);
-                fprintf(stderr, "[%s] checkpointing %s\n", S2C(session)->home, entry->stable_uri);
 
                 WT_RET(
                   __oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
@@ -550,8 +522,6 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
                  * locks.
                  */
                 WT_RET(__wt_meta_track_on(session));
-                if (strcmp(S2C(session)->home, "follower") != 0)
-                    fprintf(stderr, "checkpointing in follower-land\n");
                 WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
                   ret = __oligarch_manager_checkpoint_locked(session));
                 WT_TRET(__wt_meta_track_off(session, false, ret != 0));
@@ -642,8 +612,6 @@ __oligarch_log_replay_op_apply(
                  */
                 WT_ERR(__wt_modify_apply_item(CUR2S(stable_cursor), stable_cursor->value_format,
                   &stable_cursor->value, value.data));
-                if (strcmp(S2C(session)->home, "follower") == 0)
-                    fprintf(stderr, "log replay: stable cursor insert modify\n");
                 WT_ERR(stable_cursor->insert(stable_cursor));
                 entry->accumulated_write_bytes += (key.size + stable_cursor->value.size);
                 applied = true;
@@ -659,14 +627,6 @@ __oligarch_log_replay_op_apply(
           "oligarch log application row store put applying to stable table %s", entry->ingest_uri);
           */
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
-            if (strcmp(S2C(session)->home, "follower") == 0) {
-                fprintf(stderr, "log replay: stable cursor insert put\n");
-            }
-            stable_cursor->set_key(stable_cursor, "Hello 70");
-            ret = stable_cursor->search(stable_cursor);
-            fprintf(stderr, "search old data on insert: ret=%d\n", ret);
-            ret = 0;
-
             __wt_cursor_set_raw_key(stable_cursor, &key);
             __wt_cursor_set_raw_value(stable_cursor, &value);
             WT_ERR(stable_cursor->insert(stable_cursor));
@@ -690,8 +650,6 @@ __oligarch_log_replay_op_apply(
              * forward may race with a remove, resulting in the key not being in the tree, but
              * recovery still processing the log record of the remove.
              */
-            if (strcmp(S2C(session)->home, "follower") == 0)
-                fprintf(stderr, "log replay: stable cursor remove\n");
             WT_ERR_NOTFOUND_OK(stable_cursor->remove(stable_cursor), false);
             entry->accumulated_write_bytes += (key.size + value.size);
             applied = true;
