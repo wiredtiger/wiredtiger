@@ -1586,7 +1586,7 @@ __wt_session_range_truncate(
     WT_TRUNCATE_INFO *trunc_info, _trunc_info;
     int cmp;
     const char *actual_uri;
-    bool local_start, local_stop, log_op, log_trunc, needs_next_prev;
+    bool local_start, local_stop, log_trunc, needs_next_prev;
 
     actual_uri = NULL;
     local_start = local_stop = log_trunc = false;
@@ -1749,12 +1749,9 @@ done:
         /* We have to have a dhandle from somewhere. */
         WT_ASSERT(session, dhandle != NULL);
         if (WT_DHANDLE_BTREE(dhandle)) {
-            WT_WITH_DHANDLE(session, dhandle, log_op = __wt_log_op(session));
-            if (log_op) {
-                WT_WITH_DHANDLE(session, dhandle, ret = __wt_txn_truncate_log(trunc_info));
-                WT_ERR(ret);
-                __wt_txn_truncate_end(session);
-            }
+            WT_WITH_DHANDLE(session, dhandle, ret = __wt_txn_truncate_log(trunc_info));
+            WT_ERR(ret);
+            __wt_txn_truncate_end(session);
         }
     }
 err:
