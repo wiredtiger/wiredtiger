@@ -18,8 +18,8 @@
 static WT_INLINE bool
 __wt_cache_aggressive(WT_SESSION_IMPL *session)
 {
-    return (
-      __wt_atomic_load32(&S2C(session)->evict->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
+    return (__wt_atomic_load32(&S2C(session)->evict->priv.evict_aggressive_score) >=
+      WT_EVICT_SCORE_CUTOFF);
 }
 
 /*
@@ -29,7 +29,7 @@ __wt_cache_aggressive(WT_SESSION_IMPL *session)
 static WT_INLINE uint64_t
 __cache_read_gen(WT_SESSION_IMPL *session)
 {
-    return (__wt_atomic_load64(&S2C(session)->evict->read_gen));
+    return (__wt_atomic_load64(&S2C(session)->evict->priv.read_gen));
 }
 
 /*
@@ -39,7 +39,7 @@ __cache_read_gen(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wti_cache_read_gen_incr(WT_SESSION_IMPL *session)
 {
-    (void)__wt_atomic_add64(&S2C(session)->evict->read_gen, 1);
+    (void)__wt_atomic_add64(&S2C(session)->evict->priv.read_gen, 1);
 }
 
 /*
@@ -52,7 +52,8 @@ __wti_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_EVICT *evict;
 
     evict = S2C(session)->evict;
-    __wt_atomic_store64(&page->read_gen, (__cache_read_gen(session) + evict->read_gen_oldest) / 2);
+    __wt_atomic_store64(
+      &page->read_gen, (__cache_read_gen(session) + evict->priv.read_gen_oldest) / 2);
 }
 
 /*
@@ -91,7 +92,7 @@ __wt_cache_stuck(WT_SESSION_IMPL *session)
     uint32_t tmp_evict_aggressive_score;
 
     evict = S2C(session)->evict;
-    tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
+    tmp_evict_aggressive_score = __wt_atomic_load32(&evict->priv.evict_aggressive_score);
     WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
     return (
       tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_CACHE_EVICT_HARD));
@@ -221,7 +222,7 @@ __wti_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
     if (pct_fullp != NULL)
         *pct_fullp = (100.0 * bytes_updates) / bytes_max;
 
-    return (bytes_updates > (uint64_t)(evict->eviction_updates_trigger * bytes_max) / 100);
+    return (bytes_updates > (uint64_t)(evict->priv.eviction_updates_trigger * bytes_max) / 100);
 }
 
 /*
@@ -250,7 +251,7 @@ __wti_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
         return (true);
     if (__wt_cache_bytes_plus_overhead(
           S2C(session)->cache, __wt_atomic_load64(&btree->bytes_updates)) >
-      (uint64_t)(0.5 * evict->eviction_updates_target * bytes_max) / 100)
+      (uint64_t)(0.5 * evict->priv.eviction_updates_target * bytes_max) / 100)
         return (true);
 
     return (false);
@@ -295,7 +296,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
           100.0 -
             WT_MIN(
               WT_MIN(evict->eviction_trigger - pct_full, evict->eviction_dirty_trigger - pct_dirty),
-              evict->eviction_updates_trigger - pct_updates));
+              evict->priv.eviction_updates_trigger - pct_updates));
 
     /*
      * Only check the dirty trigger when the session is not busy.

@@ -15,24 +15,9 @@
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
-#define WT_EVICT_QUEUE_MAX 3 /* Two ordinary queues plus urgent */
-
-/*
- * WT_EVICT_QUEUE --
- *	Encapsulation of an eviction candidate queue.
- */
-struct __wt_evict_queue {
-    WT_SPINLOCK evict_lock;                /* Eviction LRU queue */
-    WT_EVICT_ENTRY *evict_queue;           /* LRU pages being tracked */
-    WT_EVICT_ENTRY *evict_current;         /* LRU current page to be evicted */
-    uint32_t evict_candidates;             /* LRU list pages to evict */
-    uint32_t evict_entries;                /* LRU entries in the queue */
-    wt_shared volatile uint32_t evict_max; /* LRU maximum eviction slot used */
-};
-
 struct __wt_evict {
+    WT_EVICT_PRIV priv;
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
-    uint64_t last_eviction_progress;               /* Tracked eviction progress */
 
     uint64_t app_waits;  /* User threads waited for cache */
     uint64_t app_evicts; /* Pages evicted by user threads */
@@ -40,21 +25,8 @@ struct __wt_evict {
     wt_shared uint64_t evict_max_page_size; /* Largest page seen at eviction */
     wt_shared uint64_t evict_max_ms;        /* Longest milliseconds spent at a single eviction */
     uint64_t reentry_hs_eviction_ms;        /* Total milliseconds spent inside a nested eviction */
-    struct timespec stuck_time;             /* Stuck time */
 
-    /*
-     * Read information.
-     */
-    uint64_t read_gen;        /* Current page read generation */
-    uint64_t read_gen_oldest; /* Oldest read generation the eviction
-                               * server saw in its last queue load */
-    uint64_t evict_pass_gen;  /* Number of eviction passes */
-
-    /*
-     * Eviction thread information.
-     */
-    WT_CONDVAR *evict_cond;      /* Eviction server condition */
-    WT_SPINLOCK evict_walk_lock; /* Eviction walk location */
+    uint64_t evict_pass_gen; /* Number of eviction passes */
 
     /*
      * Eviction threshold percentages use double type to allow for specifying percentages less than
@@ -62,72 +34,18 @@ struct __wt_evict {
      */
     wt_shared double eviction_dirty_target;  /* Percent to allow dirty */
     wt_shared double eviction_dirty_trigger; /* Percent to trigger dirty eviction */
-    double eviction_trigger;                 /* Percent to trigger eviction */
     double eviction_target;                  /* Percent to end eviction */
-    double eviction_updates_target;          /* Percent to allow for updates */
-    double eviction_updates_trigger;         /* Percent of updates to trigger eviction */
+    double eviction_trigger;                 /* Percent to trigger eviction */
 
     double eviction_checkpoint_target; /* Percent to reduce dirty to during checkpoint scrubs */
     wt_shared double eviction_scrub_target; /* Current scrub target */
-
-    uint64_t cache_max_wait_us;      /* Maximum time an operation waits for space in cache */
-    uint64_t cache_stuck_timeout_ms; /* Maximum time the cache can be stuck for in diagnostic mode
-                                        before timing out */
-
-    /*
-     * Eviction thread tuning information.
-     */
-    uint32_t evict_tune_datapts_needed;          /* Data needed to tune */
-    struct timespec evict_tune_last_action_time; /* Time of last action */
-    struct timespec evict_tune_last_time;        /* Time of last check */
-    uint32_t evict_tune_num_points;              /* Number of values tried */
-    uint64_t evict_tune_progress_last;           /* Progress counter */
-    uint64_t evict_tune_progress_rate_max;       /* Max progress rate */
-    bool evict_tune_stable;                      /* Are we stable? */
-    uint32_t evict_tune_workers_best;            /* Best performing value */
 
     /*
      * Pass interrupt counter.
      */
     wt_shared volatile uint32_t pass_intr; /* Interrupt eviction pass. */
 
-    /*
-     * LRU eviction list information.
-     */
-    WT_SPINLOCK evict_pass_lock;   /* Eviction pass lock */
-    WT_SESSION_IMPL *walk_session; /* Eviction pass session */
-    WT_DATA_HANDLE *walk_tree;     /* LRU walk current tree */
-
-    WT_SPINLOCK evict_queue_lock; /* Eviction current queue lock */
-    WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
-    WT_EVICT_QUEUE *evict_current_queue; /* LRU current queue in use */
-    WT_EVICT_QUEUE *evict_fill_queue;    /* LRU next queue to fill.
-                                            This is usually the same as the
-                                            "other" queue but under heavy
-                                            load the eviction server will
-                                            start filling the current queue
-                                            before it switches. */
-    WT_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
-    WT_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
-    uint32_t evict_slots;                /* LRU list eviction slots */
-
-#define WT_EVICT_PRESSURE_THRESHOLD 0.95
-#define WT_EVICT_SCORE_BUMP 10
-#define WT_EVICT_SCORE_CUTOFF 10
-#define WT_EVICT_SCORE_MAX 100
-    /*
-     * Score of how aggressive eviction should be about selecting eviction candidates. If eviction
-     * is struggling to make progress, this score rises (up to a maximum of WT_EVICT_SCORE_MAX), at
-     * which point the cache is "stuck" and transactions will be rolled back.
-     */
-    wt_shared uint32_t evict_aggressive_score;
-
-    /*
-     * Score of how often LRU queues are empty on refill. This score varies between 0 (if the queue
-     * hasn't been empty for a long time) and 100 (if the queue has been empty the last 10 times we
-     * filled up.
-     */
-    uint32_t evict_empty_score;
+    WT_DATA_HANDLE *walk_tree; /* LRU walk current tree */
 
 /*
  * Flags.
