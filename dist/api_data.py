@@ -1388,6 +1388,9 @@ cursor_runtime_config = [
         append written values as new records, giving each a new record number key; valid only for
         cursors with record number keys''',
         type='boolean'),
+    Config('force', 'false', r'''
+        forcibly open a new dhandle''',
+        type='boolean'),
     Config('overwrite', 'true', r'''
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY

@@ -911,8 +911,8 @@ __coligarch_modify_check(WT_SESSION_IMPL *session)
  *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
  */
 static WT_INLINE int
-__coligarch_put(WT_SESSION_IMPL *session, WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key, const WT_ITEM *value,
-  bool position, bool reserve)
+__coligarch_put(WT_SESSION_IMPL *session, WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key,
+  const WT_ITEM *value, bool position, bool reserve)
 {
     WT_CURSOR *c;
     int (*func)(WT_CURSOR *);

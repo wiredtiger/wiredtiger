@@ -185,7 +185,8 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_RET(__wt_block_pantry_addr_pack(&endp, root_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
-    fprintf(stderr, "[%s] __wt_bmp_checkpoint_load(%s): 0x", S2C(session)->home, block_pantry->fh->handle->name);
+    fprintf(stderr, "[%s] __wt_bmp_checkpoint_load(%s): 0x", S2C(session)->home,
+      block_pantry->fh->handle->name);
     for (i = 0; i < *root_addr_sizep; i++) {
         fprintf(stderr, "%02x", root_addr[i]);
     }

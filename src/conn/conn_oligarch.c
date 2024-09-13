@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-static int __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp);
+static int __oligarch_get_constituent_cursor(
+  WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp);
 
 static WT_THREAD_RET
 __oligarch_metadata_watcher(void *arg)
@@ -95,7 +96,7 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(md_cursor->get_value(md_cursor, &value));
         len = strlen(&buf[last_sep + 1]);
         buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
-        len += strlen("checkpoint="); /* -1 for trailing newline */
+        len += strlen("checkpoint=");         /* -1 for trailing newline */
 
         /* Allocate/create a new config we're going to insert */
         WT_ERR(__wt_calloc_def(session, len, &new_md_value));
@@ -106,7 +107,8 @@ __oligarch_metadata_watcher(void *arg)
                 if (S2C(session)->oligarch_manager.entries[i] != NULL) {
                     if (strcmp(S2C(session)->oligarch_manager.entries[i]->stable_uri,
                           "file:test_oligarch07.wt_stable") == 0) {
-                        ret = __oligarch_get_constituent_cursor(session, S2C(session)->oligarch_manager.entries[i]->ingest_id, &stable_cursor);
+                        ret = __oligarch_get_constituent_cursor(session,
+                          S2C(session)->oligarch_manager.entries[i]->ingest_id, &stable_cursor);
                         if (ret != 0) {
                             ret = 0;
                             break;
@@ -181,8 +183,8 @@ __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manage
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    char *md_path;
     size_t len;
+    char *md_path;
 
     conn = S2C(session);
 
@@ -194,9 +196,11 @@ __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manage
       __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
 
     if (manager->leader)
-        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
+        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA,
+          WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
     else
-        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
+        WT_ERR(__wt_open(
+          session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
 
 err:
     __wt_free(session, md_path);
@@ -224,10 +228,12 @@ __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         return (0);
 
     if (WT_CONFIG_LIT_MATCH("follower", cval)) {
-        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->follower, reconfig=%s\n\n\n\n\n", conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
+        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->follower, reconfig=%s\n\n\n\n\n",
+          conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
         conn->oligarch_manager.leader = false;
     } else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
-        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->leader, reconfig=%s\n\n\n\n\n", conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
+        fprintf(stderr, "\n\n\n\noligarch reconfigured %s->leader, reconfig=%s\n\n\n\n\n",
+          conn->oligarch_manager.leader ? "leader" : "follower", reconfig ? "true" : "false");
         conn->oligarch_manager.leader = true;
         if (reconfig) {
             TAILQ_FOREACH (block, &conn->blockqh, q) {
@@ -238,8 +244,6 @@ __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     } else
         /* TODO better error message. */
         WT_RET(EINVAL);
-
-
 
     return (0);
 }
@@ -441,7 +445,8 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
     WT_CURSOR *stable_cursor;
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+    const char *cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite,force=true", NULL};
 
     manager = &S2C(session)->oligarch_manager;
     entry = manager->entries[ingest_id];
@@ -502,58 +507,61 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
     /* The table count never shrinks, so this is safe. It probably needs the oligarch lock */
     for (i = 0; i < manager->open_oligarch_table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
-          if (entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
-            /*
-             * Retrieve the current transaction ID - ensure it actually gets read from the shared
-             * variable here, it would lead to data loss if it was read later and included
-             * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs -
-             * this requires an "at least as much" guarantee, not an exact match guarantee.
-             */
-            WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
-            __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-              "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
-              satisfied_txn_id);
-            fprintf(stderr, "[%s] checkpointing %s\n", S2C(session)->home, entry->stable_uri);
+            if (entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
+                /*
+                 * Retrieve the current transaction ID - ensure it actually gets read from the
+                 * shared variable here, it would lead to data loss if it was read later and
+                 * included transaction IDs that aren't included in the checkpoint. It's OK for it
+                 * to miss IDs - this requires an "at least as much" guarantee, not an exact match
+                 * guarantee.
+                 */
+                WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
+                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
+                  "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64,
+                  entry->stable_uri, satisfied_txn_id);
+                fprintf(stderr, "[%s] checkpointing %s\n", S2C(session)->home, entry->stable_uri);
 
-            WT_RET(__oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
-            /*
-             * Clear out the byte count before checkpointing - otherwise any writes done during the
-             * checkpoint won't count towards the next threshold.
-             */
-            entry->accumulated_write_bytes = 0;
+                WT_RET(
+                  __oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
+                /*
+                 * Clear out the byte count before checkpointing - otherwise any writes done during
+                 * the checkpoint won't count towards the next threshold.
+                 */
+                entry->accumulated_write_bytes = 0;
 
-            /*
-             * We know all content in the table is visible - use the cheapest check we can during
-             * reconciliation.
-             */
-            saved_isolation = session->txn->isolation;
-            session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
+                /*
+                 * We know all content in the table is visible - use the cheapest check we can
+                 * during reconciliation.
+                 */
+                saved_isolation = session->txn->isolation;
+                session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
-            /*
-             * Turn on metadata tracking to ensure the checkpoint gets the necessary handle locks.
-             */
-            WT_RET(__wt_meta_track_on(session));
-            if (strcmp(S2C(session)->home, "follower") != 0)
-                fprintf(stderr, "checkpointing in follower-land\n");
-            WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
-              ret = __oligarch_manager_checkpoint_locked(session));
-            WT_TRET(__wt_meta_track_off(session, false, ret != 0));
-            session->txn->isolation = saved_isolation;
-            if (ret == 0) {
-                entry->checkpoint_txn_id = satisfied_txn_id;
-                ingest_btree = (WT_BTREE *)entry->oligarch_table->ingest->handle;
-                WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
-                  "Ingest table not setup for garbage collection");
-                ingest_btree->oldest_live_txnid = satisfied_txn_id;
+                /*
+                 * Turn on metadata tracking to ensure the checkpoint gets the necessary handle
+                 * locks.
+                 */
+                WT_RET(__wt_meta_track_on(session));
+                if (strcmp(S2C(session)->home, "follower") != 0)
+                    fprintf(stderr, "checkpointing in follower-land\n");
+                WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
+                  ret = __oligarch_manager_checkpoint_locked(session));
+                WT_TRET(__wt_meta_track_off(session, false, ret != 0));
+                session->txn->isolation = saved_isolation;
+                if (ret == 0) {
+                    entry->checkpoint_txn_id = satisfied_txn_id;
+                    ingest_btree = (WT_BTREE *)entry->oligarch_table->ingest->handle;
+                    WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
+                      "Ingest table not setup for garbage collection");
+                    ingest_btree->oldest_live_txnid = satisfied_txn_id;
+                }
+
+                /* We've done (or tried to do) a checkpoint - that's it. */
+                return (ret);
+            } else if (entry != NULL) {
+                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
+                  "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
+                  entry->accumulated_write_bytes);
             }
-
-            /* We've done (or tried to do) a checkpoint - that's it. */
-            return (ret);
-          } else if (entry != NULL) {
-              __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-                "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-                entry->accumulated_write_bytes);
-          }
         }
     }
 

@@ -911,6 +911,10 @@ __cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *cache
     if (cval.len != 0)
         goto return_false;
 
+    WT_RET(__wt_config_gets(session, cfg, "force", &cval));
+    if (WT_CONFIG_LIT_MATCH("true", cval))
+        goto return_false;
+
     WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0)
         goto return_false;
