@@ -9,12 +9,6 @@
 #pragma once
 #include "evict_private.h"
 
-/*
- * Helper: in order to read without any calls to eviction, we have to ignore the cache size and
- * disable splits.
- */
-#define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
-
 struct __wt_evict {
     WT_EVICT_PRIV priv;
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
