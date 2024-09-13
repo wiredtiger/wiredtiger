@@ -156,18 +156,13 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_UNUSED(addr_size);
     WT_UNUSED(checkpoint);
 
-    fprintf(stderr, "checkpoint=%s\n", checkpoint ? "true" : "false");
-
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
     handle = block_pantry->fh->handle;
 
     *root_addr_sizep = 0;
 
-    /* If the checkpoint has an on-disk root page, load it. */
-    if (addr == NULL || addr_size == 0) {
-        fprintf(stderr, "addr null or sz 0, sz=%lu\n", addr_size);
+    if (addr == NULL || addr_size == 0)
         return (0);
-    }
 
     WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
 

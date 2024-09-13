@@ -843,8 +843,6 @@ void
 __wt_session_dhandle_readlock(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, session->dhandle != NULL);
-    if (strcmp(session->dhandle->name, "oligarch:test_oligarch06") == 0)
-        fprintf(stderr, "dhandle_readlock %s\n", session->dhandle->name);
     __wt_readlock(session, &session->dhandle->rwlock);
 }
 
@@ -856,8 +854,6 @@ void
 __wt_session_dhandle_readunlock(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, session->dhandle != NULL);
-    if (strcmp(session->dhandle->name, "oligarch:test_oligarch06") == 0)
-        fprintf(stderr, "dhandle_readunlock %s\n", session->dhandle->name);
     __wt_readunlock(session, &session->dhandle->rwlock);
 }
 
@@ -870,8 +866,6 @@ __wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, session->dhandle != NULL);
     WT_ASSERT(session, FLD_ISSET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
-    if (strcmp(session->dhandle->name, "oligarch:test_oligarch06") == 0)
-        fprintf(stderr, "dhandle_writeunlock %s\n", session->dhandle->name);
     FLD_CLR(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
     __wt_writeunlock(session, &session->dhandle->rwlock);
 }
@@ -886,8 +880,6 @@ __wt_session_dhandle_try_writelock(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     WT_ASSERT(session, session->dhandle != NULL);
-    if (strcmp(session->dhandle->name, "oligarch:test_oligarch06") == 0)
-        fprintf(stderr, "dhandle_try_writelock %s\n", session->dhandle->name);
     if ((ret = __wt_try_writelock(session, &session->dhandle->rwlock)) == 0)
         FLD_SET(session->dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE);
 
@@ -911,6 +903,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     force = false;
 
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
+
+    /* TODO this check is lifted from elsewhere - needs to be done more nicely. */
     if (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL && (cfg[2] != NULL || cfg[1][0] != '\0')) {
         WT_RET(__wt_config_gets(session, cfg, "force", &cval));
         if (WT_CONFIG_LIT_MATCH("true", cval))

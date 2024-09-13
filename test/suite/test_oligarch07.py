@@ -128,7 +128,6 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         cursor = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor.next() == 0:
-            # print(cursor.get_key())
             item_count += 1
         self.assertEqual(item_count, self.nitems * 6)
         cursor.close()
