@@ -153,7 +153,7 @@ struct __wt_oligarch_manager {
     WT_SPINLOCK oligarch_lock; /* Lock used for managing changes to global oligarch state */
 
     /* Set the checkpoint threshold tiny for now - we just want to know the process is working */
-#define WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD 1024
+#define WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD 16
     uint32_t open_oligarch_table_count;
     /*
      * This is a sparsely populated array of oligarch tables - each fileid in the system gets an

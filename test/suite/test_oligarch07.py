@@ -33,7 +33,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_oligarch07.py
 #    Start a second WT that becomes leader and checke that content appears in the first.
 class test_oligarch07(wttest.WiredTigerTestCase):
-    nitems = 8
+    nitems = 500
 
     conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
@@ -82,7 +82,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 10 == 0:
+            if i % 100 == 0:
                 time.sleep(1)
             if i == 0:
                 cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
@@ -110,7 +110,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             cursor["* Hello " + str(i)] = "World"
             cursor["* Hi " + str(i)] = "There"
             cursor["* OK " + str(i)] = "Go"
-            if i % 10 == 0:
+            if i % 100 == 0:
                 time.sleep(1)
             if i == 0:
                 cursor_follow1 = self.session.open_cursor(self.uri, None, None)
@@ -133,12 +133,12 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         self.assertEqual(item_count, self.nitems * 6)
         cursor.close()
 
-        # cursor = self.session.open_cursor(self.uri, None, None)
-        # item_count = 0
-        # while cursor.next() == 0:
-        #     item_count += 1
-        # self.assertEqual(item_count, self.nitems * 6)
-        # cursor.close()
+        cursor = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.next() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 6)
+        cursor.close()
 
         # FIXME: Remove this once the cleanup & unexpected log output are fixed.
         self.ignoreStderrPatternIfExists('No such file or directory')

@@ -35,7 +35,6 @@ __oligarch_metadata_watcher(void *arg)
     WT_ERR(
       __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
     for (i = 0; i < 1000; i++) {
-        fprintf(stderr, "md_path=%s\n", md_path);
         ret = __wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh);
         if (ret == ENOENT)
             __wt_sleep(1, 0);
@@ -629,6 +628,7 @@ __oligarch_log_replay_op_apply(
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
             __wt_cursor_set_raw_value(stable_cursor, &value);
+            /* fprintf(stderr, "LOGOP_ROW_PUT key=%s\n", (char *)key.data); */
             WT_ERR(stable_cursor->insert(stable_cursor));
 
             entry->accumulated_write_bytes += (key.size + value.size);
