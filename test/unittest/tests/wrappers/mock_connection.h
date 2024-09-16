@@ -36,6 +36,7 @@ public:
     // Initialize the data structures, in-memory file system and variables used for file handles and
     // blocks. The block manager requires both to perform file type operations.
     int setup_block_manager(WT_SESSION_IMPL *);
+    void enable_statistics(WT_SESSION_IMPL *);
 
 private:
     explicit mock_connection(WT_CONNECTION_IMPL *connection_impl);

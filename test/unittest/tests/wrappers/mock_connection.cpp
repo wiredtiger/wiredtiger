@@ -81,3 +81,9 @@ mock_connection::setup_block_manager(WT_SESSION_IMPL *session)
     WT_RET(__wt_os_inmemory(session));
     return 0;
 }
+
+void
+mock_connection::enable_statistics(WT_SESSION_IMPL *session)
+{
+    _connection_impl->stat_flags = 1;
+}
