@@ -33,10 +33,11 @@ mock_session::~mock_session()
     if (connection_impl->file_system != nullptr)
         utils::throw_if_non_zero(connection_impl->file_system->terminate(
           connection_impl->file_system, reinterpret_cast<WT_SESSION *>(_session_impl)));
-    if (_session_impl->dhandle->handle != nullptr)
-        __wt_free(nullptr, _session_impl->dhandle->handle);
-    if (_session_impl->dhandle != nullptr)
+    if (_session_impl->dhandle != nullptr) {
+        if (_session_impl->dhandle->handle != nullptr)
+                    __wt_free(nullptr, _session_impl->dhandle->handle);
         __wt_free(nullptr, _session_impl->dhandle);
+    }
     __wt_free(nullptr, _session_impl);
 }
 
