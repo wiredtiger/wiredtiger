@@ -138,6 +138,3 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             item_count += 1
         self.assertEqual(item_count, self.nitems * 6)
         cursor.close()
-
-        # FIXME: Remove this once the cleanup & unexpected log output are fixed.
-        self.ignoreStderrPatternIfExists('No such file or directory')
