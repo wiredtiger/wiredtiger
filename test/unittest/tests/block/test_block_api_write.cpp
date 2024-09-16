@@ -102,9 +102,12 @@ create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::strin
     F_SET(buf, WT_ITEM_ALIGNED);
     REQUIRE(__wt_buf_initsize(session->get_wt_session_impl(), buf, buf_memsize) == 0);
 
-    // Copy content string into the buffer.
-    // Following the architecture guide, it seems that the block manager expects a block header.
-    // I have tried to mimic that here.
+    /*
+     * Copy content string into the buffer.
+     *
+     * Following the architecture guide, it seems that the block manager expects a block header. I
+     * have tried to mimic that here.
+     */
     REQUIRE(__wt_buf_grow_worker(session->get_wt_session_impl(), buf, buf->size) == 0);
     memcpy(WT_BLOCK_HEADER_BYTE(buf->mem), contents.c_str(), contents.length());
     // REQUIRE(__wt_buf_set(session->get_wt_session_impl(), buf, contents.c_str(),
