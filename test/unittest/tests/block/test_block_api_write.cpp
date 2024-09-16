@@ -141,10 +141,9 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
         test_and_validate_write_size(bm, session, 9999);
     }
 
-    // Make sure that the contents of write are okay
     SECTION("Test generic write api")
     {
-        // Should the buffer size be 512 at this point? For alignment purposes.
+        // Should the buffer size be 256 at this point? For alignment purposes.
         WT_ITEM buf;
         WT_CLEAR(buf);
         std::string test_string("hello");
@@ -152,7 +151,7 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
 
         uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
         size_t addr_size;
-        // Checksum gets inserted in the buffer here.
+        // Perform a generic write.
         REQUIRE(
           bm->write(bm, session->get_wt_session_impl(), &buf, addr, &addr_size, false, false) == 0);
         valid_write_and_read_block(bm, session, &buf, addr, addr_size, test_string, false);
@@ -166,7 +165,6 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
 
     SECTION("Test complex write api with same write buffer size")
     {
-        // Should the buffer size be 256 at this point? For alignment purposes.
         std::vector<std::string> test_strings(
           {"hello", "testing", "1234567890", std::move(std::string(64, 'a')),
             std::move(std::string(128, 'b')), std::move(std::string(190, 'c'))});
