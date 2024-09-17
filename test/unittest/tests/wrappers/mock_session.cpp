@@ -33,10 +33,11 @@ mock_session::~mock_session()
     if (connection_impl->file_system != nullptr)
         utils::throw_if_non_zero(connection_impl->file_system->terminate(
           connection_impl->file_system, reinterpret_cast<WT_SESSION *>(_session_impl)));
-    if (_session_impl->dhandle->handle != nullptr)
-        __wt_free(nullptr, _session_impl->dhandle->handle);
-    if (_session_impl->dhandle != nullptr)
+    if (_session_impl->dhandle != nullptr) {
+        if (_session_impl->dhandle->handle != nullptr)
+            __wt_free(nullptr, _session_impl->dhandle->handle);
         __wt_free(nullptr, _session_impl->dhandle);
+    }
     __wt_free(nullptr, _session_impl);
 }
 
@@ -60,7 +61,7 @@ mock_session::setup_block_manager_session()
     __wt_random_init(&_session_impl->rnd);
     utils::throw_if_non_zero(
       __wt_calloc(nullptr, 1, sizeof(WT_BLOCK_MGR_SESSION), &_session_impl->block_manager));
-
+    _session_impl->block_manager_cleanup = __ut_block_manager_session_cleanup;
     return static_cast<WT_BLOCK_MGR_SESSION *>(_session_impl->block_manager);
 }
 

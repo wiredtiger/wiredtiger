@@ -1010,3 +1010,11 @@ __wt_blkcache_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold
     /* Switch the handle into read-only mode. */
     __bm_method_set(S2BT(session)->bm, true);
 }
+
+#ifdef HAVE_UNITTEST
+void
+__ut_bm_method_set(WT_BM *bm)
+{
+    return (__bm_method_set(bm, false));
+}
+#endif
