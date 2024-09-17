@@ -36,8 +36,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     nitems = 100000
 
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
-    # conn_config = 'log=(enabled)'
+    conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = conn_base_config + 'oligarch=(role="leader")'
 
     # TODO do Python tests expect a field named uri?
     uri = "oligarch:test_oligarch06"
@@ -51,9 +51,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
-        leader_create = 'key_format=S,value_format=S,role=leader'
+        session_config = 'key_format=S,value_format=S,stable_prefix=.'
         # FIXME: This shouldn't take an absolute path
-        follower_create = 'key_format=S,value_format=S,role=follower,stable_follower_prefix=.'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
@@ -70,13 +69,13 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         #
 
         self.pr("create oligarch tree")
-        self.session.create(self.uri, leader_create)
+        self.session.create(self.uri, session_config)
 
         self.pr("create second WT")
         # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "oligarch=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, follower_create)
+        session_follow.create(self.uri, session_config)
 
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)

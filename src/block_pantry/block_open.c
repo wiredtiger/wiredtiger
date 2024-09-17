@@ -136,7 +136,7 @@ __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename, const cha
     block_pantry = NULL;
     flags = WT_FS_OPEN_CREATE; /* Eventually the create would ideally be done earlier */
 
-    if (S2C(session)->iface.stable_follower_prefix != NULL)
+    if (S2C(session)->iface.stable_prefix != NULL)
         flags |= WT_FS_OPEN_FIXED;
 
     __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);

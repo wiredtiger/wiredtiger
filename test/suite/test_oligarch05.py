@@ -36,7 +36,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_oligarch05"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
+    conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader")'
     # conn_config = 'log=(enabled)'
 
     uri = "oligarch:" + uri_base
@@ -49,7 +49,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch05(self):
-        base_create = 'key_format=S,value_format=S'
+        base_create = 'key_format=S,value_format=S,stable_prefix=.'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
 

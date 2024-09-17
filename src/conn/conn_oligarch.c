@@ -19,6 +19,7 @@ __oligarch_metadata_watcher(void *arg)
     char buf[4096], *cfg_ret, *md_path,
       *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
     const char *value, *cfg[3];
+    int i;
     size_t len;
     wt_off_t last_sep, last_sz, name_ptr, new_sz;
 
@@ -26,19 +27,36 @@ __oligarch_metadata_watcher(void *arg)
     conn = S2C(session);
     memset(buf, 0, 4096);
 
-    fprintf(stderr, "created metadata watcher thread\n");
-
-    len = strlen(conn->iface.stable_follower_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
     WT_ERR(__wt_calloc_def(session, len, &md_path));
-    WT_ERR(__wt_snprintf(
-      md_path, len, "%s/%s", conn->iface.stable_follower_prefix, WT_OLIGARCH_METADATA_FILE));
-    WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh));
+    WT_ERR(
+      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
+
+    /*
+     * TODO this loop is currently needed so that we don't ENOENT out of the watcher thread while
+     * the primary is starting up and hasn't yet created the shared file.
+     */
+    for (i = 0; i < 1000; i++) {
+        ret = __wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh);
+        if (ret == ENOENT)
+            __wt_sleep(1, 0);
+        else if (ret == 0)
+            break;
+        else
+            WT_ERR(ret);
+    }
+    if (i == 1000)
+        WT_ERR(WT_NOTFOUND);
     WT_ERR(__wt_filesize(session, md_fh, &last_sz));
 
+    /* TODO this will need to handle multiple tables */
     for (;;) {
         __wt_sleep(0, 1000);
         if (F_ISSET(conn, WT_CONN_CLOSING))
             break;
+
+        if (S2C(session)->oligarch_manager.leader)
+            continue;
 
         WT_ERR(__wt_filesize(session, md_fh, &new_sz));
         if (new_sz == last_sz)
@@ -64,9 +82,6 @@ __oligarch_metadata_watcher(void *arg)
         while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
             name_ptr--;
 
-        /* fprintf(stderr, "name=%s\n", &buf[name_ptr]); */
-        /* fprintf(stderr, "value=%s\n", &buf[last_sep+1]); */
-
         /* Open up a metadata cursor pointing at our table */
         WT_ERR(__wt_metadata_cursor(session, &md_cursor));
         md_cursor->set_key(md_cursor, &buf[name_ptr]);
@@ -76,21 +91,22 @@ __oligarch_metadata_watcher(void *arg)
         WT_ERR(md_cursor->get_value(md_cursor, &value));
         len = strlen(&buf[last_sep + 1]);
         buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
-        /* fprintf(stderr, "value=%s\n", &buf[last_sep + 1]); */
-        len += strlen("checkpoint="); /* -1 for trailing newline */
+        len += strlen("checkpoint=");         /* -1 for trailing newline */
 
         /* Allocate/create a new config we're going to insert */
         WT_ERR(__wt_calloc_def(session, len, &new_md_value));
         WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
+        /* fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value); */
         cfg[0] = value;
         cfg[1] = new_md_value;
         cfg[2] = NULL;
         WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
-        /* fprintf(stderr, "collapsed=%s\n", cfg_ret); */
 
         /* Put our new config in */
         WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
         WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
+        S2C(session)->oligarch_manager.update_dhandle =
+          true; /* TODO concurrency hazard, needs better design */
         md_cursor = NULL;
 
         /*
@@ -101,6 +117,7 @@ __oligarch_metadata_watcher(void *arg)
     }
 
 err:
+    fprintf(stderr, "metadata watcher returning %d\n", ret);
     __wt_free(session, md_path);
     __wt_free(session, new_md_value);
     WT_IGNORE_RET(__wt_close(session, &md_fh));
@@ -132,6 +149,7 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
     manager->watcher_tid_set = true;
 
     fprintf(stderr, "oligarch watcher started\n");
+    __wt_atomic_store32(&manager->watcher_state, WT_OLIGARCH_WATCHER_RUNNING);
     return (0);
 }
 
@@ -139,9 +157,68 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
 static int
 __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    size_t len;
+    char *md_path;
+
+    conn = S2C(session);
+
     fprintf(stderr, "__oligarch_metadata_create\n");
-    return (__wt_open_fs(session, WT_OLIGARCH_METADATA_FILE, WT_FS_OPEN_FILE_TYPE_DATA,
-      WT_FS_OPEN_CREATE, S2FS(session), &manager->metadata_fh));
+
+    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    WT_RET(__wt_calloc_def(session, len, &md_path));
+    WT_ERR(
+      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
+
+    if (manager->leader)
+        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA,
+          WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
+    else
+        WT_ERR(__wt_open(
+          session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
+
+err:
+    __wt_free(session, md_path);
+    return (ret);
+}
+
+int
+__wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+{
+    WT_BLOCK *block;
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    if (reconfig) {
+        if ((ret = __wt_config_gets(session, cfg + 1, "oligarch", &cval)) == WT_NOTFOUND)
+            return (0);
+        WT_RET(ret);
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "oligarch.role", &cval));
+    if (cval.len == 0)
+        return (0);
+
+    if (WT_CONFIG_LIT_MATCH("follower", cval))
+        conn->oligarch_manager.leader = false;
+    else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
+        conn->oligarch_manager.leader = true;
+        if (reconfig) {
+            /* TODO giant hack - figure out how to avoid reusing pantry IDs */
+            TAILQ_FOREACH (block, &conn->blockqh, q) {
+                if (strstr(block->name, "wt_stable") != NULL)
+                    ((WT_BLOCK_PANTRY *)block)->next_pantry_id += 100;
+            }
+        }
+    } else
+        /* TODO better error message. */
+        WT_RET(EINVAL);
+
+    return (0);
 }
 
 /*
@@ -215,6 +292,8 @@ err:
 bool
 __wt_oligarch_manager_thread_chk(WT_SESSION_IMPL *session)
 {
+    if (!S2C(session)->oligarch_manager.leader)
+        return (false);
     return (
       __wt_atomic_load32(&S2C(session)->oligarch_manager.state) == WT_OLIGARCH_MANAGER_RUNNING);
 }
@@ -231,6 +310,7 @@ __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, ui
     WT_OLIGARCH_MANAGER_ENTRY *entry;
 
     manager = &S2C(session)->oligarch_manager;
+    fprintf(stderr, "adding %u to oligarch manager\n", ingest_id);
 
     WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
       "Adding an oligarch tree to tracking without the right dhandle context.");
@@ -292,6 +372,7 @@ __oligarch_manager_remove_table_inlock(
         if (!from_shutdown && entry->stable_cursor != NULL)
             entry->stable_cursor->close(entry->stable_cursor);
         __wt_free(session, entry);
+        fprintf(stderr, "oligarch mgr clearing %u\n", ingest_id);
         manager->entries[ingest_id] = NULL;
     }
 }
@@ -337,12 +418,18 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
     WT_CURSOR *stable_cursor;
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     manager = &S2C(session)->oligarch_manager;
     entry = manager->entries[ingest_id];
 
     *cursorp = NULL;
+
+    if (manager->update_dhandle) {
+        manager->update_dhandle = false;
+        cfg[2] = "force=true";
+    }
 
     if (entry == NULL)
         return (0);
@@ -788,9 +875,14 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     if (__wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_OFF)
         return (0);
 
-    /* Spin until exclusive access is gained */
+    /*
+     * Spin until exclusive access is gained. If we got here from the startup path seeing an error,
+     * the state might still be "starting" rather than "running".
+     */
     while (!__wt_atomic_cas32(
-      &manager->state, WT_OLIGARCH_MANAGER_RUNNING, WT_OLIGARCH_MANAGER_STOPPING)) {
+             &manager->state, WT_OLIGARCH_MANAGER_RUNNING, WT_OLIGARCH_MANAGER_STOPPING) &&
+      !__wt_atomic_cas32(
+        &manager->state, WT_OLIGARCH_MANAGER_STARTING, WT_OLIGARCH_MANAGER_STOPPING)) {
         /* If someone beat us to it, we are done */
         if (__wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_OFF)
             return (0);
