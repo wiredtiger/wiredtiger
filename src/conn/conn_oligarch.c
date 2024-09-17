@@ -875,9 +875,14 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     if (__wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_OFF)
         return (0);
 
-    /* Spin until exclusive access is gained */
+    /*
+     * Spin until exclusive access is gained. If we got here from the startup path seeing an error,
+     * the state might still be "starting" rather than "running".
+     */
     while (!__wt_atomic_cas32(
-      &manager->state, WT_OLIGARCH_MANAGER_RUNNING, WT_OLIGARCH_MANAGER_STOPPING)) {
+             &manager->state, WT_OLIGARCH_MANAGER_RUNNING, WT_OLIGARCH_MANAGER_STOPPING) &&
+      !__wt_atomic_cas32(
+        &manager->state, WT_OLIGARCH_MANAGER_STARTING, WT_OLIGARCH_MANAGER_STOPPING)) {
         /* If someone beat us to it, we are done */
         if (__wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_OFF)
             return (0);
