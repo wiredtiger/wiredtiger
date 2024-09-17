@@ -9,16 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __hs_release_internal_session --
- *     Release the temporary internal session started to retrieve history store.
- */
-static int
-__hs_release_internal_session(WT_SESSION_IMPL *int_session)
-{
-    return (__wt_session_close_internal(int_session));
-}
-
-/*
  * __hs_cleanup_las --
  *     Drop the lookaside file if it exists.
  */
@@ -111,7 +101,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
 err:
     if (tmp_setup_session != NULL)
-        WT_TRET(__hs_release_internal_session(tmp_setup_session));
+        WT_TRET(__wt_session_close_internal(tmp_setup_session));
     return (ret);
 }
 
