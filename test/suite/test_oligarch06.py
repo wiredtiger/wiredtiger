@@ -51,7 +51,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
-        session_config = 'key_format=S,value_format=S,stable_prefix=.'
+        session_config = 'key_format=S,value_format=S,stable_prefix=.,storage_source=dir_store'
         # FIXME: This shouldn't take an absolute path
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.

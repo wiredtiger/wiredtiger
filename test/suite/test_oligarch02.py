@@ -47,7 +47,7 @@ class test_oligarch02(wttest.WiredTigerTestCase):
 
     # Test inserting a record into an oligarch tree
     def test_oligarch02(self):
-        base_create = 'key_format=S,value_format=S'
+        base_create = 'key_format=S,value_format=S,storage_source=dir_store'
 
         self.pr("create oligarch tree")
         self.session.create(self.uri, base_create)
