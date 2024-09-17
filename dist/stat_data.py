@@ -349,6 +349,8 @@ conn_stats = [
     CacheStat('cache_timed_out_ops', 'operations timed out waiting for space in cache'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
+    CacheStat('npos_evict_walk_max', 'eviction walk restored - had to walk this many pages', 'max_aggregate,no_scale'),
+    CacheStat('npos_read_walk_max', 'npos read - had to walk this many pages', 'max_aggregate,no_scale'),
 
     ##########################################
     # Capacity statistics

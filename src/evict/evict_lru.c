@@ -884,19 +884,21 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
     else {
         /*
          * Remember the last position before clearing it so that we can restart from about the same
-         * point later.
-         */
-
-        /*
-         * If we're at an internal page, then we've just finished all its leafs, so get the position
-         * of the very beginning or the very end of it depending on the direction of walk. For leaf
-         * pages, use the middle of the page.
+         * point later. evict_ref_saved is used as an opaque page id to compare with it upon
+         * restoration for the purpose of stats.
          */
         btree->evict_ref_saved = ref;
+
         if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+            /* If we're at a leaf page, use the middle of the page. */
             pos = WT_NPOS_MID;
             where = "MIDDLE";
         } else {
+            /*
+             * If we're at an internal page, then we've just finished all its leafs, so get the
+             * position of the very beginning or the very end of it depending on the direction of
+             * walk.
+             */
             if (btree->evict_start_type == WT_EVICT_WALK_NEXT ||
               btree->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
                 pos = WT_NPOS_RIGHT;

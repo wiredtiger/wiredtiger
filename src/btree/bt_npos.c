@@ -179,10 +179,21 @@ __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_s
 static int
 __find_closest_leaf(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 {
+    WT_DECL_RET;
+    uint64_t walkcnt;
+
     if (*refp == NULL || F_ISSET(*refp, WT_REF_FLAG_LEAF))
         return (0);
     LF_SET(WT_READ_SKIP_INTL);
-    return (__wt_tree_walk(session, refp, flags));
+
+    ret = __wt_tree_walk_count(session, refp, &walkcnt, flags);
+
+    if (LF_ISSET(WT_READ_EVICT_WALK_FLAGS))
+        WT_STAT_CONN_INCR(session, npos_evict_walk_max);
+    else
+        WT_STAT_CONN_INCR(session, npos_read_walk_max);
+
+    return (ret);
 }
 
 /*
