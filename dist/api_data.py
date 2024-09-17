@@ -484,14 +484,11 @@ oligarch_config = [
     Config('ingest', '', r'''
         URI for oligarch ingest table''',
         type='string', undoc=True),
-    Config('role', '', r'''
-        whether the oligarch stable table should lead or follow''',
-        choices=['leader', 'follower'], undoc=True),
     Config('stable', '', r'''
         URI for oligarch stable table''',
         type='string', undoc=True),
-    Config('stable_follower_prefix', '', r'''
-        directory of another WT oligarch stable table''',
+    Config('stable_prefix', '', r'''
+        directory of WT oligarch stable table''',
         type='string', undoc=True),
 ]
 
@@ -797,6 +794,13 @@ connection_runtime_config = [
         Config('merge', 'true', r'''
             merge LSM chunks where possible''',
             type='boolean')
+        ]),
+    Config('oligarch', '', r'''
+        WT-wide oligarch config''',
+        type='category', subconfig=[
+        Config('role', '', r'''
+            whether the oligarch stable table should lead or follow''',
+            choices=['leader', 'follower'], undoc=True)
         ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
@@ -1384,6 +1388,9 @@ cursor_runtime_config = [
         append written values as new records, giving each a new record number key; valid only for
         cursors with record number keys''',
         type='boolean'),
+    Config('force', 'false', r'''
+        forcibly open a new dhandle''',
+        type='boolean'),
     Config('overwrite', 'true', r'''
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
@@ -1432,6 +1439,9 @@ methods = {
         information or creating a checkpoint. The update will also only be applied to table
         URI entries in the metadata, not their sub-entries.''',
         type='boolean', undoc=True),
+    Config('role', '', r'''
+        whether the oligarch stable table should lead or follow''',
+        choices=['leader', 'follower'], undoc=True),
 ]),
 
 'WT_SESSION.close' : Method([]),

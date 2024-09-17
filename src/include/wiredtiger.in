@@ -689,6 +689,7 @@ struct __wt_cursor {
      * @configstart{WT_CURSOR.reconfigure, see dist/api_data.py}
      * @config{append, append written values as new records\, giving each a new record number key;
      * valid only for cursors with record number keys., a boolean flag; default \c false.}
+     * @config{force, forcibly open a new dhandle., a boolean flag; default \c false.}
      * @config{overwrite, configures whether the cursor's insert and update methods check the
      * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
      * ::WT_DUPLICATE_KEY if the record exists\, and WT_CURSOR::update fails with ::WT_NOTFOUND if
@@ -983,6 +984,7 @@ struct __wt_session {
      * compatible with the @ref util_dump and @ref util_load commands., a string\, chosen from the
      * following options: \c "hex"\, \c "json"\, \c "pretty"\, \c "pretty_hex"\, \c "print"; default
      * empty.}
+     * @config{force, forcibly open a new dhandle., a boolean flag; default \c false.}
      * @config{incremental = (, configure the cursor for block incremental backup usage.  These
      * formats are only compatible with the backup data source; see @ref backup., a set of related
      * configuration options defined as follows.}
@@ -2415,6 +2417,9 @@ struct __wt_connection {
      * threads to manage merging LSM trees in the database.  Each worker thread uses a session
      * handle from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
      * @config{ ),,}
+     * @config{oligarch = (, WT-wide oligarch config., a set of related configuration options
+     * defined as follows.}
+     * @config{ ),,}
      * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
      * compatibility., an integer greater than or equal to \c 0; default \c 0.}
      * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
@@ -2903,7 +2908,7 @@ struct __wt_connection {
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
 
-    char *stable_follower_prefix;
+    char *stable_prefix;
 };
 
 /*!
@@ -3304,6 +3309,9 @@ struct __wt_connection {
  * @config{multiprocess, permit sharing between processes (will automatically start an RPC server
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
+ * @config{oligarch = (, WT-wide oligarch config., a set of related configuration options defined as
+ * follows.}
+ * @config{ ),,}
  * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
  * compatibility., an integer greater than or equal to \c 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref

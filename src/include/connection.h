@@ -146,13 +146,14 @@ struct __wt_oligarch_manager {
     wt_shared uint32_t watcher_state;
     wt_thread_t watcher_tid;
     bool watcher_tid_set;
+    bool update_dhandle;
 
     wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
 
     WT_SPINLOCK oligarch_lock; /* Lock used for managing changes to global oligarch state */
 
     /* Set the checkpoint threshold tiny for now - we just want to know the process is working */
-#define WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD 1024
+#define WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD 16
     uint32_t open_oligarch_table_count;
     /*
      * This is a sparsely populated array of oligarch tables - each fileid in the system gets an
@@ -169,6 +170,8 @@ struct __wt_oligarch_manager {
     uint64_t max_applied_txnid;
 
     WT_FH *metadata_fh;
+
+    bool leader;
 };
 
 /*

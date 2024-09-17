@@ -124,6 +124,7 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     len += cval.len + 2; /* +2 for the separator and the newline */
     WT_ERR(__wt_calloc_def(session, len, &entry));
     WT_ERR(__wt_snprintf(entry, len, "%s|%.*s\n", tablename, (int)cval.len, cval.str));
+    /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
     WT_ERR(__wt_filesize(session, metadata_fh, &filesize));
     WT_ERR(__wt_write(session, metadata_fh, filesize, len - 1, entry)); /* len-1, don't write NUL */
@@ -171,14 +172,14 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface));
 
     /*
-     * Pretend there is a root page for this checkpoint - at the moment we don't actually read from
-     * a checkpoint when using the block pantry.
+     * Read root page address.
      */
     endp = root_addr;
     WT_RET(__wt_block_pantry_addr_pack(&endp, root_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
-    fprintf(stderr, "__wt_bmp_checkpoint_load(%s): 0x", block_pantry->fh->handle->name);
+    fprintf(stderr, "[%s] __wt_bmp_checkpoint_load(%s): 0x", S2C(session)->home,
+      block_pantry->fh->handle->name);
     for (i = 0; i < *root_addr_sizep; i++) {
         fprintf(stderr, "%02x", root_addr[i]);
     }

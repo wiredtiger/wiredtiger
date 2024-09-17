@@ -1111,12 +1111,8 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     oligarch_cfg[2] = tmp->data;
 
     WT_ERR(__wt_config_collapse(session, oligarch_cfg, &tablecfg));
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "role", &cval));
-    if (WT_STRING_LIT_MATCH("follower", cval.str, cval.len)) {
-        WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_follower_prefix", &cval));
-        WT_RET(
-          __wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_follower_prefix));
-    }
+    WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_prefix", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
 
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 

@@ -897,9 +897,9 @@ err:
 }
 
 static int
-__coligarch_modify_check(WT_CURSOR_OLIGARCH *coligarch)
+__coligarch_modify_check(WT_SESSION_IMPL *session)
 {
-    if (!((WT_OLIGARCH *)coligarch->dhandle)->leader)
+    if (!S2C(session)->oligarch_manager.leader)
         return (EINVAL);
     return (0);
 }
@@ -909,8 +909,8 @@ __coligarch_modify_check(WT_CURSOR_OLIGARCH *coligarch)
  *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
  */
 static WT_INLINE int
-__coligarch_put(WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key, const WT_ITEM *value,
-  bool position, bool reserve)
+__coligarch_put(WT_SESSION_IMPL *session, WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key,
+  const WT_ITEM *value, bool position, bool reserve)
 {
     WT_CURSOR *c;
     int (*func)(WT_CURSOR *);
@@ -921,7 +921,7 @@ __coligarch_put(WT_CURSOR_OLIGARCH *coligarch, const WT_ITEM *key, const WT_ITEM
      */
     WT_RET(__coligarch_reset_cursors(coligarch, true));
 
-    WT_RET(__coligarch_modify_check(coligarch));
+    WT_RET(__coligarch_modify_check(session));
 
     /* If necessary, set the position for future scans. */
     if (position)
@@ -957,7 +957,7 @@ __coligarch_insert(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(coligarch));
+    WT_RET(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -974,7 +974,7 @@ __coligarch_insert(WT_CURSOR *cursor)
     }
 
     WT_ERR(__coligarch_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__coligarch_put(coligarch, &cursor->key, &value, false, false));
+    WT_ERR(__coligarch_put(session, coligarch, &cursor->key, &value, false, false));
 
     /*
      * WT_CURSOR.insert doesn't leave the cursor positioned, and the application may want to free
@@ -1007,7 +1007,7 @@ __coligarch_update(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(coligarch));
+    WT_RET(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -1021,7 +1021,7 @@ __coligarch_update(WT_CURSOR *cursor)
         WT_ERR(__cursor_needkey(cursor));
     }
     WT_ERR(__coligarch_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__coligarch_put(coligarch, &cursor->key, &value, true, false));
+    WT_ERR(__coligarch_put(session, coligarch, &cursor->key, &value, true, false));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
@@ -1062,7 +1062,7 @@ __coligarch_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(coligarch));
+    WT_RET(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
@@ -1081,7 +1081,7 @@ __coligarch_remove(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__coligarch_put(coligarch, &cursor->key, &__tombstone, true, false));
+    WT_ERR(__coligarch_put(session, coligarch, &cursor->key, &__tombstone, true, false));
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
@@ -1116,7 +1116,7 @@ __coligarch_reserve(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(coligarch));
+    WT_RET(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
@@ -1128,7 +1128,7 @@ __coligarch_reserve(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    ret = __coligarch_put(coligarch, &cursor->key, NULL, true, true);
+    ret = __coligarch_put(session, coligarch, &cursor->key, NULL, true, true);
 
 err:
     __coligarch_leave(coligarch);
@@ -1171,6 +1171,8 @@ __coligarch_close_int(WT_CURSOR *cursor)
     __coligarch_leave(coligarch);
 
     __wt_cursor_close(cursor);
+
+    WT_TRET(__wt_session_release_dhandle(session));
 
     return (ret);
 }
