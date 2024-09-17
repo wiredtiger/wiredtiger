@@ -9,16 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __hs_start_internal_session --
- *     Create a temporary internal session to retrieve history store.
- */
-static int
-__hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
-{
-    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, 0, int_sessionp));
-}
-
-/*
  * __hs_release_internal_session --
  *     Release the temporary internal session started to retrieve history store.
  */
@@ -96,7 +86,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY))
         return (0);
 
-    WT_ERR(__hs_start_internal_session(session, &tmp_setup_session));
+    WT_ERR(__wt_open_internal_session(conn, "hs_access", true, 0, 0, &tmp_setup_session));
 
     /*
      * Retrieve the btree from the history store cursor.
