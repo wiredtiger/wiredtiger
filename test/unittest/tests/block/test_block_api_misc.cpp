@@ -32,6 +32,44 @@ const std::string OS_CACHE_DIRTY_MAX = "0";
 const std::string ACCESS_PATTERN = "random";
 const std::string DEFAULT_FILE_NAME = "test.txt";
 
+/*
+ * Test and validate the bm->write_size() function.
+ */
+void
+test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, const size_t size)
+{
+    size_t ret_size = size;
+    // This function internally reads and changes the variable.
+    REQUIRE(bm->write_size(bm, session->get_wt_session_impl(), &ret_size) == 0);
+    CHECK(ret_size % std::stoi(ALLOCATION_SIZE) == 0);
+    CHECK(ret_size == ((size / std::stoi(ALLOCATION_SIZE)) + 1) * std::stoi(ALLOCATION_SIZE));
+}
+
+/*
+ * Initialize a write buffer to perform bm->write().
+ */
+void
+create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::string contents,
+  WT_ITEM *buf, size_t buf_memsize)
+{
+    // Fetch write buffer size from block manager.
+    REQUIRE(bm->write_size(bm, session->get_wt_session_impl(), &buf_memsize) == 0);
+    test_and_validate_write_size(bm, session, buf_memsize);
+
+    // Initialize the buffer with aligned size.
+    F_SET(buf, WT_ITEM_ALIGNED);
+    REQUIRE(__wt_buf_initsize(session->get_wt_session_impl(), buf, buf_memsize) == 0);
+
+    /*
+     * Copy content string into the buffer.
+     *
+     * Following the architecture guide, it seems that the block manager expects a block header. I
+     * have tried to mimic that here.
+     */
+    REQUIRE(__wt_buf_grow_worker(session->get_wt_session_impl(), buf, buf->size) == 0);
+    memcpy(WT_BLOCK_HEADER_BYTE(buf->mem), contents.c_str(), contents.length());
+}
+
 // Tested using a white-box approach as we need knowledge of internal structures to test various
 // inputs.
 TEST_CASE("Block manager addr string", "[block_api_misc]")
@@ -116,7 +154,7 @@ TEST_CASE("Block manager is mapped", "[block_api_misc]")
     }
 }
 
-TEST_CASE("Block manager stat", "[block_api_misc]")
+TEST_CASE("Block manager size and stat", "[block_api_misc]")
 {
     // Build a mock session, this will automatically create a mock connection.
     // Additionally, initialize a session implementation variable for easy access.
@@ -153,5 +191,17 @@ TEST_CASE("Block manager stat", "[block_api_misc]")
     CHECK(stats.block_minor == WT_BLOCK_MINOR_VERSION);
     CHECK(stats.block_reuse_bytes == (int64_t)bm.block->live.avail.bytes);
     CHECK(stats.block_size == bm.block->size);
-    REQUIRE(__wt_block_close(s, bm.block) == 0);
+
+    // Perform a write.
+    // WT_ITEM buf;
+    // WT_CLEAR(buf);
+    // std::string test_string("test123");
+    // // create_write_buffer(&bm, session, test_string, &buf, 0);
+    // uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    // size_t addr_size;
+    // REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
+    // printf("addr_size: %zu\n", addr_size);
+    // printf("block addr size: %u\n", bm.block->size);
+
+    //REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
