@@ -79,7 +79,7 @@ mock_connection::setup_block_manager(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(session, &_connection_impl->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &_connection_impl->block_lock, "block manager"));
 
-    // Initialize a posix file system layer used for testing purposes.
+    // Initialize a file system layer used for testing purposes.
     _connection_impl->home = "";
 #if defined(_MSC_VER)
     WT_RET(__wt_os_win(session));
