@@ -32,13 +32,15 @@ perl -nE '
             }
         }
     }
-    if (/^(.*?)-RecordDecl .*? (struct|union) (?:(\w+) )?definition/) {
-        $h{"$file: -: DEF($2): $3"} = 1 if $3;
-        push @structstackindent, length $1;
-        push @structstack, ($3 || ($structstack[-1] || "-")."-unnamed".(++$unnamed));
+    if (/^(?<indent>.*?)-RecordDecl .*? \<(.*?):(?<line>\d++):(?<col>\d++), [^>]++\> .*? (?<type>struct|union) (?:(?<name>\w+) )?definition/) {
+        my $name = $+{name} || "(unnamed $+{type} at $file:$+{line}:$+{col})";
+        # struct __wt_block::(unnamed at /Users/y.ershov/src/wt-cc/src/include/block.h:267:5)
+        $h{"$file: -: DEF($+{type}): $name"} = 1;
+        push @structstackindent, length $+{indent};
+        push @structstack, $name;
     }
-    if (@structstack && /-FieldDecl .* referenced (\w++)/) {
-        $h{"$file: ".($func || "-").": FIELD: $structstack[-1]->$1"} = 1;
+    if (@structstack && /-FieldDecl .* (?:referenced )?(\w++) \x27(.*?)\x27/) {
+        $h{"$file: ".($func || "-").": FIELD: $structstack[-1]->$1 : ".(($type=$2) =~ s/\x27:\x27/ => /r =~ s/\s++\*++( =|$)/$1/gr)} = 1;
     }
     $h{"$file: -: DEF(type): $1 => ".(($type=$2) =~ s/\x27:\x27/ => /r =~ s/\s++\*++( =|$)/$1/gr)} = 1 if /-TypedefDecl .*? referenced (\w++) \x27(.*?)\x27[^\x27]*$/;
 
@@ -46,8 +48,9 @@ perl -nE '
 
     # $h{"$file: $func: TYPE: ".(($type=$1) =~ s/\x27:\x27/ => /r =~ s/\s++\*++( =|$)/$1/gr)}=1 if /ImplicitCastExpr.*?\x27(.*?)\x27[^\x27]*$/;
     $h{"$file: $func: FUNC: $1"}=1 if /DeclRefExpr .*? Function 0x\w++ \x27([^\x27]++)\x27/;
-    if (/MemberExpr.*? (?:->|\.)(\w++) 0x/) {
-        $member = $member ? "$1.$member" : $1;
+    if (/MemberExpr.*? \x27(.*?)\x27 [^\x27]*? (?:->|\.)(\w++) 0x/) {
+        $member = $member ? "$2.$member" : $2;
+        $h{"$file: $func: TYPE: ".(($type=$1) =~ s/\x27:\x27/ => /r =~ s/\s++\*++( =|$)/$1/gr)} = 1;
         next;
     }
     if ($member) {
@@ -58,5 +61,5 @@ perl -nE '
         $member = undef;
     }
     END { say for sort keys %h }
-' # `find build/CMakeFiles/wt_objs.dir -name \*.ast`
+' > deps.txt # `find build/CMakeFiles/wt_objs.dir -name \*.ast`
 
