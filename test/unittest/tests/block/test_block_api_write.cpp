@@ -12,6 +12,7 @@
  * the write(), read() and write_size() APIs
  */
 #include <catch2/catch.hpp>
+#include <array>
 #include <iostream>
 #include <filesystem>
 
@@ -186,13 +187,13 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
     __ut_bm_method_set(&bm);
 
     auto path = std::filesystem::current_path();
-    path += "/test.wt";
+    std::string file_path = path.string() + "/test.wt";
     // Create the underlying file in the filesystem.
     REQUIRE(__wt_block_manager_create(
-              session->get_wt_session_impl(), path.c_str(), std::stoi(ALLOCATION_SIZE)) == 0);
+              session->get_wt_session_impl(), file_path.c_str(), std::stoi(ALLOCATION_SIZE)) == 0);
     // Open the file and return the block handle.
     REQUIRE(
-      __wt_block_open(session->get_wt_session_impl(), path.c_str(), WT_TIERED_OBJECTID_NONE,
+      __wt_block_open(session->get_wt_session_impl(), file_path.c_str(), WT_TIERED_OBJECTID_NONE,
         cp.get_config_array(), false, false, false, std::stoi(ALLOCATION_SIZE), &bm.block) == 0);
     // Initialize the extent lists inside the block handle.
     REQUIRE(__wti_block_ckpt_init(session->get_wt_session_impl(), &bm.block->live, nullptr) == 0);
@@ -310,6 +311,8 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
                   &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == 0);
+        __wt_buf_free(nullptr, &buf);
     }
     REQUIRE(__wt_block_close(session->get_wt_session_impl(), bm.block) == 0);
+    REQUIRE(__wt_block_manager_drop(session->get_wt_session_impl(), file_path.c_str(), false) == 0);
 }
