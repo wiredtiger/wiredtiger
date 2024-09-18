@@ -133,7 +133,7 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __wt_hs_close --
- *     Destroy the database's history store.
+ *     Clear the connection's flag to make the history store unavailable.
  */
 void
 __wt_hs_close(WT_SESSION_IMPL *session)
