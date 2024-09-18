@@ -68,8 +68,6 @@ mock_session::setup_block_manager_session()
 void
 mock_session::setup_block_manager_file_operations()
 {
-    // Initialize the checksum function.
-    __wt_process.checksum = wiredtiger_crc32c_func();
     utils::throw_if_non_zero(
       __wt_calloc(nullptr, 1, sizeof(WT_DATA_HANDLE), &_session_impl->dhandle));
     utils::throw_if_non_zero(
