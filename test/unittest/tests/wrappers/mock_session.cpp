@@ -38,6 +38,9 @@ mock_session::~mock_session()
             __wt_free(nullptr, _session_impl->dhandle->handle);
         __wt_free(nullptr, _session_impl->dhandle);
     }
+    // WiredTiger caches any allocated scratch buffer during the lifetime of the test. Free all
+    // the memory here.
+    __wt_scr_discard(_session_impl);
     __wt_free(nullptr, _session_impl);
 }
 
