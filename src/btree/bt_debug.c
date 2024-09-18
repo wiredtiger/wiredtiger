@@ -904,7 +904,7 @@ __debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
 
     WT_IGNORE_RET(
       __wt_snprintf(buf, len, "(%p, %" PRIu64 "%s, evict gen %" PRIu64 ", create gen %" PRIu64 ")",
-        (void *)ref, v, unit, page->evict_pass_gen, page->cache_create_gen));
+        (void *)ref, v, unit, page->wti_evict_gen.evict_pass_gen, page->wti_evict_gen.cache_create_gen));
     return (buf);
 }
 
