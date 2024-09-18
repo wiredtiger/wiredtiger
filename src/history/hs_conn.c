@@ -79,18 +79,14 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
     WT_ERR(__wt_open_internal_session(conn, "hs_access", true, 0, 0, &tmp_setup_session));
 
-    /*
-     * Retrieve the btree from the history store cursor.
-     */
+    /* Retrieve the btree from the history store cursor. */
     WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
 
-    /*
-     * We need to set file_max on the btree associated with one of the history store sessions.
-     */
+    /* We need to set file_max on the btree associated with one of the history store sessions. */
     btree->file_max = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
 
