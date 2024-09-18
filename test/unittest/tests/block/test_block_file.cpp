@@ -153,11 +153,12 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         WT_BLOCK *block = nullptr;
         std::string file_path2(path.string() + "/test2.wt");
         // Create the underlying file in the filesystem.
-        REQUIRE(__wt_block_manager_create(
-                  session->get_wt_session_impl(), file_path2.c_str(), std::stoi(ALLOCATION_SIZE) * 2) == 0);
+        REQUIRE(__wt_block_manager_create(session->get_wt_session_impl(), file_path2.c_str(),
+                  std::stoi(ALLOCATION_SIZE) * 2) == 0);
         // Open the file and return the block handle.
-        REQUIRE(__wt_block_open(session->get_wt_session_impl(), file_path2.c_str(), WT_TIERED_OBJECTID_NONE,
-                  cp.get_config_array(), false, false, false, std::stoi(ALLOCATION_SIZE) * 2, &block) == 0);
+        REQUIRE(__wt_block_open(session->get_wt_session_impl(), file_path2.c_str(),
+                  WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false,
+                  std::stoi(ALLOCATION_SIZE) * 2, &block) == 0);
 
         // Changing configuration here for validation purposes.
         cp.insert_config("allocation_size", "1024");
