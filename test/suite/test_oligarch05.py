@@ -49,7 +49,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch05(self):
-        base_create = 'key_format=S,value_format=S,stable_prefix=.'
+        base_create = 'key_format=S,value_format=S,stable_prefix=.,storage_source=dir_store'
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
 

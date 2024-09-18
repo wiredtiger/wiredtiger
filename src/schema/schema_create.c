@@ -1127,13 +1127,9 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      * Since oligarch constituents use table URIs, pass the full merged configuration string through
      * - otherwise file-specific metadata will be stripped out.
      */
-    WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
+    WT_ERR(__wt_config_merge(session, ingest_cfg, "storage_source=,", &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
-#if 1
-    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false),storage_source=dir_store"));
-#else
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
-#endif
     stable_cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
