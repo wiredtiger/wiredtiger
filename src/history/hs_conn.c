@@ -137,13 +137,18 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
     WT_SESSION_IMPL *hs_session;
 
     conn = S2C(session);
+    hs_session = NULL;
 
     /* Read-only and in-memory configurations don't need the history store table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    /* We need a real session to open the HS file. */
-    WT_RET(__wt_open_internal_session(conn, "hs-open", false, 0, 0, &hs_session));
+    /*
+     * A new session is necessary to open the HS file rather than the default session. Connection
+     * API calls have the ability to change the default session for connections at any stage of
+     * recovery.
+     */
+    WT_ERR(__wt_open_internal_session(conn, "hs-open", false, 0, 0, &hs_session));
 
     /* Drop the lookaside file if it still exists. */
     WT_ERR(__hs_cleanup_las(hs_session));
@@ -154,7 +159,8 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_hs_config(hs_session, cfg));
 
 err:
-    WT_TRET(__wt_session_close_internal(hs_session));
+    if (hs_session != NULL)
+        WT_TRET(__wt_session_close_internal(hs_session));
     return (ret);
 }
 
