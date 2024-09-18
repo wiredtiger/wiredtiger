@@ -70,6 +70,27 @@ create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::strin
     memcpy(WT_BLOCK_HEADER_BYTE(buf->mem), contents.c_str(), contents.length());
 }
 
+void
+check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
+{
+    WT_DSRC_STATS stats;
+
+    // Enable statistics on the connection to allow the statistic macros to update correctly.
+    S2C(session)->stat_flags = 1;
+    REQUIRE(bm->stat(bm, session, &stats) == 0);
+    CHECK(stats.allocation_size == bm->block->allocsize);
+    CHECK(stats.block_checkpoint_size == (int64_t)bm->block->live.ckpt_size);
+    CHECK(stats.block_magic == WT_BLOCK_MAGIC);
+    CHECK(stats.block_major == WT_BLOCK_MAJOR_VERSION);
+    CHECK(stats.block_minor == WT_BLOCK_MINOR_VERSION);
+    CHECK(stats.block_reuse_bytes == (int64_t)bm->block->live.avail.bytes);
+    CHECK(stats.block_size == bm->block->size);
+
+    // Disable statistics on the connection when finished so that the mock session destructor
+    // doesn't try to dereference invalid memory.
+    S2C(session)->stat_flags = 0;
+}
+
 // Tested using a white-box approach as we need knowledge of internal structures to test various
 // inputs.
 TEST_CASE("Block manager addr string", "[block_api_misc]")
@@ -181,27 +202,20 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
               false, false, DEFAULT_BLOCK_SIZE, &bm.block) == 0);
     REQUIRE(__wti_block_ckpt_init(s, &bm.block->live, nullptr) == 0);
 
-    WT_DSRC_STATS stats;
-    S2C(s)->stat_flags = 1;
-    REQUIRE(bm.stat(&bm, s, &stats) == 0);
-    CHECK(stats.allocation_size == bm.block->allocsize);
-    CHECK(stats.block_checkpoint_size == (int64_t)bm.block->live.ckpt_size);
-    CHECK(stats.block_magic == WT_BLOCK_MAGIC);
-    CHECK(stats.block_major == WT_BLOCK_MAJOR_VERSION);
-    CHECK(stats.block_minor == WT_BLOCK_MINOR_VERSION);
-    CHECK(stats.block_reuse_bytes == (int64_t)bm.block->live.avail.bytes);
-    CHECK(stats.block_size == bm.block->size);
+    check_bm_stats(s, &bm);
 
     // Perform a write.
-    // WT_ITEM buf;
-    // WT_CLEAR(buf);
-    // std::string test_string("test123");
-    // // create_write_buffer(&bm, session, test_string, &buf, 0);
-    // uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    // size_t addr_size;
-    // REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
-    // printf("addr_size: %zu\n", addr_size);
-    // printf("block addr size: %u\n", bm.block->size);
+    WT_ITEM buf;
+    WT_CLEAR(buf);
+    std::string test_string("test123");
+    create_write_buffer(&bm, session, test_string, &buf, 0);
+    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    size_t addr_size;
+    wt_off_t bm_size;
+    REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
+    REQUIRE(bm.size(&bm, s, &bm_size) == 0);
 
-    //REQUIRE(__wt_block_close(s, bm.block) == 0);
+    check_bm_stats(s, &bm);
+
+    REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
