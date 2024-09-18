@@ -567,15 +567,19 @@ __wt_txn_timestamp_usage_check(
  *     existing timestamp.
  */
 static WT_INLINE int
-__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
 {
     WT_TXN *txn;
     WT_UPDATE *upd;
 
     txn = session->txn;
 
-    if (!__txn_should_assign_timestamp(session, op))
+    if (!__txn_should_assign_timestamp(session, op)) {
+        if (validate)
+            WT_RET(__wt_txn_timestamp_usage_check(
+              session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
         return (0);
+    }
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
         /*
@@ -599,8 +603,10 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
              * durable timestamps need to be updated.
              */
             upd = op->u.op_upd;
-            WT_RET(__wt_txn_timestamp_usage_check(
-              session, op, txn->commit_timestamp, upd->prev_durable_ts));
+            if (validate)
+                WT_RET(__wt_txn_timestamp_usage_check(session, op,
+                  upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp,
+                  upd->prev_durable_ts));
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
@@ -618,6 +624,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 static WT_INLINE int
 __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_OP *op;
 
@@ -648,9 +655,11 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
-    WT_RET(__wt_txn_op_set_timestamp(session, op));
+    ret = __wt_txn_op_set_timestamp(session, op, false);
+    if (ret != 0)
+        __wt_txn_unmodify(session);
 
-    return (0);
+    return (ret);
 }
 
 /*
