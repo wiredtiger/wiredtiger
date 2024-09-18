@@ -62,7 +62,7 @@ class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test calling the create API for an oligarch table.
     def test_oligarch1(self):
-        base_create = 'key_format=S,value_format=S'
+        base_create = 'key_format=S,value_format=S,storage_source=dir_store'
 
         self.pr("create oligarch tree")
         #conf = ',oligarch=true'
