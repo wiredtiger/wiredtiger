@@ -45,7 +45,10 @@ class test_compact12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
     uri_prefix = 'table:test_compact12'
 
-    table_numkv = 10 * 1000
+    # This test uses 10 times as many keys as the implementation on the 8.0 branch. 
+    # This is because `free_space_target` is not available on the 7.0 and earlier so we need to make ensure 
+    # enough free space is produced in the data files to trigger compaction. 
+    table_numkv = 100 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.
 
     def get_size(self, uri):
@@ -83,10 +86,8 @@ class test_compact12(wttest.WiredTigerTestCase):
         c.close()
 
     def test_compact12_truncate(self):
-        # FIXME-WT-11399
         if 'tiered' in self.hook_names:
-            self.skipTest("this test does not yet work with tiered storage")
-
+            self.skipTest("Tiered tables do not support compaction")
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
         # Create and populate a table.
@@ -125,7 +126,7 @@ class test_compact12(wttest.WiredTigerTestCase):
         # Check the size of the table.
         size_before_compact = self.get_size(uri)
 
-        self.session.compact(uri, 'free_space_target=1MB')
+        self.session.compact(uri, '')
 
         # Ensure compact has moved the fast truncated pages at the end of the file.
         # We should have recovered at least 1/4 of the file.
