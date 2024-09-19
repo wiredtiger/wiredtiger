@@ -15,6 +15,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_normalized_pos
+    SOURCES normalized_pos/main.c
+    DIR_NAME normalized_pos
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/normalized_pos/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_normalized_pos>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_config
     SOURCES config/main.c
     DIR_NAME config
