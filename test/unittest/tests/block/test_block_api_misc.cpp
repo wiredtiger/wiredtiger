@@ -237,5 +237,6 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
     // Test that the bm->data method updates statistics correctly after doing a write.
     check_bm_stats(s, &bm);
 
+    __wt_buf_free(nullptr, &buf);
     REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
