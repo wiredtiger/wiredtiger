@@ -9,6 +9,61 @@
 #include "wt_internal.h"
 
 /*
+ * __wti_evict_create --
+ *     Initialize eviction.
+ */
+int
+__wti_evict_create(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    int i;
+
+    conn = S2C(session);
+
+    WT_ASSERT(session, conn->cache == NULL);
+
+    WT_RET(__wt_calloc_one(session, &conn->cache));
+
+    cache = conn->cache;
+
+    /*
+     * The lowest possible page read-generation has a special meaning, it marks a page for forcible
+     * eviction; don't let it happen by accident.
+     */
+    cache->read_gen_oldest = WT_READGEN_START_VALUE;
+    __wt_atomic_store64(&cache->read_gen, WT_READGEN_START_VALUE);
+
+    WT_RET(__wt_cond_auto_alloc(
+      session, "cache eviction server", 10 * WT_THOUSAND, WT_MILLION, &cache->evict_cond));
+    WT_RET(__wt_spin_init(session, &cache->evict_pass_lock, "evict pass"));
+    WT_RET(__wt_spin_init(session, &cache->evict_queue_lock, "cache eviction queue"));
+    WT_RET(__wt_spin_init(session, &cache->evict_walk_lock, "cache walk"));
+    if ((ret = __wt_open_internal_session(
+           conn, "evict pass", false, WT_SESSION_NO_DATA_HANDLES, 0, &cache->walk_session)) != 0)
+        WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
+
+    /* Allocate the LRU eviction queue. */
+    cache->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
+    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
+        WT_RET(__wt_calloc_def(session, cache->evict_slots, &cache->evict_queues[i].evict_queue));
+        WT_RET(__wt_spin_init(session, &cache->evict_queues[i].evict_lock, "cache eviction"));
+    }
+
+    /* Ensure there are always non-NULL queues. */
+    cache->evict_current_queue = cache->evict_fill_queue = &cache->evict_queues[0];
+    cache->evict_other_queue = &cache->evict_queues[1];
+    cache->evict_urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
+
+    /*
+     * We get/set some values in the evict statistics (rather than have two copies), configure them.
+     */
+    __wti_evict_stats_update(session);
+    return (0);
+}
+
+/*
  * __wti_evict_stats_update --
  *     Update the eviction statistics for return to the application.
  */
