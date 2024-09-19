@@ -70,7 +70,35 @@ create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::strin
     memcpy(WT_BLOCK_HEADER_BYTE(buf->mem), contents.c_str(), contents.length());
 }
 
-void
+static void
+initialize_bm(std::shared_ptr<mock_session> &session, WT_BM *bm)
+{
+    // Build a mock session, this will automatically create a mock connection.
+    // Additionally, initialize a session implementation variable for easy access.
+    session = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *s = session->get_wt_session_impl();
+
+    REQUIRE(session->get_mock_connection()->setup_block_manager(s) == 0);
+    session->setup_block_manager_file_operations();
+
+    // Set up the block manager so that we can use its legal API methods.
+    __ut_bm_method_set(bm);
+
+    // Initialization steps for the block manager. We shouldn't need to touch the block checkpoint
+    // logic and this shows that WiredTiger has poor module separation.
+    auto path = std::filesystem::current_path();
+    path += "/test.wt";
+    REQUIRE(__wt_block_manager_create(s, path.c_str(), DEFAULT_BLOCK_SIZE) == 0);
+
+    config_parser cp({{"allocation_size", ALLOCATION_SIZE}, {"block_allocation", BLOCK_ALLOCATION},
+      {"os_cache_max", OS_CACHE_MAX}, {"os_cache_dirty_max", OS_CACHE_DIRTY_MAX},
+      {"access_pattern_hint", ACCESS_PATTERN}});
+    REQUIRE(__wt_block_open(s, path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false,
+              false, false, DEFAULT_BLOCK_SIZE, &bm->block) == 0);
+    REQUIRE(__wti_block_ckpt_init(s, &bm->block->live, nullptr) == 0);
+}
+
+static void
 check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
 {
     WT_DSRC_STATS stats;
@@ -91,53 +119,60 @@ check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
     S2C(session)->stat_flags = 0;
 }
 
-// Tested using a white-box approach as we need knowledge of internal structures to test various
-// inputs.
-TEST_CASE("Block manager addr string", "[block_api_misc]")
+// Test that the block manager's addr_string method produces the expected string representation.
+static void
+test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint32_t pack_size,
+  uint32_t pack_checksum, std::string expected_str)
 {
-    // Build a mock session, this will automatically create a mock connection.
-    // Additionally, initialize a session implementation variable for easy access.
-    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
-    WT_SESSION_IMPL *s = session->get_wt_session_impl();
-    config_parser cp({{"allocation_size", ALLOCATION_SIZE}, {"block_allocation", BLOCK_ALLOCATION},
-      {"os_cache_max", OS_CACHE_MAX}, {"os_cache_dirty_max", OS_CACHE_DIRTY_MAX},
-      {"access_pattern_hint", ACCESS_PATTERN}});
-
-    REQUIRE(session->get_mock_connection()->setup_block_manager(s) == 0);
-    session->setup_block_manager_file_operations();
-
-    // Declare a block manager and set it up so that we can use its legal API methods.
-    WT_BM bm;
-    WT_CLEAR(bm);
-    __ut_bm_method_set(&bm);
-
-    // Initialization steps for the block manager. We shouldn't need to touch the block checkpoint
-    // logic and this shows that WiredTiger has poor module separation.
-    auto path = std::filesystem::current_path();
-    path += "/test.wt";
-    REQUIRE(__wt_block_manager_create(s, path.c_str(), DEFAULT_BLOCK_SIZE) == 0);
-    REQUIRE(__wt_block_open(s, path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false,
-              false, false, DEFAULT_BLOCK_SIZE, &bm.block) == 0);
-    REQUIRE(__wti_block_ckpt_init(s, &bm.block->live, nullptr) == 0);
-
     // Initialize a buffer.
     WT_ITEM buf;
     WT_CLEAR(buf);
 
     // Generate an address cookie - technically, we shouldn't know about internal details of the
-    // address cookie, but this allows for more rigorous testing.
+    // address cookie, but this allows for more rigorous testing with different inputs.
     uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
     pp = p;
-    // (512, 1024, 12345) -> (offset, size, checksum)
-    REQUIRE(__wt_block_addr_pack(bm.block, &pp, WT_TIERED_OBJECTID_NONE, 512, 1024, 12345) == 0);
+    REQUIRE(__wt_block_addr_pack(
+              bm->block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
     size_t addr_size = WT_PTRDIFF(pp, p);
 
-    // Test that the block manager's addr_string method produces the expected string representation.
+    // Compare the string output of bm->addr_string against the known expected string.
     pp = p;
-    REQUIRE(bm.addr_string(&bm, nullptr, &buf, pp, addr_size) == 0);
-    CHECK(
-      static_cast<std::string>(((char *)(buf.data))).compare("[0: 512-1536, 1024, 12345]") == 0);
-    __wt_free(s, buf.data);
+    REQUIRE(bm->addr_string(bm, nullptr, &buf, pp, addr_size) == 0);
+    CHECK(static_cast<std::string>(((char *)(buf.data))).compare(expected_str) == 0);
+
+    __wt_free(session, buf.data);
+}
+
+// Tested using a white-box approach as we need knowledge of internal structures to test various
+// inputs.
+TEST_CASE("Block manager addr string", "[block_api_misc]")
+{
+    std::shared_ptr<mock_session> session;
+
+    WT_BM bm;
+    WT_CLEAR(bm);
+    initialize_bm(session, &bm);
+    WT_SESSION_IMPL *s = session->get_wt_session_impl();
+
+    SECTION("Test addr string with non-zero values")
+    {
+        // (512, 1024, 12345) -> (offset, size, checksum)
+        test_addr_string(s, &bm, 512, 1024, 12345, "[0: 512-1536, 1024, 12345]");
+    }
+
+    SECTION("Test addr string with zero values")
+    {
+        // (0, 0, 0) -> (offset, size, checksum)
+        test_addr_string(s, &bm, 0, 0, 0, "[0: 0-0, 0, 0]");
+    }
+
+    SECTION("Test addr string with zero size")
+    {
+        // (512, 0, 12345) -> (offset, size, checksum)
+        test_addr_string(s, &bm, 512, 0, 12345, "[0: 0-0, 0, 0]");
+    }
+
     REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
 
@@ -177,31 +212,15 @@ TEST_CASE("Block manager is mapped", "[block_api_misc]")
 
 TEST_CASE("Block manager size and stat", "[block_api_misc]")
 {
-    // Build a mock session, this will automatically create a mock connection.
-    // Additionally, initialize a session implementation variable for easy access.
-    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
-    WT_SESSION_IMPL *s = session->get_wt_session_impl();
-    config_parser cp({{"allocation_size", ALLOCATION_SIZE}, {"block_allocation", BLOCK_ALLOCATION},
-      {"os_cache_max", OS_CACHE_MAX}, {"os_cache_dirty_max", OS_CACHE_DIRTY_MAX},
-      {"access_pattern_hint", ACCESS_PATTERN}});
+    std::shared_ptr<mock_session> session;
 
-    REQUIRE(session->get_mock_connection()->setup_block_manager(s) == 0);
-    session->setup_block_manager_file_operations();
-
-    // Declare a block manager and set it up so that we can use its legal API methods.
     WT_BM bm;
     WT_CLEAR(bm);
-    __ut_bm_method_set(&bm);
+    initialize_bm(session, &bm);
+    WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
-    // Initialization steps for the block manager. We shouldn't need to touch the block checkpoint
-    // logic and this shows that WiredTiger has poor module separation.
-    auto path = std::filesystem::current_path();
-    path += "/test.wt";
-    REQUIRE(__wt_block_manager_create(s, path.c_str(), DEFAULT_BLOCK_SIZE) == 0);
-    REQUIRE(__wt_block_open(s, path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false,
-              false, false, DEFAULT_BLOCK_SIZE, &bm.block) == 0);
-    REQUIRE(__wti_block_ckpt_init(s, &bm.block->live, nullptr) == 0);
-
+    // Test that the bm->stat method updates statistics correctly after initializing the block
+    // manager.
     check_bm_stats(s, &bm);
 
     // Perform a write.
@@ -215,6 +234,7 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
     REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
     REQUIRE(bm.size(&bm, s, &bm_size) == 0);
 
+    // Test that the bm->data method updates statistics correctly after doing a write.
     check_bm_stats(s, &bm);
 
     REQUIRE(__wt_block_close(s, bm.block) == 0);
