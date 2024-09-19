@@ -126,7 +126,7 @@ class test_compact12(wttest.WiredTigerTestCase):
         # Check the size of the table.
         size_before_compact = self.get_size(uri)
 
-        self.session.compact(uri, '')
+        self.session.compact(uri)
 
         # Ensure compact has moved the fast truncated pages at the end of the file.
         # We should have recovered at least 1/4 of the file.
