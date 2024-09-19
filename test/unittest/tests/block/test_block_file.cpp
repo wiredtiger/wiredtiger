@@ -276,5 +276,8 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
 
         REQUIRE(__wti_bm_close_block(session->get_wt_session_impl(), block) == 0);
         validate_free_block(session, block, cp, 0, file_path);
+        REQUIRE(block->sync_on_checkpoint == false);
     }
+    // Remove file from filesystem.
+    REQUIRE(__wt_block_manager_drop(session->get_wt_session_impl(), file_path.c_str(), false) == 0);
 }

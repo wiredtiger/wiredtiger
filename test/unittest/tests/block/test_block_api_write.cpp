@@ -42,6 +42,8 @@ test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, c
     size_t ret_size = size;
     // This function internally reads and changes the variable.
     REQUIRE(bm->write_size(bm, session->get_wt_session_impl(), &ret_size) == 0);
+    // It is expected that the size is a modulo of the allocation size and is aligned to the nearest
+    // greater allocation size.
     CHECK(ret_size % std::stoi(ALLOCATION_SIZE) == 0);
     CHECK(ret_size == ((size / std::stoi(ALLOCATION_SIZE)) + 1) * std::stoi(ALLOCATION_SIZE));
 }
@@ -72,6 +74,8 @@ validate_block_contents(WT_BM *bm, std::shared_ptr<mock_session> session, WT_ITE
     REQUIRE(bm->read(
               bm, session->get_wt_session_impl(), &read_buf, cookie.addr.data(), cookie.size) == 0);
     WT_BLOCK_HEADER *blk = reinterpret_cast<WT_BLOCK_HEADER *>(WT_BLOCK_HEADER_REF(write_buf->mem));
+    // Clear the write buf checksum to match the block manager read buffer. The bm->read clears
+    // the checksum before returning.
     blk->checksum = 0;
     CHECK(memcmp(write_buf->mem, read_buf.mem, write_buf->size) == 0);
     __wt_buf_free(nullptr, &read_buf);
@@ -314,5 +318,6 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
         __wt_buf_free(nullptr, &buf);
     }
     REQUIRE(__wt_block_close(session->get_wt_session_impl(), bm.block) == 0);
+    // Remove file from filesystem.
     REQUIRE(__wt_block_manager_drop(session->get_wt_session_impl(), file_path.c_str(), false) == 0);
 }
