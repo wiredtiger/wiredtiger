@@ -144,9 +144,8 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
         return (0);
 
     /*
-     * A new session is necessary to open the HS file rather than the default session. Connection
-     * API calls have the ability to change the default session for connections at any stage of
-     * recovery.
+     * It is necessary to create a new session to initialize the HS file because the default session
+     * can be used by other tasks concurrently during recovery.
      */
     WT_ERR(__wt_open_internal_session(conn, "hs-open", false, 0, 0, &hs_session));
 
