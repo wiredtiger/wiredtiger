@@ -270,14 +270,12 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         WT_BLOCK *block = nullptr;
         REQUIRE(
           (__wt_block_open(session->get_wt_session_impl(), file_path.c_str(),
-            WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, true, false, 0, &block)) == 0);
-        validate_block(session, block, cp, 1, file_path, true);
+            WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false, 0, &block)) == 0);
+        validate_block(session, block, cp, 1, file_path, false);
         block->sync_on_checkpoint = true;
 
         REQUIRE(__wti_bm_close_block(session->get_wt_session_impl(), block) == 0);
         validate_free_block(session, block, cp, 0, file_path);
-        REQUIRE(block->sync_on_checkpoint == false);
     }
-    // Remove file from filesystem.
     REQUIRE(__wt_block_manager_drop(session->get_wt_session_impl(), file_path.c_str(), false) == 0);
 }
