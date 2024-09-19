@@ -571,8 +571,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__txn_should_assign_timestamp(session, op))
         __txn_op_delete_commit_apply_page_del_timestamp(session, op->u.ref);
 
-    if (__wt_log_op(session))
-        WT_ERR(__wt_txn_log_op(session, NULL));
+    WT_ERR(__wt_txn_log_op(session, NULL));
     return (0);
 
 err:

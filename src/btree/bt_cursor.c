@@ -2180,11 +2180,9 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_BTREE *start, *stop;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool logging;
 
     session = trunc_info->session;
     btree = CUR2BT(trunc_info->start);
-    logging = __wt_log_op(session);
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
@@ -2200,8 +2198,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
      * We deal with this here by logging the truncate range first, then (in the logging code)
      * disabling writing of the in-memory remove records to disk.
      */
-    if (logging)
-        WT_RET(__wt_txn_truncate_log(trunc_info));
+    WT_RET(__wt_txn_truncate_log(trunc_info));
 
     switch (btree->type) {
     case BTREE_COL_FIX:
@@ -2225,8 +2222,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     }
 
 err:
-    if (logging)
-        __wt_txn_truncate_end(session);
+    __wt_txn_truncate_end(session);
     return (ret);
 }
 

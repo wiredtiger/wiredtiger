@@ -266,6 +266,9 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
 
+    if (!__wt_log_op(session))
+        return (0);
+
     /*
      * If this operation is diagnostic only, set the ignore bit on the fileid so that recovery can
      * skip it.
