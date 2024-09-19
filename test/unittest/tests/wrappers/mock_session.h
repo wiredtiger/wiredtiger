@@ -56,7 +56,6 @@ public:
     }
     static std::shared_ptr<mock_session> build_test_mock_session();
     WT_BLOCK_MGR_SESSION *setup_block_manager_session();
-    void setup_block_manager_file_operations();
 
     // Allocate the necessary structures to perform write/read operations in block manager.
     void setup_block_manager_file_operations();
