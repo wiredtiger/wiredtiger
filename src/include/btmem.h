@@ -307,9 +307,9 @@ struct __wt_page_modify {
     uint64_t first_dirty_txn;
 
     /* The transaction state last time eviction was attempted. */
-    uint64_t last_evict_pass_gen;
-    uint64_t last_eviction_id;
-    wt_timestamp_t last_eviction_timestamp;
+    uint64_t last_evict_pass_gen;             /* @private(evict) */
+    uint64_t last_eviction_id;                /* @private(evict) */
+    wt_timestamp_t last_eviction_timestamp;   /* @private(evict) */
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */
@@ -790,8 +790,8 @@ struct __wt_page {
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
 
-    uint64_t cache_create_gen; /* Page create timestamp */
-    uint64_t evict_pass_gen;   /* Eviction pass generation */
+    uint64_t cache_create_gen; /* Page create timestamp @private(evict) */
+    uint64_t evict_pass_gen;   /* Eviction pass generation @private(evict) */
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3
