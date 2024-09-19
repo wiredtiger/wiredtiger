@@ -971,4 +971,14 @@ __ut_bm_method_set(WT_BM *bm)
 {
     __wti_bm_method_set(bm, false);
 }
+<<<<<<< HEAD
+=======
+
+#ifdef HAVE_UNITTEST
+void
+__ut_bm_method_set(WT_BM *bm)
+{
+    __bm_method_set(bm, false);
+}
+>>>>>>> wt-13426-read-write-api-tests
 #endif

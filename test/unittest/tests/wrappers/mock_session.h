@@ -58,6 +58,9 @@ public:
     WT_BLOCK_MGR_SESSION *setup_block_manager_session();
     void setup_block_manager_file_operations();
 
+    // Allocate the necessary structures to perform write/read operations in block manager.
+    void setup_block_manager_file_operations();
+
 private:
     explicit mock_session(
       WT_SESSION_IMPL *session_impl, std::shared_ptr<mock_connection> mock_connection = nullptr);
