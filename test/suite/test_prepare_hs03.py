@@ -203,7 +203,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             # Correctness Test - commit_value should be visible
             self.assertEqual(cursor.get_value(), commit_value)
             # Correctness Test - prepare_value should NOT be visible
-            self.assertNotEquals(cursor.get_value(), prepare_value)
+            self.assertNotEqual(cursor.get_value(), prepare_value)
         cursor.close()
 
         # Close all sessions (and cursors), this will cause prepared updates to be rolled back.
