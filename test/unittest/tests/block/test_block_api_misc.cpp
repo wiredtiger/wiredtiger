@@ -35,7 +35,7 @@ const std::string DEFAULT_FILE_NAME = "test.txt";
 /*
  * Test and validate the bm->write_size() function.
  */
-void
+static void
 test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, const size_t size)
 {
     size_t ret_size = size;
@@ -48,7 +48,7 @@ test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, c
 /*
  * Initialize a write buffer to perform bm->write().
  */
-void
+static void
 create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::string contents,
   WT_ITEM *buf, size_t buf_memsize)
 {

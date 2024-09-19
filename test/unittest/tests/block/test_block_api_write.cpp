@@ -36,7 +36,7 @@ struct addr_cookie {
 /*
  * Test and validate the bm->write_size() function.
  */
-void
+static void
 test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, const size_t size)
 {
     size_t ret_size = size;
@@ -53,7 +53,7 @@ test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, c
  * performing a bm->read and a file read and making sure that the read() matches the original write
  * buffer.
  */
-void
+static void
 validate_block_contents(WT_BM *bm, std::shared_ptr<mock_session> session, WT_ITEM *write_buf,
   addr_cookie cookie, wt_off_t offset, uint32_t size)
 {
