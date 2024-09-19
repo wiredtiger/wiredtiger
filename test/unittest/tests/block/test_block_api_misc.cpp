@@ -87,14 +87,14 @@ initialize_bm(std::shared_ptr<mock_session> &session, WT_BM *bm)
     // Initialization steps for the block manager. We shouldn't need to touch the block checkpoint
     // logic and this shows that WiredTiger has poor module separation.
     auto path = std::filesystem::current_path();
-    path += "/test.wt";
-    REQUIRE(__wt_block_manager_create(s, path.c_str(), DEFAULT_BLOCK_SIZE) == 0);
+    std::string file_path(path.string() + "/test.wt");
+    REQUIRE(__wt_block_manager_create(s, file_path.c_str(), DEFAULT_BLOCK_SIZE) == 0);
 
     config_parser cp({{"allocation_size", ALLOCATION_SIZE}, {"block_allocation", BLOCK_ALLOCATION},
       {"os_cache_max", OS_CACHE_MAX}, {"os_cache_dirty_max", OS_CACHE_DIRTY_MAX},
       {"access_pattern_hint", ACCESS_PATTERN}});
-    REQUIRE(__wt_block_open(s, path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false,
-              false, false, DEFAULT_BLOCK_SIZE, &bm->block) == 0);
+    REQUIRE(__wt_block_open(s, file_path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(),
+              false, false, false, DEFAULT_BLOCK_SIZE, &bm->block) == 0);
     REQUIRE(__wti_block_ckpt_init(s, &bm->block->live, nullptr) == 0);
 }
 
