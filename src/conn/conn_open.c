@@ -142,6 +142,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     /* Disconnect from shared cache - must be before cache destroy. */
     WT_TRET(__wti_conn_cache_pool_destroy(session));
 
+    /* Destroy Eviction. */
+    WT_TRET(__wti_evict_destroy(session));
+
     /* Discard the cache. */
     WT_TRET(__wti_cache_destroy(session));
 

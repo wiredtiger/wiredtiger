@@ -361,8 +361,6 @@ __wti_cache_destroy(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    int i;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -392,18 +390,6 @@ __wti_cache_destroy(WT_SESSION_IMPL *session)
             __wt_atomic_load64(&cache->bytes_dirty_leaf),
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
-    __wt_cond_destroy(session, &cache->evict_cond);
-    __wt_spin_destroy(session, &cache->evict_pass_lock);
-    __wt_spin_destroy(session, &cache->evict_queue_lock);
-    __wt_spin_destroy(session, &cache->evict_walk_lock);
-    if (cache->walk_session != NULL)
-        WT_TRET(__wt_session_close_internal(cache->walk_session));
-
-    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
-        __wt_spin_destroy(session, &cache->evict_queues[i].evict_lock);
-        __wt_free(session, cache->evict_queues[i].evict_queue);
-    }
-
     __wt_free(session, conn->cache);
-    return (ret);
+    return (0);
 }

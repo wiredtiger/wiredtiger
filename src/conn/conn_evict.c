@@ -21,11 +21,6 @@ __wti_evict_create(WT_SESSION_IMPL *session)
     int i;
 
     conn = S2C(session);
-
-    WT_ASSERT(session, conn->cache == NULL);
-
-    WT_RET(__wt_calloc_one(session, &conn->cache));
-
     cache = conn->cache;
 
     /*
@@ -61,6 +56,37 @@ __wti_evict_create(WT_SESSION_IMPL *session)
      */
     __wti_evict_stats_update(session);
     return (0);
+}
+
+/*
+ * __wti_evict_destroy --
+ *     Destroy Eviction
+ */
+int
+__wti_evict_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_DECL_RET;
+    int i;
+
+    cache = S2C(session)->cache;
+
+    if (cache == NULL)
+        return (0);
+
+    __wt_cond_destroy(session, &cache->evict_cond);
+    __wt_spin_destroy(session, &cache->evict_pass_lock);
+    __wt_spin_destroy(session, &cache->evict_queue_lock);
+    __wt_spin_destroy(session, &cache->evict_walk_lock);
+    if (cache->walk_session != NULL)
+        WT_TRET(__wt_session_close_internal(cache->walk_session));
+
+    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
+        __wt_spin_destroy(session, &cache->evict_queues[i].evict_lock);
+        __wt_free(session, cache->evict_queues[i].evict_queue);
+    }
+
+    return (ret);
 }
 
 /*
