@@ -64,7 +64,9 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cache = conn->cache;
-    shared = F_ISSET(conn, WT_CONN_CACHE_POOL);
+
+    WT_RET(__wt_config_gets_none(session, cfg, "shared_cache.name", &cval));
+    shared = cval.len != 0;
 
     /* Debug flags are not yet set when this function runs during connection open. Set it now. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));

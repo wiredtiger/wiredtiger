@@ -52,13 +52,6 @@ __wti_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
     cache->overhead_pct = (u_int)cval.val;
 
-    if (now_shared) {
-        WT_RET(__wti_cache_pool_config(session, cfg));
-        WT_ASSERT(session, F_ISSET(conn, WT_CONN_CACHE_POOL));
-        if (!was_shared)
-            WT_RET(__wti_conn_cache_pool_open(session));
-    }
-
     return (0);
 }
 

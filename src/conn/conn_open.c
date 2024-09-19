@@ -49,8 +49,11 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Create the cache. */
     WT_RET(__wti_cache_create(session, cfg));
 
-    /* Initialize eviction */
+    /* Initialize eviction. */
     WT_RET(__wti_evict_create(session, cfg));
+
+    /* Create shared cache.*/
+    WT_RET(__wti_conn_cache_pool_create(session, cfg));
 
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
