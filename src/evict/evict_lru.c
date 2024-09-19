@@ -2292,7 +2292,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             continue;
 
         page = ref->page;
-        page->evict_pass_gen = __wt_atomic_load64(&cache->evict_pass_gen);
+        page->wti_evict_gen.evict_pass_gen = __wt_atomic_load64(&cache->evict_pass_gen);
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))

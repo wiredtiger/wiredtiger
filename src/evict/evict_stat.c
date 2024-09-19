@@ -77,14 +77,14 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
         if (__wt_ref_is_root(next_walk))
             continue;
 
-        if (page->evict_pass_gen == 0) {
+        if (page->wti_evict_gen.evict_pass_gen == 0) {
             unvisited_age_gap_sum +=
-              (__wt_atomic_load64(&cache->evict_pass_gen) - page->cache_create_gen);
+              (__wt_atomic_load64(&cache->evict_pass_gen) - page->wti_evict_gen.cache_create_gen);
             ++unvisited_count;
         } else {
             visited_age_gap_sum +=
-              (__wt_atomic_load64(&cache->evict_pass_gen) - page->cache_create_gen);
-            gen_gap = __wt_atomic_load64(&cache->evict_pass_gen) - page->evict_pass_gen;
+              (__wt_atomic_load64(&cache->evict_pass_gen) - page->wti_evict_gen.cache_create_gen);
+            gen_gap = __wt_atomic_load64(&cache->evict_pass_gen) - page->wti_evict_gen.evict_pass_gen;
             if (gen_gap > gen_gap_max)
                 gen_gap_max = gen_gap;
             gen_gap_sum += gen_gap;

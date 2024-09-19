@@ -126,9 +126,9 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * this state changes.
      */
     if (LF_ISSET(WT_REC_EVICT)) {
-        mod->last_eviction_id = oldest_id;
-        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
-        mod->last_evict_pass_gen = __wt_atomic_load64(&S2C(session)->cache->evict_pass_gen);
+        mod->wti_last_eviction_id = oldest_id;
+        __wt_txn_pinned_timestamp(session, &mod->wti_last_eviction_timestamp);
+        mod->wti_last_evict_pass_gen = __wt_atomic_load64(&S2C(session)->cache->evict_pass_gen);
     }
 
 #ifdef HAVE_DIAGNOSTIC
