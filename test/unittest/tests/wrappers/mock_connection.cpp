@@ -4,7 +4,7 @@
  *      All rights reserved.
  *
  * See the file LICENSE for redistribution information.
- */ 
+ */
 #include "mock_connection.h"
 #include "../utils.h"
 
