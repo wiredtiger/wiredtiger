@@ -188,7 +188,7 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
      * block manager instead
      * .
      */
-    __ut_bm_method_set(&bm);
+    __wti_bm_method_set(&bm, false);
 
     auto path = std::filesystem::current_path();
     std::string file_path = path.string() + "/test.wt";
