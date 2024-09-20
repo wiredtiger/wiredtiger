@@ -1392,6 +1392,7 @@ checkpoint_worker(void *arg)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     uint32_t i;
+    uint64_t start_ts, stop_ts;
     int ret;
     bool stop;
 
@@ -1422,10 +1423,14 @@ checkpoint_worker(void *arg)
         if (stop)
             lprintf(wtperf, 0, 1, "Last call before stopping checkpoint");
         wtperf->ckpt = true;
+        fprintf(stderr, "running checkpoint\n");
+        start_ts = __wt_clock(NULL);
         if ((ret = session->checkpoint(session, NULL)) != 0) {
             lprintf(wtperf, ret, 0, "Checkpoint failed.");
             goto err;
         }
+        stop_ts = __wt_clock(NULL);
+        fprintf(stderr, "finished checkpoint, took %" PRIu64 " usecs\n", WT_CLOCKDIFF_US(stop_ts, start_ts));
         wtperf->ckpt = false;
         ++thread->ckpt.ops;
     }
@@ -2466,45 +2471,6 @@ start_run(WTPERF *wtperf)
         /* Execute the workload. */
         if ((ret = execute_workload(wtperf)) != 0)
             goto err;
-
-        /* One final summation of the operations we've completed. */
-        wtperf->insert_ops = sum_insert_ops(wtperf);
-        wtperf->modify_ops = sum_modify_ops(wtperf);
-        wtperf->read_ops = sum_read_ops(wtperf);
-        wtperf->truncate_ops = sum_truncate_ops(wtperf);
-        wtperf->update_ops = sum_update_ops(wtperf);
-        wtperf->backup_ops = sum_backup_ops(wtperf);
-        wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
-        wtperf->flush_ops = sum_flush_ops(wtperf);
-        wtperf->scan_ops = sum_scan_ops(wtperf);
-        total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
-
-        lprintf(wtperf, 0, 1,
-          "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
-          wtperf->insert_ops / wtperf->testsec);
-        lprintf(wtperf, 0, 1,
-          "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
-          wtperf->modify_ops / wtperf->testsec);
-        lprintf(wtperf, 0, 1,
-          "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
-          wtperf->read_ops / wtperf->testsec);
-        lprintf(wtperf, 0, 1,
-          "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
-          wtperf->truncate_ops / wtperf->testsec);
-        lprintf(wtperf, 0, 1,
-          "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
-          wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
-          wtperf->update_ops / wtperf->testsec);
-        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
-        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
-        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
-        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " scan operations", wtperf->scan_ops);
-
-        latency_print(wtperf);
     }
 
     if (0) {
@@ -2532,6 +2498,45 @@ err:
         if (ret == 0)
             ret = t_ret;
     }
+
+    /* One final summation of the operations we've completed. */
+    wtperf->insert_ops = sum_insert_ops(wtperf);
+    wtperf->modify_ops = sum_modify_ops(wtperf);
+    wtperf->read_ops = sum_read_ops(wtperf);
+    wtperf->truncate_ops = sum_truncate_ops(wtperf);
+    wtperf->update_ops = sum_update_ops(wtperf);
+    wtperf->backup_ops = sum_backup_ops(wtperf);
+    wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
+    wtperf->flush_ops = sum_flush_ops(wtperf);
+    wtperf->scan_ops = sum_scan_ops(wtperf);
+    total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
+
+    lprintf(wtperf, 0, 1,
+      "Executed %" PRIu64 " insert operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
+      wtperf->insert_ops, (wtperf->insert_ops * 100) / total_ops,
+      wtperf->insert_ops / wtperf->testsec);
+    lprintf(wtperf, 0, 1,
+      "Executed %" PRIu64 " modify operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
+      wtperf->modify_ops, (wtperf->modify_ops * 100) / total_ops,
+      wtperf->modify_ops / wtperf->testsec);
+    lprintf(wtperf, 0, 1,
+      "Executed %" PRIu64 " read operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
+      wtperf->read_ops, (wtperf->read_ops * 100) / total_ops,
+      wtperf->read_ops / wtperf->testsec);
+    lprintf(wtperf, 0, 1,
+      "Executed %" PRIu64 " truncate operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
+      wtperf->truncate_ops, (wtperf->truncate_ops * 100) / total_ops,
+      wtperf->truncate_ops / wtperf->testsec);
+    lprintf(wtperf, 0, 1,
+      "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
+      wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
+      wtperf->update_ops / wtperf->testsec);
+    lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
+    lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
+    lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
+    lprintf(wtperf, 0, 1, "Executed %" PRIu64 " scan operations", wtperf->scan_ops);
+
+    latency_print(wtperf);
 
     if (ret == 0) {
         if (opts->run_time == 0 && opts->run_ops == 0)
