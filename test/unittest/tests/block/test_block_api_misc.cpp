@@ -137,15 +137,12 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
     size_t addr_size = WT_PTRDIFF(pp, p);
 
     // Compare the string output of bm->addr_string against the known expected string.
-    pp = p;
-    REQUIRE(bm->addr_string(bm, nullptr, &buf, pp, addr_size) == 0);
+    REQUIRE(bm->addr_string(bm, nullptr, &buf, p, addr_size) == 0);
     CHECK(static_cast<std::string>(((char *)(buf.data))).compare(expected_str) == 0);
 
     __wt_free(session, buf.data);
 }
 
-// Tested using a white-box approach as we need knowledge of internal structures to test various
-// inputs.
 TEST_CASE("Block manager addr string", "[block_api_misc]")
 {
     std::shared_ptr<mock_session> session;
@@ -176,7 +173,6 @@ TEST_CASE("Block manager addr string", "[block_api_misc]")
     REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
 
-// Tested using a black-box approach.
 TEST_CASE("Block header", "[block_api_misc]")
 {
     // Declare a block manager and set it up so that we can use its legal API methods.
@@ -187,8 +183,6 @@ TEST_CASE("Block header", "[block_api_misc]")
     REQUIRE(bm.block_header(&bm) == (u_int)WT_BLOCK_HEADER_SIZE);
 }
 
-// Tested using a white-box approach as using a black-box approach would be pretty involved for the
-// purposes of this test.
 TEST_CASE("Block manager is mapped", "[block_api_misc]")
 {
     // Declare a block manager and set it up so that we can use its legal API methods.
