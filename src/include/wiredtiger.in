@@ -13,6 +13,12 @@
 extern "C" {
 #endif
 
+#ifdef HAVE_DIAGNOSTIC
+#define HAVE_CONTROL_POINTS /* Make control point code stand out. */
+#else
+#undef HAVE_CONTROL_POINTS /* Omit control point code. */
+#endif
+
 /*******************************************
  * Version information
  *******************************************/

@@ -385,6 +385,12 @@ struct __wt_session_impl {
     WT_FH *optrack_fh;
 
     WT_SESSION_STATS stats;
+
+#ifdef HAVE_CONTROL_POINTS
+    WT_CONTROL_POINT_REGISTRATION *control_points; /* [SESSION_CONTROL_POINTS_SIZE] */
+    WT_CONTROL_POINT_REGISTRY *cp_registry; /* For the run function for __wt_cond_wait_signal. */
+    WT_CONTROL_POINT *cp_data; /* For the run function for __wt_cond_wait_signal. */
+#endif
 };
 
 /* Consider moving this to session_inline.h if it ever appears. */
