@@ -920,7 +920,7 @@ struct __wt_connection_impl {
     wt_shared uint32_t flags;
 
 #ifdef HAVE_CONTROL_POINTS
-    WT_CONTROL_POINT_REGISTRATION *control_points; /* [CONNECTION_CONTROL_POINTS_SIZE] */
+    WT_CONTROL_POINT_REGISTRY *control_points; /* [CONNECTION_CONTROL_POINTS_SIZE] */
 #endif
 };
 

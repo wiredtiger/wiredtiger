@@ -47,7 +47,7 @@ class Config:
 # Configuration for a control point. Used only as super classes of both ConnectionControlPoint and SessionControlPoint.
 class ControlPoint(Config):
     def __init__(self, name, per_connection, action_short_name, pred_short_name, default, desc, subconfig=None, **flags):
-        super().__init__(name, default, desc, subconfig, flags)
+        super().__init__(self, name, default, desc, subconfig, flags)
         self.per_connection = per_connection
         self.action_short_name = action_short_name
         self.pred_short_name = pred_short_name
@@ -56,13 +56,13 @@ class ControlPoint(Config):
 # Configuration for a per connection control point.
 class ConnectionControlPoint(ControlPoint):
     def __init__(self, name, action_short_name, pred_short_name, default, desc, subconfig=None, **flags):
-        super().__init__(name, true, action_short_name, pred_short_name, default, desc, subconfig, flags)
+        super().__init__(self, name, True, action_short_name, pred_short_name, default, desc, subconfig, flags)
      # TODO: Finish ConnectionControlPoint.
 
 #Configuration for a per session control point.
 class SessionControlPoint(ControlPoint):
     def __init__(self, name, action_short_name, pred_short_name, default, desc, subconfig=None, **flags):
-        super().__init__(name, false, action_short_name, pred_short_name, default, desc, subconfig, flags)
+        super().__init__(self, name, False, action_short_name, pred_short_name, default, desc, subconfig, flags)
      # TODO: Finish SessionControlPoint.
 
 # Per connection control points
