@@ -9,6 +9,7 @@
 /*
  * [block_api_misc]: block_mgr.c
  * This file unit tests the miscellaneous block manager API functions:
+ *     - bm->addr_invalid
  *     - bm->addr_string
  *     - bm->block_header
  *     - bm->is_mapped
@@ -95,6 +96,7 @@ initialize_bm(std::shared_ptr<mock_session> &session, WT_BM *bm)
       {"access_pattern_hint", ACCESS_PATTERN}});
     REQUIRE(__wt_block_open(s, file_path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(),
               false, false, false, DEFAULT_BLOCK_SIZE, &bm->block) == 0);
+    REQUIRE(__wt_spin_init(s, &bm->block->live_lock, "block manager") == 0);
     REQUIRE(__wti_block_ckpt_init(s, &bm->block->live, nullptr) == 0);
 }
 
@@ -119,6 +121,22 @@ check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
     S2C(session)->stat_flags = 0;
 }
 
+static int
+test_addr_invalid(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint32_t pack_size,
+  uint32_t pack_checksum, WT_BLOCK *b)
+{
+    bm->block = b;
+    // Generate an address cookie - technically, we shouldn't know about internal details of the
+    // address cookie, but this allows for more rigorous testing with different inputs.
+    uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
+    pp = p;
+    REQUIRE(__wt_block_addr_pack(
+              bm->block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
+    size_t addr_size = WT_PTRDIFF(pp, p);
+
+    return(bm->addr_invalid(bm, session, p, addr_size));
+}
+
 // Test that the block manager's addr_string method produces the expected string representation.
 static void
 test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint32_t pack_size,
@@ -141,6 +159,42 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
     CHECK(static_cast<std::string>(((char *)(buf.data))).compare(expected_str) == 0);
 
     __wt_free(session, buf.data);
+}
+
+TEST_CASE("Block manager addr invalid", "[block_api_misc]")
+{
+    std::shared_ptr<mock_session> session;
+
+    WT_BM bm;
+    WT_CLEAR(bm);
+    initialize_bm(session, &bm);
+    WT_SESSION_IMPL *s = session->get_wt_session_impl();
+
+    SECTION("Test addr invalid with a valid address cookie containing non-zero values")
+    {
+        // Create our own block structure for easier manipulation of inputs.
+        WT_BLOCK b, *bp;
+        bp = bm.block;
+        b.allocsize = 1;
+        b.objectid = 1;
+        b.size = 1024;
+        REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, &b) == 0);
+        bm.block = bp;
+    }
+
+    SECTION("Test addr invalid with a valid address cookie containing zero values")
+    {
+        // Create our own block structure for easier manipulation of inputs.
+        WT_BLOCK b, *bp;
+        bp = bm.block;
+        b.allocsize = 1;
+        b.objectid = 1;
+        b.size = 0;
+        REQUIRE(test_addr_invalid(s, &bm, 0, 0, 0, &b) == 0);
+        bm.block = bp;
+    }
+
+    REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
 
 TEST_CASE("Block manager addr string", "[block_api_misc]")
