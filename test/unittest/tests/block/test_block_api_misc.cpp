@@ -134,7 +134,7 @@ test_addr_invalid(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uin
               bm->block, &pp, WT_TIERED_OBJECTID_NONE, pack_offset, pack_size, pack_checksum) == 0);
     size_t addr_size = WT_PTRDIFF(pp, p);
 
-    return(bm->addr_invalid(bm, session, p, addr_size));
+    return (bm->addr_invalid(bm, session, p, addr_size));
 }
 
 // Test that the block manager's addr_string method produces the expected string representation.
