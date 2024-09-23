@@ -116,6 +116,11 @@ check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
     CHECK(stats.block_reuse_bytes == (int64_t)bm->block->live.avail.bytes);
     CHECK(stats.block_size == bm->block->size);
 
+    printf("stats allocation size %ld\n", stats.allocation_size);
+    printf("stats block checkpoint size %ld\n", stats.block_checkpoint_size);
+    printf("stats block reuse bytes %ld\n", stats.block_reuse_bytes);
+    printf("stats block size %ld\n", stats.block_size);
+
     // Disable statistics on the connection when finished so that the mock session destructor
     // doesn't try to dereference invalid memory.
     S2C(session)->stat_flags = 0;
@@ -161,7 +166,7 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
     __wt_free(session, buf.data);
 }
 
-TEST_CASE("Block manager addr invalid", "[block_api_misc]")
+TEST_CASE("Block manager addr invalid", "[block_api_addr]")
 {
     std::shared_ptr<mock_session> session;
 
@@ -267,6 +272,9 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
     initialize_bm(session, &bm);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
+    wt_off_t prev_size;
+    REQUIRE(bm.size(&bm, s, &prev_size) == 0);
+
     // Test that the bm->stat method updates statistics correctly after initializing the block
     // manager.
     check_bm_stats(s, &bm);
@@ -282,8 +290,10 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
     REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
     REQUIRE(bm.size(&bm, s, &bm_size) == 0);
 
-    // Test that the bm->data method updates statistics correctly after doing a write.
+    // Test that the bm->data method updated statistics correctly after doing a write and that the
+    // block size increased.
     check_bm_stats(s, &bm);
+    CHECK(bm_size > prev_size);
 
     __wt_buf_free(nullptr, &buf);
     REQUIRE(__wt_block_close(s, bm.block) == 0);
