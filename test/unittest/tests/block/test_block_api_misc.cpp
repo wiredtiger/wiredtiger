@@ -116,11 +116,6 @@ check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
     CHECK(stats.block_reuse_bytes == (int64_t)bm->block->live.avail.bytes);
     CHECK(stats.block_size == bm->block->size);
 
-    printf("stats allocation size %ld\n", stats.allocation_size);
-    printf("stats block checkpoint size %ld\n", stats.block_checkpoint_size);
-    printf("stats block reuse bytes %ld\n", stats.block_reuse_bytes);
-    printf("stats block size %ld\n", stats.block_size);
-
     // Disable statistics on the connection when finished so that the mock session destructor
     // doesn't try to dereference invalid memory.
     S2C(session)->stat_flags = 0;
