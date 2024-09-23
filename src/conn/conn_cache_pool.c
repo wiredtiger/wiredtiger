@@ -278,7 +278,7 @@ __cache_pool_server(void *arg)
  * __conn_cache_pool_open --
  *     Add a connection to the cache pool.
  */
-int
+static int
 __conn_cache_pool_open(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
