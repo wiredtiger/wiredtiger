@@ -224,11 +224,14 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
         // address cookie is valid.
         REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, &b) == WT_ERROR);
 
+        // Cleanup for block created for test case.
         __wt_spin_destroy(s, &bm.block->live_lock);
+        __wti_block_ckpt_destroy(s, &bm.block->live);
+
         bm.block = bp;
-        utils::extlist_free(s, extlist);
     }
 
+    // Cleanup for block created during block manager initialization.
     REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
 
