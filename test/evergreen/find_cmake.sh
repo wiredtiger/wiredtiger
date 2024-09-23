@@ -1,5 +1,5 @@
 #!/bin/sh
-#set -o errexit  # Exit the script with error if any of the commands fail
+set -o errexit  # Exit the script with error if any of the commands fail
 
 # Adapted 'find_cmake' from mongo-c-driver evergreen infrastructure:
 #   https://github.com/mongodb/mongo-c-driver/blob/master/.evergreen/find-cmake.sh
