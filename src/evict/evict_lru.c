@@ -884,10 +884,10 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
     else {
         /*
          * Remember the last position before clearing it so that we can restart from about the same
-         * point later. evict_ref_saved is used as an opaque page id to compare with it upon
+         * point later. evict_saved_ref_check is used as an opaque page id to compare with it upon
          * restoration for the purpose of stats.
          */
-        btree->evict_ref_saved = ref;
+        btree->evict_saved_ref_check = (uint64_t)ref;
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             /* If we're at a leaf page, use the middle of the page. */
@@ -1992,7 +1992,9 @@ __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uin
           (void *)btree->evict_ref);
     }
 
-    if (btree->evict_ref_saved != NULL && btree->evict_ref_saved != btree->evict_ref)
+    WT_STAT_CONN_INCR(session, cache_eviction_restored_pos);
+    if (btree->evict_saved_ref_check != 0 &&
+      btree->evict_saved_ref_check != (uint64_t)btree->evict_ref)
         WT_STAT_CONN_INCR(session, cache_eviction_restored_pos_differ);
 
     return (0);

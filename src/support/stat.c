@@ -1523,6 +1523,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction state",
   "cache: eviction walk most recent sleeps for checkpoint handle gathering",
   "cache: eviction walk restored - had to walk this many pages",
+  "cache: eviction walk restored position",
   "cache: eviction walk restored position differs from the saved one",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
@@ -2292,6 +2293,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_eviction_state */
     stats->cache_eviction_walk_sleeps = 0;
     stats->npos_evict_walk_max = 0;
+    stats->cache_eviction_restored_pos = 0;
     stats->cache_eviction_restored_pos_differ = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
@@ -3046,6 +3048,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_walk_sleeps += WT_STAT_CONN_READ(from, cache_eviction_walk_sleeps);
     if ((v = WT_STAT_CONN_READ(from, npos_evict_walk_max)) > to->npos_evict_walk_max)
         to->npos_evict_walk_max = v;
+    to->cache_eviction_restored_pos += WT_STAT_CONN_READ(from, cache_eviction_restored_pos);
     to->cache_eviction_restored_pos_differ +=
       WT_STAT_CONN_READ(from, cache_eviction_restored_pos_differ);
     to->cache_eviction_target_page_lt10 += WT_STAT_CONN_READ(from, cache_eviction_target_page_lt10);

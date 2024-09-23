@@ -530,6 +530,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_state;
     int64_t cache_eviction_walk_sleeps;
     int64_t npos_evict_walk_max;
+    int64_t cache_eviction_restored_pos;
     int64_t cache_eviction_restored_pos_differ;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;

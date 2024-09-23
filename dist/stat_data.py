@@ -305,6 +305,7 @@ conn_stats = [
     CacheStat('cache_eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
+    CacheStat('cache_eviction_restored_pos', 'eviction walk restored position'),
     CacheStat('cache_eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     CacheStat('cache_eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     CacheStat('cache_eviction_server_evict_fail', 'evict page failures by eviction server'),

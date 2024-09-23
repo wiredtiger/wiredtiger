@@ -270,7 +270,7 @@ struct __wt_btree {
      * code.
      */
     WT_REF *evict_ref;                         /* Eviction thread's location */
-    WT_REF *evict_ref_saved;                   /* Eviction saved thread's location as an ID */
+    uint64_t evict_saved_ref_check;            /* Eviction saved thread's location as an ID */
     double evict_pos;                          /* Eviction thread's soft location */
     uint32_t linear_walk_restarts;             /* next/prev walk restarts */
     uint64_t evict_priority;                   /* Relative priority of cached pages */

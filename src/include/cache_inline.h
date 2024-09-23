@@ -558,5 +558,5 @@ static WT_INLINE void
 __wt_eviction_clear_npos(WT_BTREE *btree)
 {
     btree->evict_pos = WT_NPOS_INVALID;
-    btree->evict_ref_saved = NULL;
+    btree->evict_saved_ref_check = 0;
 }
