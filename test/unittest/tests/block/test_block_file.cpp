@@ -124,7 +124,6 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
     std::string file_path(path.string() + "/test.wt");
     REQUIRE(__wt_block_manager_create(
               session->get_wt_session_impl(), file_path.c_str(), std::stoi(ALLOCATION_SIZE)) == 0);
-
     SECTION("Test block open and block close with default configuration")
     {
         WT_BLOCK *block = nullptr;
@@ -278,6 +277,5 @@ TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
         REQUIRE(__wti_bm_close_block(session->get_wt_session_impl(), block) == 0);
         validate_free_block(session, block, cp, 0, file_path);
     }
-    // Remove file from filesystem.
     REQUIRE(__wt_block_manager_drop(session->get_wt_session_impl(), file_path.c_str(), false) == 0);
 }

@@ -8,7 +8,7 @@
 
 /*
  * [block_api]: block_write.c
- * The block manager writes to files in discrete chunks know as blocks. This set of test validates
+ * The block manager writes to files in discrete chunks known as blocks. This set of test validates
  * the write(), read() and write_size() APIs
  */
 #include <catch2/catch.hpp>
@@ -57,7 +57,7 @@ static void
 validate_block_contents(WT_BM *bm, std::shared_ptr<mock_session> session, WT_ITEM *write_buf,
   addr_cookie cookie, wt_off_t offset, uint32_t size)
 {
-    // sing the non-block manager read function read the file where the block should've been
+    // Using the non-block manager read function read the file where the block should've been
     // written. Then compare that with the original write buffer.
     WT_ITEM read_buf;
     WT_CLEAR(read_buf);
@@ -188,7 +188,7 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
      * block manager instead
      * .
      */
-    __ut_bm_method_set(&bm);
+    __wti_bm_method_set(&bm, false);
 
     auto path = std::filesystem::current_path();
     std::string file_path = path.string() + "/test.wt";
