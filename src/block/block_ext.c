@@ -324,10 +324,14 @@ __wti_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *lis
     else if (live && __block_off_match(&block->live.discard, offset, size))
         name = "discard";
     __wt_spin_unlock(session, &block->live_lock);
-    if (name != NULL)
+    if (name != NULL) {
+#ifdef HAVE_UNITTEST
+        return (WT_ERROR);
+#endif
         return (__wt_panic(session, WT_PANIC,
           "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list (%s, %d)", list, (uintmax_t)offset,
           size, name, func, line));
+    }
     return (0);
 }
 #endif

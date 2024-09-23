@@ -22,6 +22,7 @@
 #include <string>
 
 #include "wt_internal.h"
+#include "../utils_extlist.h"
 #include "../wrappers/config_parser.h"
 #include "../wrappers/mock_session.h"
 
@@ -161,12 +162,14 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
     __wt_free(session, buf.data);
 }
 
-TEST_CASE("Block manager addr invalid", "[block_api_addr]")
+TEST_CASE("Block manager addr invalid", "[block_api_misc]")
 {
     std::shared_ptr<mock_session> session;
 
     WT_BM bm;
     WT_CLEAR(bm);
+    // A session and block manager needs to be initialized as the addr_invalid functionality will
+    // crash if when it attempts to check various session flags.
     initialize_bm(session, &bm);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
@@ -192,6 +195,38 @@ TEST_CASE("Block manager addr invalid", "[block_api_addr]")
         b.size = 0;
         REQUIRE(test_addr_invalid(s, &bm, 0, 0, 0, &b) == 0);
         bm.block = bp;
+    }
+
+    SECTION("Test addr invalid address with an invalid address")
+    {
+        // Create our own block structure for easier manipulation of inputs.
+        WT_BLOCK b, *bp;
+        bp = bm.block;
+        b.allocsize = 1;
+        b.objectid = WT_TIERED_OBJECTID_NONE;
+        b.size = 1024;
+        bm.block = &b;
+        REQUIRE(__wt_spin_init(s, &bm.block->live_lock, "block manager") == 0);
+        REQUIRE(__wti_block_ckpt_init(s, &bm.block->live, nullptr) == 0);
+
+        // Create a situation where the block is misplaced, meaning that its address is on the
+        // available list.
+        WT_EXTLIST extlist = {};
+        utils::off_size_expected test_list = {utils::off_size(512, 4096),
+          {
+            utils::off_size(512, 4096),
+          }};
+        REQUIRE(__ut_block_off_insert(
+                  s, &extlist, test_list.test_off_size.off, test_list.test_off_size.size) == 0);
+        bm.block->live.avail = extlist;
+
+        // Test that the block manager's addr_invalid method returns an error when checking if the
+        // address cookie is valid.
+        REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, &b) == WT_ERROR);
+
+        __wt_spin_destroy(s, &bm.block->live_lock);
+        bm.block = bp;
+        utils::extlist_free(s, extlist);
     }
 
     REQUIRE(__wt_block_close(s, bm.block) == 0);
