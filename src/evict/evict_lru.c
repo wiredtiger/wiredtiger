@@ -538,11 +538,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 }
 
 /*
- * __wt_evict_create --
+ * __wt_evict_threads_create --
  *     Start the eviction server.
  */
 int
-__wt_evict_create(WT_SESSION_IMPL *session)
+__wt_evict_threads_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
@@ -587,11 +587,11 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_evict_destroy --
+ * __wt_evict_threads_destroy --
  *     Destroy the eviction threads.
  */
 int
-__wt_evict_destroy(WT_SESSION_IMPL *session)
+__wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 
