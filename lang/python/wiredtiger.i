@@ -80,6 +80,12 @@ from packing import pack, unpack
 %typemap(in, numinputs=0) WT_FILE_SYSTEM ** (WT_FILE_SYSTEM *temp = NULL) {
     $1 = &temp;
  }
+%typemap(in, numinputs=0) WT_PAGE_LOG ** (WT_PAGE_LOG *temp = NULL) {
+    $1 = &temp;
+ }
+%typemap(in, numinputs=0) WT_PAGE_LOG_HANDLE ** (WT_PAGE_LOG_HANDLE *temp = NULL) {
+    $1 = &temp;
+ }
 %typemap(in, numinputs=0) WT_STORAGE_SOURCE ** (WT_STORAGE_SOURCE *temp = NULL) {
 	$1 = &temp;
  }
@@ -193,6 +199,50 @@ from packing import pack, unpack
 	$1 = &val;
 }
 
+/* Why do we need an explicit conversion for plh_put - doesn't the previous typemap cover this? */
+%typemap(in) struct __wt_item *buf (WT_ITEM item) {
+    if (unpackBytesOrString($input, &item.data, &item.size) != 0)
+        SWIG_exception_fail(SWIG_AttributeError,
+          "bad string value for WT_ITEM");
+    $1 = &item;
+ }
+
+/* Why do we need an explicit conversion for pl_get_package_part - doesn't the previous typemap cover this? */
+%typemap(in) struct __wt_item *package_buffer (WT_ITEM item) {
+    memset(&item, 0, sizeof(item));
+    if (unpackBytesOrString($input, &item.data, &item.size) != 0)
+        SWIG_exception_fail(SWIG_AttributeError,
+          "bad string value for WT_ITEM");
+    $1 = &item;
+ }
+
+/* Special handling for plh_get return arg */
+%typemap(in,numinputs=0) (WT_ITEM *package_result) (WT_ITEM item) {
+    memset(&item, 0, sizeof(item));
+    $1 = &item;
+ }
+
+%typemap(argout) (WT_ITEM *package_result) {
+    WT_ITEM *item = $1;
+    PyBytesObject *pbo = PyBytes_FromStringAndSize(item->data, item->size);
+    free(item->data);
+    item->data = NULL;
+    $result = pbo;
+}
+
+/* Special handling for pl_get_package_part return arg */
+%typemap(in,numinputs=0) (WT_ITEM *result) (WT_ITEM item) {
+    memset(&item, 0, sizeof(item));
+    $1 = &item;
+ }
+
+%typemap(argout) (WT_ITEM *result) {
+    WT_ITEM *item = $1;
+    PyBytesObject *pbo = PyBytes_FromStringAndSize(item->data, item->size);
+    item->data = NULL;
+    $result = pbo;
+ }
+
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
 	$1 = &list;
 	$2 = &nentries;
@@ -225,6 +275,14 @@ from packing import pack, unpack
 %typemap(argout) WT_FILE_SYSTEM ** {
 	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_file_system, 0);
 }
+
+%typemap(argout) WT_PAGE_LOG ** {
+    $result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log, 0);
+ }
+
+%typemap(argout) WT_PAGE_LOG_HANDLE ** {
+    $result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log_handle, 0);
+ }
 
 %typemap(argout) WT_STORAGE_SOURCE ** {
 	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_storage_source, 0);
@@ -342,7 +400,9 @@ from packing import pack, unpack
 DESTRUCTOR(__wt_connection, close)
 DESTRUCTOR(__wt_cursor, close)
 DESTRUCTOR(__wt_file_handle, close)
-DESTRUCTOR(__wt_session, close)
+DESTRUCTOR(__wt_page_log, pl_terminate)
+DESTRUCTOR(__wt_page_log_handle, close)
+DESTRUCTOR(__wt_session, plh_close)
 DESTRUCTOR(__wt_storage_source, ss_terminate)
 DESTRUCTOR(__wt_file_system, fs_terminate)
 
@@ -526,6 +586,8 @@ SELFHELPER(struct __wt_session, session)
 SELFHELPER(struct __wt_cursor, cursor)
 SELFHELPER(struct __wt_file_handle, file_handle)
 SELFHELPER(struct __wt_file_system, file_system)
+SELFHELPER(struct __wt_page_log, page_log)
+SELFHELPER(struct __wt_page_log_handle, page_log_handle)
 SELFHELPER(struct __wt_storage_source, storage_source)
 
  /*
@@ -633,10 +695,12 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
+%ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, int *);
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
+OVERRIDE_METHOD(__wt_page_log, WT_PAGE_LOG, get_complete_checkpoint, (self))
 
 /* SWIG magic to turn Python byte strings into data / size. */
 %apply (char *STRING, int LENGTH) { (char *data, int size) };
@@ -1052,6 +1116,18 @@ typedef int int_void;
 	}
 };
 
+%extend __wt_page_log {
+    /* get_complete_checkpoint: special handling to return the int. */
+    int _get_complete_checkpoint(WT_SESSION *session) {
+        int ret = 0;
+        uint64_t checkpoint_id;
+
+        ret = $self->pl_get_complete_checkpoint($self, session, &checkpoint_id);
+        return (ret == 0 ? checkpoint_id : ret);
+    }
+
+}
+
 %define CONCAT(a,b)   a##b
 %enddef
 
@@ -1069,6 +1145,47 @@ typedef int int_void;
      }
 };
 %enddef
+
+ /*
+SIDESTEP_METHOD(__wt_page_log, pl_add_reference,
+  (),
+  (self))
+ */
+SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
+  (WT_SESSION *session, int checkpoint_id),
+  (self, session, checkpoint_id))
+
+SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
+  (WT_SESSION *session, int checkpoint_id),
+  (self, session, checkpoint_id))
+
+SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
+  (WT_SESSION *session, int *checkpoint_id),
+  (self, session, checkpoint_id))
+
+SIDESTEP_METHOD(__wt_page_log, pl_get_package_part,
+  (WT_SESSION *session, WT_ITEM *package_buffer, int delta, WT_ITEM *result),
+  (self, session, package_buffer, delta, result))
+
+SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
+  (WT_SESSION *session, int table_id, WT_PAGE_LOG_HANDLE **handle),
+  (self, session, table_id, handle))
+
+SIDESTEP_METHOD(__wt_page_log, terminate,
+  (WT_SESSION *session),
+  (self, session))
+
+SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
+  (WT_SESSION *session, int page_id, int checkpoint_id, bool is_delta, WT_ITEM *buf),
+  (self, session, page_id, checkpoint_id, is_delta, buf))
+
+SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *result),
+  (self, session, page_id, checkpoint_id, result))
+
+SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
+  (WT_SESSION *session),
+  (self, session))
 
 SIDESTEP_METHOD(__wt_storage_source, ss_customize_file_system,
   (WT_SESSION *session, const char *bucket_name,
@@ -1271,6 +1388,8 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(Session) __wt_session;
 %rename(Connection) __wt_connection;
 %rename(FileHandle) __wt_file_handle;
+%rename(PageLog) __wt_page_log;
+%rename(PageLogHandle) __wt_page_log_handle;
 %rename(StorageSource) __wt_storage_source;
 %rename(FileSystem) __wt_file_system;
 

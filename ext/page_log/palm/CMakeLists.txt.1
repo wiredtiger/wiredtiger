@@ -1,0 +1,27 @@
+project(page_log C)
+
+set(sources "palm.c" "../../third_party/openldb_liblmdb/mdb.c")
+
+if("${CMAKE_BUILD_TYPE}" MATCHES "^MSan$")
+    list(APPEND sources ${CMAKE_SOURCE_DIR}/src/support/msan_fstat_suppression_wrappers.c)
+endif()
+
+add_library(wiredtiger_page_log MODULE ${sources})
+
+target_include_directories(
+    wiredtiger_page_log
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_BINARY_DIR}/include
+        ${CMAKE_BINARY_DIR}/config
+)
+target_compile_options(
+    wiredtiger_page_log
+    PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
+)
+
+set_property(
+  SOURCE ../../third_party/openldb_liblmdb/mdb.c
+  APPEND
+  PROPERTY COMPILE_OPTIONS "-Wno-error=sign-conversion;-Wno-error=discarded-qualifiers;-Wno-error=undef;-Wno-error=unused-macros"
+)
