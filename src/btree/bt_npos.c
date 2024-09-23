@@ -13,7 +13,8 @@
  *
  * Below is a set of functions for computing the normalized position of a page and restoring a page
  * from its normalized position. These functions are used by the eviction server for the sake of
- * not holding the hazard pointer for longer than necessary. Another user is "partition cursor".
+ * not holding the hazard pointer for longer than necessary. Another use is being able to seek to a
+ * page at a fraction of the entire dataset.
  *
  * Normalized position is a number in the range of 0 .. 1 that represents a page's position across
  * all pages. It's primary goal is to be cheap rather than precise. It works best when the
@@ -25,7 +26,7 @@
  * be skipped an eviction pass.
  *
  * Eviction wants to be as non-intrusive as possible and never loads pages into memory, while
- * Partition Cursors can load pages or wait for them to be unlocked. The behavior is controlled by
+ * seek-for-read can load pages or wait for them to be unlocked. The behavior is controlled by
  * the flags passed to the functions. The overall set of flags is quite complex.
  * To simplify the use of this machinery, two helper functions are provided:
  *   - __wt_page_from_npos_for_eviction
