@@ -22,84 +22,17 @@
 #include <string>
 
 #include "wt_internal.h"
+#include "util_block.h"
 #include "../utils_extlist.h"
 #include "../wrappers/config_parser.h"
 #include "../wrappers/mock_session.h"
 
-const int DEFAULT_BLOCK_SIZE = 256;
 const std::string ALLOCATION_SIZE = "256";
 const std::string BLOCK_ALLOCATION = "best";
 const std::string OS_CACHE_MAX = "0";
 const std::string OS_CACHE_DIRTY_MAX = "0";
 const std::string ACCESS_PATTERN = "random";
 const std::string DEFAULT_FILE_NAME = "test.txt";
-
-/*
- * Test and validate the bm->write_size() function.
- */
-static void
-test_and_validate_write_size(WT_BM *bm, std::shared_ptr<mock_session> session, const size_t size)
-{
-    size_t ret_size = size;
-    // This function internally reads and changes the variable.
-    REQUIRE(bm->write_size(bm, session->get_wt_session_impl(), &ret_size) == 0);
-    CHECK(ret_size % std::stoi(ALLOCATION_SIZE) == 0);
-    CHECK(ret_size == ((size / std::stoi(ALLOCATION_SIZE)) + 1) * std::stoi(ALLOCATION_SIZE));
-}
-
-/*
- * Initialize a write buffer to perform bm->write().
- */
-static void
-create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::string contents,
-  WT_ITEM *buf, size_t buf_memsize)
-{
-    // Fetch write buffer size from block manager.
-    REQUIRE(bm->write_size(bm, session->get_wt_session_impl(), &buf_memsize) == 0);
-    test_and_validate_write_size(bm, session, buf_memsize);
-
-    // Initialize the buffer with aligned size.
-    F_SET(buf, WT_ITEM_ALIGNED);
-    REQUIRE(__wt_buf_initsize(session->get_wt_session_impl(), buf, buf_memsize) == 0);
-
-    /*
-     * Copy content string into the buffer.
-     *
-     * Following the architecture guide, it seems that the block manager expects a block header. I
-     * have tried to mimic that here.
-     */
-    REQUIRE(__wt_buf_grow_worker(session->get_wt_session_impl(), buf, buf->size) == 0);
-    memcpy(WT_BLOCK_HEADER_BYTE(buf->mem), contents.c_str(), contents.length());
-}
-
-static void
-initialize_bm(std::shared_ptr<mock_session> &session, WT_BM *bm)
-{
-    // Build a mock session, this will automatically create a mock connection.
-    // Additionally, initialize a session implementation variable for easy access.
-    session = mock_session::build_test_mock_session();
-    WT_SESSION_IMPL *s = session->get_wt_session_impl();
-
-    REQUIRE(session->get_mock_connection()->setup_block_manager(s) == 0);
-    session->setup_block_manager_file_operations();
-
-    // Set up the block manager so that we can use its legal API methods.
-    __ut_bm_method_set(bm);
-
-    // Initialization steps for the block manager. We shouldn't need to touch the block checkpoint
-    // logic and this shows that WiredTiger has poor module separation.
-    auto path = std::filesystem::current_path();
-    std::string file_path(path.string() + "/test.wt");
-    REQUIRE(__wt_block_manager_create(s, file_path.c_str(), DEFAULT_BLOCK_SIZE) == 0);
-
-    config_parser cp({{"allocation_size", ALLOCATION_SIZE}, {"block_allocation", BLOCK_ALLOCATION},
-      {"os_cache_max", OS_CACHE_MAX}, {"os_cache_dirty_max", OS_CACHE_DIRTY_MAX},
-      {"access_pattern_hint", ACCESS_PATTERN}});
-    REQUIRE(__wt_block_open(s, file_path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(),
-              false, false, false, DEFAULT_BLOCK_SIZE, &bm->block) == 0);
-    REQUIRE(__wt_spin_init(s, &bm->block->live_lock, nullptr) == 0);
-    REQUIRE(__wti_block_ckpt_init(s, &bm->block->live, nullptr) == 0);
-}
 
 static void
 check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
@@ -170,7 +103,7 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
     WT_CLEAR(bm);
     // A session and block manager needs to be initialized as the addr_invalid functionality will
     // crash if when it attempts to check various session flags.
-    initialize_bm(session, &bm);
+    setup_bm(session, &bm);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
     SECTION("Test addr invalid with a valid address cookie containing non-zero values")
@@ -222,7 +155,7 @@ TEST_CASE("Block manager addr string", "[block_api_misc]")
 
     WT_BM bm;
     WT_CLEAR(bm);
-    initialize_bm(session, &bm);
+    setup_bm(session, &bm);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
     SECTION("Test addr string with non-zero values")
@@ -251,7 +184,7 @@ TEST_CASE("Block header", "[block_api_misc]")
     // Declare a block manager and set it up so that we can use its legal API methods.
     WT_BM bm;
     WT_CLEAR(bm);
-    __ut_bm_method_set(&bm);
+    __wti_bm_method_set(&bm, false);
 
     REQUIRE(bm.block_header(&bm) == (u_int)WT_BLOCK_HEADER_SIZE);
 }
@@ -261,7 +194,7 @@ TEST_CASE("Block manager is mapped", "[block_api_misc]")
     // Declare a block manager and set it up so that we can use its legal API methods.
     WT_BM bm;
     WT_CLEAR(bm);
-    __ut_bm_method_set(&bm);
+    __wti_bm_method_set(&bm, false);
 
     SECTION("Test block manager is mapped")
     {
@@ -283,7 +216,7 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
 
     WT_BM bm;
     WT_CLEAR(bm);
-    initialize_bm(session, &bm);
+    setup_bm(session, &bm);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
     wt_off_t prev_size;
