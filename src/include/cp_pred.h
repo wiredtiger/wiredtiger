@@ -16,9 +16,8 @@ int __wt_control_point_config_pred_skip(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg);
 
 bool __wt_control_point_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data);
-int
-__wt_control_point_config_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-                                     const char **cfg);
+int __wt_control_point_config_pred_times(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg);
 bool __wt_control_point_pred_random_param1(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data);
 int __wt_control_point_config_pred_random_param1(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg);

@@ -82,8 +82,8 @@ __wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
     WT_CONNECTION *conn;
     WT_CONTROL_POINT *saved_data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *) session;
     WT_DECL_RET;
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
         return (EINVAL);
@@ -118,7 +118,7 @@ err:
 int
 __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
 {
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *) session;
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_CONTROL_POINT_REGISTRY *cp_registry
 
       if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE)) return (EINVAL);
@@ -145,8 +145,8 @@ __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
     WT_CONNECTION *conn;
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *) session;
     WT_DECL_RET;
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
         return (EINVAL);
@@ -180,7 +180,7 @@ __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
 {
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *) session;
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
         return (EINVAL);

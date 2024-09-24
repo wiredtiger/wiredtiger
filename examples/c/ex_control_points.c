@@ -58,7 +58,7 @@ print_thread(void *thread_arg)
 
     /* Initialize */
     error_check(conn->open_session(conn, NULL, NULL, &session));
-    session_impl = (WT_SESSION_IMPL *) session;
+    session_impl = (WT_SESSION_IMPL *)session;
     __wt_random_init_seed(session_impl, &rnd_state);
 
     /* Wait for main or the previous thread. */
@@ -73,8 +73,7 @@ print_thread(void *thread_arg)
 
     printf("Thread %d, wait_for_id %" PRId32 ", my_id %" PRId32 ", enabled %c. Slept %" PRIu32
            " seconds, %" PRIu32 " microseconds\n",
-      args->thread_num, args->wait_for_id, args->my_id, enabled ? '1' : '0', seconds,
-      microseconds);
+      args->thread_num, args->wait_for_id, args->my_id, enabled ? '1' : '0', seconds, microseconds);
     fflush(stdout);
 
     /* Finished. Signal the next thread which waits for this thread to get here. */
@@ -114,7 +113,7 @@ main(int argc, char *argv[])
 
     error_check(wiredtiger_open(home, NULL, "create", &conn));
     error_check(conn->open_session(conn, NULL, NULL, &session));
-    session_impl = (WT_SESSION_IMPL *) session;
+    session_impl = (WT_SESSION_IMPL *)session;
 
     /* Enable all control points. */
     error_check(
@@ -136,11 +135,12 @@ main(int argc, char *argv[])
 
     /* Signal threads[0] which waits for this thread to get here. */
     CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-      session_impl, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
+      session_impl, WT_CONN_CONTROL_POINT_ID_MainStartPrinting);
 
     /* This thread waits for threads[NUM_THREADS - 1] to finish. */
     CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
       session_impl, thread_control_point_ids[NUM_THREADS - 1], enabled);
+    WT_UNUSED(enabled);
 
     /* Join all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx)

@@ -183,6 +183,8 @@ struct __wt_control_point_action_ret;
 typedef struct __wt_control_point_action_ret WT_CONTROL_POINT_ACTION_RET;
 struct __wt_control_point_action_sleep;
 typedef struct __wt_control_point_action_sleep WT_CONTROL_POINT_ACTION_SLEEP;
+struct __wt_control_point_action_wait_for_trigger;
+typedef struct __wt_control_point_action_wait_for_trigger WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER;
 struct __wt_control_point_registry;
 typedef struct __wt_control_point_registry WT_CONTROL_POINT_REGISTRY;
 struct __wt_cursor_backup;

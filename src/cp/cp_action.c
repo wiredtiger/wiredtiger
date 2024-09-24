@@ -114,7 +114,7 @@ __wt_control_point_wait_for_trigger(
     action_data = (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(data + 1);
     desired_trigger_count = start_trigger_count + action_data->wait_count;
     if (cp_registry->trigger_count >= desired_trigger_count) { /* No */
-        __wt_release_data(session, data, true);
+        __wt_control_point_release_data(session, cp_registry, data, true);
         return (true); /* Enabled and wait fulfilled. */
     }
     /* Store data needed by run_func. */
@@ -129,7 +129,7 @@ __wt_control_point_wait_for_trigger(
             /* Delay condition satisfied */
             break;
     }
-    __wt_release_data(session, data, false);
+    __wt_control_point_release_data(session, cp_registry, data, false);
     return (true);
 }
 
