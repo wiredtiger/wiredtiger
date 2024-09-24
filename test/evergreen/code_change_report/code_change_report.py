@@ -575,6 +575,7 @@ def post_pr_comment(fq_repo, pr_id, token, body):
     data = {
         "body": f"{body}\n\n{magic_string}"
     }
+
     if existing:
         resp = requests.patch(existing["url"], json=data, headers=headers)
     else:
