@@ -97,7 +97,7 @@ initialize_bm(std::shared_ptr<mock_session> &session, WT_BM *bm)
       {"access_pattern_hint", ACCESS_PATTERN}});
     REQUIRE(__wt_block_open(s, file_path.c_str(), WT_TIERED_OBJECTID_NONE, cp.get_config_array(),
               false, false, false, DEFAULT_BLOCK_SIZE, &bm->block) == 0);
-    REQUIRE(__wt_spin_init(s, &bm->block->live_lock, "block manager") == 0);
+    REQUIRE(__wt_spin_init(s, &bm->block->live_lock, nullptr) == 0);
     REQUIRE(__wti_block_ckpt_init(s, &bm->block->live, nullptr) == 0);
 }
 
@@ -197,14 +197,12 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
 
         // Create a situation where the block is misplaced, meaning that its address is on the
         // available list.
-        WT_EXTLIST extlist = {};
-        utils::off_size_expected test_list = {utils::off_size(512, 4096),
+        utils::off_size_expected test_off = {utils::off_size(512, 4096),
           {
             utils::off_size(512, 4096),
           }};
         REQUIRE(__ut_block_off_insert(
-                  s, &extlist, test_list.test_off_size.off, test_list.test_off_size.size) == 0);
-        bm.block->live.avail = extlist;
+                  s, &bm.block->live.avail, test_off.test_off_size.off, test_off.test_off_size.size) == 0);
 
         // Test that the block manager's addr_invalid method returns an error when checking if the
         // address cookie is valid.
@@ -213,6 +211,9 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
 
     // Cleanup for block created during block manager initialization.
     REQUIRE(__wt_block_close(s, bm.block) == 0);
+    auto path = std::filesystem::current_path();
+    std::string file_path(path.string() + "/test.wt");
+    REQUIRE(__wt_block_manager_drop(s, file_path.c_str(), false) == 0);
 }
 
 TEST_CASE("Block manager addr string", "[block_api_misc]")
