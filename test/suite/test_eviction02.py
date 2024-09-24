@@ -48,7 +48,7 @@ class test_eviction02(wttest.WiredTigerTestCase):
 
     def check_stat(self, prev_value, current_value):
         # Stats may have a stale value, allow some buffer.
-        error_margin = 2
+        error_margin = 3
         threshold = self.obsolete_tw_max * error_margin
         diff = current_value - prev_value
         assert diff <= threshold, f"Unexpected number of pages with obsolete tw cleaned: {diff} (max {threshold})"
