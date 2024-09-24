@@ -201,8 +201,8 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
           {
             utils::off_size(512, 4096),
           }};
-        REQUIRE(__ut_block_off_insert(
-                  s, &bm.block->live.avail, test_off.test_off_size.off, test_off.test_off_size.size) == 0);
+        REQUIRE(__ut_block_off_insert(s, &bm.block->live.avail, test_off.test_off_size.off,
+                  test_off.test_off_size.size) == 0);
 
         // Test that the block manager's addr_invalid method returns an error when checking if the
         // address cookie is valid.
