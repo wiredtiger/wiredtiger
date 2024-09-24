@@ -453,8 +453,8 @@ struct __wt_verify_info;
 typedef struct __wt_verify_info WT_VERIFY_INFO;
 struct __wt_version;
 typedef struct __wt_version WT_VERSION;
-union __wt_control_point_param_t;
-typedef union __wt_control_point_param_t WT_CONTROL_POINT_PARAM_T;
+union __wt_control_point_param;
+typedef union __wt_control_point_param WT_CONTROL_POINT_PARAM;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -535,6 +535,10 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
+#include "control_points.h"
+#include "cp_control_point_gen.h"
+#include "cp_action.h"
+#include "cp_pred.h"
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"

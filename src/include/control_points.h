@@ -11,6 +11,14 @@
 /* control_points.h: Declarations for control points. */
 
 #ifdef HAVE_CONTROL_POINTS
+
+#if defined(DOXYGEN) || defined(SWIG)
+#define __F(func) func
+#else
+/* NOLINTNEXTLINE(misc-macro-parentheses) */
+#define __F(func) (*func)
+#endif
+
 /*!
  * Identifies a per connection control point or a per session control point.
  *
@@ -21,7 +29,7 @@
  * The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
  * The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
  */
-typedef uint32_t WT_CONTROL_POINT_ID;
+typedef int32_t WT_CONTROL_POINT_ID;
 
 /*!
  * Identifies a control point action.
@@ -34,7 +42,7 @@ typedef uint32_t WT_CONTROL_POINT_ACTION_ID;
  * A function to initialize a control point's data.
  */
 typedef void wt_control_point_init_t(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRATION *registration, WT_CONTROL_POINT_ID id);
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id);
 
 /*!
  * A function to test whether a control point should be triggered.
@@ -44,13 +52,13 @@ typedef bool wt_control_point_pred_t(WT_SESSION_IMPL *session, WT_CONTROL_POINT 
 /*!
  * Registration data for one control point.
  */
-struct __wt_control_point_registration;
-typedef struct __wt_control_point_registration WT_CONTROL_POINT_REGISTRY;
+struct __wt_control_point_registry;
+typedef struct __wt_control_point_registry WT_CONTROL_POINT_REGISTRY;
 struct __wt_control_point_registry {
-    wt_control_point_init_t init; /* Function to initialize the control point. */
-    wt_control_point_pred_t pred; /* Function to test whether to trigger. */
-    WT_SPINLOCK lock;             /* Atomically access data and data->ref_count. */
-    WT_CONTROL_POINT *data;       /* Disabled if NULL. More data may follow WT_CONTROL_POINT. */
+    wt_control_point_init_t __F(init); /* Function to initialize the control point. */
+    wt_control_point_pred_t __F(pred); /* Function to test whether to trigger. */
+    WT_SPINLOCK lock;                  /* Atomically access data and data->ref_count. */
+    WT_CONTROL_POINT *data; /* Disabled if NULL. More data may follow WT_CONTROL_POINT. */
     WT_CONTROL_POINT_ACTION_ID action_supported; /* For compatibility checking. */
 };
 
@@ -66,7 +74,7 @@ typedef uint32_t WT_CONTROL_POINT_REF_COUNT;
  */
 union __wt_control_point_param;
 typedef union __wt_control_point_param WT_CONTROL_POINT_PARAM;
-union __wt_control_point_param_t {
+union __wt_control_point_param {
     void *pointer;
     uint64_t value64;
     struct {
@@ -99,4 +107,11 @@ struct __wt_control_point {
     size_t trigger_count;                 /* Count of triggers, i.e. pred returned true. */
     WT_CONTROL_POINT_REF_COUNT ref_count; /* Count of threads using this data. */
 };
+
+/* The control points API. */
+int __wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
+int __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
+int __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
+int __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
+
 #endif /* HAVE_CONTROL_POINTS */

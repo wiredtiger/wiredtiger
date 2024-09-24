@@ -13,11 +13,13 @@
 
 #ifdef HAVE_CONTROL_POINTS
 
-/*!
- * Test whether a per connection control point is triggered and do common trigger processing.
- * If disabled or not triggered, return NULL.
- * If triggered, return the control point data.
- * When done with the data it must be released.
+/*
+ * __wt_conn_control_point_test_and_trigger --
+ *     Test whether a per connection control point is triggered and do common trigger processing. If
+ *     disabled or not triggered, return NULL. If triggered, return the control point data. When
+ *     done with the data it must be released.
+ *
+ * @param session The session. @param id The per connection control point's ID.
  */
 WT_CONTROL_POINT *
 __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_POINT_ID id)
@@ -48,11 +50,13 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_PO
     return (data);
 }
 
-/*!
- * Test whether a per session control point is triggered and do common trigger processing.
- * If disabled or not triggered, return NULL.
- * If triggered, return the control point data.
- * The data does not need to be released.
+/*
+ * __wt_session_control_point_test_and_trigger --
+ *     Test whether a per session control point is triggered and do common trigger processing. If
+ *     disabled or not triggered, return NULL. If triggered, return the control point data. The data
+ *     does not need to be released.
+ *
+ * @param session The session. @param id The per connection control point's ID.
  */
 WT_CONTROL_POINT *
 __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_POINT_ID id)
@@ -78,8 +82,12 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL
     return (data);
 }
 
-/*!
- * Initialize per connection control points.
+/*
+ * __wt_conn_control_points_init_all --
+ *     Initialize all per connection control points. Note, one part of this function must be edited
+ *     for each per connection control point.
+ *
+ * @param conn The connection.
  */
 void
 __wt_conn_control_points_init_all(WT_CONNECTION *conn)
@@ -92,8 +100,10 @@ __wt_conn_control_points_init_all(WT_CONNECTION *conn)
 
     /* This part must be edited. Repeat this for every per connection control point. */
 #if 0 /* For example */
-  control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1].init = __wt_control_point_conn_init_example1;
-  control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1].pred = __wt_control_point_conn_pred_example1;
+  control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1].init =
+      __wt_control_point_conn_init_example1;
+  control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1].pred =
+      __wt_control_point_conn_pred_example1;
   __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1].lock));
 #endif
 
@@ -101,11 +111,15 @@ __wt_conn_control_points_init_all(WT_CONNECTION *conn)
     conn->control_points = control_points;
 }
 
-/*!
- * Initialize per session control points.
+/*
+ * __wt_session_control_points_init_all --
+ *     Initialize all per session control points. Note, one part of this function must be edited for
+ *     each per session control point.
+ *
+ * @param session The session.
  */
 void
-__wt_session_control_points_init(WT_SESSION_IMPL *session)
+__wt_session_control_points_init_all(WT_SESSION_IMPL *session)
 {
     WT_CONTROL_POINT_REGISTRY *control_points;
     if (SESSION_CONTROL_POINTS_SIZE == 0)
@@ -114,8 +128,10 @@ __wt_session_control_points_init(WT_SESSION_IMPL *session)
 
     /* This part must be edited. Repeat this for every per session control point. */
 #if 0 /* For example */
-  control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].init = __wt_control_point_session_init_example2;
-  control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].pred = __wt_control_point_session_pred_examples;
+  control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].init =
+      __wt_control_point_session_init_example2;
+  control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].pred =
+      __wt_control_point_session_pred_examples;
   __wt_spin_init(session, &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].lock));
 #endif
 
@@ -123,8 +139,12 @@ __wt_session_control_points_init(WT_SESSION_IMPL *session)
     session->control_points = control_points;
 }
 
-/*!
- * Enable per connection control points that start enabled.
+/*
+ * __wt_conn_control_points_enable_all --
+ *     Enable per connection control points that start enabled. Note, one part of this function must
+ *     be edited for each per connection control point that starts enabled.
+ *
+ * @param conn The connection.
  */
 void
 __wt_conn_control_points_enable_all(WT_CONNECTION *conn)
@@ -139,12 +159,17 @@ __wt_conn_control_points_enable_all(WT_CONNECTION *conn)
     /* This part must be edited. Repeat this for every per connection control point that starts
      * enabled. */
 #if 0 /* For example */
-  __wti_control_point_enable(session, &(control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1]));
+  __wti_control_point_enable(session,
+      &(control_points[WT_CONN_CONTROL_POINT_ID_EXAMPLE1]));
 #endif
 }
 
-/*!
- * Enable per session control points that start enabled.
+/*
+ * __wt_session_control_points_enable_all --
+ *     Enable per session control points that start enabled. Note, one part of this function must be
+ *     edited for each per session control point that starts enabled.
+ *
+ * @param session The session.
  */
 void
 __wt_session_control_points_enable_all(WT_SESSION_IMPL *session)
@@ -157,7 +182,8 @@ __wt_session_control_points_enable_all(WT_SESSION_IMPL *session)
     /* This part must be edited. Repeat this for every per session control point that starts
      * enabled. */
 #if 0 /* For example */
-  __wti_control_point_enable(session, &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2]));
+  __wti_control_point_enable(session,
+      &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2]));
 #endif
 }
 

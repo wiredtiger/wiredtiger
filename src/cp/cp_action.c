@@ -6,60 +6,82 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "wt_internal.h"
+
 #ifdef HAVE_CONTROL_POINTS
 
 /* cp_action.c: Definitions for control point actions. */
 /* This file must be edited when a new control point action is created. */
 
-/*!
- * Configuration parsing for control point action "Delay at a specific code location during an
- * execution".
+/*
+ * __wt_control_point_config_action_sleep --
+ *     Configuration parsing for control point action "Sleep: Delay at a specific code location
+ *     during an execution".
+ *
+ * @param session The session. @param data Return the parsed data in here. @param cfg The
+ *     configuration strings.
  */
 int
 __wt_control_point_config_action_sleep(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **configuration)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
     /* TODO. */
+    return (-1); /* For compiler */
 }
 
-/*!
- * Configuration parsing for control point action "Change the control flow to trigger an error
- * condition".
+/*
+ * __wt_control_point_config_action_err --
+ *     Configuration parsing for control point action "ERR: Change the control flow to trigger an
+ *     error condition".
+ *
+ * @param session The session. @param data Return the parsed data in here. @param cfg The
+ *     configuration strings.
  */
 int
 __wt_control_point_config_action_err(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **configuration)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
     /* TODO. */
     return (-1); /* For compiler */
 }
 
-/*!
- * Configuration parsing for control point action "Return an error".
+/*
+ * __wt_control_point_config_action_ret --
+ *     Configuration parsing for control point action "RET: Return an error".
+ *
+ * @param session The session. @param data Return the parsed data in here. @param cfg The
+ *     configuration strings.
  */
 int
 __wt_control_point_config_action_ret(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **configuration)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
     /* TODO. */
     return (-1); /* For compiler */
 }
 
-/*!
- * Configuration parsing for control point action "Blocking the testing thread until a control point
- * is triggered".
+/*
+ * __wt_control_point_config_action_wait_for_trigger --
+ *     Configuration parsing for control point action "Wait until trigger: Blocking the testing
+ *     thread until a control point is triggered".
+ *
+ * @param session The session. @param data Return the parsed data in here. @param cfg The
+ *     configuration strings.
  */
 int
 __wt_control_point_config_action_wait_for_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **configuration)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
     /* TODO. */
     return (-1); /* For compiler */
 }
 
-/*!
- * The run function for __wt_cond_wait_signal for the call site portion of control point action
- * "Blocking the testing thread until a control point is triggered".
+/*
+ * __wt_control_point_run_wait_for_trigger --
+ *     The run function for __wt_cond_wait_signal for the call site portion of control point action
+ *     "Wait until trigger: Blocking the testing thread until a control point is triggered".
+ *
+ * @param session The session.
  */
 bool
 __wt_control_point_run_wait_for_trigger(WT_SESSION_IMPL *session)
@@ -70,9 +92,13 @@ __wt_control_point_run_wait_for_trigger(WT_SESSION_IMPL *session)
     return (cp_registry->trigger_count >= action_data->desired_trigger_count);
 }
 
-/*!
- * The call site portion of control point action "Blocking the testing thread until a control point
- * is triggered" given a WT_CONTROL_POINT_REGISTRY. Return true if triggered.
+/*
+ * __wt_control_point_wait_for_trigger --
+ *     The call site portion of control point action "Wait until trigger: Blocking the testing
+ *     thread until a control point is triggered" given a WT_CONTROL_POINT_REGISTRY. Return true if
+ *     triggered.
+ *
+ * @param session The session. @param cp_registry The control point's registry.
  */
 bool
 __wt_control_point_wait_for_trigger(
@@ -107,6 +133,15 @@ __wt_control_point_wait_for_trigger(
     return (true);
 }
 
+/*
+ * __wt_control_point_action_init_wait_for_trigger --
+ *     The init function of control point action "Wait until trigger: Blocking the testing thread
+ *     until a control point is triggered" given a WT_CONTROL_POINT_REGISTRY. Return true if
+ *     triggered.
+ *
+ * @param session The session. @param control_point_name The name of the control point. @param data
+ *     The control point's data.
+ */
 void
 __wt_control_point_action_init_wait_for_trigger(
   WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT *data)

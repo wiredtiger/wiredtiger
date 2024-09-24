@@ -2952,6 +2952,61 @@ struct __wt_connection {
  * event handler is installed that writes error messages to stderr. See
  * @ref event_message_handling for more information.
  * @configstart{wiredtiger_open, see dist/api_data.py}
+ * @config{MainStartPrinting = (, Thread 0 waits for main to get here., a set of related
+ * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
+ * of triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread0 = (, Thread 1 waits for thread 0 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread1 = (, Thread 2 waits for thread 1 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread2 = (, Thread 3 waits for thread 2 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread3 = (, Thread 4 waits for thread 3 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread4 = (, Thread 5 waits for thread 4 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread5 = (, Thread 6 waits for thread 5 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread6 = (, Thread 7 waits for thread 6 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread7 = (, Thread 8 waits for thread 7 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread8 = (, Thread 9 waits for thread 8 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{Thread9 = (, The thread executing main waits for thread 9 to get here., a set of related
+ * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
+ * of triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
  * @config{backup_restore_target, If non-empty and restoring from a backup\, restore only the table
  * object targets listed.  WiredTiger will remove all the metadata entries for the tables that are
  * not listed in the list from the reconstructed metadata.  The target list must include URIs of

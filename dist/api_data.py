@@ -4,8 +4,9 @@
 
 class Method:
     def __init__(self, config, compilable=False):
-        # Deal with duplicates: with complex configurations (like WT_SESSION::create), it's simpler
-        # to deal with duplicates once than manually as configurations are defined.
+        # Deal with duplicates: with complex configurations (like
+        # WT_SESSION::create), it's simpler to deal with duplicates once than
+        # manually as configurations are defined.
         self.config = []
         self.compilable = compilable
         lastname = None
@@ -24,6 +25,10 @@ class Config:
         self.desc = desc
         self.subconfig = subconfig
         self.flags = flags
+    def __str__(self):
+        return "Config(name={}, default={}, desc={}, subconfig={}," \
+            " flags={})".format(self.name, self.default, self.desc,
+                                self.subconfig, self.flags);
 
     # Comparators for sorting.
     def __eq__(self, other):
@@ -44,31 +49,65 @@ class Config:
     def __ge__(self, other):
         return self.name >= other.name
 
-# Configuration for a control point. Used only as super classes of both ConnectionControlPoint and SessionControlPoint.
+# Configuration for a control point. Used only as super classes of both
+# ConnectionControlPoint and SessionControlPoint.
 class ControlPoint(Config):
-    def __init__(self, name, per_connection, action_short_name, pred_short_name, default, desc, subconfig=None, **flags):
-        super().__init__(self, name, default, desc, subconfig, flags)
+    translation_to_lower = str.translate(' ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                                         '_abcdefghijklmnopqrstuvwxyz')
+    translation_to_upper = str.translate(' abcdefghijklmnopqrstuvwxyz',
+                                         '_ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+    @staticmethod
+    def convert_to_config_name(name):
+
+        new_name = name.translate(ControlPoint.translation_to_lower)
+        return new_name
+    def __init__(self, name, per_connection, action_short_name,
+        pred_short_name, default, desc, subconfig=None, **flags):
+        new_name = ControlPoint.convert_to_config_name(name)
+        super().__init__(new_name, default, desc, subconfig, **flags)
         self.per_connection = per_connection
         self.action_short_name = action_short_name
         self.pred_short_name = pred_short_name
-     # TODO: Finish ControlPoint.
+
+    def __str__(self):
+        return "ControlPoint(name={}, per_connection={}, action_short_name={}," \
+                " pred_short_name={}, default={}, desc={}, subconfig={}," \
+                " flags={})".format(
+            self.name, self.per_connection, self.action_short_name,
+            self.pred_short_name, self.default, self.desc, self.subconfig,
+            self.flags);
 
 # Configuration for a per connection control point.
 class ConnectionControlPoint(ControlPoint):
-    def __init__(self, name, action_short_name, pred_short_name, default, desc, subconfig=None, **flags):
-        super().__init__(self, name, True, action_short_name, pred_short_name, default, desc, subconfig, flags)
-     # TODO: Finish ConnectionControlPoint.
+    def __init__(self, name, action_short_name, pred_short_name, default, desc,
+            subconfig=None, **flags):
+        super().__init__(name, True, action_short_name, pred_short_name,
+            default, desc, subconfig, **flags)
+    def __str__(self):
+        return "ConnectionControlPoint(name={}, action_short_name={}," \
+                " pred_short_name={}, default={}, desc={}, subconfig={}," \
+                " flags={})".format(
+            self.name, self.action_short_name, self.pred_short_name,
+            self.default, self.desc, self.subconfig, self.flags);
 
 #Configuration for a per session control point.
 class SessionControlPoint(ControlPoint):
-    def __init__(self, name, action_short_name, pred_short_name, default, desc, subconfig=None, **flags):
-        super().__init__(self, name, False, action_short_name, pred_short_name, default, desc, subconfig, flags)
-     # TODO: Finish SessionControlPoint.
+    def __init__(self, name, action_short_name, pred_short_name, default, desc,
+            subconfig=None, **flags):
+        super().__init__(name, False, action_short_name, pred_short_name,
+            default, desc, subconfig, **flags)
+    def __str__(self):
+        return "SessionControlPoint(name={}, action_short_name={}," \
+                " pred_short_name={}, default={}, desc={}, subconfig={}," \
+                " flags={})".format(
+            self.name, self.action_short_name, self.pred_short_name,
+            self.default, self.desc, self.subconfig, self.flags);
 
 # Per connection control points
 # For examples/c/ex_control_points.c
 ex_control_points_config = [
-    ConnectionControlPoint('main start printing', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('MainStartPrinting', 'Wait for trigger', 'Always',
+        '', r'''
            Thread 0 waits for main to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -76,7 +115,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 0', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread0', 'Wait for trigger', 'Always', '', r'''
            Thread 1 waits for thread 0 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -84,7 +123,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 1', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread1', 'Wait for trigger', 'Always', '', r'''
            Thread 2 waits for thread 1 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -92,7 +131,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 2', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread2', 'Wait for trigger', 'Always', '', r'''
            Thread 3 waits for thread 2 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -100,7 +139,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 3', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread3', 'Wait for trigger', 'Always', '', r'''
            Thread 4 waits for thread 3 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -108,7 +147,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 4', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread4', 'Wait for trigger', 'Always', '', r'''
            Thread 5 waits for thread 4 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -116,7 +155,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 5', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread5', 'Wait for trigger', 'Always', '', r'''
            Thread 6 waits for thread 5 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -124,7 +163,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 6', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread6', 'Wait for trigger', 'Always', '', r'''
            Thread 7 waits for thread 6 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -132,7 +171,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 7', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread7', 'Wait for trigger', 'Always', '', r'''
            Thread 8 waits for thread 7 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -140,7 +179,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 8', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread8', 'Wait for trigger', 'Always', '', r'''
            Thread 9 waits for thread 8 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -148,7 +187,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('thread 9', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread9', 'Wait for trigger', 'Always', '', r'''
            The thread executing main waits for thread 9 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -594,7 +633,8 @@ index_meta = format_meta + source_meta + index_only_config + [
 table_meta = format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
-# TODO: When control points reconfigure is supported add all_per_connection_control_points_config here.
+# TODO: When control points reconfigure is supported add
+# all_per_connection_control_points_config here.
 connection_runtime_config = [
     Config('block_cache', '', r'''
         block cache configuration options''',
@@ -1299,7 +1339,8 @@ session_config = all_per_session_control_points_config +\
         ]),
 ]
 
-# TODO: When control points reconfigure is supported delete all_per_connection_control_points_config from here.
+# TODO: When control points reconfigure is supported delete
+# all_per_connection_control_points_config from here.
 wiredtiger_open_common =\
     connection_runtime_config +\
     wiredtiger_open_chunk_cache_configuration +\

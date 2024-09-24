@@ -54,6 +54,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET ex_control_points
+    SOURCES ex_control_points.c
+    DIR_NAME ex_control_points
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_control_points>/WT_HOME>
+)
+
+define_c_test(
     TARGET ex_cursor
     SOURCES ex_cursor.c
     DIR_NAME ex_cursor
