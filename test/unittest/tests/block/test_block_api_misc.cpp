@@ -175,39 +175,25 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
 
     SECTION("Test addr invalid with a valid address cookie containing non-zero values")
     {
-        // Create our own block structure for easier manipulation of inputs.
-        WT_BLOCK b, *bp;
-        bp = bm.block;
-        b.allocsize = 1;
-        b.objectid = 1;
-        b.size = 1024;
-        REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, &b) == 0);
-        bm.block = bp;
+        bm.block->allocsize = 1;
+        bm.block->objectid = 1;
+        bm.block->size = 1024;
+        REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, bm.block) == 0);
     }
 
     SECTION("Test addr invalid with a valid address cookie containing zero values")
     {
-        // Create our own block structure for easier manipulation of inputs.
-        WT_BLOCK b, *bp;
-        bp = bm.block;
-        b.allocsize = 1;
-        b.objectid = 1;
-        b.size = 0;
-        REQUIRE(test_addr_invalid(s, &bm, 0, 0, 0, &b) == 0);
-        bm.block = bp;
+        bm.block->allocsize = 1;
+        bm.block->objectid = 1;
+        bm.block->size = 0;
+        REQUIRE(test_addr_invalid(s, &bm, 0, 0, 0, bm.block) == 0);
     }
 
     SECTION("Test addr invalid address with an invalid address")
     {
-        // Create our own block structure for easier manipulation of inputs.
-        WT_BLOCK b, *bp;
-        bp = bm.block;
-        b.allocsize = 1;
-        b.objectid = WT_TIERED_OBJECTID_NONE;
-        b.size = 1024;
-        bm.block = &b;
-        REQUIRE(__wt_spin_init(s, &bm.block->live_lock, "block manager") == 0);
-        REQUIRE(__wti_block_ckpt_init(s, &bm.block->live, nullptr) == 0);
+        bm.block->allocsize = 1;
+        bm.block->objectid = WT_TIERED_OBJECTID_NONE;
+        bm.block->size = 1024;
 
         // Create a situation where the block is misplaced, meaning that its address is on the
         // available list.
@@ -222,13 +208,7 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
 
         // Test that the block manager's addr_invalid method returns an error when checking if the
         // address cookie is valid.
-        REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, &b) == WT_ERROR);
-
-        // Cleanup for block created for test case.
-        __wt_spin_destroy(s, &bm.block->live_lock);
-        __wti_block_ckpt_destroy(s, &bm.block->live);
-
-        bm.block = bp;
+        REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345, bm.block) == WT_ERROR);
     }
 
     // Cleanup for block created during block manager initialization.
