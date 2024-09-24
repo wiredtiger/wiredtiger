@@ -1474,6 +1474,36 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 }
 
 /*
+ * __evict_btree_dominating_cache --
+ *     Return if a single btree is occupying at least half of any of our target's cache usage.
+ */
+static WT_INLINE bool
+__evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_CACHE *cache;
+    uint64_t bytes_dirty;
+    uint64_t bytes_max;
+
+    cache = S2C(session)->cache;
+    bytes_max = S2C(session)->cache_size + 1;
+
+    if (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_inmem)) >
+      (uint64_t)(0.5 * cache->eviction_target * bytes_max) / 100)
+        return (true);
+
+    bytes_dirty =
+      __wt_atomic_load64(&btree->bytes_dirty_intl) + __wt_atomic_load64(&btree->bytes_dirty_leaf);
+    if (__wt_cache_bytes_plus_overhead(cache, bytes_dirty) >
+      (uint64_t)(0.5 * cache->eviction_dirty_target * bytes_max) / 100)
+        return (true);
+    if (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_updates)) >
+      (uint64_t)(0.5 * cache->eviction_updates_target * bytes_max) / 100)
+        return (true);
+
+    return (false);
+}
+
+/*
  * __evict_walk --
  *     Fill in the array by walking the next set of pages.
  */
@@ -1583,7 +1613,7 @@ retry:
          * its pages.
          */
         if (btree->evict_priority != 0 && !__wt_cache_aggressive(session) &&
-          !__wti_btree_dominating_cache(session, btree)) {
+          !__evict_btree_dominating_cache(session, btree)) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_stick_in_cache);
             continue;
         }
