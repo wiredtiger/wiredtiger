@@ -691,7 +691,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_eviction_needed(session, false, false, NULL) || __wt_cache_stuck(session))
+    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_cache_stuck(session))
         return (0);
 
     /*
@@ -826,7 +826,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * the cache size limit.
      */
     if (conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
-      __wti_cache_hs_dirty(session) && __wt_cache_full(session)) {
+      __wti_evict_hs_dirty(session) && __wt_cache_full(session)) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
         return (__wt_set_return(session, EBUSY));
     }

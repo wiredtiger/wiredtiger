@@ -78,7 +78,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /* Trigger eviction on the next page release. */
-    __wt_page_evict_soon(session, ref);
+    __wt_evict_page_soon(session, ref);
 
     /* If eviction cannot succeed, don't try. */
     return (__wt_page_can_evict(session, ref, NULL));
@@ -364,7 +364,8 @@ read:
              * space in the cache.
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-                WT_RET(__wt_cache_eviction_check(session, true, txn->mod_count == 0, NULL));
+                WT_RET(
+                  __wt_evict_app_assist_worker_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -520,9 +521,9 @@ skip_evict:
                 if (wont_need)
                     __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
                 else
-                    __wt_cache_read_gen_new(session, page);
+                    __wt_evict_read_gen_new(session, page);
             } else if (!LF_ISSET(WT_READ_NO_GEN))
-                __wt_cache_read_gen_bump(session, page);
+                __wt_evict_read_gen_bump(session, page);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
@@ -561,7 +562,7 @@ skip_evict:
          * cache, substitute that for a sleep.
          */
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-            WT_RET(__wt_cache_eviction_check(session, true, true, &cache_work));
+            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, &cache_work));
             if (cache_work)
                 continue;
         }
