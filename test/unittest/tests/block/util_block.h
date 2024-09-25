@@ -26,5 +26,5 @@ void validate_size_block(WT_SIZE *);
 
 /* Block Manager file API functions. */
 void create_write_buffer(WT_BM *, std::shared_ptr<mock_session>, std::string, WT_ITEM *, size_t);
-void setup_bm(std::shared_ptr<mock_session> &, WT_BM *, const std::string&);
+void setup_bm(std::shared_ptr<mock_session> &, WT_BM *, const std::string &);
 void test_and_validate_write_size(WT_BM *, std::shared_ptr<mock_session>, const size_t);

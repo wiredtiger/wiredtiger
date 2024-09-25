@@ -139,9 +139,11 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
         REQUIRE(__ut_block_off_insert(s, &bm.block->live.avail, test_off.test_off_size.off,
                   test_off.test_off_size.size) == 0);
 
-        // Test that the block manager's addr_invalid method returns an error when checking if the
-        // address cookie is valid.
-        //REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345) == WT_ERROR);
+        /*
+         * Test that the block manager's addr_invalid method returns an error when checking if the
+         * address cookie is valid. REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345) ==
+         * WT_ERROR);
+         */
     }
 
     // Cleanup for block created during block manager initialization.

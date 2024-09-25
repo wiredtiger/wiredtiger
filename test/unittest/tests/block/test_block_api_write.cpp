@@ -34,7 +34,7 @@ struct addr_cookie {
 };
 
 void
-setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string& file_path)
+setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &file_path)
 {
     REQUIRE(
       (session->get_mock_connection()->setup_block_manager(session->get_wt_session_impl())) == 0);
@@ -50,7 +50,7 @@ setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string& f
      */
     WT_CLEAR(*bm);
     __wti_bm_method_set(bm, false);
-  
+
     // Create the underlying file in the filesystem.
     REQUIRE(__wt_block_manager_create(
               session->get_wt_session_impl(), file_path.c_str(), std::stoi(ALLOCATION_SIZE)) == 0);
