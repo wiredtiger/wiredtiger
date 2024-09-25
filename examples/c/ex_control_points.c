@@ -118,7 +118,7 @@ main(int argc, char *argv[])
     /* Enable all control points. */
     /* TODO: Fix cfg parameter. */
     error_check(
-        __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MainStartPrinting, NULL));
+      __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MainStartPrinting, NULL));
     for (idx = 0; idx < NUM_THREADS; ++idx)
         /* TODO: Fix cfg parameter. */
         error_check(__wt_conn_control_point_enable(session, thread_control_point_ids[idx], NULL));
