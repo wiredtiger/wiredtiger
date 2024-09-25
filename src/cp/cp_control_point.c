@@ -100,11 +100,10 @@ struct __wt_conn_control_point_data_MainStartPrinting {
  *     The per connection control point initialization function for control point MainStartPrinting.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_MainStartPrinting(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_MainStartPrinting(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_MainStartPrinting *init_data;
@@ -112,8 +111,20 @@ __wt_conn_control_point_init_MainStartPrinting(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "MainStartPrinting", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -128,11 +139,10 @@ struct __wt_conn_control_point_data_THREAD0 {
  *     The per connection control point initialization function for control point THREAD0.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD0(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD0(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD0 *init_data;
@@ -140,8 +150,20 @@ __wt_conn_control_point_init_THREAD0(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD0", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -156,11 +178,10 @@ struct __wt_conn_control_point_data_THREAD1 {
  *     The per connection control point initialization function for control point THREAD1.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD1(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD1(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD1 *init_data;
@@ -168,8 +189,20 @@ __wt_conn_control_point_init_THREAD1(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD1", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -184,11 +217,10 @@ struct __wt_conn_control_point_data_THREAD2 {
  *     The per connection control point initialization function for control point THREAD2.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD2(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD2(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD1 *init_data;
@@ -196,8 +228,20 @@ __wt_conn_control_point_init_THREAD2(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD2", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -212,11 +256,10 @@ struct __wt_conn_control_point_data_THREAD3 {
  *     The per connection control point initialization function for control point THREAD3.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD3(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD3(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD2 *init_data;
@@ -224,8 +267,20 @@ __wt_conn_control_point_init_THREAD3(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD3", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -240,11 +295,10 @@ struct __wt_conn_control_point_data_THREAD4 {
  *     The per connection control point initialization function for control point THREAD4.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD4(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD4(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD3 *init_data;
@@ -252,8 +306,20 @@ __wt_conn_control_point_init_THREAD4(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD4", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -268,11 +334,10 @@ struct __wt_conn_control_point_data_THREAD5 {
  *     The per connection control point initialization function for control point THREAD5.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD5(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD5(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD4 *init_data;
@@ -280,8 +345,20 @@ __wt_conn_control_point_init_THREAD5(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD5", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -296,11 +373,10 @@ struct __wt_conn_control_point_data_THREAD6 {
  *     The per connection control point initialization function for control point THREAD6.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD6(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD6(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD5 *init_data;
@@ -308,8 +384,20 @@ __wt_conn_control_point_init_THREAD6(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD6", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -324,11 +412,10 @@ struct __wt_conn_control_point_data_THREAD7 {
  *     The per connection control point initialization function for control point THREAD7.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD7(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD7(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD6 *init_data;
@@ -336,8 +423,20 @@ __wt_conn_control_point_init_THREAD7(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD7", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -352,11 +451,10 @@ struct __wt_conn_control_point_data_THREAD8 {
  *     The per connection control point initialization function for control point THREAD8.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD8(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD8(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD7 *init_data;
@@ -364,8 +462,20 @@ __wt_conn_control_point_init_THREAD8(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD8", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 
@@ -380,11 +490,10 @@ struct __wt_conn_control_point_data_THREAD9 {
  *     The per connection control point initialization function for control point THREAD8.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param id The per connection control point's ID.
+ *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD9(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_init_THREAD9(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD8 *init_data;
@@ -392,8 +501,20 @@ __wt_conn_control_point_init_THREAD9(
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
+
+    /* Initialize configuration parameters */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
+      session, (WT_CONTROL_POINT *)init_data, cfg));
+    /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
+
+    /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
       session, "THREAD9", (WT_CONTROL_POINT *)init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
     return ((WT_CONTROL_POINT *)init_data);
 }
 

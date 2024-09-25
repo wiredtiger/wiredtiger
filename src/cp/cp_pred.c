@@ -62,6 +62,9 @@ __wt_control_point_config_pred_skip(
 bool
 __wt_control_point_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
 {
+    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
+    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_UNUSED(session);
     /* data->param2.value64 is enable-count. */
     if (data->param2.value64 > 0) {
         --(data->param2.value64);

@@ -168,11 +168,11 @@ __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
  *     Enable a per connection control point given a WT_CONTROL_POINT_REGISTRY.
  *
  * @param session The session. @param cp_registry The registry of the per connection control point
- *     to enable.
+ *     to enable. @param cfg The configuration strings.
  */
 int
 __wti_conn_control_point_enable(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_ID id)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
 {
     WT_DECL_RET;
     WT_CONTROL_POINT *data;
@@ -182,7 +182,7 @@ __wti_conn_control_point_enable(
     if (WT_UNLIKELY(data != NULL))
         /* Already enabled. */
         WT_ERR(EEXIST);
-    data = cp_registry->init(session, cp_registry, id);
+    data = cp_registry->init(session, cfg);
     if (WT_UNLIKELY(data == NULL))
         WT_ERR(WT_ERROR);
     cp_registry->data = data;
@@ -196,9 +196,10 @@ err:
  *     Enable a per connection control point.
  *
  * @param session The session. @param id The ID of the per connection control point to enable.
+ *     @param cfg The configuration strings.
  */
 int
-__wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
@@ -211,7 +212,7 @@ __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
         return (WT_ERROR);
 
     cp_registry = &(conn->control_points[id]);
-    return (__wti_conn_control_point_enable(session_impl, cp_registry, id));
+    return (__wti_conn_control_point_enable(session_impl, cp_registry, cfg));
 }
 
 /*
@@ -219,18 +220,18 @@ __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
  *     Enable a per session control point given a WT_CONTROL_POINT_REGISTRY.
  *
  * @param session The session. @param cp_registry The registry of the per session control point to
- *     enable.
+ *     enable. @param cfg The configuration strings.
  */
 int
 __wti_session_control_point_enable(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_ID id)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
 {
     WT_CONTROL_POINT *data = cp_registry->data;
 
     if (WT_UNLIKELY(data != NULL))
         /* Already enabled. */
         return (EEXIST);
-    data = cp_registry->init(session, cp_registry, id);
+    data = cp_registry->init(session, cfg);
     if (WT_UNLIKELY(data == NULL))
         return (WT_ERROR);
     cp_registry->data = data;
@@ -241,10 +242,11 @@ __wti_session_control_point_enable(
  * __wt_session_control_point_enable --
  *     Enable a per session control point.
  *
- * @param session The session. @param id The ID of the per session control point to enable.
+ * @param session The session. @param id The ID of the per session control point to enable. @param
+ *     cfg The configuration strings.
  */
 int
-__wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
+__wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, const char **cfg)
 {
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
@@ -255,7 +257,7 @@ __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
         return (WT_ERROR);
 
     cp_registry = &(session_impl->control_points[id]);
-    return (__wti_session_control_point_enable(session_impl, cp_registry, id));
+    return (__wti_session_control_point_enable(session_impl, cp_registry, cfg));
 }
 
 /*

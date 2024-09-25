@@ -41,13 +41,12 @@ typedef uint32_t WT_CONTROL_POINT_ACTION_ID;
 /*!
  * A function to initialize a control point's data.
  */
-typedef WT_CONTROL_POINT *wt_control_point_init_t(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id);
+typedef WT_CONTROL_POINT *wt_control_point_init_t(WT_SESSION_IMPL *session, const char **cfg);
 
 /*!
  * A function to test whether a control point should be triggered.
  */
-typedef bool wt_control_point_pred_t(WT_SESSION_IMPL *session, WT_CONTROL_POINT *);
+typedef bool wt_control_point_pred_t(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data);
 
 /*!
  * Registration data for one control point.
