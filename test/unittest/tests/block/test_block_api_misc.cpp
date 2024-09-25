@@ -88,7 +88,7 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
     size_t addr_size = WT_PTRDIFF(pp, p);
 
     // Compare the string output of bm->addr_string against the known expected string.
-    REQUIRE(bm->addr_string(bm, nullptr, &buf, p, addr_size) == 0);
+    REQUIRE(bm->addr_string(bm, session, &buf, p, addr_size) == 0);
     CHECK(static_cast<std::string>(((char *)(buf.data))).compare(expected_str) == 0);
 
     __wt_free(nullptr, buf.data);
