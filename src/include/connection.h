@@ -278,6 +278,17 @@ struct __wt_named_extractor {
 };
 
 /*
+ * WT_NAMED_PAGE_LOG --
+ *	A page log list entry
+ */
+struct __wt_named_page_log {
+    const char *name;      /* Name of page log */
+    WT_PAGE_LOG *page_log; /* User supplied callbacks */
+    /* Linked list of page logs */
+    TAILQ_ENTRY(__wt_named_page_log) q;
+};
+
+/*
  * WT_NAMED_STORAGE_SOURCE --
  *	A storage source list entry
  */
@@ -751,6 +762,10 @@ struct __wt_connection_impl {
 
     /* Locked: extractor list */
     TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
+
+    /* Locked: page log list */
+    WT_SPINLOCK page_log_lock; /* Storage source list lock */
+    TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
 
     /* Locked: storage source list */
     WT_SPINLOCK storage_lock; /* Storage source list lock */

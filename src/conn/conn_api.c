@@ -664,6 +664,103 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_add_page_log --
+ *     WT_CONNECTION->add_page_log method.
+ */
+static int
+__conn_add_page_log(
+  WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG *page_log, const char *config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npl;
+    WT_SESSION_IMPL *session;
+
+    npl = NULL;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL(conn, session, add_page_log, config, cfg);
+    WT_UNUSED(cfg);
+
+    WT_ERR(__wt_calloc_one(session, &npl));
+    WT_ERR(__wt_strdup(session, name, &npl->name));
+    npl->page_log = page_log;
+    __wt_spin_lock(session, &conn->api_lock);
+    TAILQ_INSERT_TAIL(&conn->pagelogqh, npl, q);
+    npl = NULL;
+    __wt_spin_unlock(session, &conn->api_lock);
+
+err:
+    if (npl != NULL) {
+        __wt_free(session, npl->name);
+        __wt_free(session, npl);
+    }
+
+    API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __conn_get_page_log --
+ *     WT_CONNECTION->get_page_log method.
+ */
+static int
+__conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page_logp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npage_log;
+    WT_PAGE_LOG *page_log;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    *page_logp = NULL;
+
+    ret = EINVAL;
+    TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
+        if (WT_STREQ(npage_log->name, name)) {
+            page_log = npage_log->page_log;
+            WT_RET(page_log->pl_add_reference(page_log));
+            *page_logp = page_log;
+            ret = 0;
+            break;
+        }
+    if (ret != 0)
+        WT_RET_MSG(conn->default_session, ret, "unknown page_log '%s'", name);
+
+    return (ret);
+}
+
+/*
+ * __wt_conn_remove_page_log --
+ *     Remove page_log added by WT_CONNECTION->add_page_log, only used internally.
+ */
+int
+__wt_conn_remove_page_log(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npl;
+    WT_PAGE_LOG *pl;
+
+    conn = S2C(session);
+
+    while ((npl = TAILQ_FIRST(&conn->pagelogqh)) != NULL) {
+        /* Remove from the connection's list, free memory. */
+        TAILQ_REMOVE(&conn->pagelogqh, npl, q);
+
+        /* Call any termination method. */
+        pl = npl->page_log;
+        WT_ASSERT(session, pl != NULL);
+        if (pl->terminate != NULL)
+            WT_TRET(pl->terminate(pl, (WT_SESSION *)session));
+
+        __wt_free(session, npl->name);
+        __wt_free(session, npl);
+    }
+
+    return (ret);
+}
+
+/*
  * __conn_add_storage_source --
  *     WT_CONNECTION->add_storage_source method.
  */
@@ -2793,8 +2890,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_get_home, __conn_compile_configuration, __conn_configure_method, __conn_is_new,
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
-      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
-      __conn_get_storage_source, __conn_get_extension_api, NULL};
+      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_page_log,
+      __conn_add_storage_source, __conn_get_page_log, __conn_get_storage_source,
+      __conn_get_extension_api, NULL};
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
 

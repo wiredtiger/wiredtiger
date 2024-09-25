@@ -301,9 +301,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     self.skipTest('extension "' + ext + '" not built')
                     continue
                 else:
-                    raise Exception(self.shortid() +
-                        ": " + ext +
-                        ": no extensions library found matching: " + pat)
+                    raise Exception(f"{self.shortid()}: {ext}" +
+                        f": no extensions library found matching '{libname}' in '{dirname}'")
             complete = '"' + filenames[0] + '"' + extconf
             if ext in extfiles:
                 if extfiles[ext] != complete:
