@@ -540,7 +540,6 @@ typedef uint64_t wt_timestamp_t;
 #include "control_points.h"
 #include "cp_control_point_gen.h"
 #include "cp_action.h"
-#include "cp_pred.h"
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"

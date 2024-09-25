@@ -22,9 +22,10 @@
 bool
 __wt_control_point_pred_skip(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
 {
+    WT_UNUSED(session);
     /* data->param1.value 64 is skip-count. */
-    if (data->param1.value 64 > 0) {
-        --(data->param1.value 64);
+    if (data->param1.value64 > 0) {
+        --(data->param1.value64);
         return (false);
     }
     return (true);
@@ -57,8 +58,8 @@ bool
 __wt_control_point_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
 {
     /* data->param2.value64 is enable-count. */
-    if (data->param2.value 64 > 0) {
-        --(data->param2.value 64);
+    if (data->param2.value64 > 0) {
+        --(data->param2.value64);
         return (true);
     }
     return (false);
@@ -72,8 +73,9 @@ __wt_control_point_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
  * @param session The session. @param data Return the parsed data in here. @param cfg The
  *     configuration strings.
  */
-int __wt_control_point_config_pred_times)(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-    const char **cfg)
+int
+__wt_control_point_config_pred_times(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
     /* TODO. */
     return (-1); /* For compiler */
@@ -128,7 +130,7 @@ __wt_control_point_pred_random_param2(WT_SESSION_IMPL *session, WT_CONTROL_POINT
 }
 
 /*
- * __wt_control_point_config_random_param2 --
+ * __wt_control_point_config_pred_random_param2 --
  *     Configuration parsing for control point predicate "Random_param2: Trigger with probability".
  *     Probability is assigned to param2.value16aa.
  *
@@ -136,7 +138,7 @@ __wt_control_point_pred_random_param2(WT_SESSION_IMPL *session, WT_CONTROL_POINT
  *     configuration strings.
  */
 int
-__wt_control_point_config_random_param2(
+__wt_control_point_config_pred_random_param2(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
     /* TODO. */

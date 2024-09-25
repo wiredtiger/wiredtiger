@@ -41,7 +41,7 @@ typedef uint32_t WT_CONTROL_POINT_ACTION_ID;
 /*!
  * A function to initialize a control point's data.
  */
-typedef void wt_control_point_init_t(
+typedef WT_CONTROL_POINT *wt_control_point_init_t(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *registration, WT_CONTROL_POINT_ID id);
 
 /*!
@@ -52,11 +52,11 @@ typedef bool wt_control_point_pred_t(WT_SESSION_IMPL *session, WT_CONTROL_POINT 
 /*!
  * Registration data for one control point.
  */
-struct __wt_control_point_registry;
-typedef struct __wt_control_point_registry WT_CONTROL_POINT_REGISTRY;
 struct __wt_control_point_registry {
     wt_control_point_init_t __F(init); /* Function to initialize the control point. */
     wt_control_point_pred_t __F(pred); /* Function to test whether to trigger. */
+    size_t crossing_count;             /* Count of executions of the trigger site. */
+    size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
     WT_SPINLOCK lock;                  /* Atomically access data and data->ref_count. */
     WT_CONTROL_POINT *data; /* Disabled if NULL. More data may follow WT_CONTROL_POINT. */
     WT_CONTROL_POINT_ACTION_ID action_supported; /* For compatibility checking. */
@@ -72,8 +72,6 @@ typedef uint32_t WT_CONTROL_POINT_REF_COUNT;
  * A pred parameter in WT_CONTROL_POINT.
  * The usage and meaning depends upon the pred function.
  */
-union __wt_control_point_param;
-typedef union __wt_control_point_param WT_CONTROL_POINT_PARAM;
 union __wt_control_point_param {
     void *pointer;
     uint64_t value64;
@@ -98,20 +96,9 @@ union __wt_control_point_param {
 /*!
  * A control point interface that begins a control point specific data type.
  */
-struct __wt_control_point;
-typedef struct __wt_control_point WT_CONTROL_POINT;
 struct __wt_control_point {
     WT_CONTROL_POINT_PARAM param1;        /* First parameter for pred function. */
     WT_CONTROL_POINT_PARAM param2;        /* Second parameter for pred function. */
-    size_t crossing_count;                /* Count of executions of the trigger site. */
-    size_t trigger_count;                 /* Count of triggers, i.e. pred returned true. */
     WT_CONTROL_POINT_REF_COUNT ref_count; /* Count of threads using this data. */
 };
-
-/* The control points API. */
-int __wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
-int __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
-int __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
-int __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id);
-
 #endif /* HAVE_CONTROL_POINTS */

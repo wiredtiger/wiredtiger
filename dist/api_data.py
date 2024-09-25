@@ -52,13 +52,12 @@ class Config:
 # Configuration for a control point. Used only as super classes of both
 # ConnectionControlPoint and SessionControlPoint.
 class ControlPoint(Config):
-    translation_to_lower = str.translate(' ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    translation_to_lower = str.translate(' ABCDEFGHIJKLMNOPQRSTUVWXYZ', # From, To
                                          '_abcdefghijklmnopqrstuvwxyz')
     translation_to_upper = str.translate(' abcdefghijklmnopqrstuvwxyz',
                                          '_ABCDEFGHIJKLMNOPQRSTUVWXYZ')
     @staticmethod
     def convert_to_config_name(name):
-
         new_name = name.translate(ControlPoint.translation_to_lower)
         return new_name
     def __init__(self, name, per_connection, action_short_name,

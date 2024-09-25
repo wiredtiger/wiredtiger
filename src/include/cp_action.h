@@ -10,8 +10,7 @@
 
 /* cp_action.h: Declarations for control point actions. */
 
-/*===========================================================================*/
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 /*!
  * The first part of a per connection control point definition macro.
  * Sets _data = WT_CONTROL_POINT_REGISTRY.data if triggered, and
@@ -37,10 +36,7 @@
         __wt_control_point_release_data(_session, _cp_registry, _data, (LOCKED)); \
     }                                                                             \
     while (0)
-#endif
 
-/*---------------------------------------------------------------------------*/
-#if defined(HAVE_CONTROL_POINTS) && (SESSION_CONTROL_POINTS_SIZE > 0)
 /*!
  * The first part of a per session control point definition macro.
  * Sets _data = WT_CONTROL_POINT_REGISTRY.data if triggered, and
@@ -62,12 +58,8 @@
 #define SESSION_CONTROL_POINT_DEFINE_END \
     }                                    \
     while (0)
-#endif
 
-/*===========================================================================*/
-#ifdef HAVE_CONTROL_POINTS
-struct __wt_control_point_action_sleep;
-typedef struct __wt_control_point_action_sleep WT_CONTROL_POINT_ACTION_SLEEP;
+/* Action Sleep: Delay at a specific code location during an execution via __wt_sleep */
 struct __wt_control_point_action_sleep {
     /* Action Configuration parameter(s) */
     uint64_t seconds;
@@ -75,7 +67,7 @@ struct __wt_control_point_action_sleep {
 };
 #endif
 
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)                           \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))                           \
     if (_data != NULL) {                                                                           \
@@ -93,8 +85,7 @@ struct __wt_control_point_action_sleep {
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/*---------------------------------------------------------------------------*/
-#if defined(HAVE_CONTROL_POINTS) && (SESSION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 #define SESSION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)                              \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))                              \
     if (_data != NULL) {                                                                           \
@@ -109,17 +100,14 @@ struct __wt_control_point_action_sleep {
 #define SESSION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/*===========================================================================*/
 #ifdef HAVE_CONTROL_POINTS
-struct __wt_control_point_action_err;
-typedef struct __wt_control_point_action_err WT_CONTROL_POINT_ACTION_ERR;
 struct __wt_control_point_action_err {
     /* Action Configuration parameter(s) */
     int err;
 };
 #endif
 
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID)     \
     CONNECTION_CONTROL_POINT_DEFINE_START((CONNECTION), (SESSION), (CONTROL_POINT_ID)) \
     if (_data != NULL) {                                                               \
@@ -135,8 +123,7 @@ struct __wt_control_point_action_err {
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/*---------------------------------------------------------------------------*/
-#if defined(HAVE_CONTROL_POINTS) && (SESSION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 #define SESSION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID)     \
     SESSION_CONTROL_POINT_DEFINE_START((CONNECTION), (SESSION), (CONTROL_POINT_ID)) \
     if (_data != NULL) {                                                            \
@@ -149,17 +136,14 @@ struct __wt_control_point_action_err {
 #define SESSION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/*===========================================================================*/
 #ifdef HAVE_CONTROL_POINTS
-struct __wt_control_point_action_ret;
-typedef struct __wt_control_point_action_ret WT_CONTROL_POINT_ACTION_RET;
 struct __wt_control_point_action_ret {
     /* Action Configuration parameter(s) */
     int ret_value;
 };
 #endif
 
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)            \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
     if (_data != NULL) {                                                          \
@@ -174,8 +158,7 @@ struct __wt_control_point_action_ret {
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/*---------------------------------------------------------------------------*/
-#if defined(HAVE_CONTROL_POINTS) && (SESSION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 #define SESSION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)               \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))             \
     if (_data != NULL) {                                                          \
@@ -188,19 +171,17 @@ struct __wt_control_point_action_ret {
 #define SESSION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/*===========================================================================*/
 #ifdef HAVE_CONTROL_POINTS
-struct __wt_control_point_action_wait_for_trigger;
-typedef struct __wt_control_point_action_wait_for_trigger WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER;
 struct __wt_control_point_action_wait_for_trigger {
     /* Action Configuration parameter */
     uint64_t wait_count;
-    /* Action state variable */
+    /* Action state variables */
+    uint64_t desired_trigger_count;
     WT_CONDVAR *condvar;
 };
 #endif
 
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 /*!
  * The call site portion of control point action "Wait for Trigger: Blocking the testing thread
  * until a control point is triggered".
@@ -222,7 +203,7 @@ struct __wt_control_point_action_wait_for_trigger {
     } while (0)
 #endif
 
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
+#ifdef HAVE_CONTROL_POINTS
 /*!
  * The trigger site portion of control point action "Wait for Trigger: Blocking the testing thread
  * until a control point is triggered".
@@ -239,30 +220,4 @@ struct __wt_control_point_action_wait_for_trigger {
     CONNECTION_CONTROL_POINT_DEFINE_END(false)
 #else
 #define CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID) /* NOP */
-#endif
-
-/*===========================================================================*/
-#ifdef HAVE_CONTROL_POINTS
-bool __wt_control_point_wait_for_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry);
-#endif
-
-#if defined(HAVE_CONTROL_POINTS) && (CONNECTION_CONTROL_POINTS_SIZE > 0)
-void __wt_control_point_unlock(WT_CONTROL_POINT_REGISTRY *cp_registry);
-WT_CONTROL_POINT *__wt_control_point_get_data(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, bool locked);
-
-void __wt_control_point_release_data(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data, bool locked);
-
-WT_CONTROL_POINT *__wt_conn_control_point_test_and_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_ID id);
-
-void __wt_control_point_action_init_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT *data);
-#endif
-
-#if defined(HAVE_CONTROL_POINTS) && (SESSION_CONTROL_POINTS_SIZE > 0)
-WT_CONTROL_POINT *__wt_session_control_point_test_and_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_ID id);
 #endif

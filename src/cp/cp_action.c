@@ -13,6 +13,7 @@
 /* cp_action.c: Definitions for control point actions. */
 /* This file must be edited when a new control point action is created. */
 
+#define WT_DELAY_UNTIL_TRIGGERED_USEC (10 * WT_THOUSAND) /* 10 milliseconds */
 /*
  * __wt_control_point_config_action_sleep --
  *     Configuration parsing for control point action "Sleep: Delay at a specific code location
@@ -87,8 +88,8 @@ bool
 __wt_control_point_run_wait_for_trigger(WT_SESSION_IMPL *session)
 {
     WT_CONTROL_POINT_REGISTRY *cp_registry = session->cp_registry;
-    WT_CONTROL_POINT_ACTION_WAIT_UNTIL_TRIGGERED *action_data =
-      (WT_CONTROL_POINT_ACTION_WAIT_UNTIL_TRIGGERED *)(session->cp_data + 1);
+    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data =
+      (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(session->cp_data + 1);
     return (cp_registry->trigger_count >= action_data->desired_trigger_count);
 }
 
@@ -108,6 +109,7 @@ __wt_control_point_wait_for_trigger(
     size_t desired_trigger_count;
     WT_CONTROL_POINT *data = __wt_control_point_get_data(session, cp_registry, true);
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+    bool signalled;
     if (WT_UNLIKELY(data == NULL))
         return (false); /* Not enabled. */
     /* Is waiting necessary? */
@@ -121,10 +123,10 @@ __wt_control_point_wait_for_trigger(
     action_data->desired_trigger_count = desired_trigger_count;
     session->cp_registry = cp_registry;
     session->cp_data = data;
-    __wt_control_point_unlock(cp_registry);
+    __wt_control_point_unlock(session, cp_registry);
     for (;;) {
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
-          __wt_control_point_run_wait_for_trigger);
+          __wt_control_point_run_wait_for_trigger, &signalled);
         if (cp_registry->trigger_count >= desired_trigger_count)
             /* Delay condition satisfied */
             break;
@@ -146,11 +148,11 @@ void
 __wt_control_point_action_init_wait_for_trigger(
   WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT *data)
 {
-    WT_RET_DECL;
+    WT_DECL_RET;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data =
       (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(data + 1);
     ret = __wt_cond_alloc(session, control_point_name, &(action_data->condvar));
-    return (ret);
+    WT_ASSERT(session, ret == 0);
 }
 
 #endif /* HAVE_CONTROL_POINTS */
