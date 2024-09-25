@@ -1608,6 +1608,8 @@ extern int __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_open_page_log(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *name,
+  WT_NAMED_PAGE_LOG **npage_logp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_storage_source(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *name,
   WT_NAMED_STORAGE_SOURCE **nstoragep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_table(WT_SESSION_IMPL *session)

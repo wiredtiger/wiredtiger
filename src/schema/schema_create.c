@@ -120,13 +120,13 @@ static int
 __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
   uint32_t allocsize, const char **cfg)
 {
-    WT_CONFIG_ITEM storage_source_item;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
+    WT_CONFIG_ITEM page_log_item;
+    WT_NAMED_PAGE_LOG *npage_log;
 
-    WT_RET(__wt_config_gets(session, cfg, "storage_source", &storage_source_item));
-    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
+    WT_RET(__wt_config_gets(session, cfg, "page_log", &page_log_item));
+    WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
 
-    if (nstorage != NULL) {
+    if (npage_log != NULL) {
         /*
          * This is currently a place holder - the storage source isn't fully created until the btree
          * is created and I don't want to pull that forward into this schema code at the moment. So
@@ -1127,7 +1127,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      * Since oligarch constituents use table URIs, pass the full merged configuration string through
      * - otherwise file-specific metadata will be stripped out.
      */
-    WT_ERR(__wt_config_merge(session, ingest_cfg, "storage_source=,", &constituent_cfg));
+    WT_ERR(__wt_config_merge(session, ingest_cfg, "page_log=,", &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
     stable_cfg[2] = tmp->data;

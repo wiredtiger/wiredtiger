@@ -240,14 +240,15 @@
 #define WT_CONF_ID_os_cache_dirty_pct 247ULL
 #define WT_CONF_ID_os_cache_max 42ULL
 #define WT_CONF_ID_overwrite 97ULL
+#define WT_CONF_ID_page_log 43ULL
 #define WT_CONF_ID_path 257ULL
 #define WT_CONF_ID_percent_file_in_dram 191ULL
 #define WT_CONF_ID_pinned 203ULL
 #define WT_CONF_ID_prealloc 248ULL
 #define WT_CONF_ID_prealloc_init_count 249ULL
 #define WT_CONF_ID_prefix 81ULL
-#define WT_CONF_ID_prefix_compression 43ULL
-#define WT_CONF_ID_prefix_compression_min 44ULL
+#define WT_CONF_ID_prefix_compression 44ULL
+#define WT_CONF_ID_prefix_compression_min 45ULL
 #define WT_CONF_ID_prefix_search 98ULL
 #define WT_CONF_ID_prepare_timestamp 168ULL
 #define WT_CONF_ID_prepared 166ULL
@@ -287,9 +288,9 @@
 #define WT_CONF_ID_slow_checkpoint 217ULL
 #define WT_CONF_ID_source 8ULL
 #define WT_CONF_ID_sources 265ULL
-#define WT_CONF_ID_split_deepen_min_child 45ULL
-#define WT_CONF_ID_split_deepen_per_child 46ULL
-#define WT_CONF_ID_split_pct 47ULL
+#define WT_CONF_ID_split_deepen_min_child 46ULL
+#define WT_CONF_ID_split_deepen_per_child 47ULL
+#define WT_CONF_ID_split_pct 48ULL
 #define WT_CONF_ID_src_id 138ULL
 #define WT_CONF_ID_stable 90ULL
 #define WT_CONF_ID_stable_prefix 91ULL
@@ -297,7 +298,6 @@
 #define WT_CONF_ID_start_generation 82ULL
 #define WT_CONF_ID_statistics 146ULL
 #define WT_CONF_ID_storage_path 285ULL
-#define WT_CONF_ID_storage_source 48ULL
 #define WT_CONF_ID_strategy 124ULL
 #define WT_CONF_ID_stress_skiplist 218ULL
 #define WT_CONF_ID_strict 159ULL
@@ -673,6 +673,7 @@ static const struct {
     uint64_t os_cache_dirty_max;
     uint64_t os_cache_max;
     uint64_t overwrite;
+    uint64_t page_log;
     uint64_t prefix_compression;
     uint64_t prefix_compression_min;
     uint64_t prefix_search;
@@ -701,7 +702,6 @@ static const struct {
     uint64_t stable_prefix;
     uint64_t stable_timestamp;
     uint64_t statistics;
-    uint64_t storage_source;
     uint64_t strategy;
     uint64_t strict;
     uint64_t sync;
@@ -1049,6 +1049,7 @@ static const struct {
   WT_CONF_ID_os_cache_dirty_max,
   WT_CONF_ID_os_cache_max,
   WT_CONF_ID_overwrite,
+  WT_CONF_ID_page_log,
   WT_CONF_ID_prefix_compression,
   WT_CONF_ID_prefix_compression_min,
   WT_CONF_ID_prefix_search,
@@ -1077,7 +1078,6 @@ static const struct {
   WT_CONF_ID_stable_prefix,
   WT_CONF_ID_stable_timestamp,
   WT_CONF_ID_statistics,
-  WT_CONF_ID_storage_source,
   WT_CONF_ID_strategy,
   WT_CONF_ID_strict,
   WT_CONF_ID_sync,

@@ -1282,23 +1282,23 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
   {"source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 8, INT64_MIN,
     INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
   {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN,
     INT64_MAX, NULL},
   {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 91,
-    INT64_MIN, INT64_MAX, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
     confchk_WT_SESSION_create_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 49,
@@ -1320,7 +1320,7 @@ static const uint8_t confchk_WT_SESSION_create_jump[WT_CONFIG_JUMP_TABLE_SIZE] =
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 11, 12, 15,
-  16, 16, 18, 26, 26, 28, 34, 36, 36, 38, 40, 40, 40, 47, 49, 49, 51, 52, 52, 52, 52, 52, 52, 52,
+  16, 16, 18, 26, 26, 28, 34, 36, 36, 38, 41, 41, 41, 47, 49, 49, 51, 52, 52, 52, 52, 52, 52, 52,
   52};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_drop[] = {
@@ -1756,18 +1756,18 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
-    INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
     confchk_WT_SESSION_create_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 49,
     INT64_MIN, INT64_MAX, NULL},
@@ -1786,7 +1786,7 @@ static const uint8_t confchk_file_config_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 10, 11, 12, 13, 13,
-  15, 20, 20, 22, 27, 29, 29, 31, 33, 33, 33, 37, 38, 38, 40, 41, 41, 41, 41, 41, 41, 41, 41};
+  15, 20, 20, 22, 27, 29, 29, 31, 34, 34, 34, 37, 38, 38, 40, 41, 41, 41, 41, 41, 41, 41, 41};
 
 static const char *confchk_access_pattern_hint4_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -1883,20 +1883,20 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 62, INT64_MIN,
     INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
-    INT64_MIN, INT64_MAX, NULL},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 63,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
@@ -1919,7 +1919,7 @@ static const uint8_t confchk_file_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 16, 16, 18,
-  24, 24, 26, 31, 33, 33, 35, 37, 37, 38, 42, 44, 44, 47, 48, 48, 48, 48, 48, 48, 48, 48};
+  24, 24, 26, 31, 33, 33, 35, 38, 38, 39, 42, 44, 44, 47, 48, 48, 48, 48, 48, 48, 48, 48};
 
 static const char *confchk_verbose7_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
@@ -2062,18 +2062,18 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
-    INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
     confchk_WT_SESSION_create_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 49,
     INT64_MIN, INT64_MAX, NULL},
@@ -2092,7 +2092,7 @@ static const uint8_t confchk_lsm_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 11, 12, 13, 14, 14, 16,
-  21, 21, 23, 30, 32, 32, 35, 37, 37, 37, 41, 42, 42, 44, 45, 45, 45, 45, 45, 45, 45, 45};
+  21, 21, 23, 30, 32, 32, 35, 38, 38, 38, 41, 42, 42, 44, 45, 45, 45, 45, 45, 45, 45, 45};
 
 static const char *confchk_access_pattern_hint6_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -2193,20 +2193,20 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 62, INT64_MIN,
     INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
-    INT64_MIN, INT64_MAX, NULL},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 63,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
@@ -2229,7 +2229,7 @@ static const uint8_t confchk_object_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 18, 18,
-  20, 26, 26, 28, 33, 35, 35, 37, 39, 39, 40, 44, 46, 46, 49, 50, 50, 50, 50, 50, 50, 50, 50};
+  20, 26, 26, 28, 33, 35, 35, 37, 40, 40, 41, 44, 46, 46, 49, 50, 50, 50, 50, 50, 50, 50, 50};
 
 static const char *confchk_verbose10_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
@@ -2410,20 +2410,20 @@ static const WT_CONFIG_CHECK confchk_tier_meta[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 62, INT64_MIN,
     INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
-    INT64_MIN, INT64_MAX, NULL},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 63,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
@@ -2446,7 +2446,7 @@ static const uint8_t confchk_tier_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 8, 16, 17, 18, 19, 19, 21,
-  27, 27, 29, 34, 36, 36, 38, 40, 40, 41, 45, 47, 47, 50, 51, 51, 51, 51, 51, 51, 51, 51};
+  27, 27, 29, 34, 36, 36, 38, 41, 41, 42, 45, 47, 47, 50, 51, 51, 51, 51, 51, 51, 51, 51};
 
 static const char *confchk_access_pattern_hint8_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -2551,20 +2551,20 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
     INT64_MAX, NULL},
   {"os_cache_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 42, 0,
     INT64_MAX, NULL},
-  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 43, INT64_MIN,
+    INT64_MAX, NULL},
+  {"prefix_compression", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 44,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44,
+  {"prefix_compression_min", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
     0, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 62, INT64_MIN,
     INT64_MAX, NULL},
-  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 45,
+  {"split_deepen_min_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46,
+  {"split_deepen_per_child", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47,
     INT64_MIN, INT64_MAX, NULL},
-  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 47, 50,
+  {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 48, 50,
     100, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 48,
-    INT64_MIN, INT64_MAX, NULL},
   {"tiered_object", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 63,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
@@ -2589,7 +2589,7 @@ static const uint8_t confchk_tiered_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 13, 14, 15, 18, 18,
-  20, 26, 26, 28, 34, 36, 36, 39, 41, 41, 42, 46, 49, 49, 52, 53, 53, 53, 53, 53, 53, 53, 53};
+  20, 26, 26, 28, 34, 36, 36, 39, 42, 42, 43, 46, 49, 49, 52, 53, 53, 53, 53, 53, 53, 53, 53};
 const char __WT_CONFIG_CHOICE_FILE[] = "FILE";
 const char __WT_CONFIG_CHOICE_DRAM[] = "DRAM";
 
@@ -3918,10 +3918,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "chunk_count_limit=0,chunk_max=5GB,chunk_size=10MB,"
     "merge_custom=(prefix=,start_generation=0,suffix=),merge_max=15,"
     "merge_min=0),memory_page_image_max=0,memory_page_max=5MB,"
-    "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-    "prefix_compression_min=4,source=,split_deepen_min_child=0,"
-    "split_deepen_per_child=0,split_pct=90,stable=,stable_prefix=,"
-    "storage_source=,tiered_storage=(auth_token=,bucket=,"
+    "os_cache_dirty_max=0,os_cache_max=0,page_log=,"
+    "prefix_compression=false,prefix_compression_min=4,source=,"
+    "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+    "stable=,stable_prefix=,tiered_storage=(auth_token=,bucket=,"
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),type=file,value_format=u,"
     "verbose=[],write_timestamp_usage=none",
@@ -4000,9 +4000,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true,oligarch_constituent=false),"
     "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
-    ",os_cache_max=0,prefix_compression=false,"
+    ",os_cache_max=0,page_log=,prefix_compression=false,"
     "prefix_compression_min=4,split_deepen_min_child=0,"
-    "split_deepen_per_child=0,split_pct=90,storage_source=,"
+    "split_deepen_per_child=0,split_pct=90,"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),value_format=u,verbose=[],"
@@ -4022,13 +4022,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
     "log=(enabled=true,oligarch_constituent=false),"
     "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
-    ",os_cache_max=0,prefix_compression=false,"
+    ",os_cache_max=0,page_log=,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
-    ",split_deepen_per_child=0,split_pct=90,storage_source=,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
-    "object_target_size=0,shared=false),value_format=u,verbose=[],"
-    "version=(major=0,minor=0),write_timestamp_usage=none",
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,object_target_size=0,"
+    "shared=false),value_format=u,verbose=[],version=(major=0,"
+    "minor=0),write_timestamp_usage=none",
     confchk_file_meta, 48, confchk_file_meta_jump, 46, WT_CONF_SIZING_NONE, false},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
@@ -4054,12 +4054,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "chunk_count_limit=0,chunk_max=5GB,chunk_size=10MB,"
     "merge_custom=(prefix=,start_generation=0,suffix=),merge_max=15,"
     "merge_min=0),memory_page_image_max=0,memory_page_max=5MB,"
-    "old_chunks=,os_cache_dirty_max=0,os_cache_max=0,"
+    "old_chunks=,os_cache_dirty_max=0,os_cache_max=0,page_log=,"
     "prefix_compression=false,prefix_compression_min=4,"
     "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-    "storage_source=,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
-    "object_target_size=0,shared=false),value_format=u,verbose=[],"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,object_target_size=0,"
+    "shared=false),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
     confchk_lsm_meta, 45, confchk_lsm_meta_jump, 48, WT_CONF_SIZING_NONE, false},
   {"object.meta",
@@ -4076,13 +4076,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
     "log=(enabled=true,oligarch_constituent=false),"
     "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
-    ",os_cache_max=0,prefix_compression=false,"
+    ",os_cache_max=0,page_log=,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
-    ",split_deepen_per_child=0,split_pct=90,storage_source=,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
-    "object_target_size=0,shared=false),value_format=u,verbose=[],"
-    "version=(major=0,minor=0),write_timestamp_usage=none",
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,object_target_size=0,"
+    "shared=false),value_format=u,verbose=[],version=(major=0,"
+    "minor=0),write_timestamp_usage=none",
     confchk_object_meta, 50, confchk_object_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"oligarch.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
@@ -4110,13 +4110,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true,oligarch_constituent=false),"
     "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
-    ",os_cache_max=0,prefix_compression=false,"
+    ",os_cache_max=0,page_log=,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
-    ",split_deepen_per_child=0,split_pct=90,storage_source=,"
-    "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
-    "bucket_prefix=,cache_directory=,local_retention=300,name=,"
-    "object_target_size=0,shared=false),value_format=u,verbose=[],"
-    "version=(major=0,minor=0),write_timestamp_usage=none",
+    ",split_deepen_per_child=0,split_pct=90,tiered_object=false,"
+    "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
+    "cache_directory=,local_retention=300,name=,object_target_size=0,"
+    "shared=false),value_format=u,verbose=[],version=(major=0,"
+    "minor=0),write_timestamp_usage=none",
     confchk_tier_meta, 51, confchk_tier_meta_jump, 52, WT_CONF_SIZING_NONE, false},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -4132,9 +4132,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true,oligarch_constituent=false),"
     "memory_page_image_max=0,memory_page_max=5MB,oldest=1,"
-    "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-    "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
-    ",split_deepen_per_child=0,split_pct=90,storage_source=,"
+    "os_cache_dirty_max=0,os_cache_max=0,page_log=,"
+    "prefix_compression=false,prefix_compression_min=4,readonly=false"
+    ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
     "tiered_object=false,tiered_storage=(auth_token=,bucket=,"
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),tiers=,value_format=u,"

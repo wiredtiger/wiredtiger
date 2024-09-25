@@ -405,6 +405,32 @@ __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
 }
 
 /*
+ * __wt_schema_open_page_log --
+ *     Return a page log if configured. This doesn't really belong here, but it's shared between
+ *     btree and tiered handle configuration, so I could not think of somewhere better.
+ */
+int
+__wt_schema_open_page_log(
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *name, WT_NAMED_PAGE_LOG **npage_logp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_NAMED_PAGE_LOG *npage_log;
+
+    *npage_logp = NULL;
+
+    if (name->len == 0 || WT_CONFIG_LIT_MATCH("none", *name))
+        return (0);
+
+    conn = S2C(session);
+    TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
+        if (WT_CONFIG_MATCH(npage_log->name, *name)) {
+            *npage_logp = npage_log;
+            return (0);
+        }
+    WT_RET_MSG(session, EINVAL, "unknown page log '%.*s'", (int)name->len, name->str);
+}
+
+/*
  * __wt_schema_open_storage_source --
  *     Return a storage source if configured. This doesn't really belong here, but it's shared
  *     between btree and tiered handle configuration, so I could not think of somewhere better.
