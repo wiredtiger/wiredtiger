@@ -3009,7 +3009,6 @@ tasks:
               ./test/evergreen/coverage-report.sh ${is_patch|false} ${python_binary|python3} ${github_commit} "$pr_args"
             else
               ./test/evergreen/coverage-report.sh ${is_patch|false} ${python_binary|python3} ${github_commit} "$pr_args"
-
       - func: "code coverage publish report"
 
   - name: s3-tiered-storage-extensions-test
