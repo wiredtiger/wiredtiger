@@ -150,8 +150,8 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-        if (eviction_time_milliseconds > __wt_atomic_load64(&conn->cache->evict_max_ms))
-            __wt_atomic_store64(&conn->cache->evict_max_ms, eviction_time_milliseconds);
+        if (eviction_time_milliseconds > __wt_atomic_load64(&conn->evict->evict_max_ms))
+            __wt_atomic_store64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
               "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
@@ -289,9 +289,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * statistic.
      */
     if (__wt_atomic_loadsize(&page->memory_footprint) >
-      __wt_atomic_load64(&conn->cache->evict_max_page_size))
+      __wt_atomic_load64(&conn->evict->evict_max_page_size))
         __wt_atomic_store64(
-          &conn->cache->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
+          &conn->evict->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
 
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
@@ -897,9 +897,9 @@ static int
 __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 {
     WT_BTREE *btree;
-    WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_EVICT *evict;
     uint32_t flags;
     bool closing, is_application_thread_snapshot_refreshed, is_eviction_thread,
       use_snapshot_for_app_thread;
@@ -909,7 +909,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
-    cache = conn->cache;
+    evict = conn->evict;
     is_application_thread_snapshot_refreshed = false;
 
     /*
@@ -947,7 +947,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * Note that don't scrub if checkpoint is running on the tree.
          */
         if (!WT_SESSION_BTREE_SYNC(session) &&
-          (F_ISSET(cache, WT_CACHE_EVICT_SCRUB) ||
+          (F_ISSET(evict, WT_CACHE_EVICT_SCRUB) ||
             (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
               __wt_random(&session->rnd) % 3 == 0)))
             LF_SET(WT_REC_SCRUB);
