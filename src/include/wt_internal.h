@@ -323,6 +323,8 @@ struct __wt_named_encryptor;
 typedef struct __wt_named_encryptor WT_NAMED_ENCRYPTOR;
 struct __wt_named_extractor;
 typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
+struct __wt_named_page_log;
+typedef struct __wt_named_page_log WT_NAMED_PAGE_LOG;
 struct __wt_named_storage_source;
 typedef struct __wt_named_storage_source WT_NAMED_STORAGE_SOURCE;
 struct __wt_oligarch;
