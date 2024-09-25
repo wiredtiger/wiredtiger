@@ -43,8 +43,13 @@ int
 __wt_control_point_config_pred_skip(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
-    /* TODO. */
-    return (-1); /* For compiler */
+    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
+    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_UNUSED(session);
+    WT_UNUSED(cfg);
+    /* skip_count is assigned to WT_CONTROL_PARAM.param1.value64. */
+    data->param1.value64 = 1;
+    return (0);
 }
 
 /*
@@ -77,8 +82,13 @@ int
 __wt_control_point_config_pred_times(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
-    /* TODO. */
-    return (-1); /* For compiler */
+    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
+    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_UNUSED(session);
+    WT_UNUSED(cfg);
+    /* enable_count is assigned to WT_CONTROL_PARAM.param2.value64. */
+    data->param2.value64 = 1;
+    return (0);
 }
 
 /*
@@ -100,7 +110,7 @@ __wt_control_point_pred_random_param1(WT_SESSION_IMPL *session, WT_CONTROL_POINT
 /*
  * __wt_control_point_config_pred_random_param1 --
  *     Configuration parsing for control point predicate "Random_param1: Trigger with probability".
- *     Random is assigned to param1.value16aa.
+ *     Probability is assigned to param1.value16aa.
  *
  * @param session The session. @param data Return the parsed data in here. @param cfg The
  *     configuration strings.
@@ -109,8 +119,13 @@ int
 __wt_control_point_config_pred_random_param1(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
-    /* TODO. */
-    return (-1); /* For compiler */
+    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
+    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_UNUSED(session);
+    WT_UNUSED(cfg);
+    /* probability is assigned to WT_CONTROL_PARAM.param1.value16aa. */
+    data->param1.value16aa = 1;
+    return (0);
 }
 
 /*
@@ -141,8 +156,13 @@ int
 __wt_control_point_config_pred_random_param2(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
 {
-    /* TODO. */
-    return (-1); /* For compiler */
+    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
+    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_UNUSED(session);
+    WT_UNUSED(cfg);
+    /* probability is assigned to WT_CONTROL_PARAM.param2.value64. */
+    data->param2.value64 = 1;
+    return (0);
 }
 
 #endif /* HAVE_CONTROL_POINTS */
