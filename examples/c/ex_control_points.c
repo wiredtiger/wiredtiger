@@ -116,10 +116,12 @@ main(int argc, char *argv[])
     session_impl = (WT_SESSION_IMPL *)session;
 
     /* Enable all control points. */
+    /* TODO: Fix cfg parameter. */
     error_check(
-      __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MainStartPrinting));
+        __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MainStartPrinting, NULL));
     for (idx = 0; idx < NUM_THREADS; ++idx)
-        error_check(__wt_conn_control_point_enable(session, thread_control_point_ids[idx]));
+        /* TODO: Fix cfg parameter. */
+        error_check(__wt_conn_control_point_enable(session, thread_control_point_ids[idx], NULL));
 
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {

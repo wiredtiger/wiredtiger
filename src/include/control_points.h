@@ -10,7 +10,7 @@
 
 /* control_points.h: Declarations for control points. */
 
-#ifdef HAVE_CONTROL_POINTS
+/* These types are not conditional upon HAVE_CONTROL_POINTS since they are used in extern.h. */
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define __F(func) func
@@ -100,4 +100,3 @@ struct __wt_control_point {
     WT_CONTROL_POINT_PARAM param2;        /* Second parameter for pred function. */
     WT_CONTROL_POINT_REF_COUNT ref_count; /* Count of threads using this data. */
 };
-#endif /* HAVE_CONTROL_POINTS */

@@ -65,7 +65,7 @@ struct __wt_control_point_action_sleep {
     uint64_t seconds;
     uint64_t microseconds;
 };
-#endif
+#endif /* HAVE_CONTROL_POINTS */
 
 #ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)                           \
@@ -105,7 +105,7 @@ struct __wt_control_point_action_err {
     /* Action Configuration parameter(s) */
     int err;
 };
-#endif
+#endif /* HAVE_CONTROL_POINTS */
 
 #ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID)     \
@@ -141,7 +141,7 @@ struct __wt_control_point_action_ret {
     /* Action Configuration parameter(s) */
     int ret_value;
 };
-#endif
+#endif /* HAVE_CONTROL_POINTS */
 
 #ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)            \
@@ -179,9 +179,7 @@ struct __wt_control_point_action_wait_for_trigger {
     uint64_t desired_trigger_count;
     WT_CONDVAR *condvar;
 };
-#endif
 
-#ifdef HAVE_CONTROL_POINTS
 /*!
  * The call site portion of control point action "Wait for Trigger: Blocking the testing thread
  * until a control point is triggered".
@@ -213,7 +211,7 @@ struct __wt_control_point_action_wait_for_trigger {
     if (_data != NULL) {                                                            \
         WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data =                     \
           (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(_data + 1);                  \
-        __wt_control_point_unlock(_cp_registry);                                    \
+        __wt_control_point_unlock(_session, _cp_registry);                          \
         /* The action. */                                                           \
         __wt_cond_signal(_session, action_data->condvar);                           \
     }                                                                               \
