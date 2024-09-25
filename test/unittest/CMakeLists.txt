@@ -25,6 +25,7 @@ else()
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_addr.cpp
+        tests/block/test_block_api_write.cpp
         tests/block/test_block_ckpt.cpp
         tests/block/test_block_file.cpp
         tests/block/test_block_other.cpp
