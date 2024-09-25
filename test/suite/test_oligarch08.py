@@ -42,7 +42,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 100
+    nitems = 10000
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
