@@ -124,27 +124,29 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
         REQUIRE(test_addr_invalid(s, &bm, 0, 0, 0) == 0);
     }
 
-    SECTION("Test addr invalid address with an invalid address")
-    {
-        bm.block->allocsize = 1;
-        bm.block->objectid = WT_TIERED_OBJECTID_NONE;
-        bm.block->size = 1024;
-
-        // Create a situation where the block is misplaced, meaning that its address is on the
-        // available list.
-        utils::off_size_expected test_off = {utils::off_size(512, 4096),
-          {
-            utils::off_size(512, 4096),
-          }};
-        REQUIRE(__ut_block_off_insert(s, &bm.block->live.avail, test_off.test_off_size.off,
-                  test_off.test_off_size.size) == 0);
-
-        /*
-         * Test that the block manager's addr_invalid method returns an error when checking if the
-         * address cookie is valid. REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345) ==
-         * WT_ERROR);
-         */
-    }
+    /*
+     * FIXME-WT-13582: Enable once the __wt_panic functions doesn't assert anymore.
+     * SECTION("Test addr invalid address with an invalid address")
+     * {
+     *   bm.block->allocsize = 1;
+     *   bm.block->objectid = WT_TIERED_OBJECTID_NONE;
+     *   bm.block->size = 1024;
+     *   // Create a situation where the block is misplaced, meaning that its address is on the
+     *   // available list.
+     *   utils::off_size_expected test_off = {utils::off_size(512, 4096),
+     *     {
+     *       utils::off_size(512, 4096),
+     *     }};
+     *   REQUIRE(__ut_block_off_insert(s, &bm.block->live.avail, test_off.test_off_size.off,
+     *             test_off.test_off_size.size) == 0);
+     *
+     *
+     *   //Test that the block manager's addr_invalid method returns an error when checking if the
+     *   //address cookie is valid.
+     *   REQUIRE(test_addr_invalid(s, &bm, 512, 1024, 12345) == WT_PANIC);
+     *
+     * }
+     */
 
     // Cleanup for block created during block manager initialization.
     REQUIRE(__wt_block_close(s, bm.block) == 0);
