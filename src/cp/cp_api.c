@@ -158,6 +158,8 @@ __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
         return (EINVAL);
     if (WT_UNLIKELY(F_ISSET(session_impl, WT_SESSION_SHUTTING_DOWN)))
         return (WT_ERROR);
+    if (session_impl->control_points == NULL)
+        return (0);
 
     cp_registry = &(session_impl->control_points[id]);
     return (__wti_session_control_point_disable(session_impl, cp_registry));
@@ -255,6 +257,13 @@ __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, c
         return (EINVAL);
     if (WT_UNLIKELY(F_ISSET(session_impl, WT_SESSION_SHUTTING_DOWN)))
         return (WT_ERROR);
+
+    /* Lazy initialization. */
+    if (session_impl->control_points == NULL) {
+        /* Initialize and optionally enable per session control points */
+        WT_RET(__wt_session_control_points_init_all(session_impl));
+        WT_RET(__wt_session_control_points_enable_all(session_impl));
+    }
 
     cp_registry = &(session_impl->control_points[id]);
     return (__wti_session_control_point_enable(session_impl, cp_registry, cfg));

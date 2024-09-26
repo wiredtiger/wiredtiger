@@ -46,6 +46,11 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      */
     WT_RELEASE_BARRIER();
 
+#ifdef HAVE_CONTROL_POINTS
+    /* Initialize per connection control points. */
+    WT_RET(__wt_conn_control_points_init_all(session));
+#endif
+
     /* Create the cache. */
     WT_RET(__wti_cache_create(session, cfg));
 

@@ -223,6 +223,9 @@ __chunkcache_metadata_server(void *arg)
     bool signalled;
 
     session = arg;
+#ifdef HAVE_CONTROL_POINTS
+    WT_ERR(__wt_session_control_points_enable_all(session));
+#endif
     conn = S2C(session);
     cond_time_us = WT_MILLION;
 

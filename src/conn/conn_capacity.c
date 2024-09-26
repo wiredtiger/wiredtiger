@@ -116,6 +116,9 @@ __capacity_server(void *arg)
     uint64_t start, stop, time_ms;
 
     session = arg;
+#ifdef HAVE_CONTROL_POINTS
+    WT_ERR(__wt_session_control_points_enable_all(session));
+#endif
     conn = S2C(session);
     cap = &conn->capacity;
     for (;;) {

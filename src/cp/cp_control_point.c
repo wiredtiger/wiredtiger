@@ -656,6 +656,9 @@ err:
 int
 __wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
 {
+#if 0 /* If no per connection control points are enabled at the start. */
+    WT_UNUSED(session);
+#else
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *control_points;
 
@@ -663,7 +666,6 @@ __wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
         return (0);
     conn = S2C(session);
     control_points = conn->control_points;
-    WT_UNUSED(control_points); /* In case there are not any enabled at start. */
 
     /*
      * This part must be edited. Repeat this for every per connection control point that starts
@@ -673,6 +675,7 @@ __wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
     WT_RET(__wti_conn_control_point_enable(session,
       &(control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting]),
       WT_CONN_CONTROL_POINT_ID_MainStartPrinting));
+#endif
     return (0);
 }
 
@@ -683,22 +686,31 @@ __wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
  *
  * @param session The session.
  */
-void
+int
 __wt_session_control_points_enable_all(WT_SESSION_IMPL *session)
 {
+#if 1 /* If no per session control points are enabled at the start. */
+    WT_UNUSED(session);
+#else
     WT_CONTROL_POINT_REGISTRY *control_points;
     if (SESSION_CONTROL_POINTS_SIZE == 0)
-        return;
-    control_points = session->control_points;
-    WT_UNUSED(control_points); /* In case there are not any enabled at start. */
+        return (0);
 
+    /* Lazy initialization. */
+    control_points = session->control_points;
+    if (control_points == NULL) {
+        WT_RET(__wt_session_control_points_init_all(session));
+        control_points = session->control_points;
+    }
     /*
      * This part must be edited. Repeat this for every per session control point that starts
      * enabled.
      */
-#if 0 /* For example */
-    __wti_session_control_point_enable(session,
-                                       &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2]));
+#if 0 /* For example. */
+    WT_RET(__wti_session_control_point_enable(session,
+        &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2])));
 #endif
+#endif
+    return (0);
 }
 #endif /* HAVE_CONTROL_POINTS */

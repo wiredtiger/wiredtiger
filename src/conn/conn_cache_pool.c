@@ -232,10 +232,14 @@ __cache_pool_server(void *arg)
 {
     WT_CACHE *cache;
     WT_CACHE_POOL *cp;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool forward;
 
     session = (WT_SESSION_IMPL *)arg;
+#ifdef HAVE_CONTROL_POINTS
+    WT_ERR(__wt_session_control_points_enable_all(session));
+#endif
 
     cp = __wt_process.cache_pool;
     cache = S2C(session)->cache;
@@ -269,6 +273,7 @@ __cache_pool_server(void *arg)
         }
     }
 
+err:
     return (WT_THREAD_RET_VALUE);
 }
 

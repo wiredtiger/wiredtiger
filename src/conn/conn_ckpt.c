@@ -82,6 +82,9 @@ __ckpt_server(void *arg)
     uint64_t checkpoint_gen;
 
     session = arg;
+#ifdef HAVE_CONTROL_POINTS
+    WT_ERR(__wt_session_control_points_enable_all(session));
+#endif
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
 
