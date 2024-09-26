@@ -7,6 +7,17 @@ from common_functions import filter_if_fast
 
 from collections import defaultdict
 
+COPYRIGHT = """\
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+"""
+
 if not [f for f in filter_if_fast(source_files(), prefix="../")]:
     sys.exit(0)
 
@@ -67,9 +78,14 @@ def fn_prototypes(public_fns, private_fns, tests, name):
 
 # Create a new header file with function declarations.
 # As this is a new file also generate boilerplate like #pragma once
-def create_new_header(tmp_file, fns, tests):
+def create_new_header(tmp_file, fns, tests, private_file=""):
     tfile = open(tmp_file, 'w')
+    tfile.write(COPYRIGHT)
     tfile.write("#pragma once\n\n")
+
+    if private_file:
+        tfile.write(f"#include \"{private_file}\"\n\n")
+
     tfile.write("/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n\n")
 
     for e in sorted(list(set(fns))):
@@ -119,11 +135,11 @@ def update_existing_header(tmp_file, fns, tests, f):
 # Write results and compare to the current file.
 # Unit-testing functions are exposed separately in their own section to
 # allow them to be ifdef'd out.
-def output(fns, tests, f):
+def output(fns, tests, f, private_file=""):
     tmp_file = '__tmp_prototypes' + str(os.getpid())
 
     if not os.path.isfile(f):
-        create_new_header(tmp_file, fns, tests)
+        create_new_header(tmp_file, fns, tests, private_file)
     else:
         update_existing_header(tmp_file, fns, tests, f)
 
@@ -184,7 +200,7 @@ def write_header_files(public_fns_dict, private_fns_dict, tests_dict):
             # Functions defined in the include folder belong in extern.h
             output(public_fns_dict[comp] + private_fns_dict[comp], tests_dict[comp], f"../src/include/extern.h")
         else:
-            output(public_fns_dict[comp], tests_dict[comp], f"../src/{comp}/{comp}.h")
+            output(public_fns_dict[comp], tests_dict[comp], f"../src/{comp}/{comp}.h", private_file=f"{comp}_private.h")
             if len(private_fns_dict[comp]) > 0:
                 # The second argument (tests_dict) is empty. These test functions are defined to expose module 
                 # internals outside the module, so it doens't make sense for them to be private.
