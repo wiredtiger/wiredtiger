@@ -730,10 +730,10 @@ __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
      * races of getting these sub-handles into the connection.
      */
     WT_SAVE_DHANDLE(
-      session, __schema_open_oligarch_member(session, oligarch, oligarch->ingest_uri, true));
+      session, ret = __schema_open_oligarch_member(session, oligarch, oligarch->ingest_uri, true));
     WT_RET(ret);
     WT_SAVE_DHANDLE(
-      session, __schema_open_oligarch_member(session, oligarch, oligarch->stable_uri, false));
+      session, ret = __schema_open_oligarch_member(session, oligarch, oligarch->stable_uri, false));
     WT_RET(ret);
 
     /* Start the oligarch manager thread if it isn't running. */
