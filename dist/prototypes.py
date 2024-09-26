@@ -5,6 +5,8 @@ import fnmatch, re, os, sys
 from dist import compare_srcfile, format_srcfile, source_files
 from common_functions import filter_if_fast
 
+from collections import defaultdict
+
 if not [f for f in filter_if_fast(source_files(), prefix="../")]:
     sys.exit(0)
 
@@ -82,14 +84,19 @@ def output(fns, tests, f):
     format_srcfile(tmp_file)
     compare_srcfile(tmp_file, f)
 
-# Update generic function prototypes.
-def prototypes_extern():
-    public_fns = []
-    private_fns = []
-    tests = []
+# Build a mapping from a component to its public functions, private functions, and HAVE_UNITTEST functions.
+def build_component_functions_dicts():
+    public_fns_dict = defaultdict(list)
+    private_fns_dict = defaultdict(list)
+    tests_dict = defaultdict(list)
+    
+    # This is the list of components that have been modularised as part of Q3 and following work.
+    # They place header files inside the src/foo folder rather than in src/include
+    modularised_components = []
+
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
-            continue;
+            continue
         if fnmatch.fnmatch(name, '*/checksum/arm64/*'):
             continue
         if fnmatch.fnmatch(name, '*/checksum/loongarch64/*'):
@@ -105,9 +112,37 @@ def prototypes_extern():
             continue
         if fnmatch.fnmatch(name, '*/ext/*'):
             continue
-        fn_prototypes(public_fns, private_fns, tests, name)
 
-    output(public_fns + private_fns, tests, "../src/include/extern.h")
+        if fnmatch.fnmatch(name, '../src/*'):
+            component = name.split("/")[2]
+            if component not in modularised_components:
+                # Non modularised components put all their function prototypes in src/include/extern.h
+                # This is indicated by belonging to the include folder.
+                fn_prototypes(public_fns_dict["include"], private_fns_dict["include"], tests_dict["include"], name)
+            else:
+                fn_prototypes(public_fns_dict[component], private_fns_dict[component], tests_dict[component], name)
+        else:
+            print(f"Unexpected filepath {name}")
+            exit(1)
+
+    return (public_fns_dict, private_fns_dict, tests_dict)
+
+# Given a list of dicts that map a component to their public, private, and HAVE_UNITTEST functions, 
+# write their header files with function declarations.
+def write_header_files(public_fns_dict, private_fns_dict, tests_dict):
+    # Trust that the public functions dict lists all components. 
+    # If a component doesn't have a public function then it can't be accessed and is dead code.
+    components = public_fns_dict.keys()
+    for comp in components:
+        if comp == "include":
+            # Functions defined in the include folder belong in extern.h
+            output(public_fns_dict[comp] + private_fns_dict[comp], tests_dict[comp], f"../src/include/extern.h")
+        else:
+            output(public_fns_dict[comp], tests_dict[comp], f"../src/{comp}/{comp}.h")
+            if len(private_fns_dict[comp]) > 0:
+                # The second argument (tests_dict) is empty. These test functions are defined to expose module 
+                # internals outside the module, so it doens't make sense for them to be private.
+                output(private_fns_dict[comp], {}, f"../src/{comp}/{comp}_private.h")
 
 def prototypes_os():
     """
@@ -128,5 +163,6 @@ def prototypes_os():
     for p in ports:
         output(fns[p], tests[p], f"../src/include/extern_{p}.h")
 
-prototypes_extern()
+(pub_fns_dict, private_fns_dict, tests_dict) = build_component_functions_dicts()
+write_header_files(pub_fns_dict, private_fns_dict, tests_dict)
 prototypes_os()
