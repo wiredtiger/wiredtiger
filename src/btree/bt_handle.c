@@ -302,7 +302,6 @@ static int
 __btree_setup_page_log(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONFIG_ITEM page_log_item;
-    WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
     const char **cfg;
 
