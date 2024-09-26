@@ -53,12 +53,12 @@ def extract_prototypes(filename, regexp):
     return ret
 
 # Build function prototypes from a list of files.
-def fn_prototypes(fns, tests, name):
+def fn_prototypes(public_fns, private_fns, tests, name):
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wt_[^{]*'):
-        fns.append(sig)
+        public_fns.append(sig)
 
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__wti_[^{]*'):
-        fns.append(sig)
+        private_fns.append(sig)
 
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__ut_[^{]*'):
         tests.append(sig)
@@ -84,7 +84,8 @@ def output(fns, tests, f):
 
 # Update generic function prototypes.
 def prototypes_extern():
-    fns = []
+    public_fns = []
+    private_fns = []
     tests = []
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
@@ -104,9 +105,9 @@ def prototypes_extern():
             continue
         if fnmatch.fnmatch(name, '*/ext/*'):
             continue
-        fn_prototypes(fns, tests, name)
+        fn_prototypes(public_fns, private_fns, tests, name)
 
-    output(fns, tests, "../src/include/extern.h")
+    output(public_fns + private_fns, tests, "../src/include/extern.h")
 
 def prototypes_os():
     """
@@ -120,7 +121,9 @@ def prototypes_os():
         if m := re.match(r'^.*/os_(posix|win|linux|darwin)/.*', name):
             port = m.group(1)
             assert port in ports
-            fn_prototypes(fns[port], tests[port], name)
+            # The operating system folders have special handling and write all functions 
+            # into a single extern_*.h file. Save all functions into the same fns list.
+            fn_prototypes(fns[port], fns[port], tests[port], name)
 
     for p in ports:
         output(fns[p], tests[p], f"../src/include/extern_{p}.h")
