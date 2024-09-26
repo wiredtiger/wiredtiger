@@ -65,22 +65,68 @@ def fn_prototypes(public_fns, private_fns, tests, name):
     for sig in extract_prototypes(name, r'\n[A-Za-z_].*\n__ut_[^{]*'):
         tests.append(sig)
 
-# Write results and compare to the current file.
-# Unit-testing functions are exposed separately in their own section to
-# allow them to be ifdef'd out.
-def output(fns, tests, f):
-    tmp_file = '__tmp_prototypes' + str(os.getpid())
+# Create a new header file with function declarations.
+# As this is a new file also generate boilerplate like #pragma once
+def create_new_header(tmp_file, fns, tests):
     tfile = open(tmp_file, 'w')
     tfile.write("#pragma once\n\n")
+    tfile.write("/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n\n")
+
     for e in sorted(list(set(fns))):
         tfile.write(e)
 
     tfile.write('\n#ifdef HAVE_UNITTEST\n')
     for e in sorted(list(set(tests))):
         tfile.write(e)
-    tfile.write('\n#endif\n')
 
+    tfile.write('\n#endif\n')
+    tfile.write("\n\n/* DO NOT EDIT: automatically built by prototypes.py: END */\n")
     tfile.close()
+
+# Update an existing header file with function declarations.
+# As this file already exists only modify content between the DO NOT EDIT flags.
+def update_existing_header(tmp_file, fns, tests, f):
+    with open(f, 'r') as file:
+        lines = file.readlines()
+
+    start_line = lines.index('/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n')
+    end_line = lines.index('/* DO NOT EDIT: automatically built by prototypes.py: END */\n')
+
+    # Safety check: We should always at least one function declaration in the file already
+    assert(start_line + 1 != end_line)
+
+    # Content before the starting DO NOT EDIT is kept unchanged.
+    new_lines = lines[:start_line + 1]
+    new_lines.append("\n") # maintain the new line after START
+
+    # Replace the function prototypes between the DO NOT EDIT FLAGS
+    for e in sorted(list(set(fns))):
+        new_lines.append(e)
+
+    new_lines.append('\n#ifdef HAVE_UNITTEST\n')
+    for e in sorted(list(set(tests))):
+        new_lines.append(e)
+
+    new_lines.append('\n#endif\n')
+
+    # Finally, retain all content after the end DO NOT EDIT flag
+    new_lines.append("\n") # maintain the new line before END
+    new_lines.extend(lines[end_line:])
+
+    with open(tmp_file, 'w') as file:
+        file.writelines(new_lines)
+
+# Write results and compare to the current file.
+# Unit-testing functions are exposed separately in their own section to
+# allow them to be ifdef'd out.
+def output(fns, tests, f):
+    tmp_file = '__tmp_prototypes' + str(os.getpid())
+
+    if not os.path.isfile(f):
+        create_new_header(tmp_file, fns, tests)
+    else:
+        update_existing_header(tmp_file, fns, tests, f)
+
     format_srcfile(tmp_file)
     compare_srcfile(tmp_file, f)
 
