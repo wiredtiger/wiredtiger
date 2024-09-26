@@ -89,8 +89,8 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
      * The base read-generation is skewed by the eviction priority. Internal pages are also
      * adjusted, we prefer to evict leaf pages.
      */
-    if (page->modify != NULL && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) &&
-      !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN))
+    if (page->modify != NULL && F_ISSET(S2C(session)->evict, WT_CACHE_EVICT_DIRTY) &&
+      !F_ISSET(S2C(session)->evict, WT_CACHE_EVICT_CLEAN))
         read_gen = __wt_atomic_load64(&page->modify->update_txn);
     else
         read_gen = __wt_atomic_load64(&page->read_gen);
@@ -1079,7 +1079,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 {
     struct timespec current_time;
     WT_CONNECTION_IMPL *conn;
-    WT_EVICT evict;
+    WT_EVICT *evict;
     uint64_t delta_msec, delta_pages;
     uint64_t eviction_progress, eviction_progress_rate, time_diff;
     uint32_t current_threads;
@@ -1487,23 +1487,25 @@ static WT_INLINE bool
 __evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
+    WT_EVICT *evict;
     uint64_t bytes_dirty;
     uint64_t bytes_max;
 
     cache = S2C(session)->cache;
+    evict = S2C(session)->evict;
     bytes_max = S2C(session)->cache_size + 1;
 
     if (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_inmem)) >
-      (uint64_t)(0.5 * cache->eviction_target * bytes_max) / 100)
+      (uint64_t)(0.5 * evict->eviction_target * bytes_max) / 100)
         return (true);
 
     bytes_dirty =
       __wt_atomic_load64(&btree->bytes_dirty_intl) + __wt_atomic_load64(&btree->bytes_dirty_leaf);
     if (__wt_cache_bytes_plus_overhead(cache, bytes_dirty) >
-      (uint64_t)(0.5 * cache->eviction_dirty_target * bytes_max) / 100)
+      (uint64_t)(0.5 * evict->eviction_dirty_target * bytes_max) / 100)
         return (true);
     if (__wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&btree->bytes_updates)) >
-      (uint64_t)(0.5 * cache->eviction_updates_target * bytes_max) / 100)
+      (uint64_t)(0.5 * evict->eviction_updates_target * bytes_max) / 100)
         return (true);
 
     return (false);
@@ -1737,7 +1739,7 @@ __evict_push_candidate(
     if (slot >= queue->evict_max)
         queue->evict_max = slot + 1;
 
-    if (evict->ref != NULL)
+    if (evict_entry->ref != NULL)
         __evict_list_clear(session, evict_entry);
 
     evict_entry->btree = S2BT(session);

@@ -244,7 +244,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     int i;
 
     conn = S2C(session);
-    evict = &S2C(session)->evict;
+    evict = conn->evict;
 
     WT_ASSERT(session, evict == NULL);
     WT_RET(__wt_calloc_one(session, &evict));
@@ -294,11 +294,13 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_evict_destroy(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
     int i;
 
-    evict = S2C(session)->evict;
+    conn = S2C(session);
+    evict = conn->evict;
 
     if (evict == NULL)
         return (0);
