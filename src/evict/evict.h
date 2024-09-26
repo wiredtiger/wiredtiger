@@ -169,7 +169,7 @@ struct __wt_evict {
 
 #define WT_WITH_PASS_LOCK(session, op)                                                   \
     do {                                                                                 \
-        WT_WITH_LOCK_WAIT(session, &cache->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
+        WT_WITH_LOCK_WAIT(session, &evict->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
     } while (0)
 
 /* Flags used with __wt_evict */
