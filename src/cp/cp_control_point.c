@@ -519,14 +519,14 @@ err:
 }
 
 /*
- * __wt_conn_control_points_init_all --
+ * __wt_conn_control_point_init_all --
  *     Initialize all per connection control points. Note, one part of this function must be edited
  *     for each per connection control point.
  *
  * @param session The session.
  */
 int
-__wt_conn_control_points_init_all(WT_SESSION_IMPL *session)
+__wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_CONTROL_POINT_REGISTRY *control_points;
@@ -605,14 +605,14 @@ err:
 }
 
 /*
- * __wt_session_control_points_init_all --
+ * __wt_session_control_point_init_all --
  *     Initialize all per session control points. Note, one part of this function must be edited for
  *     each per session control point.
  *
  * @param session The session.
  */
 int
-__wt_session_control_points_init_all(WT_SESSION_IMPL *session)
+__wt_session_control_point_init_all(WT_SESSION_IMPL *session)
 {
 #if SESSION_CONTROL_POINTS_SIZE == 0
     WT_UNUSED(session);
@@ -647,17 +647,18 @@ err:
 }
 
 /*
- * __wt_conn_control_points_enable_all --
+ * __wt_conn_control_point_enable_all --
  *     Enable per connection control points that start enabled. Note, one part of this function must
  *     be edited for each per connection control point that starts enabled.
  *
  * @param conn The connection.
  */
 int
-__wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
+__wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
 {
 #if 0 /* If no per connection control points are enabled at the start. */
     WT_UNUSED(session);
+    WT_UNUSED(cfg);
 #else
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *control_points;
@@ -672,22 +673,21 @@ __wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
      * enabled.
      */
     /* From examples/ex_control_points.c */
-    WT_RET(__wti_conn_control_point_enable(session,
-      &(control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting]),
-      WT_CONN_CONTROL_POINT_ID_MainStartPrinting));
+    WT_RET(__wti_conn_control_point_enable(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting]), cfg));
 #endif
     return (0);
 }
 
 /*
- * __wt_session_control_points_enable_all --
+ * __wt_session_control_point_enable_all --
  *     Enable per session control points that start enabled. Note, one part of this function must be
  *     edited for each per session control point that starts enabled.
  *
  * @param session The session.
  */
 int
-__wt_session_control_points_enable_all(WT_SESSION_IMPL *session)
+__wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
 {
 #if 1 /* If no per session control points are enabled at the start. */
     WT_UNUSED(session);
@@ -699,7 +699,7 @@ __wt_session_control_points_enable_all(WT_SESSION_IMPL *session)
     /* Lazy initialization. */
     control_points = session->control_points;
     if (control_points == NULL) {
-        WT_RET(__wt_session_control_points_init_all(session));
+        WT_RET(__wt_session_control_point_init_all(session));
         control_points = session->control_points;
     }
     /*

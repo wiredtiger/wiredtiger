@@ -261,8 +261,8 @@ __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, c
     /* Lazy initialization. */
     if (session_impl->control_points == NULL) {
         /* Initialize and optionally enable per session control points */
-        WT_RET(__wt_session_control_points_init_all(session_impl));
-        WT_RET(__wt_session_control_points_enable_all(session_impl));
+        WT_RET(__wt_session_control_point_init_all(session_impl));
+        WT_RET(__wt_session_control_point_enable_all(session_impl));
     }
 
     cp_registry = &(session_impl->control_points[id]);
@@ -270,13 +270,13 @@ __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, c
 }
 
 /*
- * __wt_conn_control_points_shutdown --
+ * __wt_conn_control_point_shutdown --
  *     Shut down the per connection control points.
  *
  * @param conn The connection.
  */
 int
-__wt_conn_control_points_shutdown(WT_SESSION_IMPL *session)
+__wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     int one_ret;
@@ -300,13 +300,13 @@ __wt_conn_control_points_shutdown(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_session_control_points_shutdown --
+ * __wt_session_control_point_shutdown --
  *     Shut down the per session control points.
  *
  * @param session The session.
  */
 int
-__wt_session_control_points_shutdown(WT_SESSION_IMPL *session)
+__wt_session_control_point_shutdown(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     int one_ret;

@@ -238,7 +238,7 @@ __cache_pool_server(void *arg)
 
     session = (WT_SESSION_IMPL *)arg;
 #ifdef HAVE_CONTROL_POINTS
-    WT_ERR(__wt_session_control_points_enable_all(session));
+    WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
 
     cp = __wt_process.cache_pool;

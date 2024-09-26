@@ -437,7 +437,7 @@ __tiered_server(void *arg)
 
     session = arg;
 #ifdef HAVE_CONTROL_POINTS
-    WT_ERR(__wt_session_control_points_enable_all(session));
+    WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
     conn = S2C(session);
 

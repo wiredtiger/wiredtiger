@@ -460,11 +460,11 @@ extern int __wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id,
   const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_points_enable_all(WT_SESSION_IMPL *session)
+extern int __wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_points_init_all(WT_SESSION_IMPL *session)
+extern int __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_points_shutdown(WT_SESSION_IMPL *session)
+extern int __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri,
   const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1188,11 +1188,11 @@ extern int __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_PO
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id,
   const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_control_points_enable_all(WT_SESSION_IMPL *session)
+extern int __wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_control_points_init_all(WT_SESSION_IMPL *session)
+extern int __wt_session_control_point_init_all(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_control_points_shutdown(WT_SESSION_IMPL *session)
+extern int __wt_session_control_point_shutdown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_copy_values(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

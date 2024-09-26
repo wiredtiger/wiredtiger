@@ -754,7 +754,7 @@ __checkpoint_cleanup(void *arg)
 
     session = arg;
 #ifdef HAVE_CONTROL_POINTS
-    WT_ERR(__wt_session_control_points_enable_all(session));
+    WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
     conn = S2C(session);
     __wt_seconds(session, &last);
