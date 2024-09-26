@@ -244,10 +244,11 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     int i;
 
     conn = S2C(session);
-    evict = conn->evict;
 
-    WT_ASSERT(session, evict == NULL);
-    WT_RET(__wt_calloc_one(session, &evict));
+    WT_ASSERT(session, conn->evict == NULL);
+    WT_RET(__wt_calloc_one(session, &conn->evict));
+
+    evict = conn->evict;
 
     /* Use a common routine for run-time configuration options. */
     WT_RET(__wt_evict_config(session, cfg, false));
