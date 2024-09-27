@@ -64,11 +64,6 @@ class CacheStat(Stat):
     prefix = 'cache'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CacheStat.prefix, desc, flags)
-class CacheWalkStat(Stat):
-    prefix = 'cache_walk'
-    def __init__(self, name, desc, flags=''):
-        flags += ',cache_walk'
-        Stat.__init__(self, name, CacheWalkStat.prefix, desc, flags)
 class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
@@ -105,6 +100,11 @@ class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
+class EvictCacheWalkStat(Stat):
+    prefix = 'cache_walk'
+    def __init__(self, name, desc, flags=''):
+        flags += ',cache_walk'
+        Stat.__init__(self, name, EvictCacheWalkStat.prefix, desc, flags)
 class JoinStat(Stat):
     prefix = 'join'
     def __init__(self, name, desc, flags=''):
@@ -839,27 +839,27 @@ dsrc_stats = [
     ##########################################
     # Cache content statistics
     ##########################################
-    CacheWalkStat('cache_state_avg_unvisited_age', 'Average time in cache for pages that have not been visited by the eviction server', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_avg_visited_age', 'Average time in cache for pages that have been visited by the eviction server', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image size seen', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_gen_avg_gap', 'Average difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_gen_current', 'Current eviction generation', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_gen_max_gap', 'Maximum difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_max_pagesize', 'Maximum page size seen', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_memory', 'Pages created in memory and never written', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_min_written_size', 'Minimum on-disk page image size seen', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_not_queueable', 'Pages that could not be queued for eviction', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_pages', 'Total number of pages currently in cache', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_pages_clean', 'Clean pages currently in cache', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_pages_dirty', 'Dirty pages currently in cache', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_pages_internal', 'Internal pages currently in cache', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_pages_leaf', 'Leaf pages currently in cache', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_queued', 'Pages currently queued for eviction', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_refs_skipped', 'Refs skipped during cache traversal', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_root_entries', 'Entries in the root page', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_root_size', 'Size of the root page', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_smaller_alloc_size', 'On-disk page image sizes smaller than a single allocation unit', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_unvisited_count', 'Number of pages never visited by eviction server', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_avg_unvisited_age', 'Average time in cache for pages that have not been visited by the eviction server', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_avg_visited_age', 'Average time in cache for pages that have been visited by the eviction server', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image size seen', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_gen_avg_gap', 'Average difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_gen_current', 'Current eviction generation', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_gen_max_gap', 'Maximum difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_max_pagesize', 'Maximum page size seen', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_memory', 'Pages created in memory and never written', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_min_written_size', 'Minimum on-disk page image size seen', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_not_queueable', 'Pages that could not be queued for eviction', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_pages', 'Total number of pages currently in cache', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_pages_clean', 'Clean pages currently in cache', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_pages_dirty', 'Dirty pages currently in cache', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_pages_internal', 'Internal pages currently in cache', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_pages_leaf', 'Leaf pages currently in cache', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_queued', 'Pages currently queued for eviction', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_refs_skipped', 'Refs skipped during cache traversal', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_root_entries', 'Entries in the root page', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_root_size', 'Size of the root page', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_smaller_alloc_size', 'On-disk page image sizes smaller than a single allocation unit', 'no_clear,no_scale'),
+    EvictCacheWalkStat('cache_state_unvisited_count', 'Number of pages never visited by eviction server', 'no_clear,no_scale'),
 
     ##########################################
     # Compression statistics
