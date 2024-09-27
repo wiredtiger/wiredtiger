@@ -351,7 +351,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     if (0) {
 err:
-        WT_RET_PANIC(session, ret, "cache eviction thread error");
+        WT_RET_PANIC(session, ret, "eviction thread error");
     }
     return (ret);
 }
@@ -415,11 +415,11 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "cache eviction thread exiting");
+    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "eviction thread exiting");
 
     if (0) {
 err:
-        WT_RET_PANIC(session, ret, "cache eviction thread error");
+        WT_RET_PANIC(session, ret, "eviction thread error");
     }
     return (ret);
 }
@@ -1031,7 +1031,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 /*
  * Atomically decrement the evict-disabled count, without acquiring the eviction walk-lock. We can't
  * acquire that lock here because there's a potential deadlock. When acquiring exclusive eviction
- * access, we acquire the eviction walk-lock and then the cache's pass-intr lock. The current
+ * access, we acquire the eviction walk-lock and then the eviction's pass-intr lock. The current
  * eviction implementation can hold the pass-intr lock and call into this function (see WT-3303 for
  * the details), which might deadlock with another thread trying to get exclusive eviction access.
  */

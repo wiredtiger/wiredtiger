@@ -222,7 +222,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     /*
      * Resize the thread group if reconfiguring, otherwise the thread group will be initialized as
-     * part of creating the cache.
+     * part of creating the connection workers.
      */
     if (reconfig)
         WT_RET(__wt_thread_group_resize(session, &conn->evict_threads, conn->evict_threads_min,
@@ -261,10 +261,10 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_atomic_store64(&evict->read_gen, WT_READGEN_START_VALUE);
 
     WT_RET(__wt_cond_auto_alloc(
-      session, "cache eviction server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_cond));
+      session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_cond));
     WT_RET(__wt_spin_init(session, &evict->evict_pass_lock, "evict pass"));
-    WT_RET(__wt_spin_init(session, &evict->evict_queue_lock, "cache eviction queue"));
-    WT_RET(__wt_spin_init(session, &evict->evict_walk_lock, "cache walk"));
+    WT_RET(__wt_spin_init(session, &evict->evict_queue_lock, "evict queues"));
+    WT_RET(__wt_spin_init(session, &evict->evict_walk_lock, "evict walk"));
     if ((ret = __wt_open_internal_session(
            conn, "evict pass", false, WT_SESSION_NO_DATA_HANDLES, 0, &evict->walk_session)) != 0)
         WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
@@ -273,7 +273,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     evict->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
     for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
         WT_RET(__wt_calloc_def(session, evict->evict_slots, &evict->evict_queues[i].evict_queue));
-        WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "cache eviction"));
+        WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
     }
 
     /* Ensure there are always non-NULL queues. */

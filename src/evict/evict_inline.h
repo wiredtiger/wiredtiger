@@ -10,7 +10,7 @@
 
 /*
  * __wt_evict_aggressive --
- *     Indicate if the cache is operating in aggressive mode.
+ *     Indicate if the eviction is operating in aggressive mode.
  */
 static WT_INLINE bool
 __wt_evict_aggressive(WT_SESSION_IMPL *session)
@@ -77,7 +77,7 @@ __wt_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_evict_cache_stuck --
- *     Indicate if the cache is stuck (i.e., not making progress).
+ *     Indicate if the cache is stuck (i.e., eviction not making progress).
  */
 static WT_INLINE bool
 __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
