@@ -109,6 +109,24 @@ main(int argc, char *argv[])
     bool enabled;
     const char *cfg[1] = {};
 
+#ifdef HAVE_CONTROL_POINTS
+    printf("Yes, HAVE_CONTROL_POINTS is defined.\n");
+#else
+    printf("No, HAVE_CONTROL_POINTS is not defined.\n");
+#endif
+
+#ifdef HAVE_DIAGNOSTICS
+    printf("Yes, HAVE_DIAGNOSTICS is defined.\n");
+#else
+    printf("No, HAVE_DIAGNOSTICS is not defined.\n");
+#endif
+
+#ifdef HAVE_UNITTESTS
+    printf("Yes, HAVE_UNITTESTS is defined.\n");
+#else
+    printf("No, HAVE_UNITTESTS is not defined.\n");
+#endif
+
     /* Setup */
     home = example_setup(argc, argv);
 
