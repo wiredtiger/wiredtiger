@@ -633,8 +633,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /* Load the next page ID for disaggregated storage. */
     if (ckpt->raw.size == 0)
-        // XXX This belongs to create
-        btree->next_page_id = WT_BLOCK_MIN_PAGE_ID;
+        btree->next_page_id = WT_BLOCK_MIN_PAGE_ID; /* Should this be in create? */
     else
         btree->next_page_id = ckpt->next_page_id;
 
