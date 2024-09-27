@@ -238,8 +238,6 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
         check_bm_stats(s, &bm);
     }
 
-    wt_off_t prev_size;
-    REQUIRE(bm.size(&bm, s, &prev_size) == 0);
     SECTION("Test that the bm->data method updated statistics correctly after doing a write")
     {
         // Perform a write.
@@ -249,7 +247,8 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
         create_write_buffer(&bm, session, test_string, &buf, 0);
         uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
         size_t addr_size;
-        wt_off_t bm_size;
+        wt_off_t bm_size, prev_size;
+        REQUIRE(bm.size(&bm, s, &prev_size) == 0);
         REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
         REQUIRE(bm.size(&bm, s, &bm_size) == 0);
 
