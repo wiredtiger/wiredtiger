@@ -12,6 +12,9 @@
 
 #ifdef HAVE_CONTROL_POINTS
 /*
+ * Lock/unlock functions used by per connection control points.
+ */
+/*
  * __wt_control_point_get_data --
  *     Get cp_registry->data safe from frees.
  *
@@ -72,6 +75,9 @@ __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGIS
 }
 
 /*
+ * API: Disable a per connection control point.
+ */
+/*
  * __wti_conn_control_point_disable --
  *     Disable a per connection control point given a WT_CONTROL_POINT_REGISTRY.
  *
@@ -125,6 +131,9 @@ __wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
 }
 
 /*
+ * API: Disable a per session control point.
+ */
+/*
  * __wti_session_control_point_disable --
  *     Disable a per session control point given a WT_CONTROL_POINT_REGISTRY.
  *
@@ -165,6 +174,9 @@ __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
     return (__wti_session_control_point_disable(session_impl, cp_registry));
 }
 
+/*
+ * API: Enable a per connection control point.
+ */
 /*
  * __wti_conn_control_point_enable --
  *     Enable a per connection control point given a WT_CONTROL_POINT_REGISTRY.
@@ -217,6 +229,9 @@ __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, cons
     return (__wti_conn_control_point_enable(session_impl, cp_registry, cfg));
 }
 
+/*
+ * API: Enable a per session control point.
+ */
 /*
  * __wti_session_control_point_enable --
  *     Enable a per session control point given a WT_CONTROL_POINT_REGISTRY.
@@ -293,12 +308,15 @@ __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
             continue;
         one_ret = __wti_conn_control_point_disable(session, &(control_points[idx]));
         if (one_ret != 0)
-            ret = one_ret; /* Return the last error */
+            ret = one_ret; /* Return the last error. */
     }
     /* TODO: Wait for all disable operations to finish. */
     return (ret);
 }
 
+/*
+ * API: Per control point shutdown.
+ */
 /*
  * __wt_session_control_point_shutdown --
  *     Shut down the per session control points.
@@ -322,7 +340,7 @@ __wt_session_control_point_shutdown(WT_SESSION_IMPL *session)
             continue;
         one_ret = __wti_session_control_point_disable(session, &(control_points[idx]));
         if (one_ret != 0)
-            ret = one_ret; /* Return the last error */
+            ret = one_ret; /* Return the last error. */
     }
     /* TODO: Wait for all disable operations to finish. */
     return (ret);

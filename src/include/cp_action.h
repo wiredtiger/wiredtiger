@@ -11,6 +11,9 @@
 /* cp_action.h: Declarations for control point actions. */
 
 #ifdef HAVE_CONTROL_POINTS
+/*
+ * Define a per connection control point.
+ */
 /*!
  * The first part of a per connection control point definition macro.
  * Sets _data = WT_CONTROL_POINT_REGISTRY.data if triggered, and
@@ -31,12 +34,18 @@
         if (_data != NULL)                                               \
             _data = __wt_conn_control_point_test_and_trigger(_session, _cp_id);
 
+/*!
+ * The last part of a per connection control point definition macro.
+ */
 #define CONNECTION_CONTROL_POINT_DEFINE_END(LOCKED)                               \
     if (_data != NULL)                                                            \
         __wt_control_point_release_data(_session, _cp_registry, _data, (LOCKED)); \
     }                                                                             \
     while (0)
 
+/*
+ * Define a per session control point.
+ */
 /*!
  * The first part of a per session control point definition macro.
  * Sets _data = WT_CONTROL_POINT_REGISTRY.data if triggered, and
@@ -55,11 +64,19 @@
         if (_data != NULL)                                            \
             _data = __wt_session_control_point_test_and_trigger(_session, _cp_id);
 
+/*!
+ * The last part of a per session control point definition macro.
+ */
 #define SESSION_CONTROL_POINT_DEFINE_END \
     }                                    \
     while (0)
+#endif /* HAVE_CONTROL_POINTS */
 
-/* Action Sleep: Delay at a specific code location during an execution via __wt_sleep */
+/*
+ * Action: Sleep: Delay at a specific code location during an execution via __wt_sleep
+ */
+#ifdef HAVE_CONTROL_POINTS
+/* Action data type */
 struct __wt_control_point_action_sleep {
     /* Action Configuration parameter(s) */
     uint64_t seconds;
@@ -67,6 +84,7 @@ struct __wt_control_point_action_sleep {
 };
 #endif /* HAVE_CONTROL_POINTS */
 
+/* Macro to define a per connection control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)                           \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))                           \
@@ -85,6 +103,7 @@ struct __wt_control_point_action_sleep {
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
+/* Macro to define a per session control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 #define SESSION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)                              \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))                              \
@@ -100,6 +119,10 @@ struct __wt_control_point_action_sleep {
 #define SESSION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
+/*
+ * Action: ERR: Change the control flow to trigger an error condition via WT_ERR
+ */
+/* Action data type */
 #ifdef HAVE_CONTROL_POINTS
 struct __wt_control_point_action_err {
     /* Action Configuration parameter(s) */
@@ -107,6 +130,7 @@ struct __wt_control_point_action_err {
 };
 #endif /* HAVE_CONTROL_POINTS */
 
+/* Macro to define a per connection control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID)     \
     CONNECTION_CONTROL_POINT_DEFINE_START((CONNECTION), (SESSION), (CONTROL_POINT_ID)) \
@@ -123,6 +147,7 @@ struct __wt_control_point_action_err {
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
+/* Macro to define a per session control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 #define SESSION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID)     \
     SESSION_CONTROL_POINT_DEFINE_START((CONNECTION), (SESSION), (CONTROL_POINT_ID)) \
@@ -136,6 +161,10 @@ struct __wt_control_point_action_err {
 #define SESSION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
+/*
+ * Action: RET: Return an error via WT_RET
+ */
+/* Action data type */
 #ifdef HAVE_CONTROL_POINTS
 struct __wt_control_point_action_ret {
     /* Action Configuration parameter(s) */
@@ -143,6 +172,7 @@ struct __wt_control_point_action_ret {
 };
 #endif /* HAVE_CONTROL_POINTS */
 
+/* Macro to define a per connection control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)            \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
@@ -158,6 +188,7 @@ struct __wt_control_point_action_ret {
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
+/* Macro to define a per session control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 #define SESSION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)               \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))             \
@@ -171,6 +202,10 @@ struct __wt_control_point_action_ret {
 #define SESSION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
+/*
+ * Action: Wait for trigger: Blocking the testing thread until a control point is triggered
+ */
+/* Action data type */
 #ifdef HAVE_CONTROL_POINTS
 struct __wt_control_point_action_wait_for_trigger {
     /* Action Configuration parameter */
@@ -180,6 +215,7 @@ struct __wt_control_point_action_wait_for_trigger {
     WT_CONDVAR *condvar;
 };
 
+/* Macro used at the call site. */
 /*!
  * The call site portion of control point action "Wait for Trigger: Blocking the testing thread
  * until a control point is triggered".
@@ -201,6 +237,7 @@ struct __wt_control_point_action_wait_for_trigger {
     } while (0)
 #endif
 
+/* Macro to define a per connection control point with this action. */
 #ifdef HAVE_CONTROL_POINTS
 /*!
  * The trigger site portion of control point action "Wait for Trigger: Blocking the testing thread

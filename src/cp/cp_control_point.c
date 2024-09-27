@@ -13,6 +13,9 @@
 
 #ifdef HAVE_CONTROL_POINTS
 /*
+ * Functions used at the trigger site.
+ */
+/*
  * __wt_conn_control_point_test_and_trigger --
  *     Test whether a per connection control point is triggered and do common trigger processing. If
  *     disabled or not triggered, return NULL. If triggered, return the control point data. When
@@ -86,15 +89,19 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL
 }
 
 /*
- * This part must be edited. Repeat this for every per connection control point.
+ * Per connection control point initialization.
  */
 /* From examples/ex_control_points.c */
-/* Per connection control point MainStartPrinting. */
+/*
+ * Per connection control point MainStartPrinting.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_MainStartPrinting {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_MainStartPrinting --
  *     The per connection control point initialization function for control point MainStartPrinting.
@@ -112,7 +119,7 @@ __wt_conn_control_point_init_MainStartPrinting(WT_SESSION_IMPL *session, const c
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -128,12 +135,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD0. */
+/*
+ * Per connection control point THREAD0.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD0 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD0 --
  *     The per connection control point initialization function for control point THREAD0.
@@ -151,7 +162,7 @@ __wt_conn_control_point_init_THREAD0(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -167,12 +178,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD1. */
+/*
+ * Per connection control point THREAD1.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD1 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD1 --
  *     The per connection control point initialization function for control point THREAD1.
@@ -190,7 +205,7 @@ __wt_conn_control_point_init_THREAD1(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -206,12 +221,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD2. */
+/*
+ * Per connection control point THREAD2.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD2 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD2 --
  *     The per connection control point initialization function for control point THREAD2.
@@ -229,7 +248,7 @@ __wt_conn_control_point_init_THREAD2(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -245,12 +264,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD3. */
+/*
+ * Per connection control point THREAD3.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD3 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD3 --
  *     The per connection control point initialization function for control point THREAD3.
@@ -268,7 +291,7 @@ __wt_conn_control_point_init_THREAD3(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -284,12 +307,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD4. */
+/*
+ * Per connection control point THREAD4.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD4 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD4 --
  *     The per connection control point initialization function for control point THREAD4.
@@ -307,7 +334,7 @@ __wt_conn_control_point_init_THREAD4(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -323,12 +350,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD5. */
+/*
+ * Per connection control point THREAD5.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD5 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD5 --
  *     The per connection control point initialization function for control point THREAD5.
@@ -346,7 +377,7 @@ __wt_conn_control_point_init_THREAD5(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -362,12 +393,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD6. */
+/*
+ * Per connection control point THREAD6.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD6 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD6 --
  *     The per connection control point initialization function for control point THREAD6.
@@ -385,7 +420,7 @@ __wt_conn_control_point_init_THREAD6(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -401,12 +436,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD7. */
+/*
+ * Per connection control point THREAD7.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD7 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD7 --
  *     The per connection control point initialization function for control point THREAD7.
@@ -424,7 +463,7 @@ __wt_conn_control_point_init_THREAD7(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -440,12 +479,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD8. */
+/*
+ * Per connection control point THREAD8.
+ */
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD8 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD8 --
  *     The per connection control point initialization function for control point THREAD8.
@@ -463,7 +506,7 @@ __wt_conn_control_point_init_THREAD8(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -479,12 +522,16 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
-/* Per connection control point THREAD9. */
+/*
+ * Per connection control point THREAD9. 
+*/
+/* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD9 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
+/* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_THREAD9 --
  *     The per connection control point initialization function for control point THREAD8.
@@ -502,7 +549,7 @@ __wt_conn_control_point_init_THREAD9(WT_SESSION_IMPL *session, const char **cfg)
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
-    /* Initialize configuration parameters */
+    /* Initialize configuration parameters. */
     WT_ERR(__wt_control_point_config_action_wait_for_trigger(
       session, (WT_CONTROL_POINT *)init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
@@ -518,6 +565,9 @@ err:
     return ((WT_CONTROL_POINT *)init_data);
 }
 
+/*
+ * Control point startup functions: Initialization.
+ */
 /*
  * __wt_conn_control_point_init_all --
  *     Initialize all per connection control points. Note, one part of this function must be edited
@@ -647,6 +697,9 @@ err:
 }
 
 /*
+ * Control point startup functions: Enable at startup.
+ */
+/*
  * __wt_conn_control_point_enable_all --
  *     Enable per connection control points that start enabled. Note, one part of this function must
  *     be edited for each per connection control point that starts enabled.
@@ -702,6 +755,7 @@ __wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
         WT_RET(__wt_session_control_point_init_all(session));
         control_points = session->control_points;
     }
+
     /*
      * This part must be edited. Repeat this for every per session control point that starts
      * enabled.

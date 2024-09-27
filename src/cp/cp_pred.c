@@ -13,6 +13,10 @@
 
 #ifdef HAVE_CONTROL_POINTS
 /*
+ * Predicate: Skip: Skip the first skip-count control point.
+ */
+/* Predicate function. */
+/*
  * __wt_control_point_pred_skip --
  *     Control point predicate function for "Skip: Skip the first skip-count control point
  *     crossings".
@@ -31,6 +35,7 @@ __wt_control_point_pred_skip(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
     return (true);
 }
 
+/* Predicate config parsing function. */
 /*
  * __wt_control_point_config_pred_skip --
  *     Configuration parsing for control point predicate "Skip: Skip the first skip-count control
@@ -53,6 +58,10 @@ __wt_control_point_config_pred_skip(
 }
 
 /*
+ * Predicate: Times: Enable only the first enable-count control point crossings.
+ */
+/* Predicate function. */
+/*
  * __wt_control_point_pred_times --
  *     Control point predicate function for "Times: Enable only the first enable-count control point
  *     crossings".
@@ -73,6 +82,7 @@ __wt_control_point_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
     return (false);
 }
 
+/* Predicate config parsing function. */
 /*
  * __wt_control_point_config_pred_times --
  *     Configuration parsing for control point predicate "Times: Enable only the first enable-count
@@ -95,6 +105,11 @@ __wt_control_point_config_pred_times(
 }
 
 /*
+ * Predicate: Random_param1: Trigger with probability. Probability
+ *     is assigned to param1.value16aa.
+ */
+/* Predicate function. */
+/*
  * __wt_control_point_pred_random_param1 --
  *     Control point predicate function for "Random_param1: Trigger with probability". Probability
  *     is assigned to param1.value16aa.
@@ -110,6 +125,7 @@ __wt_control_point_pred_random_param1(WT_SESSION_IMPL *session, WT_CONTROL_POINT
     return (false);
 }
 
+/* Predicate config parsing function. */
 /*
  * __wt_control_point_config_pred_random_param1 --
  *     Configuration parsing for control point predicate "Random_param1: Trigger with probability".
@@ -132,6 +148,11 @@ __wt_control_point_config_pred_random_param1(
 }
 
 /*
+ * Predicate: Random_param2: Trigger with probability. Probability
+ *     is assigned to param2.value16aa.
+ */
+/* Predicate function. */
+/*
  * __wt_control_point_pred_random_param2 --
  *     Control point predicate function for "Random_param2: Trigger with probability". Probability
  *     is assigned to param2.value16aa.
@@ -147,6 +168,7 @@ __wt_control_point_pred_random_param2(WT_SESSION_IMPL *session, WT_CONTROL_POINT
     return (false);
 }
 
+/* Predicate config parsing function. */
 /*
  * __wt_control_point_config_pred_random_param2 --
  *     Configuration parsing for control point predicate "Random_param2: Trigger with probability".

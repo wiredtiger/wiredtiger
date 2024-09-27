@@ -16,6 +16,9 @@
 
 #include "control_points.h"
 
+/*
+ * Per connection control point IDs.
+ */
 #define WT_CONN_CONTROL_POINT_ID_MainStartPrinting ((WT_CONTROL_POINT_ID)0)
 #define WT_CONN_CONTROL_POINT_ID_THREAD0 ((WT_CONTROL_POINT_ID)1)
 #define WT_CONN_CONTROL_POINT_ID_THREAD1 ((WT_CONTROL_POINT_ID)2)
@@ -31,6 +34,9 @@
 /* The number of per connection control points. */
 #define CONNECTION_CONTROL_POINTS_SIZE 11
 
+/*
+ * Per session control point IDs.
+ */
 #if 0 /* For example */
 #define WT_SESSION_CONTROL_POINT_ID_EXAMPLE2 ((WT_CONTROL_POINT_ID)0)
 #endif

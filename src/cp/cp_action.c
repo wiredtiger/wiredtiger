@@ -13,7 +13,10 @@
 /* cp_action.c: Definitions for control point actions. */
 /* This file must be edited when a new control point action is created. */
 
-#define WT_DELAY_UNTIL_TRIGGERED_USEC (10 * WT_THOUSAND) /* 10 milliseconds */
+/*
+ * Action: Sleep: Delay at a specific code location during an execution via __wt_sleep.
+ */
+/* Action config parsing function. */
 /*
  * __wt_control_point_config_action_sleep --
  *     Configuration parsing for control point action "Sleep: Delay at a specific code location
@@ -37,6 +40,10 @@ __wt_control_point_config_action_sleep(
 }
 
 /*
+ * Action: ERR: Change the control flow to trigger an error condition via WT_ERR.
+ */
+/* Action config parsing function. */
+/*
  * __wt_control_point_config_action_err --
  *     Configuration parsing for control point action "ERR: Change the control flow to trigger an
  *     error condition".
@@ -58,6 +65,10 @@ __wt_control_point_config_action_err(
 }
 
 /*
+ * Action: RET: Return an error via WT_RET.
+ */
+/* Action config parsing function. */
+/*
  * __wt_control_point_config_action_ret --
  *     Configuration parsing for control point action "RET: Return an error".
  *
@@ -77,6 +88,12 @@ __wt_control_point_config_action_ret(
     return (0);
 }
 
+/*
+ * Action: Wait for trigger: Blocking the testing thread until a control point is triggered.
+ */
+#define WT_DELAY_UNTIL_TRIGGERED_USEC (10 * WT_THOUSAND) /* 10 milliseconds */
+
+/* Action config parsing function. */
 /*
  * __wt_control_point_config_action_wait_for_trigger --
  *     Configuration parsing for control point action "Wait until trigger: Blocking the testing
@@ -99,6 +116,7 @@ __wt_control_point_config_action_wait_for_trigger(
     return (0);
 }
 
+/* Functions used at the call site. */
 /*
  * __wt_control_point_run_wait_for_trigger --
  *     The run function for __wt_cond_wait_signal for the call site portion of control point action
@@ -150,18 +168,18 @@ __wt_control_point_wait_for_trigger(
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
           __wt_control_point_run_wait_for_trigger, &signalled);
         if (cp_registry->trigger_count >= desired_trigger_count)
-            /* Delay condition satisfied */
+            /* Delay condition satisfied. */
             break;
     }
     __wt_control_point_release_data(session, cp_registry, data, false);
     return (true);
 }
 
+/* Extra initialization. */
 /*
  * __wt_control_point_action_init_wait_for_trigger --
- *     The init function of control point action "Wait until trigger: Blocking the testing thread
- *     until a control point is triggered" given a WT_CONTROL_POINT_REGISTRY. Return true if
- *     triggered.
+ *     Extra intialization required for action "Wait until trigger: Blocking the testing thread
+ *     until a control point is triggered".
  *
  * @param session The session. @param control_point_name The name of the control point. @param data
  *     The control point's data.
