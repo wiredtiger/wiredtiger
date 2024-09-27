@@ -21,18 +21,17 @@
  *     Control point predicate function for "Skip: Skip the first skip-count control point
  *     crossings".
  *
- * @param session The session. @param data The control point's predicate data is in here.
+ * @param session The session. @param cp_registry The control point registry. @param data The
+ *     control point's predicate data is in here.
  */
 bool
-__wt_control_point_pred_skip(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
+__wt_control_point_pred_skip(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
 {
     WT_UNUSED(session);
-    /* data->param1.value 64 is skip-count. */
-    if (data->param1.value64 > 0) {
-        --(data->param1.value64);
-        return (false);
-    }
-    return (true);
+    /* skip_count is assigned to WT_CONTROL_PARAM.param1.value64. */
+    /* Note: crossing_count is incremented before calling this function. */
+    return (cp_registry->crossing_count > data->param1.value64);
 }
 
 /* Predicate config parsing function. */
@@ -66,20 +65,19 @@ __wt_control_point_config_pred_skip(
  *     Control point predicate function for "Times: Enable only the first enable-count control point
  *     crossings".
  *
- * @param session The session. @param data The control point's predicate data is in here.
+ * @param session The session. @param cp_registry The control point registry. @param data The
+ *     control point's predicate data is in here.
  */
 bool
-__wt_control_point_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
+__wt_control_point_pred_times(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
     WT_UNUSED(session);
-    /* data->param2.value64 is enable-count. */
-    if (data->param2.value64 > 0) {
-        --(data->param2.value64);
-        return (true);
-    }
-    return (false);
+    /* enable_count is assigned to WT_CONTROL_PARAM.param2.value64. */
+    /* Note: trigger_count is incremented after calling this function. */
+    return ((1 + cp_registry->trigger_count) < data->param2.value64);
 }
 
 /* Predicate config parsing function. */
@@ -114,12 +112,15 @@ __wt_control_point_config_pred_times(
  *     Control point predicate function for "Random_param1: Trigger with probability". Probability
  *     is assigned to param1.value16aa.
  *
- * @param session The session. @param data The control point's predicate data is in here.
+ * @param session The session. @param cp_registry The control point registry. @param data The
+ *     control point's predicate data is in here.
  */
 bool
-__wt_control_point_pred_random_param1(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
+__wt_control_point_pred_random_param1(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
 {
-    /* data->param1.value16aa is probability. */
+    WT_UNUSED(cp_registry);
+    /* probability is assigned to WT_CONTROL_PARAM.param1.value16aa. */
     if (__wt_random(&session->rnd) % 100 <= data->param1.value16aa)
         return (true);
     return (false);
@@ -157,12 +158,15 @@ __wt_control_point_config_pred_random_param1(
  *     Control point predicate function for "Random_param2: Trigger with probability". Probability
  *     is assigned to param2.value16aa.
  *
- * @param session The session. @param data The control point's predicate data is in here.
+ * @param session The session. @param cp_registry The control point registry. @param data The
+ *     control point's predicate data is in here.
  */
 bool
-__wt_control_point_pred_random_param2(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data)
+__wt_control_point_pred_random_param2(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
 {
-    /* data->param2.value16aa is probability. */
+    WT_UNUSED(cp_registry);
+    /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
     if (__wt_random(&session->rnd) % 100 <= data->param2.value16aa)
         return (true);
     return (false);
@@ -185,7 +189,7 @@ __wt_control_point_config_pred_random_param2(
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
     WT_UNUSED(session);
     WT_UNUSED(cfg);
-    /* probability is assigned to WT_CONTROL_PARAM.param2.value64. */
+    /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
     data->param2.value64 = 1;
     return (0);
 }

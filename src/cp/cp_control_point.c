@@ -42,8 +42,8 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_PO
     if (data == NULL)
         /* Disabled. */
         return (NULL);
-    triggered = cp_registry->pred ? cp_registry->pred(session, data) : true;
     ++(cp_registry->crossing_count);
+    triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     if (triggered)
         ++(cp_registry->trigger_count);
     else {
@@ -78,7 +78,7 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL
         /* Disabled. */
         return (NULL);
 
-    triggered = cp_registry->pred ? cp_registry->pred(session, data) : true;
+    triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     ++(cp_registry->crossing_count);
     if (triggered)
         ++(cp_registry->trigger_count);
@@ -523,8 +523,8 @@ err:
 }
 
 /*
- * Per connection control point THREAD9. 
-*/
+ * Per connection control point THREAD9.
+ */
 /* Per connection control point data type. */
 struct __wt_conn_control_point_data_THREAD9 {
     WT_CONTROL_POINT iface;

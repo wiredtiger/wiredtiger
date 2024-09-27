@@ -178,7 +178,7 @@ __wt_control_point_wait_for_trigger(
 /* Extra initialization. */
 /*
  * __wt_control_point_action_init_wait_for_trigger --
- *     Extra intialization required for action "Wait until trigger: Blocking the testing thread
+ *     Extra initialization required for action "Wait until trigger: Blocking the testing thread
  *     until a control point is triggered".
  *
  * @param session The session. @param control_point_name The name of the control point. @param data

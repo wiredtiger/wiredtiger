@@ -46,7 +46,8 @@ typedef WT_CONTROL_POINT *wt_control_point_init_t(WT_SESSION_IMPL *session, cons
 /*!
  * A function to test whether a control point should be triggered.
  */
-typedef bool wt_control_point_pred_t(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data);
+typedef bool wt_control_point_pred_t(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data);
 
 /*!
  * Registration data for one control point.
