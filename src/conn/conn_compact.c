@@ -528,10 +528,10 @@ __background_compact_server(void *arg)
     bool cache_pressure, full_iteration, running;
 
     session = arg;
+    conn = S2C(session);
 #ifdef HAVE_CONTROL_POINTS
     WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
-    conn = S2C(session);
     wt_session = (WT_SESSION *)session;
     cache_pressure = full_iteration = running = false;
 
