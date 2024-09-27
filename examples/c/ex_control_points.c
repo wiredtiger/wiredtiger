@@ -121,10 +121,10 @@ main(int argc, char *argv[])
     printf("No, HAVE_DIAGNOSTICS is not defined.\n");
 #endif
 
-#ifdef HAVE_UNITTESTS
-    printf("Yes, HAVE_UNITTESTS is defined.\n");
+#ifdef HAVE_UNITTEST
+    printf("Yes, HAVE_UNITTEST is defined.\n");
 #else
-    printf("No, HAVE_UNITTESTS is not defined.\n");
+    printf("No, HAVE_UNITTEST is not defined.\n");
 #endif
 
     /* Setup */
