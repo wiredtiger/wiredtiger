@@ -46,10 +46,12 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
  *     Read an address-cookie referenced block into a buffer.
  */
 int
-__wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
+    WT_PAGE_BLOCK_META block_meta_tmp;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
@@ -99,6 +101,12 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             blkcache_found = true;
             ip->data = blkcache_item->data;
             ip->size = blkcache_item->data_size;
+            if (block_meta != NULL) {
+                if (blkcache_item->block_meta == NULL)
+                    memset(block_meta, 0, sizeof(*block_meta));
+                else
+                    memcpy(block_meta, &blkcache_item->block_meta, sizeof(*block_meta));
+            }
             if (!expect_conversion) {
                 /* Copy to the caller's buffer before releasing our reference. */
                 WT_ERR(__wt_buf_set(session, buf, ip->data, ip->size));
@@ -111,7 +119,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     if (!found) {
         timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
         time_start = timer ? __wt_clock(session) : 0;
-        WT_ERR(bm->read(bm, session, ip, addr, addr_size));
+        WT_ERR(bm->read(bm, session, ip, &block_meta_tmp, addr, addr_size));
         if (timer) {
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
@@ -119,6 +127,9 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
             WT_STAT_CONN_INCRV(session, cache_read_app_time, time_diff);
             WT_STAT_SESSION_INCRV(session, read_time, time_diff);
         }
+
+        if (block_meta != NULL)
+            memcpy(block_meta, &block_meta_tmp, sizeof(*block_meta));
 
         dsk = ip->data;
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
@@ -160,7 +171,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
     /* Store the decrypted, possibly compressed, block in the block_cache. */
     if (!skip_cache_put)
-        WT_ERR(__wt_blkcache_put(session, ip, addr, addr_size, false));
+        /* Use a local variable for block metadata, because the passed-in pointer could be NULL. */
+        WT_ERR(__wt_blkcache_put(session, ip, &block_meta_tmp, addr, addr_size, false));
 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
@@ -235,8 +247,9 @@ err:
  *     Write a buffer into a block, returning the block's address cookie.
  */
 int
-__wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
-  size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
+__wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io,
+  bool compressed)
 {
     WT_BLKCACHE *blkcache;
     WT_BM *bm;
@@ -377,8 +390,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     /* Call the block manager to write the block. */
     timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
     time_start = timer ? __wt_clock(session) : 0;
-    WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, btree->ckpt, data_checksum) :
-                        bm->write(bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));
+    WT_ERR(checkpoint ?
+        bm->checkpoint(bm, session, ip, block_meta, btree->ckpt, data_checksum) :
+        bm->write(bm, session, ip, block_meta, addr, addr_sizep, data_checksum, checkpoint_io));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
@@ -420,7 +434,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     else if (!blkcache->cache_on_writes)
         WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
     else if (!checkpoint)
-        WT_ERR(__wt_blkcache_put(session, compressed ? ctmp : buf, addr, *addr_sizep, true));
+        WT_ERR(
+          __wt_blkcache_put(session, compressed ? ctmp : buf, block_meta, addr, *addr_sizep, true));
 
 err:
     __wt_scr_free(session, &ctmp);

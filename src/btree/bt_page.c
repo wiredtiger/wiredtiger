@@ -16,6 +16,30 @@ static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
+ * __wt_page_block_meta_init --
+ *     Initialize the page's block management metadata.
+ */
+void
+__wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META* meta)
+{
+    WT_BTREE *btree;
+    uint64_t page_id;
+
+    btree = S2BT(session);
+
+    memset(meta, 0, sizeof(*meta));
+
+    /*
+     * Allocate an interim page ID. If the page is actually being loaded from disk, it's ok to waste
+     * some IDs for now.
+     */
+    page_id = __wt_atomic_fetch_add64(&btree->next_page_id, 1);
+    WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
+
+    meta->page_id = page_id;
+}
+
+/*
  * __wt_page_alloc --
  *     Create or read a page into the cache.
  */
@@ -110,6 +134,9 @@ err:
     default:
         return (__wt_illegal_value(session, type));
     }
+
+    /* Allocate the page metadata that are relevant to how it's stored. */
+    __wt_page_block_meta_init(session, &page->block_meta);
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);

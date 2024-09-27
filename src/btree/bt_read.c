@@ -92,12 +92,15 @@ static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
+    WT_PAGE_BLOCK_META block_meta;
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
     uint32_t page_flags;
     uint8_t previous_state;
     bool prepare;
+
+    memset(&block_meta, 0, sizeof(block_meta));
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -180,7 +183,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
-    WT_ERR(__wt_blkcache_read(session, &tmp, addr.block_cookie, addr.block_cookie_size));
+    WT_ERR(
+      __wt_blkcache_read(session, &tmp, &block_meta, addr.block_cookie, addr.block_cookie_size));
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -198,6 +202,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
     WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
+    memcpy(&ref->page->block_meta, &block_meta, sizeof(ref->page->block_meta));
     if (prepare)
         WT_ERR(__wt_page_inmem_prepare(session, ref));
 

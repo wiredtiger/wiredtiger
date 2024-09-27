@@ -15,12 +15,15 @@
  *     checkpoint again).
  */
 static int
-__bmp_checkpoint_pack_raw(
-  WT_BLOCK_PANTRY *block_pantry, WT_SESSION_IMPL *session, WT_ITEM *root_image, WT_CKPT *ckpt)
+__bmp_checkpoint_pack_raw(WT_BLOCK_PANTRY *block_pantry, WT_SESSION_IMPL *session,
+  WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckpt)
 {
     uint64_t pantry_id;
     uint32_t checksum, size;
     uint8_t *endp;
+
+    WT_ASSERT(session, block_meta != NULL);
+    WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
 
     /*
      * !!!
@@ -28,7 +31,8 @@ __bmp_checkpoint_pack_raw(
      * but the alternative is a call for the btree layer to crack the checkpoint cookie into
      * its components, and that's a fair amount of work.
      */
-    ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id);
+    /* ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id); */
+    ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
 
     /* Copy the checkpoint information into the checkpoint. */
     WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
@@ -38,7 +42,7 @@ __bmp_checkpoint_pack_raw(
      * which will be written into the block manager checkpoint cookie.
      */
     WT_RET(__wt_block_pantry_write_internal(
-      session, block_pantry, root_image, &pantry_id, &size, &checksum, true, true));
+      session, block_pantry, root_image, block_meta, &pantry_id, &size, &checksum, true, true));
 
     WT_RET(__wt_block_pantry_ckpt_pack(block_pantry, &endp, pantry_id, size, checksum));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
@@ -54,8 +58,8 @@ __bmp_checkpoint_pack_raw(
  *     can be retrieved to start finding content for the tree.
  */
 int
-__wt_bmp_checkpoint(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image, WT_CKPT *ckptbase, bool data_checksum)
+__wt_bmp_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
+  WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK_PANTRY *block_pantry;
     WT_CKPT *ckpt;
@@ -73,7 +77,7 @@ __wt_bmp_checkpoint(
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             /* __wt_bmp_write_page(block_pantry, buf, root_addr); */
-            WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, ckpt));
+            WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, block_meta, ckpt));
         }
 
     WT_RET(handle->fh_obj_checkpoint(handle, &session->iface));

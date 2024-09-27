@@ -129,10 +129,12 @@ extern int __wt_blkcache_map_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const 
 extern int __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr,
-  size_t addr_size, bool write) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr,
-  size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size, bool write)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
@@ -141,9 +143,10 @@ extern int __wt_blkcache_tiered_open(WT_SESSION_IMPL *session, const char *uri, 
   WT_BLOCK **blockp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region,
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr,
-  size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io,
-  bool compressed) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
+  bool checkpoint, bool checkpoint_io, bool compressed)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_invalid(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
   size_t addr_size, bool live) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t offset,
@@ -270,11 +273,12 @@ extern int __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename
   bool forced_salvage, bool readonly, WT_BLOCK **blockp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry,
-  WT_ITEM *buf, uint64_t *pantry_idp, uint32_t *sizep, uint32_t *checksump, bool data_checksum,
+  WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, bool data_checksum,
   bool checkpoint_io) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry,
+  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint64_t *pantry_idp, uint32_t *sizep,
+  uint32_t *checksump, bool data_checksum, bool checkpoint_io)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_pantry_write_size(size_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
@@ -300,9 +304,9 @@ extern int __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_verify_start(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase,
   const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t *addr,
-  size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, bool data_checksum,
+  bool checkpoint_io) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
   wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
   bool caller_locked) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -336,12 +340,14 @@ extern int __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *a
 extern int __wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t objectid,
   wt_off_t offset, uint32_t size, uint32_t checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr,
-  size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_addr_string(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
   const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
-  WT_CKPT *ckptbase, bool data_checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -363,8 +369,9 @@ extern int __wt_bmp_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_bmp_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr,
-  size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bmp_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bmp_salvage_next(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr,
@@ -2120,6 +2127,7 @@ extern void __wt_optrack_record_funcid(
 extern void __wt_os_stdio(WT_SESSION_IMPL *session);
 extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));

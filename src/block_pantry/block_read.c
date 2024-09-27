@@ -15,6 +15,7 @@
 int
 __wt_bmp_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
+    WT_PAGE_BLOCK_META block_meta;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     uint64_t page_id;
@@ -22,7 +23,7 @@ __wt_bmp_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_
 
     /* Read the block. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_bmp_read(bm, session, tmp, addr, addr_size));
+    WT_ERR(__wt_bmp_read(bm, session, tmp, &block_meta, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
     WT_ERR(__wt_block_pantry_addr_unpack(&addr, &page_id, &size, &checksum));
@@ -39,10 +40,13 @@ err:
  */
 static int
 __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_ITEM *buf,
-  uint64_t pantry_id, uint32_t size, uint32_t checksum)
+  WT_PAGE_BLOCK_META *block_meta, uint64_t pantry_id, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_PANTRY_HEADER *blk, swap;
     size_t bufsize;
+
+    if (block_meta != NULL)
+        memset(block_meta, 0, sizeof(*block_meta));
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %" PRIu32,
       (uintmax_t)pantry_id, size, checksum);
@@ -67,6 +71,10 @@ __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_
     WT_RET(__wt_buf_init(session, buf, bufsize));
     WT_RET(block_pantry->fh->handle->fh_obj_get(
       block_pantry->fh->handle, &session->iface, pantry_id, buf));
+
+    if (block_meta != NULL)
+        /* Set the other metadata returned by the Page Service. */
+        block_meta->page_id = pantry_id;
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
@@ -120,8 +128,8 @@ __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_
  *     Map or read address cookie referenced block into a buffer.
  */
 int
-__wt_bmp_read(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__wt_bmp_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK_PANTRY *block_pantry;
     uint64_t page_id;
@@ -134,7 +142,7 @@ __wt_bmp_read(
     WT_RET(__wt_block_pantry_addr_unpack(&addr, &page_id, &size, &checksum));
 
     /* Read the block. */
-    WT_RET(__block_pantry_read(session, block_pantry, buf, page_id, size, checksum));
+    WT_RET(__block_pantry_read(session, block_pantry, buf, block_meta, page_id, size, checksum));
 
     return (0);
 }
