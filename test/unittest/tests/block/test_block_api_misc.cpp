@@ -89,7 +89,8 @@ test_addr_string(WT_SESSION_IMPL *session, WT_BM *bm, wt_off_t pack_offset, uint
 
     // Compare the string output of bm->addr_string against the known expected string.
     REQUIRE(bm->addr_string(bm, session, &buf, p, addr_size) == 0);
-    CHECK(static_cast<std::string>(((char *)(buf.data))).compare(expected_str) == 0);
+    CHECK(
+      strcmp(reinterpret_cast<char *>(const_cast<void *>(buf.data)), expected_str.c_str()) == 0);
 
     __wt_free(nullptr, buf.data);
 }
@@ -101,8 +102,8 @@ TEST_CASE("Block manager addr invalid", "[block_api_misc]")
 
     WT_BM bm;
     WT_CLEAR(bm);
-    // A session and block manager needs to be initialized as the addr_invalid functionality will
-    // crash if when it attempts to check various session flags.
+    // A session and block manager needs to be initialized otherwise the addr_invalid functionality
+    // will crash if it attempts to check various session flags.
     auto path = std::filesystem::current_path();
     std::string file_path(path.string() + "/test.wt");
     setup_bm(session, &bm, file_path);
@@ -193,7 +194,10 @@ TEST_CASE("Block header", "[block_api_misc]")
     WT_CLEAR(bm);
     __wti_bm_method_set(&bm, false);
 
-    REQUIRE(bm.block_header(&bm) == (u_int)WT_BLOCK_HEADER_SIZE);
+    SECTION("Test block header size is correct")
+    {
+        REQUIRE(bm.block_header(&bm) == (u_int)WT_BLOCK_HEADER_SIZE);
+    }
 }
 
 TEST_CASE("Block manager is mapped", "[block_api_misc]")
@@ -229,29 +233,30 @@ TEST_CASE("Block manager size and stat", "[block_api_misc]")
     setup_bm(session, &bm, file_path);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
+    SECTION("Test that the bm->stat method updates statistics correctly")
+    {
+        check_bm_stats(s, &bm);
+    }
+
     wt_off_t prev_size;
     REQUIRE(bm.size(&bm, s, &prev_size) == 0);
+    SECTION("Test that the bm->data method updated statistics correctly after doing a write")
+    {
+        // Perform a write.
+        WT_ITEM buf;
+        WT_CLEAR(buf);
+        std::string test_string("test123");
+        create_write_buffer(&bm, session, test_string, &buf, 0);
+        uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+        size_t addr_size;
+        wt_off_t bm_size;
+        REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
+        REQUIRE(bm.size(&bm, s, &bm_size) == 0);
 
-    // Test that the bm->stat method updates statistics correctly after initializing the block
-    // manager.
-    check_bm_stats(s, &bm);
+        check_bm_stats(s, &bm);
+        CHECK(bm_size > prev_size);
+        __wt_buf_free(nullptr, &buf);
+    }
 
-    // Perform a write.
-    WT_ITEM buf;
-    WT_CLEAR(buf);
-    std::string test_string("test123");
-    create_write_buffer(&bm, session, test_string, &buf, 0);
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    size_t addr_size;
-    wt_off_t bm_size;
-    REQUIRE(bm.write(&bm, s, &buf, addr, &addr_size, false, false) == 0);
-    REQUIRE(bm.size(&bm, s, &bm_size) == 0);
-
-    // Test that the bm->data method updated statistics correctly after doing a write and that the
-    // block size increased.
-    check_bm_stats(s, &bm);
-    CHECK(bm_size > prev_size);
-
-    __wt_buf_free(nullptr, &buf);
     REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
