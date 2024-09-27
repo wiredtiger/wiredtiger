@@ -9,12 +9,6 @@
 #pragma once
 
 /*
- * Helper: in order to read without any calls to eviction, we have to ignore the cache size and
- * disable splits.
- */
-#define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
-
-/*
  * Tuning constants: I hesitate to call this tuning, but we want to review some number of pages from
  * each file's in-memory tree for each page we evict.
  */
