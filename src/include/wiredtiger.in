@@ -77,6 +77,10 @@ struct __wt_file_handle;    typedef struct __wt_file_handle WT_FILE_HANDLE;
 struct __wt_file_system;    typedef struct __wt_file_system WT_FILE_SYSTEM;
 struct __wt_item;       typedef struct __wt_item WT_ITEM;
 struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
+#if !defined(DOXYGEN)
+struct __wt_page_log; typedef struct __wt_page_log WT_PAGE_LOG;
+struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
+#endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
 #if !defined(DOXYGEN)
 struct __wt_storage_source; typedef struct __wt_storage_source WT_STORAGE_SOURCE;
@@ -2863,6 +2867,21 @@ struct __wt_connection {
 #if !defined(DOXYGEN)
 #if !defined(SWIG)
     /*!
+     * Add a logging and page service implementation.
+     *
+     * The application must first implement the WT_PAGE_LOG
+     * interface and then register the implementation with WiredTiger:
+     *
+     * @param connection the connection handle
+     * @param name the name of the storage source implementation
+     * @param page_log the populated log page service structure
+     * @configempty{WT_CONNECTION.add_page_log, see dist/api_data.py}
+     * @errors
+     */
+    int __F(add_page_log)(WT_CONNECTION *connection, const char *name,
+        WT_PAGE_LOG *page_log, const char *config);
+
+    /*!
      * Add a storage source implementation.
      *
      * The application must first implement the WT_STORAGE_SOURCE
@@ -2879,6 +2898,22 @@ struct __wt_connection {
     int __F(add_storage_source)(WT_CONNECTION *connection, const char *name,
         WT_STORAGE_SOURCE *storage_source, const char *config);
 #endif
+
+    /*!
+     * Get a log page service implementation.
+     *
+     * Look up a log page service by name and return it. The returned log page service
+     * must be released by calling WT_STORAGE_SOURCE::terminate.
+     *
+     * @snippet ex_storage_source.c WT_STORAGE_SOURCE register
+     *
+     * @param connection the connection handle
+     * @param name the name of the log page service implementation
+     * @param storage_source the log page service structure
+     * @errors
+     */
+    int __F(get_page_log)(WT_CONNECTION *connection, const char *name,
+        WT_PAGE_LOG **page_logp);
 
     /*!
      * Get a storage source implementation.
@@ -5408,6 +5443,167 @@ struct __wt_storage_source {
      */
     int (*terminate)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session);
 };
+
+/*!
+ * The interface implemented by applications to provide a log page service
+ * implementation. This documentation refers to "object" and "bucket"
+ * to mean a "file-like object" and a "container of objects", respectively.
+ *
+ * <b>Thread safety:</b> WiredTiger may invoke methods on the WT_STORAGE_SOURCE
+ * interface from multiple threads concurrently. It is the responsibility of
+ * the implementation to protect any shared data.
+ *
+ * Applications register implementations with WiredTiger by calling
+ * WT_CONNECTION::add_page_log.
+ *
+ * @snippet ex_page_log.c WT_PAGE_LOG register
+ */
+struct __wt_page_log {
+
+    /*!
+     * A reference is added to the log page service.  The reference is released by a
+     * call to WT_PAGE_LOG::terminate.  A reference is added as a side effect
+     * of calling WT_CONNECTION::get_page_log.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     */
+    int (*pl_add_reference)(WT_PAGE_LOG *page_log);
+
+    /*!
+     * Begin checkpointing using the given checkpoint_id.  After this call, any handle
+     * can put or get using the checkpoint id.  The checkpoint id must be greater than
+     * any previous checkpoint id used with this call.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param checkpoint_id the checkpoint id to use. Must be greater than any other
+     *        checkpoint_id used with this call.
+     */
+    int (*pl_begin_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id);
+
+    /*!
+     * Complete checkpointing using the given checkpoint_id. This implies that other
+     * nodes can now use the given checkpoint_id.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param checkpoint_id the checkpoint id to use. Must be greater than any other
+     *        checkpoint_id used with this call.
+     */
+    int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id);
+
+    /*!
+     * Get the most recent completed checkpoint number.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param checkpoint_id the checkpoint id returned
+     */
+    int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id);
+
+    /*!
+     * Decode a portion of the package. This can be called successively with a returned package
+     * buffer to get the full page image, when package_id is zero, and any attached deltas.
+     * Returns WT_NOTFOUND when the delta_number is too large, that is, the set of returns
+     * has been exhausted.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param package_buffer the buffer returned by WT_PAGE_LOG_HANDLE::plh_get.
+     * @param delta_number the index of the delta number.  Using a delta number of 0 indicates
+     *        that the full page image is returned.  The full page image is always available.
+     *        Otherwise, the index number has no meaning except as a way to step through the
+     *        ordered list of returned deltas.
+     */
+    int (*pl_get_package_part)(WT_PAGE_LOG *page_log, WT_SESSION *session, WT_ITEM *package_buffer,
+         int delta_number, WT_ITEM *result);
+
+    /*!
+     * Open a handle for further operations on a table.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param table_id the unique table id for the given table
+     * @param plh the returned handle
+     */
+    int (*pl_open_handle)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, WT_PAGE_LOG_HANDLE **plh);
+
+    /*!
+     * A callback performed when the log page service or reference is closed
+     * and will no longer be used.  The initial creation of the log page service
+     * counts as a reference, and each call to WT_PAGE_LOG::add_reference
+     * increase the number of references.  When all references are released, the
+     * log page service and any resources associated with it are released.
+     *
+     * This method is not required and should be set to NULL when not
+     * required by the log page service implementation.
+     *
+     * The WT_PAGE_LOG::terminate callback is intended to allow cleanup;
+     * the handle will not be subsequently accessed by WiredTiger.
+     */
+    int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
+};
+
+struct __wt_page_log_handle {
+    /*!
+     * Put an object into the paging/logging service.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param page_id the page to be written
+     * @param checkpoint_id the checkpoint to be written to
+     * @param is_delta is true if this is a delta, otherwise it is a full page image
+     * @param buf content to be written
+     */
+    int (*plh_put)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, bool is_delta, const WT_ITEM *buf);
+
+    /*!
+     * Get an object from the paging/logging service.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param page_id the page to be read
+     * @param checkpoint_id the checkpoint to use
+     * @param result the content read in the form of a package.
+     *    This includes the full page and any deltas.
+     *    The package can be decoded by WT_PAGE_LOG::pl_get_package_part.
+     *    The result->data is memory that is owned by the caller, and is
+     *    realloced as necessary.  That is, initially, result can be zeroed,
+     *    and memory will be initially allocated in result->data. After this,
+     *    the result can be used for subsequent calls, and finally, the caller
+     *    should call free() to deallocate result->data when done with the result.
+     */
+    int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *package_result);
+
+    /*!
+     * Close the handle
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     */
+    int (*plh_close)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
+};
+
 #endif
 
 /*!

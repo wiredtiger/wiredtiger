@@ -1972,6 +1972,7 @@ methods = {
 'WT_CONNECTION.add_data_source' : Method([]),
 'WT_CONNECTION.add_encryptor' : Method([]),
 'WT_CONNECTION.add_extractor' : Method([]),
+'WT_CONNECTION.add_page_log' : Method([]),
 'WT_CONNECTION.add_storage_source' : Method([]),
 'WT_CONNECTION.close' : Method([
     Config('final_flush', 'false', r'''
