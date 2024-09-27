@@ -46,7 +46,7 @@ struct __wt_evict {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
 
-    uint64_t app_waits;  /* User threads waited for cache */
+    uint64_t app_waits;  /* User threads waited for eviction */
     uint64_t app_evicts; /* Pages evicted by user threads */
 
     wt_shared uint64_t evict_max_page_size; /* Largest page seen at eviction */
@@ -145,19 +145,19 @@ struct __wt_evict {
  * Flags.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CACHE_EVICT_CLEAN 0x001u        /* Evict clean pages */
-#define WT_CACHE_EVICT_CLEAN_HARD 0x002u   /* Clean % blocking app threads */
-#define WT_CACHE_EVICT_DIRTY 0x004u        /* Evict dirty pages */
-#define WT_CACHE_EVICT_DIRTY_HARD 0x008u   /* Dirty % blocking app threads */
-#define WT_CACHE_EVICT_NOKEEP 0x010u       /* Don't add read pages to cache */
-#define WT_CACHE_EVICT_SCRUB 0x020u        /* Scrub dirty pages */
-#define WT_CACHE_EVICT_UPDATES 0x040u      /* Evict pages with updates */
-#define WT_CACHE_EVICT_UPDATES_HARD 0x080u /* Update % blocking app threads */
-#define WT_CACHE_EVICT_URGENT 0x100u       /* Pages are in the urgent queue */
+#define WT_EVICT_CACHE_CLEAN 0x001u        /* Evict clean pages */
+#define WT_EVICT_CACHE_CLEAN_HARD 0x002u   /* Clean % blocking app threads */
+#define WT_EVICT_CACHE_DIRTY 0x004u        /* Evict dirty pages */
+#define WT_EVICT_CACHE_DIRTY_HARD 0x008u   /* Dirty % blocking app threads */
+#define WT_EVICT_CACHE_NOKEEP 0x010u       /* Don't add read pages to cache */
+#define WT_EVICT_CACHE_SCRUB 0x020u        /* Scrub dirty pages */
+#define WT_EVICT_CACHE_UPDATES 0x040u      /* Evict pages with updates */
+#define WT_EVICT_CACHE_UPDATES_HARD 0x080u /* Update % blocking app threads */
+#define WT_EVICT_CACHE_URGENT 0x100u       /* Pages are in the urgent queue */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-#define WT_CACHE_EVICT_ALL (WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES)
-#define WT_CACHE_EVICT_HARD \
-    (WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD)
+#define WT_EVICT_CACHE_ALL (WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)
+#define WT_EVICT_CACHE_HARD \
+    (WT_EVICT_CACHE_CLEAN_HARD | WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)
     uint32_t flags;
 };
 

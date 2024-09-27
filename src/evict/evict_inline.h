@@ -89,7 +89,7 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
     tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
     WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
     return (
-      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_CACHE_EVICT_HARD));
+      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_EVICT_CACHE_HARD));
 }
 
 /*
