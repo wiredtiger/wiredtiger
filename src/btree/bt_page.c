@@ -20,7 +20,7 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
  *     Initialize the page's block management metadata.
  */
 void
-__wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META* meta)
+__wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
 {
     WT_BTREE *btree;
     uint64_t page_id;

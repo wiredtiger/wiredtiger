@@ -371,7 +371,7 @@ typedef struct {
 /*
  * Macros from fixed-length entries to/from bytes.
  */
-#define WT_COL_FIX_BYTES_TO_ENTRIES(btree, bytes) ((uint32_t)((((bytes) * 8) / (btree)->bitcnt)))
+#define WT_COL_FIX_BYTES_TO_ENTRIES(btree, bytes) ((uint32_t)((((bytes)*8) / (btree)->bitcnt)))
 #define WT_COL_FIX_ENTRIES_TO_BYTES(btree, entries) \
     ((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
 

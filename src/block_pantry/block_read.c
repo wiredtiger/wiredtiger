@@ -15,9 +15,9 @@
 int
 __wt_bmp_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-    WT_PAGE_BLOCK_META block_meta;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_PAGE_BLOCK_META block_meta;
     uint64_t page_id;
     uint32_t checksum, size;
 

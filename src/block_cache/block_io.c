@@ -51,7 +51,6 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
-    WT_PAGE_BLOCK_META block_meta_tmp;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
@@ -60,6 +59,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
+    WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;

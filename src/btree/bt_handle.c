@@ -677,13 +677,13 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
 int
 __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-    WT_PAGE_BLOCK_META block_meta;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ITEM dsk;
     WT_PAGE *page;
+    WT_PAGE_BLOCK_META block_meta;
 
     btree = S2BT(session);
     bm = btree->bm;

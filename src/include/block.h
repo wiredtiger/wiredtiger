@@ -451,7 +451,6 @@ struct __wt_block_pantry {
      * now.
      */
 
-    uint32_t id;    // XXX This needs to be filled out!
     WT_FH *fh;
     WT_FH *metadata_fh;
 };
