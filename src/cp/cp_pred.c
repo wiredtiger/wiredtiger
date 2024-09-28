@@ -9,6 +9,16 @@
 /* cp_pred.c: Definitions for control point predicates. */
 /* This file must be edited when a new control point predicate is created. */
 
+/*
+ * The names below are for a predicate named "Example predicate".
+ *
+ * Each predicate has:
+ * - Predicate function (Must be manual): __wt_control_point_pred_example_predicate.
+ * - Predicate config parsing function (Must be manual):
+ * __wt_control_point_config_pred_example_predicate.
+ * - An assignment of configuration parameters to values in WT_CONTROL_POINT (Must be manual).
+ */
+
 #include "wt_internal.h"
 
 #ifdef HAVE_CONTROL_POINTS

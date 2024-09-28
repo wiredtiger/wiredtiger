@@ -26,8 +26,8 @@
  * a per connection control point or a per session control point since both
  * start numbering at 0.
  *
- * The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
- * The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
+ * - The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
+ * - The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
  */
 typedef int32_t WT_CONTROL_POINT_ID;
 

@@ -14,6 +14,17 @@
 /* This file must be edited when a new control point action is created. */
 
 /*
+ * The names below are for an action named "Example action".
+ *
+ * Each action has:
+ * - Action config parsing function (Must be manual):
+ * __wt_control_point_config_action_example_action().
+ *
+ * Some actions (only "Wait for trigger" so far) have additional functions. These functions are
+ * named __wt_control_point_*_example_action.
+ */
+
+/*
  * Action: Sleep: Delay at a specific code location during an execution via __wt_sleep.
  */
 /* Action config parsing function. */

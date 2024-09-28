@@ -9,6 +9,22 @@
 #pragma once
 
 /* cp_action.h: Declarations for control point actions. */
+/* This file must be edited when a new control point action is created. */
+
+/*
+ * The names below are for an action named "Example action".
+ *
+ * Each action has:
+ * - Action data type (Must be manual): WT_CONTROL_POINT_ACTION_EXAMPLE_ACTION.
+ * - Macro to define a per connection control point with this action (Must be manual):
+ * CONNECTION_CONTROL_POINT_DEFINE_EXAMPLE_ACTION.
+ * - Macro to define a per session control point with this action (Must be manual):
+ * SESSION_CONTROL_POINT_DEFINE_EXAMPLE_ACTION.
+ *
+ * An action that is called from the call can only be used by a per connection control point. Such
+ * an action also has:
+ * - Macro used at the call site (Must be manual): CONNECTION_CONTROL_POINT_EXAMPLE_ACTION.
+ */
 
 #ifdef HAVE_CONTROL_POINTS
 /*

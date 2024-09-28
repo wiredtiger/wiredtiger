@@ -9,6 +9,36 @@
 /* cp_control_point.c: Definitions for control points. */
 /* This file must be edited when a new control point is created. */
 
+/*
+ * The names below are for a per connection control point named "Example control point".
+ *
+ * Each per connection control point has:
+ * - A choice of action (Must be manual).
+ * - A choice of predicate (Must be manual).
+ * - Per connection control point data type (Could be generated):
+ * __wt_conn_control_point_data_example_control_point.
+ * - Per connection control point init function (Could be generated):
+ * __wt_conn_control_point_init_example_control_point.
+ * - An entry in __wt_conn_control_point_init_all (Could be generated).
+ *
+ * Each per connection control point that is enabled at startup has:
+ * - An entry in __wt_conn_control_point_enable_all (Could be generated).
+ *
+ * The names below are for a per session control point named "Example control point2".
+ *
+ * Each per session control point has:
+ * - A choice of action (Must be manual).
+ * - A choice of predicate (Must be manual).
+ * - Per session control point data type (Could be generated):
+ * __wt_session_control_point_data_example_control_point2.
+ * - Per session control point init function (Could be generated):
+ * __wt_session_control_point_init_example_control_point2.
+ * - An entry in __wt_session_control_point_init_all (Could be generated).
+ *
+ * Each per session control point that is enabled at startup has:
+ * - An entry in __wt_session_control_point_enable_all (Could be generated).
+ */
+
 #include "wt_internal.h"
 
 #ifdef HAVE_CONTROL_POINTS

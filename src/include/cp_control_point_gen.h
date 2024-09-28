@@ -14,6 +14,20 @@
 
 #ifdef HAVE_CONTROL_POINTS
 
+/*
+ * The name below is for a per connection control point named "Example control point".
+ *
+ * Each per connection control point has:
+ * - Per connection control point ID (Could be generated):
+ * WT_CONN_CONTROL_POINT_ID_EXAMPLE_CONTROL_POINT.
+ *
+ * The name below is for a per session control point named "Example control point2".
+ *
+ * Each per session control point has:
+ * - Per session control point ID (Could be generated):
+ * WT_CONN_CONTROL_POINT_ID_EXAMPLE_CONTROL_POINT2.
+ */
+
 #include "control_points.h"
 
 /*
@@ -31,7 +45,7 @@
 #define WT_CONN_CONTROL_POINT_ID_THREAD8 ((WT_CONTROL_POINT_ID)9)
 #define WT_CONN_CONTROL_POINT_ID_THREAD9 ((WT_CONTROL_POINT_ID)10)
 
-/* The number of per connection control points. */
+/* The number of per connection control points (Could be generated). */
 #define CONNECTION_CONTROL_POINTS_SIZE 11
 
 /*
@@ -41,7 +55,7 @@
 #define WT_SESSION_CONTROL_POINT_ID_EXAMPLE2 ((WT_CONTROL_POINT_ID)0)
 #endif
 
-/* The number of per session control points. */
+/* The number of per session control points (Could be generated). */
 #define SESSION_CONTROL_POINTS_SIZE 0
 
 #endif /* HAVE_CONTROL_POINTS */
