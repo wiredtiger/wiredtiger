@@ -21,9 +21,11 @@
  * - Macro to define a per session control point with this action (Must be manual):
  * SESSION_CONTROL_POINT_DEFINE_EXAMPLE_ACTION.
  *
- * An action that is called from the call can only be used by a per connection control point. Such
- * an action also has:
+ * An action that is called from the call site can only be used by a per connection control point.
+ * Such an action also has:
  * - Macro used at the call site (Must be manual): CONNECTION_CONTROL_POINT_EXAMPLE_ACTION.
+ * - A non-zero control point action ID (Could be generated):
+ * WT_CONTROL_POINT_ACTION_ID_EXAMPLE_ACTION.
  */
 
 #ifdef HAVE_CONTROL_POINTS
@@ -98,6 +100,9 @@ struct __wt_control_point_action_sleep {
     uint64_t seconds;
     uint64_t microseconds;
 };
+
+/* Control point action ID. */
+#define WT_CONTROL_POINT_ACTION_ID_SLEEP 0
 #endif /* HAVE_CONTROL_POINTS */
 
 /* Macro to define a per connection control point with this action. */
@@ -144,6 +149,9 @@ struct __wt_control_point_action_err {
     /* Action Configuration parameter(s) */
     int err;
 };
+
+/* Control point action ID. */
+#define WT_CONTROL_POINT_ACTION_ID_ERR 0
 #endif /* HAVE_CONTROL_POINTS */
 
 /* Macro to define a per connection control point with this action. */
@@ -186,6 +194,9 @@ struct __wt_control_point_action_ret {
     /* Action Configuration parameter(s) */
     int ret_value;
 };
+
+/* Control point action ID. */
+#define WT_CONTROL_POINT_ACTION_ID_RET 0
 #endif /* HAVE_CONTROL_POINTS */
 
 /* Macro to define a per connection control point with this action. */
@@ -230,6 +241,9 @@ struct __wt_control_point_action_wait_for_trigger {
     uint64_t desired_trigger_count;
     WT_CONDVAR *condvar;
 };
+
+/* Control point action ID. */
+#define WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER 1
 
 /* Macro used at the call site. */
 /*!

@@ -163,6 +163,13 @@ __wt_control_point_wait_for_trigger(
     bool signalled;
     if (WT_UNLIKELY(data == NULL))
         return (false); /* Not enabled. */
+    /* Does the call site and trigger site match in action? */
+    if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER)) {
+        __wt_verbose_error(session, WT_VERB_DEFAULT,
+          "Control point call site and trigger site have different actions: %d and %" PRIu32 ".",
+          WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported);
+        return (false); /* Pretend not enabled. */
+    }
     /* Is waiting necessary? */
     action_data = (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(data + 1);
     desired_trigger_count = start_trigger_count + action_data->wait_count;

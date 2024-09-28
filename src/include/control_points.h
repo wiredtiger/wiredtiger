@@ -35,6 +35,7 @@ typedef int32_t WT_CONTROL_POINT_ID;
  * Identifies a control point action.
  * Used to verify compatibility between the code at a
  * control point call site and at the control point trigger site.
+ * Zero if the action does not have call site code.
  */
 typedef uint32_t WT_CONTROL_POINT_ACTION_ID;
 
