@@ -16,7 +16,7 @@ extern "C" {
 #ifdef HAVE_DIAGNOSTIC
 #define HAVE_CONTROL_POINTS /* Make control point code stand out. */
 #else
-#undef HAVE_CONTROL_POINTS /* Omit control point code. */
+/* Not defined. Omit control point code. */
 #endif
 
 /*******************************************
