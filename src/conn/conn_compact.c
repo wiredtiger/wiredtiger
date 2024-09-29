@@ -529,7 +529,7 @@ __background_compact_server(void *arg)
 
     session = arg;
     conn = S2C(session);
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
     WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
     wt_session = (WT_SESSION *)session;

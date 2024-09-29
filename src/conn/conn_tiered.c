@@ -436,7 +436,7 @@ __tiered_server(void *arg)
     bool signalled;
 
     session = arg;
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
     msg = "__wt_session_control_point_enable_all";
     WT_ERR(__wt_session_control_point_enable_all(session));
 #endif

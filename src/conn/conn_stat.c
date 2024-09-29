@@ -577,7 +577,7 @@ __statlog_server(void *arg)
     WT_SESSION_IMPL *session;
 
     session = arg;
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
     WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
     conn = S2C(session);
