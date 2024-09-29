@@ -95,16 +95,16 @@ main(int argc, char *argv[])
     struct thread_arguments thread_args[NUM_THREADS];
     int idx;
     const wt_control_point_id_t thread_control_point_ids[NUM_THREADS] = {
-      WT_CONN_CONTROL_POINT_ID_THREAD0,
-      WT_CONN_CONTROL_POINT_ID_THREAD1,
-      WT_CONN_CONTROL_POINT_ID_THREAD2,
-      WT_CONN_CONTROL_POINT_ID_THREAD3,
-      WT_CONN_CONTROL_POINT_ID_THREAD4,
-      WT_CONN_CONTROL_POINT_ID_THREAD5,
-      WT_CONN_CONTROL_POINT_ID_THREAD6,
-      WT_CONN_CONTROL_POINT_ID_THREAD7,
-      WT_CONN_CONTROL_POINT_ID_THREAD8,
-      WT_CONN_CONTROL_POINT_ID_THREAD9,
+      WT_CONN_CONTROL_POINT_ID_THREAD_0,
+      WT_CONN_CONTROL_POINT_ID_THREAD_1,
+      WT_CONN_CONTROL_POINT_ID_THREAD_2,
+      WT_CONN_CONTROL_POINT_ID_THREAD_3,
+      WT_CONN_CONTROL_POINT_ID_THREAD_4,
+      WT_CONN_CONTROL_POINT_ID_THREAD_5,
+      WT_CONN_CONTROL_POINT_ID_THREAD_6,
+      WT_CONN_CONTROL_POINT_ID_THREAD_7,
+      WT_CONN_CONTROL_POINT_ID_THREAD_8,
+      WT_CONN_CONTROL_POINT_ID_THREAD_9,
     };
     bool enabled;
     const char *cfg[1] = {};
@@ -137,7 +137,7 @@ main(int argc, char *argv[])
     /* Enable all control points. */
     /* TODO: Fix cfg parameter. */
     testutil_check_error_ok(
-      __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MainStartPrinting, cfg),
+      __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING, cfg),
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
         /* TODO: Fix cfg parameter. */
@@ -148,7 +148,7 @@ main(int argc, char *argv[])
         struct thread_arguments *my_args = &(thread_args[idx]);
         my_args->conn = conn;
         my_args->thread_num = idx;
-        my_args->wait_for_id = ((idx == 0) ? WT_CONN_CONTROL_POINT_ID_MainStartPrinting :
+        my_args->wait_for_id = ((idx == 0) ? WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING :
                                              thread_control_point_ids[idx - 1]);
         my_args->my_id = thread_control_point_ids[idx];
 
@@ -157,7 +157,7 @@ main(int argc, char *argv[])
 
     /* Signal threads[0] which waits for this thread to get here. */
     CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-      session_impl, WT_CONN_CONTROL_POINT_ID_MainStartPrinting);
+      session_impl, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
 
     /* This thread waits for threads[NUM_THREADS - 1] to finish. */
     CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
@@ -173,7 +173,7 @@ main(int argc, char *argv[])
      */
     /* Disable all control points. */
     error_check(
-      __wt_conn_control_point_disable(session, WT_CONN_CONTROL_POINT_ID_MainStartPrinting));
+      __wt_conn_control_point_disable(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING));
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(__wt_conn_control_point_disable(session, thread_control_point_ids[idx]));
 

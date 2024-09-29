@@ -123,27 +123,27 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
  */
 /* From examples/ex_control_points.c */
 /*
- * Per connection control point MainStartPrinting.
+ * Per connection control point "Main Start Printing".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_MainStartPrinting {
+struct __wt_conn_control_point_data_main_start_printing {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_MainStartPrinting --
- *     The per connection control point initialization function for control point Main Start
- *     Printing.
+ * __wt_conn_control_point_init_main_start_printing --
+ *     The per connection control point initialization function for control point "Main Start
+ *     Printing".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_MainStartPrinting(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_main_start_printing(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_MainStartPrinting *init_data;
+    struct __wt_conn_control_point_data_main_start_printing *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -157,7 +157,7 @@ __wt_conn_control_point_init_MainStartPrinting(WT_SESSION_IMPL *session, const c
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "MainStartPrinting", (WT_CONTROL_POINT *)init_data);
+      session, "Main Start Printing", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -167,26 +167,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD0.
+ * Per connection control point "Thread 0".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD0 {
+struct __wt_conn_control_point_data_thread_0 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD0 --
- *     The per connection control point initialization function for control point THREAD0.
+ * __wt_conn_control_point_init_thread_0 --
+ *     The per connection control point initialization function for control point "Thread 0".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD0(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_0(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD0 *init_data;
+    struct __wt_conn_control_point_data_thread_0 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -200,7 +200,7 @@ __wt_conn_control_point_init_THREAD0(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD0", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 0", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -210,26 +210,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD1.
+ * Per connection control point "Thread 1".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD1 {
+struct __wt_conn_control_point_data_thread_1 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD1 --
- *     The per connection control point initialization function for control point THREAD1.
+ * __wt_conn_control_point_init_thread_1 --
+ *     The per connection control point initialization function for control point "Thread 1".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD1(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_1(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD1 *init_data;
+    struct __wt_conn_control_point_data_thread_1 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -243,7 +243,7 @@ __wt_conn_control_point_init_THREAD1(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD1", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 1", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -253,26 +253,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD2.
+ * Per connection control point "Thread 2".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD2 {
+struct __wt_conn_control_point_data_thread_2 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD2 --
- *     The per connection control point initialization function for control point THREAD2.
+ * __wt_conn_control_point_init_thread_2 --
+ *     The per connection control point initialization function for control point "Thread 2".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD2(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_2(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD1 *init_data;
+    struct __wt_conn_control_point_data_thread_2 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -286,7 +286,7 @@ __wt_conn_control_point_init_THREAD2(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD2", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 2", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -296,26 +296,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD3.
+ * Per connection control point "Thread 3".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD3 {
+struct __wt_conn_control_point_data_thread_3 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD3 --
- *     The per connection control point initialization function for control point THREAD3.
+ * __wt_conn_control_point_init_thread_3 --
+ *     The per connection control point initialization function for control point "Thread 3".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD3(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_3(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD2 *init_data;
+    struct __wt_conn_control_point_data_thread_3 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -329,7 +329,7 @@ __wt_conn_control_point_init_THREAD3(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD3", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 3", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -339,26 +339,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD4.
+ * Per connection control point "Thread 4".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD4 {
+struct __wt_conn_control_point_data_thread_4 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD4 --
- *     The per connection control point initialization function for control point THREAD4.
+ * __wt_conn_control_point_init_thread_4 --
+ *     The per connection control point initialization function for control point "Thread 4".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD4(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_4(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD3 *init_data;
+    struct __wt_conn_control_point_data_thread_4 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -372,7 +372,7 @@ __wt_conn_control_point_init_THREAD4(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD4", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 4", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -382,26 +382,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD5.
+ * Per connection control point "Thread 5".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD5 {
+struct __wt_conn_control_point_data_thread_5 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD5 --
- *     The per connection control point initialization function for control point THREAD5.
+ * __wt_conn_control_point_init_thread_5 --
+ *     The per connection control point initialization function for control point "Thread 5".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD5(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_5(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD4 *init_data;
+    struct __wt_conn_control_point_data_thread_5 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -415,7 +415,7 @@ __wt_conn_control_point_init_THREAD5(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD5", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 5", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -425,26 +425,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD6.
+ * Per connection control point "Thread 6".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD6 {
+struct __wt_conn_control_point_data_thread_6 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD6 --
- *     The per connection control point initialization function for control point THREAD6.
+ * __wt_conn_control_point_init_thread_6 --
+ *     The per connection control point initialization function for control point "Thread 6".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD6(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_6(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD5 *init_data;
+    struct __wt_conn_control_point_data_thread_6 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -458,7 +458,7 @@ __wt_conn_control_point_init_THREAD6(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD6", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 6", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -468,26 +468,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD7.
+ * Per connection control point "Thread 7".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD7 {
+struct __wt_conn_control_point_data_thread_7 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD7 --
- *     The per connection control point initialization function for control point THREAD7.
+ * __wt_conn_control_point_init_thread_7 --
+ *     The per connection control point initialization function for control point "Thread 7".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD7(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_7(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD6 *init_data;
+    struct __wt_conn_control_point_data_thread_7 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -501,7 +501,7 @@ __wt_conn_control_point_init_THREAD7(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD7", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 7", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -511,26 +511,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD8.
+ * Per connection control point "Thread 8".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD8 {
+struct __wt_conn_control_point_data_thread_8 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD8 --
- *     The per connection control point initialization function for control point THREAD8.
+ * __wt_conn_control_point_init_thread_8 --
+ *     The per connection control point initialization function for control point "Thread 8".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD8(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_8(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD7 *init_data;
+    struct __wt_conn_control_point_data_thread_8 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -544,7 +544,7 @@ __wt_conn_control_point_init_THREAD8(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD8", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 8", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -554,26 +554,26 @@ err:
 }
 
 /*
- * Per connection control point THREAD9.
+ * Per connection control point "Thread 9".
  */
 /* Per connection control point data type. */
-struct __wt_conn_control_point_data_THREAD9 {
+struct __wt_conn_control_point_data_thread_9 {
     WT_CONTROL_POINT iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Per connection control point init function. */
 /*
- * __wt_conn_control_point_init_THREAD9 --
- *     The per connection control point initialization function for control point THREAD8.
+ * __wt_conn_control_point_init_thread_9 --
+ *     The per connection control point initialization function for control point "Thread 8".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_init_THREAD9(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_control_point_init_thread_9(WT_SESSION_IMPL *session, const char **cfg)
 {
-    struct __wt_conn_control_point_data_THREAD8 *init_data;
+    struct __wt_conn_control_point_data_thread_9 *init_data;
     WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
@@ -587,7 +587,7 @@ __wt_conn_control_point_init_THREAD9(WT_SESSION_IMPL *session, const char **cfg)
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(
-      session, "THREAD9", (WT_CONTROL_POINT *)init_data);
+      session, "Thread 9", (WT_CONTROL_POINT *)init_data);
 
 err:
     if (ret != 0)
@@ -620,93 +620,93 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
      * This part must be edited. Repeat this for every per connection control point.
      */
     /* From examples/ex_control_points.c */
-    control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting].init =
-      __wt_conn_control_point_init_MainStartPrinting;
-    control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].init =
+      __wt_conn_control_point_init_main_start_printing;
+    control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].pred = NULL; /* Always */
     WT_ERR(__wt_spin_init(session,
-      &(control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting].lock), "MainStartPrinting"));
+      &(control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].lock), "Main Start Printing"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD0].init = __wt_conn_control_point_init_THREAD0;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD0].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD0].lock), "THREAD0"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].init = __wt_conn_control_point_init_thread_0;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].lock), "Thread 0"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD0].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD1].init = __wt_conn_control_point_init_THREAD1;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD1].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD1].lock), "THREAD1"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].init = __wt_conn_control_point_init_thread_1;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].lock), "Thread 1"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD1].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD2].init = __wt_conn_control_point_init_THREAD2;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD2].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD2].lock), "THREAD2"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].init = __wt_conn_control_point_init_thread_2;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].lock), "Thread 2"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD2].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD3].init = __wt_conn_control_point_init_THREAD3;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD3].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD3].lock), "THREAD3"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].init = __wt_conn_control_point_init_thread_3;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].lock), "Thread 3"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD3].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD4].init = __wt_conn_control_point_init_THREAD4;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD4].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD4].lock), "THREAD4"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].init = __wt_conn_control_point_init_thread_4;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].lock), "Thread 4"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD4].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD5].init = __wt_conn_control_point_init_THREAD5;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD5].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD5].lock), "THREAD5"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].init = __wt_conn_control_point_init_thread_5;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].lock), "Thread 5"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD5].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD6].init = __wt_conn_control_point_init_THREAD6;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD6].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD6].lock), "THREAD6"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].init = __wt_conn_control_point_init_thread_6;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].lock), "Thread 6"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD6].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD7].init = __wt_conn_control_point_init_THREAD7;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD7].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD7].lock), "THREAD7"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].init = __wt_conn_control_point_init_thread_7;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].lock), "Thread 7"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD7].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD8].init = __wt_conn_control_point_init_THREAD8;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD8].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD8].lock), "THREAD8"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].init = __wt_conn_control_point_init_thread_8;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].lock), "Thread 8"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD8].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD9].init = __wt_conn_control_point_init_THREAD9;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD9].pred = NULL; /* Always */
-    WT_ERR(
-      __wt_spin_init(session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD9].lock), "THREAD9"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].init = __wt_conn_control_point_init_thread_9;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].pred = NULL; /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].lock), "Thread 9"));
     /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD9].action_supported =
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
     /* After all repeats finish with this. */
@@ -791,7 +791,7 @@ __wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
      */
     /* From examples/ex_control_points.c */
     WT_RET(__wti_conn_control_point_enable(
-      session, &(control_points[WT_CONN_CONTROL_POINT_ID_MainStartPrinting]), cfg));
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING]), cfg));
 #endif
     return (0);
 }

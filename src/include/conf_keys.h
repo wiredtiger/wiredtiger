@@ -36,7 +36,7 @@
 #define WT_CONF_ID_Log 36ULL
 #define WT_CONF_ID_Lsm 68ULL
 #define WT_CONF_ID_Lsm_manager 253ULL
-#define WT_CONF_ID_MainStartPrinting 279ULL
+#define WT_CONF_ID_MAIN_START_PRINTING 279ULL
 #define WT_CONF_ID_Merge_custom 78ULL
 #define WT_CONF_ID_Operation_tracking 256ULL
 #define WT_CONF_ID_Prefetch 276ULL
@@ -518,7 +518,7 @@ static const struct {
     } Lsm_manager;
     struct {
         uint64_t wait_count;
-    } MainStartPrinting;
+    } MAIN_START_PRINTING;
     struct {
         uint64_t enabled;
         uint64_t path;
@@ -927,7 +927,7 @@ static const struct {
     WT_CONF_ID_Lsm_manager | (WT_CONF_ID_worker_thread_max << 16),
   },
   {
-    WT_CONF_ID_MainStartPrinting | (WT_CONF_ID_wait_count << 16),
+    WT_CONF_ID_MAIN_START_PRINTING | (WT_CONF_ID_wait_count << 16),
   },
   {
     WT_CONF_ID_Operation_tracking | (WT_CONF_ID_enabled << 16),
