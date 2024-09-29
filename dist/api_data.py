@@ -109,7 +109,7 @@ class SessionControlPoint(ControlPoint):
 # Per connection control points
 # For examples/c/ex_control_points.c
 ex_control_points_config = [
-    ConnectionControlPoint('MainStartPrinting', 'Wait for trigger', 'Always',
+    ConnectionControlPoint('Main Start Printing', 'Wait for trigger', 'Always',
         '', r'''
            Thread 0 waits for main to get here.''',
            type='category', subconfig= [
@@ -118,7 +118,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread0', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 0', 'Wait for trigger', 'Always', '', r'''
            Thread 1 waits for thread 0 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -126,7 +126,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread1', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
            Thread 2 waits for thread 1 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -134,7 +134,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread2', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 2', 'Wait for trigger', 'Always', '', r'''
            Thread 3 waits for thread 2 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -142,7 +142,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread3', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 3', 'Wait for trigger', 'Always', '', r'''
            Thread 4 waits for thread 3 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -150,7 +150,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread4', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 4', 'Wait for trigger', 'Always', '', r'''
            Thread 5 waits for thread 4 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -158,7 +158,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread5', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 5', 'Wait for trigger', 'Always', '', r'''
            Thread 6 waits for thread 5 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -166,7 +166,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread6', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 6', 'Wait for trigger', 'Always', '', r'''
            Thread 7 waits for thread 6 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -174,7 +174,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread7', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 7', 'Wait for trigger', 'Always', '', r'''
            Thread 8 waits for thread 7 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -182,7 +182,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread8', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 8', 'Wait for trigger', 'Always', '', r'''
            Thread 9 waits for thread 8 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
@@ -190,7 +190,7 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread9', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('Thread 9', 'Wait for trigger', 'Always', '', r'''
            The thread executing main waits for thread 9 to get here.''',
            type='category', subconfig= [
                # Action configuration parameters
