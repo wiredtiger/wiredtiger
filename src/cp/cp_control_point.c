@@ -54,12 +54,12 @@
  * @param session The session. @param id The per connection control point's ID.
  */
 WT_CONTROL_POINT *
-__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_point_id_t id)
 {
     WT_CONNECTION_IMPL *conn;
-    bool triggered;
-    WT_CONTROL_POINT_REGISTRY *cp_registry;
     WT_CONTROL_POINT *data;
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    bool triggered;
 
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
         return (NULL);
@@ -93,11 +93,11 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_PO
  * @param session The session. @param id The per connection control point's ID.
  */
 WT_CONTROL_POINT *
-__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, WT_CONTROL_POINT_ID id)
+__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_point_id_t id)
 {
-    bool triggered;
-    WT_CONTROL_POINT_REGISTRY *cp_registry;
     WT_CONTROL_POINT *data;
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    bool triggered;
 
     if (WT_UNLIKELY((id >= SESSION_CONTROL_POINTS_SIZE) || (session->control_points == NULL)))
         return (NULL);
@@ -134,7 +134,8 @@ struct __wt_conn_control_point_data_MainStartPrinting {
 /* Per connection control point init function. */
 /*
  * __wt_conn_control_point_init_MainStartPrinting --
- *     The per connection control point initialization function for control point MainStartPrinting.
+ *     The per connection control point initialization function for control point Main Start
+ *     Printing.
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cfg Configuration strings.
@@ -142,8 +143,8 @@ struct __wt_conn_control_point_data_MainStartPrinting {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_MainStartPrinting(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_MainStartPrinting *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -185,8 +186,8 @@ struct __wt_conn_control_point_data_THREAD0 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD0(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD0 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -228,8 +229,8 @@ struct __wt_conn_control_point_data_THREAD1 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD1(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD1 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -271,8 +272,8 @@ struct __wt_conn_control_point_data_THREAD2 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD2(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD1 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -314,8 +315,8 @@ struct __wt_conn_control_point_data_THREAD3 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD3(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD2 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -357,8 +358,8 @@ struct __wt_conn_control_point_data_THREAD4 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD4(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD3 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -400,8 +401,8 @@ struct __wt_conn_control_point_data_THREAD5 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD5(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD4 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -443,8 +444,8 @@ struct __wt_conn_control_point_data_THREAD6 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD6(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD5 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -486,8 +487,8 @@ struct __wt_conn_control_point_data_THREAD7 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD7(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD6 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -529,8 +530,8 @@ struct __wt_conn_control_point_data_THREAD8 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD8(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD7 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -572,8 +573,8 @@ struct __wt_conn_control_point_data_THREAD9 {
 WT_CONTROL_POINT *
 __wt_conn_control_point_init_THREAD9(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_DECL_RET;
     struct __wt_conn_control_point_data_THREAD8 *init_data;
+    WT_DECL_RET;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -608,8 +609,8 @@ err:
 int
 __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
 {
-    WT_DECL_RET;
     WT_CONTROL_POINT_REGISTRY *control_points;
+    WT_DECL_RET;
 
     if (CONNECTION_CONTROL_POINTS_SIZE == 0)
         return (0);

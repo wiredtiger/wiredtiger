@@ -23,12 +23,12 @@ extern WT_CONTROL_POINT *__wt_conn_control_point_init_THREAD8(
 extern WT_CONTROL_POINT *__wt_conn_control_point_init_THREAD9(
   WT_SESSION_IMPL *session, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT *__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT_ID id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT *__wt_control_point_get_data(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, bool locked)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT *__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT_ID id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_DATA_SOURCE *__wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_EXT *__wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
@@ -458,9 +458,9 @@ extern int __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_config_init(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
+extern int __wt_conn_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id,
+extern int __wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id,
   const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1192,9 +1192,9 @@ extern int __wt_session_close_internal(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
+extern int __wt_session_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id,
+extern int __wt_session_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id,
   const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

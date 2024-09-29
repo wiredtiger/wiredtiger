@@ -33,17 +33,17 @@
 /*
  * Per connection control point IDs.
  */
-#define WT_CONN_CONTROL_POINT_ID_MainStartPrinting ((WT_CONTROL_POINT_ID)0)
-#define WT_CONN_CONTROL_POINT_ID_THREAD0 ((WT_CONTROL_POINT_ID)1)
-#define WT_CONN_CONTROL_POINT_ID_THREAD1 ((WT_CONTROL_POINT_ID)2)
-#define WT_CONN_CONTROL_POINT_ID_THREAD2 ((WT_CONTROL_POINT_ID)3)
-#define WT_CONN_CONTROL_POINT_ID_THREAD3 ((WT_CONTROL_POINT_ID)4)
-#define WT_CONN_CONTROL_POINT_ID_THREAD4 ((WT_CONTROL_POINT_ID)5)
-#define WT_CONN_CONTROL_POINT_ID_THREAD5 ((WT_CONTROL_POINT_ID)6)
-#define WT_CONN_CONTROL_POINT_ID_THREAD6 ((WT_CONTROL_POINT_ID)7)
-#define WT_CONN_CONTROL_POINT_ID_THREAD7 ((WT_CONTROL_POINT_ID)8)
-#define WT_CONN_CONTROL_POINT_ID_THREAD8 ((WT_CONTROL_POINT_ID)9)
-#define WT_CONN_CONTROL_POINT_ID_THREAD9 ((WT_CONTROL_POINT_ID)10)
+#define WT_CONN_CONTROL_POINT_ID_MainStartPrinting ((wt_control_point_id_t)0)
+#define WT_CONN_CONTROL_POINT_ID_THREAD0 ((wt_control_point_id_t)1)
+#define WT_CONN_CONTROL_POINT_ID_THREAD1 ((wt_control_point_id_t)2)
+#define WT_CONN_CONTROL_POINT_ID_THREAD2 ((wt_control_point_id_t)3)
+#define WT_CONN_CONTROL_POINT_ID_THREAD3 ((wt_control_point_id_t)4)
+#define WT_CONN_CONTROL_POINT_ID_THREAD4 ((wt_control_point_id_t)5)
+#define WT_CONN_CONTROL_POINT_ID_THREAD5 ((wt_control_point_id_t)6)
+#define WT_CONN_CONTROL_POINT_ID_THREAD6 ((wt_control_point_id_t)7)
+#define WT_CONN_CONTROL_POINT_ID_THREAD7 ((wt_control_point_id_t)8)
+#define WT_CONN_CONTROL_POINT_ID_THREAD8 ((wt_control_point_id_t)9)
+#define WT_CONN_CONTROL_POINT_ID_THREAD9 ((wt_control_point_id_t)10)
 
 /* The number of per connection control points (Could be generated). */
 #define CONNECTION_CONTROL_POINTS_SIZE 11
@@ -52,7 +52,7 @@
  * Per session control point IDs.
  */
 #if 0 /* For example */
-#define WT_SESSION_CONTROL_POINT_ID_EXAMPLE2 ((WT_CONTROL_POINT_ID)0)
+#define WT_SESSION_CONTROL_POINT_ID_EXAMPLE2 ((wt_control_point_id_t)0)
 #endif
 
 /* The number of per session control points (Could be generated). */

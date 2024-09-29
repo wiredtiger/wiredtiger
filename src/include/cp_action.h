@@ -43,7 +43,7 @@
         WT_SESSION_IMPL *const _session = (SESSION);                     \
         WT_CONNECTION_IMPL *const _conn = S2C(_session);                 \
                                                                          \
-        const WT_CONTROL_POINT_ID _cp_id = (CONTROL_POINT_ID);           \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);         \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                         \
         WT_CONTROL_POINT *_data;                                         \
         WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);    \
@@ -73,7 +73,7 @@
 #define SESSION_CONTROL_POINT_DEFINE_START(SESSION, CONTROL_POINT_ID) \
     do {                                                              \
         WT_SESSION_IMPL *const _session = (SESSION);                  \
-        const WT_CONTROL_POINT_ID _cp_id = (CONTROL_POINT_ID);        \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);      \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                      \
         WT_CONTROL_POINT *_data;                                      \
         WT_ASSERT(_session, _cp_id < SESSION_CONTROL_POINTS_SIZE);    \
@@ -254,7 +254,7 @@ struct __wt_control_point_action_wait_for_trigger {
     do {                                                                              \
         WT_SESSION_IMPL *const _session = (SESSION);                                  \
         WT_CONNECTION_IMPL *const _conn = S2C(_session);                              \
-        const WT_CONTROL_POINT_ID _cp_id = (CONTROL_POINT_ID);                        \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                      \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                                      \
         WT_CONTROL_POINT *_data;                                                      \
         WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                 \

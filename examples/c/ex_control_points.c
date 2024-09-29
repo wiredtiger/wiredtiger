@@ -37,8 +37,8 @@ static const char *home;
 struct thread_arguments {
     WT_CONNECTION *conn;
     int thread_num;
-    WT_CONTROL_POINT_ID wait_for_id;
-    WT_CONTROL_POINT_ID my_id;
+    wt_control_point_id_t wait_for_id;
+    wt_control_point_id_t my_id;
 };
 
 /*! Thread that prints */
@@ -94,7 +94,7 @@ main(int argc, char *argv[])
     wt_thread_t threads[NUM_THREADS];
     struct thread_arguments thread_args[NUM_THREADS];
     int idx;
-    const WT_CONTROL_POINT_ID thread_control_point_ids[NUM_THREADS] = {
+    const wt_control_point_id_t thread_control_point_ids[NUM_THREADS] = {
       WT_CONN_CONTROL_POINT_ID_THREAD0,
       WT_CONN_CONTROL_POINT_ID_THREAD1,
       WT_CONN_CONTROL_POINT_ID_THREAD2,

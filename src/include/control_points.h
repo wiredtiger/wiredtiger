@@ -29,7 +29,7 @@
  * - The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
  * - The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
  */
-typedef int32_t WT_CONTROL_POINT_ID;
+typedef int32_t wt_control_point_id_t;
 
 /*!
  * Identifies a control point action.
@@ -37,7 +37,7 @@ typedef int32_t WT_CONTROL_POINT_ID;
  * control point call site and at the control point trigger site.
  * Zero if the action does not have call site code.
  */
-typedef uint32_t WT_CONTROL_POINT_ACTION_ID;
+typedef uint32_t wt_control_point_action_id_t;
 
 /*!
  * A function to initialize a control point's data.
@@ -60,14 +60,14 @@ struct __wt_control_point_registry {
     size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
     WT_SPINLOCK lock;                  /* Atomically access data and data->ref_count. */
     WT_CONTROL_POINT *data; /* Disabled if NULL. More data may follow WT_CONTROL_POINT. */
-    WT_CONTROL_POINT_ACTION_ID action_supported; /* For compatibility checking. */
+    wt_control_point_action_id_t action_supported; /* For compatibility checking. */
 };
 
 /*!
  * A reference count for a WT_CONTROL_POINT.
  * This is needed by only per connection control points, not per session control points.
  */
-typedef uint32_t WT_CONTROL_POINT_REF_COUNT;
+typedef uint32_t wt_control_point_ref_count_t;
 
 /*!
  * A pred parameter in WT_CONTROL_POINT.
@@ -98,7 +98,7 @@ union __wt_control_point_param {
  * A control point interface that begins a control point specific data type.
  */
 struct __wt_control_point {
-    WT_CONTROL_POINT_PARAM param1;        /* First parameter for pred function. */
-    WT_CONTROL_POINT_PARAM param2;        /* Second parameter for pred function. */
-    WT_CONTROL_POINT_REF_COUNT ref_count; /* Count of threads using this data. */
+    WT_CONTROL_POINT_PARAM param1;          /* First parameter for pred function. */
+    WT_CONTROL_POINT_PARAM param2;          /* Second parameter for pred function. */
+    wt_control_point_ref_count_t ref_count; /* Count of threads using this data. */
 };

@@ -27,6 +27,7 @@ __wt_control_point_get_data(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, bool locked)
 {
     WT_CONTROL_POINT *saved_data;
+
     __wt_spin_lock(session, &cp_registry->lock);
     saved_data = cp_registry->data;
     if (saved_data != NULL)
@@ -64,6 +65,7 @@ __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGIS
   WT_CONTROL_POINT *data, bool locked)
 {
     uint32_t new_ref;
+
     if (WT_UNLIKELY(data == NULL))
         return;
     if (!locked)
@@ -111,23 +113,24 @@ err:
  * __wt_conn_control_point_disable --
  *     Disable a per connection control point.
  *
- * @param session The session. @param id The ID of the per connection control point to disable.
+ * @param wt_session The session. @param id The ID of the per connection control point to disable.
  */
 int
-__wt_conn_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
+__wt_conn_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_SESSION_IMPL *session;
 
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
         return (EINVAL);
-    conn = S2C(session_impl);
+    session = (WT_SESSION_IMPL *)wt_session;
+    conn = S2C(session);
     if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
         return (WT_ERROR);
 
     cp_registry = &(conn->control_points[id]);
-    return (__wti_conn_control_point_disable(session_impl, cp_registry));
+    return (__wti_conn_control_point_disable(session, cp_registry));
 }
 
 /*
@@ -155,23 +158,24 @@ __wti_session_control_point_disable(
  * __wt_session_control_point_disable --
  *     Disable a per session control point.
  *
- * @param session The session. @param id The ID of the per session control point to disable.
+ * @param wt_session The session. @param id The ID of the per session control point to disable.
  */
 int
-__wt_session_control_point_disable(WT_SESSION *session, WT_CONTROL_POINT_ID id)
+__wt_session_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id)
 {
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_SESSION_IMPL *session;
 
+    session = (WT_SESSION_IMPL *)wt_session;
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
         return (EINVAL);
-    if (WT_UNLIKELY(F_ISSET(session_impl, WT_SESSION_SHUTTING_DOWN)))
+    if (WT_UNLIKELY(F_ISSET(session, WT_SESSION_SHUTTING_DOWN)))
         return (WT_ERROR);
-    if (session_impl->control_points == NULL)
+    if (session->control_points == NULL)
         return (0);
 
-    cp_registry = &(session_impl->control_points[id]);
-    return (__wti_session_control_point_disable(session_impl, cp_registry));
+    cp_registry = &(session->control_points[id]);
+    return (__wti_session_control_point_disable(session, cp_registry));
 }
 
 /*
@@ -188,8 +192,8 @@ int
 __wti_conn_control_point_enable(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
 {
-    WT_DECL_RET;
     WT_CONTROL_POINT *data;
+    WT_DECL_RET;
 
     __wt_spin_lock(session, &cp_registry->lock);
     data = cp_registry->data;
@@ -209,24 +213,25 @@ err:
  * __wt_conn_control_point_enable --
  *     Enable a per connection control point.
  *
- * @param session The session. @param id The ID of the per connection control point to enable.
+ * @param wt_session The session. @param id The ID of the per connection control point to enable.
  *     @param cfg The configuration strings.
  */
 int
-__wt_conn_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, const char **cfg)
+__wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_SESSION_IMPL *session;
 
+    session = (WT_SESSION_IMPL *)wt_session;
+    conn = S2C(session);
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
         return (EINVAL);
-    conn = S2C(session_impl);
     if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
         return (WT_ERROR);
 
     cp_registry = &(conn->control_points[id]);
-    return (__wti_conn_control_point_enable(session_impl, cp_registry, cfg));
+    return (__wti_conn_control_point_enable(session, cp_registry, cfg));
 }
 
 /*
@@ -243,8 +248,9 @@ int
 __wti_session_control_point_enable(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
 {
-    WT_CONTROL_POINT *data = cp_registry->data;
+    WT_CONTROL_POINT *data;
 
+    data = cp_registry->data;
     if (WT_UNLIKELY(data != NULL))
         /* Already enabled. */
         return (EEXIST);
@@ -259,29 +265,31 @@ __wti_session_control_point_enable(
  * __wt_session_control_point_enable --
  *     Enable a per session control point.
  *
- * @param session The session. @param id The ID of the per session control point to enable. @param
- *     cfg The configuration strings.
+ * @param wt_session The session. @param id The ID of the per session control point to enable.
+ *     @param cfg The configuration strings.
  */
 int
-__wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, const char **cfg)
+__wt_session_control_point_enable(
+  WT_SESSION *wt_session, wt_control_point_id_t id, const char **cfg)
 {
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_SESSION_IMPL *session;
 
+    session = (WT_SESSION_IMPL *)wt_session;
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
         return (EINVAL);
-    if (WT_UNLIKELY(F_ISSET(session_impl, WT_SESSION_SHUTTING_DOWN)))
+    if (WT_UNLIKELY(F_ISSET(session, WT_SESSION_SHUTTING_DOWN)))
         return (WT_ERROR);
 
     /* Lazy initialization. */
-    if (session_impl->control_points == NULL) {
+    if (session->control_points == NULL) {
         /* Initialize and optionally enable per session control points */
-        WT_RET(__wt_session_control_point_init_all(session_impl));
-        WT_RET(__wt_session_control_point_enable_all(session_impl));
+        WT_RET(__wt_session_control_point_init_all(session));
+        WT_RET(__wt_session_control_point_enable_all(session));
     }
 
-    cp_registry = &(session_impl->control_points[id]);
-    return (__wti_session_control_point_enable(session_impl, cp_registry, cfg));
+    cp_registry = &(session->control_points[id]);
+    return (__wti_session_control_point_enable(session, cp_registry, cfg));
 }
 
 /*
@@ -293,11 +301,13 @@ __wt_session_control_point_enable(WT_SESSION *session, WT_CONTROL_POINT_ID id, c
 int
 __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_REGISTRY *control_points;
     WT_DECL_RET;
     int one_ret;
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_CONTROL_POINT_REGISTRY *control_points = conn->control_points;
 
+    conn = S2C(session);
+    control_points = conn->control_points;
     if (control_points == NULL)
         return (0);
     /* Stop new per connection control point operations. */
@@ -326,10 +336,11 @@ __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_session_control_point_shutdown(WT_SESSION_IMPL *session)
 {
+    WT_CONTROL_POINT_REGISTRY *control_points;
     WT_DECL_RET;
     int one_ret;
-    WT_CONTROL_POINT_REGISTRY *control_points = session->control_points;
 
+    control_points = session->control_points;
     if (control_points == NULL)
         return (0);
     /* Stop new per session control point operations. */
