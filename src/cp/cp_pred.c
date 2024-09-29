@@ -21,7 +21,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
 /*
  * Predicate: Skip: Skip the first skip-count control point.
  */
@@ -204,4 +204,4 @@ __wt_control_point_config_pred_random_param2(
     return (0);
 }
 
-#endif /* HAVE_CONTROL_POINTS */
+#endif /* HAVE_CONTROL_POINT */

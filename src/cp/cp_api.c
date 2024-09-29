@@ -10,7 +10,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
 /*
  * Lock/unlock functions used by per connection control points.
  */
@@ -128,6 +128,8 @@ __wt_conn_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id
     conn = S2C(session);
     if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
         return (WT_ERROR);
+    if (conn->control_points == NULL)
+        return (WT_ERROR);
 
     cp_registry = &(conn->control_points[id]);
     return (__wti_conn_control_point_disable(session, cp_registry));
@@ -229,7 +231,8 @@ __wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id,
         return (EINVAL);
     if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
         return (WT_ERROR);
-
+    if (conn->control_points == NULL)
+        return (WT_ERROR);
     cp_registry = &(conn->control_points[id]);
     return (__wti_conn_control_point_enable(session, cp_registry, cfg));
 }
@@ -357,4 +360,4 @@ __wt_session_control_point_shutdown(WT_SESSION_IMPL *session)
     return (ret);
 }
 
-#endif /* HAVE_CONTROL_POINTS */
+#endif /* HAVE_CONTROL_POINT */

@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
 
 /* cp_action.c: Definitions for control point actions. */
 /* This file must be edited when a new control point action is created. */
@@ -226,4 +226,4 @@ __wt_control_point_action_init_wait_for_trigger(
     WT_ASSERT(session, ret == 0);
 }
 
-#endif /* HAVE_CONTROL_POINTS */
+#endif /* HAVE_CONTROL_POINT */

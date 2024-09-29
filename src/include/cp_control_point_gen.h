@@ -12,7 +12,7 @@
 /* In the future this file will be generated. Until then this file must be edited when a new control
  * point is created. */
 
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
 
 /*
  * The name below is for a per connection control point named "Example control point".
@@ -58,4 +58,4 @@
 /* The number of per session control points (Could be generated). */
 #define SESSION_CONTROL_POINTS_SIZE 0
 
-#endif /* HAVE_CONTROL_POINTS */
+#endif /* HAVE_CONTROL_POINT */

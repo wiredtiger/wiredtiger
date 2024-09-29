@@ -232,14 +232,16 @@ err:
 static WT_THREAD_RET
 __cache_pool_server(void *arg)
 {
+#ifdef HAVE_CONTROL_POINT
+    WT_DECL_RET;
+#endif
     WT_CACHE *cache;
     WT_CACHE_POOL *cp;
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool forward;
 
     session = (WT_SESSION_IMPL *)arg;
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
     WT_ERR(__wt_session_control_point_enable_all(session));
 #endif
 
@@ -275,7 +277,9 @@ __cache_pool_server(void *arg)
         }
     }
 
+#ifdef HAVE_CONTROL_POINT
 err:
+#endif
     return (WT_THREAD_RET_VALUE);
 }
 

@@ -30,6 +30,8 @@
  */
 #include "test_util.h"
 
+#ifdef HAVE_CONTROL_POINT
+
 static const char *home;
 
 #define NUM_THREADS 10
@@ -109,16 +111,16 @@ main(int argc, char *argv[])
     bool enabled;
     const char *cfg[1] = {};
 
-#ifdef HAVE_CONTROL_POINTS
-    printf("Yes, HAVE_CONTROL_POINTS is defined.\n");
+#ifdef HAVE_CONTROL_POINT
+    printf("Yes, HAVE_CONTROL_POINT is defined.\n");
 #else
-    printf("No, HAVE_CONTROL_POINTS is not defined.\n");
+    printf("No, HAVE_CONTROL_POINT is not defined.\n");
 #endif
 
-#ifdef HAVE_DIAGNOSTICS
-    printf("Yes, HAVE_DIAGNOSTICS is defined.\n");
+#ifdef HAVE_DIAGNOSTIC
+    printf("Yes, HAVE_DIAGNOSTIC is defined.\n");
 #else
-    printf("No, HAVE_DIAGNOSTICS is not defined.\n");
+    printf("No, HAVE_DIAGNOSTIC is not defined.\n");
 #endif
 
 #ifdef HAVE_UNITTEST
@@ -183,3 +185,28 @@ main(int argc, char *argv[])
 
     return (EXIT_SUCCESS);
 }
+#else
+int
+main(int argc, char *argv[])
+{
+#ifdef HAVE_CONTROL_POINT
+    printf("Yes, HAVE_CONTROL_POINT is defined.\n");
+#else
+    printf("No, HAVE_CONTROL_POINT is not defined.\n");
+#endif
+
+#ifdef HAVE_DIAGNOSTIC
+    printf("Yes, HAVE_DIAGNOSTIC is defined.\n");
+#else
+    printf("No, HAVE_DIAGNOSTIC is not defined.\n");
+#endif
+
+#ifdef HAVE_UNITTEST
+    printf("Yes, HAVE_UNITTEST is defined.\n");
+#else
+    printf("No, HAVE_UNITTEST is not defined.\n");
+#endif
+
+    return (EXIT_SUCCESS);
+}
+#endif /* HAVE_CONTROL_POINT */

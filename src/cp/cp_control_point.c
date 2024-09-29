@@ -41,7 +41,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINTS
+#ifdef HAVE_CONTROL_POINT
 /*
  * Functions used at the trigger site.
  */
@@ -831,4 +831,4 @@ __wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
 #endif
     return (0);
 }
-#endif /* HAVE_CONTROL_POINTS */
+#endif /* HAVE_CONTROL_POINT */

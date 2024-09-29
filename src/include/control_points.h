@@ -10,7 +10,7 @@
 
 /* control_points.h: Declarations for control points. */
 
-/* These types are not conditional upon HAVE_CONTROL_POINTS since they are used in extern.h. */
+/* These types are not conditional upon HAVE_CONTROL_POINT since they are used in extern.h. */
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define __F(func) func
