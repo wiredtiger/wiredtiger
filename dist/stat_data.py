@@ -325,6 +325,7 @@ conn_stats = [
     EvictStat('eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
     EvictStat('eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     EvictStat('eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
+    EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
     EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
@@ -347,6 +348,7 @@ conn_stats = [
     EvictStat('eviction_target_strategy_both_clean_and_dirty', 'eviction walk target strategy both clean and dirty pages'),
     EvictStat('eviction_target_strategy_clean', 'eviction walk target strategy only clean pages'),
     EvictStat('eviction_target_strategy_dirty', 'eviction walk target strategy only dirty pages'),
+    EvictStat('eviction_timed_out_ops', 'operations timed out waiting for space in cache'),
     EvictStat('eviction_walk', 'pages walked for eviction'),
     EvictStat('eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
     EvictStat('eviction_walk_passes', 'eviction passes of a file'),
@@ -356,8 +358,6 @@ conn_stats = [
     EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
     EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
     # Note eviction_worker_evict_attempt - eviction_worker_evict_fail = evict page successes by eviction worker threads.
-    EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
-    EvictStat('eviction_timed_out_ops', 'operations timed out waiting for space in cache'),
 
     ##########################################
     # Capacity statistics
