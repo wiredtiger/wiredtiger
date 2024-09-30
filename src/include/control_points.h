@@ -16,7 +16,7 @@
 #define __F(func) func
 #else
 /* NOLINTNEXTLINE(misc-macro-parentheses) */
-#define __F(func) (*func)
+#define __F(func) *func
 #endif
 
 /*!
