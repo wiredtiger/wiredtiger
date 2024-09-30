@@ -1483,6 +1483,7 @@ __wt_meta_ckptlist_set(
                 WT_ERR(__ckpt_check_backup_blocks(session, ckpt, fname));
         }
 
+    /* If a checkpoint LSN is provided this is where recovery will resume from. */
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
