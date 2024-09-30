@@ -71,12 +71,12 @@ class ControlPoint(Config):
         self.pred_short_name = pred_short_name
 
     def __str__(self):
-        return "ControlPoint(cp_short_name={}, name={}, per_connection={},"
-            " action_short_name={}, pred_short_name={}, default={}, desc={},"
+        return "ControlPoint(cp_short_name={}, name={}, per_connection={}," \
+            " action_short_name={}, pred_short_name={}, default={}, desc={}," \
             " subconfig={}, flags={})".format(
-            self.cp_short_name, self.name, self.per_connection,
-            self.action_short_name, self.pred_short_name, self.default,
-            self.desc, self.subconfig, self.flags);
+                self.cp_short_name, self.name, self.per_connection,
+                self.action_short_name, self.pred_short_name, self.default,
+                self.desc, self.subconfig, self.flags);
 
 # Configuration for a per connection control point.
 class ConnectionControlPoint(ControlPoint):
