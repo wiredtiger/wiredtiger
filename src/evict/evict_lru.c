@@ -850,12 +850,12 @@ __evict_pass(WT_SESSION_IMPL *session)
                  * Allow this wait to be interrupted (e.g. if a checkpoint completes): make sure we
                  * wait for a non-zero number of microseconds).
                  */
-                WT_STAT_CONN_INCR(session, cache_eviction_server_slept);
+                WT_STAT_CONN_INCR(session, eviction_server_slept);
                 __wt_cond_wait(session, evict->evict_cond, WT_THOUSAND, NULL);
                 continue;
             }
 
-            WT_STAT_CONN_INCR(session, cache_eviction_slow);
+            WT_STAT_CONN_INCR(session, eviction_slow);
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
             break;
         }
@@ -1283,7 +1283,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * If both queues are full and haven't been empty on recent refills, we're done.
      */
     if (__evict_queue_full(queue) && evict->evict_empty_score < WT_EVICT_SCORE_CUTOFF) {
-        WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
+        WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
         goto err;
     }
     /*
@@ -1294,9 +1294,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         if (F_ISSET(evict, WT_EVICT_CACHE_HARD))
             evict->evict_empty_score =
               WT_MIN(evict->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
-        WT_STAT_CONN_INCR(session, cache_eviction_queue_empty);
+        WT_STAT_CONN_INCR(session, eviction_queue_empty);
     } else
-        WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
+        WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
 
     /*
      * Get some more pages to consider for eviction.
@@ -1399,7 +1399,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         }
     }
 
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_queued_post_lru, queue->evict_candidates);
+    WT_STAT_CONN_INCRV(session, eviction_pages_queued_post_lru, queue->evict_candidates);
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
 
@@ -1601,7 +1601,7 @@ retry:
         /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
         if (btree->evict_disabled > 0) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_eviction_disabled);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
             continue;
         }
 
@@ -1610,7 +1610,7 @@ retry:
          */
         if (WT_BTREE_SYNCING(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_checkpointing_trees);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
             continue;
         }
 
@@ -1622,7 +1622,7 @@ retry:
          */
         if (btree->evict_priority != 0 && !__wt_evict_aggressive(session) &&
           !__evict_btree_dominating_cache(session, btree)) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_stick_in_cache);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_stick_in_cache);
             continue;
         }
 
@@ -1634,7 +1634,7 @@ retry:
          * active trees before allowing larger numbers of hazard pointers in the walk session.
          */
         if (btree->evict_ref == NULL && session->hazards.num_active > WT_EVICT_MAX_TREES) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_too_many_active_walks);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_too_many_active_walks);
             continue;
         }
 
@@ -1643,7 +1643,7 @@ retry:
          */
         evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
         if (evict_walk_period != 0 && btree->evict_walk_skips++ < evict_walk_period) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_not_useful_before);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
             continue;
         }
         btree->evict_walk_skips = 0;
@@ -1679,7 +1679,7 @@ retry:
              */
             if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_evict_aggressive(session)) {
                 __wt_sleep(0, 10);
-                WT_STAT_CONN_INCR(session, cache_eviction_walk_sleeps);
+                WT_STAT_CONN_INCR(session, eviction_walk_sleeps);
             }
         }
     }
@@ -1818,7 +1818,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
           (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && (btree_updates_inuse > 0));
 
         if (!want_tree) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_tree);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_tree);
             return (0);
         }
     }
@@ -1856,7 +1856,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * page.
      */
     if (!__wt_page_evict_retry(session, page)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_retry);
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_retry);
         return (true);
     }
 
@@ -1870,7 +1870,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
             return (true);
     } else if (__wt_atomic_load64(&page->modify->update_txn) >=
       __wt_atomic_loadv64(&conn->txn_global.last_running)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_pages_last_running);
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
     }
 
@@ -1973,12 +1973,12 @@ __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
      */
     min_pages = 10 * (uint64_t)target_pages;
     if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES))
-        WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_clean);
+        WT_STAT_CONN_INCR(session, eviction_target_strategy_clean);
     else if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         min_pages *= 10;
-        WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_dirty);
+        WT_STAT_CONN_INCR(session, eviction_target_strategy_dirty);
     } else
-        WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_both_clean_and_dirty);
+        WT_STAT_CONN_INCR(session, eviction_target_strategy_both_clean_and_dirty);
 
     return (min_pages);
 }
@@ -2135,7 +2135,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
 
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_dirty_pages_during_checkpoint);
+        WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_during_checkpoint);
         return;
     }
 
@@ -2151,7 +2151,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
     if (modified &&
       (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST ||
         __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
+        WT_STAT_CONN_INCR(session, eviction_pages_queued_oldest);
         if (__wt_evict_page_urgent(session, ref))
             *urgent_queuedp = true;
         return;
@@ -2164,7 +2164,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
      * significant amount of HS dirty content very quickly.
      */
     if (WT_IS_HS(btree->dhandle) && __wti_evict_hs_dirty(session)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
+        WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent_hs_dirty);
         if (__wt_evict_page_urgent(session, ref))
             *urgent_queuedp = true;
         return;
@@ -2179,7 +2179,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL);
     if (!want_page) {
-        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_pages);
+        WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
         return;
     }
 
@@ -2191,7 +2191,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
     if (WT_IS_METADATA(session->dhandle) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN_HARD) &&
       F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
       !__wt_txn_visible_all(session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_server_skip_metatdata_with_history);
+        WT_STAT_CONN_INCR(session, eviction_server_skip_metatdata_with_history);
         return;
     }
 
@@ -2206,7 +2206,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
     if (!FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
       F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         if (page == last_parent) {
-            WT_STAT_CONN_INCR(session, cache_eviction_server_skip_intl_page_with_active_child);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_with_active_child);
             return;
         }
         if (__wt_atomic_load32(&btree->evict_walk_period) == 0 && !__wt_evict_aggressive(session))
@@ -2322,7 +2322,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
                 WT_STAT_DSRC_INCR(session, cache_eviction_walks_stopped);
                 break;
             }
-            WT_STAT_CONN_INCR(session, cache_eviction_walks_started);
+            WT_STAT_CONN_INCR(session, eviction_walks_started);
             continue;
         }
 
@@ -2365,7 +2365,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_RET_NOTFOUND_OK(ret);
 
     *slotp += (u_int)(evict_entry - start);
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_ordinary_queued, (u_int)(evict_entry - start));
+    WT_STAT_CONN_INCRV(session, eviction_pages_ordinary_queued, (u_int)(evict_entry - start));
 
     __wt_verbose_debug2(session, WT_VERB_EVICTION,
       "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
@@ -2415,14 +2415,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         btree->evict_ref = ref;
     }
 
-    WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
+    WT_STAT_CONN_INCRV(session, eviction_walk, refs_walked);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen, pages_seen);
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_already_queued, pages_already_queued);
-    WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_seen, internal_pages_seen);
+    WT_STAT_CONN_INCRV(session, eviction_pages_already_queued, pages_already_queued);
+    WT_STAT_CONN_INCRV(session, eviction_internal_pages_seen, internal_pages_seen);
     WT_STAT_CONN_INCRV(
-      session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
-    WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
-    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_walk_passes);
+      session, eviction_internal_pages_already_queued, internal_pages_already_queued);
+    WT_STAT_CONN_INCRV(session, eviction_internal_pages_queued, internal_pages_queued);
+    WT_STAT_CONN_DSRC_INCR(session, eviction_walk_passes);
     return (0);
 }
 
@@ -2461,7 +2461,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     if (__evict_queue_empty(evict->evict_current_queue, is_server) &&
       __evict_queue_empty(evict->evict_other_queue, is_server) &&
       (!urgent_ok || __evict_queue_empty(urgent_queue, false))) {
-        WT_STAT_CONN_INCR(session, cache_eviction_get_ref_empty);
+        WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
         return (WT_NOTFOUND);
     }
 
@@ -2510,7 +2510,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     for (;;) {
         /* Verify there are still pages available. */
         if (__evict_queue_empty(queue, is_server && queue != urgent_queue)) {
-            WT_STAT_CONN_INCR(session, cache_eviction_get_ref_empty2);
+            WT_STAT_CONN_INCR(session, eviction_get_ref_empty2);
             return (WT_NOTFOUND);
         }
         if (!is_server)
@@ -2619,15 +2619,15 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
      * An internal session flags either the server itself or an eviction worker thread.
      */
     if (is_server)
-        WT_STAT_CONN_INCR(session, cache_eviction_server_evict_attempt);
+        WT_STAT_CONN_INCR(session, eviction_server_evict_attempt);
     else if (F_ISSET(session, WT_SESSION_INTERNAL))
-        WT_STAT_CONN_INCR(session, cache_eviction_worker_evict_attempt);
+        WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
     else {
         if (__wt_page_is_modified(ref->page)) {
             page_is_modified = true;
-            WT_STAT_CONN_INCR(session, cache_eviction_app_dirty_attempt);
+            WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
-        WT_STAT_CONN_INCR(session, cache_eviction_app_attempt);
+        WT_STAT_CONN_INCR(session, eviction_app_attempt);
         S2C(session)->evict->app_evicts++;
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
@@ -2647,19 +2647,18 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCRV(
-          session, cache_eviction_app_time, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_INCRV(session, eviction_app_time, WT_CLOCKDIFF_US(time_stop, time_start));
     }
 
     if (WT_UNLIKELY(ret != 0)) {
         if (is_server)
-            WT_STAT_CONN_INCR(session, cache_eviction_server_evict_fail);
+            WT_STAT_CONN_INCR(session, eviction_server_evict_fail);
         else if (F_ISSET(session, WT_SESSION_INTERNAL))
-            WT_STAT_CONN_INCR(session, cache_eviction_worker_evict_fail);
+            WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
         else {
             if (page_is_modified)
-                WT_STAT_CONN_INCR(session, cache_eviction_app_dirty_fail);
-            WT_STAT_CONN_INCR(session, cache_eviction_app_fail);
+                WT_STAT_CONN_INCR(session, eviction_app_dirty_fail);
+            WT_STAT_CONN_INCR(session, eviction_app_fail);
         }
     }
 
@@ -2816,7 +2815,7 @@ err:
             ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
                 (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
-            WT_STAT_CONN_INCR(session, cache_timed_out_ops);
+            WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
             __wt_verbose_notice(
               session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
         }
@@ -2869,7 +2868,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
         if (!F_ISSET(evict, WT_EVICT_CACHE_ALL)) {
             __evict_list_clear_page_locked(session, ref, true);
-            WT_STAT_CONN_INCR(session, cache_eviction_clear_ordinary);
+            WT_STAT_CONN_INCR(session, eviction_clear_ordinary);
         } else
             goto done;
     }
@@ -2891,7 +2890,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 done:
     __wt_spin_unlock(session, &evict->evict_queue_lock);
     if (queued) {
-        WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent);
+        WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent);
         if (WT_EVICT_HAS_WORKERS(session))
             __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
         else

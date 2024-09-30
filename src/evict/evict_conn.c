@@ -336,21 +336,21 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
     evict = conn->evict;
     stats = conn->stats;
 
-    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_page_size,
-      __wt_atomic_load64(&evict->evict_max_page_size));
-    WT_STATP_CONN_SET(session, stats, cache_eviction_maximum_milliseconds,
-      __wt_atomic_load64(&evict->evict_max_ms));
     WT_STATP_CONN_SET(
-      session, stats, cache_reentry_hs_eviction_milliseconds, evict->reentry_hs_eviction_ms);
+      session, stats, eviction_maximum_page_size, __wt_atomic_load64(&evict->evict_max_page_size));
+    WT_STATP_CONN_SET(
+      session, stats, eviction_maximum_milliseconds, __wt_atomic_load64(&evict->evict_max_ms));
+    WT_STATP_CONN_SET(
+      session, stats, eviction_reentry_hs_eviction_milliseconds, evict->reentry_hs_eviction_ms);
 
-    WT_STATP_CONN_SET(session, stats, cache_eviction_state, __wt_atomic_load32(&evict->flags));
-    WT_STATP_CONN_SET(session, stats, cache_eviction_aggressive_set, evict->evict_aggressive_score);
-    WT_STATP_CONN_SET(session, stats, cache_eviction_empty_score, evict->evict_empty_score);
+    WT_STATP_CONN_SET(session, stats, eviction_state, __wt_atomic_load32(&evict->flags));
+    WT_STATP_CONN_SET(session, stats, eviction_aggressive_set, evict->evict_aggressive_score);
+    WT_STATP_CONN_SET(session, stats, eviction_empty_score, evict->evict_empty_score);
 
-    WT_STATP_CONN_SET(session, stats, cache_eviction_active_workers,
+    WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load32(&conn->evict_threads.current_threads));
     WT_STATP_CONN_SET(
-      session, stats, cache_eviction_stable_state_workers, evict->evict_tune_workers_best);
+      session, stats, eviction_stable_state_workers, evict->evict_tune_workers_best);
 
     /*
      * The number of files with active walks ~= number of hazard pointers in the walk session. Note:
@@ -358,5 +358,5 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
      */
     if (__wt_atomic_loadbool(&conn->evict_server_running))
         WT_STATP_CONN_SET(
-          session, stats, cache_eviction_walks_active, evict->walk_session->hazards.num_active);
+          session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
 }

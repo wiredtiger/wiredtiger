@@ -75,11 +75,11 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     if (LF_ISSET(WT_EVICT_STATS_SUCCESS)) {
         if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
-                WT_STAT_CONN_INCR(session, cache_eviction_force_hs_success);
+                WT_STAT_CONN_INCR(session, eviction_force_hs_success);
             if (LF_ISSET(WT_EVICT_STATS_CLEAN))
-                WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
+                WT_STAT_CONN_INCR(session, eviction_force_clean);
             else
-                WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
+                WT_STAT_CONN_INCR(session, eviction_force_dirty);
         }
 
         if (LF_ISSET(WT_EVICT_STATS_CLEAN))
@@ -89,15 +89,15 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 
         /* Count page evictions in parallel with checkpoint. */
         if (__wt_atomic_loadvbool(&conn->txn_global.checkpoint_running))
-            WT_STAT_CONN_INCR(session, cache_eviction_pages_in_parallel_with_checkpoint);
+            WT_STAT_CONN_INCR(session, eviction_pages_in_parallel_with_checkpoint);
     } else {
         if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
             if (LF_ISSET(WT_EVICT_STATS_FORCE_HS))
-                WT_STAT_CONN_INCR(session, cache_eviction_force_hs_fail);
-            WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
+                WT_STAT_CONN_INCR(session, eviction_force_hs_fail);
+            WT_STAT_CONN_INCR(session, eviction_force_fail);
         }
 
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_fail);
+        WT_STAT_CONN_DSRC_INCR(session, eviction_fail);
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
@@ -173,14 +173,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      */
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
         FLD_SET(stats_flags, WT_EVICT_STATS_URGENT);
-        WT_STAT_CONN_INCR(session, cache_eviction_force);
+        WT_STAT_CONN_INCR(session, eviction_force);
 
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
         if (session->hs_cursor_counter > 0 && WT_IS_HS(session->dhandle)) {
             FLD_SET(stats_flags, WT_EVICT_STATS_FORCE_HS);
-            WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
+            WT_STAT_CONN_INCR(session, eviction_force_hs);
         }
     }
 
@@ -199,7 +199,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
-        WT_STAT_CONN_INCR(session, cache_eviction_consider_prefetch);
+        WT_STAT_CONN_INCR(session, eviction_consider_prefetch);
 
     /*
      * Review the page for conditions that would block its eviction. If the check fails (for
@@ -770,7 +770,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_WITH_PAGE_INDEX(session, ret = __evict_child_check(session, ref));
         if (ret != 0)
-            WT_STAT_CONN_INCR(session, cache_eviction_fail_active_children_on_an_internal_page);
+            WT_STAT_CONN_INCR(session, eviction_fail_active_children_on_an_internal_page);
         WT_RET(ret);
     }
 
@@ -971,7 +971,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)
-        WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
+        WT_STAT_CONN_INCR(session, eviction_fail_in_reconciliation);
 
     if (is_eviction_thread)
         __wt_txn_release_snapshot(session);
