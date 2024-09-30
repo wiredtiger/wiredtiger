@@ -86,10 +86,12 @@ print_thread(void *thread_arg)
 
     return (0);
 }
+#endif /* HAVE_CONTROL_POINT */
 
 int
 main(int argc, char *argv[])
 {
+#ifdef HAVE_CONTROL_POINT
     WT_CONNECTION *conn;
     WT_SESSION *session;
     WT_SESSION_IMPL *session_impl;
@@ -110,24 +112,6 @@ main(int argc, char *argv[])
     };
     bool enabled;
     const char *cfg[1] = {};
-
-#ifdef HAVE_CONTROL_POINT
-    printf("Yes, HAVE_CONTROL_POINT is defined.\n");
-#else
-    printf("No, HAVE_CONTROL_POINT is not defined.\n");
-#endif
-
-#ifdef HAVE_DIAGNOSTIC
-    printf("Yes, HAVE_DIAGNOSTIC is defined.\n");
-#else
-    printf("No, HAVE_DIAGNOSTIC is not defined.\n");
-#endif
-
-#ifdef HAVE_UNITTEST
-    printf("Yes, HAVE_UNITTEST is defined.\n");
-#else
-    printf("No, HAVE_UNITTEST is not defined.\n");
-#endif
 
     /* Setup */
     home = example_setup(argc, argv);
@@ -182,17 +166,16 @@ main(int argc, char *argv[])
     /* Close session and connection. */
     error_check(session->close(session, NULL));
     error_check(conn->close(conn, NULL));
-
-    return (EXIT_SUCCESS);
-}
 #else
-int
-main(int argc, char *argv[])
-{
+    WT_UNUSED(argc);
+    WT_UNUSED(argv);
+#endif
+
 #ifdef HAVE_CONTROL_POINT
     printf("Yes, HAVE_CONTROL_POINT is defined.\n");
 #else
     printf("No, HAVE_CONTROL_POINT is not defined.\n");
+    printf("This test does nothing since HAVE_CONTROL_POINT is not defined.\n");
 #endif
 
 #ifdef HAVE_DIAGNOSTIC
@@ -209,4 +192,3 @@ main(int argc, char *argv[])
 
     return (EXIT_SUCCESS);
 }
-#endif /* HAVE_CONTROL_POINT */
