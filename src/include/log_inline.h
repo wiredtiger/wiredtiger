@@ -34,8 +34,8 @@ __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 static WT_INLINE int
 __wt_lsn_string(WT_SESSION_IMPL *session, WT_LSN *lsn, WT_ITEM *buf)
 {
-    return (__wt_buf_fmt(
-      session, buf, "%" PRIu32 ", %" PRIu32, __wt_lsn_file(lsn), __wt_lsn_offset(lsn)));
+    return (
+      __wt_buf_fmt(session, buf, "%" PRIu32 ",%" PRIu32, __wt_lsn_file(lsn), __wt_lsn_offset(lsn)));
 }
 
 /*
