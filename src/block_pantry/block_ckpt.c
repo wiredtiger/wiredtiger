@@ -59,12 +59,10 @@ __wt_bmp_checkpoint(
 {
     WT_BLOCK_PANTRY *block_pantry;
     WT_CKPT *ckpt;
-    WT_FILE_HANDLE *handle;
 
     WT_UNUSED(data_checksum);
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
-    handle = block_pantry->fh->handle;
 
     /*
      * Generate a checkpoint cookie used to find the checkpoint again (and distinguish it from a
@@ -75,8 +73,6 @@ __wt_bmp_checkpoint(
             /* __wt_bmp_write_page(block_pantry, buf, root_addr); */
             WT_RET(__bmp_checkpoint_pack_raw(block_pantry, session, root_image, ckpt));
         }
-
-    WT_RET(handle->fh_obj_checkpoint(handle, &session->iface));
 
     return (0);
 }
@@ -146,7 +142,6 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
   uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_PANTRY *block_pantry;
-    WT_FILE_HANDLE *handle;
     unsigned i;
     uint64_t root_id;
     uint32_t root_size, root_checksum;
@@ -157,7 +152,6 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_UNUSED(checkpoint);
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
-    handle = block_pantry->fh->handle;
 
     *root_addr_sizep = 0;
 
@@ -166,11 +160,6 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
 
     WT_RET(__wt_block_pantry_ckpt_unpack(block_pantry, addr, &root_id, &root_size, &root_checksum));
 
-    /* Give our backing storage a chance to reload whatever internal state it associates with a
-     * checkpoint
-     */
-    WT_RET(handle->fh_obj_checkpoint_load(handle, &session->iface));
-
     /*
      * Read root page address.
      */
@@ -178,8 +167,7 @@ __wt_bmp_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *add
     WT_RET(__wt_block_pantry_addr_pack(&endp, root_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
-    fprintf(stderr, "[%s] __wt_bmp_checkpoint_load(%s): 0x", S2C(session)->home,
-      block_pantry->fh->handle->name);
+    fprintf(stderr, "[%s] __wt_bmp_checkpoint_load(): 0x", S2C(session)->home);
     for (i = 0; i < *root_addr_sizep; i++) {
         fprintf(stderr, "%02x", root_addr[i]);
     }

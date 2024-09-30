@@ -268,7 +268,7 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
 
     WT_MAX_LSN(&manager->max_replay_lsn);
 
-    WT_ERR(__oligarch_metadata_create(session, manager));
+    // WT_ERR(__oligarch_metadata_create(session, manager));
 
     WT_STAT_CONN_SET(session, oligarch_manager_running, 1);
     __wt_verbose_level(

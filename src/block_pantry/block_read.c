@@ -65,8 +65,8 @@ __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_
         bufsize = WT_MAX(size, buf->memsize + 10);
     }
     WT_RET(__wt_buf_init(session, buf, bufsize));
-    WT_RET(block_pantry->fh->handle->fh_obj_get(
-      block_pantry->fh->handle, &session->iface, pantry_id, buf));
+    WT_RET(
+      block_pantry->plhandle->plh_get(block_pantry->plhandle, &session->iface, pantry_id, 0, buf));
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
