@@ -104,8 +104,8 @@ __block_pantry_destroy(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry)
 
     __wt_free(session, block_pantry->name);
 
-    if (block_pantry->fh != NULL)
-        WT_TRET(__wt_close(session, &block_pantry->fh));
+    if (block_pantry->plhandle != NULL)
+        WT_TRET(block_pantry->plhandle->plh_close(block_pantry->plhandle, &session->iface));
 
     __wt_overwrite_and_free(session, block_pantry);
 
@@ -122,7 +122,6 @@ __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename, const cha
 {
     WT_BLOCK *block;
     WT_BLOCK_PANTRY *block_pantry;
-    WT_BUCKET_STORAGE *bstorage;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
@@ -155,11 +154,6 @@ __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename, const cha
         }
     }
 
-    bstorage = ((WT_BTREE *)session->dhandle->handle)->bstorage;
-
-    WT_ASSERT_ALWAYS(session, bstorage != NULL,
-      "pantry tables need a custom data source that supports object storage");
-
     /*
      * Basic structure allocation, initialization.
      *
@@ -173,11 +167,10 @@ __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename, const cha
 
     WT_ERR(__wt_strdup(session, filename, &block_pantry->name));
 
-    WT_ERR(__wt_open_fs(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, bstorage->file_system,
-      &block_pantry->fh));
+    WT_ERR(S2BT(session)->page_log->pl_open_handle(
+      S2BT(session)->page_log, &session->iface, S2BT(session)->id, &block_pantry->plhandle));
 
-    WT_ASSERT_ALWAYS(session, block_pantry->fh->handle->fh_obj_put != NULL,
-      "pantry tables need a file interface that supports object storage");
+    WT_ASSERT_ALWAYS(session, block_pantry->plhandle != NULL, "pantry tables need a page log");
 
     *blockp = (WT_BLOCK *)block_pantry;
     __wt_spin_unlock(session, &conn->block_lock);
