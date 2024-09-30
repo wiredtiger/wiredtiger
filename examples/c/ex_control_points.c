@@ -111,7 +111,7 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_9,
     };
     bool enabled;
-    const char *cfg[1] = { NULL };
+    const char *cfg[1] = {NULL};
 
     /* Setup */
     home = example_setup(argc, argv);
