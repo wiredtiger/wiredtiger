@@ -1183,14 +1183,12 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
-    int64_t eviction_fail;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_3;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_blocked_no_progress;
-    int64_t eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -1374,6 +1372,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t eviction_fail;
+    int64_t eviction_walk_passes;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;

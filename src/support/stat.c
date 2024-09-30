@@ -61,7 +61,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: bytes written from cache",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
-  "cache: data source pages selected for eviction unable to be evicted",
   "cache: eviction gave up due to detecting a disk value without a timestamp behind the last "
   "update on the chain",
   "cache: eviction gave up due to detecting a tombstone without a timestamp ahead of the selected "
@@ -73,7 +72,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
   "cache: eviction gave up due to no progress being made",
-  "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",
@@ -267,6 +265,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
+  "eviction: data source pages selected for eviction unable to be evicted",
+  "eviction: eviction walk passes of a file",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -427,14 +427,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_bytes_write = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
-    stats->eviction_fail = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_2 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_3 = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
     stats->cache_eviction_blocked_no_progress = 0;
-    stats->eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
@@ -618,6 +616,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->eviction_fail = 0;
+    stats->eviction_walk_passes = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -758,7 +758,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_bytes_write += from->cache_bytes_write;
     to->cache_eviction_blocked_checkpoint += from->cache_eviction_blocked_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
-    to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
       from->cache_eviction_blocked_no_ts_checkpoint_race_1;
     to->cache_eviction_blocked_no_ts_checkpoint_race_2 +=
@@ -770,7 +769,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       from->cache_eviction_blocked_remove_hs_race_with_checkpoint;
     to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
-    to->eviction_walk_passes += from->eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
     to->cache_eviction_target_page_ge128 += from->cache_eviction_target_page_ge128;
@@ -962,6 +960,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->eviction_fail += from->eviction_fail;
+    to->eviction_walk_passes += from->eviction_walk_passes;
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
@@ -1101,7 +1101,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
-    to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
     to->cache_eviction_blocked_no_ts_checkpoint_race_1 +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_ts_checkpoint_race_1);
     to->cache_eviction_blocked_no_ts_checkpoint_race_2 +=
@@ -1114,7 +1113,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
     to->cache_eviction_blocked_no_progress +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_progress);
-    to->eviction_walk_passes += WT_STAT_DSRC_READ(from, eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 +=
@@ -1329,6 +1327,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
+    to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
+    to->eviction_walk_passes += WT_STAT_DSRC_READ(from, eviction_walk_passes);
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
