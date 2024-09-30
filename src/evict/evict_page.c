@@ -135,13 +135,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_DECL_RET;
     WT_PAGE *page;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
+    bool clean_page, closing, inmem_split, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    clean_page = ebusy_only = false;
+    clean_page = false;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -183,6 +183,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
     }
+
+    bool ebusy_only = false; /* Must declare before the first call to WT_ERR. */
 
     /*
      * Get exclusive access to the page if our caller doesn't have the tree locked down.
