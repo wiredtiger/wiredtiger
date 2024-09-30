@@ -29,7 +29,7 @@
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
- * Helper: in order to read without any calls to eviction, we have to ignore the cache size and
+ * Helper: in order to read a Btree without triggering eviction we have to ignore the cache size and
  * disable splits.
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
