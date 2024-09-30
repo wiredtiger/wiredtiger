@@ -68,7 +68,7 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
         return (NULL);
     cp_registry = &(conn->control_points[id]);
 
-    data = __wt_control_point_get_data(session, cp_registry, false);
+    data = __wti_control_point_get_data(session, cp_registry, false);
     if (data == NULL)
         /* Disabled. */
         return (NULL);

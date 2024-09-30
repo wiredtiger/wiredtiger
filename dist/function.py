@@ -2,6 +2,7 @@
 
 # Check the style of WiredTiger C code.
 import os, re, sys
+import api_data
 from dist import all_c_files, all_cpp_files, all_h_files, compare_srcfile, source_files
 from common_functions import filter_if_fast
 
@@ -272,7 +273,7 @@ def function_scoping():
 
     # Find and check all "__wt" and "__wti" function uses.
     files = []
-    files.extend(all_c_files())
+    files.extend(all_c_files('../examples/c/*.c'))
     files.extend(all_cpp_files())
     files.extend(all_h_files())
     for source_file in files:
@@ -329,6 +330,16 @@ def function_scoping():
     # Load the list of functions whose scope is not enforced.
     exceptions = set(l.strip() for l in open('s_funcs.list', 'r').readlines())
 
+    # Control point data needed for the below.
+    connection_cp = api_data.ConnectionControlPoint('', '', '', '', '', type='category')
+    action_config_func_name = connection_cp.get_action_config_function_name()
+    predicate_config_func_name = connection_cp.get_predicate_config_function_name()
+    predicate_func_name = connection_cp.get_predicate_function_name()
+    connection_cp_init_func_name = connection_cp.get_control_point_init_function_name()
+
+    session_cp = api_data.SessionControlPoint('', '', '', '', '', type='category')
+    session_cp_init_func_name = session_cp.get_control_point_init_function_name()
+
     # Check whether any "__wt" functions are used only within the same module (and could be thus
     # turned into "__wti" functions). Functions in "include" are implicitly used in more than one
     # module.
@@ -340,8 +351,14 @@ def function_scoping():
         if d.module == 'include':
             continue
         if not d.used_outside_of_module:
-            print(f'{d.source}: {fn_name} is NOT used outside of its module "{d.module}"')
-            failed = True
+            # Do not check usage of control point functions.
+            if not (fn_name.startswith(action_config_func_name) or
+                    fn_name.startswith(predicate_config_func_name) or
+                    fn_name.startswith(predicate_func_name) or
+                    fn_name.startswith(connection_cp_init_func_name) or
+                    fn_name.startswith(session_cp_init_func_name)):
+                print(f'{d.source}: {fn_name} is NOT used outside of its module "{d.module}"')
+                failed = True
 
     # Check whether any "__wti" functions are used only within the same file. Skip functions in
     # "include", because they are implicitly used in more than one file.

@@ -70,6 +70,72 @@ class ControlPoint(Config):
         self.action_short_name = action_short_name
         self.pred_short_name = pred_short_name
 
+    def get_action_config_function_name(self):
+        return ('__wt_control_point_config_action_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_lower))
+
+    def get_action_data_struct_tag_name(self):
+        return ('__wt_control_point_action_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_lower))
+
+    def get_action_data_type_name(self):
+        return ('WT_CONTROL_POINT_ACTION_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_upper))
+
+    def get_action_id_name(self):
+        return ('WT_CONTROL_POINT_ACTION_ID_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_upper))
+
+    def get_control_point_call_site_macro_name(self):
+        # So far only "Wait for trigger" has a call site macro.
+        if self.action_short_name.translate(
+                ControlPoint.translation_to_lower) != 'wait_for_trigger':
+                return ''
+        return ('CONNECTION_CONTROL_POINT_' +
+                self.name.translate(
+                    ControlPoint.translation_to_upper))
+
+    def get_control_point_data_struct_tag_name(self):
+        return (('__wt_conn_control_point_data_' if self.per_connection
+                 else '__wt_session_control_point_data_') +
+                self.name.translate(ControlPoint.translation_to_lower))
+
+    def get_control_point_data_type_name(self):
+        return (('WT_CONN_CONTROL_POINT_DATA_' if self.per_connection
+                 else 'WT_SESSION_CONTROL_POINT_DATA_') +
+                self.name.translate(ControlPoint.translation_to_upper))
+
+    def get_control_point_define_macro_name(self, for_connection = None):
+        if for_connection == None:
+            for_connection = self.per_connection
+        return (('CONNECTION_CONTROL_POINT_DEFINE_' if for_connection
+                 else 'SESSION_CONTROL_POINT_DEFINE_') +
+                self.name.translate(ControlPoint.translation_to_upper))
+
+    def get_control_point_id_name(self):
+        return (('WT_CONN_CONTROL_POINT_ID_' if self.per_connection
+                 else 'WT_SESSION_CONTROL_POINT_ID_') +
+                self.name.translate(ControlPoint.translation_to_upper))
+
+    def get_control_point_init_function_name(self):
+        return (('__wt_conn_control_point_init_' if self.per_connection
+                 else '__wt_session_control_point_int_') +
+                self.name.translate(ControlPoint.translation_to_lower))
+
+    def get_predicate_config_function_name(self):
+        return ('__wt_control_point_config_pred_' +
+                self.pred_short_name.translate(
+                    ControlPoint.translation_to_lower))
+
+    def get_predicate_function_name(self):
+        return ('__wt_control_point_pred_' +
+                self.pred_short_name.translate(
+                    ControlPoint.translation_to_lower))
+
     def __str__(self):
         return "ControlPoint(cp_short_name={}, name={}, per_connection={}," \
             " action_short_name={}, pred_short_name={}, default={}, desc={}," \
@@ -2266,3 +2332,73 @@ methods = {
         the file version'''),
 ]),
 }
+
+# Test for ConnectionControlPoint and SessionControlPoint.
+def test_one_control_point(cp):
+    print('Control point=' + cp.__str__())
+    print('')
+    print('get_action_config_function_name=' +
+          cp.get_action_config_function_name())
+    print('get_action_data_struct_tag_name=' +
+          cp.get_action_data_struct_tag_name())
+    print('get_action_data_type_name=' + cp.get_action_data_type_name())
+    print('get_action_id_name=' + cp.get_action_id_name())
+    print('')
+    print('get_control_point_call_site_macro_name=' +
+          cp.get_control_point_call_site_macro_name())
+    print('get_control_point_data_struct_tag_name=' +
+          cp.get_control_point_data_struct_tag_name())
+    print('get_control_point_data_type_name=' +
+          cp.get_control_point_data_type_name())
+    print('get_control_point_define_macro_name=' +
+          cp.get_control_point_define_macro_name())
+    print('get_control_point_id_name=' + cp.get_control_point_id_name())
+    print('get_control_point_init_function_name=' +
+          cp.get_control_point_init_function_name())
+    print('get_control_point_init_function_name=' +
+          cp.get_control_point_init_function_name())
+    print('')
+    print('get_predicate_config_function_name=' +
+          cp.get_predicate_config_function_name())
+    print('get_predicate_function_name=' + cp.get_predicate_function_name())
+
+def test_control_point():
+    conn_cp = ConnectionControlPoint('Connection CP', 'Wait for trigger',
+        'Skip', '', r'''
+            Example per connection control point''',
+            type='category', subconfig= [
+                # Action configuration parameters
+                Config('wait_count', '1', r'''
+                    the number of triggers for which to wait''',
+                    min='1', max='4294967295'),
+                # Predicate configuration parameters
+                Config('skip_count', '1', r'''
+                    the number of control point crossings to skip''',
+                    min='1', max='4294967295'),
+            ])
+    test_one_control_point(conn_cp)
+
+    print('')
+    print('----')
+    print('')
+
+    session_cp = SessionControlPoint('Session CP', 'Sleep', 'Times',
+                  '', r'''
+                    Example per session control point''',
+                    type='category', subconfig= [
+                        # Action configuration parameters
+                        Config('seconds', '1', r'''
+                               the number of seconds to sleep''',
+                               min='1', max='4294967295'),
+                        Config('microseconds', '100', r'''
+                               the number of microseconds to sleep''',
+                               min='1', max='4294967295'),
+                        # Predicate configuration parameters
+                        Config('enable_count', '10', r'''
+                               the number of triggers to enable''',
+                               min='1', max='4294967295'),
+            ])
+    test_one_control_point(session_cp)
+
+if __name__ == '__main__':
+    test_control_point()

@@ -136,14 +136,14 @@ __wt_control_point_config_action_wait_for_trigger(
 
 /* Functions used at the call site. */
 /*
- * __wt_control_point_run_wait_for_trigger --
+ * __run_wait_for_trigger --
  *     The run function for __wt_cond_wait_signal for the call site portion of control point action
  *     "Wait until trigger: Blocking the testing thread until a control point is triggered".
  *
  * @param session The session.
  */
-bool
-__wt_control_point_run_wait_for_trigger(WT_SESSION_IMPL *session)
+static bool
+__run_wait_for_trigger(WT_SESSION_IMPL *session)
 {
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
@@ -171,7 +171,7 @@ __wt_control_point_wait_for_trigger(
     size_t start_trigger_count;
     bool signalled;
 
-    data = __wt_control_point_get_data(session, cp_registry, true);
+    data = __wti_control_point_get_data(session, cp_registry, true);
     start_trigger_count = cp_registry->trigger_count;
     if (WT_UNLIKELY(data == NULL))
         return (false); /* Not enabled. */
@@ -196,7 +196,7 @@ __wt_control_point_wait_for_trigger(
     __wt_control_point_unlock(session, cp_registry);
     for (;;) {
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
-          __wt_control_point_run_wait_for_trigger, &signalled);
+          __run_wait_for_trigger, &signalled);
         if (cp_registry->trigger_count >= desired_trigger_count)
             /* Delay condition satisfied. */
             break;
