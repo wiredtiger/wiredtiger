@@ -256,11 +256,9 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_EVICT *evict;
 
     conn = S2C(session);
     cache = conn->cache;
-    evict = conn->evict;
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_2)) {
         uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
@@ -277,7 +275,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
           bytes_updates);
     }
 
-    __wt_cond_signal(session, evict->evict_cond);
+    __wt_cond_signal(session, conn->evict->evict_cond);
 }
 
 /*
