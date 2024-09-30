@@ -177,12 +177,12 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Applying slot %" PRIu32
               " granularity %" PRIu64 " ID string %s",
-              lsnp->l.file, __wt_lsn_offset(lsnp), index, granularity, id_str);
+              __wt_lsn_file(lsnp), __wt_lsn_offset(lsnp), index, granularity, id_str);
             WT_ERR(__wt_backup_set_blkincr(session, index, granularity, id_str, strlen(id_str)));
         } else {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
-              "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Clearing slot %" PRIu32, lsnp->l.file,
-              __wt_lsn_offset(lsnp), index);
+              "Backup ID: LSN [%" PRIu32 ",%" PRIu32 "]: Clearing slot %" PRIu32,
+              __wt_lsn_file(lsnp), __wt_lsn_offset(lsnp), index);
             /* This is the result of a force stop, clear the entry. */
             WT_CLEAR(*blk);
         }
@@ -194,7 +194,7 @@ done:
     return (0);
 err:
     __wt_err(session, ret, "backup id apply failed during recovery: at LSN %" PRIu32 "%" PRIu32,
-      lsnp->l.file, __wt_lsn_offset(lsnp));
+      __wt_lsn_file(lsnp), __wt_lsn_offset(lsnp));
     return (ret);
 }
 
@@ -222,7 +222,7 @@ __txn_system_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8
       ret != 0         ? "Error" :                                         \
         cursor == NULL ? "Skipping" :                                      \
                          "Applying",                                       \
-      optype, fileid, (lsnp)->l.file, __wt_lsn_offset(lsnp));              \
+      optype, fileid, __wt_lsn_file(lsnp), __wt_lsn_offset(lsnp));         \
     WT_ERR(ret);                                                           \
     if (cursor == NULL)                                                    \
     break
@@ -450,7 +450,7 @@ err:
     __wt_err(session, ret,
       "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
       "/%" PRIu32,
-      optype, lsnp->l.file, __wt_lsn_offset(lsnp));
+      optype, __wt_lsn_file(lsnp), __wt_lsn_offset(lsnp));
     return (ret);
 }
 
@@ -739,8 +739,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
 
     __wt_verbose(r->session, WT_VERB_RECOVERY,
-      "Recovering %s with id %" PRIu32 " @ (%" PRIu32 ", %" PRIu32 ")", uri, fileid, lsn.l.file,
-      __wt_lsn_offset(&lsn));
+      "Recovering %s with id %" PRIu32 " @ (%" PRIu32 ", %" PRIu32 ")", uri, fileid,
+      __wt_lsn_file(&lsn), __wt_lsn_offset(&lsn));
 
     if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
@@ -975,7 +975,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
           !WT_IS_MAX_LSN(&r.max_ckpt_lsn))
-            WT_ERR(__wt_log_reset(session, r.max_ckpt_lsn.l.file));
+            WT_ERR(__wt_log_reset(session, __wt_lsn_file(&r.max_ckpt_lsn)));
         else
             do_checkpoint = false;
         WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
@@ -1071,7 +1071,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.metadata_only = false;
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "Main recovery loop: starting at %" PRIu32 "/%" PRIu32 " to %" PRIu32 "/%" PRIu32,
-      r.ckpt_lsn.l.file, __wt_lsn_offset(&r.ckpt_lsn), r.max_rec_lsn.l.file,
+      __wt_lsn_file(&r.ckpt_lsn), __wt_lsn_offset(&r.ckpt_lsn), __wt_lsn_file(&r.max_rec_lsn),
       __wt_lsn_offset(&r.max_rec_lsn));
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
     /*

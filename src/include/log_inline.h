@@ -28,6 +28,16 @@ __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 }
 
 /*
+ * __wt_lsn_file --
+ *     Return a log sequence number's file.
+ */
+static WT_INLINE uint32_t
+__wt_lsn_file(WT_LSN *lsn)
+{
+    return (__wt_atomic_load32(&lsn->l.file));
+}
+
+/*
  * __wt_lsn_offset --
  *     Return a log sequence number's offset.
  */

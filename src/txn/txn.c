@@ -2882,9 +2882,10 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
         __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
-        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
-        __wt_lsn_offset(&txn->ckpt_lsn), txn->full_ckpt ? "true" : "false",
-        txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
+        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]),
+        __wt_lsn_file(&txn->ckpt_lsn), __wt_lsn_offset(&txn->ckpt_lsn),
+        txn->full_ckpt ? "true" : "false", txn->rollback_reason == NULL ? "" : txn->rollback_reason,
+        txn->flags, iso_tag));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
