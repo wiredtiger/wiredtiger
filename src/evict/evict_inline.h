@@ -280,7 +280,7 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
 
 /*
  * __wt_evict_app_assist_worker_check --
- *     Evict pages if the cache crosses its boundaries.
+ *     Evict pages if the cache crosses eviction trigger thresholds.
  */
 static WT_INLINE int
 __wt_evict_app_assist_worker_check(

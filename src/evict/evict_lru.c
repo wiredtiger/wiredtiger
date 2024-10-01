@@ -2668,8 +2668,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
 /*
  * __wti_evict_app_assist_worker --
- *     Worker function for __wt_evict_app_assist_worker_check: evict pages if the cache crosses its
- *     boundaries.
+ *     Worker function for __wt_evict_app_assist_worker_check: evict pages if the cache crosses
+ *     eviction trigger thresholds.
  */
 int
 __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, double pct_full)

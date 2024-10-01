@@ -118,7 +118,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 
 /*
  * __wt_evict_cache_stat_walk --
- *     Initialize the statistics for a cache cache_walk pass.
+ *     Initialize the statistics for evict_cache_walk pass.
  */
 void
 __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session)
