@@ -154,35 +154,35 @@ __wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
     return (0);
 }
 
-// /* Set up the file that contains metadata for the stable tables. */
-// static int
-// __oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
-// {
-//     WT_CONNECTION_IMPL *conn;
-//     WT_DECL_RET;
-//     size_t len;
-//     char *md_path;
+/* Set up the file that contains metadata for the stable tables. */
+static int
+__oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    size_t len;
+    char *md_path;
 
-//     conn = S2C(session);
+    conn = S2C(session);
 
-//     fprintf(stderr, "__oligarch_metadata_create\n");
+    fprintf(stderr, "__oligarch_metadata_create\n");
 
-//     len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
-//     WT_RET(__wt_calloc_def(session, len, &md_path));
-//     WT_ERR(
-//       __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
+    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
+    WT_RET(__wt_calloc_def(session, len, &md_path));
+    WT_ERR(
+      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
 
-//     if (manager->leader)
-//         WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA,
-//           WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
-//     else
-//         WT_ERR(__wt_open(
-//           session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
+    if (manager->leader)
+        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA,
+          WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
+    else
+        WT_ERR(__wt_open(
+          session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
 
-// err:
-//     __wt_free(session, md_path);
-//     return (ret);
-// }
+err:
+    __wt_free(session, md_path);
+    return (ret);
+}
 
 int
 __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
