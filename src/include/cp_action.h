@@ -90,6 +90,14 @@
     while (0)
 #endif /* HAVE_CONTROL_POINT */
 
+#if 1 /* XXX TEMPORARY - Try without any control points. */
+#define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)            /* NOP */
+#define SESSION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)               /* NOP */
+#define CONNECTION_CONTROL_POINT_DEFINE_ERR(CONNECTION, SESSION, CONTROL_POINT_ID)  /* NOP */
+#define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)              /* NOP */
+#define CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID) /* NOP */
+
+#else
 /*
  * Action: Sleep: Delay at a specific code location during an execution via __wt_sleep
  */
@@ -286,3 +294,4 @@ struct __wt_control_point_action_wait_for_trigger {
 #else
 #define CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
+#endif /* XXX TEMPORARY - Try without any control points. */

@@ -33,6 +33,9 @@
 /*
  * Per connection control point IDs.
  */
+#if 1 /* XXX TEMPORARY - Try without any control points. */
+#define CONNECTION_CONTROL_POINTS_SIZE 0
+#else
 #define WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING ((wt_control_point_id_t)0)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_0 ((wt_control_point_id_t)1)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_1 ((wt_control_point_id_t)2)
@@ -47,6 +50,7 @@
 
 /* The number of per connection control points (Could be generated). */
 #define CONNECTION_CONTROL_POINTS_SIZE 11
+#endif /* XXX TEMPORARY - Try without any control points. */
 
 /*
  * Per session control point IDs.
