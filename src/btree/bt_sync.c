@@ -40,6 +40,9 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      *     skip them,
      * 5. there's already an address for every disk block involved.
      */
+    // TODO - we may want to disable during shutdown and recovery as well.
+    if (F_ISSET(S2C(session), WT_CONN_RTS_RUN))
+        return (false);
     if (WT_IS_HS(session->dhandle))
         return (false);
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
