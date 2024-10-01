@@ -1496,7 +1496,6 @@ __wt_meta_ckptlist_set(
 
 err:
     __wt_scr_free(session, &buf);
-    __wt_scr_free(session, &ckptlsn_str);
     return (ret);
 }
 
