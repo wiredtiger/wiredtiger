@@ -1483,7 +1483,7 @@ __wt_meta_ckptlist_set(
                 WT_ERR(__ckpt_check_backup_blocks(session, ckpt, fname));
         }
 
-    /* If a checkpoint LSN is provided this is where recovery will resume from. */
+    /* "If provided, the metadata needs the LSN of this checkpoint for recovery. */
     has_lsn = ckptlsn_str != NULL;
 
     if (ckptlsn_str != NULL)
