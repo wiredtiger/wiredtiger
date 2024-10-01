@@ -23,6 +23,7 @@ __oligarch_metadata_watcher(void *arg)
     size_t len;
     wt_off_t last_sep, last_sz, name_ptr, new_sz;
 
+    md_fh = NULL;
     session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     md_fh = NULL;
