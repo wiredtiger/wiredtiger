@@ -458,5 +458,11 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     if (btree->root.page == NULL)
         return (0);
 
-    return (__rts_btree_walk(session, rollback_timestamp));
+    WT_RET(__rts_btree_walk(session, rollback_timestamp));
+
+    // TODO - comment
+    btree->rec_max_timestamp = 0;
+    btree->rec_max_txn = 0;
+
+    return (0);
 }
