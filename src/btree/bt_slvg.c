@@ -2262,13 +2262,8 @@ err:
 static int WT_CDECL
 __slvg_trk_compare_key(const void *a, const void *b)
 {
-    WT_SESSION_IMPL *session;
-    WT_TRACK *a_trk, *b_trk;
-    uint64_t a_gen, a_recno, b_gen, b_recno;
-    int cmp;
-
-    a_trk = *(WT_TRACK **)a;
-    b_trk = *(WT_TRACK **)b;
+    WT_TRACK *a_trk = *(WT_TRACK **)a;
+    WT_TRACK *b_trk = *(WT_TRACK **)b;
 
     if (a_trk == NULL)
         return (b_trk == NULL ? 0 : 1);
@@ -2277,28 +2272,31 @@ __slvg_trk_compare_key(const void *a, const void *b)
 
     switch (a_trk->ss->page_type) {
     case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        a_recno = a_trk->col_start;
-        b_recno = b_trk->col_start;
+    case WT_PAGE_COL_VAR: {
+        uint64_t a_recno = a_trk->col_start;
+        uint64_t b_recno = b_trk->col_start;
         if (a_recno == b_recno)
             break;
         if (a_recno > b_recno)
             return (1);
         if (a_recno < b_recno)
             return (-1);
+        }
         break;
-    case WT_PAGE_ROW_LEAF:
+    case WT_PAGE_ROW_LEAF: {
         /*
          * XXX
          * __wt_compare can potentially fail, and we're ignoring that
          * error because this routine is called as an underlying qsort
          * routine.
          */
-        session = a_trk->ss->session;
+        WT_SESSION_IMPL *session = a_trk->ss->session;
+        int cmp = 0;
         WT_IGNORE_RET(__wt_compare(
           session, S2BT(session)->collator, &a_trk->row_start, &b_trk->row_start, &cmp));
         if (cmp != 0)
             return (cmp);
+        }
         break;
     }
 
@@ -2306,8 +2304,8 @@ __slvg_trk_compare_key(const void *a, const void *b)
      * If the primary keys compare equally, differentiate based on LSN. Sort from highest LSN to
      * lowest, that is, the earlier pages in the array are more desirable.
      */
-    a_gen = a_trk->trk_gen;
-    b_gen = b_trk->trk_gen;
+    uint64_t a_gen = a_trk->trk_gen;
+    uint64_t b_gen = b_trk->trk_gen;
     return (a_gen > b_gen ? -1 : (a_gen < b_gen ? 1 : 0));
 }
 
