@@ -2356,7 +2356,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     dhandle = session->dhandle;
     fake_ckpt = resolve_bm = false;
     WT_TIME_AGGREGATE_INIT(&ta);
-    WT_ERR(__wt_scr_alloc(session, 0, &ckptlsn_str));
 
     /*
      * Set the checkpoint LSN to the maximum LSN so that if logging is disabled, recovery will never
@@ -2449,6 +2448,7 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
+    WT_ERR(__wt_scr_alloc(session, 0, &ckptlsn_str));
     WT_ERR(__wt_lsn_string(session, &ckptlsn, ckptlsn_str));
     WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
 

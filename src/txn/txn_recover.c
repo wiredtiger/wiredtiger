@@ -457,19 +457,19 @@ done:
     /* Reset the cursor so it doesn't block eviction. */
     if (cursor != NULL)
         WT_ERR(cursor->reset(cursor));
-    __wt_scr_free(session, &lsn_str);
-    return (0);
 
+    if (0) {
 err:
-    if (__wt_lsn_string(session, lsnp, lsn_str) == 0)
-        __wt_err(session, ret,
-          "operation apply failed during recovery: operation type %" PRIu32 " at LSN %s", optype,
-          (char *)lsn_str->mem);
-    else
-        __wt_err(session, ret,
-          "operation apply failed during recovery: operation type %" PRIu32
-          ". Could not construct LSN string",
-          optype);
+        if (__wt_lsn_string(session, lsnp, lsn_str) == 0)
+            __wt_err(session, ret,
+              "operation apply failed during recovery: operation type %" PRIu32 " at LSN %s",
+              optype, (char *)lsn_str->mem);
+        else
+            __wt_err(session, ret,
+              "operation apply failed during recovery: operation type %" PRIu32
+              ". Could not construct LSN string",
+              optype);
+    }
 
     __wt_scr_free(session, &lsn_str);
     return (ret);
@@ -940,6 +940,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
+    WT_DECL_ITEM(ckpt_lsn_str);
+    WT_DECL_ITEM(max_rec_lsn_str);
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
@@ -948,9 +950,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, rts_executed, was_backup;
-
-    WT_DECL_ITEM(ckpt_lsn_str);
-    WT_DECL_ITEM(max_rec_lsn_str);
 
     conn = S2C(session);
     F_SET(conn, WT_CONN_RECOVERING);
