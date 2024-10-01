@@ -1116,6 +1116,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            "control_point",
             'error_returns',
             'eviction',
             'fileops',
