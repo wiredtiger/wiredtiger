@@ -763,17 +763,12 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_PAGE *page;
     WT_PAGE_WALK_SKIP_STATS walk_skip_stats;
     WT_SESSION_IMPL *session;
     size_t skipped, total_skipped;
     uint64_t time_start;
     uint32_t flags;
     bool key_out_of_bounds, need_walk, newpage, repositioned, restart;
-#ifdef HAVE_DIAGNOSTIC
-    bool inclusive_set;
-    WT_NOT_READ(inclusive_set, false);
-#endif
 
     cursor = &cbt->iface;
     key_out_of_bounds = need_walk = newpage = repositioned = false;
@@ -823,7 +818,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     for (newpage = false;; newpage = true, restart = false) {
-        page = cbt->ref == NULL ? NULL : cbt->ref->page;
+        WT_PAGE *page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */
@@ -987,7 +982,7 @@ err:
              * comparing the lower bound with our current key or recno. Force inclusive to be false
              * so we don't consider the bound itself.
              */
-            inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
+            bool inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             ret = __wt_compare_bounds(
               session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
