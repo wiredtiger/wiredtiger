@@ -153,6 +153,10 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     /* Destroy Eviction. */
     WT_TRET(__wt_evict_destroy(session));
 
+#ifdef HAVE_CONTROL_POINT
+    WT_TRET(__wt_conn_control_point_shutdown(session));
+#endif
+
     /* Discard the cache. */
     WT_TRET(__wti_cache_destroy(session));
 
