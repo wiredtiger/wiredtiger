@@ -57,7 +57,7 @@ __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *bloc
   bool checkpoint_io)
 {
     WT_BLOCK_PANTRY_HEADER *blk;
-    WT_PAGE_LOG_HANDLE *plhandle;
+    WT_FH *fh;
     uint64_t pantry_id;
     uint32_t checksum;
 
@@ -65,9 +65,10 @@ __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *bloc
     *sizep = 0;      /* -Werror=maybe-uninitialized */
     *checksump = 0;  /* -Werror=maybe-uninitialized */
 
-    plhandle = block_pantry->plhandle;
+    fh = block_pantry->fh;
 
-    WT_ASSERT_ALWAYS(session, plhandle != NULL, "Pantry block store requires page log");
+    WT_ASSERT_ALWAYS(session, fh->handle->fh_obj_put != NULL,
+      "Pantry block store requires object support from file handle");
 
     /*
      * Clear the block header to ensure all of it is initialized, even the unused fields.
@@ -117,7 +118,7 @@ __wt_block_pantry_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *bloc
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
     /* Write the block. */
-    WT_RET(plhandle->plh_put(plhandle, &session->iface, pantry_id, 0, false, buf));
+    WT_RET(fh->handle->fh_obj_put(fh->handle, &session->iface, pantry_id, buf));
 
     WT_STAT_CONN_INCR(session, pantry_block_put);
     WT_STAT_CONN_INCR(session, block_write);
