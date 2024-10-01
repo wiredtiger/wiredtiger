@@ -155,7 +155,12 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
 
     session = r->session;
     conn = S2C(session);
-    WT_ERR(__wt_scr_alloc(session, 0, &lsn_str));
+
+    WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
+    if ((ret = __wt_lsn_string(session, lsnp, lsn_str)) != 0) {
+        __wt_scr_free(session, &lsn_str);
+        return (ret);
+    }
 
     /* Right now the only system record we care about is the backup id. Skip anything else. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -175,7 +180,6 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
      */
     if (index < WT_BLKINCR_MAX) {
         blk = &conn->incr_backups[index];
-        WT_ERR(__wt_lsn_string(session, lsnp, lsn_str));
         if (granularity != UINT64_MAX) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%s]: Applying slot %" PRIu32 " granularity %" PRIu64 " ID string %s",
@@ -193,12 +197,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
 
     if (0) {
 err:
-        if (__wt_lsn_string(session, lsnp, lsn_str) == 0)
-            __wt_err(session, ret, "backup id apply failed during recovery: at LSN %s",
-              (char *)lsn_str->mem);
-        else
-            __wt_err(
-              session, ret, "backup id apply failed during recovery. Could not build LSN string");
+        __wt_err(
+          session, ret, "backup id apply failed during recovery: at LSN %s", (char *)lsn_str->mem);
     }
 
 done:
@@ -255,6 +255,13 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     session = r->session;
     cursor = NULL;
 
+    /* Build the LSN string here as it's used inside the GET_RECOVERY_CURSOR macro. */
+    WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
+    if (__wt_lsn_string(session, lsnp, lsn_str) != 0) {
+        __wt_scr_free(session, &lsn_str);
+        return (ret);
+    }
+
     /* Peek at the size and the type. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
@@ -267,10 +274,6 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         *pp += opsize;
         goto done;
     }
-
-    /* Build the LSN string here as it's used inside the GET_RECOVERY_CURSOR macro. */
-    WT_ERR(__wt_scr_alloc(session, 0, &lsn_str));
-    WT_ERR(__wt_lsn_string(session, lsnp, lsn_str));
 
     switch (optype) {
     case WT_LOGOP_COL_MODIFY:
@@ -460,15 +463,9 @@ done:
 
     if (0) {
 err:
-        if (__wt_lsn_string(session, lsnp, lsn_str) == 0)
-            __wt_err(session, ret,
-              "operation apply failed during recovery: operation type %" PRIu32 " at LSN %s",
-              optype, (char *)lsn_str->mem);
-        else
-            __wt_err(session, ret,
-              "operation apply failed during recovery: operation type %" PRIu32
-              ". Could not construct LSN string",
-              optype);
+        __wt_err(session, ret,
+          "operation apply failed during recovery: operation type %" PRIu32 " at LSN %s", optype,
+          (char *)lsn_str->mem);
     }
 
     __wt_scr_free(session, &lsn_str);
