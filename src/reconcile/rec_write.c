@@ -684,6 +684,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->wrapup_checkpoint = NULL;
     r->wrapup_checkpoint_compressed = false;
+    WT_CLEAR(r->wrapup_checkpoint_block_meta);
 
     /*
      * Dictionary compression only writes repeated values once. We grow the dictionary as necessary,
@@ -859,8 +860,9 @@ __rec_destroy_session(WT_SESSION_IMPL *session)
  *     Write a block, with optional diagnostic checks.
  */
 static int
-__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
-  size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
+__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint8_t *addr,
+  size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io,
+  bool compressed)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(ctmp);
@@ -919,8 +921,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
         WT_RET(ret);
     }
 
-    return (__wt_blkcache_write(
-      session, buf, addr, addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
+    return (__wt_blkcache_write(session, buf, block_meta, addr, addr_sizep, compressed_sizep,
+      checkpoint, checkpoint_io, compressed));
 }
 
 /*
@@ -1024,7 +1026,7 @@ __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
  *     Initialize a single chunk structure.
  */
 static int
-__rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk)
+__rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk, bool first)
 {
     chunk->recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
@@ -1048,6 +1050,17 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
      */
     WT_RET(__wt_buf_init(session, &chunk->image, r->disk_img_buf_size));
     memset(chunk->image.mem, 0, WT_PAGE_HEADER_SIZE);
+
+    /*
+     * Initialize the block page metadata.
+     */
+    /* TODO Use the code below once checkpoint-based page versioning is ready. */
+    /*if (first)
+        chunk->block_meta = r->page->block_meta;
+    else
+        __wt_page_block_meta_init(session, &chunk->block_meta);*/
+    WT_UNUSED(first);
+    __wt_page_block_meta_init(session, &chunk->block_meta);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -1180,7 +1193,7 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
     r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
-    WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A));
+    WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A, true));
     r->cur_ptr = &r->chunk_A;
     r->prev_ptr = NULL;
 
@@ -1514,7 +1527,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
             WT_RET(__rec_split_write(session, r, r->prev_ptr, NULL, false));
 
         if (r->prev_ptr == NULL) {
-            WT_RET(__rec_split_chunk_init(session, r, &r->chunk_B));
+            WT_RET(__rec_split_chunk_init(session, r, &r->chunk_B, false));
             r->prev_ptr = &r->chunk_B;
         }
         tmp = r->prev_ptr;
@@ -1523,7 +1536,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
     }
 
     /* Initialize the next chunk, including the key. */
-    WT_RET(__rec_split_chunk_init(session, r, r->cur_ptr));
+    WT_RET(__rec_split_chunk_init(session, r, r->cur_ptr, false));
     r->cur_ptr->recno = r->recno;
     if (btree->type == BTREE_ROW)
         WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key, r->page->type));
@@ -1670,7 +1683,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         tmp = r->prev_ptr;
         r->prev_ptr = r->cur_ptr;
         r->cur_ptr = tmp;
-        return (__rec_split_chunk_init(session, r, r->prev_ptr));
+        return (__rec_split_chunk_init(session, r, r->prev_ptr, false));
     }
 
     if (prev_ptr->min_offset != 0 && cur_ptr->image.size < r->min_split_size) {
@@ -2119,6 +2132,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint = compressed_image;
             r->wrapup_checkpoint_compressed = true;
         }
+        r->wrapup_checkpoint_block_meta = chunk->block_meta;
         return (0);
     }
 
@@ -2147,8 +2161,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
 
     /* Write the disk image and get an address. */
-    WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
-      &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
+    WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
+      &chunk->block_meta, addr, &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
@@ -2514,7 +2528,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
-            WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
+            WT_RET(bm->checkpoint(bm, session, NULL, NULL, btree->ckpt, false));
         }
 
         /*
@@ -2556,8 +2570,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
-            WT_RET(__rec_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
-              F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
+            WT_RET(
+              __rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta, NULL,
+                NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
@@ -2747,7 +2762,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         /* Write the buffer. */
         addr = buf;
         WT_ERR(__rec_write(
-          session, tmp, addr, &size, NULL, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+          session, tmp, NULL, addr, &size, NULL, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
         /*
          * Track the overflow record (unless it's a bulk load, which by definition won't ever reuse

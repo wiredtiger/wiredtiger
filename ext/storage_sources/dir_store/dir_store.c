@@ -1745,8 +1745,10 @@ dir_store_obj_get(
     if ((ret = pthread_rwlock_rdlock(&dir_store_fh->obj_map_lock)) != 0)
         return (ret);
 
-    if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0)
+    if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0) {
+        (void)pthread_rwlock_unlock(&dir_store_fh->obj_map_lock);
         return (EINVAL);
+    }
 
     object_offset = (wt_off_t)dir_store_fh->object_id_map[object_id];
     object_size = dir_store_fh->object_size_map[object_id];
@@ -1793,8 +1795,10 @@ dir_store_obj_delete(WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t 
         return (ret);
 
     /* Deleting an already deleted thing is fine */
-    if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0)
+    if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0) {
+        (void)pthread_rwlock_unlock(&dir_store_fh->obj_map_lock);
         return (0);
+    }
 
     dir_store_fh->object_id_map[object_id] = 0;
     dir_store_fh->object_size_map[object_id] = 0;

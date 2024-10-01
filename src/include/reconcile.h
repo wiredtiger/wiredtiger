@@ -59,7 +59,8 @@ struct __wt_rec_chunk {
 
     size_t min_offset; /* byte offset */
 
-    WT_ITEM image; /* disk-image */
+    WT_ITEM image;                 /* disk-image */
+    WT_PAGE_BLOCK_META block_meta; /* the metadata for the disk image */
 
     /* For fixed-length column store, track where the time windows start and how many we have. */
     uint32_t aux_start_offset;
@@ -259,6 +260,7 @@ struct __wt_reconcile {
      * write.
      */
     WT_ITEM *wrapup_checkpoint;
+    WT_PAGE_BLOCK_META wrapup_checkpoint_block_meta;
     bool wrapup_checkpoint_compressed;
 
     /*

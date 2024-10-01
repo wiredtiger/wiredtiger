@@ -244,6 +244,7 @@ __blkcache_eviction_thread(void *arg)
             {
                 if (__blkcache_should_evict(session, blkcache_item, &reason)) {
                     TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
+                    __wt_free(session, blkcache_item->block_meta);
                     __blkcache_free(session, blkcache_item->data);
                     __blkcache_update_ref_histogram(
                       session, blkcache_item, WT_BLKCACHE_RM_EVICTION);
@@ -389,17 +390,19 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
  *     Put a block into the cache.
  */
 int
-__wt_blkcache_put(
-  WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr, size_t addr_size, bool write)
+__wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size, bool write)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item, *blkcache_store;
     WT_DECL_RET;
+    WT_PAGE_BLOCK_META *block_meta_ptr;
     uint64_t bucket, hash;
     void *data_ptr;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_store = NULL;
+    block_meta_ptr = NULL;
 
     /* Are we within cache size limits? */
     if (blkcache->bytes_used > blkcache->max_bytes)
@@ -435,6 +438,11 @@ __wt_blkcache_put(
     blkcache_store->data = data_ptr;
     blkcache_store->data_size = WT_STORE_SIZE(data->size);
     memcpy(blkcache_store->data, data->data, data->size);
+    if (block_meta != NULL) {
+        WT_ERR(__wt_calloc(session, 1, sizeof(*block_meta_ptr), &block_meta_ptr));
+        *block_meta_ptr = *block_meta;
+        blkcache_store->block_meta = block_meta_ptr;
+    }
     blkcache_store->fid = S2BT(session)->id;
     blkcache_store->addr_size = (uint8_t)addr_size;
     memcpy(blkcache_store->addr, addr, addr_size);
@@ -498,7 +506,8 @@ __wt_blkcache_put(
 
 err:
     __blkcache_free(session, data_ptr);
-    __blkcache_free(session, blkcache_store);
+    __wt_free(session, block_meta_ptr);
+    __wt_free(session, blkcache_store);
     return (ret);
 }
 

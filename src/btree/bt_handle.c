@@ -631,6 +631,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         btree->base_write_gen = ckpt->run_write_gen;
 
+    /* Load the next page ID for disaggregated storage. */
+    if (ckpt->raw.size == 0)
+        btree->next_page_id = WT_BLOCK_MIN_PAGE_ID; /* Should this be in create? */
+    else
+        btree->next_page_id = ckpt->next_page_id;
+
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
      * importing and therefore, the checkpoint data's runtime write generation is meaningless. We
@@ -677,9 +683,12 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_DECL_RET;
     WT_ITEM dsk;
     WT_PAGE *page;
+    WT_PAGE_BLOCK_META block_meta;
 
     btree = S2BT(session);
     bm = btree->bm;
+
+    WT_CLEAR(block_meta);
 
     /*
      * A buffer into which we read a root page; don't use a scratch buffer, the buffer's allocated
@@ -697,7 +706,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    if ((ret = __wt_blkcache_read(session, &dsk, addr, addr_size)) == 0)
+    if ((ret = __wt_blkcache_read(session, &dsk, &block_meta, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);
     /*
      * Flag any failed read or verification: if we're in startup, it may be fatal.
@@ -729,6 +738,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(__wt_page_inmem(session, NULL, dsk.data,
       WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page, NULL));
     dsk.mem = NULL;
+    page->block_meta = block_meta;
 
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, page, btree->type != BTREE_ROW);
@@ -881,7 +891,8 @@ __btree_preload(WT_SESSION_IMPL *session)
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr)) {
-            WT_ERR(__wt_blkcache_read(session, tmp, addr.block_cookie, addr.block_cookie_size));
+            WT_ERR(
+              __wt_blkcache_read(session, tmp, NULL, addr.block_cookie, addr.block_cookie_size));
             ++block_preload;
         }
     WT_INTL_FOREACH_END;

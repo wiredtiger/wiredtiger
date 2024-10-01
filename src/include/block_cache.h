@@ -60,8 +60,9 @@ struct __wt_blkcache_item {
 
     wt_shared uint32_t ref_count; /* References */
 
-    uint32_t fid;      /* File ID */
-    uint8_t addr_size; /* Address cookie */
+    WT_PAGE_BLOCK_META *block_meta; /* Block metadata returned by the read call */
+    uint32_t fid;                   /* File ID */
+    uint8_t addr_size;              /* Address cookie */
     uint8_t addr[];
 };
 
