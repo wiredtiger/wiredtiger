@@ -19,6 +19,8 @@ static const char *const __stats_dsrc_desc[] = {
   "autocommit: retries for update operations",
   "backup: total modified incremental blocks with compressed data",
   "backup: total modified incremental blocks without compressed data",
+  "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager put ",
   "block-manager: allocations requiring file extension",
   "block-manager: blocks allocated",
   "block-manager: blocks freed",
@@ -403,6 +405,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->autocommit_update_retry = 0;
     stats->backup_blocks_compressed = 0;
     stats->backup_blocks_uncompressed = 0;
+    stats->disagg_block_get = 0;
+    stats->disagg_block_put = 0;
     stats->block_extension = 0;
     stats->block_alloc = 0;
     stats->block_free = 0;
@@ -742,6 +746,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->autocommit_update_retry += from->autocommit_update_retry;
     to->backup_blocks_compressed += from->backup_blocks_compressed;
     to->backup_blocks_uncompressed += from->backup_blocks_uncompressed;
+    to->disagg_block_get += from->disagg_block_get;
+    to->disagg_block_put += from->disagg_block_put;
     to->block_extension += from->block_extension;
     to->block_alloc += from->block_alloc;
     to->block_free += from->block_free;
@@ -1096,6 +1102,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->autocommit_update_retry += WT_STAT_DSRC_READ(from, autocommit_update_retry);
     to->backup_blocks_compressed += WT_STAT_DSRC_READ(from, backup_blocks_compressed);
     to->backup_blocks_uncompressed += WT_STAT_DSRC_READ(from, backup_blocks_uncompressed);
+    to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
+    to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
     to->block_extension += WT_STAT_DSRC_READ(from, block_extension);
     to->block_alloc += WT_STAT_DSRC_READ(from, block_alloc);
     to->block_free += WT_STAT_DSRC_READ(from, block_free);
@@ -1520,6 +1528,8 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: total bytes",
   "block-cache: total bytes inserted on read path",
   "block-cache: total bytes inserted on write path",
+  "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager put ",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
   "block-manager: blocks written",
@@ -2308,6 +2318,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bytes = 0;
     stats->block_cache_bytes_insert_read = 0;
     stats->block_cache_bytes_insert_write = 0;
+    stats->disagg_block_get = 0;
+    stats->disagg_block_put = 0;
     stats->block_preload = 0;
     stats->block_read = 0;
     stats->block_write = 0;
@@ -3047,6 +3059,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bytes += WT_STAT_CONN_READ(from, block_cache_bytes);
     to->block_cache_bytes_insert_read += WT_STAT_CONN_READ(from, block_cache_bytes_insert_read);
     to->block_cache_bytes_insert_write += WT_STAT_CONN_READ(from, block_cache_bytes_insert_write);
+    to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
+    to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
     to->block_preload += WT_STAT_CONN_READ(from, block_preload);
     to->block_read += WT_STAT_CONN_READ(from, block_read);
     to->block_write += WT_STAT_CONN_READ(from, block_write);

@@ -120,19 +120,35 @@ static int
 __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
   uint32_t allocsize, const char **cfg)
 {
-    WT_CONFIG_ITEM storage_source_item;
+    WT_CONFIG_ITEM page_log_item, storage_source_item;
+    WT_NAMED_PAGE_LOG *npage_log;
     WT_NAMED_STORAGE_SOURCE *nstorage;
+
+    WT_RET(__wt_config_gets(session, cfg, "page_log", &page_log_item));
+    WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
 
     WT_RET(__wt_config_gets(session, cfg, "storage_source", &storage_source_item));
     WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
 
-    if (nstorage != NULL) {
+    WT_ASSERT(session, npage_log == NULL || nstorage == NULL);
+
+    if (npage_log != NULL) {
+        /*
+         * This is currently a place holder - the page log isn't fully created until the btree is
+         * created and I don't want to pull that forward into this schema code at the moment. So
+         * make a stub call to demonstrate intention, but the subsequent open call will implicitly
+         * create a file if necessary. Using the disaggregated manager also means metadata tracking
+         * isn't currently working. It assumes that the existing default block manager is
+         * responsible for objects.
+         */
+        WT_RET(__wt_block_disagg_manager_create(session, NULL, filename));
+    } else if (nstorage != NULL) {
         /*
          * This is currently a place holder - the storage source isn't fully created until the btree
          * is created and I don't want to pull that forward into this schema code at the moment. So
          * make a stub call to demonstrate intention, but the subsequent open call will implicitly
          * create a file if necessary. Using the pantry manager also means metadata tracking isn't
-         * currently working. It assumes that the existing default block manger is responsible for
+         * currently working. It assumes that the existing default block manager is responsible for
          * objects.
          */
         WT_RET(__wt_block_pantry_manager_create(session, NULL, filename));

@@ -487,3 +487,66 @@ struct __wt_block_pantry_header {
 #define WT_BLOCK_PANTRY_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_PANTRY_HEADER_SIZE)
 #define WT_BLOCK_PANTRY_ID_INVALID UINT64_MAX
 #define WT_BLOCK_PANTRY_CHECKPOINT_BUFFER (1024)
+
+/*
+ * WT_BLOCK_DISAGG --
+ *	Block manager handle for disaggregated storage block manager.
+ */
+struct __wt_block_disagg {
+    const char *name;  /* Name */
+    uint32_t objectid; /* Object id */
+    uint32_t ref;      /* References */
+
+    TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
+    TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+
+    /*
+     * Custom disaggregated fields - above this line the structure needs to exactly match the
+     * WT_BLOCK structure, since it can be treated as one for connection caching and a few other
+     * things. Ideally we would split this into a public/private structure, similar to session
+     * handles, and customize file and disagg handles as necessary. That's invasive so save the
+     * grunt work for now.
+     */
+
+    wt_shared uint64_t next_disagg_id;
+    WT_PAGE_LOG_HANDLE *plhandle;
+    WT_FH *metadata_fh;
+};
+
+/*
+ * WT_BLOCK_DISAGG_HEADER --
+ *	The disaggregated block manager custom header
+ */
+struct __wt_block_disagg_header {
+    /*
+     * The disagg identifier for a particular page.
+     */
+    uint64_t disagg_id; /* 00-07: disaggregated identifier */
+
+    /*
+     * Page checksums are stored in two places. Similarly to the default block header.
+     */
+    uint32_t checksum; /* 08-11: checksum */
+
+/*
+ * No automatic generation: flag values cannot change, they're written to disk.
+ */
+#define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
+#define WT_BLOCK_DISAGG_DATA_DELTA 0x2u /* Block object is a delta */
+    uint8_t flags;                      /* 12: flags */
+
+    /*
+     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
+     * 32-bit aligned and having a few bytes to play with in the future can't hurt.
+     */
+    uint8_t unused[3]; /* 13-15: unused padding */
+};
+
+/*
+ * WT_BLOCK_DISAGG_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
+ * inserts padding it will break the world.
+ */
+#define WT_BLOCK_DISAGG_HEADER_SIZE 16
+#define WT_BLOCK_DISAGG_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
+#define WT_BLOCK_DISAGG_ID_INVALID UINT64_MAX
+#define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)

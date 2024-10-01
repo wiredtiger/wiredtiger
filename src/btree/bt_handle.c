@@ -294,6 +294,32 @@ __wt_btree_config_encryptor(
     }
     return (0);
 }
+
+/*
+ * __btree_setup_page_log --
+ *     Configure a WT_BTREE page log.
+ */
+static int
+__btree_setup_page_log(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_CONFIG_ITEM page_log_item;
+    WT_NAMED_PAGE_LOG *npage_log;
+    const char **cfg;
+
+    cfg = btree->dhandle->cfg;
+
+    /* Setup any configured page log on the data handle */
+    WT_RET(__wt_config_gets(session, cfg, "page_log", &page_log_item));
+    WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
+
+    if (npage_log == NULL)
+        return (0);
+
+    btree->page_log = npage_log->page_log;
+
+    return (0);
+}
+
 /*
  * __btree_setup_storage_source --
  *     Configure a WT_BTREE storage source.
@@ -474,7 +500,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
 
+    WT_RET(__btree_setup_page_log(session, btree));
     WT_RET(__btree_setup_storage_source(session, btree));
+
+    /* A page log service and a storage source cannot both be enabled. */
+    WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
 
     /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;
