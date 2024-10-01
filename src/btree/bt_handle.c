@@ -688,7 +688,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     btree = S2BT(session);
     bm = btree->bm;
 
-    memset(&block_meta, 0, sizeof(block_meta));
+    WT_CLEAR(block_meta);
 
     /*
      * A buffer into which we read a root page; don't use a scratch buffer, the buffer's allocated
@@ -738,7 +738,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(__wt_page_inmem(session, NULL, dsk.data,
       WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page, NULL));
     dsk.mem = NULL;
-    memcpy(&page->block_meta, &block_meta, sizeof(page->block_meta));
+    page->block_meta = block_meta;
 
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, page, btree->type != BTREE_ROW);

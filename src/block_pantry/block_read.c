@@ -46,7 +46,7 @@ __block_pantry_read(WT_SESSION_IMPL *session, WT_BLOCK_PANTRY *block_pantry, WT_
     size_t bufsize;
 
     if (block_meta != NULL)
-        memset(block_meta, 0, sizeof(*block_meta));
+        WT_CLEAR(*block_meta);
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %" PRIu32,
       (uintmax_t)pantry_id, size, checksum);

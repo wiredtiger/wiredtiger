@@ -440,7 +440,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, WT_PAGE_BLOCK_META *b
     memcpy(blkcache_store->data, data->data, data->size);
     if (block_meta != NULL) {
         WT_ERR(__wt_calloc(session, 1, sizeof(*block_meta_ptr), &block_meta_ptr));
-        memcpy(block_meta_ptr, &block_meta, sizeof(*block_meta_ptr));
+        *block_meta_ptr = *block_meta;
         blkcache_store->block_meta = block_meta_ptr;
     }
     blkcache_store->fid = S2BT(session)->id;

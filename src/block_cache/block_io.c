@@ -103,9 +103,9 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             ip->size = blkcache_item->data_size;
             if (block_meta != NULL) {
                 if (blkcache_item->block_meta == NULL)
-                    memset(block_meta, 0, sizeof(*block_meta));
+                    WT_CLEAR(*block_meta);
                 else
-                    memcpy(block_meta, &blkcache_item->block_meta, sizeof(*block_meta));
+                    *block_meta = *blkcache_item->block_meta;
             }
             if (!expect_conversion) {
                 /* Copy to the caller's buffer before releasing our reference. */
@@ -129,7 +129,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         }
 
         if (block_meta != NULL)
-            memcpy(block_meta, &block_meta_tmp, sizeof(*block_meta));
+            *block_meta = block_meta_tmp;
 
         dsk = ip->data;
         WT_STAT_CONN_DSRC_INCR(session, cache_read);

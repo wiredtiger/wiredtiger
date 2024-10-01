@@ -684,7 +684,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->wrapup_checkpoint = NULL;
     r->wrapup_checkpoint_compressed = false;
-    memset(&r->wrapup_checkpoint_block_meta, 0, sizeof(r->wrapup_checkpoint_block_meta));
+    WT_CLEAR(r->wrapup_checkpoint_block_meta);
 
     /*
      * Dictionary compression only writes repeated values once. We grow the dictionary as necessary,
@@ -1054,10 +1054,13 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /*
      * Initialize the block page metadata.
      */
-    if (first)
-        memcpy(&chunk->block_meta, &r->page->block_meta, sizeof(chunk->block_meta));
+    /* TODO Use the code below once checkpoint-based page versioning is ready. */
+    /*if (first)
+        chunk->block_meta = r->page->block_meta;
     else
-        __wt_page_block_meta_init(session, &chunk->block_meta);
+        __wt_page_block_meta_init(session, &chunk->block_meta);*/
+    WT_UNUSED(first);
+    __wt_page_block_meta_init(session, &chunk->block_meta);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -2129,8 +2132,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint = compressed_image;
             r->wrapup_checkpoint_compressed = true;
         }
-        memcpy(&r->wrapup_checkpoint_block_meta, &chunk->block_meta,
-          sizeof(r->wrapup_checkpoint_block_meta));
+        r->wrapup_checkpoint_block_meta = chunk->block_meta;
         return (0);
     }
 
