@@ -11,7 +11,7 @@ COPYRIGHT = """\
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -146,7 +146,8 @@ def output(fns, tests, f, private_file=""):
     format_srcfile(tmp_file)
     compare_srcfile(tmp_file, f)
 
-# Build a mapping from a component to its public functions, private functions, and HAVE_UNITTEST functions.
+# Build a mapping from a component to its public functions, private functions, 
+# and HAVE_UNITTEST functions.
 def build_component_functions_dicts():
     public_fns_dict = defaultdict(list)
     private_fns_dict = defaultdict(list)
@@ -178,11 +179,13 @@ def build_component_functions_dicts():
         if fnmatch.fnmatch(name, '../src/*'):
             component = name.split("/")[2]
             if component not in modularised_components:
-                # Non modularised components put all their function prototypes in src/include/extern.h
-                # This is indicated by belonging to the include folder.
-                fn_prototypes(public_fns_dict["include"], private_fns_dict["include"], tests_dict["include"], name)
+                # Non modularised components put all their function prototypes in 
+                # src/include/extern.h This is indicated by belonging to the include folder.
+                fn_prototypes(public_fns_dict["include"], private_fns_dict["include"], 
+                    tests_dict["include"], name)
             else:
-                fn_prototypes(public_fns_dict[component], private_fns_dict[component], tests_dict[component], name)
+                fn_prototypes(public_fns_dict[component], private_fns_dict[component], 
+                    tests_dict[component], name)
         else:
             print(f"Unexpected filepath {name}")
             exit(1)
@@ -198,12 +201,15 @@ def write_header_files(public_fns_dict, private_fns_dict, tests_dict):
     for comp in components:
         if comp == "include":
             # Functions defined in the include folder belong in extern.h
-            output(public_fns_dict[comp] + private_fns_dict[comp], tests_dict[comp], f"../src/include/extern.h")
+            output(public_fns_dict[comp] + private_fns_dict[comp], tests_dict[comp], 
+                f"../src/include/extern.h")
         else:
-            output(public_fns_dict[comp], tests_dict[comp], f"../src/{comp}/{comp}.h", private_file=f"{comp}_private.h")
+            output(public_fns_dict[comp], tests_dict[comp], f"../src/{comp}/{comp}.h", 
+                private_file=f"{comp}_private.h")
             if len(private_fns_dict[comp]) > 0:
-                # The second argument (tests_dict) is empty. These test functions are defined to expose module 
-                # internals outside the module, so it doens't make sense for them to be private.
+                # The second argument (tests_dict) is empty. These test functions are defined to
+                # expose module internals outside the module, so it doens't make sense for them 
+                # to be private.
                 output(private_fns_dict[comp], {}, f"../src/{comp}/{comp}_private.h")
 
 def prototypes_os():
