@@ -343,6 +343,8 @@ struct __wt_ovfl_track;
 typedef struct __wt_ovfl_track WT_OVFL_TRACK;
 struct __wt_page;
 typedef struct __wt_page WT_PAGE;
+struct __wt_page_block_meta;
+typedef struct __wt_page_block_meta WT_PAGE_BLOCK_META;
 struct __wt_page_deleted;
 typedef struct __wt_page_deleted WT_PAGE_DELETED;
 struct __wt_page_header;

@@ -26,6 +26,7 @@ __oligarch_metadata_watcher(void *arg)
     md_fh = NULL;
     session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
+    md_fh = NULL;
     memset(buf, 0, 4096);
 
     len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
@@ -187,7 +188,6 @@ err:
 int
 __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
-    WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -206,16 +206,9 @@ __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     if (WT_CONFIG_LIT_MATCH("follower", cval))
         conn->oligarch_manager.leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
+    else if (WT_CONFIG_LIT_MATCH("leader", cval))
         conn->oligarch_manager.leader = true;
-        if (reconfig) {
-            /* TODO giant hack - figure out how to avoid reusing pantry IDs */
-            TAILQ_FOREACH (block, &conn->blockqh, q) {
-                if (strstr(block->name, "wt_stable") != NULL)
-                    ((WT_BLOCK_PANTRY *)block)->next_pantry_id += 100;
-            }
-        }
-    } else
+    else
         /* TODO better error message. */
         WT_RET(EINVAL);
 

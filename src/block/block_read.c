@@ -13,14 +13,16 @@
  *     Map or read address cookie referenced block into a buffer.
  */
 int
-__wt_bm_read(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK *block;
     WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
     bool last_release;
+
+    WT_UNUSED(block_meta);
 
     block = bm->block;
 
@@ -112,7 +114,7 @@ __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
 
     /* Read the block. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_bm_read(bm, session, tmp, addr, addr_size));
+    WT_ERR(__wt_bm_read(bm, session, tmp, NULL, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
     WT_ERR(__wt_block_addr_unpack(

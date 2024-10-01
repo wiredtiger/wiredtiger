@@ -98,6 +98,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         #
         # Part 2: The big switcheroo
         #
+        self.pr('switch the leader and the follower')
         self.conn.reconfigure("oligarch=(role=\"follower\")")
         conn_follow.reconfigure("oligarch=(role=\"leader\")")
         time.sleep(2)

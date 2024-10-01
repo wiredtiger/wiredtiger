@@ -568,6 +568,16 @@ struct __wt_split_page_hist {
 #endif
 
 /*
+ * WT_PAGE_BLOCK_META --
+ *  Block management metadata associated with a page.
+ */
+struct __wt_page_block_meta {
+    uint64_t page_id;
+
+    /* TODO: Place additional metadata here, e.g., checkpoint ID, number of deltas. */
+};
+
+/*
  * WT_PAGE --
  *	The WT_PAGE structure describes the in-memory page information.
  */
@@ -769,6 +779,8 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
+
+    WT_PAGE_BLOCK_META block_meta; /* Block metadata */
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3

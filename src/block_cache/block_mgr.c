@@ -158,10 +158,12 @@ __bm_sync_tiered_handles(WT_BM *bm, WT_SESSION_IMPL *session)
  *     Write a buffer into a block, creating a checkpoint.
  */
 static int
-__bm_checkpoint(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+__bm_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK *block;
+
+    WT_UNUSED(block_meta);
 
     block = bm->block;
 
@@ -206,10 +208,11 @@ __bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session, char **metadatap, char
  *     Write a buffer into a block, creating a checkpoint; readonly version.
  */
 static int
-__bm_checkpoint_readonly(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+__bm_checkpoint_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_UNUSED(buf);
+    WT_UNUSED(block_meta);
     WT_UNUSED(ckptbase);
     WT_UNUSED(data_checksum);
 
@@ -536,9 +539,10 @@ __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
  *     Read an address cookie referenced block into a buffer.
  */
 static int
-__bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size)
 {
-    return (__wt_bm_read(bm, session, buf, addr, addr_size));
+    return (__wt_bm_read(bm, session, buf, block_meta, addr, addr_size));
 }
 
 /*
@@ -841,14 +845,14 @@ __bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const 
  *     Write a buffer into a block, returning the block's address cookie.
  */
 static int
-__bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
-  bool data_checksum, bool checkpoint_io)
+__bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
 
-    return (
-      __wt_block_write(session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
+    return (__wt_block_write(
+      session, bm->block, buf, block_meta, addr, addr_sizep, data_checksum, checkpoint_io));
 }
 
 /*
@@ -856,10 +860,12 @@ __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, siz
  *     Write a buffer into a block, returning the block's address cookie; readonly version.
  */
 static int
-__bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr,
-  size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+__bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, bool data_checksum,
+  bool checkpoint_io)
 {
     WT_UNUSED(buf);
+    WT_UNUSED(block_meta);
     WT_UNUSED(addr);
     WT_UNUSED(addr_sizep);
     WT_UNUSED(data_checksum);
