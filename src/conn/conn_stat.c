@@ -577,14 +577,14 @@ __statlog_server(void *arg)
     WT_SESSION_IMPL *session;
 
     session = arg;
-#ifdef HAVE_CONTROL_POINT
-    WT_ERR(__wt_session_control_point_enable_all(session));
-#endif
     conn = S2C(session);
 
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
+    #ifdef HAVE_CONTROL_POINT
+        WT_ERR(__wt_session_control_point_enable_all(session));
+    #endif
     /*
      * We need a temporary place to build a path and an entry prefix. The length of the path plus
      * 128 should be more than enough.
