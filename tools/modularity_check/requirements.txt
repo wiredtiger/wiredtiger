@@ -1,3 +1,0 @@
-networkx
-tree-sitter
-tree-sitter-c
