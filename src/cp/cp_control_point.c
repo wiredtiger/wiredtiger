@@ -63,7 +63,9 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     size_t new_crossing_count;
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     size_t new_trigger_count;
+#endif
     bool triggered;
 
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
@@ -97,11 +99,13 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     new_crossing_count = ++(cp_registry->crossing_count);
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     if (triggered) {
-        new_trigger_count = ++(cp_registry->trigger_count);
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
+        new_trigger_count = ++(cp_registry->trigger_count);
         __wt_verbose_notice(session, WT_VERB_TEMPORARY,
           "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
           (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
+#else
+        ++(cp_registry->trigger_count);
 #endif
     } else {
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
@@ -130,7 +134,9 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     size_t new_crossing_count;
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     size_t new_trigger_count;
+#endif
     bool triggered;
 
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE)) {
@@ -161,11 +167,13 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     new_crossing_count = ++(cp_registry->crossing_count);
     if (triggered) {
-        new_trigger_count = ++(cp_registry->trigger_count);
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
+        new_trigger_count = ++(cp_registry->trigger_count);
         __wt_verbose_notice(session, WT_VERB_TEMPORARY,
           "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
           (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
+#else
+        ++(cp_registry->trigger_count);
 #endif
     } else {
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
