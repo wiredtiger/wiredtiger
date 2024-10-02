@@ -26,19 +26,19 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     txn = session->txn;
 
     /*
-     * We can skip some dirty pages during a checkpoint. The requirements:
+     * We may skip dirty pages during a checkpoint unless one of the following conditions is met:
      *
-     * 1. Not a history btree. As part of the checkpointing the data store, we will move the older
-     *    values into the history store without using any transactions. This led to representation
-     *    of all the modifications on the history store page with a transaction that is maximum than
-     *    the checkpoint snapshot. But these modifications are done by the checkpoint itself, so we
-     *    shouldn't ignore them for consistency.
-     * 2. they must be leaf pages,
-     * 3. there is a snapshot transaction active (which is the case in ordinary application
-     *    checkpoints but not all internal cases),
-     * 4. the first dirty update on the page is sufficiently recent the checkpoint transaction would
-     *     skip them,
-     * 5. there's already an address for every disk block involved.
+     *  - This is the RTS checkpoint. It should not leave anything dirty behind.
+     *  - This is the history store btree. As part of the checkpointing the data store, we will move
+     * the older values into the history store without using any transactions. This led to
+     * representation of all the modifications on the history store page with a transaction that is
+     * maximum than the checkpoint snapshot. But these modifications are done by the checkpoint
+     * itself, so we shouldn't ignore them for consistency.
+     * - This is an internal page,
+     * - There is no snapshot transaction active (usually, there is one in ordinary application
+     * checkpoints but not all internal cases),
+     * - the checkpoint's snapshot includes the first dirty update on the page.
+     * - Not every disk block involved has a disk address.
      */
     // TODO - we may want to disable during shutdown and recovery as well.
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
