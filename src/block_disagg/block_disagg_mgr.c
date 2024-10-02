@@ -179,6 +179,8 @@ __wt_block_disagg_manager_open(WT_SESSION_IMPL *session, const char *uri, const 
     *bmp = NULL;
 
     WT_RET(__wt_calloc_one(session, &bm));
+    bm->is_remote = true;
+
     __bmp_method_set(bm, false);
 
     uri += strlen("file:");

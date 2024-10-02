@@ -46,6 +46,9 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     size_t bufsize;
 
+    if (block_meta != NULL)
+        WT_CLEAR(*block_meta);
+
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %" PRIu32,
       (uintmax_t)disagg_id, size, checksum);
 
