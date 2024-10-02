@@ -278,7 +278,10 @@ __cache_pool_server(void *arg)
     }
 
 #ifdef HAVE_CONTROL_POINT
+    if (0) {
 err:
+        WT_IGNORE_RET(__wt_panic(session, ret, "cache pool server error."));
+    }
 #endif
     return (WT_THREAD_RET_VALUE);
 }
