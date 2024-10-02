@@ -1188,8 +1188,8 @@ err:
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
      * of cache.
      */
-    __wt_set_shared_double(&conn->cache->eviction_dirty_trigger, 1.0);
-    __wt_set_shared_double(&conn->cache->eviction_dirty_target, 0.1);
+    __wt_set_shared_double(&conn->evict->eviction_dirty_trigger, 1.0);
+    __wt_set_shared_double(&conn->evict->eviction_dirty_target, 0.1);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
       F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
@@ -2787,7 +2787,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     conn->recovery_version = WT_NO_VERSION;
 
     /* Always set the compatibility versions. */
-    __wti_logmgr_compat_version(session);
+    __wt_logmgr_compat_version(session);
     /*
      * If we're salvaging, don't verify now.
      */
@@ -3229,7 +3229,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * We need to parse the logging configuration here to verify the compatibility settings because
      * we may need the log path and encryption and compression settings.
      */
-    WT_ERR(__wti_logmgr_config(session, cfg, false));
+    WT_ERR(__wt_logmgr_config(session, cfg, false));
     WT_ERR(__conn_version_verify(session));
 
     /*
