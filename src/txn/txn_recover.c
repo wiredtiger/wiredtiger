@@ -152,15 +152,15 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     uint64_t granularity;
     uint32_t index, opsize, optype;
     const char *id_str;
+    bool have_lsn_str;
 
     session = r->session;
     conn = S2C(session);
 
+    have_lsn_str = false;
     WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
-    if ((ret = __wt_lsn_string(session, lsnp, lsn_str)) != 0) {
-        __wt_scr_free(session, &lsn_str);
-        return (ret);
-    }
+    WT_ERR(__wt_lsn_string(session, lsnp, lsn_str));
+    have_lsn_str = true;
 
     /* Right now the only system record we care about is the backup id. Skip anything else. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -197,8 +197,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
 
     if (0) {
 err:
-        __wt_err(
-          session, ret, "backup id apply failed during recovery: at LSN %s", (char *)lsn_str->mem);
+        __wt_err(session, ret, "backup id apply failed during recovery: at LSN %s",
+          have_lsn_str ? (char *)lsn_str->mem : "failed to build LSN string");
     }
 
 done:
@@ -251,16 +251,16 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     size_t max_memsize;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, opsize, optype;
+    bool have_lsn_str;
 
     session = r->session;
     cursor = NULL;
 
     /* Build the LSN string here as it's used inside the GET_RECOVERY_CURSOR macro. */
+    have_lsn_str = false;
     WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
-    if (__wt_lsn_string(session, lsnp, lsn_str) != 0) {
-        __wt_scr_free(session, &lsn_str);
-        return (ret);
-    }
+    WT_ERR(__wt_lsn_string(session, lsnp, lsn_str));
+    have_lsn_str = true;
 
     /* Peek at the size and the type. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -465,7 +465,7 @@ done:
 err:
         __wt_err(session, ret,
           "operation apply failed during recovery: operation type %" PRIu32 " at LSN %s", optype,
-          (char *)lsn_str->mem);
+          have_lsn_str ? (char *)lsn_str->mem : "failed to build LSN string");
     }
 
     __wt_scr_free(session, &lsn_str);
