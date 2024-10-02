@@ -26,7 +26,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     txn = session->txn;
 
     /*
-     * We may skip dirty pages during a checkpoint unless one of the following conditions is met:
+     * Don't skip checkpoint if at least one of the following conditions is met:
      *
      *  - This checkpoint happens during RTS, recovery or shutdown. Those scenarios should not leave
      * anything dirty behind.
@@ -35,9 +35,10 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * representation of all the modifications on the history store page with a transaction that is
      * maximum than the checkpoint snapshot. But these modifications are done by the checkpoint
      * itself, so we shouldn't ignore them for consistency.
-     * - This is an internal page,
-     * - There is no snapshot transaction active (usually, there is one in ordinary application
-     * checkpoints but not all internal cases),
+     * - This is an internal page.
+     * - There is no snapshot transaction active. Usually, there is one in ordinary application
+     * checkpoints but not all internal cases. Furthermore, this guarantees the metadata file is
+     * never skipped.
      * - the checkpoint's snapshot includes the first dirty update on the page.
      * - Not every disk block involved has a disk address.
      */
