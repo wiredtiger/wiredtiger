@@ -304,7 +304,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     __wt_timer_start(session, &timer);
 
-    F_SET(S2C(session), WT_CONN_RTS_RUN);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_int(session, no_ckpt)));
@@ -321,7 +320,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
     /* Reset the RTS configuration to default. */
     S2C(session)->rts->dryrun = false;
     S2C(session)->rts->threads_num = 0;
-    F_CLR(S2C(session), WT_CONN_RTS_RUN);
 
     WT_TRET(__wt_session_close_internal(session));
 
