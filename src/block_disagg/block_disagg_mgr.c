@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __bmp_addr_invalid --
+ * __bmd_addr_invalid --
  *     Return an error code if an address cookie is invalid.
  */
 static int
-__bmp_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bmd_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -23,11 +23,11 @@ __bmp_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, siz
 }
 
 /*
- * __bmp_block_header --
+ * __bmd_block_header --
  *     Return the size of the block header.
  */
 static u_int
-__bmp_block_header(WT_BM *bm)
+__bmd_block_header(WT_BM *bm)
 {
     WT_UNUSED(bm);
 
@@ -35,11 +35,11 @@ __bmp_block_header(WT_BM *bm)
 }
 
 /*
- * __bmp_close --
+ * __bmd_close --
  *     Close a file.
  */
 static int
-__bmp_close(WT_BM *bm, WT_SESSION_IMPL *session)
+__bmd_close(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
@@ -53,11 +53,11 @@ __bmp_close(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __bmp_free --
+ * __bmd_free --
  *     Free a block of space to the underlying file.
  */
 static int
-__bmp_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     /*
      * Nothing to do for now - this should notify the space manager that the page is no longer
@@ -71,22 +71,22 @@ __bmp_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 }
 
 /*
- * __bmp_stat --
+ * __bmd_stat --
  *     Block-manager statistics.
  */
 static int
-__bmp_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
+__bmd_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 {
     __wt_block_disagg_stat(session, (WT_BLOCK_DISAGG *)bm->block, stats);
     return (0);
 }
 
 /*
- * __bmp_write --
+ * __bmd_write --
  *     Write a buffer into a block, returning the block's address cookie.
  */
 static int
-__bmp_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+__bmd_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
   uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     __wt_capacity_throttle(
@@ -96,11 +96,11 @@ __bmp_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_MET
 }
 
 /*
- * __bmp_write_size --
+ * __bmd_write_size --
  *     Return the buffer size required to write a block.
  */
 static int
-__bmp_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
+__bmd_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -109,29 +109,29 @@ __bmp_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 }
 
 /*
- * __bmp_method_set --
+ * __bmd_method_set --
  *     Set up the legal methods.
  */
 static void
-__bmp_method_set(WT_BM *bm, bool readonly)
+__bmd_method_set(WT_BM *bm, bool readonly)
 {
     WT_UNUSED(readonly);
 
-    bm->addr_invalid = __bmp_addr_invalid;
+    bm->addr_invalid = __bmd_addr_invalid;
     bm->addr_string = __wt_block_disagg_addr_string;
-    bm->block_header = __bmp_block_header;
+    bm->block_header = __bmd_block_header;
     bm->checkpoint = __wt_block_disagg_checkpoint;
     bm->checkpoint_load = __wt_block_disagg_checkpoint_load;
     bm->checkpoint_resolve = __wt_block_disagg_checkpoint_resolve;
     bm->checkpoint_start = __wt_block_disagg_checkpoint_start;
     bm->checkpoint_unload = __wt_block_disagg_checkpoint_unload;
-    bm->close = __bmp_close;
+    bm->close = __bmd_close;
     bm->compact_end = __wt_bmp_compact_end;
     bm->compact_page_skip = __wt_bmp_compact_page_skip;
     bm->compact_skip = __wt_bmp_compact_skip;
     bm->compact_start = __wt_bmp_compact_start;
     bm->corrupt = __wt_block_disagg_corrupt;
-    bm->free = __bmp_free;
+    bm->free = __bmd_free;
     bm->is_mapped = __wt_bmp_is_mapped;
     bm->map_discard = __wt_bmp_map_discard;
     bm->read = __wt_block_disagg_read;
@@ -140,13 +140,13 @@ __bmp_method_set(WT_BM *bm, bool readonly)
     bm->salvage_start = __wt_bmp_salvage_start;
     bm->salvage_valid = __wt_bmp_salvage_valid;
     bm->size = __wt_block_disagg_manager_size;
-    bm->stat = __bmp_stat;
+    bm->stat = __bmd_stat;
     bm->sync = __wt_bmp_sync;
     bm->verify_addr = __wt_bmp_verify_addr;
     bm->verify_end = __wt_bmp_verify_end;
     bm->verify_start = __wt_bmp_verify_start;
-    bm->write = __bmp_write;
-    bm->write_size = __bmp_write_size;
+    bm->write = __bmd_write;
+    bm->write_size = __bmd_write_size;
 }
 
 /*
@@ -181,7 +181,7 @@ __wt_block_disagg_manager_open(WT_SESSION_IMPL *session, const char *uri, const 
     WT_RET(__wt_calloc_one(session, &bm));
     bm->is_remote = true;
 
-    __bmp_method_set(bm, false);
+    __bmd_method_set(bm, false);
 
     uri += strlen("file:");
 

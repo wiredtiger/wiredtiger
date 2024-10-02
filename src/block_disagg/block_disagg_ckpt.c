@@ -9,13 +9,13 @@
 #include "wt_internal.h"
 
 /*
- * __bmp_checkpoint_pack_raw --
+ * __bmd_checkpoint_pack_raw --
  *     This function needs to do two things: Create a recovery point in the object store underlying
  *     this table and create an address cookie that is saved to the metadata (and used to find the
  *     checkpoint again).
  */
 static int
-__bmp_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *session,
+__bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *session,
   WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckpt)
 {
     uint64_t disagg_id;
@@ -75,7 +75,7 @@ __wt_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             /* __wt_bmp_write_page(block_disagg, buf, root_addr); */
-            WT_RET(__bmp_checkpoint_pack_raw(block_disagg, session, root_image, block_meta, ckpt));
+            WT_RET(__bmd_checkpoint_pack_raw(block_disagg, session, root_image, block_meta, ckpt));
         }
 
     return (0);
