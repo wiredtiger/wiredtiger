@@ -766,7 +766,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
          * More clean pages may become dirty as a result of an outdated value.
          */
         S2BT(session)->obsolete_tw_pages++;
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty_obsolete_tw);
     }
 
     return (0);
