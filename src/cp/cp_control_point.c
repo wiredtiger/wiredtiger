@@ -158,7 +158,6 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
  * Per connection control point initialization.
  */
 /* From examples/ex_control_points.c */
-#if 0  /* XXX TEMPORARY - Try without any control points. */
 /*
  * Per connection control point "Main Start Printing".
  */
@@ -632,7 +631,6 @@ err:
 
     return ((WT_CONTROL_POINT *)init_data);
 }
-#endif /* XXX TEMPORARY - Try without any control points. */
 
 /*
  * Control point startup functions: Initialization.
@@ -647,10 +645,6 @@ err:
 int
 __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
 {
-#if CONNECTION_CONTROL_POINTS_SIZE == 0
-    WT_UNUSED(session);
-    return (0);
-#else
     WT_CONTROL_POINT_REGISTRY *control_points;
     WT_DECL_RET;
 
@@ -661,7 +655,6 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     /*
      * This part must be edited. Repeat this for every per connection control point.
      */
-#if 0  /* XXX TEMPORARY - Try without any control points. */
     /* From examples/ex_control_points.c */
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].init =
       __wt_conn_control_point_init_main_start_printing;
@@ -751,7 +744,6 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     /* Extra initialization required for action "Wait for trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-#endif /* XXX TEMPORARY - Try without any control points. */
 
     /* After all repeats finish with this. */
     S2C(session)->control_points = control_points;
@@ -760,7 +752,6 @@ err:
     if (ret != 0)
         __wt_free(session, control_points);
     return (ret);
-#endif /* CONNECTION_CONTROL_POINTS_SIZE == 0 */
 }
 
 /*
@@ -802,7 +793,7 @@ err:
     if (ret != 0)
         __wt_free(session, control_points);
     return (ret);
-#endif /* SESSION_CONTROL_POINTS_SIZE == 0 */
+#endif
 }
 
 /*
@@ -818,8 +809,7 @@ err:
 int
 __wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
 {
-    /* XXX TEMPORARY - Try without any control points. */
-#if 1 /* If no per connection control points are enabled at the start. */
+#if 0 /* If no per connection control points are enabled at the start. */
     WT_UNUSED(session);
     WT_UNUSED(cfg);
 #else

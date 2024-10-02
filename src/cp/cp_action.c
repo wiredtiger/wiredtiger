@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-#undef HAVE_CONTROL_POINT /* XXX TEMPORARY - Try without any control points. */
-
 #ifdef HAVE_CONTROL_POINT
 
 /* cp_action.c: Definitions for control point actions. */

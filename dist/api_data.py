@@ -267,9 +267,7 @@ ex_control_points_config = [
 ]
 
 # All per connection control points
-#XXX TEMPORARY - Try without any control points.
-#all_per_connection_control_points_config = ex_control_points_config
-all_per_connection_control_points_config = [ ]
+all_per_connection_control_points_config = ex_control_points_config
 
 # All per session control points
 all_per_session_control_points_config = [ ]
