@@ -460,7 +460,12 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 
     WT_RET(__rts_btree_walk(session, rollback_timestamp));
 
-    // TODO - comment
+    /*
+     * Now the unstable data has been rolled back, we can reset the reconciliation information. It
+     * is necessary to do it otherwise RTS may mark the btree as dirty thinking something more
+     * recent happened on the btree. While no other transactions should be taking place in parallel
+     * with RTS, eviction can happen and can bump this value.
+     */
     btree->rec_max_timestamp = 0;
     btree->rec_max_txn = 0;
 
