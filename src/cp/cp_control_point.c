@@ -59,24 +59,41 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
+    size_t new_crossing_count;
+    size_t new_trigger_count;
     bool triggered;
 
-    if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
+    __wt_verbose_notice(session, WT_VERB_TEMPORARY, "Start: id=%" PRId32, id);
+    if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE)) {
+        __wt_verbose_error(session, WT_VERB_TEMPORARY,
+          "ERROR: id(%" PRId32 ") >= CONNECTION_CONTROL_POINTS_SIZE(%" PRId32 ")", id,
+          CONNECTION_CONTROL_POINTS_SIZE);
         return (NULL);
+    }
     conn = S2C(session);
-    if (WT_UNLIKELY(conn->control_points == NULL))
+    if (WT_UNLIKELY(conn->control_points == NULL)) {
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "control_points is NULL: id=%" PRId32, id);
         return (NULL);
+    }
     cp_registry = &(conn->control_points[id]);
 
     data = __wti_control_point_get_data(session, cp_registry, false);
-    if (data == NULL)
+    if (data == NULL) {
         /* Disabled. */
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "Is disabled: id=%" PRId32, id);
         return (NULL);
-    ++(cp_registry->crossing_count);
+    }
+    new_crossing_count = ++(cp_registry->crossing_count);
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
-    if (triggered)
-        ++(cp_registry->trigger_count);
-    else {
+    if (triggered) {
+        new_trigger_count = ++(cp_registry->trigger_count);
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+          "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
+          (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
+    } else {
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+          "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
+          (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
         __wt_control_point_release_data(session, cp_registry, data, false);
         /* Not triggered. */
         data = NULL;
@@ -97,24 +114,43 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
 {
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
+    size_t new_crossing_count;
+    size_t new_trigger_count;
     bool triggered;
 
-    if (WT_UNLIKELY((id >= SESSION_CONTROL_POINTS_SIZE) || (session->control_points == NULL)))
+    if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE)) {
+        __wt_verbose_error(session, WT_VERB_TEMPORARY,
+          "ERROR: id(%" PRId32 ") >= SESSION_CONTROL_POINTS_SIZE(%" PRId32 ")", id,
+          SESSION_CONTROL_POINTS_SIZE);
         return (NULL);
+    }
+    if (WT_UNLIKELY(session->control_points == NULL)) {
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "control_points is NULL: id=%" PRId32, id);
+        return (NULL);
+    }
     cp_registry = &(session->control_points[id]);
 
     data = cp_registry->data;
-    if (data == NULL)
+    if (data == NULL) {
         /* Disabled. */
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "Is disabled: id=%" PRId32, id);
         return (NULL);
+    }
 
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
-    ++(cp_registry->crossing_count);
-    if (triggered)
-        ++(cp_registry->trigger_count);
-    else
+    new_crossing_count = ++(cp_registry->crossing_count);
+    if (triggered) {
+        new_trigger_count = ++(cp_registry->trigger_count);
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+          "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
+          (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
+    } else {
+        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+          "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
+          (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
         /* Not triggered. */
         data = NULL;
+    }
     return (data);
 }
 

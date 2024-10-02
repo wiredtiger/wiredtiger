@@ -169,26 +169,40 @@ __wt_control_point_wait_for_trigger(
 {
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+    size_t current_trigger_count;
     size_t desired_trigger_count;
     size_t start_trigger_count;
+    size_t wait_count;
     bool signalled;
 
     data = __wti_control_point_get_data(session, cp_registry, true);
     start_trigger_count = cp_registry->trigger_count;
-    if (WT_UNLIKELY(data == NULL))
+    if (WT_UNLIKELY(data == NULL)) {
+        __wt_verbose_notice(
+          session, WT_VERB_CONTROL_POINT, "False: Is disabled: wait for trigger skipped");
         return (false); /* Not enabled. */
+    }
     /* Does the call site and trigger site match in action? */
     if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER)) {
-        __wt_verbose_error(session, WT_VERB_DEFAULT,
-          "Control point call site and trigger site have different actions: %d and %" PRIu32 ".",
+        __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
+          "False: Control point call site and trigger site have different actions: %d and %" PRIu32
+          ".",
           WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported);
         return (false); /* Pretend not enabled. */
     }
     /* Is waiting necessary? */
     action_data = (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(data + 1);
-    desired_trigger_count = start_trigger_count + action_data->wait_count;
-    if (cp_registry->trigger_count >= desired_trigger_count) { /* No */
+    wait_count = action_data->wait_count;
+    desired_trigger_count = start_trigger_count + wait_count;
+    current_trigger_count = cp_registry->trigger_count;
+    crossing_count = cp_registry->crossing_count;
+    if (current_trigger_count >= desired_trigger_count) { /* No */
         __wt_control_point_release_data(session, cp_registry, data, true);
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT,
+          "True: Wait not needed: # to wait=%" PRIu64 ", # waited=%" PRIu64
+          ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+          (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
+          (uint64_t)current_trigger_count, (uint64_t)crossing_count);
         return (true); /* Enabled and wait fulfilled. */
     }
     /* Store data needed by run_func. */
@@ -196,14 +210,27 @@ __wt_control_point_wait_for_trigger(
     session->cp_registry = cp_registry;
     session->cp_data = data;
     __wt_control_point_unlock(session, cp_registry);
+    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "Waiting: # left to wait=%" PRIu64
+                        ", # waited=%" PRIu64 ", trigger_count=%" PRIu64
+                        ", crossing_count=%" PRIu64,
+                        (uint64_t) (desired_trigger_count - current_trigger_count,
+                        (uint64_t) (current_trigger_count - start_trigger_count),
+                        (uint64_t) current_trigger_count, (uint64_t) crossing_count);
     for (;;) {
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
           __run_wait_for_trigger, &signalled);
-        if (cp_registry->trigger_count >= desired_trigger_count)
+        current_trigger_count = cp_registry->trigger_count;
+        if (current_trigger_count >= desired_trigger_count)
             /* Delay condition satisfied. */
             break;
     }
+    crossing_count = cp_registry->crossing_count;
     __wt_control_point_release_data(session, cp_registry, data, false);
+    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "True: Wait finished: # to wait=%" PRIu64
+                        ", # waited=%" PRIu64 ", trigger_count=%" PRIu64
+                        ", crossing_count=%" PRIu64, (uint64_t) wait_count,
+                        (uint64_t) (current_trigger_count - start_trigger_count),
+                        (uint64_t) current_trigger_count, (uint64_t) crossing_count);
     return (true);
 }
 
