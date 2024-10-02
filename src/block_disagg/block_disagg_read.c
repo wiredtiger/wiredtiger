@@ -13,16 +13,18 @@
  *     Report a block has been corrupted, external API.
  */
 int
-__wt_block_disagg_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wt_block_disagg_corrupt(
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_PAGE_BLOCK_META block_meta;
     uint64_t page_id;
     uint32_t checksum, size;
 
     /* Read the block. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_block_disagg_read(bm, session, tmp, addr, addr_size));
+    WT_ERR(__wt_block_disagg_read(bm, session, tmp, &block_meta, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
     WT_ERR(__wt_block_disagg_addr_unpack(&addr, &page_id, &size, &checksum));
@@ -39,7 +41,7 @@ err:
  */
 static int
 __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_ITEM *buf,
-  uint64_t disagg_id, uint32_t size, uint32_t checksum)
+  WT_PAGE_BLOCK_META *block_meta, uint64_t disagg_id, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     size_t bufsize;
@@ -67,6 +69,10 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
     WT_RET(__wt_buf_init(session, buf, bufsize));
     WT_RET(
       block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, disagg_id, 0, buf));
+
+    if (block_meta != NULL)
+        /* Set the other metadata returned by the Page Service. */
+        block_meta->page_id = disagg_id;
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
@@ -120,8 +126,8 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
  *     Map or read address cookie referenced block into a buffer.
  */
 int
-__wt_block_disagg_read(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__wt_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK_DISAGG *block_disagg;
     uint64_t page_id;
@@ -134,7 +140,7 @@ __wt_block_disagg_read(
     WT_RET(__wt_block_disagg_addr_unpack(&addr, &page_id, &size, &checksum));
 
     /* Read the block. */
-    WT_RET(__block_disagg_read(session, block_disagg, buf, page_id, size, checksum));
+    WT_RET(__block_disagg_read(session, block_disagg, buf, block_meta, page_id, size, checksum));
 
     return (0);
 }

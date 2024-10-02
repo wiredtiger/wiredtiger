@@ -208,7 +208,8 @@ extern int __wt_block_disagg_addr_string(WT_BM *bm, WT_SESSION_IMPL *session, WT
 extern int __wt_block_disagg_addr_unpack(const uint8_t **buf, uint64_t *disagg_idp, uint32_t *sizep,
   uint32_t *checksump) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
-  WT_CKPT *ckptbase, bool data_checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session,
   const uint8_t *addr, size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep,
   bool checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -252,7 +253,8 @@ extern int __wt_block_disagg_open(WT_SESSION_IMPL *session, const char *filename
   bool forced_salvage, bool readonly, WT_BLOCK **blockp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
-  const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_salvage_next(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr,
@@ -270,11 +272,12 @@ extern int __wt_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 extern int __wt_block_disagg_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase,
   const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  WT_ITEM *buf, uint64_t *disagg_idp, uint32_t *sizep, uint32_t *checksump, bool data_checksum,
+  WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, bool data_checksum,
   bool checkpoint_io) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
+  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint64_t *disagg_idp, uint32_t *sizep,
+  uint32_t *checksump, bool data_checksum, bool checkpoint_io)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_write_size(size_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)

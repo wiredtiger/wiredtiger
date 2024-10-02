@@ -15,12 +15,15 @@
  *     checkpoint again).
  */
 static int
-__bmp_checkpoint_pack_raw(
-  WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *session, WT_ITEM *root_image, WT_CKPT *ckpt)
+__bmp_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *session,
+  WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckpt)
 {
     uint64_t disagg_id;
     uint32_t checksum, size;
     uint8_t *endp;
+
+    WT_ASSERT(session, block_meta != NULL);
+    WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
 
     /*
      * !!!
@@ -28,7 +31,8 @@ __bmp_checkpoint_pack_raw(
      * but the alternative is a call for the btree layer to crack the checkpoint cookie into
      * its components, and that's a fair amount of work.
      */
-    ckpt->size = __wt_atomic_loadv64(&block_disagg->next_disagg_id);
+    /* ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id); */
+    ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
 
     /* Copy the checkpoint information into the checkpoint. */
     WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
@@ -38,7 +42,7 @@ __bmp_checkpoint_pack_raw(
      * which will be written into the block manager checkpoint cookie.
      */
     WT_RET(__wt_block_disagg_write_internal(
-      session, block_disagg, root_image, &disagg_id, &size, &checksum, true, true));
+      session, block_disagg, root_image, block_meta, &disagg_id, &size, &checksum, true, true));
 
     WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, disagg_id, size, checksum));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
@@ -54,8 +58,8 @@ __bmp_checkpoint_pack_raw(
  *     can be retrieved to start finding content for the tree.
  */
 int
-__wt_block_disagg_checkpoint(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image, WT_CKPT *ckptbase, bool data_checksum)
+__wt_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
+  WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_CKPT *ckpt;
@@ -71,7 +75,7 @@ __wt_block_disagg_checkpoint(
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             /* __wt_bmp_write_page(block_disagg, buf, root_addr); */
-            WT_RET(__bmp_checkpoint_pack_raw(block_disagg, session, root_image, ckpt));
+            WT_RET(__bmp_checkpoint_pack_raw(block_disagg, session, root_image, block_meta, ckpt));
         }
 
     return (0);
@@ -138,8 +142,8 @@ err:
  *     page from the object store, (3) re-packing the root page's address cookie into root_addr.
  */
 int
-__wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
-  uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
+__wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
+  size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_DISAGG *block_disagg;
     unsigned i;

@@ -86,13 +86,13 @@ __bmp_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
  *     Write a buffer into a block, returning the block's address cookie.
  */
 static int
-__bmp_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
-  bool data_checksum, bool checkpoint_io)
+__bmp_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
     return (__wt_block_disagg_write(
-      session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
+      session, bm->block, buf, block_meta, addr, addr_sizep, data_checksum, checkpoint_io));
 }
 
 /*

@@ -513,7 +513,6 @@ struct __wt_block_disagg {
      * grunt work for now.
      */
 
-    wt_shared uint64_t next_disagg_id;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_FH *metadata_fh;
 };

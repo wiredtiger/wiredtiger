@@ -96,8 +96,8 @@ __wt_block_disagg_addr_invalid(const uint8_t *addr)
  *     Return a printable string representation of an address cookie.
  */
 int
-__wt_block_disagg_addr_string(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
-  const uint8_t *addr, size_t addr_size)
+__wt_block_disagg_addr_string(
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
     uint64_t disagg_id;
     uint32_t checksum, size;
