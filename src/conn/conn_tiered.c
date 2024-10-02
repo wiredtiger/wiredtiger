@@ -436,15 +436,15 @@ __tiered_server(void *arg)
     bool signalled;
 
     session = arg;
-#ifdef HAVE_CONTROL_POINT
-    msg = "__wt_session_control_point_enable_all";
-    WT_ERR(__wt_session_control_point_enable_all(session));
-#endif
     conn = S2C(session);
 
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
+    #ifdef HAVE_CONTROL_POINT
+        msg = "__wt_session_control_point_enable_all";
+        WT_ERR(__wt_session_control_point_enable_all(session));
+    #endif
     /* Condition timeout is in microseconds. */
     cond_time = conn->tiered_interval * WT_MILLION;
     time_start = __wt_clock(session);
