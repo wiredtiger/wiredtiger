@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 /* define HAVE_CP_LOGGING -* define to enable cp logging HAVE_CP_LOGGING */
-#undef HAVE_CONTROL_POINT /* XXX TEMPORARY - Try without any control points. */
 
 #ifdef HAVE_CONTROL_POINT
 
@@ -170,6 +169,9 @@ __wt_control_point_wait_for_trigger(
 {
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
+    size_t crossing_count;
+#endif
     size_t current_trigger_count;
     size_t desired_trigger_count;
     size_t start_trigger_count;
@@ -200,7 +202,9 @@ __wt_control_point_wait_for_trigger(
     wait_count = action_data->wait_count;
     desired_trigger_count = start_trigger_count + wait_count;
     current_trigger_count = cp_registry->trigger_count;
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     crossing_count = cp_registry->crossing_count;
+#endif
     if (current_trigger_count >= desired_trigger_count) { /* No */
         __wt_control_point_release_data(session, cp_registry, data, true);
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
@@ -221,7 +225,7 @@ __wt_control_point_wait_for_trigger(
     __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "Waiting: # left to wait=%" PRIu64
                         ", # waited=%" PRIu64 ", trigger_count=%" PRIu64
                         ", crossing_count=%" PRIu64,
-                        (uint64_t) (desired_trigger_count - current_trigger_count,
+                        (uint64_t) (desired_trigger_count - current_trigger_count),
                         (uint64_t) (current_trigger_count - start_trigger_count),
                         (uint64_t) current_trigger_count, (uint64_t) crossing_count);
 #endif
@@ -233,7 +237,9 @@ __wt_control_point_wait_for_trigger(
             /* Delay condition satisfied. */
             break;
     }
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     crossing_count = cp_registry->crossing_count;
+#endif
     __wt_control_point_release_data(session, cp_registry, data, false);
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "True: Wait finished: # to wait=%" PRIu64
