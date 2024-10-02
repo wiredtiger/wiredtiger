@@ -7,6 +7,10 @@ from common_functions import filter_if_fast
 
 from collections import defaultdict
 
+# This is the list of components that have been modularised as part of Q3 and following work.
+# They place header files inside the src/foo folder rather than in src/include
+MODULARISED_COMPONENTS = []
+
 COPYRIGHT = """\
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
@@ -153,10 +157,6 @@ def build_component_functions_dicts():
     private_fns_dict = defaultdict(list)
     tests_dict = defaultdict(list)
     
-    # This is the list of components that have been modularised as part of Q3 and following work.
-    # They place header files inside the src/foo folder rather than in src/include
-    modularised_components = []
-
     for name in source_files():
         if not fnmatch.fnmatch(name, '*.c') + fnmatch.fnmatch(name, '*_inline.h'):
             continue
@@ -178,7 +178,7 @@ def build_component_functions_dicts():
 
         if fnmatch.fnmatch(name, '../src/*'):
             component = name.split("/")[2]
-            if component not in modularised_components:
+            if component not in MODULARISED_COMPONENTS:
                 # Non modularised components put all their function prototypes in 
                 # src/include/extern.h This is indicated by belonging to the include folder.
                 fn_prototypes(public_fns_dict["include"], private_fns_dict["include"], 
