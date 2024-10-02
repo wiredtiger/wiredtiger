@@ -73,7 +73,7 @@ class test_eviction02(eviction_util):
             # eligible for cleanup.
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(num_keys // 2))
 
-            # Eviction should perform clean eviction here which triggers the assessement of obsolete
+            # Eviction should perform clean eviction here which triggers the assessment of obsolete
             # time window information.
             self.evict_cursor_tw_cleanup(uri, num_keys)
 
