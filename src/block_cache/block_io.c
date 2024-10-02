@@ -434,8 +434,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     else if (!blkcache->cache_on_writes)
         WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
     else if (!checkpoint)
-        WT_ERR(
-          __wti_blkcache_put(session, compressed ? ctmp : buf, block_meta, addr, *addr_sizep, true));
+        WT_ERR(__wti_blkcache_put(
+          session, compressed ? ctmp : buf, block_meta, addr, *addr_sizep, true));
 
 err:
     __wt_scr_free(session, &ctmp);

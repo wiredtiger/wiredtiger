@@ -369,6 +369,10 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         pages to be temporarily larger than this value. This setting is ignored for LSM trees,
         see \c chunk_size''',
         min='512B', max='10TB'),
+    Config('page_log', '', r'''
+        The page log service used as a backing for this table. This is used experimentally
+        by oligarch tables to back their stable component in shared/object based storage''',
+           type='string', undoc=True),
     Config('prefix_compression', 'false', r'''
         configure prefix compression on row-store leaf pages''',
         type='boolean'),
@@ -389,7 +393,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         the specified percentage of the maximum Btree page size''',
         min='50', max='100'),
     Config('storage_source', '', r'''
-        The custome storage source used as a backing for this table - currently only used
+        The custom storage source used as a backing for this table - currently only used
         experimentally by oligarch tables to back their stable component in shared/object
         based storage''', type='string', undoc=True),
 ]

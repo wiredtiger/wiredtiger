@@ -52,6 +52,10 @@ class BlockCacheStat(Stat):
     prefix = 'block-cache'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, BlockCacheStat.prefix, desc, flags)
+class BlockDisaggStat(Stat):
+    prefix = 'block-disagg'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BlockDisaggStat.prefix, desc, flags)
 class BlockStat(Stat):
     prefix = 'block-manager'
     def __init__(self, name, desc, flags=''):
@@ -1169,6 +1173,12 @@ conn_dsrc_stats = [
     OligarchStat('oligarch_manager_logops_applied', 'how many log applications the oligarch manager applied on this tree'),
     OligarchStat('oligarch_manager_logops_skipped', 'how many log applications the oligarch manager skipped on this tree'),
     OligarchStat('oligarch_manager_skip_lsn', 'how many previously-applied LSNs the oligarch manager skipped on this tree'),
+
+    ##########################################
+    # Disaggrated block manager statistics
+    ##########################################
+    BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
+    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
 
     ##########################################
     # Pantry block manager statistics
