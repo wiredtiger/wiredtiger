@@ -28,7 +28,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * We may skip dirty pages during a checkpoint unless one of the following conditions is met:
      *
-     *  - This is the RTS checkpoint. It should not leave anything dirty behind.
+     *  - This checkpoint happens during RTS, recovery or shutdown. Those scenarios should not leave
+     * anything dirty behind.
      *  - This is the history store btree. As part of the checkpointing the data store, we will move
      * the older values into the history store without using any transactions. This led to
      * representation of all the modifications on the history store page with a transaction that is
@@ -40,8 +41,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * - the checkpoint's snapshot includes the first dirty update on the page.
      * - Not every disk block involved has a disk address.
      */
-    // TODO - we may want to disable during shutdown and recovery as well.
-    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
+      F_ISSET(S2C(session), WT_CONN_RECOVERING) || F_ISSET(S2C(session), WT_CONN_CLOSING))
         return (false);
     if (WT_IS_HS(session->dhandle))
         return (false);
