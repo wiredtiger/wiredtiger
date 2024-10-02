@@ -62,8 +62,8 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    size_t new_crossing_count;
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
+    size_t new_crossing_count;
     size_t new_trigger_count;
 #endif
     bool triggered;
@@ -96,7 +96,11 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
 #endif
         return (NULL);
     }
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     new_crossing_count = ++(cp_registry->crossing_count);
+#else
+    ++(cp_registry->crossing_count);
+#endif
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     if (triggered) {
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
@@ -133,8 +137,8 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
 {
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    size_t new_crossing_count;
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
+    size_t new_crossing_count;
     size_t new_trigger_count;
 #endif
     bool triggered;
@@ -165,7 +169,11 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     }
 
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     new_crossing_count = ++(cp_registry->crossing_count);
+#else
+    ++(cp_registry->crossing_count);
+#endif
     if (triggered) {
 #ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
         new_trigger_count = ++(cp_registry->trigger_count);
