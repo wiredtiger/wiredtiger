@@ -35,7 +35,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * representation of all the modifications on the history store page with a transaction that is
      * maximum than the checkpoint snapshot. But these modifications are done by the checkpoint
      * itself, so we shouldn't ignore them for consistency.
-     * - This is an internal page.
+     * - If we got to this point and we are dealing with an internal page, this means at least one
+     * of its leaf pages has been reconciled and we need to process the internal page as well.
      * - There is no snapshot transaction active. Usually, there is one in ordinary application
      * checkpoints but not all internal cases. Furthermore, this guarantees the metadata file is
      * never skipped.
