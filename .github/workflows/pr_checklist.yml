@@ -17,9 +17,10 @@ jobs:
             Thanks for creating a pull request! The below questions and checklist are intended to help with verifying your change is well tested. Please edit this comment by answering the questions below, or replacing the questions with your own description. Please remove this paragraph once you finish editing this comment.
 
             ## Type of change made in this PR
+            - [ ] Functional change
             - [ ] Test-only change
             - [ ] Refactor-only change
-            - [ ] Functional change
+            - [ ] Other non-functional change
 
             ## What makes this change safe?
             A good answer to this question helps the reviewers understand where they should focus their attention, so please consider these questions:
@@ -35,7 +36,7 @@ jobs:
             ## Checklist before requesting a review
             - [ ] I have performed a self-review of my code.
             - [ ] I have made corresponding changes to the documentation (if applicable).
-            - [ ] I have added/updated tests that demonstrate my fix is effective or that my feature works correctly. Describe the reason if this item is not checked.
+            - [ ] I have added/updated tests that demonstrate my fix is effective or that my feature works correctly, or have described the reason above if no test change is made.
             `;
 
             github.rest.issues.createComment({
