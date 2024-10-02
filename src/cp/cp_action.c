@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+/* define HAVE_CP_LOGGING -* define to enable cp logging HAVE_CP_LOGGING */
 #undef HAVE_CONTROL_POINT /* XXX TEMPORARY - Try without any control points. */
 
 #ifdef HAVE_CONTROL_POINT
@@ -178,16 +179,20 @@ __wt_control_point_wait_for_trigger(
     data = __wti_control_point_get_data(session, cp_registry, true);
     start_trigger_count = cp_registry->trigger_count;
     if (WT_UNLIKELY(data == NULL)) {
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
         __wt_verbose_notice(
           session, WT_VERB_CONTROL_POINT, "False: Is disabled: wait for trigger skipped");
+#endif
         return (false); /* Not enabled. */
     }
     /* Does the call site and trigger site match in action? */
     if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER)) {
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
         __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
           "False: Control point call site and trigger site have different actions: %d and %" PRIu32
           ".",
           WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported);
+#endif
         return (false); /* Pretend not enabled. */
     }
     /* Is waiting necessary? */
@@ -198,11 +203,13 @@ __wt_control_point_wait_for_trigger(
     crossing_count = cp_registry->crossing_count;
     if (current_trigger_count >= desired_trigger_count) { /* No */
         __wt_control_point_release_data(session, cp_registry, data, true);
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
         __wt_verbose_notice(session, WT_VERB_CONTROL_POINT,
           "True: Wait not needed: # to wait=%" PRIu64 ", # waited=%" PRIu64
           ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
           (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
           (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+#endif
         return (true); /* Enabled and wait fulfilled. */
     }
     /* Store data needed by run_func. */
@@ -210,12 +217,14 @@ __wt_control_point_wait_for_trigger(
     session->cp_registry = cp_registry;
     session->cp_data = data;
     __wt_control_point_unlock(session, cp_registry);
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "Waiting: # left to wait=%" PRIu64
                         ", # waited=%" PRIu64 ", trigger_count=%" PRIu64
                         ", crossing_count=%" PRIu64,
                         (uint64_t) (desired_trigger_count - current_trigger_count,
                         (uint64_t) (current_trigger_count - start_trigger_count),
                         (uint64_t) current_trigger_count, (uint64_t) crossing_count);
+#endif
     for (;;) {
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
           __run_wait_for_trigger, &signalled);
@@ -226,11 +235,13 @@ __wt_control_point_wait_for_trigger(
     }
     crossing_count = cp_registry->crossing_count;
     __wt_control_point_release_data(session, cp_registry, data, false);
+#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "True: Wait finished: # to wait=%" PRIu64
                         ", # waited=%" PRIu64 ", trigger_count=%" PRIu64
                         ", crossing_count=%" PRIu64, (uint64_t) wait_count,
                         (uint64_t) (current_trigger_count - start_trigger_count),
                         (uint64_t) current_trigger_count, (uint64_t) crossing_count);
+#endif
     return (true);
 }
 
