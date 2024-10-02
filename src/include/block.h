@@ -174,6 +174,9 @@ struct __wt_block_ckpt {
     WT_EXTLIST ckpt_discard; /* Checkpoint archive */
 };
 
+#define WT_BLOCK_INVALID_PAGE_ID 0 /* Invalid page ID, e.g., if it's not allocated. */
+#define WT_BLOCK_MIN_PAGE_ID 100   /* Minimum page ID that can be used for user data. */
+
 /*
  * WT_BM --
  *	Block manager handle, references a single checkpoint in a btree.
@@ -183,7 +186,7 @@ struct __wt_bm {
     int (*addr_invalid)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
     u_int (*block_header)(WT_BM *);
-    int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
+    int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, WT_CKPT *, bool);
     int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
     int (*checkpoint_load)(
       WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, uint8_t *, size_t *, bool);
@@ -201,7 +204,8 @@ struct __wt_bm {
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
-    int (*read)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
+    int (*read)(
+      WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, const uint8_t *, size_t);
     int (*salvage_end)(WT_BM *, WT_SESSION_IMPL *);
     int (*salvage_next)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*salvage_start)(WT_BM *, WT_SESSION_IMPL *);
@@ -214,7 +218,8 @@ struct __wt_bm {
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
     int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
-    int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
+    int (*write)(
+      WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
@@ -224,6 +229,7 @@ struct __wt_bm {
     void *map; /* Mapped region */
     size_t maplen;
     void *mapped_cookie;
+    bool is_remote; /* Whether the storage is located on a remote host */
 
     /*
      * For trees, such as tiered tables, that are allowed to have more than one backing file or
@@ -445,7 +451,6 @@ struct __wt_block_pantry {
      * now.
      */
 
-    wt_shared uint64_t next_pantry_id;
     WT_FH *fh;
     WT_FH *metadata_fh;
 };
