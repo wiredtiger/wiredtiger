@@ -30,6 +30,8 @@
  */
 #include "test_util.h"
 
+#undef HAVE_CONTROL_POINT /* XXX TEMPORARY - Try without any control points. */
+
 #ifdef HAVE_CONTROL_POINT
 
 static const char *home;
