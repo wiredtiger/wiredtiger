@@ -158,6 +158,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
 
     WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
     if ((ret = __wt_lsn_string(session, lsnp, lsn_str)) != 0) {
+        __wt_errx(session, "Failed to build LSN string");
         __wt_scr_free(session, &lsn_str);
         return (ret);
     }
@@ -258,6 +259,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     /* Build the LSN string here as it's used inside the GET_RECOVERY_CURSOR macro. */
     WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
     if (__wt_lsn_string(session, lsnp, lsn_str) != 0) {
+        __wt_errx(session, "Failed to build LSN string");
         __wt_scr_free(session, &lsn_str);
         return (ret);
     }
