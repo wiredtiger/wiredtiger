@@ -745,7 +745,7 @@ __wti_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
      * unlike read committed isolation level.
      */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
-      (__wt_page_evict_soon_check(session, cbt->ref, NULL) ||
+      (__wt_evict_page_soon_check(session, cbt->ref, NULL) ||
         __cursor_reposition_timing_stress(session))) {
 
         WT_STAT_CONN_DSRC_INCR(session, cursor_reposition);
@@ -2184,7 +2184,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 
     session = trunc_info->session;
     btree = CUR2BT(trunc_info->start);
-    logging = __wt_log_op(session);
+    logging = __wt_txn_log_op_check(session);
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
