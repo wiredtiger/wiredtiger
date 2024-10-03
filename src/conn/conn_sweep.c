@@ -365,7 +365,6 @@ __sweep_server(void *arg)
     bool cv_signalled;
 
     session = arg;
-
     conn = S2C(session);
 
     /*

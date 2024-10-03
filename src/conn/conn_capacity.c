@@ -116,7 +116,6 @@ __capacity_server(void *arg)
     uint64_t start, stop, time_ms;
 
     session = arg;
-
     conn = S2C(session);
     cap = &conn->capacity;
     for (;;) {

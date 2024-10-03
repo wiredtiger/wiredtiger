@@ -82,7 +82,6 @@ __ckpt_server(void *arg)
     uint64_t checkpoint_gen;
 
     session = arg;
-
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
 

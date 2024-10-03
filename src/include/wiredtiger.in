@@ -8236,7 +8236,6 @@ typedef enum {
     WT_VERB_COMPACT,              /*!< Compact messages. */
     WT_VERB_COMPACT_PROGRESS,     /*!< Compact progress messages. */
     WT_VERB_CONFIGURATION,
-    WT_VERB_CONTROL_POINT,        /*!< Control point messages. */
     WT_VERB_DEFAULT,
     WT_VERB_ERROR_RETURNS,
     WT_VERB_EVICTION,                /*!< Eviction messages. */

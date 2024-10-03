@@ -754,6 +754,7 @@ __checkpoint_cleanup(void *arg)
 
     session = arg;
     conn = S2C(session);
+
     __wt_seconds(session, &last);
     for (;;) {
         /* Check periodically in case the signal was missed. */
