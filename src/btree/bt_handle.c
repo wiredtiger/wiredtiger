@@ -477,8 +477,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /*
      * This option allows the tree to be reconciled by eviction. But we only replace the disk image
-     * in memory to reduce the memory footprint and nothing is written to disk. Checkpoint will also
-     * skip this tree.
+     * in memory to reduce the memory footprint and nothing is written to disk and no data is moved
+     * to the history store. Checkpoint will also skip this tree.
      */
     WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
     if (cval.val)
