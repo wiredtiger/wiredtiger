@@ -18,14 +18,11 @@ def source_files():
 
 # all_c_files --
 #       Return list of all WiredTiger C source file names.
-def all_c_files(extra_pattern=None):
+def all_c_files():
     for line in glob.iglob('../src/*/*.c'):
         yield line
     for line in glob.iglob('../src/*/*_inline.h'):
         yield line
-    if extra_pattern != None:
-        for line in glob.iglob(extra_pattern):
-            yield line
     files = list()
     for (dirpath, dirnames, filenames) in os.walk('../test'):
         files += [os.path.join(dirpath, file) for file in filenames]
@@ -37,13 +34,10 @@ def all_c_files(extra_pattern=None):
 
 # all_cpp_files --
 #       Return list of all WiredTiger CPP source file names.
-def all_cpp_files(extra_dir=None):
+def all_cpp_files():
     files = list()
     for (dirpath, dirnames, filenames) in os.walk('../test'):
         files += [os.path.join(dirpath, file) for file in filenames]
-    if extra_dir != None:
-        for (dirpath, dirnames, filenames) in os.walk(extra_dir):
-            files += [os.path.join(dirpath, file) for file in filenames]
     for file in files:
         if fnmatch.fnmatch(file, '*.cpp'):
             yield file
