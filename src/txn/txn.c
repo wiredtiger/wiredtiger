@@ -1288,6 +1288,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     hs_cursor = NULL;
     txn = session->txn;
     has_hs_record = false;
+    btree = S2BT(session);
 #define RESOLVE_UPDATE_CHAIN 0
 #define RESOLVE_PREPARE_ON_DISK 1
 #define RESOLVE_PREPARE_EVICTION_FAILURE 2
@@ -1450,8 +1451,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
-        btree = S2BT(session);
-
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
          * with maximum start timestamp to let the search point to the last version of the key.
