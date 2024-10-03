@@ -1188,8 +1188,8 @@ err:
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
      * of cache.
      */
-    __wt_set_shared_double(&conn->cache->eviction_dirty_trigger, 1.0);
-    __wt_set_shared_double(&conn->cache->eviction_dirty_target, 0.1);
+    __wt_set_shared_double(&conn->evict->eviction_dirty_trigger, 1.0);
+    __wt_set_shared_double(&conn->evict->eviction_dirty_target, 0.1);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
       F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
@@ -2338,12 +2338,11 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
       {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
-      {"configuration", WT_VERB_CONFIGURATION}, {"control_point", WT_VERB_CONTROL_POINT},
-      {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},
-      {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
-      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
-      {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
+      {"configuration", WT_VERB_CONFIGURATION}, {"error_returns", WT_VERB_ERROR_RETURNS},
+      {"eviction", WT_VERB_EVICTION}, {"fileops", WT_VERB_FILEOPS},
+      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
+      {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
+      {"lsm", WT_VERB_LSM}, {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
       {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
       {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
