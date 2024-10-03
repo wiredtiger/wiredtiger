@@ -1414,6 +1414,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (!__wt_readgen_evict_soon(&orig_read_gen))
         __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
+        __wt_page_modify_set(session, ref->page);
+
     /*
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
