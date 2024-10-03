@@ -41,7 +41,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINT
+#if 0
 /*
  * Functions used at the trigger site.
  */
