@@ -2099,7 +2099,10 @@ rand_next:
             continue;
         }
 
-        /* Skip pages we don't want. */
+        /*
+         * Skip pages we don't want. For btrees in-memory, only evict dirty pages. No point to evict
+         * clean pages as they should stay in memory.
+         */
         want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
                       !modified) ||
           (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
