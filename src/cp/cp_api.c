@@ -327,7 +327,7 @@ __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
 }
 
 /*
- * API: Per control point shutdown.
+ * API: Per session control point shutdown.
  */
 /*
  * __wt_session_control_point_shutdown --
