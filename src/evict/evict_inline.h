@@ -20,6 +20,23 @@ __wt_evict_aggressive(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_evict_cache_stuck --
+ *     Indicate if the cache is stuck (i.e., eviction not making progress).
+ */
+static WT_INLINE bool
+__wt_evict_cache_stuck(WT_SESSION_IMPL *session)
+{
+    WT_EVICT *evict;
+    uint32_t tmp_evict_aggressive_score;
+
+    evict = S2C(session)->evict;
+    tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
+    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
+    return (
+      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_EVICT_CACHE_HARD));
+}
+
+/*
  * __evict_read_gen --
  *     Get the current read generation number.
  */
@@ -76,20 +93,19 @@ __wt_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_evict_cache_stuck --
- *     Indicate if the cache is stuck (i.e., eviction not making progress).
+ * __wt_readgen_evict_soon --
+ *     Return whether a page's read generation makes it eligible for immediate eviction. Read
+ *     generations reserve a range of low numbers for special meanings and currently - with the
+ *     exception of the generation not being set - these indicate the page may be evicted
+ *     immediately.
  */
 static WT_INLINE bool
-__wt_evict_cache_stuck(WT_SESSION_IMPL *session)
+__wt_readgen_evict_soon(uint64_t *readgen)
 {
-    WT_EVICT *evict;
-    uint32_t tmp_evict_aggressive_score;
+    uint64_t gen;
 
-    evict = S2C(session)->evict;
-    tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
-    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
-    return (
-      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_EVICT_CACHE_HARD));
+    WT_READ_ONCE(gen, *readgen);
+    return (gen != WT_READGEN_NOTSET && gen < WT_READGEN_START_VALUE);
 }
 
 /*
