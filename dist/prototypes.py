@@ -240,6 +240,20 @@ def prototypes_os():
     for p in ports:
         output(fns[p], tests[p], f"../src/include/extern_{p}.h")
 
+# Newly generated public headers need to be included from wt_internal.h.
+# Add a warning reminding developers to do so.
+def check_wt_internal_includes():
+    with open("../src/include/wt_internal.h", 'r') as file:
+        lines = file.readlines()
+
+        for mod in SELF_CONTAINED_MODULES:
+            include_line = f"#include \"../{mod}/{mod}.h\""
+            if f"{include_line}\n" not in lines:
+                print(f"The line '{include_line}' is missing from wt_internal.h. "
+                      "Please make sure to include it.")
+                exit(1)
+
 (pub_fns_dict, private_fns_dict, tests_dict) = build_module_functions_dicts()
 write_header_files(pub_fns_dict, private_fns_dict, tests_dict)
 prototypes_os()
+check_wt_internal_includes()
