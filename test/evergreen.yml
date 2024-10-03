@@ -147,7 +147,7 @@ functions:
         set -o verbose
         echo "generated_token: ${generated_token}"
         if ! [ -d "./automation-scripts" ]; then
-          git clone https://x-access-token:${generated_token}@github.com:wiredtiger/automation-scripts.git
+          git clone https://x-access-token:${generated_token}@github.com/wiredtiger/automation-scripts.git
         fi
   "fetch artifacts": &fetch_artifacts
     command: s3.get
@@ -555,7 +555,7 @@ functions:
             exit 0
           fi
 
-          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
+          git clone https://github.com/wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
           # Branches to update are defined through an expansion variable.
@@ -2731,6 +2731,7 @@ tasks:
   - name: configure-combinations
     commands:
       - func: "get project"
+      - func: "generate github token"
       - func: "get automation-scripts"
       - command: shell.exec
         params:
@@ -2781,7 +2782,6 @@ tasks:
       - func: "compile wiredtiger docs"
 
   - name: doc-update
-    patchable: false
     stepback: false
     commands:
       - func: "get project"
@@ -3209,6 +3209,7 @@ tasks:
   - name: long-test
     commands:
       - func: "get project"
+      - func: "generate github token"
       - func: "get automation-scripts"
       - func: "configure wiredtiger"
       - func: "make wiredtiger"
