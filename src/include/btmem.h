@@ -32,6 +32,12 @@
 #define WT_READ_EVICT_READ_FLAGS WT_READ_EVICT_WALK_FLAGS | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK
 #define WT_READ_DATA_FLAGS WT_READ_NO_SPLIT | WT_READ_SKIP_INTL
 
+/*
+ * Helper: in order to read a Btree without triggering eviction we have to ignore the cache size and
+ * disable splits.
+ */
+#define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
 #define WT_REC_CALL_URGENT 0x002u

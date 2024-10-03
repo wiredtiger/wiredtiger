@@ -245,7 +245,7 @@ restart:
              * deleted, mark it for eviction.
              */
             if (empty_internal) {
-                __wt_page_evict_soon(session, ref);
+                __wt_evict_page_soon(session, ref);
                 empty_internal = false;
             }
 
@@ -371,7 +371,7 @@ descend:
              * An expected error, so "couple" is unchanged.
              */
             if (ret == WT_NOTFOUND) {
-                WT_STAT_CONN_INCR(session, cache_eviction_walk_leaf_notfound);
+                WT_STAT_CONN_INCR(session, eviction_walk_leaf_notfound);
                 WT_NOT_READ(ret, 0);
                 break;
             }

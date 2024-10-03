@@ -75,7 +75,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
-    __wt_eviction_clear_npos(btree);
+    __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */
@@ -984,7 +984,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 #define WT_MIN_PAGES 10
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
         btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
-          ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
+          ((conn->evict->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
