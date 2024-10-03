@@ -396,6 +396,9 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         The custom storage source used as a backing for this table - currently only used
         experimentally by oligarch tables to back their stable component in shared/object
         based storage''', type='string', undoc=True),
+    Config('in_memory', 'false', r'''
+        keep the tree data in memory. Used experimentally by oligarch tables''',
+        type='boolean', undoc=True),
 ]
 
 # File metadata, including both configurable and non-configurable (internal)

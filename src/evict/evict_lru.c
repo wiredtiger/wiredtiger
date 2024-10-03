@@ -1573,6 +1573,10 @@ retry:
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_trees_not_useful_before);
             continue;
         }
+
+        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
+            continue;
+
         btree->evict_walk_skips = 0;
 
         (void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
@@ -2096,9 +2100,11 @@ rand_next:
         }
 
         /* Skip pages we don't want. */
-        want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
+        want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+                      !modified) ||
           (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
-          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
+          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+            page->modify != NULL);
         if (!want_page) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_pages);
             continue;

@@ -470,7 +470,14 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         if (cval.val)
             F_SET(btree, WT_BTREE_LOGGED);
     }
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+
+    WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_IN_MEMORY);
+    else
+        F_CLR(btree, WT_BTREE_IN_MEMORY);
+
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         F_SET(btree, WT_BTREE_LOGGED);
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (!cval.val)
@@ -1121,7 +1128,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);
