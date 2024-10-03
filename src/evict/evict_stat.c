@@ -59,7 +59,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 
         dsk_size = page->dsk != NULL ? page->dsk->mem_size : 0;
         if (dsk_size != 0) {
-            if (dsk_size < btree->allocsize)
+            if (dsk_size < btree->btree_private.allocsize)
                 ++num_smaller_allocsz;
             if (dsk_size < min_written_size)
                 min_written_size = dsk_size;

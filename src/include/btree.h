@@ -124,7 +124,7 @@ struct __wt_btree {
         uint64_t maxmempage;            /* In-memory page max size */
         uint32_t maxmempage_image;      /* In-memory page image max size */
         uint64_t splitmempage;          /* In-memory split trigger size */
-    } btree;
+    } btree_private;
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 

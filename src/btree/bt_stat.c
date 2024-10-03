@@ -34,10 +34,10 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
     WT_STATP_DSRC_SET(session, stats, btree_fixed_len, btree->bitcnt);
     WT_STATP_DSRC_SET(session, stats, btree_maximum_depth, btree->maximum_depth);
-    WT_STATP_DSRC_SET(session, stats, btree_maxintlpage, btree->maxintlpage);
-    WT_STATP_DSRC_SET(session, stats, btree_maxleafkey, btree->maxleafkey);
-    WT_STATP_DSRC_SET(session, stats, btree_maxleafpage, btree->maxleafpage);
-    WT_STATP_DSRC_SET(session, stats, btree_maxleafvalue, btree->maxleafvalue);
+    WT_STATP_DSRC_SET(session, stats, btree_maxintlpage, btree->btree_private.maxintlpage);
+    WT_STATP_DSRC_SET(session, stats, btree_maxleafkey, btree->btree_private.maxleafkey);
+    WT_STATP_DSRC_SET(session, stats, btree_maxleafpage, btree->btree_private.maxleafpage);
+    WT_STATP_DSRC_SET(session, stats, btree_maxleafvalue, btree->btree_private.maxleafvalue);
     WT_STATP_DSRC_SET(session, stats, rec_multiblock_max, btree->rec_multiblock_max);
 
     WT_STATP_DSRC_SET(session, stats, cache_bytes_dirty, __wt_btree_dirty_inuse(session));

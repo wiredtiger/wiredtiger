@@ -1784,7 +1784,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
      * correctness (the page must be reconciled again before being evicted after the split,
      * information from a previous reconciliation will be wrong, so we can't evict immediately).
      */
-    if (__wt_atomic_loadsize(&page->memory_footprint) < btree->splitmempage)
+    if (__wt_atomic_loadsize(&page->memory_footprint) < btree->btree_private.splitmempage)
         return (false);
     if (WT_PAGE_IS_INTERNAL(page))
         return (false);
@@ -1808,7 +1808,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  * are 5 items on the page.
  */
 #define WT_MAX_SPLIT_COUNT 5
-    if (__wt_atomic_loadsize(&page->memory_footprint) > (size_t)btree->maxleafpage * 2) {
+    if (__wt_atomic_loadsize(&page->memory_footprint) > (size_t)btree->btree_private.maxleafpage * 2) {
         for (count = 0, ins = ins_head->head[0]; ins != NULL; ins = ins->next[0]) {
             if (++count < WT_MAX_SPLIT_COUNT)
                 continue;
@@ -1840,7 +1840,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
          * able to in-memory split for append workloads, and allow the reconciliation to happen in a
          * background thread.
          */
-        mem_split_threshold = (size_t)WT_MIN(btree->maxleafpage, btree->splitmempage);
+        mem_split_threshold = (size_t)WT_MIN(btree->btree_private.maxleafpage, btree->btree_private.splitmempage);
         if (count > WT_MIN_SPLIT_COUNT && size > mem_split_threshold) {
             WT_STAT_CONN_DSRC_INCR(session, cache_inmem_splittable);
             return (true);

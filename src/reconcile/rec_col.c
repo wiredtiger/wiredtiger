@@ -593,7 +593,7 @@ __wti_rec_col_fix(
          * assume elsewhere that any small page might be appended to.
          */
         rawbitmapsize = WT_ALIGN(
-          WT_COL_FIX_ENTRIES_TO_BYTES(btree, salvage->take + salvage->missing), btree->allocsize);
+          WT_COL_FIX_ENTRIES_TO_BYTES(btree, salvage->take + salvage->missing), btree->btree_private.allocsize);
 
         /* Salvage is the backup plan: don't let this fail. */
         auxspace *= 2;
@@ -604,11 +604,11 @@ __wti_rec_col_fix(
               __wt_page_type_string(page->type), rawbitmapsize + auxspace);
 
         bitmapsize = (uint32_t)rawbitmapsize;
-        if (bitmapsize < btree->maxleafpage)
-            bitmapsize = btree->maxleafpage;
+        if (bitmapsize < btree->btree_private.maxleafpage)
+            bitmapsize = btree->btree_private.maxleafpage;
     } else {
         /* Under ordinary circumstances the bitmap size is the configured maximum page size. */
-        bitmapsize = btree->maxleafpage;
+        bitmapsize = btree->btree_private.maxleafpage;
 
         /* If not in salvage, there should be no shenanigans with the page start. */
         WT_ASSERT(session, page->dsk == NULL || curstartrecno == origstartrecno);

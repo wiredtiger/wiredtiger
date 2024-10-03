@@ -974,8 +974,8 @@ __rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Default size for variable-length column-store and row-store pages during salvage is the
      * maximum leaf page size.
      */
-    if (page_size < btree->maxleafpage)
-        page_size = btree->maxleafpage;
+    if (page_size < btree->btree_private.maxleafpage)
+        page_size = btree->btree_private.maxleafpage;
 
     /*
      * The page we read from the disk should be smaller than the page size we just calculated, check
@@ -1152,17 +1152,17 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, u
      * split at all.
      */
     if (page->type == WT_PAGE_COL_FIX) {
-        r->split_size = r->salvage != NULL ? 0 : btree->maxleafpage;
+        r->split_size = r->salvage != NULL ? 0 : btree->btree_private.maxleafpage;
         r->space_avail = primary_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
         r->aux_space_avail = auxiliary_size - WT_COL_FIX_AUXHEADER_RESERVATION;
     } else if (r->salvage != NULL) {
         r->split_size = 0;
         r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     } else {
-        r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
+        r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->btree_private.allocsize);
         r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
         r->min_split_size =
-          __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
+          __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->btree_private.allocsize);
         r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     }
 
@@ -1178,7 +1178,7 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, u
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
-    r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
+    r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->btree_private.allocsize);
 
     /* Initialize the first split chunk. */
     WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A));
@@ -1541,7 +1541,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
          * aren't in salvage so always use the maximum leaf page size; that will produce the fixed
          * size pages we want.
          */
-        r->aux_start_offset = btree->maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION;
+        r->aux_start_offset = btree->btree_private.maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION;
         r->aux_entries = 0;
         r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
     }
@@ -1552,7 +1552,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
      */
     r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     if (r->page->type == WT_PAGE_COL_FIX) {
-        r->aux_space_avail = r->page_size - btree->maxleafpage - WT_COL_FIX_AUXHEADER_RESERVATION;
+        r->aux_space_avail = r->page_size - btree->btree_private.maxleafpage - WT_COL_FIX_AUXHEADER_RESERVATION;
     } else
         r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
@@ -2018,10 +2018,10 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
             return;
 
         adjust = current + ten_percent;
-        if (adjust < btree->maxmempage_image)
+        if (adjust < btree->btree_private.maxmempage_image)
             new = adjust;
-        else if (current != btree->maxmempage_image)
-            new = btree->maxmempage_image;
+        else if (current != btree->btree_private.maxmempage_image)
+            new = btree->btree_private.maxmempage_image;
         else
             return;
     }
@@ -2161,10 +2161,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Adjust the pre-compression page size based on compression results. */
     if (WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->intlpage_compadjust)
         __rec_compression_adjust(
-          session, btree->maxintlpage, compressed_size, last_block, &btree->maxintlpage_precomp);
+          session, btree->btree_private.maxintlpage, compressed_size, last_block, &btree->maxintlpage_precomp);
     if (!WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->leafpage_compadjust)
         __rec_compression_adjust(
-          session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
+          session, btree->btree_private.maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 
     /* Update the per-page reconciliation time statistics now that we've written something. */
     __rec_page_time_stats(session, r);

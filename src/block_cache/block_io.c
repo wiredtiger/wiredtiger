@@ -266,7 +266,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
      */
     if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
         ip = buf;
-    else if (buf->size <= btree->allocsize) {
+    else if (buf->size <= btree->btree_private.allocsize) {
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
     } else {
@@ -307,7 +307,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
          * output requires), it just means the uncompressed version is as good as it gets, and
          * that's what we use.
          */
-        if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
+        if (compression_failed || buf->size / btree->btree_private.allocsize <= result_len / btree->btree_private.allocsize) {
             ip = buf;
             WT_STAT_DSRC_INCR(session, compress_write_fail);
         } else {

@@ -111,7 +111,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Connect to the underlying block manager. */
     WT_ERR(__wt_blkcache_open(
-      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
+      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->btree_private.allocsize, &btree->bm));
 
     bm = btree->bm;
 
@@ -495,9 +495,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * leaf pages, but that seems an unlikely use case.)
      */
     btree->intlpage_compadjust = false;
-    btree->maxintlpage_precomp = btree->maxintlpage;
+    btree->maxintlpage_precomp = btree->btree_private.maxintlpage;
     btree->leafpage_compadjust = false;
-    btree->maxleafpage_precomp = btree->maxleafpage;
+    btree->maxleafpage_precomp = btree->btree_private.maxleafpage;
     if (btree->compressor != NULL && btree->compressor->compress != NULL &&
       btree->type != BTREE_COL_FIX) {
         /*
@@ -508,13 +508,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
          * Don't do compression adjustment when on-disk page sizes are equal to the maximum
          * in-memory page image, the bytes taken for compression can't grow past the base value.
          */
-        if (btree->maxintlpage >= 16 * 1024 && btree->maxmempage_image > btree->maxintlpage) {
+        if (btree->btree_private.maxintlpage >= 16 * 1024 && btree->btree_private.maxmempage_image > btree->btree_private.maxintlpage) {
             btree->intlpage_compadjust = true;
-            btree->maxintlpage_precomp = btree->maxmempage_image;
+            btree->maxintlpage_precomp = btree->btree_private.maxmempage_image;
         }
-        if (btree->maxleafpage >= 16 * 1024 && btree->maxmempage_image > btree->maxleafpage) {
+        if (btree->btree_private.maxleafpage >= 16 * 1024 && btree->btree_private.maxmempage_image > btree->btree_private.maxleafpage) {
             btree->leafpage_compadjust = true;
-            btree->maxleafpage_precomp = btree->maxmempage_image;
+            btree->maxleafpage_precomp = btree->btree_private.maxmempage_image;
         }
     }
 
@@ -923,20 +923,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     /*
      * Get the allocation size. Allocation sizes must be a power-of-two, nothing else makes sense.
      */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "allocation_size", &btree->allocsize));
-    if (!__wt_ispo2(btree->allocsize))
+    WT_RET(__wt_direct_io_size_check(session, cfg, "allocation_size", &btree->btree_private.allocsize));
+    if (!__wt_ispo2(btree->btree_private.allocsize))
         WT_RET_MSG(session, EINVAL, "the allocation size must be a power of two");
 
     /*
      * Get the internal/leaf page sizes. All page sizes must be in units of the allocation size.
      */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->maxintlpage));
-    WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
-    if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
-      btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
+    WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->btree_private.maxintlpage));
+    WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->btree_private.maxleafpage));
+    if (btree->btree_private.maxintlpage < btree->btree_private.allocsize || btree->btree_private.maxintlpage % btree->btree_private.allocsize != 0 ||
+      btree->btree_private.maxleafpage < btree->btree_private.allocsize || btree->btree_private.maxleafpage % btree->btree_private.allocsize != 0)
         WT_RET_MSG(session, EINVAL,
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
-          btree->allocsize);
+          btree->btree_private.allocsize);
 
     /*
      * FLCS leaf pages have a lower size limit than the default, because the size configures the
@@ -949,7 +949,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * even if they don't get bloated out with timestamp data, we'll cut down by a factor of 16 and
      * set the limit to 128KB.
      */
-    if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
+    if (btree->type == BTREE_COL_FIX && btree->btree_private.maxleafpage > 128 * WT_KILOBYTE)
         WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
 
     /*
@@ -957,15 +957,15 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * size, and enforce the on-disk page sizes as a lower-limit for the in-memory image size.
      */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
-    btree->maxmempage_image = (uint32_t)cval.val;
-    max = WT_MAX(btree->maxintlpage, btree->maxleafpage);
-    if (btree->maxmempage_image == 0)
-        btree->maxmempage_image = 4 * max;
-    else if (btree->maxmempage_image < max)
+    btree->btree_private.maxmempage_image = (uint32_t)cval.val;
+    max = WT_MAX(btree->btree_private.maxintlpage, btree->btree_private.maxleafpage);
+    if (btree->btree_private.maxmempage_image == 0)
+        btree->btree_private.maxmempage_image = 4 * max;
+    else if (btree->btree_private.maxmempage_image < max)
         WT_RET_MSG(session, EINVAL,
           "in-memory page image size must be larger than the maximum page size (%" PRIu32
           "B < %" PRIu32 "B)",
-          btree->maxmempage_image, max);
+          btree->btree_private.maxmempage_image, max);
 
     /*
      * Don't let pages grow large compared to the cache size or we can end
@@ -978,21 +978,21 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * alter the bounds for any of the parameters here.
      */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
-    btree->maxmempage = (uint64_t)cval.val;
+    btree->btree_private.maxmempage = (uint64_t)cval.val;
 
 #define WT_MIN_PAGES 10
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
-        btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
+        btree->btree_private.maxmempage = (uint64_t)WT_MIN(btree->btree_private.maxmempage,
           ((conn->evict->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
-    btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
+    btree->btree_private.maxmempage = WT_MAX(btree->btree_private.maxmempage, btree->btree_private.maxleafpage);
 
     /*
      * Try in-memory splits once we hit 80% of the maximum in-memory page size. This gives
      * multi-threaded append workloads a better chance of not stalling.
      */
-    btree->splitmempage = (8 * btree->maxmempage) / 10;
+    btree->btree_private.splitmempage = (8 * btree->btree_private.maxmempage) / 10;
 
     /*
      * Get the split percentage (reconciliation splits pages into smaller than the maximum page size
@@ -1007,7 +1007,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
           WT_BTREE_MIN_SPLIT_PCT);
     } else
         btree->split_pct = (int)cval.val;
-    leaf_split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
+    leaf_split_size = __wt_split_page_size(btree->split_pct, btree->btree_private.maxleafpage, btree->btree_private.allocsize);
 
     /*
      * In-memory split configuration.
@@ -1030,15 +1030,15 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * item in an in-memory configuration.
      */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
-        btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
-        btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
+        btree->btree_private.maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
+        btree->btree_private.maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);
     }
 
     WT_RET(__wt_config_gets(session, cfg, "leaf_key_max", &cval));
-    btree->maxleafkey = (uint32_t)cval.val;
+    btree->btree_private.maxleafkey = (uint32_t)cval.val;
     WT_RET(__wt_config_gets(session, cfg, "leaf_value_max", &cval));
-    btree->maxleafvalue = (uint32_t)cval.val;
+    btree->btree_private.maxleafvalue = (uint32_t)cval.val;
 
     /*
      * Default max for leaf keys: split-page / 10. Default max for leaf values: split-page / 2.
@@ -1047,10 +1047,10 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * our calculation of how many keys must fit on a page, and given a split-percentage and page
      * header, that isn't easy to do.
      */
-    if (btree->maxleafkey == 0)
-        btree->maxleafkey = leaf_split_size / 10;
-    if (btree->maxleafvalue == 0)
-        btree->maxleafvalue = leaf_split_size / 2;
+    if (btree->btree_private.maxleafkey == 0)
+        btree->btree_private.maxleafkey = leaf_split_size / 10;
+    if (btree->btree_private.maxleafvalue == 0)
+        btree->btree_private.maxleafvalue = leaf_split_size / 2;
 
     return (0);
 }

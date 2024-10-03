@@ -148,7 +148,7 @@ __rec_cell_build_leaf_key(
     r->key_pfx_last = pfx;
 
     /* Create an overflow object if the data won't fit. */
-    if (key->buf.size > btree->maxleafkey) {
+    if (key->buf.size > btree->btree_private.maxleafkey) {
         /*
          * Overflow objects aren't prefix compressed -- rebuild any object that was prefix
          * compressed.

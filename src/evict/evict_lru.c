@@ -82,7 +82,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
         return (WT_READGEN_OLDEST);
 
     /* Any large page in memory is likewise a good choice. */
-    if (__wt_atomic_loadsize(&page->memory_footprint) > btree->splitmempage)
+    if (__wt_atomic_loadsize(&page->memory_footprint) > btree->btree_private.splitmempage)
         return (WT_READGEN_OLDEST);
 
     /*
@@ -2150,7 +2150,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
     /* Pages being forcibly evicted go on the urgent queue. */
     if (modified &&
       (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST ||
-        __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage)) {
+        __wt_atomic_loadsize(&page->memory_footprint) >= btree->btree_private.splitmempage)) {
         WT_STAT_CONN_INCR(session, eviction_pages_queued_oldest);
         if (__wt_evict_page_urgent(session, ref))
             *urgent_queuedp = true;
@@ -2401,7 +2401,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     if (ref != NULL) {
         if (__wt_ref_is_root(ref) || evict_entry == start || give_up ||
-          __wt_atomic_loadsize(&ref->page->memory_footprint) >= btree->splitmempage) {
+          __wt_atomic_loadsize(&ref->page->memory_footprint) >= btree->btree_private.splitmempage) {
             if (restarts == 0)
                 WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
             WT_RET(__wt_page_release(evict->walk_session, ref, walk_flags));

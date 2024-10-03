@@ -46,7 +46,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         footprint -= page->dsk->mem_size;
 
     /* Pages are usually small enough, check that first. */
-    if (footprint < btree->splitmempage)
+    if (footprint < btree->btree_private.splitmempage)
         return (false);
 
     /*
@@ -60,7 +60,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * If the page is less than the maximum size and can be split in-memory, let's try that first
      * without forcing the page to evict on release.
      */
-    if (footprint < btree->maxmempage) {
+    if (footprint < btree->btree_private.maxmempage) {
         if (__wt_leaf_page_can_split(session, page))
             return (true);
         return (false);

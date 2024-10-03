@@ -590,7 +590,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
     if (cbt->next_random_leaf_skip == 0) {
         WT_ERR(btree->bm->size(btree->bm, session, &size));
         cbt->next_random_leaf_skip =
-          (uint64_t)((size / btree->allocsize) / cbt->next_random_sample_size) + 1;
+          (uint64_t)((size / btree->btree_private.allocsize) / cbt->next_random_sample_size) + 1;
     }
 
     /*
