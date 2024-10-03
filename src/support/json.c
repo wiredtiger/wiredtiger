@@ -320,7 +320,7 @@ __json_struct_unpackv(WT_SESSION_IMPL *session, const void *buffer, size_t size,
  */
 int
 __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t size, const char *fmt,
-  WT_CURSOR_JSON *json, bool iskey, va_list ap)
+  WT_JSON *json, bool iskey, va_list ap)
 {
     WT_CONFIG_ITEM *names;
     size_t needed;
@@ -349,9 +349,9 @@ __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t size
 void
 __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    WT_CURSOR_JSON *json;
+    WT_JSON *json;
 
-    if ((json = (WT_CURSOR_JSON *)cursor->json_private) != NULL) {
+    if ((json = (WT_JSON *)cursor->json_private) != NULL) {
         __wt_free(session, json->key_buf);
         __wt_free(session, json->value_buf);
         __wt_free(session, json->key_names.str);
@@ -390,13 +390,13 @@ int
 __wt_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
   const WT_CONFIG_ITEM *idxconf, const WT_CONFIG_ITEM *colconf)
 {
-    WT_CURSOR_JSON *json;
+    WT_JSON *json;
     WT_SESSION_IMPL *session;
     size_t len;
     uint32_t keycnt, nkeys;
     const char *beginkey, *end, *lparen, *p;
 
-    json = (WT_CURSOR_JSON *)cursor->json_private;
+    json = (WT_JSON *)cursor->json_private;
     session = CUR2S(cursor);
     beginkey = colconf->str;
     end = beginkey + colconf->len;
@@ -811,8 +811,8 @@ __json_pack_size(WT_SESSION_IMPL *session, const char *fmt, WT_CONFIG_ITEM *name
  *     matches the expected format.
  */
 int
-__wt_json_to_item(WT_SESSION_IMPL *session, const char *jstr, const char *format,
-  WT_CURSOR_JSON *json, bool iskey, WT_ITEM *item)
+__wt_json_to_item(WT_SESSION_IMPL *session, const char *jstr, const char *format, WT_JSON *json,
+  bool iskey, WT_ITEM *item)
 {
     size_t sz;
     sz = 0; /* Initialize because GCC 4.1 is paranoid */
