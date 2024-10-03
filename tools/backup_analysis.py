@@ -257,12 +257,13 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     if not opts.terse:
         # Print the time even if no changes because we may want to know how long it took to not
         # see any changes.
-        print(f'{filename}: time: started {start} completed {end}')
         if total_bytes_diff == 0:
             # If the file is unchanged return now.
-            print(f'{filename}: is unchanged')
+            if opts.verbose:
+                print(f'{filename}: is unchanged')
             return
 
+        print(f'{filename}: time: started {start} completed {end}')
         # Otherwise print out the change information.
         if change_diff != 0:
             print(f'{filename}: size: {f1_size} {f2_size} {change} by {change_diff} bytes')
@@ -315,10 +316,12 @@ def print_summary(opts):
             print(f'{n}: {ts.files_changed} {changed} changed out of {ts.files} {total}')
         if ts.gran_blocks != 0:
             chg_blocks = round(abs(ts.chg_blocks / ts.gran_blocks * 100))
+            chg_block_bytes = ts.chg_blocks * opts.granularity
+            chg_bytes_pct = round(abs(ts.bytes / chg_block_bytes * 100))
             pct20_blocks = round(abs(ts.pct20 / ts.chg_blocks * 100))
             pct80_blocks = round(abs(ts.pct80 / ts.chg_blocks * 100))
             if not opts.terse:
-                print(f'{ts.files_changed} changed {changed}: differs by {ts.bytes} bytes in {ts.chg_blocks} changed granularity blocks')
+                print(f'{ts.files_changed} changed {changed}: differs by {ts.bytes} bytes ({chg_bytes_pct}%) in {ts.chg_blocks} changed granularity blocks ({chg_block_bytes} block bytes)')
                 print(f'{ts.files_changed} changed {changed}: differs by {ts.chg_blocks} ({chg_blocks}%) granularity blocks in {ts.gran_blocks} total granularity blocks')
                 print(f'{n}: smallest 20%: {ts.pct20} of {ts.chg_blocks} changed blocks ({pct20_blocks}%) differ by {pct20} bytes or less of {opts.granularity}')
                 print(f'{n}: largest 80%: {ts.pct80} of {ts.chg_blocks} changed blocks ({pct80_blocks}%) differ by {pct80} bytes or more of {opts.granularity}')
