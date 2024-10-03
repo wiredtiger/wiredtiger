@@ -363,7 +363,7 @@ read:
              * Get a hazard pointer if one is required. We cannot be evicting if no hazard pointer
              * is required, we're done.
              */
-            if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+            if (F_ISSET(btree, WT_BTREE_NO_EVICT))
                 goto skip_evict;
 
 /*

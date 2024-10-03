@@ -167,7 +167,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * configuration when finished so that handle close behaves correctly.
      */
     if (btree->original ||
-      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+      F_ISSET(btree, WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
         btree->evict_disabled_open = true;
     }
@@ -444,9 +444,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     WT_RET(__wt_config_gets(session, cfg, "cache_resident", &cval));
     if (cval.val)
-        F_SET(btree, WT_BTREE_IN_MEMORY);
+        F_SET(btree, WT_BTREE_NO_EVICT);
     else
-        F_CLR(btree, WT_BTREE_IN_MEMORY);
+        F_CLR(btree, WT_BTREE_NO_EVICT);
 
     WT_RET(__wt_config_gets(session, cfg, "ignore_in_memory_cache_size", &cval));
     if (cval.val) {

@@ -533,7 +533,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
      * other resources that could block checkpoints or eviction.
      */
     btree = S2BT_SAFE(session);
-    if (btree != NULL && (F_ISSET(btree, WT_BTREE_IN_MEMORY) || WT_IS_METADATA(session->dhandle)))
+    if (btree != NULL && (F_ISSET(btree, WT_BTREE_NO_EVICT) || WT_IS_METADATA(session->dhandle)))
         return (0);
 
     /* Check if eviction is needed. */
