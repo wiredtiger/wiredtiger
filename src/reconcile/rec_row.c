@@ -673,9 +673,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         if (upd->type == WT_UPDATE_TOMBSTONE)
             continue;
 
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                r->leave_dirty = true;
-
         /* Build key cell. */
         WT_ERR(__rec_cell_build_leaf_key(
           session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
@@ -870,9 +867,6 @@ __wt_rec_row_leaf(
 
         /* Build value cell. */
         if (upd == NULL) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                r->leave_dirty = true;
-
             /* Clear the on-disk cell time window if it is obsolete. */
             __wt_rec_time_window_clear_obsolete(session, NULL, vpack, r);
 
@@ -992,9 +986,6 @@ __wt_rec_row_leaf(
             /* Proceed with appended key/value pairs. */
             if (upd->type == WT_UPDATE_TOMBSTONE)
                 goto leaf_insert;
-
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    r->leave_dirty = true;
         }
 
         /*
