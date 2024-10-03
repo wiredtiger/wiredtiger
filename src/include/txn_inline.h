@@ -393,18 +393,63 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
 }
 
 /*
- * __txn_op_delete_commit_apply_page_del_timestamp --
- *     Apply the correct start and durable timestamps to the page delete structure.
+ * __txn_op_delete_commit_verify_page_del_timestamp --
+ *     Verify the timestamps before setting it to the page delete structure.
  */
 static WT_INLINE int
-__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_PAGE_DELETED *page_del;
     WT_REF *ref;
     WT_TXN *txn;
-    bool addr_found;
+    bool addr_found, local_lock;
+
+    ref = op->u.ref;
+    txn = session->txn;
+    page_del = ref->page_del;
+    local_lock = false;
+
+    /* Lock the ref if it is not locked. */
+    if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED) {
+        WT_REF_LOCK(session, ref, NULL);
+        local_lock = true;
+    }
+
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+
+    if (page_del != NULL) {
+        /* Validate the commit timestamp against the maximum durable timestamp on the page. */
+        WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+        WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
+        WT_ASSERT_ALWAYS(
+          session, addr_found == true, "Found a fast truncated page without an address");
+        ret = __wt_txn_timestamp_usage_check(session, op,
+          page_del->timestamp != WT_TS_NONE ? page_del->timestamp : txn->commit_timestamp,
+          WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+        WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+        WT_ERR(ret);
+    }
+
+err:
+    if (local_lock)
+        WT_REF_UNLOCK(ref, WT_REF_LOCKED);
+    return (ret);
+}
+
+/*
+ * __txn_op_delete_commit_apply_page_del_timestamp --
+ *     Apply the correct start and durable timestamps to the page delete structure.
+ */
+static WT_INLINE int
+__txn_op_delete_commit_apply_page_del_timestamp(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
+{
+    WT_DECL_RET;
+    WT_PAGE_DELETED *page_del;
+    WT_REF *ref;
+    WT_TXN *txn;
 
     ref = op->u.ref;
     txn = session->txn;
@@ -412,20 +457,16 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
 
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
-    if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
+    if (page_del != NULL) {
 
         /* Validate the commit timestamp against the maximum durable timestamp on the page. */
-        WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
-        WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
-        WT_ASSERT_ALWAYS(
-          session, addr_found == true, "Found a fast truncated page without an address");
-        ret = __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp,
-          WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
-        WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
-        WT_RET(ret);
+        if (validate)
+            WT_RET(__txn_op_delete_commit_verify_page_del_timestamp(session, op));
 
-        page_del->timestamp = txn->commit_timestamp;
-        page_del->durable_timestamp = txn->durable_timestamp;
+        if (page_del->timestamp == WT_TS_NONE) {
+            page_del->timestamp = txn->commit_timestamp;
+            page_del->durable_timestamp = txn->durable_timestamp;
+        }
     }
 
     return (ret);
@@ -436,7 +477,7 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
 static WT_INLINE int
-__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
 {
     WT_DECL_RET;
     WT_REF *ref;
@@ -476,19 +517,25 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *
              * either set the timestamp on all the updates, or we have set the timestamp on none of
              * the updates.
              */
-            if (*updp != NULL && (*updp)->start_ts == WT_TS_NONE) {
+            if (*updp != NULL) {
                 do {
-                    WT_ERR(__wt_txn_timestamp_usage_check(
-                      session, op, txn->commit_timestamp, (*updp)->prev_durable_ts));
-                    (*updp)->start_ts = txn->commit_timestamp;
-                    (*updp)->durable_ts = txn->durable_timestamp;
+                    if (validate)
+                        WT_ERR(__wt_txn_timestamp_usage_check(session, op,
+                          (*updp)->start_ts != WT_TS_NONE ? (*updp)->start_ts :
+                                                            txn->commit_timestamp,
+                          (*updp)->prev_durable_ts));
+
+                    if ((*updp)->start_ts == WT_TS_NONE) {
+                        (*updp)->start_ts = txn->commit_timestamp;
+                        (*updp)->durable_ts = txn->durable_timestamp;
+                    }
                     ++updp;
                 } while (*updp != NULL);
             }
         }
     }
 
-    ret = __txn_op_delete_commit_apply_page_del_timestamp(session, op);
+    ret = __txn_op_delete_commit_apply_page_del_timestamp(session, op, validate);
 
 err:
     WT_REF_UNLOCK(ref, previous_state);
@@ -608,9 +655,13 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
     txn = session->txn;
 
     if (!__txn_should_assign_timestamp(session, op)) {
-        if (validate)
-            WT_RET(__wt_txn_timestamp_usage_check(
-              session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
+        if (validate) {
+            if (op->type == WT_TXN_OP_REF_DELETE)
+                WT_RET(__txn_op_delete_commit_verify_page_del_timestamp(session, op));
+            else
+                WT_RET(__wt_txn_timestamp_usage_check(
+                  session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
+        }
         return (0);
     }
 
@@ -629,7 +680,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op));
+            WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate));
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
@@ -719,7 +770,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     ref->page_del->txnid = txn->id;
 
     if (__txn_should_assign_timestamp(session, op))
-        WT_ERR(__txn_op_delete_commit_apply_page_del_timestamp(session, op));
+        WT_ERR(__txn_op_delete_commit_apply_page_del_timestamp(session, op, false));
 
     if (__wt_txn_log_op_check(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
