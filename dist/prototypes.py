@@ -116,7 +116,8 @@ def update_existing_header(tmp_file, fns, tests, f):
 
     if DO_NOT_EDIT_BEGIN not in lines or DO_NOT_EDIT_END not in lines:
         print(f"Error: File {f} is missing the lines \n{DO_NOT_EDIT_BEGIN} and \
-              \n{DO_NOT_EDIT_END} required by prototypes.py. Both lines must be followed by a newline")
+              \n{DO_NOT_EDIT_END} required by prototypes.py. Both lines must \
+              be followed by a newline")
         sys.exit(1)
 
     start_line = lines.index(DO_NOT_EDIT_BEGIN)
