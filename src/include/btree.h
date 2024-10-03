@@ -249,7 +249,7 @@ struct __wt_btree {
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
  */
-#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict_ref))
+#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict))
 
     /*
      * Eviction information is maintained in the btree handle, but owned by eviction, not the btree

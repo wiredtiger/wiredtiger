@@ -35,7 +35,7 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * is disabled when an empty tree is opened, and it must only be enabled once.
      */
     if (__wt_atomic_cas8(&btree->original, 1, 0)) {
-        btree->evict_disabled_open = false;
+        btree->evict.evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
 }
@@ -94,7 +94,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
      * dirty eviction: that is handled explicitly in __wt_sync_file.
      */
-    if (__wt_readgen_evict_soon(&page->read_gen) && btree->evict_disabled == 0 &&
+    if (__wt_readgen_evict_soon(&page->read_gen) && btree->evict.evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
@@ -2101,7 +2101,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
         return (false);
 
     /* A tree that can be evicted always requires a switch. */
-    if (btree->evict_disabled == 0)
+    if (btree->evict.evict_disabled == 0)
         return (true);
 
     /* Check for a tree with a single leaf page. */

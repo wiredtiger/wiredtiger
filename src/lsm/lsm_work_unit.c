@@ -305,8 +305,8 @@ __lsm_set_chunk_evictable(WT_SESSION_IMPL *session, WT_LSM_CHUNK *chunk, bool ne
         if (need_handle)
             WT_RET(__wt_session_get_dhandle(session, chunk->uri, NULL, NULL, 0));
         btree = session->dhandle->handle;
-        if (btree->evict_disabled_open) {
-            btree->evict_disabled_open = false;
+        if (btree->evict.evict_disabled_open) {
+            btree->evict.evict_disabled_open = false;
             __wt_evict_file_exclusive_off(session);
         }
 
