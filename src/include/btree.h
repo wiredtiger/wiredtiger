@@ -114,14 +114,17 @@ struct __wt_btree {
 
     uint32_t id; /* File ID, for logging */
 
-    uint32_t allocsize;             /* Allocation size */
-    wt_shared uint32_t maxintlpage; /* Internal page max size */
-    uint32_t maxleafpage;           /* Leaf page max size */
-    uint32_t maxleafkey;            /* Leaf page max key size */
-    uint32_t maxleafvalue;          /* Leaf page max value size */
-    uint64_t maxmempage;            /* In-memory page max size */
-    uint32_t maxmempage_image;      /* In-memory page image max size */
-    uint64_t splitmempage;          /* In-memory split trigger size */
+    /* #private(btree) */
+    struct {
+        uint32_t allocsize;             /* Allocation size */
+        wt_shared uint32_t maxintlpage; /* Internal page max size */
+        uint32_t maxleafpage;           /* Leaf page max size */
+        uint32_t maxleafkey;            /* Leaf page max key size */
+        uint32_t maxleafvalue;          /* Leaf page max value size */
+        uint64_t maxmempage;            /* In-memory page max size */
+        uint32_t maxmempage_image;      /* In-memory page image max size */
+        uint64_t splitmempage;          /* In-memory split trigger size */
+    } btree;
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
