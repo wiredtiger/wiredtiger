@@ -51,6 +51,7 @@ class TypeStats(object):
         self.gran_blocks = 0
         self.pct20 = 0
         self.pct80 = 0
+        self.single = 0
 
 typestats = dict()
 for n, t in zip(global_names, global_types):
@@ -235,6 +236,8 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     fp2.close()
     end = time.asctime()
     ts.gran_blocks += total_gran_blocks
+    if total_gran_blocks <= 1:
+        ts.single += 1
 
     # Report for each file.
     if f1_size < f2_size:
@@ -260,7 +263,7 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
         if total_bytes_diff == 0:
             # If the file is unchanged return now.
             if opts.verbose:
-                print(f'{filename}: is unchanged')
+                print(f'{filename}: is unchanged {f1_size}')
             return
 
         print(f'{filename}: time: started {start} completed {end}')
@@ -295,6 +298,7 @@ def print_summary(opts):
     total_files = 0
     total_files_changed = 0
     total_gran_blocks = 0
+    total_single_files = 0
     for t in global_types:
         ts = typestats[t]
         total_chg_bytes += ts.bytes
@@ -302,10 +306,13 @@ def print_summary(opts):
         total_files += ts.files
         total_files_changed += ts.files_changed
         total_gran_blocks += ts.gran_blocks
+        total_single_files += ts.single
     chg_blocks = round(abs(total_chg_blocks / total_gran_blocks * 100))
+    single_pct = round(abs(total_single_files / total_files * 100))
     if not opts.terse:
         print(f'Total: {total_chg_bytes} bytes changed in {total_chg_blocks} changed granularity-sized ({opts.granularity}) blocks ({chg_blocks}%) of {total_gran_blocks} blocks overall')
         print(f'Total: {total_files_changed} {plural("file", total_files_changed)} changed out of {total_files} total files')
+    print(f'Total: {total_single_files} single block {plural("file", total_single_files)} ({single_pct}%) changed out of {total_files} total files')
 
     # Walk through all the types printing out final information per type.
     for n, t in zip(global_names, global_types):
@@ -313,6 +320,7 @@ def print_summary(opts):
         changed = plural('file', ts.files_changed)
         total = plural('file', ts.files)
         if not opts.terse:
+            print("")
             print(f'{n}: {ts.files_changed} {changed} changed out of {ts.files} {total}')
         if ts.gran_blocks != 0:
             chg_blocks = round(abs(ts.chg_blocks / ts.gran_blocks * 100))
