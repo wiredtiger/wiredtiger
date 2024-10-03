@@ -43,8 +43,9 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * - the checkpoint's snapshot includes the first dirty update on the page.
      * - Not every disk block involved has a disk address.
      */
-    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
-      F_ISSET(S2C(session), WT_CONN_RECOVERING) || F_ISSET(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+        return (false);
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) | WT_CONN_CLOSING_CHECKPOINT)
         return (false);
     if (WT_IS_HS(session->dhandle))
         return (false);
