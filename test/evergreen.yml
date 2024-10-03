@@ -145,7 +145,6 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        echo "generated_token: ${generated_token}"
         if ! [ -d "./automation-scripts" ]; then
           git clone https://x-access-token:${generated_token}@github.com/wiredtiger/automation-scripts.git
         fi
