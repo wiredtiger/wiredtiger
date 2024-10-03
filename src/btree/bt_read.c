@@ -318,7 +318,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
-    bool busy, cache_work, evict_skip, stalled, wont_need;
+    bool busy, cache_work, evict_skip, new_read, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
@@ -343,7 +343,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE))
         __wt_stash_discard(session);
 
-    for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
+    for (evict_skip = new_read = stalled = wont_need = false, force_attempts = 0,
+        sleep_usecs = yield_cnt = 0;
          ;) {
         switch (current_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DELETED:
@@ -367,7 +368,7 @@ read:
                 WT_RET(
                   __wt_evict_app_assist_worker_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
-
+            new_read = true;
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
             FLD_CLR(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
@@ -503,8 +504,7 @@ skip_evict:
                  * If the page was read by this retrieval or was pulled into the cache via the
                  * pre-fetch mechanism, count that as a page read directly from disk.
                  */
-                if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH) ||
-                  __wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
+                if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH) || new_read)
                     ++session->pf.prefetch_disk_read_count;
                 else
                     session->pf.prefetch_disk_read_count = 0;
