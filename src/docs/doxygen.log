@@ -1,1 +1,0 @@
-/home/ubuntu/wiredtiger/src/include/wiredtiger.in:2946: error: Member stable_prefix (variable) of struct WT_CONNECTION is not documented. (warning treated as error, aborting now)
