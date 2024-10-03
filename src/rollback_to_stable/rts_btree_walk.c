@@ -436,8 +436,8 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    uint64_t oldest_id;
     wt_timestamp_t stable_timestamp;
+    uint64_t oldest_id;
 
     btree = S2BT(session);
     conn = S2C(session);
