@@ -771,7 +771,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * currently required, so that pages have some relative read generation when the eviction
          * server does need to do some work.
          */
-        __wti_evict_read_gen_incr(session);
+        __wt_atomic_add64(&evict->read_gen, 1);
         __wt_atomic_add64(&evict->evict_pass_gen, 1);
 
         /*

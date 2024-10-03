@@ -47,16 +47,6 @@ __evict_read_gen(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_evict_read_gen_incr --
- *     Increment the current read generation number.
- */
-static WT_INLINE void
-__wti_evict_read_gen_incr(WT_SESSION_IMPL *session)
-{
-    (void)__wt_atomic_add64(&S2C(session)->evict->read_gen, 1);
-}
-
-/*
  * __wt_evict_read_gen_bump --
  *     Update the page's read generation.
  */

@@ -2608,7 +2608,6 @@ static WT_INLINE void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
 static WT_INLINE void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
 static WT_INLINE void __wt_usec_to_timespec(time_t usec, struct timespec *tsp);
-static WT_INLINE void __wti_evict_read_gen_incr(WT_SESSION_IMPL *session);
 static inline bool __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page,
   WT_TIME_AGGREGATE **ta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
