@@ -11,6 +11,9 @@ from collections import defaultdict
 # They place header files inside the src/foo folder rather than in src/include
 MODULARISED_COMPONENTS = []
 
+DO_NOT_EDIT_BEGIN = "/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n"
+DO_NOT_EDIT_END = "/* DO NOT EDIT: automatically built by prototypes.py: END */\n"
+
 COPYRIGHT = """\
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
@@ -90,7 +93,7 @@ def create_new_header(tmp_file, fns, tests, private_file=""):
     if private_file:
         tfile.write(f"#include \"{private_file}\"\n\n")
 
-    tfile.write("/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n\n")
+    tfile.write(f"{DO_NOT_EDIT_BEGIN}\n")
 
     for e in sorted(list(set(fns))):
         tfile.write(e)
@@ -100,7 +103,7 @@ def create_new_header(tmp_file, fns, tests, private_file=""):
         tfile.write(e)
 
     tfile.write('\n#endif\n')
-    tfile.write("\n\n/* DO NOT EDIT: automatically built by prototypes.py: END */\n")
+    tfile.write(f"\n\n{DO_NOT_EDIT_END}")
     tfile.close()
 
 # Update an existing header file with function declarations.
@@ -109,8 +112,13 @@ def update_existing_header(tmp_file, fns, tests, f):
     with open(f, 'r') as file:
         lines = file.readlines()
 
-    start_line = lines.index('/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n')
-    end_line = lines.index('/* DO NOT EDIT: automatically built by prototypes.py: END */\n')
+    if DO_NOT_EDIT_BEGIN not in lines or DO_NOT_EDIT_END not in lines:
+        print(f"Error: File {f} is missing the lines \n{DO_NOT_EDIT_BEGIN} and \
+              \n{DO_NOT_EDIT_END} required by prototypes.py. Both lines must be followed by a newline")
+        sys.exit(1)
+
+    start_line = lines.index(DO_NOT_EDIT_BEGIN)
+    end_line = lines.index(DO_NOT_EDIT_END)
 
     # Safety check: We should always at least one function declaration in the file already
     assert(start_line + 1 != end_line)
@@ -188,7 +196,7 @@ def build_component_functions_dicts():
                     tests_dict[component], name)
         else:
             print(f"Unexpected filepath {name}")
-            exit(1)
+            sys.exit(1)
 
     return (public_fns_dict, private_fns_dict, tests_dict)
 
