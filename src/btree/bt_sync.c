@@ -22,9 +22,6 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
-    mod = ref->page->modify;
-    txn = session->txn;
-
     /*
      * Don't skip checkpoint if at least one of the following conditions is met:
      *
@@ -51,8 +48,10 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
+    txn = session->txn;
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
+    mod = ref->page->modify;
     if (!WT_TXNID_LT(txn->snapshot_data.snap_max, mod->first_dirty_txn))
         return (false);
 
