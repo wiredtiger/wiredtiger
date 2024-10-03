@@ -776,10 +776,9 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
           !FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
-            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_RECOVERING), "%s",
-              "A btree is marked dirty during recovery");
-            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT), "%s",
-              "A btree is marked dirty during shutdown");
+            WT_ASSERT_ALWAYS(session,
+              !F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT), "%s",
+              "A btree is marked dirty during recovery or shutdown");
         }
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
