@@ -723,7 +723,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 
     /* Get time diff in milliseconds. */
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
-    __wt_verbose_info(session, WT_VERB_CHECKPOINT,
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
       "time: %" PRIu64 " ms, gen: %" PRIu64 ": Full database checkpoint %s", msec,
       __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 }
