@@ -41,9 +41,6 @@
 
 #include "wt_internal.h"
 
-/* define HAVE_CP_LOGGING -* define to enable cp logging HAVE_CP_LOGGING */
-/* HAVE_CP_LOGGING */
-
 #ifdef HAVE_CONTROL_POINT
 /*
  * Functions used at the trigger site.
@@ -62,28 +59,21 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     size_t new_crossing_count;
     size_t new_trigger_count;
-#endif
     bool triggered;
 
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-    __wt_verbose_notice(session, WT_VERB_TEMPORARY, "Start: id=%" PRId32, id);
-#endif
+    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "Start: id=%" PRId32, id);
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE)) {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_error(session, WT_VERB_TEMPORARY,
+        __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
           "ERROR: id(%" PRId32 ") >= CONNECTION_CONTROL_POINTS_SIZE(%" PRId32 ")", id,
           CONNECTION_CONTROL_POINTS_SIZE);
-#endif
         return (NULL);
     }
     conn = S2C(session);
     if (WT_UNLIKELY(conn->control_points == NULL)) {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "control_points is NULL: id=%" PRId32, id);
-#endif
+        __wt_verbose_notice(
+          session, WT_VERB_CONTROL_POINT, "control_points is NULL: id=%" PRId32, id);
         return (NULL);
     }
     cp_registry = &(conn->control_points[id]);
@@ -91,32 +81,20 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     data = __wti_control_point_get_data(session, cp_registry, false);
     if (data == NULL) {
         /* Disabled. */
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "Is disabled: id=%" PRId32, id);
-#endif
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "Is disabled: id=%" PRId32, id);
         return (NULL);
     }
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     new_crossing_count = ++(cp_registry->crossing_count);
-#else
-    ++(cp_registry->crossing_count);
-#endif
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     if (triggered) {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
         new_trigger_count = ++(cp_registry->trigger_count);
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT,
           "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
           (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
-#else
-        ++(cp_registry->trigger_count);
-#endif
     } else {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT,
           "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
           (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
-#endif
         __wt_control_point_release_data(session, cp_registry, data, false);
         /* Not triggered. */
         data = NULL;
@@ -137,24 +115,19 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
 {
     WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     size_t new_crossing_count;
     size_t new_trigger_count;
-#endif
     bool triggered;
 
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE)) {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_error(session, WT_VERB_TEMPORARY,
+        __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
           "ERROR: id(%" PRId32 ") >= SESSION_CONTROL_POINTS_SIZE(%" PRId32 ")", id,
           SESSION_CONTROL_POINTS_SIZE);
-#endif
         return (NULL);
     }
     if (WT_UNLIKELY(session->control_points == NULL)) {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "control_points is NULL: id=%" PRId32, id);
-#endif
+        __wt_verbose_notice(
+          session, WT_VERB_CONTROL_POINT, "control_points is NULL: id=%" PRId32, id);
         return (NULL);
     }
     cp_registry = &(session->control_points[id]);
@@ -162,33 +135,21 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     data = cp_registry->data;
     if (data == NULL) {
         /* Disabled. */
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY, "Is disabled: id=%" PRId32, id);
-#endif
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "Is disabled: id=%" PRId32, id);
         return (NULL);
     }
 
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
     new_crossing_count = ++(cp_registry->crossing_count);
-#else
-    ++(cp_registry->crossing_count);
-#endif
     if (triggered) {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
         new_trigger_count = ++(cp_registry->trigger_count);
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT,
           "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
           (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
-#else
-        ++(cp_registry->trigger_count);
-#endif
     } else {
-#ifdef HAVE_CP_LOGGING /* XXX TEMPORARY logging */
-        __wt_verbose_notice(session, WT_VERB_TEMPORARY,
+        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT,
           "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
           (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
-#endif
         /* Not triggered. */
         data = NULL;
     }
