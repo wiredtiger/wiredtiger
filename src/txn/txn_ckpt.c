@@ -534,7 +534,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 static WT_INLINE void
 __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 {
-    __wt_set_shared_double(&S2C(session)->cache->eviction_scrub_target, target);
+    __wt_set_shared_double(&S2C(session)->evict->eviction_scrub_target, target);
     WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)target);
 }
 
@@ -548,15 +548,17 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
     double current_dirty, prev_dirty;
     uint64_t bytes_written_start, bytes_written_total;
     uint64_t cache_size, max_write;
 
     conn = S2C(session);
     cache = conn->cache;
+    evict = conn->evict;
 
     /* Give up if scrubbing is disabled. */
-    if (cache->eviction_checkpoint_target < DBL_EPSILON)
+    if (evict->eviction_checkpoint_target < DBL_EPSILON)
         return;
 
     bytes_written_start = __wt_atomic_load64(&cache->bytes_written);
@@ -570,14 +572,14 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
         return;
 
     current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-    if (current_dirty <= cache->eviction_checkpoint_target)
+    if (current_dirty <= evict->eviction_checkpoint_target)
         return;
 
     /* Stop if we write as much dirty data as is currently in cache. */
     max_write = __wt_cache_dirty_leaf_inuse(cache);
 
     /* Set the dirty trigger to the target value. */
-    __checkpoint_set_scrub_target(session, cache->eviction_checkpoint_target);
+    __checkpoint_set_scrub_target(session, evict->eviction_checkpoint_target);
 
     /* Wait while the dirty level is going down. */
     for (;;) {
@@ -586,7 +588,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
         prev_dirty = current_dirty;
         current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-        if (current_dirty <= cache->eviction_checkpoint_target || current_dirty >= prev_dirty)
+        if (current_dirty <= evict->eviction_checkpoint_target || current_dirty >= prev_dirty)
             break;
 
         /*
@@ -619,7 +621,7 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
 
     if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint prepare %s for %" PRIu64 " seconds and it has gathered %" PRIu64
           " dhandles and skipped %" PRIu64 " dhandles",
           final ? "ran" : "has been running", time_diff, conn->ckpt_apply, conn->ckpt_skip);
@@ -645,7 +647,7 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
 
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
           closing ? "ran" : "has been running", time_diff, conn->ckpt_write_pages,
           conn->ckpt_write_bytes / WT_MEGABYTE);
@@ -721,7 +723,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 
     /* Get time diff in milliseconds. */
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
-    __wt_verbose(session, WT_VERB_CHECKPOINT,
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
       "time: %" PRIu64 " ms, gen: %" PRIu64 ": Full database checkpoint %s", msec,
       __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 }
@@ -1101,11 +1103,11 @@ static int
 __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
     struct timespec tsp;
-    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *hs_dhandle;
     WT_DECL_RET;
+    WT_EVICT *evict;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
@@ -1121,7 +1123,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     void *saved_meta_next;
 
     conn = S2C(session);
-    cache = conn->cache;
+    evict = conn->evict;
     hs_size = 0;
     hs_dhandle = NULL;
     txn = session->txn;
@@ -1157,9 +1159,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
-    __wt_atomic_store64(&cache->evict_max_page_size, 0);
-    __wt_atomic_store64(&cache->evict_max_ms, 0);
-    cache->reentry_hs_eviction_ms = 0;
+    __wt_atomic_store64(&evict->evict_max_page_size, 0);
+    __wt_atomic_store64(&evict->evict_max_ms, 0);
+    evict->reentry_hs_eviction_ms = 0;
     __wt_atomic_store32(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
@@ -2342,6 +2344,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(ckptlsn_str);
     WT_DECL_RET;
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
@@ -2447,7 +2450,9 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
-    WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, &ckptlsn));
+    WT_ERR(__wt_scr_alloc(session, 0, &ckptlsn_str));
+    WT_ERR(__wt_lsn_string(session, &ckptlsn, ckptlsn_str));
+    WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
 
     /*
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
@@ -2470,6 +2475,8 @@ fake:
         WT_ERR(__wt_txn_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL));
 
 err:
+    __wt_scr_free(session, &ckptlsn_str);
+
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm)
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
