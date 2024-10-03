@@ -83,17 +83,19 @@ __wt_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_readgen_evict_soon --
- *     Return whether a page's read generation makes it eligible for immediate eviction. Read
- *     generations reserve a range of low numbers for special meanings and currently - with the
- *     exception of the generation not being set - these indicate the page may be evicted
- *     immediately.
+ * __wt_evict_page_soon_flagged --
+ *     Return whether the page is eligible for immediate eviction.
  */
 static WT_INLINE bool
-__wt_readgen_evict_soon(uint64_t *readgen)
+__wt_evict_page_soon_flagged(uint64_t *readgen)
 {
     uint64_t gen;
 
+    /*
+     * Read generations reserve a range of low numbers for special meanings and currently - with the
+     * exception of the generation not being set - these indicate the page may be evicted
+     * immediately.
+     */
     WT_READ_ONCE(gen, *readgen);
     return (gen != WT_READGEN_NOTSET && gen < WT_READGEN_START_VALUE);
 }
