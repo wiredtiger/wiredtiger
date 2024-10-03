@@ -442,6 +442,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Page sizes */
     WT_RET(__btree_page_sizes(session));
 
+    /*
+     * This option turns off eviction for a tree. Therefore, its memory footprint can only grow. But
+     * checkpoint will still visit it to persist the data.
+     */
     WT_RET(__wt_config_gets(session, cfg, "cache_resident", &cval));
     if (cval.val)
         F_SET(btree, WT_BTREE_NO_EVICT);
@@ -471,6 +475,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
             F_SET(btree, WT_BTREE_LOGGED);
     }
 
+    /*
+     * This option allows the tree to be reconciled by eviction. But we only replace the disk image
+     * in memory to reduce the memory footprint and nothing is written to disk. Checkpoint will also
+     * skip this tree.
+     */
     WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
     if (cval.val)
         F_SET(btree, WT_BTREE_IN_MEMORY);
