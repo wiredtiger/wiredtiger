@@ -411,7 +411,9 @@ __txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TX
     txn = session->txn;
     page_del = ref->page_del;
 
-    WT_REF_LOCK(session, ref, &previous_state);
+    previous_state = WT_REF_GET_STATE(ref);
+    if (previous_state != WT_REF_LOCKED)
+        WT_REF_LOCK(session, ref, &previous_state);
 
     if (page_del != NULL) {
         /* Validate the commit timestamp against the maximum durable timestamp on the page. */
@@ -427,7 +429,8 @@ __txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TX
     }
 
 err:
-    WT_REF_UNLOCK(ref, previous_state);
+    if (previous_state != WT_REF_LOCKED)
+        WT_REF_UNLOCK(ref, previous_state);
     return (ret);
 }
 
