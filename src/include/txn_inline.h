@@ -405,21 +405,13 @@ __txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TX
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TXN *txn;
-    bool addr_found, local_lock;
+    bool addr_found;
 
     ref = op->u.ref;
     txn = session->txn;
     page_del = ref->page_del;
-    local_lock = false;
 
-    /* Lock the ref if it is not locked. */
-    if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED) {
-        WT_REF_LOCK(session, ref, &previous_state);
-        WT_UNUSED(previous_state);
-        local_lock = true;
-    }
-
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+    WT_REF_LOCK(session, ref, &previous_state);
 
     if (page_del != NULL) {
         /* Validate the commit timestamp against the maximum durable timestamp on the page. */
@@ -435,8 +427,7 @@ __txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TX
     }
 
 err:
-    if (local_lock)
-        WT_REF_UNLOCK(ref, WT_REF_LOCKED);
+    WT_REF_UNLOCK(ref, previous_state);
     return (ret);
 }
 
