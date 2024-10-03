@@ -196,7 +196,6 @@ extern const char __WT_CONFIG_CHOICE_compact[];
 extern const char __WT_CONFIG_CHOICE_compact_progress[];
 extern const char __WT_CONFIG_CHOICE_compact_slow[];
 extern const char __WT_CONFIG_CHOICE_configuration[];
-extern const char __WT_CONFIG_CHOICE_control_point[];
 extern const char __WT_CONFIG_CHOICE_cursor_check[];
 extern const char __WT_CONFIG_CHOICE_data[];
 extern const char __WT_CONFIG_CHOICE_default[];
