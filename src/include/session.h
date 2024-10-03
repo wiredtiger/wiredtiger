@@ -309,13 +309,11 @@ struct __wt_session_impl {
 #define WT_SESSION_RESOLVING_TXN 0x080000u
 #define WT_SESSION_ROLLBACK_TO_STABLE 0x100000u
 #define WT_SESSION_SCHEMA_TXN 0x200000u
-#define WT_SESSION_SHUTTING_DOWN 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
-
 #ifdef HAVE_CONTROL_POINT
-    void *test; /* [SESSION_CONTROL_POINTS_SIZE] */
+    void *test;
 #endif
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything

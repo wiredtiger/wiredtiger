@@ -919,10 +919,6 @@ struct __wt_connection_impl {
 #define WT_CONN_WAS_BACKUP 0x80000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
-
-#ifdef HAVE_CONTROL_POINT
-    WT_CONTROL_POINT_REGISTRY *control_points; /* [CONNECTION_CONTROL_POINTS_SIZE] */
-#endif
 };
 
 /*

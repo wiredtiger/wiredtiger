@@ -441,7 +441,6 @@ __tiered_server(void *arg)
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
-
     /* Condition timeout is in microseconds. */
     cond_time = conn->tiered_interval * WT_MILLION;
     time_start = __wt_clock(session);

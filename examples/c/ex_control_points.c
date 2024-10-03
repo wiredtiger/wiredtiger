@@ -32,7 +32,7 @@
 
 #undef HAVE_CONTROL_POINT /* XXX TEMPORARY - Try without any control points. */
 
-#ifdef HAVE_CONTROL_POINT
+#if 0
 
 static const char *home;
 

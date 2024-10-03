@@ -582,7 +582,6 @@ __statlog_server(void *arg)
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
-
     /*
      * We need a temporary place to build a path and an entry prefix. The length of the path plus
      * 128 should be more than enough.

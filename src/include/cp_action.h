@@ -28,7 +28,7 @@
  * WT_CONTROL_POINT_ACTION_ID_EXAMPLE_ACTION.
  */
 
-#ifdef HAVE_CONTROL_POINT
+#if 0
 /*
  * Define a per connection control point.
  */
