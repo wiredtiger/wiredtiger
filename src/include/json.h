@@ -12,7 +12,6 @@
  * WT_JSON --
  *   Conversion between JSON formatted string and WT CONFIG ITEM.
  */
-
 struct __wt_json {
     char *key_buf;              /* JSON formatted string */
     char *value_buf;            /* JSON formatted string */
