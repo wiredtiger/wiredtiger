@@ -252,7 +252,6 @@ Marsaglia
 Marsaglia's
 Mellor
 Mitzenmacher
-MockSession
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -278,6 +277,7 @@ NetBSD
 NoAddr
 Noll
 Nul
+OBJECTID
 ONDISK
 OOB
 OPLOG
@@ -306,6 +306,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Prealloc
 Precompiled
 Prefetch
 Preload
@@ -533,6 +534,7 @@ blkincr
 blkmod
 blkmods
 bm
+bms
 bnd
 bool
 boolean
@@ -551,7 +553,6 @@ btree's
 btrees
 buf
 bufsz
-buildTestMockSession
 builddir
 builtins
 bursty
@@ -618,6 +619,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -818,7 +820,6 @@ gcc
 gcp
 gdb
 ge
-getWtSessionImpl
 getenv
 getlasterror
 getline
@@ -845,6 +846,7 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
@@ -1069,6 +1071,7 @@ noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
@@ -1107,6 +1110,7 @@ optype
 ori
 origstartrecno
 os
+ostream
 oversized
 ovfl
 ownp
@@ -1330,7 +1334,6 @@ tempdir
 testext
 testutil
 th
-throwIfNonZero
 tid
 timespec
 tinfo
@@ -1453,7 +1456,6 @@ whitespace
 wiredTiger
 wiredTigerTables
 wiredtiger
-wiredtigerCleanup
 workgen
 wrapup
 writeable

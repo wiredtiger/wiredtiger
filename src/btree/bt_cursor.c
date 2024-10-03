@@ -745,7 +745,7 @@ __wti_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
      * unlike read committed isolation level.
      */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
-      (__wt_page_evict_soon_check(session, cbt->ref, NULL) ||
+      (__wt_evict_page_soon_check(session, cbt->ref, NULL) ||
         __cursor_reposition_timing_stress(session))) {
 
         WT_STAT_CONN_DSRC_INCR(session, cursor_reposition);
@@ -1806,7 +1806,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t new, orig;
+    size_t max_memsize, new, orig;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -1843,6 +1843,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR(__wt_btcur_search(cbt));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
+
+    __wt_modify_max_memsize_unpacked(
+      entries, nentries, cursor->value_format, cursor->value.size, &max_memsize);
+
+    WT_ERR(__wt_buf_set_and_grow(
+      session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
 
     orig = cursor->value.size;
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
@@ -2178,7 +2184,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 
     session = trunc_info->session;
     btree = CUR2BT(trunc_info->start);
-    logging = __wt_log_op(session);
+    logging = __wt_txn_log_op_check(session);
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 

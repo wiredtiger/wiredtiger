@@ -45,8 +45,8 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (WT_VERBOSE_ISSET(session, WT_VERB_HS) ||
       (ckpt_gen_current > ckpt_gen_last &&
         __wt_atomic_casv64(&cache->hs_verb_gen_write, ckpt_gen_last, ckpt_gen_current))) {
-        WT_IGNORE_RET(__wt_eviction_clean_needed(session, &pct_full));
-        WT_IGNORE_RET(__wt_eviction_dirty_needed(session, &pct_dirty));
+        WT_IGNORE_RET(__wt_evict_clean_needed(session, &pct_full));
+        WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
 
         __wt_verbose_multi(session,
           WT_DECL_VERBOSE_MULTI_CATEGORY(
@@ -270,6 +270,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
   WT_ITEM *older_full_value, WT_ITEM *full_value, WT_UPDATE **updp)
 {
     WT_UPDATE *upd;
+    size_t max_memsize;
     *updp = NULL;
 
     __wt_update_vector_pop(updates, &upd);
@@ -285,7 +286,10 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
         full_value->data = upd->data;
         full_value->size = upd->size;
     } else if (upd->type == WT_UPDATE_MODIFY) {
-        WT_RET(__wt_buf_set(session, full_value, older_full_value->data, older_full_value->size));
+        __wt_modify_max_memsize_format(
+          upd->data, S2BT(session)->value_format, older_full_value->size, &max_memsize);
+        WT_RET(__wt_buf_set_and_grow(
+          session, full_value, older_full_value->data, older_full_value->size, max_memsize));
         WT_RET(__wt_modify_apply_item(session, S2BT(session)->value_format, full_value, upd->data));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
@@ -480,7 +484,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                     ret = EBUSY;
                     __wt_verbose_info(session, WT_VERB_HS, "%s",
                       "out-of-order timestamp update detected, aborting eviction");
-                    WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
+                    WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
                     goto err;
                 }
 
@@ -998,7 +1002,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         ret = EBUSY;
         __wt_verbose_info(
           session, WT_VERB_HS, "%s", "out-of-order timestamp update detected, aborting eviction");
-        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_no_ts);
+        WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
         goto err;
     }
 
