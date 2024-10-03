@@ -113,6 +113,16 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_evict_page_init --
+ *     Initialize eviction state for a newly created page.
+ */
+static WT_INLINE void
+__wt_evict_page_init(WT_PAGE *page)
+{
+    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
+}
+
+/*
  * __wt_evict_clean_pressure --
  *     Return true if clean cache is stressed and will soon require application threads to evict
  *     content.
