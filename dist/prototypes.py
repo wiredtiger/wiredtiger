@@ -122,8 +122,6 @@ def update_existing_header(tmp_file, fns, tests, f):
     start_line = lines.index(DO_NOT_EDIT_BEGIN)
     end_line = lines.index(DO_NOT_EDIT_END)
 
-    # Safety check: We should always at least one function declaration in the file already
-    assert(start_line + 1 != end_line)
 
     # Content before the starting DO NOT EDIT is kept unchanged.
     new_lines = lines[:start_line + 1]
