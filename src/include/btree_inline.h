@@ -778,7 +778,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
               "A btree is marked dirty during RTS");
             WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_RECOVERING), "%s",
               "A btree is marked dirty during recovery");
-            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_CLOSING), "%s",
+            WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT), "%s",
               "A btree is marked dirty during shutdown");
         }
         S2BT(session)->modified = true;
