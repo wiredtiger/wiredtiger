@@ -1414,6 +1414,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (!__wt_readgen_evict_soon(&orig_read_gen))
         __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
+    /*
+     * Mark the page as dirty for future garbage collection through reconciliation. We only end here
+     * if we have content to clean up in the future.
+     */
     if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
         __wt_page_modify_set(session, ref->page);
 
