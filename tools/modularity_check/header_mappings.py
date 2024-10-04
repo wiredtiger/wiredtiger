@@ -28,6 +28,7 @@ header_mappings = {
     "hardware.h": "include",
     "hazard.h": "support",
     "intpack_inline.h": "packing",
+    "json.h": "support",
     "misc_inline.h": "include",
     "misc.h": "include",
     "msvc.h": "include",

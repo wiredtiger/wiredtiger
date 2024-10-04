@@ -388,7 +388,7 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
 #    Fuction copied and adapted from dist/dist.py
 def source_files():
     file_re = re.compile(r'^\w')
-    for line in glob.iglob('../../src/include/*.h'):
+    for line in glob.iglob('../../src/*/*.h'):
         yield line
     for line in open('../../dist/filelist', 'r'):
         if file_re.match(line):

@@ -67,7 +67,7 @@ def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Se
         print(struct.name)
         for field in sorted(struct.fields):
             if field in ambigious_fields:
-                print(f"    {field}: Ambigous! Please check manually")
+                print(f"    {field}: Ambiguous! Please check manually")
                 continue
 
             num_fields += 1
