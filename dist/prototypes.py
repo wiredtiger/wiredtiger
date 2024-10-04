@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# Attention! This script makes the following assumptions about the WiredTiger code directory:
+# - All module-related files should reside in a single src/module/ folder as a result of adding 
+#   a module to SELF_CONTAINED_MODULES
+# - Header files are named using the format {folder_name/module_name}.h or {folder_name/module_name}_private.h.
+# - Header files that are modified by this script have also been automatically created by this 
+#   script as a result of adding a module to the SELF_CONTAINED_MODULES list.
+
 # Generate WiredTiger function prototypes.
 import fnmatch, re, os, sys
 from dist import compare_srcfile, format_srcfile, source_files
