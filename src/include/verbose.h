@@ -209,6 +209,20 @@ struct __wt_verbose_multi_category {
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_3, fmt, __VA_ARGS__)
 
 /*
+ * __wt_verbose_debug4 --
+ *     Wrapper to __wt_verbose_level using the DEBUG_4 level.
+ */
+#define __wt_verbose_debug4(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_4, fmt, __VA_ARGS__)
+
+/*
+ * __wt_verbose_debug5 --
+ *     Wrapper to __wt_verbose_level using the DEBUG_5 level.
+ */
+#define __wt_verbose_debug5(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_5, fmt, __VA_ARGS__)
+
+/*
  * __wt_verbose --
  *     Display a verbose message using the default verbosity level. Not an inlined function because
  *     you can't inline functions taking variadic arguments and we don't want to make a function

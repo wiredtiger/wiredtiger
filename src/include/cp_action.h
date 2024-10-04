@@ -250,20 +250,20 @@ struct __wt_control_point_action_wait_for_trigger {
  * The call site portion of control point action "Wait for Trigger: Blocking the testing thread
  * until a control point is triggered".
  */
-#define CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID, ENABLED) \
-    do {                                                                              \
-        WT_SESSION_IMPL *const _session = (SESSION);                                  \
-        WT_CONNECTION_IMPL *const _conn = S2C(_session);                              \
-        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                      \
-        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                      \
-        WT_CONTROL_POINT *_data;                                                      \
-        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                 \
-        _cp_registry = &(_conn->control_points[_cp_id]);                              \
-        _data = _cp_registry->data;                                                   \
-        if (_data != NULL)                                                            \
-            (ENABLED) = __wt_control_point_wait_for_trigger(_session, _cp_registry);  \
-        else                                                                          \
-            (ENABLED) = false;                                                        \
+#define CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID, ENABLED)        \
+    do {                                                                                     \
+        WT_SESSION_IMPL *const _session = (SESSION);                                         \
+        WT_CONNECTION_IMPL *const _conn = S2C(_session);                                     \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                             \
+        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                             \
+        WT_CONTROL_POINT *_data;                                                             \
+        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                        \
+        _cp_registry = &(_conn->control_points[_cp_id]);                                     \
+        _data = _cp_registry->data;                                                          \
+        if (_data != NULL)                                                                   \
+            (ENABLED) = __wt_control_point_wait_for_trigger(_session, _cp_registry, _cp_id); \
+        else                                                                                 \
+            (ENABLED) = false;                                                               \
     } while (0)
 #endif
 
