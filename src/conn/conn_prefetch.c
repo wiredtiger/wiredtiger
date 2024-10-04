@@ -81,6 +81,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
+        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         /*
@@ -95,11 +96,6 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL)
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
 
-        /*
-         * It is now safe to clear the flag. The prefetch worker is done interacting with the ref
-         * and the associated internal page can be safely evicted from now on.
-         */
-        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
 
         __wt_free(session, pe);
