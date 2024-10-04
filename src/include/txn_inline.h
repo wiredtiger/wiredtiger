@@ -397,7 +397,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
  *     Verify the timestamps before setting it to the page delete structure.
  */
 static WT_INLINE int
-__txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__txn_op_delete_commit_verify_page_del_timestamp(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, bool locked)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -412,7 +413,7 @@ __txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TX
     page_del = ref->page_del;
 
     previous_state = WT_REF_GET_STATE(ref);
-    if (previous_state != WT_REF_LOCKED)
+    if (!locked)
         WT_REF_LOCK(session, ref, &previous_state);
 
     if (page_del != NULL) {
@@ -429,7 +430,7 @@ __txn_op_delete_commit_verify_page_del_timestamp(WT_SESSION_IMPL *session, WT_TX
     }
 
 err:
-    if (previous_state != WT_REF_LOCKED)
+    if (!locked)
         WT_REF_UNLOCK(ref, previous_state);
     return (ret);
 }
@@ -457,7 +458,7 @@ __txn_op_delete_commit_apply_page_del_timestamp(
 
         /* Validate the commit timestamp against the maximum durable timestamp on the page. */
         if (validate)
-            WT_RET(__txn_op_delete_commit_verify_page_del_timestamp(session, op));
+            WT_RET(__txn_op_delete_commit_verify_page_del_timestamp(session, op, true));
 
         if (page_del->timestamp == WT_TS_NONE) {
             page_del->timestamp = txn->commit_timestamp;
@@ -653,7 +654,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
     if (!__txn_should_assign_timestamp(session, op)) {
         if (validate) {
             if (op->type == WT_TXN_OP_REF_DELETE)
-                WT_RET(__txn_op_delete_commit_verify_page_del_timestamp(session, op));
+                WT_RET(__txn_op_delete_commit_verify_page_del_timestamp(session, op, false));
             else
                 WT_RET(__wt_txn_timestamp_usage_check(
                   session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
