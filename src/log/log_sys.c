@@ -121,7 +121,7 @@ __wti_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
     /* We do not compress nor encrypt this record. */
     logrec->checksum = 0;
     logrec->flags = 0;
-    __wt_log_record_byteswap(logrec);
+    __wti_log_record_byteswap(logrec);
     logrec->checksum = __wt_checksum(logrec, log->allocsize);
 #ifdef WORDS_BIGENDIAN
     logrec->checksum = __wt_bswap32(logrec->checksum);

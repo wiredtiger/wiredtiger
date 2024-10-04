@@ -103,23 +103,6 @@ struct __wt_log_record {
 };
 
 /*
- * __wt_log_record_byteswap --
- *     Handle big- and little-endian transformation of the log record header block.
- */
-static WT_INLINE void
-__wt_log_record_byteswap(WT_LOG_RECORD *record)
-{
-#ifdef WORDS_BIGENDIAN
-    record->len = __wt_bswap32(record->len);
-    record->checksum = __wt_bswap32(record->checksum);
-    record->flags = __wt_bswap16(record->flags);
-    record->mem_len = __wt_bswap32(record->mem_len);
-#else
-    WT_UNUSED(record);
-#endif
-}
-
-/*
  * WiredTiger release version where log format version changed.
  *
  * FIXME WT-8681 - According to WT_MIN_STARTUP_VERSION any WT version less then 3.2.0 will not
@@ -129,23 +112,6 @@ __wt_log_record_byteswap(WT_LOG_RECORD *record)
 #define WT_LOG_V3_VERSION ((WT_VERSION){3, 1, 0})
 #define WT_LOG_V4_VERSION ((WT_VERSION){3, 3, 0})
 #define WT_LOG_V5_VERSION ((WT_VERSION){10, 0, 0})
-
-/*
- * __wt_log_desc_byteswap --
- *     Handle big- and little-endian transformation of the log file description block.
- */
-static WT_INLINE void
-__wt_log_desc_byteswap(WT_LOG_DESC *desc)
-{
-#ifdef WORDS_BIGENDIAN
-    desc->log_magic = __wt_bswap32(desc->log_magic);
-    desc->version = __wt_bswap16(desc->version);
-    desc->unused = __wt_bswap16(desc->unused);
-    desc->log_size = __wt_bswap64(desc->log_size);
-#else
-    WT_UNUSED(desc);
-#endif
-}
 
 /* Cookie passed through the transaction printlog routines. */
 struct __wt_txn_printlog_args {
