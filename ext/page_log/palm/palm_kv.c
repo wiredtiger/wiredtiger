@@ -329,9 +329,7 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
         if (kval.mv_size != sizeof(PAGE_KEY))
             return (EIO); /* not expected, data damaged, could be assert */
         page_key = (PAGE_KEY *)kval.mv_data;
-    } else
-        page_key = NULL;
-
+    }
     if (ret == 0 && page_key->table_id == matches->table_id &&
       page_key->page_id == matches->page_id && page_key->checkpoint_id == matches->checkpoint_id) {
         matches->size = vval.mv_size;
