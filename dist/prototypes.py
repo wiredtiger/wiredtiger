@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 
+# This script parses the WiredTiger code base to find all function definitions and automatically 
+# generates their declarations. Declarations are added to src/include/extern.h by default, or to 
+# module-specific header files if the module is added to the SELF_CONTAINED_MODULES list
+
 # Attention! This script makes the following assumptions about the WiredTiger code directory:
 # - All module-related files should reside in a single src/module/ folder as a result of adding 
 #   a module to SELF_CONTAINED_MODULES
-# - Header files are named using the format {folder_name/module_name}.h or {folder_name/module_name}_private.h.
+# - Header files are named using the format {folder_name/module_name}.h or 
+#   {folder_name/module_name}_private.h.
 # - Header files that are modified by this script have also been automatically created by this 
 #   script as a result of adding a module to the SELF_CONTAINED_MODULES list.
 
