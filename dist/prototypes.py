@@ -200,7 +200,7 @@ def build_module_functions_dicts():
         if fnmatch.fnmatch(name, '../src/*'):
             module_name = name.split("/")[2]
             if module_name not in SELF_CONTAINED_MODULES:
-                # Non-contained modules put all their function prototypes in 
+                # Non-self-contained modules put all their function prototypes in 
                 # src/include/extern.h This is indicated by belonging to the include folder.
                 fn_prototypes(public_fns_dict["include"], private_fns_dict["include"], 
                     tests_dict["include"], name)
