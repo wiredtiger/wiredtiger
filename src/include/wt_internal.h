@@ -550,6 +550,7 @@ typedef uint64_t wt_timestamp_t;
 #include "version.h" /* required by connection.h */
 #include "connection.h"
 
+#include "../log/log.h"
 #include "extern.h"
 #ifdef _WIN32
 #include "extern_win.h"
