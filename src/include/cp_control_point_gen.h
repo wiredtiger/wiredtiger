@@ -20,12 +20,24 @@
  * Each per connection control point has:
  * - Per connection control point ID (Could be generated):
  * WT_CONN_CONTROL_POINT_ID_EXAMPLE_CONTROL_POINT.
+ * - A choice of action (Must be manual).
+ * - A choice of predicate (Must be manual).
+ * - An entry in __wt_conn_control_point_init_all (Could be generated).
+ *
+ * Each per connection control point that is enabled at startup has:
+ * - An entry in __wt_conn_control_point_enable_all (Could be generated).
  *
  * The name below is for a per session control point named "Example control point2".
  *
  * Each per session control point has:
  * - Per session control point ID (Could be generated):
  * WT_CONN_CONTROL_POINT_ID_EXAMPLE_CONTROL_POINT2.
+ * - A choice of action (Must be manual).
+ * - A choice of predicate (Must be manual).
+ * - An entry in __wt_session_control_point_init_all (Could be generated).
+ *
+ * Each per session control point that is enabled at startup has:
+ * - An entry in __wt_session_control_point_enable_all (Could be generated).
  */
 
 #include "control_points.h"

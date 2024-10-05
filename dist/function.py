@@ -335,10 +335,7 @@ def function_scoping():
     action_config_func_name = connection_cp.get_action_config_function_name()
     predicate_config_func_name = connection_cp.get_predicate_config_function_name()
     predicate_func_name = connection_cp.get_predicate_function_name()
-    connection_cp_init_func_name = connection_cp.get_control_point_init_function_name()
-
-    session_cp = api_data.SessionControlPoint('', '', '', '', '', type='category')
-    session_cp_init_func_name = session_cp.get_control_point_init_function_name()
+    pair_init_func_name = connection_cp.get_pair_init_function_name()
 
     # Check whether any "__wt" functions are used only within the same module (and could be thus
     # turned into "__wti" functions). Functions in "include" are implicitly used in more than one
@@ -355,8 +352,7 @@ def function_scoping():
             if not (fn_name.startswith(action_config_func_name) or
                     fn_name.startswith(predicate_config_func_name) or
                     fn_name.startswith(predicate_func_name) or
-                    fn_name.startswith(connection_cp_init_func_name) or
-                    fn_name.startswith(session_cp_init_func_name)):
+                    fn_name.startswith(pair_init_func_name)):
                 print(f'{d.source}: {fn_name} is NOT used outside of its module "{d.module}"')
                 failed = True
 

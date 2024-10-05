@@ -70,6 +70,7 @@ class ControlPoint(Config):
         self.action_short_name = action_short_name
         self.pred_short_name = pred_short_name
 
+    # Naming conventions.
     def get_action_config_function_name(self):
         return ('__wt_control_point_config_action_' +
                 self.action_short_name.translate(
@@ -99,16 +100,6 @@ class ControlPoint(Config):
                 self.name.translate(
                     ControlPoint.translation_to_upper))
 
-    def get_control_point_data_struct_tag_name(self):
-        return (('__wt_conn_control_point_data_' if self.per_connection
-                 else '__wt_session_control_point_data_') +
-                self.name.translate(ControlPoint.translation_to_lower))
-
-    def get_control_point_data_type_name(self):
-        return (('WT_CONN_CONTROL_POINT_DATA_' if self.per_connection
-                 else 'WT_SESSION_CONTROL_POINT_DATA_') +
-                self.name.translate(ControlPoint.translation_to_upper))
-
     def get_control_point_define_macro_name(self, for_connection = None):
         if for_connection == None:
             for_connection = self.per_connection
@@ -121,10 +112,22 @@ class ControlPoint(Config):
                  else 'WT_SESSION_CONTROL_POINT_ID_') +
                 self.name.translate(ControlPoint.translation_to_upper))
 
-    def get_control_point_init_function_name(self):
-        return (('__wt_conn_control_point_init_' if self.per_connection
-                 else '__wt_session_control_point_int_') +
-                self.name.translate(ControlPoint.translation_to_lower))
+    def get_pair_data_struct_tag_name(self):
+        return ('__wt_control_point_pair_data_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_lower))
+
+    def get_pair_data_type_name(self):
+        return ('WT_CONTROL_POINT_PAIR_DATA_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_upper))
+
+    def get_pair_init_function_name(self):
+        return ('__wt_control_point_pair_init_' +
+                self.pred_short_name.translate(
+                    ControlPoint.translation_to_lower) + '_' +
+                self.action_short_name.translate(
+                    ControlPoint.translation_to_lower))
 
     def get_predicate_config_function_name(self):
         return ('__wt_control_point_config_pred_' +
@@ -2347,17 +2350,14 @@ def test_one_control_point(cp):
     print('')
     print('get_control_point_call_site_macro_name=' +
           cp.get_control_point_call_site_macro_name())
-    print('get_control_point_data_struct_tag_name=' +
-          cp.get_control_point_data_struct_tag_name())
-    print('get_control_point_data_type_name=' +
-          cp.get_control_point_data_type_name())
     print('get_control_point_define_macro_name=' +
           cp.get_control_point_define_macro_name())
     print('get_control_point_id_name=' + cp.get_control_point_id_name())
-    print('get_control_point_init_function_name=' +
-          cp.get_control_point_init_function_name())
-    print('get_control_point_init_function_name=' +
-          cp.get_control_point_init_function_name())
+    print('')
+    print('get_pair_data_struct_tag_name=' +
+          cp.get_pair_data_struct_tag_name())
+    print('get_pair_data_type_name=' + cp.get_pair_data_type_name())
+    print('get_pair_init_function_name=' + cp.get_pair_init_function_name())
     print('')
     print('get_predicate_config_function_name=' +
           cp.get_predicate_config_function_name())

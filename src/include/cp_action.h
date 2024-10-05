@@ -101,6 +101,12 @@ struct __wt_control_point_action_sleep {
     uint64_t microseconds;
 };
 
+/* Action data type including WT_CONTROL_POINT */
+struct __wt_conn_control_point_action_data_sleep {
+    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_ACTION_SLEEP action_data;
+};
+
 /* Control point action ID. */
 #define WT_CONTROL_POINT_ACTION_ID_SLEEP 0
 #endif /* HAVE_CONTROL_POINT */
@@ -143,11 +149,17 @@ struct __wt_control_point_action_sleep {
 /*
  * Action: ERR: Change the control flow to trigger an error condition via WT_ERR
  */
-/* Action data type */
 #ifdef HAVE_CONTROL_POINT
+/* Action data type */
 struct __wt_control_point_action_err {
     /* Action Configuration parameter(s) */
     int err;
+};
+
+/* Action data type including WT_CONTROL_POINT */
+struct __wt_conn_control_point_action_data_err {
+    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_ACTION_ERR action_data;
 };
 
 /* Control point action ID. */
@@ -188,11 +200,17 @@ struct __wt_control_point_action_err {
 /*
  * Action: RET: Return an error via WT_RET
  */
-/* Action data type */
 #ifdef HAVE_CONTROL_POINT
+/* Action data type */
 struct __wt_control_point_action_ret {
     /* Action Configuration parameter(s) */
     int ret_value;
+};
+
+/* Action data type including WT_CONTROL_POINT */
+struct __wt_conn_control_point_action_data_ret {
+    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_ACTION_RET action_data;
 };
 
 /* Control point action ID. */
@@ -232,14 +250,20 @@ struct __wt_control_point_action_ret {
 /*
  * Action: Wait for trigger: Blocking the testing thread until a control point is triggered
  */
-/* Action data type */
 #ifdef HAVE_CONTROL_POINT
+/* Action data type */
 struct __wt_control_point_action_wait_for_trigger {
     /* Action Configuration parameter */
     uint64_t wait_count;
     /* Action state variables */
     uint64_t desired_trigger_count;
     WT_CONDVAR *condvar;
+};
+
+/* Action data type including WT_CONTROL_POINT */
+struct __wt_conn_control_point_action_data_wait_for_trigger {
+    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
 /* Control point action ID. */
