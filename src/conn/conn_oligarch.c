@@ -556,7 +556,6 @@ __oligarch_log_replay_op_apply(
     stable_cursor = NULL;
     applied = false;
     fileid = 0;
-    memset(&value, 0, sizeof(WT_ITEM));
 
     /* Peek at the size and the type. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
