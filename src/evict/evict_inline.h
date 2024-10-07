@@ -54,7 +54,7 @@ static WT_INLINE void
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
-    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
+    if (__wti_evict_page_soon_flagged(&page->read_gen))
         return;
 
     /* Ignore pages already in the future. */
