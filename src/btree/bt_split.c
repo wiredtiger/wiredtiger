@@ -1437,7 +1437,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * unless this was a forced eviction, in which case we leave the new page with the default
      * initialization.
      */
-    if (!__wt_evict_page_soon_flagged(&orig->read_gen))
+    if (!__wt_evict_page_soon_flagged(orig))
         __wt_evict_copy_page_state(orig, page);
 
     /*
