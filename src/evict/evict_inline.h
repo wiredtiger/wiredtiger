@@ -162,6 +162,26 @@ __wt_evict_page_init(WT_PAGE *page)
 }
 
 /*
+ * __wt_evict_copy_page_state --
+ *     When creating a new page from an existing page, for example during split, initialize the read
+ *     generation on the new page using the state of the original page.
+ */
+static WT_INLINE void
+__wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
+{
+    uint64_t orig_read_gen;
+
+    WT_READ_ONCE(orig_read_gen, orig_page->read_gen);
+
+    /*
+     * In the current use case, we are initializing/splitting the new page and it should be
+     * impossible to have a race during the store. But to protect against future uses that violate
+     * this assumption use an atomic store.
+     */
+    __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
+}
+
+/*
  * __wt_evict_clean_pressure --
  *     Return true if clean cache is stressed and will soon require application threads to evict
  *     content.
