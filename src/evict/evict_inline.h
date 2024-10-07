@@ -47,11 +47,11 @@ __evict_read_gen(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_evict_read_gen_bump --
+ * __wti_evict_read_gen_bump --
  *     Update the page's read generation.
  */
 static WT_INLINE void
-__wt_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
@@ -72,11 +72,11 @@ __wt_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_evict_read_gen_new --
+ * __wti_evict_read_gen_new --
  *     Get the read generation for a new page in memory.
  */
 static WT_INLINE void
-__wt_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     __wt_atomic_store64(
       &page->read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
@@ -110,6 +110,45 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_UNUSED(session);
 
     __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_OLDEST);
+}
+
+/*
+ * __wt_evict_page_first_dirty --
+ *     Tell eviction if this is the first time the page has been modified while in the cache. The
+ *     eviction mechanism will then update the page's state as needed. In this function, although
+ *     the page was not initially required, it has now been modified, so we prefer to retain it
+ *     instead of evicting it immediately.
+ */
+static WT_INLINE void
+__wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /*
+     * In the event we dirty a page which is flagged for eviction soon, we update its read
+     * generation to avoid evicting a dirty page prematurely.
+     */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
+        __wti_evict_read_gen_new(session, page);
+}
+
+/*
+ * __wt_evict_page_read_inmem --
+ *     Tell eviction when we read a page so it can update its state for that page. The caller may
+ *     set flags indicating that it doesn't expect to need the page again or that it's an internal
+ *     read. The latter is used by operations such as compact, and eviction, itself, so internal
+ *     operations don't update eviction state.
+ */
+static WT_INLINE void
+__wt_evict_page_read_inmem(
+  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
+{
+    /* Is this the first use of the page? */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
+        if (wont_need)
+            __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
+        else
+            __wti_evict_read_gen_new(session, page);
+    } else if (!internal_only)
+        __wti_evict_read_gen_bump(session, page);
 }
 
 /*

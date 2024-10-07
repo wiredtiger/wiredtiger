@@ -2004,7 +2004,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
         WT_STAT_DSRC_INCR(session, cache_eviction_walk_saved_pos);
     }
 
-    *walk_flagsp = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
+    *walk_flagsp = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL | WT_READ_NO_WAIT;
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         FLD_SET(*walk_flagsp, WT_READ_VISIBLE_ALL);
 
@@ -2031,7 +2031,7 @@ rand_prev:
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
 rand_next:
-        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT |
+        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL | WT_READ_NO_WAIT |
           WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
         if (btree->evict_ref == NULL) {
             for (;;) {
@@ -2145,7 +2145,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
      * somehow leave a page without a read generation.
      */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
-        __wt_evict_read_gen_new(session, page);
+        __wti_evict_read_gen_new(session, page);
 
     /* Pages being forcibly evicted go on the urgent queue. */
     if (modified &&
@@ -2639,7 +2639,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
      * that point, eviction has already unlocked the page and some other thread may have evicted it
      * by the time we look at it.
      */
-    __wt_evict_read_gen_bump(session, ref->page);
+    __wti_evict_read_gen_bump(session, ref->page);
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
 

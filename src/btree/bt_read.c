@@ -509,21 +509,9 @@ skip_evict:
                 else
                     session->pf.prefetch_disk_read_count = 0;
             }
-            /*
-             * If we read the page and are configured to not trash the cache, and no other thread
-             * has already used the page, set the read generation so the page is evicted soon.
-             *
-             * Otherwise, if we read the page, or, if configured to update the page's read
-             * generation and the page isn't already flagged for forced eviction, update the page
-             * read generation.
-             */
-            if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
-                if (wont_need)
-                    __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
-                else
-                    __wt_evict_read_gen_new(session, page);
-            } else if (!LF_ISSET(WT_READ_NO_GEN))
-                __wt_evict_read_gen_bump(session, page);
+
+            /* Tell eviction we're using the page so it can update the page state. */
+            __wt_evict_page_read_inmem(session, page, LF_ISSET(WT_READ_INTERNAL), wont_need);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
