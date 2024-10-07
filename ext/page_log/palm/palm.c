@@ -529,8 +529,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     VERBOSE_PRINT(palm_handle->palm, "palm_handle_get\n");
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
-      palm_kv_get_page_matches(
-        &context, palm_handle->table_id, page_id, checkpoint_id, &matches));
+      palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
     package->size = 0;
     while (palm_kv_next_page_match(&matches)) {
         prev_size = package->size;

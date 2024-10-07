@@ -217,8 +217,8 @@ palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *v
 }
 
 int
-palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, uint64_t checkpoint_id,
-  uint64_t revision, bool is_delta, const WT_ITEM *buf)
+palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
+  uint64_t checkpoint_id, uint64_t revision, bool is_delta, const WT_ITEM *buf)
 {
     MDB_val kval;
     MDB_val vval;
@@ -264,7 +264,8 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     page_key.checkpoint_id = checkpoint_id + 1;
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
-    if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &matches->lmdb_cursor)) != 0)
+    if ((ret = mdb_cursor_open(
+           context->lmdb_txn, context->env->lmdb_pages_dbi, &matches->lmdb_cursor)) != 0)
         return (ret);
     ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_SET_RANGE);
     if (ret == MDB_NOTFOUND) {
