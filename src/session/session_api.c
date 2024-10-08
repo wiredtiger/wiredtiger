@@ -347,6 +347,10 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         WT_TRET(__wt_call_log_close_session(session));
 #endif
 
+#ifdef HAVE_CONTROL_POINT
+    WT_RET(__wt_session_control_point_shutdown(session));
+#endif
+
     /* Close all open cursors while the cursor cache is disabled. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
@@ -2710,6 +2714,10 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
 
     /* Acquire a session. */
     WT_RET(__open_session(conn, event_handler, config, &session));
+
+#ifdef HAVE_CONTROL_POINT
+    WT_RET(__wt_session_control_point_enable_all(session));
+#endif
 
     /*
      * Acquiring the metadata handle requires the schema lock; we've seen problems in the past where
