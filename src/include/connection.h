@@ -923,8 +923,6 @@ struct __wt_connection_impl {
 
 #ifdef HAVE_CONTROL_POINT
     WT_CONTROL_POINT_REGISTRY *control_points; /* [CONNECTION_CONTROL_POINTS_SIZE] */
-#else                                          /* Keep the size the same. */
-    void *dummy;
 #endif
 };
 

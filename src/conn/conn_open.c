@@ -48,7 +48,7 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 
 #ifdef HAVE_CONTROL_POINT
     WT_RET(__wt_conn_control_point_init_all(session));
-    WT_RET(__wt_conn_control_point_enable_all(session, cfg));
+    WT_RET(__wt_conn_control_point_enable_all(conn, cfg));
 #endif
 
     /* Create the cache. */

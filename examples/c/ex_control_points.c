@@ -47,10 +47,10 @@ struct thread_arguments {
 static WT_THREAD_RET
 print_thread(void *thread_arg)
 {
-    struct thread_arguments *args = thread_arg;
-    WT_CONNECTION *conn = args->conn;
-    WT_SESSION *session;
-    WT_SESSION_IMPL *session_impl;
+    struct thread_arguments *args;
+    WT_CONNECTION *wt_conn;
+    WT_SESSION *wt_session;
+    WT_SESSION_IMPL *session;
     WT_RAND_STATE rnd_state;
     uint32_t rnd_num1;
     uint32_t seconds;
@@ -58,13 +58,15 @@ print_thread(void *thread_arg)
     uint32_t microseconds;
     bool enabled;
 
+    args = thread_arg;
+    wt_conn = args->conn;
     /* Initialize */
-    error_check(conn->open_session(conn, NULL, NULL, &session));
-    session_impl = (WT_SESSION_IMPL *)session;
-    __wt_random_init_seed(session_impl, &rnd_state);
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &wt_session));
+    session = (WT_SESSION_IMPL *)wt_session;
+    __wt_random_init_seed(session, &rnd_state);
 
     /* Wait for main or the previous thread. */
-    CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(session_impl, args->wait_for_id, enabled);
+    CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(session, args->wait_for_id, enabled);
 
     /* Sleep a random time. */
     rnd_num1 = __wt_random(&rnd_state);
@@ -79,10 +81,10 @@ print_thread(void *thread_arg)
     fflush(stdout);
 
     /* Finished. Signal the next thread which waits for this thread to get here. */
-    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(session_impl, args->my_id);
+    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(wt_conn, args->my_id);
 
     /* Cleanup */
-    error_check(session->close(session, NULL));
+    error_check(wt_session->close(wt_session, NULL));
 
     return (0);
 }
@@ -92,9 +94,9 @@ int
 main(int argc, char *argv[])
 {
 #ifdef HAVE_CONTROL_POINT
-    WT_CONNECTION *conn;
-    WT_SESSION *session;
-    WT_SESSION_IMPL *session_impl;
+    WT_CONNECTION *wt_conn;
+    WT_SESSION *wt_session;
+    WT_SESSION_IMPL *session;
     wt_thread_t threads[NUM_THREADS];
     struct thread_arguments thread_args[NUM_THREADS];
     int idx;
@@ -111,26 +113,27 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_9,
     };
     bool enabled;
-    const char *cfg = "";
+    const char *cfg;
 
+    cfg = "";
     /* Setup */
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create", &conn));
-    error_check(conn->open_session(conn, NULL, NULL, &session));
-    session_impl = (WT_SESSION_IMPL *)session;
+    error_check(wiredtiger_open(home, NULL, "create", &wt_conn));
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &wt_session));
+    session = (WT_SESSION_IMPL *)wt_session;
 
     /* Enable all control points. */
     testutil_check_error_ok(
-      __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING, cfg),
+      wt_conn->enable_control_point(wt_conn, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING, cfg),
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
-        error_check(__wt_conn_control_point_enable(session, thread_control_point_ids[idx], cfg));
+        error_check(wt_conn->enable_control_point(wt_conn, thread_control_point_ids[idx], cfg));
 
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {
         struct thread_arguments *my_args = &(thread_args[idx]);
-        my_args->conn = conn;
+        my_args->conn = wt_conn;
         my_args->thread_num = idx;
         my_args->wait_for_id = ((idx == 0) ? WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING :
                                              thread_control_point_ids[idx - 1]);
@@ -141,11 +144,11 @@ main(int argc, char *argv[])
 
     /* Signal threads[0] which waits for this thread to get here. */
     CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-      session_impl, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
+      wt_conn, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
 
     /* This thread waits for threads[NUM_THREADS - 1] to finish. */
     CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
-      session_impl, thread_control_point_ids[NUM_THREADS - 1], enabled);
+      session, thread_control_point_ids[NUM_THREADS - 1], enabled);
     WT_UNUSED(enabled);
 
     /* Join all threads */
@@ -157,13 +160,13 @@ main(int argc, char *argv[])
      */
     /* Disable all control points. */
     error_check(
-      __wt_conn_control_point_disable(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING));
+      wt_conn->disable_control_point(wt_conn, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING));
     for (idx = 0; idx < NUM_THREADS; ++idx)
-        error_check(__wt_conn_control_point_disable(session, thread_control_point_ids[idx]));
+        error_check(wt_conn->disable_control_point(wt_conn, thread_control_point_ids[idx]));
 
     /* Close session and connection. */
-    error_check(session->close(session, NULL));
-    error_check(conn->close(conn, NULL));
+    error_check(wt_session->close(wt_session, NULL));
+    error_check(wt_conn->close(wt_conn, NULL));
 #else
     WT_UNUSED(argc);
     WT_UNUSED(argv);

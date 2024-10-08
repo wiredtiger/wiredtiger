@@ -20,18 +20,6 @@
 #endif
 
 /*!
- * Identifies a per connection control point or a per session control point.
- *
- * A WT_CONTROL_POINT_ID does not specify whether a control point is
- * a per connection control point or a per session control point since both
- * start numbering at 0.
- *
- * - The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
- * - The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
- */
-typedef int32_t wt_control_point_id_t;
-
-/*!
  * Identifies a control point action.
  * Used to verify compatibility between the code at a
  * control point call site and at the control point trigger site.
@@ -41,6 +29,7 @@ typedef uint32_t wt_control_point_action_id_t;
 
 /*!
  * A function to initialize a control point's data.
+ * If per-connection session = NULL.
  */
 typedef WT_CONTROL_POINT *wt_control_point_init_t(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg);

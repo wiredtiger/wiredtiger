@@ -1,4 +1,4 @@
-/*-
+ /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *  All rights reserved.
@@ -63,6 +63,18 @@ extern "C" {
  *
  * @{
  */
+
+/*!
+ * Identifies a per connection control point or a per session control point.
+ *
+ * A WT_CONTROL_POINT_ID does not specify whether a control point is
+ * a per connection control point or a per session control point since both
+ * start numbering at 0.
+ *
+ * - The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
+ * - The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
+ */
+typedef int32_t wt_control_point_id_t;
 
 /*******************************************
  * Public forward structure declarations
@@ -809,6 +821,25 @@ struct __wt_cursor {
     uint64_t flags;
 #endif
 };
+
+#ifdef HAVE_CONTROL_POINT
+/*!
+ * WT_CONNECTION::enable_control_point, WT_CONNECTION::disable_control_point,
+ * WT_SESSION::enable_control_point, and WT_SESSION::disable_control_point types
+ */
+
+/*!
+ * Identifies a per-connection control point or a per-session control point.
+ *
+ * A WT_CONTROL_POINT_ID does not specify whether a control point is
+ * a per-connection control point or a per-session control point since both
+ * start numbering at 0.
+ *
+ * - The maximum per-connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
+ * - The maximum per-session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
+ */
+typedef int32_t wt_control_point_id_t;
+#endif
 
 /*! WT_SESSION::timestamp_transaction_uint timestamp types */
 typedef enum {
@@ -2069,6 +2100,30 @@ struct __wt_session {
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
     /*! @} */
 
+#ifdef HAVE_CONTROL_POINT
+    /*!
+     * @name Control point support
+     * @{
+     */
+    /*!
+     * Enable a per-session control point.
+     *
+     * @param session the session handle
+     * @param id the per-session control point ID of the control point
+     * @param cfg configuration string override
+     */
+    int __F(enable_control_point)(WT_SESSION *session, wt_control_point_id_t id, const char *cfg);
+
+    /*!
+     * Disable a per-session control point.
+     *
+     * @param session the session handle
+     * @param id the per-session control point ID of the control point
+     */
+    int __F(disable_control_point)(WT_SESSION *session, wt_control_point_id_t id);
+    /*! @} */
+#endif
+
 #ifndef DOXYGEN
     /*!
      * Optionally returns the reason for the most recent rollback error returned from the API.
@@ -2939,6 +2994,31 @@ struct __wt_connection {
      */
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
+
+#ifdef HAVE_CONTROL_POINT
+    /*!
+     * @name Control point support
+     * @{
+     */
+    /*!
+     * Enable a per-connection control point.
+     *
+     * @param connection the connection handle
+     * @param id the per-connection control point ID of the control point
+     * @param cfg configuration string override
+     */
+    int __F(enable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id,
+        const char *cfg);
+
+    /*!
+     * Disable a per-connection control point.
+     *
+     * @param connection the connection handle
+     * @param id the per-connection control point ID of the control point
+     */
+    int __F(disable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id);
+    /*! @} */
+#endif
 };
 
 /*!

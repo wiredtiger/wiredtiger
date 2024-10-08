@@ -480,11 +480,11 @@ extern int __wt_conn_call_log_teardown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_config_init(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id)
+extern int __wt_conn_control_point_disable(WT_CONNECTION *wt_conn, wt_control_point_id_t id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id,
+extern int __wt_conn_control_point_enable(WT_CONNECTION *wt_conn, wt_control_point_id_t id,
   const char *cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
+extern int __wt_conn_control_point_enable_all(WT_CONNECTION_IMPL *conn, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1553,7 +1553,7 @@ extern int __wti_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
 extern int __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_control_point_enable(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
+  WT_CONNECTION_IMPL *conn, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_dhandle_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
