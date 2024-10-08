@@ -58,7 +58,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             cursor["Hello " + str(i)] = "World"
-        
+
         self.session.checkpoint()
 
         self.reopen_conn()
