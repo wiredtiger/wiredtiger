@@ -62,13 +62,15 @@ class ControlPoint(Config):
         return (cp_short_name.translate(ControlPoint.translation_to_lower))
 
     def __init__(self, cp_short_name, per_connection, action_short_name,
-        pred_short_name, default, desc, subconfig=None, **flags):
+        pred_short_name, default, desc, enable_in_open=False, subconfig=None,
+        **flags):
         config_name = ControlPoint.convert_to_config_name(cp_short_name)
         super().__init__(config_name, default, desc, subconfig, **flags)
         self.cp_short_name = cp_short_name
         self.per_connection = per_connection
         self.action_short_name = action_short_name
         self.pred_short_name = pred_short_name
+        self.enable_in_open = enable_in_open
 
     # Naming conventions.
     def get_action_config_function_name(self):
@@ -142,38 +144,38 @@ class ControlPoint(Config):
     def __str__(self):
         return "ControlPoint(cp_short_name={}, name={}, per_connection={}," \
             " action_short_name={}, pred_short_name={}, default={}, desc={}," \
-            " subconfig={}, flags={})".format(
+            " enable_in_open={}, subconfig={}, flags={})".format(
                 self.cp_short_name, self.name, self.per_connection,
                 self.action_short_name, self.pred_short_name, self.default,
-                self.desc, self.subconfig, self.flags);
+                self.enable_in_open, self.desc, self.subconfig, self.flags);
 
 # Configuration for a per connection control point.
 class ConnectionControlPoint(ControlPoint):
     def __init__(self, cp_short_name, action_short_name, pred_short_name,
-            default, desc, subconfig=None, **flags):
+            default, desc, enable_in_open=False, subconfig=None, **flags):
         super().__init__(cp_short_name, True, action_short_name,
-            pred_short_name, default, desc, subconfig, **flags)
+            pred_short_name, default, desc, enable_in_open, subconfig, **flags)
     def __str__(self):
         return "ConnectionControlPoint(cp_short_name={}, name={}," \
             " action_short_name={}, pred_short_name={}, default={}, desc={}," \
-            " subconfig={}, flags={})".format(
+            " enable_in_open={}, subconfig={}, flags={})".format(
                 self.cp_short_name, self.name, self.action_short_name,
-                self.pred_short_name, self.default, self.desc, self.subconfig,
-                self.flags);
+                self.pred_short_name, self.default, self.desc,
+                self.enable_in_open, self.subconfig, self.flags);
 
 #Configuration for a per session control point.
 class SessionControlPoint(ControlPoint):
     def __init__(self, cp_short_name, action_short_name, pred_short_name,
-        default, desc, subconfig=None, **flags):
+        default, desc, enable_in_open=False, subconfig=None, **flags):
         super().__init__(cp_short_name, False, action_short_name,
-            pred_short_name, default, desc, subconfig, **flags)
+            pred_short_name, default, desc, enable_in_open, subconfig, **flags)
     def __str__(self):
         return "SessionControlPoint(cp_short_name={}, name={}," \
             " action_short_name={}, pred_short_name={}, default={}, desc={}," \
-            " subconfig={}, flags={})".format(
+            " enable_in_open={}, subconfig={}, flags={})".format(
                 self.cp_short_name, self.name, self.action_short_name,
-                self.pred_short_name, self.default, self.desc, self.subconfig,
-                self.flags);
+                self.pred_short_name, self.default, self.desc,
+                self.enable_in_open, self.subconfig, self.flags);
 
 # Per connection control points
 # For examples/c/ex_control_points.c
