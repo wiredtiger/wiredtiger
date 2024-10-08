@@ -340,7 +340,7 @@ err:
  *     Enable per connection control points that start enabled. Note, one part of this function must
  *     be edited for each per connection control point that starts enabled.
  *
- * @param conn The connection.
+ * @param conn The connection. @param cfg The configuration strings.
  */
 int
 __wt_conn_control_point_enable_all(WT_SESSION_IMPL *session, const char **cfg)
@@ -398,7 +398,7 @@ __wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
      */
 #if 0 /* For example. */
     WT_RET(__wti_session_control_point_enable(session,
-        &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2])));
+        &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2]), ""));
 #endif
 #endif
     return (0);

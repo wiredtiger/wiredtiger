@@ -215,14 +215,15 @@ err:
  *     Enable a per connection control point.
  *
  * @param wt_session The session. @param id The ID of the per connection control point to enable.
- *     @param cfg The configuration strings.
+ *     @param cfg The configuration string override.
  */
 int
-__wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id, const char **cfg)
+__wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id, const char *cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     WT_SESSION_IMPL *session;
+    const char *cfgs[3];
 
     session = (WT_SESSION_IMPL *)wt_session;
     conn = S2C(session);
@@ -233,7 +234,10 @@ __wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id,
     if (conn->control_points == NULL)
         return (WT_ERROR);
     cp_registry = &(conn->control_points[id]);
-    return (__wti_conn_control_point_enable(session, cp_registry, cfg));
+    cfgs[0] = conn->cfg;
+    cfgs[1] = cfg;
+    cfgs[2] = NULL;
+    return (__wti_conn_control_point_enable(session, cp_registry, cfgs));
 }
 
 /*
@@ -244,19 +248,22 @@ __wt_conn_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id,
  *     Enable a per session control point given a WT_CONTROL_POINT_REGISTRY.
  *
  * @param session The session. @param cp_registry The registry of the per session control point to
- *     enable. @param cfg The configuration strings.
+ *     enable. @param cfg The configuration string override.
  */
 int
 __wti_session_control_point_enable(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *cfg)
 {
     WT_CONTROL_POINT *data;
+    const char *cfgs[2];
 
     data = cp_registry->data;
     if (WT_UNLIKELY(data != NULL))
         /* Already enabled. */
         return (EEXIST);
-    data = cp_registry->init(session, cp_registry->config_name, cfg);
+    cfgs[0] = cfg;
+    cfgs[1] = NULL;
+    data = cp_registry->init(session, cp_registry->config_name, cfgs);
     if (WT_UNLIKELY(data == NULL))
         return (WT_ERROR);
     cp_registry->data = data;
@@ -268,11 +275,10 @@ __wti_session_control_point_enable(
  *     Enable a per session control point.
  *
  * @param wt_session The session. @param id The ID of the per session control point to enable.
- *     @param cfg The configuration strings.
+ *     @param cfg The configuration string override.
  */
 int
-__wt_session_control_point_enable(
-  WT_SESSION *wt_session, wt_control_point_id_t id, const char **cfg)
+__wt_session_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id, const char *cfg)
 {
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     WT_SESSION_IMPL *session;

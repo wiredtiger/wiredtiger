@@ -111,7 +111,7 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_9,
     };
     bool enabled;
-    const char *cfg[1] = {NULL};
+    const char *cfg = "";
 
     /* Setup */
     home = example_setup(argc, argv);
@@ -121,12 +121,10 @@ main(int argc, char *argv[])
     session_impl = (WT_SESSION_IMPL *)session;
 
     /* Enable all control points. */
-    /* TODO: Fix cfg parameter. */
     testutil_check_error_ok(
       __wt_conn_control_point_enable(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING, cfg),
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
-        /* TODO: Fix cfg parameter. */
         error_check(__wt_conn_control_point_enable(session, thread_control_point_ids[idx], cfg));
 
     /* Start all threads */
