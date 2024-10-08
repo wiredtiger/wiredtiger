@@ -1406,7 +1406,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     txn = session->txn;
     txn->isolation = session->isolation;
-    txn->txn_logsync = S2C(session)->txn_logsync;
+    txn->txn_logsync = S2C(session)->log_info.txn_logsync;
     txn->commit_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
 

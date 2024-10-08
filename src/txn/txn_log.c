@@ -546,8 +546,8 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
          * metadata LSN and we do not want to remove log files in that case.
          */
         if (conn->hot_backup_start == 0 &&
-          (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
-            FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
+          (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
+            FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
             __wt_log_ckpt(session, ckpt_lsn);
         /* FALLTHROUGH */

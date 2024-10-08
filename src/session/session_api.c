@@ -1087,7 +1087,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     /*
      * If logging is not enabled there is nothing to do.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+    if (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED))
         WT_ERR_MSG(session, EINVAL, "logging not enabled");
 
     WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));

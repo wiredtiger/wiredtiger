@@ -66,7 +66,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
 
     /* Read-write locks */
-    WT_RET(__wt_rwlock_init(session, &conn->debug_log_retention_lock));
+    WT_RET(__wt_rwlock_init(session, &conn->log_info.debug_log_retention_lock));
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
     WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
     WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
@@ -124,7 +124,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->block_lock);
     __wt_spin_destroy(session, &conn->checkpoint_lock);
     __wt_spin_destroy(session, &conn->chunkcache_metadata_lock);
-    __wt_rwlock_destroy(session, &conn->debug_log_retention_lock);
+    __wt_rwlock_destroy(session, &conn->log_info.debug_log_retention_lock);
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
     __wt_spin_destroy(session, &conn->encryptor_lock);
     __wt_spin_destroy(session, &conn->fh_lock);

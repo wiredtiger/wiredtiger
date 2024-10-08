@@ -22,7 +22,7 @@ __log_slot_dump(WT_SESSION_IMPL *session)
     int earliest, i;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
     ret = __wt_verbose_dump_log(session);
     WT_ASSERT_ALWAYS(session, ret == 0, "Failed to dump log system information");
     earliest = 0;
@@ -59,7 +59,7 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     WT_LOG *log;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
 
     /*
      * !!! slot_release_lsn must be set outside this function because
@@ -102,7 +102,7 @@ __log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, boo
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
     if (slot == NULL)
         return (WT_NOTFOUND);
 retry:
@@ -199,11 +199,11 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     WT_LSN *current, *last_sync;
     uint32_t current_offset, last_sync_offset;
 
-    if (S2C(session)->log_dirty_max == 0)
+    if (S2C(session)->log_info.log_dirty_max == 0)
         return;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
     current = &slot->slot_release_lsn;
 
     if (__wt_log_cmp(&log->dirty_lsn, &log->sync_lsn) < 0)
@@ -213,7 +213,7 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     current_offset = __wt_lsn_offset(current);
     last_sync_offset = __wt_lsn_offset(last_sync);
     if (current->l.file == last_sync->l.file && current_offset > last_sync_offset &&
-      current_offset - last_sync_offset > conn->log_dirty_max) {
+      current_offset - last_sync_offset > conn->log_info.log_dirty_max) {
         /* Schedule the asynchronous sync */
         F_SET_ATOMIC_16(slot, WT_SLOT_SYNC_DIRTY);
         WT_ASSIGN_LSN(&log->dirty_lsn, &slot->slot_release_lsn);
@@ -238,7 +238,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
 #ifdef HAVE_DIAGNOSTIC
     count = 0;
     time_start = __wt_clock(session);
@@ -283,7 +283,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
          * threads waiting for it can acquire and possibly move things forward.
          */
         WT_STAT_CONN_INCR(session, log_slot_no_free_slots);
-        __wt_cond_signal(session, conn->log_wrlsn_cond);
+        __wt_cond_signal(session, conn->log_info.log_wrlsn_cond);
         __wt_spin_unlock(session, &log->log_slot_lock);
         __wt_yield();
         __wt_spin_lock(session, &log->log_slot_lock);
@@ -316,7 +316,7 @@ __log_slot_switch_internal(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool for
     uint32_t joined;
     bool free_slot, release;
 
-    log = S2C(session)->log;
+    log = S2C(session)->log_info.log;
     release = false;
     slot = myslot->slot;
 
@@ -391,7 +391,7 @@ __wt_log_slot_switch(
     WT_DECL_RET;
     WT_LOG *log;
 
-    log = S2C(session)->log;
+    log = S2C(session)->log_info.log;
 
     /*
      * !!! Since the WT_WITH_SLOT_LOCK macro is a do-while loop, the
@@ -438,7 +438,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
     int32_t i;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
     for (i = 0; i < WT_SLOT_POOL; i++)
         log->slot_pool[i].slot_state = WT_LOG_SLOT_FREE;
 
@@ -453,7 +453,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
      */
     if (alloc) {
         log->slot_buf_size =
-          (uint32_t)WT_MIN((size_t)conn->log_file_max / 10, WT_LOG_SLOT_BUF_SIZE);
+          (uint32_t)WT_MIN((size_t)conn->log_info.log_file_max / 10, WT_LOG_SLOT_BUF_SIZE);
         for (i = 0; i < WT_SLOT_POOL; i++) {
             F_SET(&log->slot_pool[i].slot_buf, WT_ITEM_ALIGNED);
             WT_ERR(__wt_buf_init(session, &log->slot_pool[i].slot_buf, log->slot_buf_size));
@@ -497,7 +497,7 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
     int i;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
 
     /*
      * Write out any remaining buffers. Free the buffer.
@@ -533,7 +533,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
     bool closed, diag_yield, raced, slept, unbuffered, yielded;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
     time_start = 0;
 
     WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));

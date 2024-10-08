@@ -31,10 +31,10 @@ __wt_log_system_backup_id(WT_SESSION_IMPL *session)
      * If we're not logging or incremental backup isn't turned on or this version doesn't support
      * the system log record, we're done.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      !FLD_ISSET(conn->log_flags, WT_CONN_LOG_INCR_BACKUP))
+    if (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED) ||
+      !FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_INCR_BACKUP))
         return (0);
-    log = conn->log;
+    log = conn->log_info.log;
     if (log->log_version < WT_LOG_VERSION_SYSTEM)
         return (0);
 
@@ -94,7 +94,7 @@ __wt_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
     uint32_t rectype;
     const char *fmt;
 
-    log = S2C(session)->log;
+    log = S2C(session)->log_info.log;
     rectype = WT_LOGREC_SYSTEM;
     fmt = WT_UNCHECKED_STRING(I);
 
@@ -166,33 +166,35 @@ __wt_verbose_dump_log(WT_SESSION_IMPL *session)
     WT_LOG *log;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_info.log;
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "Logging subsystem: Enabled: %s",
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "yes" : "no"));
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+      FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED) ? "yes" : "no"));
+    if (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED))
         return (0);
     /*
      * Logging is enabled, print out the other information.
      */
-    WT_RET(__wt_msg(
-      session, "Removing: %s", FLD_ISSET(conn->log_flags, WT_CONN_LOG_REMOVE) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "Removing: %s",
+      FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_REMOVE) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Running downgraded: %s",
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
+      FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Zero fill files: %s",
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
-    WT_RET(__wt_msg(session, "Pre-allocate files: %s", conn->log_prealloc > 0 ? "yes" : "no"));
+      FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
+    WT_RET(
+      __wt_msg(session, "Pre-allocate files: %s", conn->log_info.log_prealloc > 0 ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "Initial number of pre-allocated files: %" PRIu32,
+      conn->log_info.log_prealloc_init_count));
+    WT_RET(__wt_msg(session, "Logging directory: %s", conn->log_info.log_path));
     WT_RET(__wt_msg(
-      session, "Initial number of pre-allocated files: %" PRIu32, conn->log_prealloc_init_count));
-    WT_RET(__wt_msg(session, "Logging directory: %s", conn->log_path));
-    WT_RET(__wt_msg(session, "Logging maximum file size: %" PRId64, (int64_t)conn->log_file_max));
+      session, "Logging maximum file size: %" PRId64, (int64_t)conn->log_info.log_file_max));
     WT_RET(__wt_msg(session, "Log sync setting: %s",
-      !FLD_ISSET(conn->txn_logsync, WT_LOG_SYNC_ENABLED) ? "none" :
-        FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC)       ? "dsync" :
-        FLD_ISSET(conn->txn_logsync, WT_LOG_FLUSH)       ? "write to OS" :
-        FLD_ISSET(conn->txn_logsync, WT_LOG_FSYNC)       ? "fsync to disk" :
-                                                           "unknown sync setting"));
+      !FLD_ISSET(conn->log_info.txn_logsync, WT_LOG_SYNC_ENABLED) ? "none" :
+        FLD_ISSET(conn->log_info.txn_logsync, WT_LOG_DSYNC)       ? "dsync" :
+        FLD_ISSET(conn->log_info.txn_logsync, WT_LOG_FLUSH)       ? "write to OS" :
+        FLD_ISSET(conn->log_info.txn_logsync, WT_LOG_FSYNC)       ? "fsync to disk" :
+                                                                    "unknown sync setting"));
     WT_RET(__wt_msg(session, "Log record allocation alignment: %" PRIu32, log->allocsize));
     WT_RET(__wt_msg(session, "Current log file number: %" PRIu32, log->fileid));
     WT_RET(__wt_msg(session, "Current log version number: %" PRIu16, log->log_version));

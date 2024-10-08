@@ -60,7 +60,7 @@ __wt_log_op(WT_SESSION_IMPL *session)
      * Correct the above check for logging being configured. Files are configured for logging to
      * turn off timestamps, so stop here if there aren't actually any log files.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+    if (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED))
         return (false);
 
     /* No logging during recovery. */
