@@ -1,0 +1,39 @@
+Statement(tokens=[0:33] 〈int⌇ ⌇func⌇(void)⌇ ⌇{
+    int a, b;
+}⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Function:
+FunctionParts(typename=[0:3] 〈int〉,
+              name=Token(idx=2, range=(4, 8), value='func'),
+              args=Token(idx=3, range=(9, 13), value='void'),
+              body=Token(idx=5, range=(16, 31), value='\n    int a, b;\n'),
+              preComment=None,
+              postComment=None)
+Args:
+[]
+Vars:
+[Variable(name=Token(idx=4, range=(9, 10), value='a'),
+          typename=[5:8] 〈int〉,
+          preComment=None,
+          postComment=None,
+          end=','),
+ Variable(name=Token(idx=7, range=(12, 13), value='b'),
+          typename=[5:8] 〈int〉,
+          preComment=None,
+          postComment=None,
+          end=';')]

@@ -1,0 +1,11 @@
+**/tags
+**/.tags
+**/.DS_Store
+**/*.sw?
+**/*.pyc
+build/
+.idea
+.venv
+.mypy_cache
+.vscode
+test/**/*.test

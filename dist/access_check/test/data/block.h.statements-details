@@ -1,0 +1,2819 @@
+Statement(tokens=[0:193] 〈/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */⌇
+⌇
+⌇#pragma once
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=0,
+                                              range=(0, 178),
+                                              value='/*-\n'
+                                                    ' * Copyright (c) 2014-present MongoDB, Inc.\n'
+                                                    ' * Copyright (c) 2008-2014 WiredTiger, Inc.\n'
+                                                    ' *\tAll rights reserved.\n'
+                                                    ' *\n'
+                                                    ' * See the file LICENSE for redistribution information.\n'
+                                                    ' */'),
+                             postComment=None))
+Statement(tokens=[193:243] 〈
+⌇/*
+ * WiredTiger's block manager interface.
+ */⌇
+⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=5,
+                                              range=(194, 241),
+                                              value="/*\n * WiredTiger's block manager interface.\n */"),
+                             postComment=None))
+Statement(tokens=[243:418] 〈/*
+ * The file's description is written into the first block of the file, which means we can use an
+ * offset of 0 as an invalid offset.
+ */⌇
+⌇#define WT_BLOCK_INVALID_OFFSET 0
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=8,
+                                              range=(243, 383),
+                                              value='/*\n'
+                                                    " * The file's description is written into the first block of the "
+                                                    'file, which means we can use an\n'
+                                                    ' * offset of 0 as an invalid offset.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(392, 415), value='WT_BLOCK_INVALID_OFFSET'),
+           args=None,
+           body=Token(idx=0, range=(416, 418), value='0'),
+           preComment=Token(idx=8,
+                            range=(243, 383),
+                            value='/*\n'
+                                  " * The file's description is written into the first block of the file, which means "
+                                  'we can use an\n'
+                                  ' * offset of 0 as an invalid offset.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[418:1686] 〈
+⌇/*
+ * The block manager maintains three per-checkpoint extent lists:
+ *	alloc:	 the extents allocated in this checkpoint
+ *	avail:	 the extents available for allocation
+ *	discard: the extents freed in this checkpoint
+ *
+ * An extent list is based on two skiplists: first, a by-offset list linking
+ * WT_EXT elements and sorted by file offset (low-to-high), second, a by-size
+ * list linking WT_SIZE elements and sorted by chunk size (low-to-high).
+ *
+ * Additionally, each WT_SIZE element on the by-size has a skiplist of its own,
+ * linking WT_EXT elements and sorted by file offset (low-to-high).  This list
+ * has an entry for extents of a particular size.
+ *
+ * The trickiness is each individual WT_EXT element appears on two skiplists.
+ * In order to minimize allocation calls, we allocate a single array of WT_EXT
+ * pointers at the end of the WT_EXT structure, for both skiplists, and store
+ * the depth of the skiplist in the WT_EXT structure.  The skiplist entries for
+ * the offset skiplist start at WT_EXT.next[0] and the entries for the size
+ * skiplist start at WT_EXT.next[WT_EXT.depth].
+ *
+ * One final complication: we only maintain the per-size skiplist for the avail
+ * list, the alloc and discard extent lists are not searched based on size.
+ */⌇
+⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=12,
+                                              range=(419, 1684),
+                                              value='/*\n'
+                                                    ' * The block manager maintains three per-checkpoint extent '
+                                                    'lists:\n'
+                                                    ' *\talloc:\t the extents allocated in this checkpoint\n'
+                                                    ' *\tavail:\t the extents available for allocation\n'
+                                                    ' *\tdiscard: the extents freed in this checkpoint\n'
+                                                    ' *\n'
+                                                    ' * An extent list is based on two skiplists: first, a by-offset '
+                                                    'list linking\n'
+                                                    ' * WT_EXT elements and sorted by file offset (low-to-high), '
+                                                    'second, a by-size\n'
+                                                    ' * list linking WT_SIZE elements and sorted by chunk size '
+                                                    '(low-to-high).\n'
+                                                    ' *\n'
+                                                    ' * Additionally, each WT_SIZE element on the by-size has a '
+                                                    'skiplist of its own,\n'
+                                                    ' * linking WT_EXT elements and sorted by file offset '
+                                                    '(low-to-high).  This list\n'
+                                                    ' * has an entry for extents of a particular size.\n'
+                                                    ' *\n'
+                                                    ' * The trickiness is each individual WT_EXT element appears on '
+                                                    'two skiplists.\n'
+                                                    ' * In order to minimize allocation calls, we allocate a single '
+                                                    'array of WT_EXT\n'
+                                                    ' * pointers at the end of the WT_EXT structure, for both '
+                                                    'skiplists, and store\n'
+                                                    ' * the depth of the skiplist in the WT_EXT structure.  The '
+                                                    'skiplist entries for\n'
+                                                    ' * the offset skiplist start at WT_EXT.next[0] and the entries '
+                                                    'for the size\n'
+                                                    ' * skiplist start at WT_EXT.next[WT_EXT.depth].\n'
+                                                    ' *\n'
+                                                    ' * One final complication: we only maintain the per-size skiplist '
+                                                    'for the avail\n'
+                                                    ' * list, the alloc and discard extent lists are not searched '
+                                                    'based on size.\n'
+                                                    ' */'),
+                             postComment=None))
+Statement(tokens=[1686:2261] 〈/*
+ * WT_EXTLIST --
+ *	An extent list.
+ */⌇
+⌇struct⌇ ⌇__wt_extlist⌇ ⌇{
+    char *name; /* Name */
+
+    uint64_t bytes;   /* Byte count */
+    uint32_t entries; /* Entry count */
+
+    uint32_t objectid; /* Written object ID */
+    wt_off_t offset;   /* Written extent offset */
+    uint32_t checksum; /* Written extent checksum */
+    uint32_t size;     /* Written extent size */
+
+    bool track_size; /* Maintain per-size skiplist */
+
+    WT_EXT *last; /* Cached last element */
+
+    WT_EXT *off[WT_SKIP_MAXDEPTH]; /* Size/offset skiplists */
+    WT_SIZE *sz[WT_SKIP_MAXDEPTH];
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=15,
+                                              range=(1686, 1728),
+                                              value='/*\n * WT_EXTLIST --\n *\tAn extent list.\n */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=19, range=(1736, 1748), value='__wt_extlist'),
+            typename=[1736:1748] 〈__wt_extlist〉,
+            body=Token(idx=21,
+                       range=(1750, 2258),
+                       value='\n'
+                             '    char *name; /* Name */\n'
+                             '\n'
+                             '    uint64_t bytes;   /* Byte count */\n'
+                             '    uint32_t entries; /* Entry count */\n'
+                             '\n'
+                             '    uint32_t objectid; /* Written object ID */\n'
+                             '    wt_off_t offset;   /* Written extent offset */\n'
+                             '    uint32_t checksum; /* Written extent checksum */\n'
+                             '    uint32_t size;     /* Written extent size */\n'
+                             '\n'
+                             '    bool track_size; /* Maintain per-size skiplist */\n'
+                             '\n'
+                             '    WT_EXT *last; /* Cached last element */\n'
+                             '\n'
+                             '    WT_EXT *off[WT_SKIP_MAXDEPTH]; /* Size/offset skiplists */\n'
+                             '    WT_SIZE *sz[WT_SKIP_MAXDEPTH];\n'),
+            members=[Variable(name=Token(idx=5, range=(11, 15), value='name'),
+                              typename=[5:9] 〈char〉,
+                              preComment=None,
+                              postComment=Token(idx=8, range=(17, 27), value='/* Name */'),
+                              end=';'),
+                     Variable(name=Token(idx=14, range=(42, 47), value='bytes'),
+                              typename=[33:41] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=17, range=(51, 67), value='/* Byte count */'),
+                              end=';'),
+                     Variable(name=Token(idx=22, range=(81, 88), value='entries'),
+                              typename=[72:80] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=25, range=(90, 107), value='/* Entry count */'),
+                              end=';'),
+                     Variable(name=Token(idx=31, range=(122, 130), value='objectid'),
+                              typename=[113:121] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=34, range=(132, 155), value='/* Written object ID */'),
+                              end=';'),
+                     Variable(name=Token(idx=39, range=(169, 175), value='offset'),
+                              typename=[160:168] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=42, range=(179, 206), value='/* Written extent offset */'),
+                              end=';'),
+                     Variable(name=Token(idx=47, range=(220, 228), value='checksum'),
+                              typename=[211:219] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=50, range=(230, 259), value='/* Written extent checksum */'),
+                              end=';'),
+                     Variable(name=Token(idx=55, range=(273, 277), value='size'),
+                              typename=[264:272] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=58, range=(283, 308), value='/* Written extent size */'),
+                              end=';'),
+                     Variable(name=Token(idx=64, range=(319, 329), value='track_size'),
+                              typename=[314:318] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=67, range=(331, 363), value='/* Maintain per-size skiplist */'),
+                              end=';'),
+                     Variable(name=Token(idx=74, range=(377, 381), value='last'),
+                              typename=[369:375] 〈WT_EXT〉,
+                              preComment=None,
+                              postComment=Token(idx=77, range=(383, 408), value='/* Cached last element */'),
+                              end=';'),
+                     Variable(name=Token(idx=84, range=(422, 425), value='off'),
+                              typename=[414:420] 〈WT_EXT〉,
+                              preComment=None,
+                              postComment=Token(idx=88, range=(445, 472), value='/* Size/offset skiplists */'),
+                              end=';'),
+                     Variable(name=Token(idx=94, range=(486, 488), value='sz'),
+                              typename=[477:484] 〈WT_SIZE〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=15, range=(1686, 1728), value='/*\n * WT_EXTLIST --\n *\tAn extent list.\n */'),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[2261:2784] 〈
+⌇/*
+ * WT_EXT --
+ *	Encapsulation of an extent, either allocated or freed within the
+ * checkpoint.
+ */⌇
+⌇struct⌇ ⌇__wt_ext⌇ ⌇{
+    wt_off_t off;  /* Extent's file offset */
+    wt_off_t size; /* Extent's Size */
+
+    uint8_t depth; /* Skip list depth */
+
+    /*
+     * Variable-length array, sized by the number of skiplist elements. The first depth array
+     * entries are the address skiplist elements, the second depth array entries are the size
+     * skiplist.
+     */
+    WT_EXT *next[0]; /* Offset, size skiplists */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=25,
+                                              range=(2262, 2364),
+                                              value='/*\n'
+                                                    ' * WT_EXT --\n'
+                                                    ' *\tEncapsulation of an extent, either allocated or freed within '
+                                                    'the\n'
+                                                    ' * checkpoint.\n'
+                                                    ' */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=29, range=(2372, 2380), value='__wt_ext'),
+            typename=[2372:2380] 〈__wt_ext〉,
+            body=Token(idx=31,
+                       range=(2382, 2781),
+                       value='\n'
+                             "    wt_off_t off;  /* Extent's file offset */\n"
+                             "    wt_off_t size; /* Extent's Size */\n"
+                             '\n'
+                             '    uint8_t depth; /* Skip list depth */\n'
+                             '\n'
+                             '    /*\n'
+                             '     * Variable-length array, sized by the number of skiplist elements. The first depth '
+                             'array\n'
+                             '     * entries are the address skiplist elements, the second depth array entries are the '
+                             'size\n'
+                             '     * skiplist.\n'
+                             '     */\n'
+                             '    WT_EXT *next[0]; /* Offset, size skiplists */\n'),
+            members=[Variable(name=Token(idx=4, range=(14, 17), value='off'),
+                              typename=[5:13] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=7, range=(20, 46), value="/* Extent's file offset */"),
+                              end=';'),
+                     Variable(name=Token(idx=12, range=(60, 64), value='size'),
+                              typename=[51:59] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=15, range=(66, 85), value="/* Extent's Size */"),
+                              end=';'),
+                     Variable(name=Token(idx=21, range=(99, 104), value='depth'),
+                              typename=[91:98] 〈uint8_t〉,
+                              preComment=None,
+                              postComment=Token(idx=24, range=(106, 127), value='/* Skip list depth */'),
+                              end=';'),
+                     Variable(name=Token(idx=34, range=(361, 365), value='next'),
+                              typename=[353:359] 〈WT_EXT〉,
+                              preComment=Token(idx=28,
+                                               range=(133, 348),
+                                               value='/*\n'
+                                                     '     * Variable-length array, sized by the number of skiplist '
+                                                     'elements. The first depth array\n'
+                                                     '     * entries are the address skiplist elements, the second '
+                                                     'depth array entries are the size\n'
+                                                     '     * skiplist.\n'
+                                                     '     */'),
+                              postComment=Token(idx=38, range=(370, 398), value='/* Offset, size skiplists */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=25,
+                             range=(2262, 2364),
+                             value='/*\n'
+                                   ' * WT_EXT --\n'
+                                   ' *\tEncapsulation of an extent, either allocated or freed within the\n'
+                                   ' * checkpoint.\n'
+                                   ' */'),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[2784:3304] 〈
+⌇/*
+ * WT_SIZE --
+ *	Encapsulation of a block size skiplist entry.
+ */⌇
+⌇struct⌇ ⌇__wt_size⌇ ⌇{
+    wt_off_t size; /* Size */
+
+    uint8_t depth; /* Skip list depth */
+
+    WT_EXT *off[WT_SKIP_MAXDEPTH]; /* Per-size offset skiplist */
+
+    /*
+     * We don't use a variable-length array for the size skiplist, we want to be able to use any
+     * cached WT_SIZE structure as the head of a list, and we don't know the related WT_EXT
+     * structure's depth.
+     */
+    WT_SIZE *next[WT_SKIP_MAXDEPTH]; /* Size skiplist */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=35,
+                                              range=(2785, 2854),
+                                              value='/*\n'
+                                                    ' * WT_SIZE --\n'
+                                                    ' *\tEncapsulation of a block size skiplist entry.\n'
+                                                    ' */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=39, range=(2862, 2871), value='__wt_size'),
+            typename=[2862:2871] 〈__wt_size〉,
+            body=Token(idx=41,
+                       range=(2873, 3301),
+                       value='\n'
+                             '    wt_off_t size; /* Size */\n'
+                             '\n'
+                             '    uint8_t depth; /* Skip list depth */\n'
+                             '\n'
+                             '    WT_EXT *off[WT_SKIP_MAXDEPTH]; /* Per-size offset skiplist */\n'
+                             '\n'
+                             '    /*\n'
+                             "     * We don't use a variable-length array for the size skiplist, we want to be able to "
+                             'use any\n'
+                             "     * cached WT_SIZE structure as the head of a list, and we don't know the related "
+                             'WT_EXT\n'
+                             "     * structure's depth.\n"
+                             '     */\n'
+                             '    WT_SIZE *next[WT_SKIP_MAXDEPTH]; /* Size skiplist */\n'),
+            members=[Variable(name=Token(idx=4, range=(14, 18), value='size'),
+                              typename=[5:13] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=7, range=(20, 30), value='/* Size */'),
+                              end=';'),
+                     Variable(name=Token(idx=13, range=(44, 49), value='depth'),
+                              typename=[36:43] 〈uint8_t〉,
+                              preComment=None,
+                              postComment=Token(idx=16, range=(51, 72), value='/* Skip list depth */'),
+                              end=';'),
+                     Variable(name=Token(idx=23, range=(86, 89), value='off'),
+                              typename=[78:84] 〈WT_EXT〉,
+                              preComment=None,
+                              postComment=Token(idx=27, range=(109, 139), value='/* Per-size offset skiplist */'),
+                              end=';'),
+                     Variable(name=Token(idx=37, range=(384, 388), value='next'),
+                              typename=[375:382] 〈WT_SIZE〉,
+                              preComment=Token(idx=31,
+                                               range=(145, 370),
+                                               value='/*\n'
+                                                     "     * We don't use a variable-length array for the size "
+                                                     'skiplist, we want to be able to use any\n'
+                                                     '     * cached WT_SIZE structure as the head of a list, and we '
+                                                     "don't know the related WT_EXT\n"
+                                                     "     * structure's depth.\n"
+                                                     '     */'),
+                              postComment=Token(idx=41, range=(408, 427), value='/* Size skiplist */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=35,
+                             range=(2785, 2854),
+                             value='/*\n * WT_SIZE --\n *\tEncapsulation of a block size skiplist entry.\n */'),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[3304:3591] 〈
+⌇/*
+ * Per session handle cached block manager information.
+ */⌇
+⌇typedef⌇ ⌇struct⌇ ⌇{
+    WT_EXT *ext_cache;   /* List of WT_EXT handles */
+    u_int ext_cache_cnt; /* Count */
+
+    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
+    u_int sz_cache_cnt; /* Count */
+}⌇ ⌇WT_BLOCK_MGR_SESSION⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=True,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=45,
+                                              range=(3305, 3367),
+                                              value='/*\n * Per session handle cached block manager information.\n */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=51, range=(3384, 3567), value='(data/block.h:0:3384:)'),
+            typename=[3384:3567] 〈(data/block.h:0:3384:)〉,
+            body=Token(idx=51,
+                       range=(3384, 3567),
+                       value='\n'
+                             '    WT_EXT *ext_cache;   /* List of WT_EXT handles */\n'
+                             '    u_int ext_cache_cnt; /* Count */\n'
+                             '\n'
+                             '    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */\n'
+                             '    u_int sz_cache_cnt; /* Count */\n'),
+            members=[Variable(name=Token(idx=5, range=(13, 22), value='ext_cache'),
+                              typename=[5:11] 〈WT_EXT〉,
+                              preComment=None,
+                              postComment=Token(idx=8, range=(26, 54), value='/* List of WT_EXT handles */'),
+                              end=';'),
+                     Variable(name=Token(idx=13, range=(65, 78), value='ext_cache_cnt'),
+                              typename=[59:64] 〈u_int〉,
+                              preComment=None,
+                              postComment=Token(idx=16, range=(80, 91), value='/* Count */'),
+                              end=';'),
+                     Variable(name=Token(idx=23, range=(106, 114), value='sz_cache'),
+                              typename=[97:104] 〈WT_SIZE〉,
+                              preComment=None,
+                              postComment=Token(idx=26, range=(117, 146), value='/* List of WT_SIZE handles */'),
+                              end=';'),
+                     Variable(name=Token(idx=31, range=(157, 169), value='sz_cache_cnt'),
+                              typename=[151:156] 〈u_int〉,
+                              preComment=None,
+                              postComment=Token(idx=34, range=(171, 182), value='/* Count */'),
+                              end=';')],
+            typedefs=[Variable(name=Token(idx=53, range=(3569, 3589), value='WT_BLOCK_MGR_SESSION'),
+                               typename=[3384:3567] 〈(data/block.h:0:3384:)〉,
+                               preComment=None,
+                               postComment=None,
+                               end=';')],
+            vardefs=None,
+            preComment=Token(idx=45,
+                             range=(3305, 3367),
+                             value='/*\n * Per session handle cached block manager information.\n */'),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[3591:3878] 〈
+⌇/*
+ * WT_EXT_FOREACH --
+ *	Walk a block manager skiplist.
+ * WT_EXT_FOREACH_OFF --
+ *	Walk a block manager skiplist where the WT_EXT.next entries are offset
+ * by the depth.
+ */⌇
+⌇#define WT_EXT_FOREACH(skip, head) \
+    for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[0])
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=57,
+                                              range=(3592, 3769),
+                                              value='/*\n'
+                                                    ' * WT_EXT_FOREACH --\n'
+                                                    ' *\tWalk a block manager skiplist.\n'
+                                                    ' * WT_EXT_FOREACH_OFF --\n'
+                                                    ' *\tWalk a block manager skiplist where the WT_EXT.next entries '
+                                                    'are offset\n'
+                                                    ' * by the depth.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(3778, 3792), value='WT_EXT_FOREACH'),
+           args=[Token(idx=0, range=(3793, 3797), value='skip'), Token(idx=1, range=(3799, 3803), value='head')],
+           body=Token(idx=0,
+                      range=(3805, 3878),
+                      value='for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[0])'),
+           preComment=Token(idx=57,
+                            range=(3592, 3769),
+                            value='/*\n'
+                                  ' * WT_EXT_FOREACH --\n'
+                                  ' *\tWalk a block manager skiplist.\n'
+                                  ' * WT_EXT_FOREACH_OFF --\n'
+                                  ' *\tWalk a block manager skiplist where the WT_EXT.next entries are offset\n'
+                                  ' * by the depth.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[3878:4002] 〈#define WT_EXT_FOREACH_OFF(skip, head) \
+    for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[(skip)->depth])
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(3886, 3904), value='WT_EXT_FOREACH_OFF'),
+           args=[Token(idx=0, range=(3905, 3909), value='skip'), Token(idx=1, range=(3911, 3915), value='head')],
+           body=Token(idx=0,
+                      range=(3917, 4002),
+                      value='for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[(skip)->depth])'),
+           preComment=None,
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[4002:4372] 〈
+⌇/*
+ * WT_EXT_FOREACH_FROM_OFFSET_INCL --
+ *	Walk a by-offset skiplist from the given offset, starting with the extent that contains the
+ * given offset if available.
+ */⌇
+⌇#define WT_EXT_FOREACH_FROM_OFFSET_INCL(skip, el, start)                        \
+    for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL; \
+         (skip) = (skip)->next[0])
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=62,
+                                              range=(4003, 4172),
+                                              value='/*\n'
+                                                    ' * WT_EXT_FOREACH_FROM_OFFSET_INCL --\n'
+                                                    ' *\tWalk a by-offset skiplist from the given offset, starting '
+                                                    'with the extent that contains the\n'
+                                                    ' * given offset if available.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(4181, 4212), value='WT_EXT_FOREACH_FROM_OFFSET_INCL'),
+           args=[Token(idx=0, range=(4213, 4217), value='skip'),
+                 Token(idx=1, range=(4219, 4221), value='el'),
+                 Token(idx=2, range=(4223, 4228), value='start')],
+           body=Token(idx=0,
+                      range=(4253, 4372),
+                      value='for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL;  \n'
+                            '         (skip) = (skip)->next[0])'),
+           preComment=Token(idx=62,
+                            range=(4003, 4172),
+                            value='/*\n'
+                                  ' * WT_EXT_FOREACH_FROM_OFFSET_INCL --\n'
+                                  ' *\tWalk a by-offset skiplist from the given offset, starting with the extent that '
+                                  'contains the\n'
+                                  ' * given offset if available.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[4372:4764] 〈
+⌇/*
+ * Checkpoint cookie: carries a version number as I don't want to rev the schema
+ * file version should the default block manager checkpoint format change.
+ *
+ * Version #1 checkpoint cookie format:
+ *	[1] [root addr] [alloc addr] [avail addr] [discard addr]
+ *	    [file size] [checkpoint size] [write generation]
+ */⌇
+⌇#define WT_BM_CHECKPOINT_VERSION 1   /* Checkpoint format version */
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=66,
+                                              range=(4373, 4694),
+                                              value='/*\n'
+                                                    " * Checkpoint cookie: carries a version number as I don't want to "
+                                                    'rev the schema\n'
+                                                    ' * file version should the default block manager checkpoint '
+                                                    'format change.\n'
+                                                    ' *\n'
+                                                    ' * Version #1 checkpoint cookie format:\n'
+                                                    ' *\t[1] [root addr] [alloc addr] [avail addr] [discard addr]\n'
+                                                    ' *\t    [file size] [checkpoint size] [write generation]\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(4703, 4727), value='WT_BM_CHECKPOINT_VERSION'),
+           args=None,
+           body=Token(idx=0, range=(4728, 4764), value='1                                  '),
+           preComment=Token(idx=66,
+                            range=(4373, 4694),
+                            value='/*\n'
+                                  " * Checkpoint cookie: carries a version number as I don't want to rev the schema\n"
+                                  ' * file version should the default block manager checkpoint format change.\n'
+                                  ' *\n'
+                                  ' * Version #1 checkpoint cookie format:\n'
+                                  ' *\t[1] [root addr] [alloc addr] [avail addr] [discard addr]\n'
+                                  ' *\t    [file size] [checkpoint size] [write generation]\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[4764:4823] 〈#define WT_BLOCK_EXTLIST_MAGIC 71002 /* Identify a list */
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(4772, 4794), value='WT_BLOCK_EXTLIST_MAGIC'),
+           args=None,
+           body=Token(idx=0, range=(4795, 4823), value='71002                      '),
+           preComment=None,
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[4823:5060] 〈
+⌇/*
+ * There are two versions of the extent list blocks: the original, and a second version where
+ * current checkpoint information is appended to the avail extent list.
+ */⌇
+⌇#define WT_BLOCK_EXTLIST_VERSION_ORIG 0 /* Original version */
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=71,
+                                              range=(4824, 4996),
+                                              value='/*\n'
+                                                    ' * There are two versions of the extent list blocks: the '
+                                                    'original, and a second version where\n'
+                                                    ' * current checkpoint information is appended to the avail extent '
+                                                    'list.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(5005, 5034), value='WT_BLOCK_EXTLIST_VERSION_ORIG'),
+           args=None,
+           body=Token(idx=0, range=(5035, 5060), value='0                       '),
+           preComment=Token(idx=71,
+                            range=(4824, 4996),
+                            value='/*\n'
+                                  ' * There are two versions of the extent list blocks: the original, and a second '
+                                  'version where\n'
+                                  ' * current checkpoint information is appended to the avail extent list.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[5060:5133] 〈#define WT_BLOCK_EXTLIST_VERSION_CKPT 1 /* Checkpoint in avail output */
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(5068, 5097), value='WT_BLOCK_EXTLIST_VERSION_CKPT'),
+           args=None,
+           body=Token(idx=0, range=(5098, 5133), value='1                                 '),
+           preComment=None,
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[5133:5309] 〈
+⌇/*
+ * Maximum buffer required to store a checkpoint: 1 version byte followed by
+ * 14 packed 8B values.
+ */⌇
+⌇#define WT_BLOCK_CHECKPOINT_BUFFER (1 + 14 * WT_INTPACK64_MAXSIZE)
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=76,
+                                              range=(5134, 5241),
+                                              value='/*\n'
+                                                    ' * Maximum buffer required to store a checkpoint: 1 version byte '
+                                                    'followed by\n'
+                                                    ' * 14 packed 8B values.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(5250, 5276), value='WT_BLOCK_CHECKPOINT_BUFFER'),
+           args=None,
+           body=Token(idx=0, range=(5277, 5309), value='(1 + 14 * WT_INTPACK64_MAXSIZE)'),
+           preComment=Token(idx=76,
+                            range=(5134, 5241),
+                            value='/*\n'
+                                  ' * Maximum buffer required to store a checkpoint: 1 version byte followed by\n'
+                                  ' * 14 packed 8B values.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[5309:6183] 〈
+⌇struct⌇ ⌇__wt_block_ckpt⌇ ⌇{
+    uint8_t version; /* Version */
+
+    uint32_t root_objectid;
+    wt_off_t root_offset; /* The root */
+    uint32_t root_checksum, root_size;
+
+    WT_EXTLIST alloc;   /* Extents allocated */
+    WT_EXTLIST avail;   /* Extents available */
+    WT_EXTLIST discard; /* Extents discarded */
+
+    wt_off_t file_size; /* Checkpoint file size */
+    uint64_t ckpt_size; /* Checkpoint byte count */
+
+    WT_EXTLIST ckpt_avail; /* Checkpoint free'd extents */
+
+    /*
+     * Checkpoint archive: the block manager may potentially free a lot of memory from the
+     * allocation and discard extent lists when checkpoint completes. Put it off until the
+     * checkpoint resolves, that lets the upper btree layer continue eviction sooner.
+     */
+    WT_EXTLIST ckpt_alloc;   /* Checkpoint archive */
+    WT_EXTLIST ckpt_discard; /* Checkpoint archive */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=82, range=(5317, 5332), value='__wt_block_ckpt'),
+            typename=[5317:5332] 〈__wt_block_ckpt〉,
+            body=Token(idx=84,
+                       range=(5334, 6180),
+                       value='\n'
+                             '    uint8_t version; /* Version */\n'
+                             '\n'
+                             '    uint32_t root_objectid;\n'
+                             '    wt_off_t root_offset; /* The root */\n'
+                             '    uint32_t root_checksum, root_size;\n'
+                             '\n'
+                             '    WT_EXTLIST alloc;   /* Extents allocated */\n'
+                             '    WT_EXTLIST avail;   /* Extents available */\n'
+                             '    WT_EXTLIST discard; /* Extents discarded */\n'
+                             '\n'
+                             '    wt_off_t file_size; /* Checkpoint file size */\n'
+                             '    uint64_t ckpt_size; /* Checkpoint byte count */\n'
+                             '\n'
+                             "    WT_EXTLIST ckpt_avail; /* Checkpoint free'd extents */\n"
+                             '\n'
+                             '    /*\n'
+                             '     * Checkpoint archive: the block manager may potentially free a lot of memory from '
+                             'the\n'
+                             '     * allocation and discard extent lists when checkpoint completes. Put it off until '
+                             'the\n'
+                             '     * checkpoint resolves, that lets the upper btree layer continue eviction sooner.\n'
+                             '     */\n'
+                             '    WT_EXTLIST ckpt_alloc;   /* Checkpoint archive */\n'
+                             '    WT_EXTLIST ckpt_discard; /* Checkpoint archive */\n'),
+            members=[Variable(name=Token(idx=4, range=(13, 20), value='version'),
+                              typename=[5:12] 〈uint8_t〉,
+                              preComment=None,
+                              postComment=Token(idx=7, range=(22, 35), value='/* Version */'),
+                              end=';'),
+                     Variable(name=Token(idx=13, range=(50, 63), value='root_objectid'),
+                              typename=[41:49] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=19, range=(78, 89), value='root_offset'),
+                              typename=[69:77] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=22, range=(91, 105), value='/* The root */'),
+                              end=';'),
+                     Variable(name=Token(idx=27, range=(119, 132), value='root_checksum'),
+                              typename=[110:118] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=None,
+                              end=','),
+                     Variable(name=Token(idx=30, range=(134, 143), value='root_size'),
+                              typename=[110:118] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=37, range=(161, 166), value='alloc'),
+                              typename=[150:160] 〈WT_EXTLIST〉,
+                              preComment=None,
+                              postComment=Token(idx=40, range=(170, 193), value='/* Extents allocated */'),
+                              end=';'),
+                     Variable(name=Token(idx=45, range=(209, 214), value='avail'),
+                              typename=[198:208] 〈WT_EXTLIST〉,
+                              preComment=None,
+                              postComment=Token(idx=48, range=(218, 241), value='/* Extents available */'),
+                              end=';'),
+                     Variable(name=Token(idx=53, range=(257, 264), value='discard'),
+                              typename=[246:256] 〈WT_EXTLIST〉,
+                              preComment=None,
+                              postComment=Token(idx=56, range=(266, 289), value='/* Extents discarded */'),
+                              end=';'),
+                     Variable(name=Token(idx=62, range=(304, 313), value='file_size'),
+                              typename=[295:303] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=65, range=(315, 341), value='/* Checkpoint file size */'),
+                              end=';'),
+                     Variable(name=Token(idx=70, range=(355, 364), value='ckpt_size'),
+                              typename=[346:354] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=73, range=(366, 393), value='/* Checkpoint byte count */'),
+                              end=';'),
+                     Variable(name=Token(idx=79, range=(410, 420), value='ckpt_avail'),
+                              typename=[399:409] 〈WT_EXTLIST〉,
+                              preComment=None,
+                              postComment=Token(idx=82, range=(422, 453), value="/* Checkpoint free'd extents */"),
+                              end=';'),
+                     Variable(name=Token(idx=91, range=(753, 763), value='ckpt_alloc'),
+                              typename=[742:752] 〈WT_EXTLIST〉,
+                              preComment=Token(idx=86,
+                                               range=(459, 737),
+                                               value='/*\n'
+                                                     '     * Checkpoint archive: the block manager may potentially '
+                                                     'free a lot of memory from the\n'
+                                                     '     * allocation and discard extent lists when checkpoint '
+                                                     'completes. Put it off until the\n'
+                                                     '     * checkpoint resolves, that lets the upper btree layer '
+                                                     'continue eviction sooner.\n'
+                                                     '     */'),
+                              postComment=Token(idx=94, range=(767, 791), value='/* Checkpoint archive */'),
+                              end=';'),
+                     Variable(name=Token(idx=99, range=(807, 819), value='ckpt_discard'),
+                              typename=[796:806] 〈WT_EXTLIST〉,
+                              preComment=None,
+                              postComment=Token(idx=102, range=(821, 845), value='/* Checkpoint archive */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=None,
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[6183:9959] 〈
+⌇/*
+ * WT_BM --
+ *	Block manager handle, references a single checkpoint in a btree.
+ */⌇
+⌇struct⌇ ⌇__wt_bm⌇ ⌇{
+    /* Methods */
+    int (*addr_invalid)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
+    u_int (*block_header)(WT_BM *);
+    int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
+    int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
+    int (*checkpoint_load)(
+      WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, uint8_t *, size_t *, bool);
+    int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);
+    int (*checkpoint_start)(WT_BM *, WT_SESSION_IMPL *);
+    int (*checkpoint_unload)(WT_BM *, WT_SESSION_IMPL *);
+    int (*close)(WT_BM *, WT_SESSION_IMPL *);
+    int (*compact_end)(WT_BM *, WT_SESSION_IMPL *);
+    int (*compact_page_rewrite)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
+    int (*compact_page_skip)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
+    int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
+    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
+    int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
+    int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
+    int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
+    int (*read)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
+    int (*salvage_end)(WT_BM *, WT_SESSION_IMPL *);
+    int (*salvage_next)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
+    int (*salvage_start)(WT_BM *, WT_SESSION_IMPL *);
+    int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
+    int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
+    int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
+    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
+    int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
+    int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
+    int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
+    int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
+    int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
+    int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
+
+    WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
+    WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
+    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */
+
+    void *map; /* Mapped region */
+    size_t maplen;
+    void *mapped_cookie;
+
+    /*
+     * For trees, such as tiered tables, that are allowed to have more than one backing file or
+     * object, we maintain an array of the block handles used by the tree. We use a reader-writer
+     * mutex to protect the array. We lock it for reading when looking for a handle in the array and
+     * lock it for writing when adding or removing handles in the array.
+     */
+    bool is_multi_handle;
+    WT_BLOCK **handle_array;       /* Array of block handles */
+    size_t handle_array_allocated; /* Size of handle array */
+    WT_RWLOCK handle_array_lock;   /* Lock for block handle array */
+    u_int handle_array_next;       /* Next open slot */
+    uint32_t max_flushed_objectid; /* Local objects at or below this id should be closed */
+
+    /*
+     * There's only a single block manager handle that can be written, all others are checkpoints.
+     */
+    bool is_live; /* The live system */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=88,
+                                              range=(6184, 6270),
+                                              value='/*\n'
+                                                    ' * WT_BM --\n'
+                                                    ' *\tBlock manager handle, references a single checkpoint in a '
+                                                    'btree.\n'
+                                                    ' */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=92, range=(6278, 6285), value='__wt_bm'),
+            typename=[6278:6285] 〈__wt_bm〉,
+            body=Token(idx=94,
+                       range=(6287, 9956),
+                       value='\n'
+                             '    /* Methods */\n'
+                             '    int (*addr_invalid)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);\n'
+                             '    int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);\n'
+                             '    u_int (*block_header)(WT_BM *);\n'
+                             '    int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);\n'
+                             '    int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);\n'
+                             '    int (*checkpoint_load)(\n'
+                             '      WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, uint8_t *, size_t *, bool);\n'
+                             '    int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);\n'
+                             '    int (*checkpoint_start)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*checkpoint_unload)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*close)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*compact_end)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*compact_page_rewrite)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool '
+                             '*);\n'
+                             '    int (*compact_page_skip)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool '
+                             '*);\n'
+                             '    int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);\n'
+                             '    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);\n'
+                             '    int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);\n'
+                             '    bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);\n'
+                             '    int (*read)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);\n'
+                             '    int (*salvage_end)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*salvage_next)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);\n'
+                             '    int (*salvage_start)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);\n'
+                             '    int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);\n'
+                             '    int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);\n'
+                             '    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);\n'
+                             '    int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);\n'
+                             '    int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);\n'
+                             '    int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);\n'
+                             '    int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);\n'
+                             '    int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);\n'
+                             '    int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, '
+                             'bool);\n'
+                             '    int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);\n'
+                             '\n'
+                             '    WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the '
+                             'writable file. */\n'
+                             '    WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. '
+                             '*/\n'
+                             '    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */\n'
+                             '\n'
+                             '    void *map; /* Mapped region */\n'
+                             '    size_t maplen;\n'
+                             '    void *mapped_cookie;\n'
+                             '\n'
+                             '    /*\n'
+                             '     * For trees, such as tiered tables, that are allowed to have more than one backing '
+                             'file or\n'
+                             '     * object, we maintain an array of the block handles used by the tree. We use a '
+                             'reader-writer\n'
+                             '     * mutex to protect the array. We lock it for reading when looking for a handle in '
+                             'the array and\n'
+                             '     * lock it for writing when adding or removing handles in the array.\n'
+                             '     */\n'
+                             '    bool is_multi_handle;\n'
+                             '    WT_BLOCK **handle_array;       /* Array of block handles */\n'
+                             '    size_t handle_array_allocated; /* Size of handle array */\n'
+                             '    WT_RWLOCK handle_array_lock;   /* Lock for block handle array */\n'
+                             '    u_int handle_array_next;       /* Next open slot */\n'
+                             '    uint32_t max_flushed_objectid; /* Local objects at or below this id should be closed '
+                             '*/\n'
+                             '\n'
+                             '    /*\n'
+                             "     * There's only a single block manager handle that can be written, all others are "
+                             'checkpoints.\n'
+                             '     */\n'
+                             '    bool is_live; /* The live system */\n'),
+            members=[Variable(name=Token(idx=7, range=(27, 42), value='addr_invalid'),
+                              typename=[23:26] 〈int〉,
+                              preComment=Token(idx=2, range=(5, 18), value='/* Methods */'),
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=14, range=(105, 119), value='addr_string'),
+                              typename=[101:104] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=21, range=(195, 210), value='block_header'),
+                              typename=[189:194] 〈u_int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=28, range=(229, 242), value='checkpoint'),
+                              typename=[225:228] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=35, range=(308, 326), value='checkpoint_last'),
+                              typename=[304:307] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=42, range=(393, 411), value='checkpoint_load'),
+                              typename=[389:392] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=49, range=(508, 529), value='checkpoint_resolve'),
+                              typename=[504:507] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=56, range=(573, 592), value='checkpoint_start'),
+                              typename=[569:572] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=63, range=(630, 650), value='checkpoint_unload'),
+                              typename=[626:629] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=70, range=(688, 696), value='close'),
+                              typename=[684:687] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=77, range=(734, 748), value='compact_end'),
+                              typename=[730:733] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=84, range=(786, 809), value='compact_page_rewrite'),
+                              typename=[782:785] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=91, range=(876, 896), value='compact_page_skip'),
+                              typename=[872:875] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=98, range=(967, 982), value='compact_skip'),
+                              typename=[963:966] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=105, range=(1029, 1048), value='compact_progress'),
+                              typename=[1024:1028] 〈void〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=112, range=(1086, 1102), value='compact_start'),
+                              typename=[1082:1085] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=119, range=(1140, 1150), value='corrupt'),
+                              typename=[1136:1139] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=126, range=(1213, 1220), value='free'),
+                              typename=[1209:1212] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=133, range=(1284, 1296), value='is_mapped'),
+                              typename=[1279:1283] 〈bool〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=140, range=(1334, 1348), value='map_discard'),
+                              typename=[1330:1333] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=147, range=(1402, 1409), value='read'),
+                              typename=[1398:1401] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=154, range=(1483, 1497), value='salvage_end'),
+                              typename=[1479:1482] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=161, range=(1535, 1550), value='salvage_next'),
+                              typename=[1531:1534] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=168, range=(1617, 1633), value='salvage_start'),
+                              typename=[1613:1616] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=175, range=(1671, 1687), value='salvage_valid'),
+                              typename=[1667:1670] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=182, range=(1750, 1757), value='size'),
+                              typename=[1746:1749] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=189, range=(1807, 1814), value='stat'),
+                              typename=[1803:1806] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=196, range=(1874, 1890), value='switch_object'),
+                              typename=[1870:1873] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=203, range=(1938, 1958), value='switch_object_end'),
+                              typename=[1934:1937] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=210, range=(2006, 2013), value='sync'),
+                              typename=[2002:2005] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=217, range=(2057, 2071), value='verify_addr'),
+                              typename=[2053:2056] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=224, range=(2134, 2147), value='verify_end'),
+                              typename=[2130:2133] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=231, range=(2185, 2200), value='verify_start'),
+                              typename=[2181:2184] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=238, range=(2265, 2273), value='write'),
+                              typename=[2261:2264] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=245, range=(2355, 2368), value='write_size'),
+                              typename=[2351:2354] 〈int〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=254, range=(2423, 2428), value='block'),
+                              typename=[2413:2421] 〈WT_BLOCK〉,
+                              preComment=None,
+                              postComment=Token(idx=257,
+                                                range=(2430, 2508),
+                                                value='/* Underlying file. For a multi-handle tree this will be the '
+                                                      'writable file. */'),
+                              end=';'),
+                     Variable(name=Token(idx=263, range=(2523, 2533), value='next_block'),
+                              typename=[2513:2521] 〈WT_BLOCK〉,
+                              preComment=None,
+                              postComment=Token(idx=266,
+                                                range=(2535, 2598),
+                                                value='/* If doing a tier switch, this is going to be the new file. */'),
+                              end=';'),
+                     Variable(name=Token(idx=272, range=(2613, 2623), value='prev_block'),
+                              typename=[2603:2611] 〈WT_BLOCK〉,
+                              preComment=None,
+                              postComment=Token(idx=275,
+                                                range=(2625, 2680),
+                                                value='/* If a tier switch was done, this was the old file. */'),
+                              end=';'),
+                     Variable(name=Token(idx=282, range=(2692, 2695), value='map'),
+                              typename=[2686:2690] 〈void〉,
+                              preComment=None,
+                              postComment=Token(idx=285, range=(2697, 2716), value='/* Mapped region */'),
+                              end=';'),
+                     Variable(name=Token(idx=290, range=(2728, 2734), value='maplen'),
+                              typename=[2721:2727] 〈size_t〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=297, range=(2746, 2759), value='mapped_cookie'),
+                              typename=[2740:2744] 〈void〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=307, range=(3154, 3169), value='is_multi_handle'),
+                              typename=[3149:3153] 〈bool〉,
+                              preComment=Token(idx=302,
+                                               range=(2766, 3144),
+                                               value='/*\n'
+                                                     '     * For trees, such as tiered tables, that are allowed to '
+                                                     'have more than one backing file or\n'
+                                                     '     * object, we maintain an array of the block handles used by '
+                                                     'the tree. We use a reader-writer\n'
+                                                     '     * mutex to protect the array. We lock it for reading when '
+                                                     'looking for a handle in the array and\n'
+                                                     '     * lock it for writing when adding or removing handles in '
+                                                     'the array.\n'
+                                                     '     */'),
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=315, range=(3186, 3198), value='handle_array'),
+                              typename=[3175:3183] 〈WT_BLOCK〉,
+                              preComment=None,
+                              postComment=Token(idx=318, range=(3206, 3234), value='/* Array of block handles */'),
+                              end=';'),
+                     Variable(name=Token(idx=323, range=(3246, 3268), value='handle_array_allocated'),
+                              typename=[3239:3245] 〈size_t〉,
+                              preComment=None,
+                              postComment=Token(idx=326, range=(3270, 3296), value='/* Size of handle array */'),
+                              end=';'),
+                     Variable(name=Token(idx=331, range=(3311, 3328), value='handle_array_lock'),
+                              typename=[3301:3310] 〈WT_RWLOCK〉,
+                              preComment=None,
+                              postComment=Token(idx=334, range=(3332, 3365), value='/* Lock for block handle array */'),
+                              end=';'),
+                     Variable(name=Token(idx=339, range=(3376, 3393), value='handle_array_next'),
+                              typename=[3370:3375] 〈u_int〉,
+                              preComment=None,
+                              postComment=Token(idx=342, range=(3401, 3421), value='/* Next open slot */'),
+                              end=';'),
+                     Variable(name=Token(idx=347, range=(3435, 3455), value='max_flushed_objectid'),
+                              typename=[3426:3434] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=350,
+                                                range=(3457, 3513),
+                                                value='/* Local objects at or below this id should be closed */'),
+                              end=';'),
+                     Variable(name=Token(idx=359, range=(3638, 3645), value='is_live'),
+                              typename=[3633:3637] 〈bool〉,
+                              preComment=Token(idx=354,
+                                               range=(3519, 3628),
+                                               value='/*\n'
+                                                     "     * There's only a single block manager handle that can be "
+                                                     'written, all others are checkpoints.\n'
+                                                     '     */'),
+                              postComment=Token(idx=362, range=(3647, 3668), value='/* The live system */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=88,
+                             range=(6184, 6270),
+                             value='/*\n'
+                                   ' * WT_BM --\n'
+                                   ' *\tBlock manager handle, references a single checkpoint in a btree.\n'
+                                   ' */'),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[9959:13572] 〈
+⌇/*
+ * WT_BLOCK --
+ *	Block manager handle, references a single file.
+ */⌇
+⌇struct⌇ ⌇__wt_block⌇ ⌇{
+    const char *name;  /* Name */
+    uint32_t objectid; /* Object id */
+    uint32_t ref;      /* References */
+
+    TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
+    TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+
+    WT_FH *fh;            /* Backing file handle */
+    wt_off_t size;        /* File size */
+    wt_off_t extend_size; /* File extended size */
+    wt_off_t extend_len;  /* File extend chunk size */
+
+    bool created_during_backup; /* Created during incremental backup */
+    bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
+    bool remote;                /* Handle references non-local object */
+    bool readonly;              /* Underlying file was opened only for reading */
+
+    /* Configuration information, set when the file is opened. */
+    wt_shared uint32_t allocfirst; /* Allocation is first-fit */
+    uint32_t allocsize;            /* Allocation size */
+    size_t os_cache;               /* System buffer cache flush max */
+    size_t os_cache_max;
+    size_t os_cache_dirty_max;
+
+    u_int block_header; /* Header length */
+
+    /*
+     * There is only a single checkpoint in a file that can be written; stored here, only accessed
+     * by one WT_BM handle.
+     */
+    WT_SPINLOCK live_lock; /* Live checkpoint lock */
+    WT_BLOCK_CKPT live;    /* Live checkpoint */
+    bool live_open;        /* Live system is open */
+    enum {                 /* Live checkpoint status */
+        WT_CKPT_NONE = 0,
+        WT_CKPT_INPROGRESS,
+        WT_CKPT_PANIC_ON_FAILURE,
+        WT_CKPT_SALVAGE
+    } ckpt_state;
+
+    WT_CKPT *final_ckpt; /* Final live checkpoint write */
+
+    /* Compaction support */
+    bool compact_estimated;                    /* If compaction work has been estimated */
+    int compact_pct_tenths;                    /* Percent to compact */
+    uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
+    uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
+    uint64_t compact_bytes_rewritten_expected; /* The expected number of bytes to rewrite */
+    uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */
+    uint64_t compact_pages_reviewed;           /* Pages reviewed */
+    uint64_t compact_pages_rewritten;          /* Pages rewritten */
+    uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
+    uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint64_t compact_prev_pages_rewritten;     /* Pages rewritten during the previous iteration */
+    wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
+    uint32_t compact_session_id;               /* Session compacting */
+
+    /* Salvage support */
+    wt_off_t slvg_off; /* Salvage file offset */
+
+    /* Verification support */
+    bool verify;             /* If performing verification */
+    bool verify_layout;      /* Print out file layout information */
+    bool dump_tree_shape;    /* Print out tree shape */
+    bool verify_strict;      /* Fail hard on any error */
+    wt_off_t verify_size;    /* Checkpoint's file size */
+    WT_EXTLIST verify_alloc; /* Verification allocation list */
+    uint64_t frags;          /* Maximum frags in the file */
+    uint8_t *fragfile;       /* Per-file frag tracking list */
+    uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
+
+    /* Multi-file support */
+    wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=98,
+                                              range=(9960, 10032),
+                                              value='/*\n'
+                                                    ' * WT_BLOCK --\n'
+                                                    ' *\tBlock manager handle, references a single file.\n'
+                                                    ' */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=102, range=(10040, 10050), value='__wt_block'),
+            typename=[10040:10050] 〈__wt_block〉,
+            body=Token(idx=104,
+                       range=(10052, 13569),
+                       value='\n'
+                             '    const char *name;  /* Name */\n'
+                             '    uint32_t objectid; /* Object id */\n'
+                             '    uint32_t ref;      /* References */\n'
+                             '\n'
+                             '    TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */\n'
+                             '    TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */\n'
+                             '\n'
+                             '    WT_FH *fh;            /* Backing file handle */\n'
+                             '    wt_off_t size;        /* File size */\n'
+                             '    wt_off_t extend_size; /* File extended size */\n'
+                             '    wt_off_t extend_len;  /* File extend chunk size */\n'
+                             '\n'
+                             '    bool created_during_backup; /* Created during incremental backup */\n'
+                             '    bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */\n'
+                             '    bool remote;                /* Handle references non-local object */\n'
+                             '    bool readonly;              /* Underlying file was opened only for reading */\n'
+                             '\n'
+                             '    /* Configuration information, set when the file is opened. */\n'
+                             '    wt_shared uint32_t allocfirst; /* Allocation is first-fit */\n'
+                             '    uint32_t allocsize;            /* Allocation size */\n'
+                             '    size_t os_cache;               /* System buffer cache flush max */\n'
+                             '    size_t os_cache_max;\n'
+                             '    size_t os_cache_dirty_max;\n'
+                             '\n'
+                             '    u_int block_header; /* Header length */\n'
+                             '\n'
+                             '    /*\n'
+                             '     * There is only a single checkpoint in a file that can be written; stored here, '
+                             'only accessed\n'
+                             '     * by one WT_BM handle.\n'
+                             '     */\n'
+                             '    WT_SPINLOCK live_lock; /* Live checkpoint lock */\n'
+                             '    WT_BLOCK_CKPT live;    /* Live checkpoint */\n'
+                             '    bool live_open;        /* Live system is open */\n'
+                             '    enum {                 /* Live checkpoint status */\n'
+                             '        WT_CKPT_NONE = 0,\n'
+                             '        WT_CKPT_INPROGRESS,\n'
+                             '        WT_CKPT_PANIC_ON_FAILURE,\n'
+                             '        WT_CKPT_SALVAGE\n'
+                             '    } ckpt_state;\n'
+                             '\n'
+                             '    WT_CKPT *final_ckpt; /* Final live checkpoint write */\n'
+                             '\n'
+                             '    /* Compaction support */\n'
+                             '    bool compact_estimated;                    /* If compaction work has been estimated '
+                             '*/\n'
+                             '    int compact_pct_tenths;                    /* Percent to compact */\n'
+                             '    uint64_t compact_bytes_reviewed;           /* Bytes reviewed */\n'
+                             '    uint64_t compact_bytes_rewritten;          /* Bytes rewritten */\n'
+                             '    uint64_t compact_bytes_rewritten_expected; /* The expected number of bytes to '
+                             'rewrite */\n'
+                             '    uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */\n'
+                             '    uint64_t compact_pages_reviewed;           /* Pages reviewed */\n'
+                             '    uint64_t compact_pages_rewritten;          /* Pages rewritten */\n'
+                             '    uint64_t compact_pages_rewritten_expected; /* The expected number of pages to '
+                             'rewrite */\n'
+                             '    uint64_t compact_pages_skipped;            /* Pages skipped */\n'
+                             '    uint64_t compact_prev_pages_rewritten;     /* Pages rewritten during the previous '
+                             'iteration */\n'
+                             '    wt_off_t compact_prev_size;                /* File size at the start of a compaction '
+                             'pass */\n'
+                             '    uint32_t compact_session_id;               /* Session compacting */\n'
+                             '\n'
+                             '    /* Salvage support */\n'
+                             '    wt_off_t slvg_off; /* Salvage file offset */\n'
+                             '\n'
+                             '    /* Verification support */\n'
+                             '    bool verify;             /* If performing verification */\n'
+                             '    bool verify_layout;      /* Print out file layout information */\n'
+                             '    bool dump_tree_shape;    /* Print out tree shape */\n'
+                             '    bool verify_strict;      /* Fail hard on any error */\n'
+                             "    wt_off_t verify_size;    /* Checkpoint's file size */\n"
+                             '    WT_EXTLIST verify_alloc; /* Verification allocation list */\n'
+                             '    uint64_t frags;          /* Maximum frags in the file */\n'
+                             '    uint8_t *fragfile;       /* Per-file frag tracking list */\n'
+                             '    uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */\n'
+                             '\n'
+                             '    /* Multi-file support */\n'
+                             '    wt_shared uint32_t read_count; /* Count of active read requests using this block '
+                             'handle */\n'),
+            members=[Variable(name=Token(idx=7, range=(17, 21), value='name'),
+                              typename=[11:15] 〈char〉,
+                              preComment=None,
+                              postComment=Token(idx=10, range=(24, 34), value='/* Name */'),
+                              end=';'),
+                     Variable(name=Token(idx=15, range=(48, 56), value='objectid'),
+                              typename=[39:47] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=18, range=(58, 73), value='/* Object id */'),
+                              end=';'),
+                     Variable(name=Token(idx=23, range=(87, 90), value='ref'),
+                              typename=[78:86] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=26, range=(97, 113), value='/* References */'),
+                              end=';'),
+                     Variable(name=Token(idx=33, range=(143, 144), value='q'),
+                              typename=[119:142] 〈TAILQ_ENTRY⌇(__wt_block)〉,
+                              preComment=None,
+                              postComment=Token(idx=36, range=(150, 178), value='/* Linked list of handles */'),
+                              end=';'),
+                     Variable(name=Token(idx=42, range=(207, 212), value='hashq'),
+                              typename=[183:206] 〈TAILQ_ENTRY⌇(__wt_block)〉,
+                              preComment=None,
+                              postComment=Token(idx=45, range=(214, 242), value='/* Hashed list of handles */'),
+                              end=';'),
+                     Variable(name=Token(idx=52, range=(255, 257), value='fh'),
+                              typename=[248:253] 〈WT_FH〉,
+                              preComment=None,
+                              postComment=Token(idx=55, range=(270, 295), value='/* Backing file handle */'),
+                              end=';'),
+                     Variable(name=Token(idx=60, range=(309, 313), value='size'),
+                              typename=[300:308] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=63, range=(322, 337), value='/* File size */'),
+                              end=';'),
+                     Variable(name=Token(idx=68, range=(351, 362), value='extend_size'),
+                              typename=[342:350] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=71, range=(364, 388), value='/* File extended size */'),
+                              end=';'),
+                     Variable(name=Token(idx=76, range=(402, 412), value='extend_len'),
+                              typename=[393:401] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=79, range=(415, 443), value='/* File extend chunk size */'),
+                              end=';'),
+                     Variable(name=Token(idx=85, range=(454, 475), value='created_during_backup'),
+                              typename=[449:453] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=88,
+                                                range=(477, 516),
+                                                value='/* Created during incremental backup */'),
+                              end=';'),
+                     Variable(name=Token(idx=93, range=(526, 544), value='sync_on_checkpoint'),
+                              typename=[521:525] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=96,
+                                                range=(549, 597),
+                                                value='/* fsync the handle after the next checkpoint */'),
+                              end=';'),
+                     Variable(name=Token(idx=101, range=(607, 613), value='remote'),
+                              typename=[602:606] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=104,
+                                                range=(630, 670),
+                                                value='/* Handle references non-local object */'),
+                              end=';'),
+                     Variable(name=Token(idx=109, range=(680, 688), value='readonly'),
+                              typename=[675:679] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=112,
+                                                range=(703, 752),
+                                                value='/* Underlying file was opened only for reading */'),
+                              end=';'),
+                     Variable(name=Token(idx=123, range=(843, 853), value='allocfirst'),
+                              typename=[824:842] 〈wt_shared⌇uint32_t〉,
+                              preComment=Token(idx=116,
+                                               range=(758, 819),
+                                               value='/* Configuration information, set when the file is opened. */'),
+                              postComment=Token(idx=126, range=(855, 884), value='/* Allocation is first-fit */'),
+                              end=';'),
+                     Variable(name=Token(idx=131, range=(898, 907), value='allocsize'),
+                              typename=[889:897] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=134, range=(920, 941), value='/* Allocation size */'),
+                              end=';'),
+                     Variable(name=Token(idx=139, range=(953, 961), value='os_cache'),
+                              typename=[946:952] 〈size_t〉,
+                              preComment=None,
+                              postComment=Token(idx=142,
+                                                range=(977, 1012),
+                                                value='/* System buffer cache flush max */'),
+                              end=';'),
+                     Variable(name=Token(idx=147, range=(1024, 1036), value='os_cache_max'),
+                              typename=[1017:1023] 〈size_t〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=153, range=(1049, 1067), value='os_cache_dirty_max'),
+                              typename=[1042:1048] 〈size_t〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=160, range=(1080, 1092), value='block_header'),
+                              typename=[1074:1079] 〈u_int〉,
+                              preComment=None,
+                              postComment=Token(idx=163, range=(1094, 1113), value='/* Header length */'),
+                              end=';'),
+                     Variable(name=Token(idx=172, range=(1273, 1282), value='live_lock'),
+                              typename=[1261:1272] 〈WT_SPINLOCK〉,
+                              preComment=Token(idx=167,
+                                               range=(1119, 1256),
+                                               value='/*\n'
+                                                     '     * There is only a single checkpoint in a file that can be '
+                                                     'written; stored here, only accessed\n'
+                                                     '     * by one WT_BM handle.\n'
+                                                     '     */'),
+                              postComment=Token(idx=175, range=(1284, 1310), value='/* Live checkpoint lock */'),
+                              end=';'),
+                     Variable(name=Token(idx=180, range=(1329, 1333), value='live'),
+                              typename=[1315:1328] 〈WT_BLOCK_CKPT〉,
+                              preComment=None,
+                              postComment=Token(idx=183, range=(1338, 1359), value='/* Live checkpoint */'),
+                              end=';'),
+                     Variable(name=Token(idx=188, range=(1369, 1378), value='live_open'),
+                              typename=[1364:1368] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=191, range=(1387, 1412), value='/* Live system is open */'),
+                              end=';'),
+                     Variable(name=Token(idx=198, range=(1587, 1597), value='ckpt_state'),
+                              typename=[1423:1585] 〈(data/block.h:0:11475:)〉,
+                              preComment=None,
+                              postComment=None,
+                              end=';'),
+                     Variable(name=Token(idx=206, range=(1613, 1623), value='final_ckpt'),
+                              typename=[1604:1611] 〈WT_CKPT〉,
+                              preComment=None,
+                              postComment=Token(idx=209, range=(1625, 1658), value='/* Final live checkpoint write */'),
+                              end=';'),
+                     Variable(name=Token(idx=218, range=(1698, 1715), value='compact_estimated'),
+                              typename=[1693:1697] 〈bool〉,
+                              preComment=Token(idx=213, range=(1664, 1688), value='/* Compaction support */'),
+                              postComment=Token(idx=221,
+                                                range=(1736, 1779),
+                                                value='/* If compaction work has been estimated */'),
+                              end=';'),
+                     Variable(name=Token(idx=226, range=(1788, 1806), value='compact_pct_tenths'),
+                              typename=[1784:1787] 〈int〉,
+                              preComment=None,
+                              postComment=Token(idx=229, range=(1827, 1851), value='/* Percent to compact */'),
+                              end=';'),
+                     Variable(name=Token(idx=234, range=(1865, 1887), value='compact_bytes_reviewed'),
+                              typename=[1856:1864] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=237, range=(1899, 1919), value='/* Bytes reviewed */'),
+                              end=';'),
+                     Variable(name=Token(idx=242, range=(1933, 1956), value='compact_bytes_rewritten'),
+                              typename=[1924:1932] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=245, range=(1967, 1988), value='/* Bytes rewritten */'),
+                              end=';'),
+                     Variable(name=Token(idx=250, range=(2002, 2034), value='compact_bytes_rewritten_expected'),
+                              typename=[1993:2001] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=253,
+                                                range=(2036, 2081),
+                                                value='/* The expected number of bytes to rewrite */'),
+                              end=';'),
+                     Variable(name=Token(idx=258, range=(2095, 2126), value='compact_internal_pages_reviewed'),
+                              typename=[2086:2094] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=261, range=(2129, 2158), value='/* Internal pages reviewed */'),
+                              end=';'),
+                     Variable(name=Token(idx=266, range=(2172, 2194), value='compact_pages_reviewed'),
+                              typename=[2163:2171] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=269, range=(2206, 2226), value='/* Pages reviewed */'),
+                              end=';'),
+                     Variable(name=Token(idx=274, range=(2240, 2263), value='compact_pages_rewritten'),
+                              typename=[2231:2239] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=277, range=(2274, 2295), value='/* Pages rewritten */'),
+                              end=';'),
+                     Variable(name=Token(idx=282, range=(2309, 2341), value='compact_pages_rewritten_expected'),
+                              typename=[2300:2308] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=285,
+                                                range=(2343, 2388),
+                                                value='/* The expected number of pages to rewrite */'),
+                              end=';'),
+                     Variable(name=Token(idx=290, range=(2402, 2423), value='compact_pages_skipped'),
+                              typename=[2393:2401] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=293, range=(2436, 2455), value='/* Pages skipped */'),
+                              end=';'),
+                     Variable(name=Token(idx=298, range=(2469, 2497), value='compact_prev_pages_rewritten'),
+                              typename=[2460:2468] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=301,
+                                                range=(2503, 2554),
+                                                value='/* Pages rewritten during the previous iteration */'),
+                              end=';'),
+                     Variable(name=Token(idx=306, range=(2568, 2585), value='compact_prev_size'),
+                              typename=[2559:2567] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=309,
+                                                range=(2602, 2651),
+                                                value='/* File size at the start of a compaction pass */'),
+                              end=';'),
+                     Variable(name=Token(idx=314, range=(2665, 2683), value='compact_session_id'),
+                              typename=[2656:2664] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=317, range=(2699, 2723), value='/* Session compacting */'),
+                              end=';'),
+                     Variable(name=Token(idx=326, range=(2764, 2772), value='slvg_off'),
+                              typename=[2755:2763] 〈wt_off_t〉,
+                              preComment=Token(idx=321, range=(2729, 2750), value='/* Salvage support */'),
+                              postComment=Token(idx=329, range=(2774, 2799), value='/* Salvage file offset */'),
+                              end=';'),
+                     Variable(name=Token(idx=338, range=(2841, 2847), value='verify'),
+                              typename=[2836:2840] 〈bool〉,
+                              preComment=Token(idx=333, range=(2805, 2831), value='/* Verification support */'),
+                              postComment=Token(idx=341, range=(2861, 2893), value='/* If performing verification */'),
+                              end=';'),
+                     Variable(name=Token(idx=346, range=(2903, 2916), value='verify_layout'),
+                              typename=[2898:2902] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=349,
+                                                range=(2923, 2962),
+                                                value='/* Print out file layout information */'),
+                              end=';'),
+                     Variable(name=Token(idx=354, range=(2972, 2987), value='dump_tree_shape'),
+                              typename=[2967:2971] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=357, range=(2992, 3018), value='/* Print out tree shape */'),
+                              end=';'),
+                     Variable(name=Token(idx=362, range=(3028, 3041), value='verify_strict'),
+                              typename=[3023:3027] 〈bool〉,
+                              preComment=None,
+                              postComment=Token(idx=365, range=(3048, 3076), value='/* Fail hard on any error */'),
+                              end=';'),
+                     Variable(name=Token(idx=370, range=(3090, 3101), value='verify_size'),
+                              typename=[3081:3089] 〈wt_off_t〉,
+                              preComment=None,
+                              postComment=Token(idx=373, range=(3106, 3134), value="/* Checkpoint's file size */"),
+                              end=';'),
+                     Variable(name=Token(idx=378, range=(3150, 3162), value='verify_alloc'),
+                              typename=[3139:3149] 〈WT_EXTLIST〉,
+                              preComment=None,
+                              postComment=Token(idx=381,
+                                                range=(3164, 3198),
+                                                value='/* Verification allocation list */'),
+                              end=';'),
+                     Variable(name=Token(idx=386, range=(3212, 3217), value='frags'),
+                              typename=[3203:3211] 〈uint64_t〉,
+                              preComment=None,
+                              postComment=Token(idx=389, range=(3228, 3259), value='/* Maximum frags in the file */'),
+                              end=';'),
+                     Variable(name=Token(idx=395, range=(3273, 3281), value='fragfile'),
+                              typename=[3264:3271] 〈uint8_t〉,
+                              preComment=None,
+                              postComment=Token(idx=398, range=(3289, 3322), value='/* Per-file frag tracking list */'),
+                              end=';'),
+                     Variable(name=Token(idx=404, range=(3336, 3344), value='fragckpt'),
+                              typename=[3327:3334] 〈uint8_t〉,
+                              preComment=None,
+                              postComment=Token(idx=407,
+                                                range=(3352, 3391),
+                                                value='/* Per-checkpoint frag tracking list */'),
+                              end=';'),
+                     Variable(name=Token(idx=418, range=(3445, 3455), value='read_count'),
+                              typename=[3426:3444] 〈wt_shared⌇uint32_t〉,
+                              preComment=Token(idx=411, range=(3397, 3421), value='/* Multi-file support */'),
+                              postComment=Token(idx=421,
+                                                range=(3457, 3516),
+                                                value='/* Count of active read requests using this block handle */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=98,
+                             range=(9960, 10032),
+                             value='/*\n * WT_BLOCK --\n *\tBlock manager handle, references a single file.\n */'),
+            postComment=None,
+            nested=[RecordParts(recordKind=<RecordKind.ENUM: 3>,
+                                name=Token(idx=196, range=(1423, 1585), value='(data/block.h:0:11475:)'),
+                                typename=[1423:1585] 〈(data/block.h:0:11475:)〉,
+                                body=Token(idx=196,
+                                           range=(1423, 1585),
+                                           value='                 /* Live checkpoint status */\n'
+                                                 '        WT_CKPT_NONE = 0,\n'
+                                                 '        WT_CKPT_INPROGRESS,\n'
+                                                 '        WT_CKPT_PANIC_ON_FAILURE,\n'
+                                                 '        WT_CKPT_SALVAGE\n'
+                                                 '    '),
+                                members=[Variable(name=Token(idx=4, range=(54, 66), value='WT_CKPT_NONE'),
+                                                  typename=None,
+                                                  preComment=Token(idx=1,
+                                                                   range=(17, 45),
+                                                                   value='/* Live checkpoint status */'),
+                                                  postComment=None,
+                                                  end=None)],
+                                typedefs=None,
+                                vardefs=[Variable(name=Token(idx=198, range=(1587, 1597), value='ckpt_state'),
+                                                  typename=[1423:1585] 〈(data/block.h:0:11475:)〉,
+                                                  preComment=None,
+                                                  postComment=None,
+                                                  end=';')],
+                                preComment=None,
+                                postComment=None,
+                                nested=None,
+                                parent=...)],
+            parent=None)
+Statement(tokens=[13572:14000] 〈
+⌇/*
+ * WT_BLOCK_DESC --
+ *	The file's description.
+ */⌇
+⌇struct⌇ ⌇__wt_block_desc⌇ ⌇{
+#define WT_BLOCK_MAGIC 120897
+    uint32_t magic; /* 00-03: Magic number */
+#define WT_BLOCK_MAJOR_VERSION 1
+    uint16_t majorv; /* 04-05: Major version */
+#define WT_BLOCK_MINOR_VERSION 0
+    uint16_t minorv; /* 06-07: Minor version */
+
+    uint32_t checksum; /* 08-11: Description block checksum */
+
+    uint32_t unused; /* 12-15: Padding */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=108,
+                                              range=(13573, 13626),
+                                              value="/*\n * WT_BLOCK_DESC --\n *\tThe file's description.\n */"),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=112, range=(13634, 13649), value='__wt_block_desc'),
+            typename=[13634:13649] 〈__wt_block_desc〉,
+            body=Token(idx=114,
+                       range=(13651, 13997),
+                       value='\n'
+                             '#define WT_BLOCK_MAGIC 120897\n'
+                             '    uint32_t magic; /* 00-03: Magic number */\n'
+                             '#define WT_BLOCK_MAJOR_VERSION 1\n'
+                             '    uint16_t majorv; /* 04-05: Major version */\n'
+                             '#define WT_BLOCK_MINOR_VERSION 0\n'
+                             '    uint16_t minorv; /* 06-07: Minor version */\n'
+                             '\n'
+                             '    uint32_t checksum; /* 08-11: Description block checksum */\n'
+                             '\n'
+                             '    uint32_t unused; /* 12-15: Padding */\n'),
+            members=[Variable(name=Token(idx=5, range=(44, 49), value='magic'),
+                              typename=[35:43] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=8, range=(51, 76), value='/* 00-03: Magic number */'),
+                              end=';'),
+                     Variable(name=Token(idx=14, range=(123, 129), value='majorv'),
+                              typename=[114:122] 〈uint16_t〉,
+                              preComment=None,
+                              postComment=Token(idx=17, range=(131, 157), value='/* 04-05: Major version */'),
+                              end=';'),
+                     Variable(name=Token(idx=23, range=(204, 210), value='minorv'),
+                              typename=[195:203] 〈uint16_t〉,
+                              preComment=None,
+                              postComment=Token(idx=26, range=(212, 238), value='/* 06-07: Minor version */'),
+                              end=';'),
+                     Variable(name=Token(idx=32, range=(253, 261), value='checksum'),
+                              typename=[244:252] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=35,
+                                                range=(263, 302),
+                                                value='/* 08-11: Description block checksum */'),
+                              end=';'),
+                     Variable(name=Token(idx=41, range=(317, 323), value='unused'),
+                              typename=[308:316] 〈uint32_t〉,
+                              preComment=None,
+                              postComment=Token(idx=44, range=(325, 345), value='/* 12-15: Padding */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=108,
+                             range=(13573, 13626),
+                             value="/*\n * WT_BLOCK_DESC --\n *\tThe file's description.\n */"),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[14000:14323] 〈/*
+ * WT_BLOCK_DESC_SIZE is the expected structure size -- we verify the build to ensure the compiler
+ * hasn't inserted padding (padding won't cause failure, we reserve the first allocation-size block
+ * of the file for this information, but it would be worth investigation, regardless).
+ */⌇
+⌇#define WT_BLOCK_DESC_SIZE 16
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=117,
+                                              range=(14000, 14292),
+                                              value='/*\n'
+                                                    ' * WT_BLOCK_DESC_SIZE is the expected structure size -- we verify '
+                                                    'the build to ensure the compiler\n'
+                                                    " * hasn't inserted padding (padding won't cause failure, we "
+                                                    'reserve the first allocation-size block\n'
+                                                    ' * of the file for this information, but it would be worth '
+                                                    'investigation, regardless).\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(14301, 14319), value='WT_BLOCK_DESC_SIZE'),
+           args=None,
+           body=Token(idx=0, range=(14320, 14323), value='16'),
+           preComment=Token(idx=117,
+                            range=(14000, 14292),
+                            value='/*\n'
+                                  ' * WT_BLOCK_DESC_SIZE is the expected structure size -- we verify the build to '
+                                  'ensure the compiler\n'
+                                  " * hasn't inserted padding (padding won't cause failure, we reserve the first "
+                                  'allocation-size block\n'
+                                  ' * of the file for this information, but it would be worth investigation, '
+                                  'regardless).\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[14323:14757] 〈
+⌇/*
+ * __wt_block_desc_byteswap --
+ *     Handle big- and little-endian transformation of a description block.
+ */⌇
+⌇static⌇ ⌇WT_INLINE⌇ ⌇void⌇
+⌇__wt_block_desc_byteswap⌇(WT_BLOCK_DESC *desc)⌇
+⌇{
+#ifdef WORDS_BIGENDIAN
+    desc->magic = __wt_bswap32(desc->magic);
+    desc->majorv = __wt_bswap16(desc->majorv);
+    desc->minorv = __wt_bswap16(desc->minorv);
+    desc->checksum = __wt_bswap32(desc->checksum);
+#else
+    WT_UNUSED(desc);
+#endif
+}⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=121,
+                                              range=(14324, 14437),
+                                              value='/*\n'
+                                                    ' * __wt_block_desc_byteswap --\n'
+                                                    ' *     Handle big- and little-endian transformation of a '
+                                                    'description block.\n'
+                                                    ' */'),
+                             postComment=None))
+Function:
+FunctionParts(typename=[14455:14459] 〈void〉,
+              name=Token(idx=129, range=(14460, 14484), value='__wt_block_desc_byteswap'),
+              args=Token(idx=130, range=(14485, 14504), value='WT_BLOCK_DESC *desc'),
+              body=Token(idx=132,
+                         range=(14507, 14755),
+                         value='\n'
+                               '#ifdef WORDS_BIGENDIAN\n'
+                               '    desc->magic = __wt_bswap32(desc->magic);\n'
+                               '    desc->majorv = __wt_bswap16(desc->majorv);\n'
+                               '    desc->minorv = __wt_bswap16(desc->minorv);\n'
+                               '    desc->checksum = __wt_bswap32(desc->checksum);\n'
+                               '#else\n'
+                               '    WT_UNUSED(desc);\n'
+                               '#endif\n'),
+              preComment=Token(idx=121,
+                               range=(14324, 14437),
+                               value='/*\n'
+                                     ' * __wt_block_desc_byteswap --\n'
+                                     ' *     Handle big- and little-endian transformation of a description block.\n'
+                                     ' */'),
+              postComment=None)
+Args:
+[Variable(name=Token(idx=3, range=(15, 19), value='desc'),
+          typename=[0:13] 〈WT_BLOCK_DESC〉,
+          preComment=None,
+          postComment=None,
+          end=None)]
+Vars:
+[]
+Statement(tokens=[14757:16358] 〈
+⌇/*
+ * WT_BLOCK_HEADER --
+ *	Blocks have a common header, a WT_PAGE_HEADER structure followed by a
+ * block-manager specific structure: WT_BLOCK_HEADER is WiredTiger's default.
+ */⌇
+⌇struct⌇ ⌇__wt_block_header⌇ ⌇{
+    /*
+     * We write the page size in the on-disk page header because it makes salvage easier. (If we
+     * don't know the expected page length, we'd have to read increasingly larger chunks from the
+     * file until we find one that checksums, and that's going to be harsh given WiredTiger's
+     * potentially large page sizes.)
+     */
+    uint32_t disk_size; /* 00-03: on-disk page size */
+
+    /*
+     * Page checksums are stored in two places. First, the page checksum is written within the
+     * internal page that references it as part of the address cookie. This is done to improve the
+     * chances of detecting not only disk corruption but other bugs (for example, overwriting a page
+     * with another valid page image). Second, a page's checksum is stored in the disk header. This
+     * is for salvage, so salvage knows it has found a page that may be useful.
+     */
+    uint32_t checksum; /* 04-07: checksum */
+
+/*
+ * No automatic generation: flag values cannot change, they're written to disk.
+ */
+#define WT_BLOCK_DATA_CKSUM 0x1u /* Block data is part of the checksum */
+    uint8_t flags;               /* 08: flags */
+
+    /*
+     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
+     * 32-bit aligned and having a few bytes to play with in the future can't hurt.
+     */
+    uint8_t unused[3]; /* 09-11: unused padding */
+}⌇;⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=True,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=135,
+                                              range=(14758, 14937),
+                                              value='/*\n'
+                                                    ' * WT_BLOCK_HEADER --\n'
+                                                    ' *\tBlocks have a common header, a WT_PAGE_HEADER structure '
+                                                    'followed by a\n'
+                                                    ' * block-manager specific structure: WT_BLOCK_HEADER is '
+                                                    "WiredTiger's default.\n"
+                                                    ' */'),
+                             postComment=None))
+Record:
+RecordParts(recordKind=<RecordKind.STRUCT: 1>,
+            name=Token(idx=139, range=(14945, 14962), value='__wt_block_header'),
+            typename=[14945:14962] 〈__wt_block_header〉,
+            body=Token(idx=141,
+                       range=(14964, 16355),
+                       value='\n'
+                             '    /*\n'
+                             '     * We write the page size in the on-disk page header because it makes salvage '
+                             'easier. (If we\n'
+                             "     * don't know the expected page length, we'd have to read increasingly larger chunks "
+                             'from the\n'
+                             "     * file until we find one that checksums, and that's going to be harsh given "
+                             "WiredTiger's\n"
+                             '     * potentially large page sizes.)\n'
+                             '     */\n'
+                             '    uint32_t disk_size; /* 00-03: on-disk page size */\n'
+                             '\n'
+                             '    /*\n'
+                             '     * Page checksums are stored in two places. First, the page checksum is written '
+                             'within the\n'
+                             '     * internal page that references it as part of the address cookie. This is done to '
+                             'improve the\n'
+                             '     * chances of detecting not only disk corruption but other bugs (for example, '
+                             'overwriting a page\n'
+                             "     * with another valid page image). Second, a page's checksum is stored in the disk "
+                             'header. This\n'
+                             '     * is for salvage, so salvage knows it has found a page that may be useful.\n'
+                             '     */\n'
+                             '    uint32_t checksum; /* 04-07: checksum */\n'
+                             '\n'
+                             '/*\n'
+                             " * No automatic generation: flag values cannot change, they're written to disk.\n"
+                             ' */\n'
+                             '#define WT_BLOCK_DATA_CKSUM 0x1u /* Block data is part of the checksum */\n'
+                             '    uint8_t flags;               /* 08: flags */\n'
+                             '\n'
+                             '    /*\n'
+                             '     * End the structure with 3 bytes of padding: it wastes space, but it leaves the '
+                             'structure\n'
+                             "     * 32-bit aligned and having a few bytes to play with in the future can't hurt.\n"
+                             '     */\n'
+                             '    uint8_t unused[3]; /* 09-11: unused padding */\n'),
+            members=[Variable(name=Token(idx=7, range=(356, 365), value='disk_size'),
+                              typename=[347:355] 〈uint32_t〉,
+                              preComment=Token(idx=2,
+                                               range=(5, 342),
+                                               value='/*\n'
+                                                     '     * We write the page size in the on-disk page header because '
+                                                     'it makes salvage easier. (If we\n'
+                                                     "     * don't know the expected page length, we'd have to read "
+                                                     'increasingly larger chunks from the\n'
+                                                     "     * file until we find one that checksums, and that's going "
+                                                     "to be harsh given WiredTiger's\n"
+                                                     '     * potentially large page sizes.)\n'
+                                                     '     */'),
+                              postComment=Token(idx=10, range=(367, 397), value='/* 00-03: on-disk page size */'),
+                              end=';'),
+                     Variable(name=Token(idx=19, range=(902, 910), value='checksum'),
+                              typename=[893:901] 〈uint32_t〉,
+                              preComment=Token(idx=14,
+                                               range=(403, 888),
+                                               value='/*\n'
+                                                     '     * Page checksums are stored in two places. First, the page '
+                                                     'checksum is written within the\n'
+                                                     '     * internal page that references it as part of the address '
+                                                     'cookie. This is done to improve the\n'
+                                                     '     * chances of detecting not only disk corruption but other '
+                                                     'bugs (for example, overwriting a page\n'
+                                                     "     * with another valid page image). Second, a page's checksum "
+                                                     'is stored in the disk header. This\n'
+                                                     '     * is for salvage, so salvage knows it has found a page that '
+                                                     'may be useful.\n'
+                                                     '     */'),
+                              postComment=Token(idx=22, range=(912, 933), value='/* 04-07: checksum */'),
+                              end=';'),
+                     Variable(name=Token(idx=31, range=(1108, 1113), value='flags'),
+                              typename=[1100:1107] 〈uint8_t〉,
+                              preComment=None,
+                              postComment=Token(idx=34, range=(1129, 1144), value='/* 08: flags */'),
+                              end=';'),
+                     Variable(name=Token(idx=43, range=(1352, 1358), value='unused'),
+                              typename=[1344:1351] 〈uint8_t〉,
+                              preComment=Token(idx=38,
+                                               range=(1150, 1339),
+                                               value='/*\n'
+                                                     '     * End the structure with 3 bytes of padding: it wastes '
+                                                     'space, but it leaves the structure\n'
+                                                     '     * 32-bit aligned and having a few bytes to play with in the '
+                                                     "future can't hurt.\n"
+                                                     '     */'),
+                              postComment=Token(idx=47, range=(1363, 1390), value='/* 09-11: unused padding */'),
+                              end=';')],
+            typedefs=None,
+            vardefs=[],
+            preComment=Token(idx=135,
+                             range=(14758, 14937),
+                             value='/*\n'
+                                   ' * WT_BLOCK_HEADER --\n'
+                                   ' *\tBlocks have a common header, a WT_PAGE_HEADER structure followed by a\n'
+                                   " * block-manager specific structure: WT_BLOCK_HEADER is WiredTiger's default.\n"
+                                   ' */'),
+            postComment=None,
+            nested=None,
+            parent=None)
+Statement(tokens=[16358:16535] 〈/*
+ * WT_BLOCK_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
+ * inserts padding it will break the world.
+ */⌇
+⌇#define WT_BLOCK_HEADER_SIZE 12
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=144,
+                                              range=(16358, 16502),
+                                              value='/*\n'
+                                                    ' * WT_BLOCK_HEADER_SIZE is the number of bytes we allocate for '
+                                                    'the structure: if the compiler\n'
+                                                    ' * inserts padding it will break the world.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(16511, 16531), value='WT_BLOCK_HEADER_SIZE'),
+           args=None,
+           body=Token(idx=0, range=(16532, 16535), value='12'),
+           preComment=Token(idx=144,
+                            range=(16358, 16502),
+                            value='/*\n'
+                                  ' * WT_BLOCK_HEADER_SIZE is the number of bytes we allocate for the structure: if '
+                                  'the compiler\n'
+                                  ' * inserts padding it will break the world.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[16535:16943] 〈
+⌇/*
+ * __wt_block_header_byteswap_copy --
+ *     Handle big- and little-endian transformation of a header block, copying from a source to a
+ *     target.
+ */⌇
+⌇static⌇ ⌇WT_INLINE⌇ ⌇void⌇
+⌇__wt_block_header_byteswap_copy⌇(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)⌇
+⌇{
+    *to = *from;
+#ifdef WORDS_BIGENDIAN
+    to->disk_size = __wt_bswap32(from->disk_size);
+    to->checksum = __wt_bswap32(from->checksum);
+#endif
+}⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=148,
+                                              range=(16536, 16693),
+                                              value='/*\n'
+                                                    ' * __wt_block_header_byteswap_copy --\n'
+                                                    ' *     Handle big- and little-endian transformation of a header '
+                                                    'block, copying from a source to a\n'
+                                                    ' *     target.\n'
+                                                    ' */'),
+                             postComment=None))
+Function:
+FunctionParts(typename=[16711:16715] 〈void〉,
+              name=Token(idx=156, range=(16716, 16747), value='__wt_block_header_byteswap_copy'),
+              args=Token(idx=157, range=(16748, 16790), value='WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to'),
+              body=Token(idx=159,
+                         range=(16793, 16941),
+                         value='\n'
+                               '    *to = *from;\n'
+                               '#ifdef WORDS_BIGENDIAN\n'
+                               '    to->disk_size = __wt_bswap32(from->disk_size);\n'
+                               '    to->checksum = __wt_bswap32(from->checksum);\n'
+                               '#endif\n'),
+              preComment=Token(idx=148,
+                               range=(16536, 16693),
+                               value='/*\n'
+                                     ' * __wt_block_header_byteswap_copy --\n'
+                                     ' *     Handle big- and little-endian transformation of a header block, copying '
+                                     'from a source to a\n'
+                                     ' *     target.\n'
+                                     ' */'),
+              postComment=None)
+Args:
+[Variable(name=Token(idx=3, range=(17, 21), value='from'),
+          typename=[0:15] 〈WT_BLOCK_HEADER〉,
+          preComment=None,
+          postComment=None,
+          end=','),
+ Variable(name=Token(idx=9, range=(40, 42), value='to'),
+          typename=[23:38] 〈WT_BLOCK_HEADER〉,
+          preComment=None,
+          postComment=None,
+          end=None)]
+Vars:
+[]
+Statement(tokens=[16943:17233] 〈
+⌇/*
+ * __wt_block_header_byteswap --
+ *     Handle big- and little-endian transformation of a header block.
+ */⌇
+⌇static⌇ ⌇WT_INLINE⌇ ⌇void⌇
+⌇__wt_block_header_byteswap⌇(WT_BLOCK_HEADER *blk)⌇
+⌇{
+#ifdef WORDS_BIGENDIAN
+    __wt_block_header_byteswap_copy(blk, blk);
+#else
+    WT_UNUSED(blk);
+#endif
+}⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=162,
+                                              range=(16944, 17054),
+                                              value='/*\n'
+                                                    ' * __wt_block_header_byteswap --\n'
+                                                    ' *     Handle big- and little-endian transformation of a header '
+                                                    'block.\n'
+                                                    ' */'),
+                             postComment=None))
+Function:
+FunctionParts(typename=[17072:17076] 〈void〉,
+              name=Token(idx=170, range=(17077, 17103), value='__wt_block_header_byteswap'),
+              args=Token(idx=171, range=(17104, 17124), value='WT_BLOCK_HEADER *blk'),
+              body=Token(idx=173,
+                         range=(17127, 17231),
+                         value='\n'
+                               '#ifdef WORDS_BIGENDIAN\n'
+                               '    __wt_block_header_byteswap_copy(blk, blk);\n'
+                               '#else\n'
+                               '    WT_UNUSED(blk);\n'
+                               '#endif\n'),
+              preComment=Token(idx=162,
+                               range=(16944, 17054),
+                               value='/*\n'
+                                     ' * __wt_block_header_byteswap --\n'
+                                     ' *     Handle big- and little-endian transformation of a header block.\n'
+                                     ' */'),
+              postComment=None)
+Args:
+[Variable(name=Token(idx=3, range=(17, 20), value='blk'),
+          typename=[0:15] 〈WT_BLOCK_HEADER〉,
+          preComment=None,
+          postComment=None,
+          end=None)]
+Vars:
+[]
+Statement(tokens=[17233:17448] 〈
+⌇/*
+ * WT_BLOCK_HEADER_BYTE
+ * WT_BLOCK_HEADER_BYTE_SIZE --
+ *	The first usable data byte on the block (past the combined headers).
+ */⌇
+⌇#define WT_BLOCK_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_HEADER_SIZE)
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=176,
+                                              range=(17234, 17368),
+                                              value='/*\n'
+                                                    ' * WT_BLOCK_HEADER_BYTE\n'
+                                                    ' * WT_BLOCK_HEADER_BYTE_SIZE --\n'
+                                                    ' *\tThe first usable data byte on the block (past the combined '
+                                                    'headers).\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(17377, 17402), value='WT_BLOCK_HEADER_BYTE_SIZE'),
+           args=None,
+           body=Token(idx=0, range=(17403, 17448), value='(WT_PAGE_HEADER_SIZE + WT_BLOCK_HEADER_SIZE)'),
+           preComment=Token(idx=176,
+                            range=(17234, 17368),
+                            value='/*\n'
+                                  ' * WT_BLOCK_HEADER_BYTE\n'
+                                  ' * WT_BLOCK_HEADER_BYTE_SIZE --\n'
+                                  ' *\tThe first usable data byte on the block (past the combined headers).\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[17448:17539] 〈#define WT_BLOCK_HEADER_BYTE(dsk) ((void *)((uint8_t *)(dsk) + WT_BLOCK_HEADER_BYTE_SIZE))
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(17456, 17476), value='WT_BLOCK_HEADER_BYTE'),
+           args=[Token(idx=0, range=(17477, 17480), value='dsk')],
+           body=Token(idx=0, range=(17482, 17539), value='((void *)((uint8_t *)(dsk) + WT_BLOCK_HEADER_BYTE_SIZE))'),
+           preComment=None,
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[17539:18262] 〈
+⌇/*
+ * We don't compress or encrypt the block's WT_PAGE_HEADER or WT_BLOCK_HEADER structures because we
+ * need both available with decompression or decryption. We use the WT_BLOCK_HEADER checksum and
+ * on-disk size during salvage to figure out where the blocks are, and we use the WT_PAGE_HEADER
+ * in-memory size during decompression and decryption to know how large a target buffer to allocate.
+ * We can only skip the header information when doing encryption, but we skip the first 64B when
+ * doing compression; a 64B boundary may offer better alignment for the underlying compression
+ * engine, and skipping 64B shouldn't make any difference in terms of compression efficiency.
+ */⌇
+⌇#define WT_BLOCK_COMPRESS_SKIP 64
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=181,
+                                              range=(17540, 18227),
+                                              value='/*\n'
+                                                    " * We don't compress or encrypt the block's WT_PAGE_HEADER or "
+                                                    'WT_BLOCK_HEADER structures because we\n'
+                                                    ' * need both available with decompression or decryption. We use '
+                                                    'the WT_BLOCK_HEADER checksum and\n'
+                                                    ' * on-disk size during salvage to figure out where the blocks '
+                                                    'are, and we use the WT_PAGE_HEADER\n'
+                                                    ' * in-memory size during decompression and decryption to know how '
+                                                    'large a target buffer to allocate.\n'
+                                                    ' * We can only skip the header information when doing encryption, '
+                                                    'but we skip the first 64B when\n'
+                                                    ' * doing compression; a 64B boundary may offer better alignment '
+                                                    'for the underlying compression\n'
+                                                    " * engine, and skipping 64B shouldn't make any difference in "
+                                                    'terms of compression efficiency.\n'
+                                                    ' */'),
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(18236, 18258), value='WT_BLOCK_COMPRESS_SKIP'),
+           args=None,
+           body=Token(idx=0, range=(18259, 18262), value='64'),
+           preComment=Token(idx=181,
+                            range=(17540, 18227),
+                            value='/*\n'
+                                  " * We don't compress or encrypt the block's WT_PAGE_HEADER or WT_BLOCK_HEADER "
+                                  'structures because we\n'
+                                  ' * need both available with decompression or decryption. We use the WT_BLOCK_HEADER '
+                                  'checksum and\n'
+                                  ' * on-disk size during salvage to figure out where the blocks are, and we use the '
+                                  'WT_PAGE_HEADER\n'
+                                  ' * in-memory size during decompression and decryption to know how large a target '
+                                  'buffer to allocate.\n'
+                                  ' * We can only skip the header information when doing encryption, but we skip the '
+                                  'first 64B when\n'
+                                  ' * doing compression; a 64B boundary may offer better alignment for the underlying '
+                                  'compression\n'
+                                  " * engine, and skipping 64B shouldn't make any difference in terms of compression "
+                                  'efficiency.\n'
+                                  ' */'),
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=True)
+Statement(tokens=[18262:18318] 〈#define WT_BLOCK_ENCRYPT_SKIP WT_BLOCK_HEADER_BYTE_SIZE
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=True,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Macro:
+MacroParts(name=Token(idx=0, range=(18270, 18291), value='WT_BLOCK_ENCRYPT_SKIP'),
+           args=None,
+           body=Token(idx=0, range=(18292, 18318), value='WT_BLOCK_HEADER_BYTE_SIZE'),
+           preComment=None,
+           is_va_args=False,
+           is_wellformed=True,
+           is_const=False)
+Statement(tokens=[18318:18530] 〈
+⌇/*
+ * __wt_block_header --
+ *     Return the size of the block-specific header.
+ */⌇
+⌇static⌇ ⌇WT_INLINE⌇ ⌇u_int⌇
+⌇__wt_block_header⌇(WT_BLOCK *block)⌇
+⌇{
+    WT_UNUSED(block);
+
+    return ((u_int)WT_BLOCK_HEADER_SIZE);
+}⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=186,
+                                              range=(18319, 18402),
+                                              value='/*\n'
+                                                    ' * __wt_block_header --\n'
+                                                    ' *     Return the size of the block-specific header.\n'
+                                                    ' */'),
+                             postComment=None))
+Function:
+FunctionParts(typename=[18420:18425] 〈u_int〉,
+              name=Token(idx=194, range=(18426, 18443), value='__wt_block_header'),
+              args=Token(idx=195, range=(18444, 18459), value='WT_BLOCK *block'),
+              body=Token(idx=197,
+                         range=(18462, 18528),
+                         value='\n    WT_UNUSED(block);\n\n    return ((u_int)WT_BLOCK_HEADER_SIZE);\n'),
+              preComment=Token(idx=186,
+                               range=(18319, 18402),
+                               value='/*\n'
+                                     ' * __wt_block_header --\n'
+                                     ' *     Return the size of the block-specific header.\n'
+                                     ' */'),
+              postComment=None)
+Args:
+[Variable(name=Token(idx=3, range=(10, 15), value='block'),
+          typename=[0:8] 〈WT_BLOCK〉,
+          preComment=None,
+          postComment=None,
+          end=None)]
+Vars:
+[]
+Statement(tokens=[18530:18869] 〈
+⌇/*
+ * __wt_block_eligible_for_sweep --
+ *     Return true if the block meets requirements for sweeping. The check that read reference count
+ *     is zero is made elsewhere.
+ */⌇
+⌇static⌇ ⌇WT_INLINE⌇ ⌇bool⌇
+⌇__wt_block_eligible_for_sweep⌇(WT_BM *bm, WT_BLOCK *block)⌇
+⌇{
+    return (!block->remote && block->objectid <= bm->max_flushed_objectid);
+}⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=200,
+                                              range=(18531, 18708),
+                                              value='/*\n'
+                                                    ' * __wt_block_eligible_for_sweep --\n'
+                                                    ' *     Return true if the block meets requirements for sweeping. '
+                                                    'The check that read reference count\n'
+                                                    ' *     is zero is made elsewhere.\n'
+                                                    ' */'),
+                             postComment=None))
+Function:
+FunctionParts(typename=[18726:18730] 〈bool〉,
+              name=Token(idx=208, range=(18731, 18760), value='__wt_block_eligible_for_sweep'),
+              args=Token(idx=209, range=(18761, 18787), value='WT_BM *bm, WT_BLOCK *block'),
+              body=Token(idx=211,
+                         range=(18790, 18867),
+                         value='\n    return (!block->remote && block->objectid <= bm->max_flushed_objectid);\n'),
+              preComment=Token(idx=200,
+                               range=(18531, 18708),
+                               value='/*\n'
+                                     ' * __wt_block_eligible_for_sweep --\n'
+                                     ' *     Return true if the block meets requirements for sweeping. The check that '
+                                     'read reference count\n'
+                                     ' *     is zero is made elsewhere.\n'
+                                     ' */'),
+              postComment=None)
+Args:
+[Variable(name=Token(idx=3, range=(7, 9), value='bm'),
+          typename=[0:5] 〈WT_BM〉,
+          preComment=None,
+          postComment=None,
+          end=','),
+ Variable(name=Token(idx=9, range=(21, 26), value='block'),
+          typename=[11:19] 〈WT_BLOCK〉,
+          preComment=None,
+          postComment=None,
+          end=None)]
+Vars:
+[]
