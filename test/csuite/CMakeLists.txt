@@ -438,3 +438,11 @@ define_c_test(
     # This test takes over 15 minutes under TSan testing
     LABEL "long_running"
 )
+
+define_c_test(
+    TARGET test_wt12945_flags_eviction_prefetch
+    SOURCES wt12945_flags_eviction_prefetch/main.c
+    DIR_NAME wt12945_flags_eviction_prefetch
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
