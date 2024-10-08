@@ -28,6 +28,12 @@
 #define WT_READ_WONT_NEED 0x4000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
+/*
+ * Helper: in order to read a Btree without triggering eviction we have to ignore the cache size and
+ * disable splits.
+ */
+#define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
 #define WT_REC_CALL_URGENT 0x002u
@@ -320,7 +326,7 @@ struct __wt_page_modify {
     uint64_t obsolete_check_txn;
     wt_timestamp_t obsolete_check_timestamp;
 
-    /* The largest transaction seen on the page by reconciliation. */
+    /* The largest transaction and timestamp seen on the page by reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 

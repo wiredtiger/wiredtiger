@@ -128,6 +128,15 @@ functions:
     type: setup
     params:
       directory: wiredtiger
+  "generate github token": &gen_github_token
+    command: github.generate_token
+    params:
+      owner: wiredtiger
+      repo: automation-scripts
+      expansion_name: generated_token
+      permissions:
+          metadata: read
+          contents: read
   "get automation-scripts": &get_automation_scripts
     command: shell.exec
     type: setup
@@ -137,7 +146,7 @@ functions:
         set -o errexit
         set -o verbose
         if ! [ -d "./automation-scripts" ]; then
-          git clone git@github.com:wiredtiger/automation-scripts.git
+          git clone https://x-access-token:${generated_token}@github.com/wiredtiger/automation-scripts.git
         fi
   "fetch artifacts": &fetch_artifacts
     command: s3.get
@@ -369,6 +378,7 @@ functions:
         fi
         echo "Ending 'make wiredtiger' step"
   "compile wiredtiger":
+    - *gen_github_token
     - *get_automation_scripts
     - *configure_wiredtiger
     - *make_wiredtiger
@@ -544,7 +554,7 @@ functions:
             exit 0
           fi
 
-          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
+          git clone https://github.com/wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
           # Branches to update are defined through an expansion variable.
@@ -1127,6 +1137,7 @@ functions:
           ${python_binary|python3} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
   "upload stats to atlas":
+    - *gen_github_token
     - *get_automation_scripts
     - command: shell.exec
       params:
@@ -2719,6 +2730,7 @@ tasks:
   - name: configure-combinations
     commands:
       - func: "get project"
+      - func: "generate github token"
       - func: "get automation-scripts"
       - command: shell.exec
         params:
@@ -2978,6 +2990,11 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/${dependent_task}_${build_id}-${execution}/full_coverage_report.json
           bucket: build_external
           local_file: wiredtiger/coverage_report/full_coverage_report.json
+      - command: github.generate_token
+        params:
+          expansion_name: github_token
+          permissions:
+            pull_requests: write
       - command: shell.exec
         vars:
           dependent_task: "generate-coverage-report"
@@ -2998,13 +3015,13 @@ tasks:
                 echo "Detected Github PR ${github_pr_number}"
                 pr_args+="--github_repo ${github_org}/${github_repo} "
                 pr_args+="--github_pr_number ${github_pr_number} "
-                pr_args+="--github_token ${github_app_token} "
+                pr_args+="--github_token ${github_token} "
             fi
 
             if [ ${is_patch|false} = true ]; then
-                ./test/evergreen/coverage-report.sh true ${python_binary|python3} ${github_commit} "${pr_args}"
+              ./test/evergreen/coverage-report.sh true ${python_binary|python3} ${github_commit} "$pr_args"
             else
-                ./test/evergreen/coverage-report.sh false ${python_binary|python3} ${github_commit} "${pr_args}"
+              ./test/evergreen/coverage-report.sh false ${python_binary|python3} ${github_commit} "$pr_args"
             fi
 
       - func: "code coverage publish report"
@@ -3192,6 +3209,7 @@ tasks:
   - name: long-test
     commands:
       - func: "get project"
+      - func: "generate github token"
       - func: "get automation-scripts"
       - func: "configure wiredtiger"
       - func: "make wiredtiger"
