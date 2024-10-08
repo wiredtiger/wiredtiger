@@ -10,11 +10,13 @@ import networkx as nx
 # These can be reviewed manually
 AMBIG_NODE = "Ambiguous linking or parsing failed"
 
+# A link in the dependency graph from module A to module B.
+# The class contains details of why the link exists - what functions, macros, struct accesses cause the dependency
 @dataclass
 class Link:
     func_calls: Counter= field(default_factory=lambda: Counter())
     types_used: Counter= field(default_factory=lambda: Counter())
-    # struct -> field: num_accesses
+    # struct_accesses format: {struct: {field: num_accesses}}
     struct_accesses: defaultdict = field(default_factory=lambda: defaultdict(Counter)) 
 
     def print_struct_accesses(self):
@@ -65,7 +67,7 @@ def incr_edge_type_use(graph, calling_module, dest_module, type_use):
 
 
 # Walk all files and create a module-to-module dependency graph.
-# We'll stick reason for the dependency (function call, struct access, 
+# We'll stick the reason for the dependency (function call, struct access, 
 # use of type) in the edge metadata
 def build_graph(parsed_files: List[File]):
 
@@ -95,7 +97,7 @@ def build_graph(parsed_files: List[File]):
     for file in parsed_files:
         calling_module = file.module
         graph.add_node(file.module)
-        # TODO - struct type decls
+
         for func in file.functions:
             for field_access in func.fields_accessed:
                 structs_with_field = field_to_struct_map[field_access]

@@ -31,6 +31,7 @@ header_mappings = {
     "json.h": "support",
     "misc_inline.h": "include",
     "misc.h": "include",
+    "modify_inline.h": "btree",
     "msvc.h": "include",
     "mutex_inline.h": "support",
     "mutex.h": "support",

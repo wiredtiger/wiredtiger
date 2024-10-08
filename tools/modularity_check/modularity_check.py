@@ -42,7 +42,7 @@ def main():
 
     args = parse_args()
 
-    parsed_files = parse_wiredtiger_files(debug=True)
+    parsed_files = parse_wiredtiger_files(debug=False)
     graph, ambiguous_fields = build_graph(parsed_files)
 
     if args.command == "who_uses":

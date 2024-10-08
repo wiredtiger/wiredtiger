@@ -36,8 +36,10 @@ class File:
     types_defined: list[str]
     structs: list[Struct]
 
-# Return a list of all child, grandchild, and so on nodes with the type `type`
-# Optionally stop searching when an `ignore` node is encountered
+# Return a list of all descendants (children, grandchildren, etc) of a provided note if their 
+# type is listed in `wanted`. Don't explore child nodes whose type belongs to `ignore`.
+# If `top_level_only` is set then stop searching a subtree when the first instance of `wanted` 
+# is found. 
 def descendants_with_name(node, wanted: list[str], ignore: list[str]=[], top_level_only=False):
     matches = []
 
@@ -56,29 +58,16 @@ def descendants_with_name(node, wanted: list[str], ignore: list[str]=[], top_lev
 
     return matches
 
-def has_descendant(node, type):
-    if node.type == type:
-        return True
-
-    if node.descendant_count != 0:
-        for child in node.children:
-            if(has_descendant(child, type)):
-                return True
-
-    return False
-
-
 # Parse a `struct __wt_foo {` node
 def parse_struct(node):
     if node.child_by_field_name("name") != None:
         struct_name = node.child_by_field_name("name").text.decode()
-        # Cast the type name from __wt_foo to WT_FOO
+        # Convert the type name from __wt_foo to WT_FOO for convenience
         struct_name = struct_name.upper().lstrip("__")
     else:
         struct_name = "NO_NAME_FOUND"
 
-    # Bypass all the processing. Drill down to the field_identifier nodes and use those
-    # TODO - dupe names when #ifdef?
+    # Don't bother unpacking the AST. Just find all descendant field_identifier nodes and use those
     declared_fields = descendants_with_name(node, ["field_identifier"])
     field_names = [n.text.decode() for n in declared_fields]
 
@@ -109,6 +98,8 @@ def parse_typedef_struct(node):
     struct.name = node.child_by_field_name("declarator").text.decode()
     return struct
 
+# Some functions are commonly used throughout the codebase.
+# Rather than add noise just ignore these functions
 def filter_common_calls(functions_called) -> List[str]:
 
     # libc funcs and variadics vars
@@ -162,7 +153,7 @@ def parse_function(node):
     param_type_names = [param.text.decode() for param in param_types]
 
     # Types declared in the function
-    # There won't be type declaration inside function calls or expressions
+    # There won't be type declarations inside function calls or expressions. Ignore those subtrees.
     type_declarations = descendants_with_name(function_body, ["declaration"], ignore=["call_expression", "expression_statement", "parenthesized_expression"])
     declared_types = [param.child_by_field_name("type") for param in type_declarations]
     declared_type_names = [param.text.decode() for param in declared_types]
@@ -175,7 +166,7 @@ def parse_function(node):
 # #define __wt_hazard_set(session, walk, busyp) ...
 # #define WT_REF_SET_STATE(ref, s)
 # TODO
-# Small issue - tree-sitter treats the macro body as one big blob. This means we can't easily 
+# tree-sitter treats the macro body as one big blob. This means we can't easily 
 # identify function calls or field references inside the macro body.
 # We can't re-parse the do { } while(0) loop either since string concatenation tokens (##) 
 # aren't valid C. For now just track that the function exists.
@@ -196,11 +187,10 @@ def parse_funcs(root_node):
             funcs.append(parse_function(func_node)) 
         elif func_node.type == "function_declarator":
             # Function pointers
-            # print(f"func_pointer!\n{func_node.text.decode()}\n\n======================\n")
             func_ptr_decl_node = func_node.child_by_field_name("declarator")
 
             if len(func_ptr_decl_node.children) == 0:
-                # Bit of a hack. Catches static func definitions like 
+                # Bit of a hack. Catches static function prototypes like 
                 # `static int __log_newfile(WT_SESSION_IMPL *, bool, bool *);`
                 # We'll parse them when we encounter the definitions below
                 continue
@@ -231,7 +221,7 @@ def parse_types(root_node) -> Tuple[list[Struct], list[str]]:
     for type_node in type_nodes:
 
         if type_node.type in ["struct_specifier", "union_specifier"]:
-            # Unions are rare in WT and they parse with the struct parsing code. Treat 'em identical
+            # Unions are rare in WT and they parse with the struct parsing code. Treat them like structs
             if type_node.child_by_field_name("body") == None:
                 # Ignore forward declarations `struct __wt_foo`
                 continue
@@ -240,8 +230,8 @@ def parse_types(root_node) -> Tuple[list[Struct], list[str]]:
         elif type_node.type == "type_definition":
             # There's three types of type definitions:
             # 1. `typedef struct {} WT_FOO` which we want,
-            # 2. `typedef struct __wt_stuff WT_STUFF;` which is annoyingly outside of extern.h. Ignore
-            # 3. Non struct typedefs (typedef int wt_int), where we just want the type name
+            # 2. `typedef struct __wt_stuff WT_STUFF;`. Ignore this.
+            # 3. Non struct typedefs (typedef int wt_int), where we just want to extract the type name
 
             typedef_contents = type_node.child_by_field_name("type")
             if typedef_contents.type in ["struct_specifier", "union_specifier"]:
@@ -259,14 +249,14 @@ def parse_types(root_node) -> Tuple[list[Struct], list[str]]:
             else:
                 raise Exception(f"Unknown typedef contents: {typedef_contents}\n{type_node.text.decode()}")
 
-    # Sanity check. We didn't find multiple definitions of the a struct. (They aren't defined in #if branches)
+    # Sanity check. We didn't find multiple definitions of a struct. (They aren't defined in #if branches)
     assert(len(structs) == len(set([s.name for s in structs])))
 
     # Non-struct types can be typedeffed in multiple #if/else branches. Merge them into one
     non_struct_types = list(set(non_struct_types))
     return (structs, non_struct_types)
 
-# Due to #ifdefs a function may be defined multiple times. Merge the instances together
+# Due to #ifdef branches a function may be defined multiple times. Merge the instances together
 def merge_duplicate_funcs(funcs: list[Function]) -> list[Function]:
     seen_funcs: Dict[str, Function] = {}
     for func in funcs:
@@ -302,16 +292,19 @@ def preprocess_file(bytes):
     as_str = as_str.replace("WT_CACHE_LINE_PAD_BEGIN", "WT_CACHE_LINE_PAD_BEGIN;")
     as_str = as_str.replace("WT_CACHE_LINE_PAD_END", "WT_CACHE_LINE_PAD_END;")
 
+    # convert WT_PACKED_STRUCT macros to struct {};
     as_str = re.sub(r"WT_PACKED_STRUCT_BEGIN\(([^)]+)\)", r"struct \1 {", as_str)
     as_str = re.sub(r"^WT_PACKED_STRUCT_END", r"\};", as_str, flags=re.MULTILINE)
 
+    # Function attributes aren't used by this script. 86 them
     as_str = as_str.replace("WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))", "")
     as_str = as_str.replace("WT_ATTRIBUTE_LIBRARY_VISIBLE", "")
 
-    # Expand __F(foo) macro to (*foo) 
+    # Expand the __F(foo) macro to (*foo) manually. Now tree-sitter can parse function pointers. 
     as_str = re.sub(r"__F\(([^)]+)\)", r"(*\1)", as_str)
 
-    # Strip single comments inside macro bodies. The grammar can't handle them
+    # Strip comments inside macro bodies (any comment with \ at the end of the line). 
+    # The grammar can't handle them
     # Single line comments at end of a code line
     as_str = re.sub(r"(/\*.*\*.\s+)\\", r"\\", as_str)
     # Multi-line comments (any line starting with /* or *)
@@ -320,9 +313,6 @@ def preprocess_file(bytes):
     # Interferes with determining function return types
     as_str = as_str.replace("WT_INLINE", "")
     as_str = as_str.replace("wt_shared", "")
-
-    # # Just remove the macro string cat lines. I think we can ignore macro bodies, but the ## breaks parsing
-    # as_str = re.sub(r"[^\n]#+", r"", as_str)
 
     return as_str.encode()
 
@@ -340,9 +330,12 @@ def process_file(file_path):
 
 # Convert a file path (../../src/evict/evict_lru.c) into it's module and file_name: 
 #     (evict, evict_lru.c)
-# NOTE!! This contains special handling for include/*.h files
-# NOTE!! This assumes a flat directory. src/checksum has subfolders so we merge them all 
-#        into a single checksum module
+# NOTE! This contains special handling for .h files in src/include/ based on either 
+#       the file name or the definitions in header_mappings.py. We assume files like 
+#       src/include/log_inline.h belong to the log module even though they aren't 
+#       (currently) defined in the src/log/ folder.
+# NOTE! This assumes a flat directory. src/checksum has subfolders so we merge them all 
+#       into a single checksum module
 def file_path_to_module_and_file(file_path: str) -> (str, str):
 
     # strip the leading path. We only care about details at the module level
@@ -385,7 +378,7 @@ def file_path_to_module_and_file(file_path: str) -> (str, str):
 
 # source_files --
 #    Return a list of the WiredTiger source file names.
-#    Fuction copied and adapted from dist/dist.py
+#    This function is copied and adapted from dist/dist.py
 def source_files():
     file_re = re.compile(r'^\w')
     for line in glob.iglob('../../src/*/*.h'):
@@ -397,7 +390,7 @@ def source_files():
         if file_re.match(line):
             yield os.path.join('../..', line.split()[0])
 
-# Walk the Wiredtiger source tree and parse all the relvant C source files.
+# Walk the Wiredtiger source tree and parse all the relevant C source files.
 # Return the processed results as a list of files
 def parse_wiredtiger_files(debug=False) -> List[File]:
 

@@ -2,7 +2,7 @@ import networkx as nx
 
 from typing import List, Set
 
-from parse_wt_ast import File, Struct
+from parse_wt_ast import File, Struct, Function
 from build_dependency_graph import AMBIG_NODE
 
 # Print the links that form the dependency of `from_node` on `to_node`
@@ -103,7 +103,3 @@ def generate_dependency_file(graph: nx.DiGraph):
                     # Don't report the ambigious node
                     continue
                 f.write(f"{caller} -> {callee}\n")
-
-    # TODO - Add logic to check for changes to a pre-existing dep_file. 
-    # This should warn when a new line is added and notify when one is removed.
-    # To check - if this is infrequent over past commits we might be able to add it to s_all
