@@ -121,7 +121,9 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             # checkpoint during the open stage.
             expected_ckpts = 3 if multiplier > 1 else 2
             self.assertEqual(num_ckpt, expected_ckpts)
-            self.assertEqual(running, 0)
+            # The checkpoint state, running in this case should be set to 10(WT_CHECKPOINT_STATE_INACTIVE)
+            # after the checkpoint.
+            self.assertEqual(running, 10)
             self.assertEqual(prep_running, 0)
             # Assert if this loop continues for more than 100 iterations.
             self.assertLess(multiplier, 100)
