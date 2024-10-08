@@ -48,6 +48,20 @@ void *thread_do_prefetch(void *);
 static uint64_t ready_counter;
 
 /*
+ * get_value --
+ *     Wrapper providing the correct typing for the WT_CURSOR::get_value variadic argument.
+ */
+static uint64_t
+get_key(TEST_OPTS *opts, WT_CURSOR *cursor)
+{
+    uint64_t value64;
+    WT_UNUSED(opts);
+
+    testutil_check(cursor->get_key(cursor, &value64));
+    return (value64);
+}
+
+/*
  * set_key --
  *     Wrapper providing the correct typing for the WT_CURSOR::set_key variadic argument.
  */
@@ -92,9 +106,13 @@ main(int argc, char *argv[])
     TEST_OPTS *opts, _opts;
     WT_CURSOR *cursor;
     WT_SESSION *wt_session;
+    int ret;
     pthread_t prefetch_thread_id;
     uint64_t ready_counter_local;
     uint64_t record_idx;
+    const char *wiredtiger_open_config =
+      "create,cache_size=2G,eviction=(threads_max=5),"
+      "statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -106,18 +124,15 @@ main(int argc, char *argv[])
     opts->table_type = TABLE_ROW; /* Force desired value */
     testutil_recreate_dir(opts->home);
 
-    testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,cache_size=2G,eviction=(threads_max=5),statistics=(all),statistics_log=(json,on_"
-      "close,wait=1)",
-      &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &opts->conn));
 
     /* Create the session for eviction. */
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
     testutil_check(
       wt_session->create(wt_session, opts->uri, "key_format=Q,value_format=Q,leaf_page_max=32k"));
 
-    /* Warm-up: Insert documents until earlier documents are forced out of the cache */
-    testutil_check(wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor));
+    /* Warm-up: Insert some documents */
+    testutil_check((ret = wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor)));
     for (record_idx = 0; record_idx < opts->nrecords; ++record_idx) {
         /* Do one insertion */
         set_key(cursor, record_idx);
@@ -132,6 +147,13 @@ main(int argc, char *argv[])
         }
     }
     testutil_check(cursor->close(cursor));
+
+    /* Close and reopen the connection to force the warm-up documents out of the cache. */
+    testutil_check(wt_session->close(wt_session, NULL));
+    testutil_check(opts->conn->close(opts->conn, ""));
+
+    testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &opts->conn));
+    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
 
     /* Create the thread for pre-fetch and wait for it to be ready. */
     testutil_check(pthread_create(&prefetch_thread_id, NULL, thread_do_prefetch, opts));
@@ -183,6 +205,8 @@ thread_do_prefetch(void *arg)
     WT_CURSOR *cursor;
     WT_SESSION *wt_session;
     uint64_t idx;
+    int ret;
+    uint64_t key;
     uint64_t value;
 
     opts = (TEST_OPTS *)arg;
@@ -197,17 +221,22 @@ thread_do_prefetch(void *arg)
     (void)__wt_atomic_add64(&ready_counter, 1);
 
     /* Read to trigger prefetch */
-    for (idx = 0; idx < FIRST_RECORD_TO_CHANGE + NUM_EVICTION; ++idx) {
-        set_key(cursor, idx);
-        testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
-        testutil_check(cursor->search(cursor));
+    idx = 0;
+    while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
+        WT_ERR(ret);
+        key = get_key(opts, cursor);
         value = get_value(opts, cursor);
-        testutil_check(wt_session->rollback_transaction(wt_session, NULL));
         if (idx % (10 * WT_THOUSAND) == 0) {
             printf("prefetch thread: read key=%" PRIu64 ", value=%" PRIu64 "\n", idx, value);
             fflush(stdout);
         }
+        if (key == (FIRST_RECORD_TO_CHANGE - 30))
+            break;              /* Close enough for prefetch to do the rest. */
+        __wt_sleep(0,WT_THOUSAND); /* 1 millisecond */
+        ++idx;
     }
+
+err:
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));
 
