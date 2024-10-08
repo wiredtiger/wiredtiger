@@ -28,6 +28,8 @@ __wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     btree = S2BT(session);
 
     memset(meta, 0, sizeof(*meta));
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return;
 
     /*
      * Allocate an interim page ID. If the page is actually being loaded from disk, it's ok to waste
