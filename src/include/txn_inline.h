@@ -418,8 +418,11 @@ __txn_op_delete_commit_apply_page_del_timestamp(
         if (validate) {
             /*
              * To compare against the commit timestamp, we must copy the address to obtain the
-             * latest start and stop durable timestamps. To prevent concurrent freeing, we need to
-             * acquire the split generation before accessing ref->addr.
+             * latest start and stop durable timestamps.
+             *
+             * Reconciling a fast-truncated page before the fast truncate operation commits can
+             * result in restoring the page in memory by freeing ref->addr. To prevent concurrent
+             * freeing, acquire the split generation before accessing ref->addr.
              */
             WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
             WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
