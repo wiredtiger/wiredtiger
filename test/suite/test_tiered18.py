@@ -83,7 +83,14 @@ class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
         c = self.session.open_cursor('metadata:create')
         val = c[uri]
         c.close()
-        self.assertTrue(val_str in val)
+
+        # If the metadata string is something like 'log=(enabled=true)', also check for
+        # 'log=(enabled=true,'. We need this if 'log' in the table's metadata has other fields.
+        val_str_alt = val_str
+        if val_str_alt.endswith(')'):
+            val_str_alt = val_str_alt[:-1] + ','
+
+        self.assertTrue(val_str in val or val_str_alt in val)
 
     # Test calling the create API with shared enabled.
     def test_tiered_shared(self):
