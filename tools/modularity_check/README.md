@@ -31,8 +31,8 @@ virtualenv venv
 
 ## Known issues:
 - Macros are not part of the C grammar so tree-sitter struggles to deal with them. It's important to call out even though macros aren't part of the grammar the `tree-sitter-c` library does a very good job at working around this. Nonetheless this means the script does some manual pre-processing work on files. See `parse_wt_ast.py::preprocess_file()` for this manual work.
-- The current script parses the AST so there's no semantic data associated with fields. As such field accesses are mapped to their owning struct by their unique names. If a field is defined in two structs it is ambigous and can't be mapped. When this happens it is instead linked to an `Ambiguous linking or parsing failed` node in the graph to be reported to the user.
-- There are some know incorrect parsing results, for example `who_is_used_by log` reports that log calls the function `(*func)`, which is actually part of a function_pointer argument passed used by `__wt_log_scan`. This may be fixed in the future, but for now is an acceptable innaccuracy in the tool.
+- The current script parses the AST so there's no semantic data associated with fields. As such field accesses are mapped to their owning struct by their unique names. If a field is defined in two structs it is ambiguous and can't be mapped. When this happens it is instead linked to an `Ambiguous linking or parsing failed` node in the graph to be reported to the user.
+- There are some know incorrect parsing results, for example `who_is_used_by log` reports that log calls the function `(*func)`, which is actually part of a function_pointer argument passed used by `__wt_log_scan`. This may be fixed in the future, but for now is an acceptable inaccuracy in the tool.
 
 ## How the tool works:
 `modularity_check.py` is the entry point to the tool. A list of example uses can be found above under `Using the tool`  

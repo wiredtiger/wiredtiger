@@ -144,6 +144,6 @@ def generate_dependency_file(graph: nx.DiGraph):
             incoming_edges = graph.out_edges(module)
             for (caller, callee) in sorted(incoming_edges):
                 if caller == AMBIG_NODE or callee == AMBIG_NODE:
-                    # Don't report the ambigious node
+                    # Don't report the ambiguous node
                     continue
                 f.write(f"{caller} -> {callee}\n")

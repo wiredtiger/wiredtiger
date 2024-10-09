@@ -1,5 +1,5 @@
-# Header files in include/ often are aligned with module up the src/ folder.
-# This dict provided a mapping that is used in modularity_check.py
+# Header files in include/ are often associated with module up the src/ folder.
+# This dict provided a mapping from file names in src/include to modules in the src/ directory.
 header_mappings = {
     "api.h": "conn",
     "bitstring_inline.h": "support",
@@ -17,7 +17,7 @@ header_mappings = {
     "column_inline.h": "btree",
     "compact.h": "btree",
     "conf_keys.h": "conf",
-    "connection.h": "conn", # TODO - double check these. Autocorrect catching me out >:(
+    "connection.h": "conn",
     "ctype_inline.h": "include",
     "dhandle.h": "btree",
     "dlh.h": "include",

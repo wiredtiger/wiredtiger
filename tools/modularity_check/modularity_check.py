@@ -62,7 +62,7 @@ def main():
     elif args.command == "generate_dependency_file":
         generate_dependency_file(graph)
     else:
-        print(f"Unrecognised command {args.command}!")
+        print(f"Unrecognized command {args.command}!")
         exit(1)
 
 if __name__ == "__main__":

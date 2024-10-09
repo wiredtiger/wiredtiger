@@ -98,7 +98,7 @@ def parse_typedef_struct(node):
     struct.name = node.child_by_field_name("declarator").text.decode()
     return struct
 
-# Some functions are commonly used throughout the codebase.
+# Some functions are commonly used throughout the code base.
 # Rather than add noise just ignore these functions
 def filter_common_calls(functions_called) -> List[str]:
 
@@ -165,7 +165,6 @@ def parse_function(node):
 # Parse the file to find all macro function definitions:
 # #define __wt_hazard_set(session, walk, busyp) ...
 # #define WT_REF_SET_STATE(ref, s)
-# TODO
 # tree-sitter treats the macro body as one big blob. This means we can't easily 
 # identify function calls or field references inside the macro body.
 # We can't re-parse the do { } while(0) loop either since string concatenation tokens (##) 
@@ -390,7 +389,7 @@ def source_files():
         if file_re.match(line):
             yield os.path.join('../..', line.split()[0])
 
-# Walk the Wiredtiger source tree and parse all the relevant C source files.
+# Walk the WiredTiger source tree and parse all the relevant C source files.
 # Return the processed results as a list of files
 def parse_wiredtiger_files(debug=False) -> List[File]:
 
