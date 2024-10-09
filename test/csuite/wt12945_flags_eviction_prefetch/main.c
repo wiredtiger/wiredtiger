@@ -277,6 +277,9 @@ main(int argc, char *argv[])
     const char *wiredtiger_open_config =
       "create,cache_size=2G,eviction=(threads_max=5),"
       "prefetch=(available=true,default=true),"
+#if 0 /* Include if needed */
+      "verbose=[prefetch=1],"
+#endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     opts = &_opts;
