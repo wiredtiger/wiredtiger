@@ -50,7 +50,8 @@ struct __wt_control_point_registry {
     size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
     WT_SPINLOCK lock;                  /* Atomically access data and data->ref_count. */
     const char *config_name;           /* Control point config name */
-    WT_CONTROL_POINT_DATA *data; /* Disabled if NULL. More data may follow WT_CONTROL_POINT_DATA. */
+    /* Disabled if NULL. More data may follow WT_CONTROL_POINT_DATA. */
+    WT_CONTROL_POINT_DATA *cp_data;
     wt_control_point_action_id_t action_supported; /* For compatibility checking. */
 };
 

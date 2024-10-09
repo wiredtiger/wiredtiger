@@ -16,7 +16,7 @@
  */
 /*
  * __wti_control_point_get_data --
- *     Get cp_registry->data safe from frees.
+ *     Get cp_registry->cp_data safe from frees.
  *
  * @param session The session. @param cp_registry The control point registry. @param locked True if
  *     cp_registry->lock is left locked for additional processing along with incrementing the
@@ -26,15 +26,15 @@ WT_CONTROL_POINT_DATA *
 __wti_control_point_get_data(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, bool locked)
 {
-    WT_CONTROL_POINT_DATA *saved_data;
+    WT_CONTROL_POINT_DATA *saved_cp_data;
 
     __wt_spin_lock(session, &cp_registry->lock);
-    saved_data = cp_registry->data;
-    if (saved_data != NULL)
-        __wt_atomic_add32(&saved_data->ref_count, 1);
+    saved_cp_data = cp_registry->cp_data;
+    if (saved_cp_data != NULL)
+        __wt_atomic_add32(&saved_cp_data->ref_count, 1);
     if (!locked)
         __wt_spin_unlock(session, &cp_registry->lock);
-    return (saved_data);
+    return (saved_cp_data);
 }
 
 /*
@@ -54,7 +54,7 @@ __wt_control_point_unlock(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *c
 
 /*
  * __wt_control_point_release_data --
- *     Call when done using WT_CONTROL_POINT_REGISTRY->data that was returned by
+ *     Call when done using WT_CONTROL_POINT_REGISTRY->cp_data that was returned by
  *     __wti_control_point_get_data.
  *
  * @param session The session. @param cp_registry The control point registry. @param locked True if
@@ -62,17 +62,17 @@ __wt_control_point_unlock(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *c
  */
 void
 __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry,
-  WT_CONTROL_POINT_DATA *data, bool locked)
+  WT_CONTROL_POINT_DATA *cp_data, bool locked)
 {
     uint32_t new_ref;
 
-    if (WT_UNLIKELY(data == NULL))
+    if (WT_UNLIKELY(cp_data == NULL))
         return;
     if (!locked)
         __wt_spin_lock(session, &cp_registry->lock);
-    new_ref = __wt_atomic_sub32(&cp_registry->data->ref_count, 1);
-    if ((new_ref == 0) && (cp_registry->data != data))
-        __wt_free(session, data);
+    new_ref = __wt_atomic_sub32(&cp_registry->cp_data->ref_count, 1);
+    if ((new_ref == 0) && (cp_registry->cp_data != cp_data))
+        __wt_free(session, cp_data);
     __wt_spin_unlock(session, &cp_registry->lock);
 }
 
@@ -89,21 +89,21 @@ __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGIS
 static int
 __conn_control_point_disable(WT_CONNECTION_IMPL *conn, WT_CONTROL_POINT_REGISTRY *cp_registry)
 {
-    WT_CONTROL_POINT_DATA *saved_data;
+    WT_CONTROL_POINT_DATA *saved_cp_data;
     WT_DECL_RET;
     WT_UNUSED(conn);
 
     __wt_spin_lock(NULL, &cp_registry->lock);
-    saved_data = cp_registry->data;
-    if (WT_UNLIKELY(saved_data == NULL))
+    saved_cp_data = cp_registry->cp_data;
+    if (WT_UNLIKELY(saved_cp_data == NULL))
         /* Already disabled. */
         WT_ERR(WT_NOTFOUND);
-    cp_registry->data = NULL;
-    if (__wt_atomic_loadv32(&saved_data->ref_count) == 0)
-        __wt_free(NULL, saved_data);
+    cp_registry->cp_data = NULL;
+    if (__wt_atomic_loadv32(&saved_cp_data->ref_count) == 0)
+        __wt_free(NULL, saved_cp_data);
 #if 0 /* TODO. */
     else
-        /* TODO: Add saved_data to a queue of control point data waiting to be freed. */;
+        /* TODO: Add saved_cp_data to a queue of control point data waiting to be freed. */;
 #endif
 err:
     __wt_spin_unlock(NULL, &cp_registry->lock);
@@ -147,10 +147,10 @@ __wt_conn_control_point_disable(WT_CONNECTION *wt_conn, wt_control_point_id_t id
 static int
 __session_control_point_disable(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry)
 {
-    if (WT_UNLIKELY(cp_registry->data == NULL))
+    if (WT_UNLIKELY(cp_registry->cp_data == NULL))
         /* Already disabled. */
         WT_RET(WT_NOTFOUND);
-    __wt_free(session, cp_registry->data);
+    __wt_free(session, cp_registry->cp_data);
     return (0);
 }
 
@@ -192,19 +192,19 @@ int
 __wti_conn_control_point_enable(
   WT_CONNECTION_IMPL *conn, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
 {
-    WT_CONTROL_POINT_DATA *data;
+    WT_CONTROL_POINT_DATA *cp_data;
     WT_DECL_RET;
     WT_UNUSED(conn);
 
     __wt_spin_lock(NULL, &cp_registry->lock);
-    data = cp_registry->data;
-    if (WT_UNLIKELY(data != NULL))
+    cp_data = cp_registry->cp_data;
+    if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         WT_ERR(EEXIST);
-    data = cp_registry->init(NULL, cp_registry->config_name, cfg);
-    if (WT_UNLIKELY(data == NULL))
+    cp_data = cp_registry->init(NULL, cp_registry->config_name, cfg);
+    if (WT_UNLIKELY(cp_data == NULL))
         WT_ERR(WT_ERROR);
-    cp_registry->data = data;
+    cp_registry->cp_data = cp_data;
 err:
     __wt_spin_unlock(NULL, &cp_registry->lock);
     return (ret);
@@ -252,19 +252,19 @@ int
 __wti_session_control_point_enable(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *cfg)
 {
-    WT_CONTROL_POINT_DATA *data;
+    WT_CONTROL_POINT_DATA *cp_data;
     const char *cfgs[2];
 
-    data = cp_registry->data;
-    if (WT_UNLIKELY(data != NULL))
+    cp_data = cp_registry->cp_data;
+    if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         return (EEXIST);
     cfgs[0] = cfg;
     cfgs[1] = NULL;
-    data = cp_registry->init(session, cp_registry->config_name, cfgs);
-    if (WT_UNLIKELY(data == NULL))
+    cp_data = cp_registry->init(session, cp_registry->config_name, cfgs);
+    if (WT_UNLIKELY(cp_data == NULL))
         return (WT_ERROR);
-    cp_registry->data = data;
+    cp_registry->cp_data = cp_data;
     return (0);
 }
 
@@ -320,7 +320,7 @@ __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
     F_SET(conn, WT_CONN_SHUTTING_DOWN);
 
     for (int idx = 0; idx < CONNECTION_CONTROL_POINTS_SIZE; ++idx) {
-        if (control_points[idx].data == NULL)
+        if (control_points[idx].cp_data == NULL)
             continue;
         one_ret = __conn_control_point_disable(conn, &(control_points[idx]));
         if (one_ret != 0)
@@ -353,7 +353,7 @@ __wt_session_control_point_shutdown(WT_SESSION_IMPL *session)
     F_SET(session, WT_SESSION_SHUTTING_DOWN);
 
     for (int idx = 0; idx < SESSION_CONTROL_POINTS_SIZE; ++idx) {
-        if (control_points[idx].data == NULL)
+        if (control_points[idx].cp_data == NULL)
             continue;
         one_ret = __session_control_point_disable(session, &(control_points[idx]));
         if (one_ret != 0)

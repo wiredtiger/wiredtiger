@@ -121,7 +121,7 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     }
     cp_registry = &(session->control_points[id]);
 
-    data = cp_registry->data;
+    data = cp_registry->cp_data;
     if (data == NULL) {
         /* Disabled. */
         __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT, "Is disabled: id=%" PRId32, id);

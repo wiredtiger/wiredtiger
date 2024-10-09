@@ -1972,7 +1972,7 @@ extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_control_point_action_init_wait_for_trigger(
   WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT_DATA *data);
 extern void __wt_control_point_release_data(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data, bool locked);
+  WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *cp_data, bool locked);
 extern void __wt_control_point_unlock(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
