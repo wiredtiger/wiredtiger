@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+import dataclasses as dc
 from collections import defaultdict, Counter
 from typing import List
 
@@ -12,12 +12,12 @@ AMBIG_NODE = "Ambiguous linking or parsing failed"
 
 # A link in the dependency graph from module A to module B.
 # The class contains details of why the link exists - what functions, macros, struct accesses cause the dependency
-@dataclass
+@dc.dataclass
 class Link:
-    func_calls: Counter= field(default_factory=lambda: Counter())
-    types_used: Counter= field(default_factory=lambda: Counter())
+    func_calls: Counter= dc.field(default_factory=lambda: Counter())
+    types_used: Counter= dc.field(default_factory=lambda: Counter())
     # struct_accesses format: {struct: {field: num_accesses}}
-    struct_accesses: defaultdict = field(default_factory=lambda: defaultdict(Counter)) 
+    struct_accesses: defaultdict = dc.field(default_factory=lambda: defaultdict(Counter)) 
 
     def print_struct_accesses(self):
         if len(self.struct_accesses) == 0:
