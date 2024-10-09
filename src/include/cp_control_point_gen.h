@@ -25,7 +25,7 @@
  * - An entry in __wt_conn_control_point_init_all (Could be generated).
  *
  * Each per connection control point that is enabled at startup has:
- * - An entry in __wt_conn_control_point_enable_all (Could be generated).
+ * - An entry in __wt_conn_control_point_enable_all_in_start (Could be generated).
  *
  * The name below is for a per session control point named "Example control point2".
  *
@@ -37,7 +37,7 @@
  * - An entry in __wt_session_control_point_init_all (Could be generated).
  *
  * Each per session control point that is enabled at startup has:
- * - An entry in __wt_session_control_point_enable_all (Could be generated).
+ * - An entry in __wt_session_control_point_enable_all_in_open (Could be generated).
  */
 
 #include "control_points.h"

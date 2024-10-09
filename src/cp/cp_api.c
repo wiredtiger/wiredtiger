@@ -291,7 +291,7 @@ __wt_session_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t 
     if (session->control_points == NULL) {
         /* Initialize and optionally enable per session control points */
         WT_RET(__wt_session_control_point_init_all(session));
-        WT_RET(__wt_session_control_point_enable_all(session));
+        WT_RET(__wt_session_control_point_enable_all_in_open(session));
     }
 
     cp_registry = &(session->control_points[id]);

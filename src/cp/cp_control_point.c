@@ -16,7 +16,7 @@
  * - An entry in __wt_conn_control_point_init_all (Could be generated).
  *
  * Each per connection control point that is enabled at startup has:
- * - An entry in __wt_conn_control_point_enable_all (Could be generated).
+ * - An entry in __wt_conn_control_point_enable_all_in_open (Could be generated).
  *
  * Each per session control point has:
  * - A choice of action (Must be manual).
@@ -24,7 +24,7 @@
  * - An entry in __wt_session_control_point_init_all (Could be generated).
  *
  * Each per session control point that is enabled at startup has:
- * - An entry in __wt_session_control_point_enable_all (Could be generated).
+ * - An entry in __wt_session_control_point_enable_all_in_open (Could be generated).
  */
 #include "wt_internal.h"
 
@@ -336,14 +336,14 @@ err:
  * Control point startup functions: Enable at startup.
  */
 /*
- * __wt_conn_control_point_enable_all --
+ * __wt_conn_control_point_enable_all_in_open --
  *     Enable per connection control points that start enabled. Note, one part of this function must
  *     be edited for each per connection control point that starts enabled.
  *
  * @param conn The connection. @param cfg The configuration strings.
  */
 int
-__wt_conn_control_point_enable_all(WT_CONNECTION_IMPL *conn, const char **cfg)
+__wt_conn_control_point_enable_all_in_open(WT_CONNECTION_IMPL *conn, const char **cfg)
 {
 #if 1 /* If no per connection control points are enabled at the start. */
     WT_UNUSED(conn);
@@ -368,14 +368,14 @@ __wt_conn_control_point_enable_all(WT_CONNECTION_IMPL *conn, const char **cfg)
 }
 
 /*
- * __wt_session_control_point_enable_all --
+ * __wt_session_control_point_enable_all_in_open --
  *     Enable per session control points that start enabled. Note, one part of this function must be
  *     edited for each per session control point that starts enabled.
  *
  * @param session The session.
  */
 int
-__wt_session_control_point_enable_all(WT_SESSION_IMPL *session)
+__wt_session_control_point_enable_all_in_open(WT_SESSION_IMPL *session)
 {
 #if 1 /* If no per session control points are enabled at the start. */
     WT_UNUSED(session);

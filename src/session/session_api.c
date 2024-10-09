@@ -1,3 +1,4 @@
+
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
@@ -2758,7 +2759,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     WT_RET(__open_session(conn, event_handler, config, &session));
 
 #ifdef HAVE_CONTROL_POINT
-    WT_RET(__wt_session_control_point_enable_all(session));
+    WT_RET(__wt_session_control_point_enable_all_in_open(session));
 #endif
 
     /*
