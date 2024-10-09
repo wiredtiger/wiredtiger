@@ -336,7 +336,7 @@ main(int argc, char *argv[])
       wt_session->open_cursor(wt_session, opts->uri, NULL, "debug=release_evict", &cursor));
     for (record_idx = FIRST_RECORD_TO_CHANGE; record_idx < FIRST_RECORD_TO_CHANGE + NUM_EVICTION;
          ++record_idx) {
-        print_eviction_stats(wt_session, opts, "Update", record_idx);
+        /* print_eviction_stats(wt_session, opts, "Update", record_idx); Too many. */
         /* Do one update */
         set_key(cursor, record_idx);
         set_value(opts, cursor, 2 * record_idx);
