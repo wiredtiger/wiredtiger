@@ -135,6 +135,15 @@ print_eviction_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
     int64_t eviction_walk_passes;          /* evict: eviction passes of a file */
     int64_t
       eviction_worker_evict_attempt; /* evict: evict page attempts by eviction worker threads */
+
+    static int64_t last_eviction_clean = 0;
+    static int64_t last_eviction_dirty = 0;
+    static int64_t last_eviction_force = 0;
+    static int64_t last_eviction_pages_seen = 0;
+    static int64_t last_eviction_server_evict_attempt = 0;
+    static int64_t last_eviction_walk_passes = 0;
+    static int64_t last_eviction_worker_evict_attempt = 0;
+
     eviction_clean = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_EVICTION_CLEAN);
     eviction_dirty = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_EVICTION_DIRTY);
     eviction_force = get_stat(opts, wt_session, WT_STAT_CONN_EVICTION_FORCE);
@@ -145,40 +154,50 @@ print_eviction_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
     eviction_worker_evict_attempt =
       get_stat(opts, wt_session, WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT);
 
-    if ((eviction_clean == 0) && (eviction_dirty == 0) && (eviction_force == 0) &&
-      (eviction_pages_seen == 0) && (eviction_server_evict_attempt == 0) &&
-      (eviction_walk_passes == 0) && (eviction_worker_evict_attempt == 0))
+    if ((eviction_clean == last_eviction_clean) && (eviction_dirty == last_eviction_dirty) &&
+      (eviction_force == last_eviction_force) &&
+      (eviction_pages_seen == last_eviction_pages_seen) &&
+      (eviction_server_evict_attempt == last_eviction_server_evict_attempt) &&
+      (eviction_walk_passes == last_eviction_walk_passes) &&
+      (eviction_worker_evict_attempt == last_eviction_worker_evict_attempt))
         return;
 
     separator = '.';
     printf("%s: %" PRIu64, where, idx);
-    if (eviction_clean != 0) {
+    if (eviction_clean != last_eviction_clean) {
+        last_eviction_clean = eviction_clean;
         printf("%c eviction_clean=%" PRId64, separator, eviction_clean);
         separator = ',';
     }
-    if (eviction_dirty != 0) {
+    if (eviction_dirty != last_eviction_dirty) {
+        last_eviction_dirty = eviction_dirty;
         printf("%c eviction_dirty=%" PRId64, separator, eviction_dirty);
         separator = ',';
     }
-    if (eviction_force != 0) {
+    if (eviction_force != last_eviction_force) {
+        last_eviction_force = eviction_force;
         printf("%c eviction_force=%" PRId64, separator, eviction_force);
         separator = ',';
     }
-    if (eviction_pages_seen != 0) {
+    if (eviction_pages_seen != last_eviction_pages_seen) {
+        last_eviction_pages_seen = eviction_pages_seen;
         printf("%c eviction_pages_seen=%" PRId64, separator, eviction_pages_seen);
         separator = ',';
     }
-    if (eviction_server_evict_attempt != 0) {
+    if (eviction_server_evict_attempt != last_eviction_server_evict_attempt) {
+        last_eviction_server_evict_attempt = eviction_server_evict_attempt;
         printf(
           "%c eviction_server_evict_attempt=%" PRId64, separator, eviction_server_evict_attempt);
         separator = ',';
     }
-    if (eviction_worker_evict_attempt != 0) {
+    if (eviction_worker_evict_attempt != last_eviction_worker_evict_attempt) {
+        last_eviction_worker_evict_attempt = eviction_worker_evict_attempt;
         printf(
           "%c eviction_worker_evict_attempt=%" PRId64, separator, eviction_worker_evict_attempt);
         separator = ',';
     }
-    if (eviction_walk_passes != 0) {
+    if (eviction_walk_passes != last_eviction_walk_passes) {
+        eviction_walk_passes = last_eviction_walk_passes;
         printf("%c eviction_walk_passes=%" PRId64, separator, eviction_walk_passes);
         separator = ',';
     }
@@ -194,35 +213,45 @@ print_eviction_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
 static void
 print_prefetch_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where, uint64_t idx)
 {
+    char separator;
     int64_t prefetch_attempts;     /* prefetch: pre-fetch triggered by page read */
     int64_t prefetch_pages_queued; /* prefetch: pre-fetch pages queued */
     int64_t prefetch_pages_read;   /* prefetch: pre-fetch pages read in background */
     int64_t cache_pages_prefetch;  /* cache: pages requested from the cache due to pre-fetch */
-    char separator;
+
+    static int64_t last_prefetch_attempts = 0;
+    static int64_t last_prefetch_pages_queued = 0;
+    static int64_t last_prefetch_pages_read = 0;
+    static int64_t last_cache_pages_prefetch = 0;
 
     prefetch_attempts = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_ATTEMPTS);
     prefetch_pages_queued = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
     prefetch_pages_read = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_READ);
     cache_pages_prefetch = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_PAGES_PREFETCH);
 
-    if ((prefetch_attempts == 0) && (prefetch_pages_queued == 0))
+    if ((prefetch_attempts == last_prefetch_attempts) &&
+      (prefetch_pages_queued == last_prefetch_pages_queued))
         return;
 
     separator = '.';
     printf("%s: %" PRIu64, where, idx);
-    if (prefetch_attempts != 0) {
+    if (prefetch_attempts != last_prefetch_attempts) {
+        last_prefetch_attempts = prefetch_attempts;
         printf("%c prefetch_attempts=%" PRId64, separator, prefetch_attempts);
         separator = ',';
     }
-    if (prefetch_pages_queued != 0) {
+    if (prefetch_pages_queued != last_prefetch_pages_queued) {
+        last_prefetch_pages_queued = prefetch_pages_queued;
         printf("%c prefetch_pages_queued=%" PRId64, separator, prefetch_pages_queued);
         separator = ',';
     }
-    if (prefetch_pages_read != 0) {
+    if (prefetch_pages_read != last_prefetch_pages_read) {
+        last_prefetch_pages_read = prefetch_pages_read;
         printf("%c prefetch_pages_read=%" PRId64, separator, prefetch_pages_read);
         separator = ',';
     }
-    if (cache_pages_prefetch != 0) {
+    if (cache_pages_prefetch != last_cache_pages_prefetch) {
+        last_cache_pages_prefetch = cache_pages_prefetch;
         printf("%c cache_pages_prefetch=%" PRId64, separator, cache_pages_prefetch);
         separator = ',';
     }
@@ -271,7 +300,6 @@ main(int argc, char *argv[])
     testutil_check((ret = wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor)));
     for (record_idx = 0; record_idx < opts->nrecords; ++record_idx) {
         print_eviction_stats(wt_session, opts, "Warm up", record_idx);
-        print_prefetch_stats(wt_session, opts, "Warm up", record_idx);
         /* Do one insertion */
         set_key(cursor, record_idx);
         set_value(opts, cursor, record_idx);
@@ -285,7 +313,6 @@ main(int argc, char *argv[])
         }
     }
     print_eviction_stats(wt_session, opts, "After Warm up", record_idx);
-    print_prefetch_stats(wt_session, opts, "After Warm up", record_idx);
     testutil_check(cursor->close(cursor));
 
     /* Close and reopen the connection to force the warm-up documents out of the cache. */
@@ -310,7 +337,6 @@ main(int argc, char *argv[])
     for (record_idx = FIRST_RECORD_TO_CHANGE; record_idx < FIRST_RECORD_TO_CHANGE + NUM_EVICTION;
          ++record_idx) {
         print_eviction_stats(wt_session, opts, "Update", record_idx);
-        print_prefetch_stats(wt_session, opts, "Update", record_idx);
         /* Do one update */
         set_key(cursor, record_idx);
         set_value(opts, cursor, 2 * record_idx);
@@ -326,7 +352,6 @@ main(int argc, char *argv[])
         cursor->reset(cursor);
     }
     print_eviction_stats(wt_session, opts, "After Update", record_idx);
-    print_prefetch_stats(wt_session, opts, "After Update", record_idx);
 
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));
@@ -369,7 +394,6 @@ thread_do_prefetch(void *arg)
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         WT_ERR(ret);
         print_prefetch_stats(wt_session, opts, "Prefix", idx);
-        print_eviction_stats(wt_session, opts, "Prefix", idx);
         /* Read */
         key = get_key(opts, cursor);
         value = get_value(opts, cursor);
@@ -383,7 +407,6 @@ thread_do_prefetch(void *arg)
         ++idx;
     }
     print_prefetch_stats(wt_session, opts, "After Prefix", idx);
-    print_eviction_stats(wt_session, opts, "After Prefix", idx);
 
 err:
     testutil_check(cursor->close(cursor));
