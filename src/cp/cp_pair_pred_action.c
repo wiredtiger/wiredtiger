@@ -14,8 +14,6 @@
  * example from predicate "times" and action "Wait for trigger".
  *
  * Each pair has:
- * - Pair data type (Could be generated): WT_CONTROL_POINT_PAIR_DATA_TIMES.
- *   Note, the pair data type is dependent upon only the action, not the predicate.
  * - Pair init function (Could be generated).
  */
 #include "wt_internal.h"
@@ -23,32 +21,6 @@
 /* See comment in cp_action.c:__wt_verbose levels used in WT_VERB_CONTROL_POINT logging. */
 
 #ifdef HAVE_CONTROL_POINT
-/* Pair data types. */
-
-/* Pair with action "Sleep". */
-struct __wt_control_point_pair_data_sleep {
-    WT_CONTROL_POINT_DATA iface;
-    WT_CONTROL_POINT_ACTION_SLEEP action_data;
-};
-
-/* Pair with action "ERR". */
-struct __wt_control_point_pair_data_err {
-    WT_CONTROL_POINT_DATA iface;
-    WT_CONTROL_POINT_ACTION_ERR action_data;
-};
-
-/* Pair with action "RET". */
-struct __wt_control_point_pair_data_ret {
-    WT_CONTROL_POINT_DATA iface;
-    WT_CONTROL_POINT_ACTION_RET action_data;
-};
-
-/* Pair with action "Wait for trigger". */
-struct __wt_control_point_pair_data_wait_for_trigger {
-    WT_CONTROL_POINT_DATA iface;
-    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
-};
-
 /* Pair init function. */
 
 /* Pair "Always" and "Sleep". */
@@ -73,8 +45,7 @@ __wt_control_point_pair_init_always_sleep(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(
-      __wt_control_point_config_action_sleep(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
 err:
@@ -106,7 +77,7 @@ __wt_control_point_pair_init_always_err(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
 err:
@@ -138,7 +109,7 @@ __wt_control_point_pair_init_always_ret(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
 err:
@@ -170,13 +141,11 @@ __wt_control_point_pair_init_always_wait_for_trigger(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
     /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(
-      session, cp_config_name, (WT_CONTROL_POINT_DATA *)init_data);
+    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
 
 err:
     if (ret != 0)
@@ -207,8 +176,7 @@ __wt_control_point_pair_init_skip_sleep(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(
-      __wt_control_point_config_action_sleep(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
 err:
@@ -240,7 +208,7 @@ __wt_control_point_pair_init_skip_err(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
 err:
@@ -272,7 +240,7 @@ __wt_control_point_pair_init_skip_ret(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
 err:
@@ -304,13 +272,11 @@ __wt_control_point_pair_init_skip_wait_for_trigger(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
     /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(
-      session, cp_config_name, (WT_CONTROL_POINT_DATA *)init_data);
+    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
 
 err:
     if (ret != 0)
@@ -341,8 +307,7 @@ __wt_control_point_pair_init_times_sleep(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(
-      __wt_control_point_config_action_sleep(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
 err:
@@ -374,7 +339,7 @@ __wt_control_point_pair_init_times_err(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
 err:
@@ -406,7 +371,7 @@ __wt_control_point_pair_init_times_ret(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
 err:
@@ -438,13 +403,11 @@ __wt_control_point_pair_init_times_wait_for_trigger(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
     /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(
-      session, cp_config_name, (WT_CONTROL_POINT_DATA *)init_data);
+    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
 
 err:
     if (ret != 0)
@@ -475,8 +438,7 @@ __wt_control_point_pair_init_random_param1_sleep(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(
-      __wt_control_point_config_action_sleep(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param1(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
@@ -509,7 +471,7 @@ __wt_control_point_pair_init_random_param1_err(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param1(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
@@ -542,7 +504,7 @@ __wt_control_point_pair_init_random_param1_ret(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param1(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
@@ -575,14 +537,12 @@ __wt_control_point_pair_init_random_param1_wait_for_trigger(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param1(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
     /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(
-      session, cp_config_name, (WT_CONTROL_POINT_DATA *)init_data);
+    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
 
 err:
     if (ret != 0)
@@ -613,8 +573,7 @@ __wt_control_point_pair_init_random_param2_sleep(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(
-      __wt_control_point_config_action_sleep(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param2(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
@@ -647,7 +606,7 @@ __wt_control_point_pair_init_random_param2_err(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param2(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
@@ -680,7 +639,7 @@ __wt_control_point_pair_init_random_param2_ret(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param2(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
@@ -713,14 +672,12 @@ __wt_control_point_pair_init_random_param2_wait_for_trigger(
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param2(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
     /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(
-      session, cp_config_name, (WT_CONTROL_POINT_DATA *)init_data);
+    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
 
 err:
     if (ret != 0)

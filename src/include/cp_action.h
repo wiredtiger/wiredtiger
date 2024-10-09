@@ -16,6 +16,8 @@
  *
  * Each action has:
  * - Action data type (Must be manual): WT_CONTROL_POINT_ACTION_EXAMPLE_ACTION.
+ * - Pair data type (Could be generated): WT_CONTROL_POINT_PAIR_DATA_EXAMPLE_ACTION.
+ *   Note, the pair data type is dependent upon only the action, not the predicate.
  * - Macro to define a per connection control point with this action (Must be manual):
  * CONNECTION_CONTROL_POINT_DEFINE_EXAMPLE_ACTION.
  * - Macro to define a per session control point with this action (Must be manual):
@@ -101,8 +103,8 @@ struct __wt_control_point_action_sleep {
     uint64_t microseconds;
 };
 
-/* Action data type including WT_CONTROL_POINT_DATA */
-struct __wt_conn_control_point_action_data_sleep {
+/* Pair data type */
+struct __wt_control_point_pair_data_sleep {
     WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_SLEEP action_data;
 };
@@ -158,8 +160,8 @@ struct __wt_control_point_action_err {
     int err;
 };
 
-/* Action data type including WT_CONTROL_POINT_DATA */
-struct __wt_conn_control_point_action_data_err {
+/* Pair data type */
+struct __wt_control_point_pair_data_err {
     WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_ERR action_data;
 };
@@ -209,8 +211,8 @@ struct __wt_control_point_action_ret {
     int ret_value;
 };
 
-/* Action data type including WT_CONTROL_POINT_DATA */
-struct __wt_conn_control_point_action_data_ret {
+/* Pair data type */
+struct __wt_control_point_pair_data_ret {
     WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_RET action_data;
 };
@@ -262,8 +264,8 @@ struct __wt_control_point_action_wait_for_trigger {
     WT_CONDVAR *condvar;
 };
 
-/* Action data type including WT_CONTROL_POINT_DATA */
-struct __wt_conn_control_point_action_data_wait_for_trigger {
+/* Pair data type */
+struct __wt_control_point_pair_data_wait_for_trigger {
     WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
