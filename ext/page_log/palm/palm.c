@@ -479,6 +479,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, bool is_delta, const WT_ITEM *buf)
 {
     PALM *palm;
+    PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     uint64_t kv_revision;
     int ret;
@@ -488,8 +489,8 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_delay(palm);
 
     VERBOSE_PRINT(palm_handle->palm, "palm_handle_put\n");
-    PALM_KV_RET(palm, session, palm_kv_begin_transaction(palm->kv_env, false));
-    ret = palm_kv_get_global(palm->kv_env, PALM_KV_GLOBAL_REVISION, &kv_revision);
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+    ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &kv_revision);
     if (ret == MDB_NOTFOUND) {
         kv_revision = 1;
         ret = 0;
@@ -498,14 +499,14 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(
-        palm->kv_env, palm_handle->table_id, page_id, checkpoint_id, kv_revision, is_delta, buf));
+        &context, palm_handle->table_id, page_id, checkpoint_id, kv_revision, is_delta, buf));
     PALM_KV_ERR(
-      palm, session, palm_kv_put_global(palm->kv_env, PALM_KV_GLOBAL_REVISION, kv_revision + 1));
-    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(palm->kv_env));
+      palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, kv_revision + 1));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     return (0);
 
 err:
-    palm_kv_rollback_transaction(palm->kv_env);
+    palm_kv_rollback_transaction(&context);
     return (ret);
 }
 
@@ -514,6 +515,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_ITEM *package)
 {
     PALM *palm;
+    PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
     size_t add_size, prev_size;
@@ -525,10 +527,9 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_delay(palm);
 
     VERBOSE_PRINT(palm_handle->palm, "palm_handle_get\n");
-    PALM_KV_ERR(palm, session, palm_kv_begin_transaction(palm->kv_env, false));
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
-      palm_kv_get_page_matches(
-        palm->kv_env, palm_handle->table_id, page_id, checkpoint_id, &matches));
+      palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
     package->size = 0;
     while (palm_kv_next_page_match(&matches)) {
         prev_size = package->size;
@@ -541,9 +542,9 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         memcpy(new_addr, matches.data, matches.size);
     }
     PALM_KV_ERR(palm, session, matches.error);
-    palm_kv_rollback_transaction(palm->kv_env);
 
 err:
+    palm_kv_rollback_transaction(&context);
     return (ret);
 }
 
