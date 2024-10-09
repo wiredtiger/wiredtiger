@@ -48,13 +48,8 @@
 #define WT_CONF_ID_Thread_2 317ULL
 #define WT_CONF_ID_Thread_3 318ULL
 #define WT_CONF_ID_Thread_4 319ULL
-#define WT_CONF_ID_Thread_5 320ULL
-#define WT_CONF_ID_Thread_6 321ULL
-#define WT_CONF_ID_Thread_7 322ULL
-#define WT_CONF_ID_Thread_8 323ULL
-#define WT_CONF_ID_Thread_9 324ULL
 #define WT_CONF_ID_Tiered_storage 47ULL
-#define WT_CONF_ID_Transaction_sync 326ULL
+#define WT_CONF_ID_Transaction_sync 321ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 93ULL
 #define WT_CONF_ID_allocation_size 13ULL
@@ -208,7 +203,7 @@
 #define WT_CONF_ID_internal_key_max 27ULL
 #define WT_CONF_ID_internal_key_truncate 28ULL
 #define WT_CONF_ID_internal_page_max 29ULL
-#define WT_CONF_ID_interval 325ULL
+#define WT_CONF_ID_interval 320ULL
 #define WT_CONF_ID_isolation 156ULL
 #define WT_CONF_ID_json 263ULL
 #define WT_CONF_ID_json_output 246ULL
@@ -332,22 +327,22 @@
 #define WT_CONF_ID_txn 176ULL
 #define WT_CONF_ID_type 9ULL
 #define WT_CONF_ID_update_restore_evict 217ULL
-#define WT_CONF_ID_use_environment 327ULL
-#define WT_CONF_ID_use_environment_priv 328ULL
+#define WT_CONF_ID_use_environment 322ULL
+#define WT_CONF_ID_use_environment_priv 323ULL
 #define WT_CONF_ID_use_timestamp 167ULL
 #define WT_CONF_ID_value_format 55ULL
 #define WT_CONF_ID_verbose 10ULL
-#define WT_CONF_ID_verify_metadata 329ULL
+#define WT_CONF_ID_verify_metadata 324ULL
 #define WT_CONF_ID_version 62ULL
 #define WT_CONF_ID_wait 194ULL
 #define WT_CONF_ID_wait_count 305ULL
 #define WT_CONF_ID_worker_thread_max 254ULL
-#define WT_CONF_ID_write_through 330ULL
+#define WT_CONF_ID_write_through 325ULL
 #define WT_CONF_ID_write_timestamp 5ULL
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 252ULL
 
-#define WT_CONF_ID_COUNT 331
+#define WT_CONF_ID_COUNT 326
 /*
  * API configuration keys: END
  */
@@ -561,21 +556,6 @@ static const struct {
     struct {
         uint64_t wait_count;
     } Thread_4;
-    struct {
-        uint64_t wait_count;
-    } Thread_5;
-    struct {
-        uint64_t wait_count;
-    } Thread_6;
-    struct {
-        uint64_t wait_count;
-    } Thread_7;
-    struct {
-        uint64_t wait_count;
-    } Thread_8;
-    struct {
-        uint64_t wait_count;
-    } Thread_9;
     struct {
         uint64_t auth_token;
         uint64_t bucket;
@@ -970,21 +950,6 @@ static const struct {
   },
   {
     WT_CONF_ID_Thread_4 | (WT_CONF_ID_wait_count << 16),
-  },
-  {
-    WT_CONF_ID_Thread_5 | (WT_CONF_ID_wait_count << 16),
-  },
-  {
-    WT_CONF_ID_Thread_6 | (WT_CONF_ID_wait_count << 16),
-  },
-  {
-    WT_CONF_ID_Thread_7 | (WT_CONF_ID_wait_count << 16),
-  },
-  {
-    WT_CONF_ID_Thread_8 | (WT_CONF_ID_wait_count << 16),
-  },
-  {
-    WT_CONF_ID_Thread_9 | (WT_CONF_ID_wait_count << 16),
   },
   {
     WT_CONF_ID_Tiered_storage | (WT_CONF_ID_auth_token << 16),

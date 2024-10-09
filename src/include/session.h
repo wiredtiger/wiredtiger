@@ -390,7 +390,8 @@ struct __wt_session_impl {
 #ifdef HAVE_CONTROL_POINT
     WT_CONTROL_POINT_REGISTRY *control_points; /* [SESSION_CONTROL_POINTS_SIZE] */
     WT_CONTROL_POINT_REGISTRY *cp_registry;    /* For the run function for __wt_cond_wait_signal. */
-    WT_CONTROL_POINT_DATA *cp_data;            /* For the run function for __wt_cond_wait_signal. */
+    /* For the run function for __wt_cond_wait_signal. */
+    WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *cp_data;
 #endif
 };
 

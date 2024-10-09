@@ -3551,31 +3551,6 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
  * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{ ),,}
- * @config{thread_5 = (, Thread 6 waits for thread 5 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
- * @config{thread_6 = (, Thread 7 waits for thread 6 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
- * @config{thread_7 = (, Thread 8 waits for thread 7 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
- * @config{thread_8 = (, Thread 9 waits for thread 8 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
- * @config{thread_9 = (, The thread executing main waits for thread 9 to get here., a set of related
- * configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
- * of triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
