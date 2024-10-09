@@ -1,6 +1,13 @@
+
+struct S0 {
+    int z;
+};
+
+
 /* #public(module2) */
 struct S1 {
     int x;
+    S0 y;
 };
 
 /* #private(module1) */
@@ -25,6 +32,7 @@ int func(int num) {
     ((S1*)((S2*)s2 + 1)->s)->x;
     ((S1*)((S2*)s2[10])->s)->x;
     ((S2*)((S1*)((S2*)s2[10])->s)->x)->s;
+    ((&(s2->s[i].y)))->z;
     xxx->s2;
     xxx()->s2;
     xxx.s2;

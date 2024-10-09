@@ -17,7 +17,7 @@ _reg_member_access_chain = regex.compile(r"""
         ([a-zA-Z_]\w*+)(?>\((?&TOKEN)*+\))? |  # (1) variable or function call
         (\((?&TOKEN)++\))             # (2) expression
     )
-    (?>(?>->|\.)([a-zA-Z_]\w*+))++             # (3) member access chain via -> or .
+    (?>(?>->|\.)(?>([a-zA-Z_]\w*+)(?>\[(?&TOKEN)++\])?))++             # (3) member access chain via -> or .
 """+re_token, re_flags)
 
 @dataclass
@@ -130,7 +130,10 @@ class AccessCheck:
             token = tokens[0]
             if token.getKind() == "(": # expression or type cast
                 if len(tokens) > 1 and tokens[1].getKind() in ["w", "("]:  # type cast
-                    token_type = self._globals.untypedef(get_base_type_str(token.value[1:-1]))
+                    return self._globals.untypedef(get_base_type_str(token.value[1:-1]))
+                    # token_type = self._globals.untypedef(get_base_type_str(token.value[1:-1])) \
+                    #              if reg_word_char.match(token.value[1]) else \
+                    #              _get_type_of_expr(TokenList(tokens[1:-1]), root_offset + token.range[0] + 1)
                 else:
                     token_type = _get_type_of_expr_str(token.value[1:-1], root_offset + token.range[0] + 1)  # expression
             elif reg_word_char.match(token.value):
@@ -142,11 +145,15 @@ class AccessCheck:
             # Check for member access chain, return the type of the last member
             i = 1
             while token_type and i < len(tokens):
+                if tokens[i].getKind() in ["(", "["]:
+                    i += 1
+                    if i >= len(tokens):
+                        break
                 if tokens[i].value not in [".", "->"]:
                     break
                 i += 1
                 if i >= len(tokens):
-                    WARNING(_LOC(root_offset + tokens[-1].range[0]), "Unexpected end of expression")
+                    WARNING(_LOC(root_offset + tokens[-1].range[1]), f"Unexpected end of expression: '{tokens.short_repr()}'")
                     break  # syntax error - stop the chain
                 token_type = self._globals.get_field_type(token_type, tokens[i].value)
                 i += 1
