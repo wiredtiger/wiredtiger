@@ -48,8 +48,7 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    size_t new_crossing_count;
-    size_t new_trigger_count;
+    size_t new_crossing_count, new_trigger_count;
     bool triggered;
 
     __wt_verbose_debug4(session, WT_VERB_CONTROL_POINT, "Start: id=%" PRId32, id);
