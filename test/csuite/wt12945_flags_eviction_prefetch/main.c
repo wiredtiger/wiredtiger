@@ -41,7 +41,7 @@
 #define NUM_WARM_UP_RECORDS 100000 /* How many records to insert during warmup. */
 /* First record to change to give pre-fetch thread time to begin prefetching */
 #define FIRST_RECORD_TO_CHANGE 2000
-#define NUM_EVICTION 1 /* How many times to force eviction */
+#define NUM_EVICTION 10 /* How many times to force eviction */
 
 void *thread_do_prefetch(void *);
 
@@ -128,11 +128,12 @@ print_eviction_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
     char separator;
     int64_t eviction_clean;                /* cache: unmodified pages evicted */
     int64_t eviction_dirty;                /* cache: modified pages evicted */
-    int64_t eviction_force;                /* forced eviction - pages selected count */
+    int64_t eviction_force;                /* evict: forced eviction - pages selected count */
     int64_t eviction_pages_seen;           /* cache: pages seen by eviction walk */
-    int64_t eviction_server_evict_attempt; /* evict page attempts by eviction server */
-    int64_t eviction_walk_passes;          /* eviction: eviction passes of a file */
-    int64_t eviction_worker_evict_attempt; /* evict page attempts by eviction worker */
+    int64_t eviction_server_evict_attempt; /* evict: evict page attempts by eviction server */
+    int64_t eviction_walk_passes;          /* evict: eviction passes of a file */
+    int64_t
+      eviction_worker_evict_attempt; /* evict: evict page attempts by eviction worker threads */
     eviction_clean = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_EVICTION_CLEAN);
     eviction_dirty = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_EVICTION_DIRTY);
     eviction_force = get_stat(opts, wt_session, WT_STAT_CONN_EVICTION_FORCE);
@@ -192,12 +193,16 @@ print_eviction_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
 static void
 print_prefetch_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where, uint64_t idx)
 {
-    int64_t prefetch_attempts;
-    int64_t prefetch_pages_queued;
+    int64_t prefetch_attempts;     /* prefetch: pre-fetch triggered by page read */
+    int64_t prefetch_pages_queued; /* prefetch: pre-fetch pages queued */
+    int64_t prefetch_pages_read;   /* prefetch: pre-fetch pages read in background */
+    int64_t cache_pages_prefetch;  /* cache: pages requested from the cache due to pre-fetch */
     char separator;
 
     prefetch_attempts = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_ATTEMPTS);
     prefetch_pages_queued = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
+    prefetch_pages_read = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_READ);
+    cache_pages_prefetch = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_PAGES_PREFETCH);
 
     if ((prefetch_attempts == 0) && (prefetch_pages_queued == 0))
         return;
@@ -210,6 +215,14 @@ print_prefetch_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
     }
     if (prefetch_pages_queued != 0) {
         printf("%c prefetch_pages_queued=%" PRId64, separator, prefetch_pages_queued);
+        separator = ',';
+    }
+    if (prefetch_pages_read != 0) {
+        printf("%c prefetch_pages_read=%" PRId64, separator, prefetch_pages_read);
+        separator = ',';
+    }
+    if (cache_pages_prefetch != 0) {
+        printf("%c cache_pages_prefetch=%" PRId64, separator, cache_pages_prefetch);
         separator = ',';
     }
     printf("\n");
@@ -249,7 +262,7 @@ main(int argc, char *argv[])
     testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &opts->conn));
 
     /* Create the session for eviction. */
-    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
+    testutil_check(opts->conn->open_session(opts->conn, NULL, session_open_config, &wt_session));
     testutil_check(
       wt_session->create(wt_session, opts->uri, "key_format=Q,value_format=Q,leaf_page_max=32k"));
 
@@ -257,6 +270,7 @@ main(int argc, char *argv[])
     testutil_check((ret = wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor)));
     for (record_idx = 0; record_idx < opts->nrecords; ++record_idx) {
         print_eviction_stats(wt_session, opts, "Warm up", record_idx);
+        print_prefetch_stats(wt_session, opts, "Warm up", record_idx);
         /* Do one insertion */
         set_key(cursor, record_idx);
         set_value(opts, cursor, record_idx);
@@ -270,6 +284,7 @@ main(int argc, char *argv[])
         }
     }
     print_eviction_stats(wt_session, opts, "After Warm up", record_idx);
+    print_prefetch_stats(wt_session, opts, "After Warm up", record_idx);
     testutil_check(cursor->close(cursor));
 
     /* Close and reopen the connection to force the warm-up documents out of the cache. */
@@ -277,7 +292,7 @@ main(int argc, char *argv[])
     testutil_check(opts->conn->close(opts->conn, ""));
 
     testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &opts->conn));
-    testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
+    testutil_check(opts->conn->open_session(opts->conn, NULL, session_open_config, &wt_session));
 
     /* Create the thread for pre-fetch and wait for it to be ready. */
     testutil_check(pthread_create(&prefetch_thread_id, NULL, thread_do_prefetch, opts));
@@ -294,6 +309,7 @@ main(int argc, char *argv[])
     for (record_idx = FIRST_RECORD_TO_CHANGE; record_idx < FIRST_RECORD_TO_CHANGE + NUM_EVICTION;
          ++record_idx) {
         print_eviction_stats(wt_session, opts, "Update", record_idx);
+        print_prefetch_stats(wt_session, opts, "Update", record_idx);
         /* Do one update */
         set_key(cursor, record_idx);
         set_value(opts, cursor, 2 * record_idx);
@@ -309,6 +325,7 @@ main(int argc, char *argv[])
         cursor->reset(cursor);
     }
     print_eviction_stats(wt_session, opts, "After Update", record_idx);
+    print_prefetch_stats(wt_session, opts, "After Update", record_idx);
 
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));
@@ -351,6 +368,7 @@ thread_do_prefetch(void *arg)
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         WT_ERR(ret);
         print_prefetch_stats(wt_session, opts, "Prefix", idx);
+        print_eviction_stats(wt_session, opts, "Prefix", idx);
         /* Read */
         key = get_key(opts, cursor);
         value = get_value(opts, cursor);
@@ -364,12 +382,15 @@ thread_do_prefetch(void *arg)
         ++idx;
     }
     print_prefetch_stats(wt_session, opts, "After Prefix", idx);
+    print_eviction_stats(wt_session, opts, "After Prefix", idx);
 
 err:
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));
 
     opts->running = false;
+
+    printf("End prefetch thread\n");
 
     return (NULL);
 }
