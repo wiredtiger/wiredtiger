@@ -136,6 +136,7 @@ typedef struct dir_store_file_handle {
     pthread_rwlock_t obj_map_lock;
 
     /* Object based directory stores keep an array that tracks ID->offset */
+    bool object_directory;
     uint64_t *object_id_map;
     uint64_t *object_size_map;
     uint64_t object_map_size;
@@ -1220,6 +1221,10 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         goto err;
     }
 
+    /* Determine if this is a directory of objects (for now, just use a file extension). */
+    dir_store_fh->object_directory =
+      (strlen(name) > 10 && strcmp(name + (strlen(name) - 10), ".wt_stable") == 0);
+
     /*
      * First eight bytes are reserved as out-of-band. This is a 64 bit space so we can write an
      * extent list on checkpoint or clean shutdown.
@@ -1259,6 +1264,15 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         goto err;
     }
 
+    /* If the file contains a directory of objects, load the checkpoint. */
+    if (dir_store_fh->object_directory)
+        if ((ret = dir_store_ckpt_load_internal(dir_store_fh, session)) != 0)
+            goto err;
+
+    /*
+     * Insert to the dir store last. After this point, we are only allowed to fail if we can't
+     * insert it to the list; otherwise we risk the file handle to be freed more than once.
+     */
     if ((ret = pthread_rwlock_wrlock(&dir_store->file_handle_lock)) != 0) {
         (void)dir_store_err(dir_store, session, ret, "ss_open_object: pthread_rwlock_wrlock");
         goto err;
@@ -1268,9 +1282,6 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
         (void)dir_store_err(dir_store, session, ret, "ss_open_object: pthread_rwlock_unlock");
         goto err;
     }
-
-    if ((ret = dir_store_ckpt_load_internal(dir_store_fh, session)) != 0)
-        goto err;
 
     *file_handlep = file_handle;
 
@@ -1666,6 +1677,9 @@ dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
 
+    if (!dir_store_fh->object_directory)
+        return (ENOTSUP);
+
     /* Align - not strictly necessary, but it makes staring at the hex dump easier. */
     dir_store_fh->object_next_offset = next_mul8(dir_store_fh->object_next_offset);
     start = (wt_off_t)dir_store_fh->object_next_offset;
@@ -1704,6 +1718,9 @@ dir_store_obj_put(
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
     wt_fh = dir_store_fh->fh;
 
+    if (!dir_store_fh->object_directory)
+        return (ENOTSUP);
+
     dir_store_fh->dir_store->object_put_ops++;
     ret = wt_fh->fh_write(
       wt_fh, session, (wt_off_t)dir_store_fh->object_next_offset, buf->size, buf->data);
@@ -1741,6 +1758,9 @@ dir_store_obj_get(
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
     wt_fh = dir_store_fh->fh;
+
+    if (!dir_store_fh->object_directory)
+        return (ENOTSUP);
 
     if ((ret = pthread_rwlock_rdlock(&dir_store_fh->obj_map_lock)) != 0)
         return (ret);
@@ -1790,6 +1810,9 @@ dir_store_obj_delete(WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t 
     (void)session;
 
     dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
+
+    if (!dir_store_fh->object_directory)
+        return (ENOTSUP);
 
     if ((ret = pthread_rwlock_wrlock(&dir_store_fh->obj_map_lock)) != 0)
         return (ret);
@@ -1892,8 +1915,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
      */
     dir_store->reference_count = 1;
 
-    /* Cache files locally by default */
-    dir_store->cache = 0;
+    /* Don't cache files locally by default. */
+    dir_store->cache = 0; /* This is different from regular dir store! */
 
     if ((ret = dir_store_configure(dir_store, config)) != 0) {
         free(dir_store);

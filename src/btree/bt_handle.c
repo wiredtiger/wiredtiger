@@ -506,6 +506,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* A page log service and a storage source cannot both be enabled. */
     WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
 
+    /* Detect if the btree is disaggregated. */
+    if (__wt_block_disagg_manager_owns_object(session, btree->dhandle->name) ||
+      __wt_block_pantry_manager_owns_object(session, btree->dhandle->name))
+        F_SET(btree, WT_BTREE_DISAGGREGATED);
+
     /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;
     ret = __wt_config_gets(session, cfg, "flush_time", &cval);

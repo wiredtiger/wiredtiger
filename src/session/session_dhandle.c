@@ -907,8 +907,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
     /* TODO this check is lifted from elsewhere - needs to be done more nicely. */
     if (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL && (cfg[2] != NULL || cfg[1][0] != '\0')) {
-        WT_RET(__wt_config_gets(session, cfg, "force", &cval));
-        if (WT_CONFIG_LIT_MATCH("true", cval))
+        WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "force", &cval));
+        if (ret == 0 && WT_CONFIG_LIT_MATCH("true", cval))
             force = true;
     }
 
