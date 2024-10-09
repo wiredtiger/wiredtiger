@@ -2004,7 +2004,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
         WT_STAT_DSRC_INCR(session, cache_eviction_walk_saved_pos);
     }
 
-    *walk_flagsp = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL | WT_READ_NO_WAIT;
+    *walk_flagsp = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT;
     if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         FLD_SET(*walk_flagsp, WT_READ_VISIBLE_ALL);
 
@@ -2031,7 +2031,7 @@ rand_prev:
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
 rand_next:
-        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL | WT_READ_NO_WAIT |
+        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT |
           WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
         if (btree->evict_ref == NULL) {
             for (;;) {

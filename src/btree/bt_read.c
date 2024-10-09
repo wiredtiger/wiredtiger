@@ -511,7 +511,7 @@ skip_evict:
             }
 
             /* Tell eviction we're using the page so it can update the page state. */
-            __wt_evict_page_read_inmem(session, page, LF_ISSET(WT_READ_INTERNAL), wont_need);
+            __wt_evict_page_read_inmem(session, page, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
