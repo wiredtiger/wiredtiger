@@ -51,6 +51,7 @@ def explain_cycle(cycle: List[str], graph: nx.DiGraph):
         print(f"From {cur_node} to {next_node}:")
         print_edge(graph, cur_node, next_node)
 
+# Print all functions defined in a module and whether they are private to (accessed only within) the module
 def privacy_report_functions(graph, module, all_funcs) -> (int, int):
 
     incoming_edges = graph.in_edges(module)
@@ -80,31 +81,22 @@ def privacy_report_functions(graph, module, all_funcs) -> (int, int):
     num_total_funcs = len(all_funcs)
     return (num_private_funcs, num_total_funcs)
 
-# Report which structs and struct fields are private to the module
-def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Set[str]):
+# Print all structs defined in a module and their struct fields. Report whether the fields are private to (accessed only within) the module
+def privacy_report_structs(graph, module, all_structs, ambiguous_fields) -> (int, int):
 
     incoming_edges = graph.in_edges(module)
     link_data = nx.get_edge_attributes(graph, 'link_data')
 
-    all_structs: List[Struct] = []
-    all_funcs: List[Function] = []
-    num_private, num_fields = 0, 0
-
-    for file in parsed_files:
-        if file.module == module:
-            all_structs += file.structs
-            all_funcs += file.functions
-
-    (num_private_funcs, num_total_funcs) = privacy_report_functions(graph, module, all_funcs)
+    num_private_fields, num_total_fields = 0, 0
 
     for struct in sorted(all_structs, key=lambda s: s.name):
         print(struct.name)
         for field in sorted(struct.fields):
-            if field in ambigious_fields:
+            if field in ambiguous_fields:
                 print(f"    {field}: Ambiguous! Please check manually")
                 continue
 
-            num_fields += 1
+            num_total_fields += 1
             used_by_modules = set()
             for edge in incoming_edges:
                 (caller, _) = edge
@@ -114,16 +106,30 @@ def privacy_report(module, graph, parsed_files: List[File], ambigious_fields: Se
 
             if len(used_by_modules) == 0:
                 print(f"    {field}: Private")
-                num_private += 1
+                num_private_fields += 1
             else:
                 print(f"    {field}: {sorted(used_by_modules)}")
         print()
 
-    if num_fields == 0:
-        print(f"Either no structs were found in {module}, or all fields are ambiguous")
-    else:
-        private_pct = round((num_private / num_fields) * 100, 2)
-        print(f"{num_private} of {num_fields} non-ambiguous fields ({private_pct}%) are private")
+    return (num_private_fields, num_total_fields)
+
+# Report which structs and struct fields are private to the module
+def privacy_report(module, graph, parsed_files: List[File], ambiguous_fields: Set[str]):
+
+    all_structs: List[Struct] = []
+    all_funcs: List[Function] = []
+
+    for file in parsed_files:
+        if file.module == module:
+            all_structs += file.structs
+            all_funcs += file.functions
+
+    (num_private_funcs, num_total_funcs) = privacy_report_functions(graph, module, all_funcs)
+    (num_private_fields, num_total_fields) = privacy_report_structs(graph, module, all_structs, ambiguous_fields)
+
+    if num_private_fields != 0:
+        private_pct = round((num_private_fields / num_total_fields) * 100, 2)
+        print(f"{num_private_fields} of {num_total_fields} non-ambiguous struct fields ({private_pct}%) are private")
 
     if num_private_funcs != 0:
         private_pct = round((num_private_funcs / num_total_funcs) * 100, 2)
