@@ -222,6 +222,12 @@ struct __wt_logslot {
         WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
     } while (0)
 
+#define WT_WITH_OLIGARCH_SLOT_LOCK(session, log, op)                                   \
+    do {                                                                               \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_OLIGARCH_SLOT));   \
+        WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_OLIGARCH_SLOT, op); \
+    } while (0)
+
 struct __wt_myslot {
     WT_LOGSLOT *slot;    /* Slot I'm using */
     wt_off_t end_offset; /* My end offset in buffer */
