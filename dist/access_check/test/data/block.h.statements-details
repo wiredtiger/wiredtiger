@@ -2186,7 +2186,9 @@ FunctionParts(typename=[14455:14459] 〈void〉,
                                      ' * __wt_block_desc_byteswap --\n'
                                      ' *     Handle big- and little-endian transformation of a description block.\n'
                                      ' */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=True)
 Args:
 [Variable(name=Token(idx=3, range=(15, 19), value='desc'),
           typename=[0:13] 〈WT_BLOCK_DESC〉,
@@ -2459,7 +2461,9 @@ FunctionParts(typename=[16711:16715] 〈void〉,
                                      'from a source to a\n'
                                      ' *     target.\n'
                                      ' */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=True)
 Args:
 [Variable(name=Token(idx=3, range=(17, 21), value='from'),
           typename=[0:15] 〈WT_BLOCK_HEADER〉,
@@ -2527,7 +2531,9 @@ FunctionParts(typename=[17072:17076] 〈void〉,
                                      ' * __wt_block_header_byteswap --\n'
                                      ' *     Handle big- and little-endian transformation of a header block.\n'
                                      ' */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=True)
 Args:
 [Variable(name=Token(idx=3, range=(17, 20), value='blk'),
           typename=[0:15] 〈WT_BLOCK_HEADER〉,
@@ -2745,7 +2751,9 @@ FunctionParts(typename=[18420:18425] 〈u_int〉,
                                      ' * __wt_block_header --\n'
                                      ' *     Return the size of the block-specific header.\n'
                                      ' */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=True)
 Args:
 [Variable(name=Token(idx=3, range=(10, 15), value='block'),
           typename=[0:8] 〈WT_BLOCK〉,
@@ -2803,7 +2811,9 @@ FunctionParts(typename=[18726:18730] 〈bool〉,
                                      'read reference count\n'
                                      ' *     is zero is made elsewhere.\n'
                                      ' */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=True)
 Args:
 [Variable(name=Token(idx=3, range=(7, 9), value='bm'),
           typename=[0:5] 〈WT_BM〉,

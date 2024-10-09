@@ -23,7 +23,9 @@ FunctionParts(typename=[0:3] 〈int〉,
               args=Token(idx=3, range=(9, 13), value='void'),
               body=Token(idx=5, range=(16, 31), value='\n    int a, b;\n'),
               preComment=None,
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=False)
 Args:
 []
 Vars:

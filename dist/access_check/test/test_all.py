@@ -175,9 +175,13 @@ class TestStatementDetails(TestCaseLocal):
 
 class TestRecordAccess(TestCaseLocal):
     def test_record(self):
+        workspace.logStream = StringIO()
+        setModules([Module("module1"), Module("module2")])
         _globals = Codebase()
         _globals.updateFromFile("data/record.c", expand_preproc=False)
-        workspace.logStream = StringIO()
+        # print(" ===== Globals:")
+        # pprint(_globals, width=120, compact=False)
+        # print(" =====")
         # setLogLevel(LogLevel.DEBUG)
         AccessCheck(_globals).checkAccess()
         self.checkStrAgainstFile(workspace.logStream.getvalue(), "data/record.c.access")

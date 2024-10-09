@@ -1,17 +1,19 @@
-/* #private */
+/* #public(module2) */
 struct S1 {
     int x;
 };
 
-/* #private */
+/* #private(module1) */
 struct S2 {
     S1 s;
 };
 
+/* #private(module2) */
 S1 *__wti_module2_func1(S2 *s2) {
     return &s2->s;
 }
 
+/* #public(module1) */
 int func(int num) {
     S2 s2;
     s2;
@@ -36,3 +38,23 @@ int func(int num) {
 
     return num * num;
 }
+
+/* #private(module1) */
+static S2 *__wti_module1_func2(void) {
+    return 5;
+}
+
+/* #private(module2) */
+static int __wti_module2_func2(void) {
+    return __wti_module1_func2();
+}
+
+/* #private(module2) */
+int __wti_module2_func3(void) {
+    return __wti_module1_func2()->x;
+}
+
+static S2 *__wti_module1_funcX(void) {
+    return 5;
+}
+

@@ -14,6 +14,8 @@ class FunctionParts:
     body: Token | None = None
     preComment: Token | None = None
     postComment: Token | None = None
+    is_type_const: bool = False
+    is_type_static: bool = False
 
     def short_repr(self) -> str:
         return f"Function({self.name} ({self.args})) : {self.typename}"
@@ -36,11 +38,11 @@ class FunctionParts:
 
     @staticmethod
     def fromStatement(statement: Statement) -> 'FunctionParts | None':
-        tokens = TokenList([t for t in statement.tokens])
+        tokens = TokenList([t for t in statement.tokens]) # Shallow copy
 
         i = 0
         while i < len(tokens):
-            if tokens[i].value in ignore_macros:
+            if tokens[i].value in ignore_type_keywords:
                 tokens.pop(i)
                 if tokens[i].getKind() == "(":
                     tokens.pop(i)
@@ -52,6 +54,7 @@ class FunctionParts:
         retType = TokenList([])
         funcName = None
         argsList = None
+        is_const, is_static = False, False
         for i in range(i, len(tokens)):
             token = tokens[i]
             if token.getKind() == "(":
@@ -61,22 +64,25 @@ class FunctionParts:
                 break
             if token.getKind() not in [" ", "#", "/"]:
                 retType.append(token)
+            if token.value == "const":
+                is_const = True
+            elif token.value == "static":
+                is_static = True
         if funcName is None or argsList is None:
             return None
+
         retType = TokenList((filter(lambda x: x.value not in c_type_keywords, retType)))
 
+        ret = FunctionParts(retType, funcName, argsList, preComment=preComment, postComment=get_post_comment(tokens), is_type_const=is_const, is_type_static=is_static)
+
         # Function body
-        funcBody = None
         for i in range(i+1, len(tokens)):
             token = tokens[i]
             if token.value[0] == "{":
-                funcBody = Token(token.idx, (token.range[0]+1, token.range[1]-1), token.value[1:-1])
+                ret.body = Token(token.idx, (token.range[0]+1, token.range[1]-1), token.value[1:-1])
                 break
 
-        # Post-comment
-        postComment = get_post_comment(tokens)
-
-        return FunctionParts(retType, funcName, argsList, funcBody, preComment, postComment)
+        return ret
 
     def xGetArgs(self) -> Iterable[Variable]:
         for stt in StatementList.xFromText(self.args.value):

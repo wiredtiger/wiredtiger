@@ -52,7 +52,7 @@ class StatementKind:
 
         i = 0
         while i < len(clean_tokens):
-            if clean_tokens[i].value in ignore_macros:
+            if clean_tokens[i].value in ignore_type_keywords:
                 clean_tokens.pop(i)
                 if clean_tokens[i].getKind() == "(":
                     clean_tokens.pop(i)
@@ -91,15 +91,15 @@ class StatementKind:
 
         # Not a typedef or record
 
-        first_is_type = bool(reg_identifier.match(clean_tokens[0].value))
-
         if len(clean_tokens) == 1:
             ret.is_expression = True
             return ret
 
         # There are at least two tokens
 
-        if first_is_type:
+        if clean_tokens[0].value in c_type_keywords or clean_tokens[0].value in c_types:
+            ret.is_decl = True
+        elif reg_identifier.match(clean_tokens[0].value):  # word
             next_word = next((token for token in islice(clean_tokens, 1, None) if token.value != "*"), None)
             if next_word:
                 next_next_word = next((token for token in clean_tokens if token.idx > next_word.idx and token.value != "*"), None)

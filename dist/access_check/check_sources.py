@@ -19,7 +19,7 @@ def main():
         Module("conf"),
         Module("config"),
         Module("conn"),
-        Module("cursor", sourceAliases=["cur"]),
+        Module("cursor", sourceAliases=["cur", "btcur", "curbackup"]),
         Module("evict"),
         Module("history", sourceAliases = ["hs"]),
         Module("log"),
@@ -27,7 +27,7 @@ def main():
         Module("meta", sourceAliases=["metadata"]),
         Module("optrack"),
         # Module("os", fileAliases = ["os_common", "os_darwin", "os_linux", "os_posix", "os_win"]),
-        Module("packing", sourceAliases=["pack", "struct"]),
+        Module("packing", sourceAliases=["pack"]),
         Module("reconcile", sourceAliases = ["rec"]),
         Module("rollback_to_stable", sourceAliases = ["rts"]),
         Module("schema"),
@@ -42,6 +42,11 @@ def main():
 
     _globals = Codebase()
     _globals.scanFiles(files, twopass=True, multithread=True)
+    # print(" ===== Globals:")
+    # pprint(_globals, width=120, compact=False)
+    # print(" =====")
+
+    # print(" ===== Access check:")
     AccessCheck(_globals).checkAccess(multithread=True)
 
 if __name__ == "__main__":

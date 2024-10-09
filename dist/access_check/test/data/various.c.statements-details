@@ -170,7 +170,9 @@ FunctionParts(typename=[284:287] 〈int〉,
                          range=(302, 366),
                          value='\n  /* pre comment4 */\n  int a, b; /* post comment4 */\n  char c;\n'),
               preComment=Token(idx=31, range=(265, 283), value='/* pre-comment3 */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=False)
 Args:
 [Variable(name=Token(idx=2, range=(4, 5), value='x'),
           typename=[0:3] 〈int〉,

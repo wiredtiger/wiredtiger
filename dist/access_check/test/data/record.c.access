@@ -1,0 +1,16 @@
+data/record.c:2:8: error: Module [module2] of a top-level entry 'S1' does not match the file's module []. Assigning it to module [module2].
+data/record.c:7:8: error: Module [module1] of a top-level entry 'S2' does not match the file's module []. Assigning it to module [module1].
+data/record.c:12:5: error: Module [module2] of a top-level entry '__wti_module2_func1' does not match the file's module []. Assigning it to module [module2].
+data/record.c:17:5: error: Module [module1] of a top-level entry 'func' does not match the file's module []. Assigning it to module [module1].
+data/record.c:43:12: error: Module [module1] of a top-level entry '__wti_module1_func2' does not match the file's module []. Assigning it to module [module1].
+data/record.c:43:12: function [module1] '__wti_module1_func2': error: Private static function of a foreign module defined in []
+data/record.c:48:12: error: Module [module2] of a top-level entry '__wti_module2_func2' does not match the file's module []. Assigning it to module [module2].
+data/record.c:48:12: function [module2] '__wti_module2_func2': error: Private static function of a foreign module defined in []
+data/record.c:53:5: error: Module [module2] of a top-level entry '__wti_module2_func3' does not match the file's module []. Assigning it to module [module2].
+data/record.c:57:12: error: Module [module1] of a top-level entry '__wti_module1_funcX' does not match the file's module []. Assigning it to module [] because identifier name has lower priority.
+data/record.c:13:13: [module2] '__wti_module2_func1': error: Invalid access to private record 'S2' of [module1]
+data/record.c:13:13: [module2] '__wti_module2_func1': error: Invalid access to private field 'S2 :: s' of [module1]
+data/record.c:31:5: [module1] 'func': error: Invalid access to private name '__wti_module2_func1' of [module2]
+data/record.c:32:5: [module1] 'func': error: Invalid access to private name '__wti_module2_func1' of [module2]
+data/record.c:37:10: [module1] 'func': error: Invalid access to private name '__wti_module2_func1' of [module2]
+data/record.c:54:12: [module2] '__wti_module2_func3': error: Invalid access to private record 'S2' of [module1]

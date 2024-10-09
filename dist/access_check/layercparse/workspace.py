@@ -16,6 +16,19 @@ from .internal import *
 # 3. load everything else, expanding macros
 # No need to remove preprocessor - it's ignored anyway
 
+FileKind: TypeAlias = Literal[
+    "",   # undefined
+    "c",  # .c file
+    "i",  # _inline.h
+    "h",  # .h but not inline
+]
+
+def get_file_kind(fname: str) -> FileKind:
+    return "c" if fname.endswith(".c") else \
+           "i" if fname.endswith("_inline.h") else \
+           "h" if fname.endswith(".h") else \
+           ""
+
 def get_file_priority(fname: str) -> int:
     return 3 if fname.endswith(".c") else \
            2 if fname.endswith("_inline.h") else \
@@ -47,6 +60,7 @@ moduleSrcNames: set[str] = set()
 
 def setModules(mods: list[Module]):
     global modules, moduleDirs, moduleAliasesFile, moduleAliasesSrc, moduleSrcNames
+    modules, moduleDirs, moduleAliasesFile, moduleAliasesSrc, moduleSrcNames = {}, {}, {}, {}, set()
     for module in mods:
         name = module.name
         if name in modules:
@@ -124,10 +138,13 @@ class File:
     module: str = ""
     # txt: str = ""
     lineOffsets: list[int] | None = field(default=None, repr=False)
+    fileKind: FileKind = field(default="", repr=False)
 
     def __post_init__(self):
         if not self.module:
             self.module = fname_to_module(self.name)
+        if not self.fileKind:
+            self.fileKind = get_file_kind(self.name)
 
     # Create a mapping from offset to line number
     def fillLineInfo(self, txt: str) -> list[int]:

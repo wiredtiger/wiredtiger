@@ -8,6 +8,7 @@ from .common import *
 from .record import *
 from .function import *
 from .macro import *
+from . import workspace
 
 Details: TypeAlias = FunctionParts | RecordParts | Variable
 
@@ -85,12 +86,24 @@ def _get_visibility_and_module(thing: Details, default_private: bool | None = No
         if match := regex.search(r"\#(?>(public)|(private))\b(?>\((\w++)\))?", thing.postComment.value, flags=re_flags):
             return (bool(match[2]), match[3] if match[3] else default_module)
 
-    if is_nested:
-        if match := regex.match(r"^(?>(__wt_)|(__wti_|WT_))(\L<names>)?", thing.name.value, flags=re_flags,
-                                names=moduleSrcNames):
-            return (bool(match[2]), match[3] if match[3] else default_module)
+    match = regex.match(r"^(?>(__wt_)|(__wti_|WT_))(\L<names>)?", thing.name.value, flags=re_flags,
+                        names=workspace.moduleSrcNames)
+    module_from_name = workspace.moduleAliasesSrc.get(match[3], match[3]) if match and match[3] else default_module
+
+    if is_nested and match:
+        return (bool(match[2]), module_from_name)
+
+    # Top level
+    if module_from_name != default_module:
+        ERROR(scope().locationStr(thing.name.range[0]), f"Module [{module_from_name}] of a top-level entry '{thing.name.value}' does not match the file's module [{default_module}]. Assigning it to module [{default_module}] because identifier name has lower priority.")
 
     return (default_private, default_module)
+
+def _get_visibility_and_module_check(thing: Details, default_private: bool | None = None, default_module: str = "", is_nested = False) -> tuple[bool | None, str]:
+    ret = _get_visibility_and_module(thing, default_private=default_private, default_module=default_module, is_nested=is_nested)
+    if not is_nested and ret[1] != default_module:
+        ERROR(scope().locationStr(thing.name.range[0]), f"Module [{ret[1]}] of a top-level entry '{thing.name.value}' does not match the file's module [{default_module}]. Assigning it to module [{ret[1]}].")
+    return ret
 
 
 @dataclass
@@ -128,7 +141,7 @@ class Codebase:
 
     def _add_record(self, record: RecordParts):
         record.getMembers()
-        is_private_record, local_module = _get_visibility_and_module(record, default_module=scope_module(), is_nested=bool(record.parent))
+        is_private_record, local_module = _get_visibility_and_module_check(record, default_module=scope_module(), is_nested=bool(record.parent))
         # TODO: check the parent record's access
         _dict_upsert_def(self.types, Definition(
             name=record.name.value,
@@ -142,7 +155,7 @@ class Codebase:
             self.types_restricted[record.name.value] = self.types[record.name.value]
         if record.members:
             for member in record.members:
-                is_private_field, local_module = _get_visibility_and_module(record, default_module=scope_module(), is_nested=True)
+                is_private_field, local_module = _get_visibility_and_module_check(record, default_module=scope_module(), is_nested=True)
                 if record.name.value not in self.fields:
                     self.fields[record.name.value] = {}
                 _dict_upsert_def(self.fields[record.name.value], Definition(
@@ -180,17 +193,25 @@ class Codebase:
                     if st.getKind().is_function_def:
                         func = FunctionParts.fromStatement(st)
                         if func and func.body:
-                            is_private, local_module = _get_visibility_and_module(func, default_module=scope_module())
-                            _dict_upsert_def(self.names, Definition(
+                            is_private, local_module = _get_visibility_and_module_check(func, default_module=scope_module())
+                            funcdef = Definition(
                                 name=func.name.value,
                                 kind="function",
                                 scope=scope(),
                                 offset=func.name.range[0],
                                 module=local_module,
                                 is_private=is_private,
-                                details=func))
-                            if is_private:
-                                self.names_restricted[func.name.value] = self.names[func.name.value]
+                                details=func)
+                            if scope_file().fileKind == "c" and func.is_type_static:
+                                if funcdef.is_private and funcdef.module != scope_module():
+                                    ERROR(funcdef.locationStr(), f"Private static function of a foreign module defined in [{scope_module()}]")
+                                if scope_file().name not in self.static_names:
+                                    self.static_names[scope_file().name] = {}
+                                _dict_upsert_def(self.static_names[scope_file().name], funcdef)
+                            else:
+                                _dict_upsert_def(self.names, funcdef)
+                                if is_private:
+                                    self.names_restricted[func.name.value] = self.names[func.name.value]
                     elif st.getKind().is_record:
                         record = RecordParts.fromStatement(st)
                         if record:

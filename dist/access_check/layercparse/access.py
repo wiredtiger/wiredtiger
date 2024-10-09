@@ -1,5 +1,6 @@
 import regex
 import multiprocessing
+import itertools
 from dataclasses import dataclass, field
 from typing import Iterable, Any
 from pprint import pformat
@@ -74,6 +75,7 @@ class AccessCheck:
             return lambda: _locationStr(offset)
 
         module = defn.module
+        filename = defn.scope.file.name
 
         DEBUG5(_LOC(0), f"=== body:\n{body_clean}\n===")
 
@@ -97,14 +99,16 @@ class AccessCheck:
             DEBUG2(_LOC(0), f"locals vars:\n" + "\n".join(f"    {name}: {cast(Details, d.details).typename.short_repr()}" for name, d in localvars.items()))
 
         def _get_type_of_name(name: str) -> str:
+            # Consider scopes in order: local, static, global
             if name in localvars:
-                return self._globals.untypedef(get_base_type(cast(Details, localvars[name].details).typename)) if localvars[name].details else ""
-            if name in self._globals.names:
-                return \
-                    self._globals.untypedef(get_base_type(cast(Details, self._globals.names[name].details).typename)) \
-                    if self._globals.names[name].details else \
-                    ""
-            return ""
+                details = localvars[name].details
+            elif filename in self._globals.static_names and name in self._globals.static_names[filename]:
+                details = self._globals.static_names[filename][name].details
+            elif name in self._globals.names:
+                details = self._globals.names[name].details
+            else:
+                return ""
+            return self._globals.untypedef(get_base_type(cast(Details, details).typename)) if details else ""
 
         def _get_type_of_expr(tokens: TokenList, root_offset: int = 0) -> str:
             while tokens and tokens[0].getKind() == "+":  # remove any prefix ops
@@ -195,20 +199,28 @@ class AccessCheck:
     # Go through function bodies. Check calls and struct member accesses.
     def checkAccess(self, multithread = False) -> None:
         if not multithread:
-            for defn in self._globals.names.values():
+            for defn in itertools.chain(
+                        self._globals.names.values(),
+                        *(namedict.values() for namedict in self._globals.static_names.values())):
                 DEBUG3(defn.scope.locationStr(0), f"debug3: Checking {defn.short_repr()}") or \
                 DEBUG(defn.scope.locationStr(0), f"debug: Checking {defn.kind} [{defn.module}] {defn.name}")
                 self._check_function(defn)
         else:
             init_multithreading()
             with multiprocessing.Pool() as pool:
-                for res in pool.starmap(AccessCheck._check_function_name_for_multi, ((self, n) for n in self._globals.names.keys())):
-                    pass # print(res)
+                for res in pool.starmap(
+                        AccessCheck._check_function_name_for_multi,
+                        itertools.chain(
+                            ((self, n, True) for n in self._globals.static_names.keys()),
+                            ((self, n, False) for n in self._globals.names.keys()))):
+                    print(res, end='')
 
     @staticmethod
-    def _check_function_name_for_multi(self: 'AccessCheck', name: str) -> str:
-        self._check_function(self._globals.names[name])
-        return ""
-        # with LogToStringScope():
-        #     self.updateFromFile(filename)
-        #     ret = logStream.getvalue() # type: ignore # logStream is a StringIO
+    def _check_function_name_for_multi(self: 'AccessCheck', name: str, file: bool) -> str:
+        with LogToStringScope():
+            if not file:
+                self._check_function(self._globals.names[name])
+            else:
+                for defn in self._globals.static_names[name].values():
+                    self._check_function(defn)
+            return workspace.logStream.getvalue() # type: ignore # logStream is a StringIO

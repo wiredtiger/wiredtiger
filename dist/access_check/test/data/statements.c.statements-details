@@ -26,7 +26,9 @@ FunctionParts(typename=[1:4] 〈int〉,
               args=Token(idx=7, range=(31, 43), value='int a, int b'),
               body=Token(idx=9, range=(46, 83), value='\n  int x;\n  x = a + b;\n  return (x);\n'),
               preComment=None,
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=False)
 Args:
 [Variable(name=Token(idx=2, range=(4, 5), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=','),
  Variable(name=Token(idx=7, range=(11, 12), value='b'),
@@ -1305,7 +1307,9 @@ FunctionParts(typename=[2159:2163] 〈void〉,
               args=Token(idx=379, range=(2176, 2187), value='int *a[100]'),
               body=Token(idx=381, range=(2190, 2191), value='\n'),
               preComment=None,
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=False)
 Args:
 [Variable(name=Token(idx=3, range=(5, 6), value='a'),
           typename=[0:3] 〈int〉,
@@ -1348,7 +1352,9 @@ FunctionParts(typename=[2241:2244] 〈int〉,
               args=Token(idx=389, range=(2250, 2262), value='int a, int b'),
               body=Token(idx=391, range=(2265, 2302), value='\n  int x;\n  x = a + b;\n  return (x);\n'),
               preComment=Token(idx=384, range=(2194, 2240), value='/*\n * func --\n *      function description\n */'),
-              postComment=None)
+              postComment=None,
+              is_type_const=False,
+              is_type_static=False)
 Args:
 [Variable(name=Token(idx=2, range=(4, 5), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=','),
  Variable(name=Token(idx=7, range=(11, 12), value='b'),
@@ -1358,7 +1364,50 @@ Args:
           end=None)]
 Vars:
 [Variable(name=Token(idx=4, range=(7, 8), value='x'), typename=[3:6] 〈int〉, preComment=None, postComment=None, end=';')]
-Statement(tokens=[2304:2323] 〈
+Statement(tokens=[2304:2393] 〈
+⌇/*
+ * func --
+ *      function description
+ */⌇
+⌇static⌇ ⌇const⌇ ⌇int⌇ ⌇func2⌇(int a, int b)⌇ ⌇{
+}⌇
+〉,
+          kind=StatementKind(is_comment=True,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=True,
+                             is_function_def=True,
+                             is_function_decl=True,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=Token(idx=394,
+                                              range=(2305, 2351),
+                                              value='/*\n * func --\n *      function description\n */'),
+                             postComment=None))
+Function:
+FunctionParts(typename=[2365:2368] 〈int〉,
+              name=Token(idx=402, range=(2369, 2374), value='func2'),
+              args=Token(idx=403, range=(2375, 2387), value='int a, int b'),
+              body=Token(idx=405, range=(2390, 2391), value='\n'),
+              preComment=Token(idx=394, range=(2305, 2351), value='/*\n * func --\n *      function description\n */'),
+              postComment=None,
+              is_type_const=True,
+              is_type_static=True)
+Args:
+[Variable(name=Token(idx=2, range=(4, 5), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=','),
+ Variable(name=Token(idx=7, range=(11, 12), value='b'),
+          typename=[7:10] 〈int〉,
+          preComment=None,
+          postComment=None,
+          end=None)]
+Vars:
+[]
+Statement(tokens=[2393:2412] 〈
 ⌇do⌇ ⌇{
 }⌇ ⌇while⌇ ⌇(0)⌇;⌇
 〉,
@@ -1377,7 +1426,7 @@ Statement(tokens=[2304:2323] 〈
                              end=None,
                              preComment=None,
                              postComment=None))
-Statement(tokens=[2323:2437] 〈
+Statement(tokens=[2412:2526] 〈
 ⌇
 ⌇extern⌇ ⌇"C"⌇ ⌇{
   int func_ext_c(int a, int b);
@@ -1456,7 +1505,7 @@ Statement(tokens=[56:98] 〈typedef⌇ ⌇struct⌇ ⌇ext_c_struct⌇ ⌇EXT_C_
                              end=None,
                              preComment=None,
                              postComment=None))
-Statement(tokens=[2437:2450] 〈
+Statement(tokens=[2526:2539] 〈
 ⌇#define AAA
 〉,
           kind=StatementKind(is_comment=None,
@@ -1475,14 +1524,14 @@ Statement(tokens=[2437:2450] 〈
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2446, 2449), value='AAA'),
+MacroParts(name=Token(idx=0, range=(2535, 2538), value='AAA'),
            args=None,
-           body=Token(idx=0, range=(2450, 2450), value=''),
+           body=Token(idx=0, range=(2539, 2539), value=''),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=True)
-Statement(tokens=[2450:2464] 〈#define BBB 5
+Statement(tokens=[2539:2553] 〈#define BBB 5
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=True,
@@ -1500,14 +1549,14 @@ Statement(tokens=[2450:2464] 〈#define BBB 5
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2458, 2461), value='BBB'),
+MacroParts(name=Token(idx=0, range=(2547, 2550), value='BBB'),
            args=None,
-           body=Token(idx=0, range=(2462, 2464), value='5'),
+           body=Token(idx=0, range=(2551, 2553), value='5'),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=True)
-Statement(tokens=[2464:2482] 〈#define CCC 5 + 8
+Statement(tokens=[2553:2571] 〈#define CCC 5 + 8
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=True,
@@ -1525,14 +1574,14 @@ Statement(tokens=[2464:2482] 〈#define CCC 5 + 8
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2472, 2475), value='CCC'),
+MacroParts(name=Token(idx=0, range=(2561, 2564), value='CCC'),
            args=None,
-           body=Token(idx=0, range=(2476, 2482), value='5 + 8'),
+           body=Token(idx=0, range=(2565, 2571), value='5 + 8'),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=False)
-Statement(tokens=[2482:2502] 〈#define DDD() 5 + 8
+Statement(tokens=[2571:2591] 〈#define DDD() 5 + 8
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=True,
@@ -1550,14 +1599,14 @@ Statement(tokens=[2482:2502] 〈#define DDD() 5 + 8
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2490, 2493), value='DDD'),
+MacroParts(name=Token(idx=0, range=(2579, 2582), value='DDD'),
            args=[],
-           body=Token(idx=0, range=(2496, 2502), value='5 + 8'),
+           body=Token(idx=0, range=(2585, 2591), value='5 + 8'),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=False)
-Statement(tokens=[2502:2523] 〈#define EEE(x) x + 8
+Statement(tokens=[2591:2612] 〈#define EEE(x) x + 8
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=True,
@@ -1575,14 +1624,14 @@ Statement(tokens=[2502:2523] 〈#define EEE(x) x + 8
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2510, 2513), value='EEE'),
-           args=[Token(idx=0, range=(2514, 2515), value='x')],
-           body=Token(idx=0, range=(2517, 2523), value='x + 8'),
+MacroParts(name=Token(idx=0, range=(2599, 2602), value='EEE'),
+           args=[Token(idx=0, range=(2603, 2604), value='x')],
+           body=Token(idx=0, range=(2606, 2612), value='x + 8'),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=False)
-Statement(tokens=[2523:2547] 〈#define FFF(x, y) x + y
+Statement(tokens=[2612:2636] 〈#define FFF(x, y) x + y
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=True,
@@ -1600,14 +1649,14 @@ Statement(tokens=[2523:2547] 〈#define FFF(x, y) x + y
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2531, 2534), value='FFF'),
-           args=[Token(idx=0, range=(2535, 2536), value='x'), Token(idx=1, range=(2538, 2539), value='y')],
-           body=Token(idx=0, range=(2541, 2547), value='x + y'),
+MacroParts(name=Token(idx=0, range=(2620, 2623), value='FFF'),
+           args=[Token(idx=0, range=(2624, 2625), value='x'), Token(idx=1, range=(2627, 2628), value='y')],
+           body=Token(idx=0, range=(2630, 2636), value='x + y'),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=False)
-Statement(tokens=[2547:2574] 〈#define GGG(x, y) x + \
+Statement(tokens=[2636:2663] 〈#define GGG(x, y) x + \
  y
 〉,
           kind=StatementKind(is_comment=None,
@@ -1626,10 +1675,236 @@ Statement(tokens=[2547:2574] 〈#define GGG(x, y) x + \
                              preComment=None,
                              postComment=None))
 Macro:
-MacroParts(name=Token(idx=0, range=(2555, 2558), value='GGG'),
-           args=[Token(idx=0, range=(2559, 2560), value='x'), Token(idx=1, range=(2562, 2563), value='y')],
-           body=Token(idx=0, range=(2565, 2574), value='x +  \n y'),
+MacroParts(name=Token(idx=0, range=(2644, 2647), value='GGG'),
+           args=[Token(idx=0, range=(2648, 2649), value='x'), Token(idx=1, range=(2651, 2652), value='y')],
+           body=Token(idx=0, range=(2654, 2663), value='x +  \n y'),
            preComment=None,
            is_va_args=False,
            is_wellformed=True,
            is_const=False)
+Statement(tokens=[2663:2673] 〈
+⌇qwe⌇ ⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=436, range=(2668, 2671), value='asd'),
+         typename=[2664:2667] 〈qwe〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2673:2683] 〈qwe⌇ ⌇*⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=442, range=(2678, 2681), value='asd'),
+         typename=[2673:2676] 〈qwe〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2683:2693] 〈qwe⌇*⌇ ⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=True,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=445, range=(2683, 2686), value='qwe'),
+         typename=[0:0] 〈〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2693:2704] 〈qwe⌇ ⌇*⌇ ⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=True,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=451, range=(2693, 2696), value='qwe'),
+         typename=[0:0] 〈〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2704:2711] 〈qwe⌇ ⌇*⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Statement(tokens=[2711:2721] 〈
+⌇int⌇ ⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=466, range=(2716, 2719), value='asd'),
+         typename=[2712:2715] 〈int〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2721:2731] 〈int⌇ ⌇*⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=472, range=(2726, 2729), value='asd'),
+         typename=[2721:2724] 〈int〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2731:2741] 〈int⌇*⌇ ⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=True,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=475, range=(2731, 2734), value='int'),
+         typename=[0:0] 〈〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2741:2752] 〈int⌇ ⌇*⌇ ⌇asd⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=True,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=481, range=(2741, 2744), value='int'),
+         typename=[0:0] 〈〉,
+         preComment=None,
+         postComment=None,
+         end=';')
+Statement(tokens=[2752:2759] 〈int⌇ ⌇*⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
+                             is_decl=True,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Variable:
+Variable(name=Token(idx=488, range=(2752, 2755), value='int'),
+         typename=[0:0] 〈〉,
+         preComment=None,
+         postComment=None,
+         end=';')
