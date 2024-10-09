@@ -29,20 +29,19 @@
 
 /*
  * JIRA ticket reference: WT-12945 Test case description: This is a test case that looks for crashes
- * when prefetch and eviction of the same page happens at the same time.
+ * when pre-fetch and eviction of the same page happens at the same time.
  *
  * This variant tests dirty eviction.
  */
-
-/* TEMPORARY: NOTE: This is loosely based on wt-2535_insert_race. */
 
 /* Constants */
 
 #define RECORDS_PER_PAGE 44603
 #define NUM_WARM_UP_RECORDS (3 * RECORDS_PER_PAGE) /* How many records to insert during warmup. */
-/* First record to change to give pre-fetch thread time to begin prefetching */
+/* First record to change to give pre-fetch thread time to begin pre-fetching. */
 #define FIRST_RECORD_TO_CHANGE (RECORDS_PER_PAGE + 1)
-#define NUM_EVICTION RECORDS_PER_PAGE /* How many times to force eviction */
+#define NUM_EVICTION RECORDS_PER_PAGE /* How many times to force eviction. */
+#define NUM_LEFT_TO_PREFIX 30         /* Controls when to stop reading and just pre-fetch. */
 
 void *thread_do_prefetch(void *);
 
@@ -208,7 +207,7 @@ print_eviction_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
 
 /*
  * print_prefetch_stats --
- *     Print some prefetch stats.
+ *     Print some pre-fetch stats.
  */
 static void
 print_prefetch_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where, uint64_t idx)
@@ -230,7 +229,9 @@ print_prefetch_stats(WT_SESSION *wt_session, TEST_OPTS *opts, const char *where,
     cache_pages_prefetch = get_stat(opts, wt_session, WT_STAT_CONN_CACHE_PAGES_PREFETCH);
 
     if ((prefetch_attempts == last_prefetch_attempts) &&
-      (prefetch_pages_queued == last_prefetch_pages_queued))
+      (prefetch_pages_queued == last_prefetch_pages_queued) &&
+      (prefetch_pages_read == last_prefetch_pages_read) &&
+      (cache_pages_prefetch == last_cache_pages_prefetch))
         return;
 
     separator = '.';
@@ -384,15 +385,15 @@ thread_do_prefetch(void *arg)
     opts = (TEST_OPTS *)arg;
     conn = opts->conn;
 
-    printf("Running prefetch thread\n");
+    printf("Running pre-fetch thread\n");
 
     testutil_check(conn->open_session(conn, NULL, session_open_config, &wt_session));
     testutil_check(wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor));
 
-    /* Tell the eviction thread that the prefetch thread is ready. */
+    /* Tell the eviction thread that the pre-fetch thread is ready. */
     (void)__wt_atomic_add64(&ready_counter, 1);
 
-    /* Read to trigger prefetch */
+    /* Read to trigger pre-fetch */
     idx = 0;
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         WT_ERR(ret);
@@ -401,11 +402,11 @@ thread_do_prefetch(void *arg)
         key = get_key(opts, cursor);
         value = get_value(opts, cursor);
         if (idx % (10 * WT_THOUSAND) == 0) {
-            printf("prefetch thread: read key=%" PRIu64 ", value=%" PRIu64 "\n", idx, value);
+            printf("pre-fetch thread: read key=%" PRIu64 ", value=%" PRIu64 "\n", idx, value);
             fflush(stdout);
         }
-        if (key == (FIRST_RECORD_TO_CHANGE - 30))
-            break;                  /* Close enough for prefetch to do the rest. */
+        if (key == (FIRST_RECORD_TO_CHANGE - NUM_LEFT_TO_PREFIX))
+            break;                  /* Close enough for pre-fetch to do the rest. */
         __wt_sleep(0, WT_THOUSAND); /* 1 millisecond */
         ++idx;
     }
@@ -417,7 +418,7 @@ err:
 
     opts->running = false;
 
-    printf("End prefetch thread\n");
+    printf("End pre-fetch thread\n");
 
     return (NULL);
 }
