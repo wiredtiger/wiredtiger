@@ -16,7 +16,7 @@
  * - Predicate function (Must be manual): __wt_control_point_pred_example_predicate.
  * - Predicate config parsing function (Must be manual):
  * __wt_control_point_config_pred_example_predicate.
- * - An assignment of configuration parameters to values in WT_CONTROL_POINT (Must be manual).
+ * - An assignment of configuration parameters to values in WT_CONTROL_POINT_DATA (Must be manual).
  */
 
 #include "wt_internal.h"
@@ -36,7 +36,7 @@
  */
 bool
 __wt_control_point_pred_skip(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
 {
     WT_UNUSED(session);
     /* skip_count is assigned to WT_CONTROL_PARAM.param1.value64. */
@@ -55,7 +55,7 @@ __wt_control_point_pred_skip(
  */
 int
 __wt_control_point_config_pred_skip(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -80,7 +80,7 @@ __wt_control_point_config_pred_skip(
  */
 bool
 __wt_control_point_pred_times(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -101,7 +101,7 @@ __wt_control_point_pred_times(
  */
 int
 __wt_control_point_config_pred_times(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -127,7 +127,7 @@ __wt_control_point_config_pred_times(
  */
 bool
 __wt_control_point_pred_random_param1(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
 {
     WT_UNUSED(cp_registry);
     /* probability is assigned to WT_CONTROL_PARAM.param1.value16aa. */
@@ -147,7 +147,7 @@ __wt_control_point_pred_random_param1(
  */
 int
 __wt_control_point_config_pred_random_param1(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -173,7 +173,7 @@ __wt_control_point_config_pred_random_param1(
  */
 bool
 __wt_control_point_pred_random_param2(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
 {
     WT_UNUSED(cp_registry);
     /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
@@ -193,7 +193,7 @@ __wt_control_point_pred_random_param2(
  */
 int
 __wt_control_point_config_pred_random_param2(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */

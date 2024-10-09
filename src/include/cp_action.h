@@ -45,7 +45,7 @@
         WT_SESSION_IMPL *const _session = NULL;                             \
         const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);            \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                            \
-        WT_CONTROL_POINT *_data;                                            \
+        WT_CONTROL_POINT_DATA *_data;                                       \
         WT_ASSERT(NULL, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);           \
         _cp_registry = &(_conn->control_points[_cp_id]);                    \
         _data = _cp_registry->data;                                         \
@@ -75,7 +75,7 @@
         WT_SESSION_IMPL *const _session = (SESSION);                  \
         const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);      \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                      \
-        WT_CONTROL_POINT *_data;                                      \
+        WT_CONTROL_POINT_DATA *_data;                                 \
         WT_ASSERT(_session, _cp_id < SESSION_CONTROL_POINTS_SIZE);    \
         _cp_registry = &(_session->control_points[_cp_id]);           \
         _data = _cp_registry->data;                                   \
@@ -101,9 +101,9 @@ struct __wt_control_point_action_sleep {
     uint64_t microseconds;
 };
 
-/* Action data type including WT_CONTROL_POINT */
+/* Action data type including WT_CONTROL_POINT_DATA */
 struct __wt_conn_control_point_action_data_sleep {
-    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_SLEEP action_data;
 };
 
@@ -156,9 +156,9 @@ struct __wt_control_point_action_err {
     int err;
 };
 
-/* Action data type including WT_CONTROL_POINT */
+/* Action data type including WT_CONTROL_POINT_DATA */
 struct __wt_conn_control_point_action_data_err {
-    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_ERR action_data;
 };
 
@@ -207,9 +207,9 @@ struct __wt_control_point_action_ret {
     int ret_value;
 };
 
-/* Action data type including WT_CONTROL_POINT */
+/* Action data type including WT_CONTROL_POINT_DATA */
 struct __wt_conn_control_point_action_data_ret {
-    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_RET action_data;
 };
 
@@ -260,9 +260,9 @@ struct __wt_control_point_action_wait_for_trigger {
     WT_CONDVAR *condvar;
 };
 
-/* Action data type including WT_CONTROL_POINT */
+/* Action data type including WT_CONTROL_POINT_DATA */
 struct __wt_conn_control_point_action_data_wait_for_trigger {
-    WT_CONTROL_POINT iface;
+    WT_CONTROL_POINT_DATA iface;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER action_data;
 };
 
@@ -280,7 +280,7 @@ struct __wt_conn_control_point_action_data_wait_for_trigger {
         WT_CONNECTION_IMPL *const _conn = S2C(_session);                                     \
         const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                             \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                                             \
-        WT_CONTROL_POINT *_data;                                                             \
+        WT_CONTROL_POINT_DATA *_data;                                                        \
         WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                        \
         _cp_registry = &(_conn->control_points[_cp_id]);                                     \
         _data = _cp_registry->data;                                                          \

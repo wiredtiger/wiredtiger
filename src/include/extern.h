@@ -1,55 +1,61 @@
 #pragma once
 
-extern WT_CONTROL_POINT *__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session,
+extern WT_CONTROL_POINT_DATA *__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session,
   wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_always_err(WT_SESSION_IMPL *session,
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_always_err(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_always_ret(WT_SESSION_IMPL *session,
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_always_ret(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_always_sleep(WT_SESSION_IMPL *session,
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_always_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_always_wait_for_trigger(
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_always_wait_for_trigger(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param1_err(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param1_ret(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param1_sleep(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param1_wait_for_trigger(
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param1_err(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param2_err(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param2_ret(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param2_sleep(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_random_param2_wait_for_trigger(
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param1_ret(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_skip_err(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_skip_ret(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_skip_sleep(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_skip_wait_for_trigger(
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param1_sleep(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_times_err(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_times_ret(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_times_sleep(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_control_point_pair_init_times_wait_for_trigger(
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param1_wait_for_trigger(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session,
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param2_err(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param2_ret(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param2_sleep(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_random_param2_wait_for_trigger(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_skip_err(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_skip_ret(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_skip_sleep(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_skip_wait_for_trigger(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_times_err(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_times_ret(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_times_sleep(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_times_wait_for_trigger(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session,
   wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WT_CONTROL_POINT *__wti_control_point_get_data(
+extern WT_CONTROL_POINT_DATA *__wti_control_point_get_data(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, bool locked)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_DATA_SOURCE *__wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
@@ -65,16 +71,16 @@ extern bool __wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char 
 extern bool __wt_config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_control_point_pred_random_param1(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_control_point_pred_random_param2(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_control_point_pred_skip(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_control_point_pred_times(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_control_point_wait_for_trigger(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id)
@@ -504,22 +510,22 @@ extern int __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_action_err(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-  const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_action_ret(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-  const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_action_sleep(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-  const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_config_action_err(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_config_action_ret(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_config_action_sleep(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_action_wait_for_trigger(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_pred_random_param1(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_pred_random_param2(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_pred_skip(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-  const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_pred_times(WT_SESSION_IMPL *session, WT_CONTROL_POINT *data,
-  const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_config_pred_skip(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_config_pred_times(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1964,9 +1970,9 @@ extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_control_point_action_init_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT *data);
+  WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT_DATA *data);
 extern void __wt_control_point_release_data(WT_SESSION_IMPL *session,
-  WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data, bool locked);
+  WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data, bool locked);
 extern void __wt_control_point_unlock(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry);
 extern void __wt_cursor_close(WT_CURSOR *cursor);

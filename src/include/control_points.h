@@ -31,14 +31,14 @@ typedef uint32_t wt_control_point_action_id_t;
  * A function to initialize a control point's data.
  * If per-connection session = NULL.
  */
-typedef WT_CONTROL_POINT *wt_control_point_init_t(
+typedef WT_CONTROL_POINT_DATA *wt_control_point_init_t(
   WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg);
 
 /*!
  * A function to test whether a control point should be triggered.
  */
 typedef bool wt_control_point_pred_t(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT *data);
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data);
 
 /*!
  * Registration data for one control point.
@@ -50,18 +50,18 @@ struct __wt_control_point_registry {
     size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
     WT_SPINLOCK lock;                  /* Atomically access data and data->ref_count. */
     const char *config_name;           /* Control point config name */
-    WT_CONTROL_POINT *data; /* Disabled if NULL. More data may follow WT_CONTROL_POINT. */
+    WT_CONTROL_POINT_DATA *data; /* Disabled if NULL. More data may follow WT_CONTROL_POINT_DATA. */
     wt_control_point_action_id_t action_supported; /* For compatibility checking. */
 };
 
 /*!
- * A reference count for a WT_CONTROL_POINT.
+ * A reference count for a WT_CONTROL_POINT_DATA.
  * This is needed by only per connection control points, not per session control points.
  */
 typedef uint32_t wt_control_point_ref_count_t;
 
 /*!
- * A pred parameter in WT_CONTROL_POINT.
+ * A pred parameter in WT_CONTROL_POINT_DATA.
  * The usage and meaning depends upon the pred function.
  */
 union __wt_control_point_param {
@@ -88,7 +88,7 @@ union __wt_control_point_param {
 /*!
  * A control point interface that begins a control point specific data type.
  */
-struct __wt_control_point {
+struct __wt_control_point_data {
     WT_CONTROL_POINT_PARAM param1;          /* First parameter for pred function. */
     WT_CONTROL_POINT_PARAM param2;          /* Second parameter for pred function. */
     wt_control_point_ref_count_t ref_count; /* Count of threads using this data. */

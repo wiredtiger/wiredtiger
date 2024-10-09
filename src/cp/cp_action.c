@@ -51,7 +51,7 @@
  */
 int
 __wt_control_point_config_action_sleep(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point action configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -79,7 +79,7 @@ __wt_control_point_config_action_sleep(
  */
 int
 __wt_control_point_config_action_err(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point action configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -105,7 +105,7 @@ __wt_control_point_config_action_err(
  */
 int
 __wt_control_point_config_action_ret(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point action configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -134,7 +134,7 @@ __wt_control_point_config_action_ret(
  */
 int
 __wt_control_point_config_action_wait_for_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point action configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
@@ -178,8 +178,8 @@ bool
 __wt_control_point_wait_for_trigger(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id)
 {
-    WT_CONTROL_POINT *data;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+    WT_CONTROL_POINT_DATA *data;
     size_t crossing_count;
     size_t current_trigger_count;
     size_t desired_trigger_count;
@@ -257,7 +257,7 @@ __wt_control_point_wait_for_trigger(
  */
 void
 __wt_control_point_action_init_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT *data)
+  WT_SESSION_IMPL *session, const char *control_point_name, WT_CONTROL_POINT_DATA *data)
 {
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
     WT_DECL_RET;

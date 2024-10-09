@@ -42,11 +42,11 @@
  *
  * @param session The session. @param id The per connection control point's ID.
  */
-WT_CONTROL_POINT *
+WT_CONTROL_POINT_DATA *
 __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_point_id_t id)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CONTROL_POINT *data;
+    WT_CONTROL_POINT_DATA *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     size_t new_crossing_count;
     size_t new_trigger_count;
@@ -99,10 +99,10 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
  *
  * @param session The session. @param id The per connection control point's ID.
  */
-WT_CONTROL_POINT *
+WT_CONTROL_POINT_DATA *
 __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_point_id_t id)
 {
-    WT_CONTROL_POINT *data;
+    WT_CONTROL_POINT_DATA *data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
     size_t new_crossing_count;
     size_t new_trigger_count;

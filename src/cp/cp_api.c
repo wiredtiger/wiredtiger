@@ -22,11 +22,11 @@
  *     cp_registry->lock is left locked for additional processing along with incrementing the
  *     ref_count.
  */
-WT_CONTROL_POINT *
+WT_CONTROL_POINT_DATA *
 __wti_control_point_get_data(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, bool locked)
 {
-    WT_CONTROL_POINT *saved_data;
+    WT_CONTROL_POINT_DATA *saved_data;
 
     __wt_spin_lock(session, &cp_registry->lock);
     saved_data = cp_registry->data;
@@ -62,7 +62,7 @@ __wt_control_point_unlock(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *c
  */
 void
 __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry,
-  WT_CONTROL_POINT *data, bool locked)
+  WT_CONTROL_POINT_DATA *data, bool locked)
 {
     uint32_t new_ref;
 
@@ -89,7 +89,7 @@ __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGIS
 static int
 __conn_control_point_disable(WT_CONNECTION_IMPL *conn, WT_CONTROL_POINT_REGISTRY *cp_registry)
 {
-    WT_CONTROL_POINT *saved_data;
+    WT_CONTROL_POINT_DATA *saved_data;
     WT_DECL_RET;
     WT_UNUSED(conn);
 
@@ -192,7 +192,7 @@ int
 __wti_conn_control_point_enable(
   WT_CONNECTION_IMPL *conn, WT_CONTROL_POINT_REGISTRY *cp_registry, const char **cfg)
 {
-    WT_CONTROL_POINT *data;
+    WT_CONTROL_POINT_DATA *data;
     WT_DECL_RET;
     WT_UNUSED(conn);
 
@@ -252,7 +252,7 @@ int
 __wti_session_control_point_enable(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *cfg)
 {
-    WT_CONTROL_POINT *data;
+    WT_CONTROL_POINT_DATA *data;
     const char *cfgs[2];
 
     data = cp_registry->data;
