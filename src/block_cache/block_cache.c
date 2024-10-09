@@ -661,6 +661,7 @@ __wt_blkcache_destroy(WT_SESSION_IMPL *session)
              * Some workloads crash on freeing NVRAM arenas. If that occurs the call to free can be
              * removed and the library/OS will clean up for us once the process exits.
              */
+            __blkcache_free(session, blkcache_item->block_meta);
             __blkcache_free(session, blkcache_item->data);
             __blkcache_update_ref_histogram(session, blkcache_item, WT_BLKCACHE_RM_EXIT);
             (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
