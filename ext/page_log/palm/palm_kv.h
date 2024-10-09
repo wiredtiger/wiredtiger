@@ -36,11 +36,15 @@
  */
 typedef struct PALM_KV_ENV {
     MDB_env *lmdb_env;
-    MDB_txn *lmdb_txn;
     MDB_dbi lmdb_globals_dbi;
     MDB_dbi lmdb_tables_dbi;
     MDB_dbi lmdb_pages_dbi;
 } PALM_KV_ENV;
+
+typedef struct PALM_KV_CONTEXT {
+    PALM_KV_ENV *env;
+    MDB_txn *lmdb_txn;
+} PALM_KV_CONTEXT;
 
 typedef struct PALM_KV_PAGE_MATCHES {
     MDB_cursor *lmdb_cursor;
@@ -58,9 +62,9 @@ int palm_kv_env_create(PALM_KV_ENV **env);
 int palm_kv_env_open(PALM_KV_ENV *env, const char *homedir);
 void palm_kv_env_close(PALM_KV_ENV *env);
 
-int palm_kv_begin_transaction(PALM_KV_ENV *env, bool readonly);
-int palm_kv_commit_transaction(PALM_KV_ENV *env);
-void palm_kv_rollback_transaction(PALM_KV_ENV *env);
+int palm_kv_begin_transaction(PALM_KV_CONTEXT *context, PALM_KV_ENV *env, bool readonly);
+int palm_kv_commit_transaction(PALM_KV_CONTEXT *context);
+void palm_kv_rollback_transaction(PALM_KV_CONTEXT *context);
 
 typedef enum PALM_KV_GLOBAL_KEY {
     PALM_KV_GLOBAL_REVISION = 0,
@@ -68,10 +72,10 @@ typedef enum PALM_KV_GLOBAL_KEY {
     PALM_KV_GLOBAL_CHECKPOINT_STARTED = 2,
 } PALM_KV_GLOBAL_KEY;
 
-int palm_kv_put_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t value);
-int palm_kv_get_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t *valuep);
-int palm_kv_put_page(PALM_KV_ENV *env, uint64_t table_id, uint64_t page_id, uint64_t checkpoint_id,
-  uint64_t revision, bool is_delta, const WT_ITEM *buf);
-int palm_kv_get_page_matches(PALM_KV_ENV *env, uint64_t table_id, uint64_t page_id,
+int palm_kv_put_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t value);
+int palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *valuep);
+int palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
+  uint64_t checkpoint_id, uint64_t revision, bool is_delta, const WT_ITEM *buf);
+int palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
   uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matchesp);
 bool palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches);

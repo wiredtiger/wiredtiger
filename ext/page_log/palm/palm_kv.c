@@ -141,40 +141,41 @@ palm_kv_env_close(PALM_KV_ENV *env)
 }
 
 int
-palm_kv_begin_transaction(PALM_KV_ENV *env, bool readonly)
+palm_kv_begin_transaction(PALM_KV_CONTEXT *context, PALM_KV_ENV *env, bool readonly)
 {
-    assert(env->lmdb_txn == NULL);
+    context->env = env;
+    context->lmdb_txn = NULL;
     // TODO: report failures?  For all these funcs
-    return (mdb_txn_begin(env->lmdb_env, NULL, readonly ? MDB_RDONLY : 0, &env->lmdb_txn));
+    return (mdb_txn_begin(env->lmdb_env, NULL, readonly ? MDB_RDONLY : 0, &context->lmdb_txn));
 }
 
 int
-palm_kv_commit_transaction(PALM_KV_ENV *env)
+palm_kv_commit_transaction(PALM_KV_CONTEXT *context)
 {
     int ret;
 
-    assert(env->lmdb_txn != NULL);
-    ret = mdb_txn_commit(env->lmdb_txn);
-    env->lmdb_txn = NULL;
+    assert(context->lmdb_txn != NULL);
+    ret = mdb_txn_commit(context->lmdb_txn);
+    context->lmdb_txn = NULL;
     return (ret);
 }
 
 void
-palm_kv_rollback_transaction(PALM_KV_ENV *env)
+palm_kv_rollback_transaction(PALM_KV_CONTEXT *context)
 {
-    assert(env->lmdb_txn != NULL);
-    mdb_txn_abort(env->lmdb_txn);
-    env->lmdb_txn = NULL;
+    assert(context->lmdb_txn != NULL);
+    mdb_txn_abort(context->lmdb_txn);
+    context->lmdb_txn = NULL;
 }
 
 int
-palm_kv_put_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t value)
+palm_kv_put_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t value)
 {
     MDB_val kval;
     MDB_val vval;
     u_int k;
 
-    assert(env->lmdb_txn != NULL);
+    assert(context->lmdb_txn != NULL);
 
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(kval));
@@ -187,18 +188,18 @@ palm_kv_put_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t value)
     kval.mv_data = &k;
     vval.mv_size = sizeof(value);
     vval.mv_data = &value;
-    return (mdb_put(env->lmdb_txn, env->lmdb_globals_dbi, &kval, &vval, 0));
+    return (mdb_put(context->lmdb_txn, context->env->lmdb_globals_dbi, &kval, &vval, 0));
 }
 
 int
-palm_kv_get_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t *valuep)
+palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *valuep)
 {
     MDB_val kval;
     MDB_val vval;
     u_int k;
     int ret;
 
-    assert(env->lmdb_txn != NULL);
+    assert(context->lmdb_txn != NULL);
 
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(kval));
@@ -206,7 +207,7 @@ palm_kv_get_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t *valuep)
 
     kval.mv_size = sizeof(k);
     kval.mv_data = &k;
-    ret = mdb_get(env->lmdb_txn, env->lmdb_globals_dbi, &kval, &vval);
+    ret = mdb_get(context->lmdb_txn, context->env->lmdb_globals_dbi, &kval, &vval);
     if (ret == 0) {
         if (vval.mv_size != sizeof(uint64_t))
             return (EIO); /* not expected, data damaged, could be assert */
@@ -216,8 +217,8 @@ palm_kv_get_global(PALM_KV_ENV *env, PALM_KV_GLOBAL_KEY key, uint64_t *valuep)
 }
 
 int
-palm_kv_put_page(PALM_KV_ENV *env, uint64_t table_id, uint64_t page_id, uint64_t checkpoint_id,
-  uint64_t revision, bool is_delta, const WT_ITEM *buf)
+palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
+  uint64_t checkpoint_id, uint64_t revision, bool is_delta, const WT_ITEM *buf)
 {
     MDB_val kval;
     MDB_val vval;
@@ -235,11 +236,11 @@ palm_kv_put_page(PALM_KV_ENV *env, uint64_t table_id, uint64_t page_id, uint64_t
     vval.mv_size = buf->size;
     vval.mv_data = (void *)buf->data;
 
-    return (mdb_put(env->lmdb_txn, env->lmdb_pages_dbi, &kval, &vval, 0));
+    return (mdb_put(context->lmdb_txn, context->env->lmdb_pages_dbi, &kval, &vval, 0));
 }
 
 int
-palm_kv_get_page_matches(PALM_KV_ENV *env, uint64_t table_id, uint64_t page_id,
+palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
   uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matches)
 {
     MDB_val kval;
@@ -263,7 +264,8 @@ palm_kv_get_page_matches(PALM_KV_ENV *env, uint64_t table_id, uint64_t page_id,
     page_key.checkpoint_id = checkpoint_id + 1;
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
-    if ((ret = mdb_cursor_open(env->lmdb_txn, env->lmdb_pages_dbi, &matches->lmdb_cursor)) != 0)
+    if ((ret = mdb_cursor_open(
+           context->lmdb_txn, context->env->lmdb_pages_dbi, &matches->lmdb_cursor)) != 0)
         return (ret);
     ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_SET_RANGE);
     if (ret == MDB_NOTFOUND) {
