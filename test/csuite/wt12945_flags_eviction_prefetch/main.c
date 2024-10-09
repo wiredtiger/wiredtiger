@@ -46,10 +46,11 @@
 void *thread_do_prefetch(void *);
 
 static uint64_t ready_counter;
+static const char *const session_open_config = "prefetch=(enabled=true)";
 
 /*
  * get_stat --
- *     Get one statistic scaning to find it.
+ *     Get one statistic.
  */
 static int64_t
 get_stat(TEST_OPTS *opts, WT_SESSION *wt_session, int which_stat)
@@ -69,8 +70,8 @@ get_stat(TEST_OPTS *opts, WT_SESSION *wt_session, int which_stat)
 }
 
 /*
- * get_value --
- *     Wrapper providing the correct typing for the WT_CURSOR::get_value variadic argument.
+ * get_key --
+ *     Wrapper providing the correct typing for the WT_CURSOR::get_key variadic argument.
  */
 static uint64_t
 get_key(TEST_OPTS *opts, WT_CURSOR *cursor)
@@ -232,6 +233,7 @@ main(int argc, char *argv[])
     int ret;
     const char *wiredtiger_open_config =
       "create,cache_size=2G,eviction=(threads_max=5),"
+      "prefetch=(available=true,default=true),"
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     opts = &_opts;
@@ -338,7 +340,7 @@ thread_do_prefetch(void *arg)
 
     printf("Running prefetch thread\n");
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &wt_session));
+    testutil_check(conn->open_session(conn, NULL, session_open_config, &wt_session));
     testutil_check(wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor));
 
     /* Tell the eviction thread that the prefetch thread is ready. */
