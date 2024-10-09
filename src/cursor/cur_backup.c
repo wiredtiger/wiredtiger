@@ -832,8 +832,8 @@ __backup_start(
          * We are holding the checkpoint and schema locks so schema operations will not see the
          * backup file list until it is complete and valid.
          */
-        WT_WITH_HOTBACKUP_WRITE_LOCK(session, WT_CONN_HOTBACKUP_START(conn));
         conn->hot_backup_timestamp = conn->txn_global.last_ckpt_timestamp;
+        WT_WITH_HOTBACKUP_WRITE_LOCK(session, WT_CONN_HOTBACKUP_START(conn));
 
         /* We're the lock holder, we own cleanup. */
         F_SET(cb, WT_CURBACKUP_LOCKER);
