@@ -396,51 +396,21 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
  * __txn_op_delete_commit_apply_page_del_timestamp --
  *     Apply the correct start and durable timestamps to the page delete structure.
  */
-static WT_INLINE int
-__txn_op_delete_commit_apply_page_del_timestamp(
-  WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
+static WT_INLINE void
+__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    WT_ADDR_COPY addr;
-    WT_DECL_RET;
     WT_PAGE_DELETED *page_del;
-    WT_REF *ref;
     WT_TXN *txn;
-    bool addr_found;
 
-    ref = op->u.ref;
     txn = session->txn;
-    page_del = ref->page_del;
+    page_del = op->u.ref->page_del;
 
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
-
-    if (page_del != NULL) {
-        /* Validate the commit timestamp against the maximum durable timestamp on the page. */
-        if (validate) {
-            /*
-             * To compare against the commit timestamp, we must copy the address to obtain the
-             * latest start and stop durable timestamps.
-             *
-             * Reconciling a fast-truncated page before the fast truncate operation commits can
-             * result in restoring the page in memory by freeing ref->addr. To prevent concurrent
-             * freeing, acquire the split generation before accessing ref->addr.
-             */
-            WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
-            WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
-            if (addr_found)
-                ret = __wt_txn_timestamp_usage_check(session, op,
-                  page_del->timestamp != WT_TS_NONE ? page_del->timestamp : txn->commit_timestamp,
-                  WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
-            WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
-            WT_RET(ret);
-        }
-
-        if (page_del->timestamp == WT_TS_NONE) {
-            page_del->timestamp = txn->commit_timestamp;
-            page_del->durable_timestamp = txn->durable_timestamp;
-        }
+    if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
+        page_del->timestamp = txn->commit_timestamp;
+        page_del->durable_timestamp = txn->durable_timestamp;
     }
 
-    return (ret);
+    return;
 }
 
 /*
@@ -450,14 +420,18 @@ __txn_op_delete_commit_apply_page_del_timestamp(
 static WT_INLINE int
 __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
 {
+    WT_ADDR_COPY addr;
     WT_DECL_RET;
+    WT_PAGE_DELETED *page_del;
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TXN *txn;
     WT_UPDATE **updp;
+    bool addr_found;
 
     ref = op->u.ref;
     txn = session->txn;
+    page_del = ref->page_del;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -504,9 +478,24 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *
                 } while (*updp != NULL);
             }
         }
+    } else if (validate) {
+        /*
+         * Validate the commit timestamp against the page's maximum durable timestamp. While the ref
+         * state is WT_REF_DELETED and locked, there are no concurrent threads that can free
+         * ref->addr. However, we still need to be within the WT_GEN_SPLIT generation while
+         * accessing ref->addr, as required by the calling function.
+         */
+        WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+        WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
+        if (addr_found)
+            ret = __wt_txn_timestamp_usage_check(session, op,
+              page_del->timestamp != WT_TS_NONE ? page_del->timestamp : txn->commit_timestamp,
+              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+        WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+        WT_ERR(ret);
     }
 
-    ret = __txn_op_delete_commit_apply_page_del_timestamp(session, op, validate);
+    __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
 err:
     WT_REF_UNLOCK(ref, previous_state);
@@ -741,7 +730,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     ref->page_del->txnid = txn->id;
 
     if (__txn_should_assign_timestamp(session, op))
-        WT_ERR(__txn_op_delete_commit_apply_page_del_timestamp(session, op, false));
+        __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
     if (__wt_txn_log_op_check(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
