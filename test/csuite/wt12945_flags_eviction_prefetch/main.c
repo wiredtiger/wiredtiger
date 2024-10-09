@@ -282,7 +282,7 @@ main(int argc, char *argv[])
     const char *wiredtiger_open_config =
       "create,cache_size=2G,eviction=(threads_max=5),"
       "prefetch=(available=true,default=true),"
-#if 0 /* Include if needed */
+#if 1 /* Include if needed */
       "verbose=[prefetch=1],"
 #endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
@@ -361,11 +361,13 @@ main(int argc, char *argv[])
     }
     print_eviction_stats(wt_session, opts, "After Update", record_idx, false);
 
-    testutil_check(cursor->close(cursor));
-    testutil_check(wt_session->close(wt_session, NULL));
-
     testutil_check(pthread_join(prefetch_thread_id, NULL));
 
+    print_eviction_stats(wt_session, opts, "After pthread_join", record_idx, false);
+    print_prefetch_stats(wt_session, opts, "After pthread_join", record_idx, false);
+
+    testutil_check(cursor->close(cursor));
+    testutil_check(wt_session->close(wt_session, NULL));
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }
@@ -384,6 +386,8 @@ thread_do_prefetch(void *arg)
     uint64_t idx;
     uint64_t key;
     uint64_t value;
+    int64_t previous_prefetch_pages_queued;
+    int64_t current_prefetch_pages_queued;
     int ret;
 
     opts = (TEST_OPTS *)arg;
@@ -398,9 +402,17 @@ thread_do_prefetch(void *arg)
     (void)__wt_atomic_add64(&ready_counter, 1);
 
     /* Read to trigger pre-fetch */
+    previous_prefetch_pages_queued = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
     idx = 0;
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         WT_ERR(ret);
+        current_prefetch_pages_queued = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
+        if (current_prefetch_pages_queued > previous_prefetch_pages_queued) {
+                printf("%" PRIu64 ". prefetch_pages_queued increased from %" PRId64 " to %" PRId64 ". Exit loop.\n",
+                       idx, previous_prefetch_pages_queued, current_prefetch_pages_queued);
+            break;
+        }
+        previous_prefetch_pages_queued = current_prefetch_pages_queued;
         print_prefetch_stats(wt_session, opts, "Prefix", idx, true);
         /* Read */
         key = get_key(opts, cursor);
