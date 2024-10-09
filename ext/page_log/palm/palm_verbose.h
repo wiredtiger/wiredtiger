@@ -26,10 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define PALM_VERBOSE_PRINT(palm, ...)           \
-    do {                                        \
-        if ((palm)->verbose > 0)                \
-            fprintf(stderr, __VA_ARGS__);       \
+#define PALM_VERBOSE_PRINT(palm, ...)     \
+    do {                                  \
+        if ((palm)->verbose > 0)          \
+            fprintf(stderr, __VA_ARGS__); \
     } while (0);
 
 const char *palm_verbose_item(const WT_ITEM *buf);

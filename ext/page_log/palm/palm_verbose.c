@@ -31,14 +31,14 @@
 
 #include "palm_verbose.h"
 
-#define N_VERBOSE_SLOTS 16      /* must be a power of 2 */
+#define N_VERBOSE_SLOTS 16 /* must be a power of 2 */
 #define N_VERBOSE_MASK (N_VERBOSE_SLOTS - 1)
 
 /*
  * Return a single hex character.
  */
 static char
-verbose_hex_char(int x)
+verbose_hex_char(uint8_t x)
 {
     if (x < 10)
         return '0' + x;
@@ -47,8 +47,8 @@ verbose_hex_char(int x)
 }
 
 /*
- * Return a string for the buffer. Not strictly reentrant, but returns entries from a
- * circular buffer in a round-robin fashion.
+ * Return a string for the buffer. Not strictly reentrant, but returns entries from a circular
+ * buffer in a round-robin fashion.
  */
 const char *
 palm_verbose_item(const WT_ITEM *buf)
@@ -66,9 +66,8 @@ palm_verbose_item(const WT_ITEM *buf)
     slot = (__atomic_add_fetch(&slot_count, 1, __ATOMIC_SEQ_CST)) & N_VERBOSE_MASK;
 
     /*
-     * Get the beginning and end of the buffer.  Leave plenty of room
-     * at the end for the final entry plus the possibility of a space, newline,
-     * and a final "overflow" message.
+     * Get the beginning and end of the buffer. Leave plenty of room at the end for the final entry
+     * plus the possibility of a space, newline, and a final "overflow" message.
      */
     s = &return_slot[slot][0];
     end = &return_slot[slot][sizeof(return_slot[0])] - 30;
