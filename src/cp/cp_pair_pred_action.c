@@ -6,13 +6,12 @@
  * See the file LICENSE for redistribution information.
  */
 
-/* cp_pair_action_pred.c: Definitions for pairs of actions and predicates. */
-/* This file must be edited when a new control point action or predicate is created. */
+/* cp_pair_pred_action.c: Definitions for pairs of predicates and actions. */
+/* This file must be edited when a new control point predicate or action is created. */
 
 /*
- * The names of pairs are derived from the configuration names of the action and the predicate, for
- * example from action "Wait for trigger" and predicate "times".
- *
+ * The names of pairs are derived from the configuration names of the predicate and the action, for
+ * example from predicate "times" and action "Wait for trigger".
  *
  * Each pair has:
  * - Pair data type (Could be generated): WT_CONTROL_POINT_PAIR_DATA_TIMES.
