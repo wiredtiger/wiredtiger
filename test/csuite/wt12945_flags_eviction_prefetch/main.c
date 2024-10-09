@@ -38,10 +38,11 @@
 
 /* Constants */
 
-#define NUM_WARM_UP_RECORDS 100000 /* How many records to insert during warmup. */
+#define RECORDS_PER_PAGE 44603
+#define NUM_WARM_UP_RECORDS (3 * RECORDS_PER_PAGE) /* How many records to insert during warmup. */
 /* First record to change to give pre-fetch thread time to begin prefetching */
-#define FIRST_RECORD_TO_CHANGE 2000
-#define NUM_EVICTION 10 /* How many times to force eviction */
+#define FIRST_RECORD_TO_CHANGE (RECORDS_PER_PAGE + 1)
+#define NUM_EVICTION RECORDS_PER_PAGE /* How many times to force eviction */
 
 void *thread_do_prefetch(void *);
 
