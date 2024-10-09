@@ -229,46 +229,6 @@ ex_control_points_config = [
                       the number of triggers for which to wait''',
                       min='1', max='4294967295'),
            ]),
-    ConnectionControlPoint('Thread 5', 'Wait for trigger', 'Always', '', r'''
-           Thread 6 waits for thread 5 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
-           ]),
-    ConnectionControlPoint('Thread 6', 'Wait for trigger', 'Always', '', r'''
-           Thread 7 waits for thread 6 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
-           ]),
-    ConnectionControlPoint('Thread 7', 'Wait for trigger', 'Always', '', r'''
-           Thread 8 waits for thread 7 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
-           ]),
-    ConnectionControlPoint('Thread 8', 'Wait for trigger', 'Always', '', r'''
-           Thread 9 waits for thread 8 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
-           ]),
-    ConnectionControlPoint('Thread 9', 'Wait for trigger', 'Always', '', r'''
-           The thread executing main waits for thread 9 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
-           ]),
 ]
 
 # All per connection control points

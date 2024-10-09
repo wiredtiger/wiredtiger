@@ -34,7 +34,7 @@
 
 static const char *home;
 
-#define NUM_THREADS 10
+#define NUM_THREADS 5
 
 struct thread_arguments {
     WT_CONNECTION *conn;
@@ -106,11 +106,6 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_2,
       WT_CONN_CONTROL_POINT_ID_THREAD_3,
       WT_CONN_CONTROL_POINT_ID_THREAD_4,
-      WT_CONN_CONTROL_POINT_ID_THREAD_5,
-      WT_CONN_CONTROL_POINT_ID_THREAD_6,
-      WT_CONN_CONTROL_POINT_ID_THREAD_7,
-      WT_CONN_CONTROL_POINT_ID_THREAD_8,
-      WT_CONN_CONTROL_POINT_ID_THREAD_9,
     };
     bool enabled;
     const char *cfg;
