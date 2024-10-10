@@ -1999,6 +1999,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
+#if 1 /* XXX TEMPORARY: Before the fix. A workaround of another bug. Added by the revert. */
     /*
      * FIXME-WT-12127 Allow pages on the pre-fetch queue to be considered for eviction once a
      * satisfactory workaround has been found for ensuring certain eviction flows don't invalidate
@@ -2006,6 +2007,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
         return (false);
+#endif
 
     return (true);
 }

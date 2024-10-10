@@ -81,7 +81,11 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
+#if 1 /* XXX TEMPORARY: Before the fix. Added by the revert. */
         F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
+        /* XXX TEMPORARY: The bug is that between here and __wt_prefetch_page_in() eviction decides
+         * to evict the page. */
+#endif
         __wt_spin_unlock(session, &conn->prefetch_lock);
 
         /*
@@ -99,6 +103,13 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
         }
 
+#if 0 /* XXX TEMPORARY: After the fix. Removed by the revert */
+        /*
+         * It is now safe to clear the flag. The prefetch worker is done interacting with the ref
+         * and the associated internal page can be safely evicted from now on.
+         */
+        F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
+#endif
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
 
         __wt_free(session, pe);
@@ -211,11 +222,13 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
         goto err;
     }
 
+#if 1 /* XXX TEMPORARY Added by the fix. Leave since just a comment. */
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
      * guarantees the corresponding internal page and itself cannot be evicted until prefetch has
      * processed the leaf page.
      */
+#endif
     F_SET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH);
     /* Unlock the ref. */
     WT_REF_SET_STATE(ref, WT_REF_DISK);
