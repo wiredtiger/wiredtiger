@@ -326,7 +326,7 @@ struct __wt_page_modify {
     uint64_t obsolete_check_txn;
     wt_timestamp_t obsolete_check_timestamp;
 
-    /* The largest transaction seen on the page by reconciliation. */
+    /* The largest transaction and timestamp seen on the page by reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
@@ -1062,6 +1062,31 @@ struct __wt_page_deleted {
 
     /* Flag to indicate fast-truncate is written to disk. */
     bool selected_for_write;
+};
+
+/*
+ * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
+ * create temporary space in which to store them. (Locations can't be much larger than this anyway,
+ * they must fit onto the minimum size page because a reference to an overflow page is itself a
+ * location.)
+ */
+#define WT_ADDR_MAX_COOKIE 255 /* Maximum address cookie */
+
+/*
+ * WT_ADDR_COPY --
+ *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ * copy of the WT_REF address information.
+ */
+struct __wt_addr_copy {
+    uint8_t type;
+
+    uint8_t addr[WT_ADDR_MAX_COOKIE];
+    uint8_t size;
+
+    WT_TIME_AGGREGATE ta;
+
+    WT_PAGE_DELETED del; /* Fast-truncate page information */
+    bool del_set;
 };
 
 /*
