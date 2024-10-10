@@ -193,7 +193,7 @@ class File:
 @dataclass
 class Scope:
     file: File
-    offset: int  # Offset in the file
+    offset: int  # offset in file
     # txt: str | None = None
 
     def offsetToLinePos(self, offset: int) -> tuple[int, int]:
@@ -202,6 +202,20 @@ class Scope:
         return self.file.offsetToLinePosStr(self.offset + offset)
     def locationStr(self, offset: int) -> str:
         return self.file.locationStr(self.offset + offset)
+
+    @staticmethod
+    def create(file: File | None, offset: int) -> 'Scope':
+        if file is not None:
+            return Scope(file, offset=offset)
+        else:
+            f = scope_file()
+            if not scope_stack.stack:
+                return Scope(f, offset=offset)
+            return Scope(f, scope_stack.stack[-1].offset + offset)
+
+    @staticmethod
+    def empty() -> 'Scope':
+        return Scope(File(""), 0)
 
 @dataclass
 class _ScopeStack:
@@ -217,15 +231,16 @@ class _ScopeStack:
 scope_stack = _ScopeStack([])
 
 def scope() -> Scope:
-    return scope_stack.stack[-1] if scope_stack.stack else Scope(File(""), 0)
+    return scope_stack.stack[-1] if scope_stack.stack else Scope.empty()
 
 def scope_file() -> File:
     return scope_stack.stack[-1].file if scope_stack.stack else File("")
 
-def scope_push(offset: int = 0, file: File | None = None) -> None:
-    scope_stack.push(Scope(
-        file if file is not None else scope_file(),
-        offset if not scope_stack.stack else scope_stack.stack[-1].offset + offset))
+def scope_push_s(sc: Scope) -> None:
+    scope_stack.push(sc)
+
+def scope_push(file: File | None, offset: int) -> None:
+    scope_stack.push(Scope.create(file, offset))
 
 def scope_pop() -> None:
     scope_stack.pop()
@@ -243,14 +258,11 @@ def locationStr(offset: int) -> str:
     return scope_stack.stack[-1].locationStr(offset) if scope_stack.stack else f"-:0:{offset}:"
 
 class ScopePush:
-    def __init__(self, offset: int = 0, file: File | str | None = None, relative: bool = True):
-        self.offset = offset if not relative else scope_offset() + offset
-        self.file = scope_file() if file is None else \
-            File(file) if isinstance(file, str) else \
-            file
+    def __init__(self, file: File | str | None = None, offset: int = 0):
+        self.file, self.offset = ((File(file) if isinstance(file, str) else file), offset)
 
     def __enter__(self):
-        scope_push(self.offset, self.file)
+        scope_push(self.file, self.offset)
 
     def __exit__(self, exc_type, exc_value, traceback):
         scope_pop()

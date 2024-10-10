@@ -8,9 +8,10 @@ from .common import *
 from .record import *
 from .function import *
 from .macro import *
+from .macroexpand import *
 from . import workspace
 
-Details: TypeAlias = FunctionParts | RecordParts | Variable
+Details: TypeAlias = FunctionParts | RecordParts | Variable | MacroParts
 
 @dataclass
 class Definition:
@@ -57,13 +58,14 @@ class Definition:
             WARNING(other.locationStr, f"conflict here:")
             WARNING(None, f"details type mismatch for '{self.name}': {type(self.details)} != {type(other.details)}\n{self.short_repr()}\n{other.short_repr()}")
         else:
-            if isinstance(self.details, FunctionParts) or isinstance(self.details, RecordParts) or isinstance(self.details, Variable):
+            if self.details is not None: # isinstance(self.details, FunctionParts) or isinstance(self.details, RecordParts) or isinstance(self.details, Variable):
                 errors = self.details.update(other.details)  # type: ignore
                 if errors:
-                    WARNING(self.locationStr, f"conflicting update for details:")
-                    WARNING(other.locationStr, f"conflict here:")
+                    LOG_ERROR_FUNC = WARNING if not isinstance(self.details, MacroParts) else INFO
+                    LOG_ERROR_FUNC(self.locationStr, f"conflicting update for {self.kind} details:")
+                    LOG_ERROR_FUNC(other.locationStr, f"conflict here:")
                     for error in errors:
-                        WARNING(None, error)
+                        LOG_ERROR_FUNC(None, error)
         self.preComments += other.preComments
         self.postComments += other.postComments
 
@@ -122,7 +124,20 @@ class Codebase:
     # Typedefs
     typedefs: dict[str, str] = field(default_factory=dict)
     # Macros
-    macros: Macros = field(default_factory=Macros)
+    macros___: dict[str, Definition] = field(default_factory=dict)
+    # macros_restricted: dict[str, Definition] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if "__attribute__" not in self.macros___:
+            self.macros___["__attribute__"] = Definition(
+                name="__attribute__",
+                kind="macro",
+                scope=Scope.empty(),
+                offset=0,
+                module="",
+                is_private=False,
+                details=MacroParts(name=Token(0, (0, 0), "__attribute__"), args=[Token(0, (0, 0), "@")])
+            )
 
     def untypedef(self, name: str) -> str:
         seen: set[str] = set()
@@ -142,7 +157,9 @@ class Codebase:
         return self.untypedef(get_base_type(
             cast(Details, self.fields[rec_type][field_name].details).typename))
 
-    def addRecord(self, record: RecordParts, is_global_scope: bool = True) -> None:
+    def addRecord(self, record: RecordParts | None, is_global_scope: bool = True) -> None:
+        if record is None:
+            return
         record.getMembers()
         is_nested = bool(record.parent)
         default_private, default_module = scope_file().is_private, scope_module()
@@ -185,11 +202,29 @@ class Codebase:
             for rec in record.nested:
                 self.addRecord(rec)
 
+    def addMacro(self, macro: MacroParts | None) -> None:
+        if macro is None:
+            return
+        is_private, local_module = _get_visibility_and_module_check(
+            macro, default_private=scope_file().is_private, default_module=scope_module())
+        defn = Definition(
+            name=macro.name.value,
+            kind="macro",
+            scope=scope(),
+            offset=macro.name.range[0],
+            module=local_module,
+            is_private=is_private,
+            details=macro)
+        DEBUG3(lambda: scope().locationStr(macro.name.range[0]), "Macro:", defn.short_repr)
+        _dict_upsert_def(self.macros___, defn)
+        # if is_private:
+        #     self.macros_restricted[macro.name.value] = self.macros___[macro.name.value]
+
     def updateFromText(self, txt: str, offset: int = 0, do_preproc: bool = True) -> None:
         DEBUG3(" ---", f"Scope: {offset}")
         with ScopePush(offset=offset):
             saved_type: Any = None
-            for st in StatementList.fromText(txt):
+            for st in StatementList.fromText(txt, base_offset=0):
                 st.getKind()
                 if saved_type or (st.getKind().is_typedef and not st.getKind().is_record and not st.getKind().is_function_def):
                     var = Variable.fromVarDef(st.tokens)
@@ -209,7 +244,7 @@ class Codebase:
                         if func and func.body:
                             is_private, local_module = _get_visibility_and_module_check(
                                 func, default_private=scope_file().is_private, default_module=scope_module())
-                            funcdef = Definition(
+                            defn = Definition(
                                 name=func.name.value,
                                 kind="function",
                                 scope=scope(),
@@ -217,30 +252,23 @@ class Codebase:
                                 module=local_module,
                                 is_private=is_private,
                                 details=func)
-                            DEBUG3(lambda: funcdef.locationStr(), "Function:", funcdef.short_repr)
+                            DEBUG3(lambda: defn.locationStr(), "Function:", defn.short_repr)
                             if scope_file().fileKind == "c" and func.is_type_static:
-                                if funcdef.is_private and funcdef.module != scope_module():
-                                    ERROR(funcdef.locationStr(), f"Private static function of a foreign module defined in [{scope_module()}]")
+                                if defn.is_private and defn.module != scope_module():
+                                    ERROR(defn.locationStr(), f"Private static function of a foreign module defined in [{scope_module()}]")
                                 if scope_file().name not in self.static_names:
                                     self.static_names[scope_file().name] = {}
-                                _dict_upsert_def(self.static_names[scope_file().name], funcdef)
+                                _dict_upsert_def(self.static_names[scope_file().name], defn)
                             else:
-                                _dict_upsert_def(self.names, funcdef)
+                                _dict_upsert_def(self.names, defn)
                                 if is_private:
                                     self.names_restricted[func.name.value] = self.names[func.name.value]
                     elif st.getKind().is_record:
-                        record = RecordParts.fromStatement(st)
-                        if record:
-                            self.addRecord(record)
+                        self.addRecord(RecordParts.fromStatement(st))
                     elif st.getKind().is_decl:
                         INFO(scope().locationStr(st.range()[0]), f"Global variable ignored")
                     elif do_preproc and st.getKind().is_preproc:
-                        macro = MacroParts.fromStatement(st)
-                        if macro:
-                            DEBUG3(lambda: scope().locationStr(st.range()[0]), "Macro:", macro.short_repr)
-                            if errors := self.macros.upsert(macro):
-                                for error in errors:
-                                    INFO(*error)
+                        self.addMacro(MacroParts.fromStatement(st))
                     elif st.getKind().is_extern_c:
                         body = next((t for t in st.tokens if t.value.startswith("{")), None)
                         if body:
@@ -251,8 +279,9 @@ class Codebase:
         DEBUG2(" ---", f"File: {fname}")
         with ScopePush(file=File(fname)):
             if expand_preproc:
-                txt = self.macros.expand(scope_file().read())
-                scope_file().updateLineInfoWithInsertList(self.macros.insert_list)
+                expander = MacroExpander()
+                txt = expander.expand(scope_file().read(), self.macros___)
+                scope_file().updateLineInfoWithInsertList(expander.insert_list)
                 self.updateFromText(txt, do_preproc=False)
             else:
                 self.updateFromText(scope_file().read(), do_preproc=True)
@@ -260,17 +289,13 @@ class Codebase:
     def updateMacroFromText(self, txt: str, offset: int = 0) -> None:
         with ScopePush(offset=offset):
             for st in StatementList.preprocFromText(txt):
-                macro = MacroParts.fromStatement(st)
-                if macro:
-                    if errors := self.macros.upsert(macro):
-                        for error in errors:
-                            INFO(*error)
+                self.addMacro(MacroParts.fromStatement(st))
 
     def updateMacroFromFile(self, fname: str) -> None:
         with ScopePush(file=File(fname)):
             self.updateMacroFromText(scope_file().read())
 
-    def scanFiles(self, files: Iterable[str], twopass = True, multithread = False) -> None:
+    def scanFiles(self, files: Iterable[str], twopass = True, multithread = True) -> None:
         if twopass:
             for fname in files:
                 # if get_file_priority(fname) <= 1:
@@ -297,4 +322,7 @@ class Codebase:
     @staticmethod
     def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str, str, list[tuple[int, int]]]:
         # Return: (fname, expanded_file_content, insert_list)
-        return (fname, self.macros.expand(file_content(fname)), self.macros.insert_list)
+        expander = MacroExpander()
+        return (fname,
+                expander.expand(file_content(fname), self.macros___),
+                expander.insert_list)  # Tuple evaluation is left-to-right, so the insert_list is ready

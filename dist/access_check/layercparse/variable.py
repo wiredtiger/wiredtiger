@@ -9,7 +9,7 @@ def get_base_type(clean_tokens: TokenList) -> str:
     return type[-1].value if type else ""
 
 def get_base_type_str(clean_txt: str, **kwargs) -> str:
-    return get_base_type(TokenList(TokenList.xxFilterCode(TokenList.xFromText(clean_txt, **kwargs))))
+    return get_base_type(TokenList(TokenList.xxFilterCode(TokenList.xFromText(clean_txt, base_offset=0, **kwargs))))
 
 @dataclass
 class Variable:

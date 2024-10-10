@@ -52,7 +52,7 @@ class TestCaseLocal(unittest.TestCase):
     def parseDetailsFromText(self, txt: str, offset: int = 0) -> str:
         a = []
         with ScopePush(offset=offset):
-            for st in StatementList.fromText(txt):
+            for st in StatementList.fromText(txt, 0):
                 st.getKind()
                 a.append(pf(st))
                 # a.append(pf(StatementKind.fromTokens(st.tokens)))
@@ -140,16 +140,16 @@ class TestToken(TestCaseLocal):
 
 class TestVariable(TestCaseLocal):
     def test_1(self):
-        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int a;"))),
+        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int a;", 0))),
             r"""Variable(name=Token(idx=2, range=(4, 5), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=';')""")
     def test_2(self):
-        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int (*a)(void);"))),
+        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int (*a)(void);", 0))),
             r"""Variable(name=Token(idx=2, range=(4, 8), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=';')""")
     def test_3(self):
-        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int a[10];"))),
+        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int a[10];", 0))),
             r"""Variable(name=Token(idx=2, range=(4, 5), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=';')""")
     def test_4(self):
-        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int *a[10];"))),
+        self.assertMultiLineEqualDiff(repr(Variable.fromVarDef(TokenList.fromText("int *a[10];", 0))),
             r"""Variable(name=Token(idx=3, range=(5, 6), value='a'), typename=[0:3] 〈int〉, preComment=None, postComment=None, end=';')""")
 
 
@@ -184,7 +184,7 @@ class TestRecordAccess(TestCaseLocal):
         # pprint(_globals, width=120, compact=False)
         # print(" =====")
         # setLogLevel(LogLevel.DEBUG)
-        AccessCheck(_globals).checkAccess()
+        AccessCheck(_globals).checkAccess(multithread=False)
         self.checkStrAgainstFile(workspace.logStream.getvalue(), "data/record.c.access")
         workspace.logStream = None
         setLogLevel(LogLevel.DEFAULT)
@@ -195,22 +195,16 @@ class TestMacro(TestCaseLocal):
         _globals = Codebase()
         src = file_content("data/macro.c")
         for p in StatementList.preprocFromText(src):
-            macro = MacroParts.fromStatement(p)
-            # pprint(macro)
-            if macro:
-                _globals.macros.upsert(macro)
+            _globals.addMacro(MacroParts.fromStatement(p))
+
         # _globals.updateFromFile("data/macro.c")
         # setLogLevel(LogLevel.DEBUG)
         # pprint(_globals.macros, width=120, compact=False)
 
-        expanded = _globals.macros.expand(src, expand_const=True)
-        if _globals.macros.errors:
-            print("\n".join(_globals.macros.errors))
+        expanded = MacroExpander().expand(src, _globals.macros___, expand_const=True)
         self.checkStrAgainstFile(expanded, "data/macro.c.macro-full")
 
-        expanded = _globals.macros.expand(src, expand_const=False)
-        if _globals.macros.errors:
-            print("\n".join(_globals.macros.errors))
+        expanded = MacroExpander().expand(src, _globals.macros___, expand_const=False)
         self.checkStrAgainstFile(expanded, "data/macro.c.macro-noconst")
 
     def test_macro_expand(self):
@@ -218,14 +212,14 @@ class TestMacro(TestCaseLocal):
 
         workspace.logStream = StringIO()
         _globals1 = Codebase()
-        _globals1.scanFiles(["data/macro-expand-offsets.c"], twopass=True)
-        AccessCheck(_globals1).checkAccess()
+        _globals1.scanFiles(["data/macro-expand-offsets.c"], twopass=True, multithread=False)
+        AccessCheck(_globals1).checkAccess(multithread=False)
         check1 = workspace.logStream.getvalue()
 
         workspace.logStream = StringIO()
         _globals2 = Codebase()
-        _globals2.scanFiles(["data/macro-expand-offsets.c"], twopass=False)
-        AccessCheck(_globals2).checkAccess()
+        _globals2.scanFiles(["data/macro-expand-offsets.c"], twopass=False, multithread=False)
+        AccessCheck(_globals2).checkAccess(multithread=False)
         check2 = workspace.logStream.getvalue()
 
         self.assertTrue(check1.find("Invalid access") != -1)
@@ -234,7 +228,7 @@ class TestMacro(TestCaseLocal):
 class TestCodebase(TestCaseLocal):
     def test_codebase(self):
         _globals = Codebase()
-        _globals.scanFiles(["data/statements.c"], twopass=False)
+        _globals.scanFiles(["data/statements.c"], twopass=False, multithread=False)
         self.checkStrAgainstFile(pformat(_globals, width=120, compact=False), "data/statements.c.globals")
 
 

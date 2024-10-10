@@ -76,19 +76,19 @@ class TokenList(list[Token]):
             yield Token.fromMatch(match, base_offset, match_group, idx=i, kind=kind)
             i += 1
     @staticmethod
-    def xFromText(txt: str, **kwargs) -> Iterable[Token]:
+    def xFromText(txt: str, base_offset: int, **kwargs) -> Iterable[Token]:
         i = 0
         for match in reg_token.finditer(txt, **kwargs):
-            yield Token(i, match.span(), match[0])
+            yield Token.fromMatch(match, base_offset=base_offset, idx=i)
             i += 1
     @staticmethod
-    def fromText(txt: str, **kwargs) -> 'TokenList':
-        return TokenList(TokenList.xFromText(txt, **kwargs))
+    def fromText(txt: str, base_offset: int, **kwargs) -> 'TokenList':
+        return TokenList(TokenList.xFromText(txt, base_offset=base_offset, **kwargs))
 
     @staticmethod
     def xFromFile(fname: str, **kwargs) -> Iterable[Token]:
         with open(fname) as file:
-            return TokenList.xFromText(file.read(), **kwargs)
+            return TokenList.xFromText(file.read(), base_offset=0, **kwargs)
     @staticmethod
     def fromFile(fname: str, **kwargs) -> 'TokenList':
         return TokenList(TokenList.xFromFile(fname, **kwargs))

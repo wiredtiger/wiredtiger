@@ -203,11 +203,11 @@ class StatementList(list[Statement]):
         return StatementList.fromTokens(TokenList.fromFile(fname, **kwargs))
 
     @staticmethod
-    def xFromText(txt: str, **kwargs) -> Iterable[Statement]:
-        return StatementList.xFromTokens(TokenList.fromText(txt, **kwargs))
+    def xFromText(txt: str, base_offset: int, **kwargs) -> Iterable[Statement]:
+        return StatementList.xFromTokens(TokenList.fromText(txt, base_offset=base_offset, **kwargs))
     @staticmethod
-    def fromText(txt: str, **kwargs) -> 'StatementList':
-        return StatementList.fromTokens(TokenList.fromText(txt, **kwargs))
+    def fromText(txt: str, base_offset: int, **kwargs) -> 'StatementList':
+        return StatementList.fromTokens(TokenList.fromText(txt, base_offset=base_offset, **kwargs))
 
     @staticmethod
     def xFromTokens(tokens: TokenList) -> Iterable[Statement]:

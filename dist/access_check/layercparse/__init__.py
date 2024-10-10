@@ -9,3 +9,4 @@ from .record import *
 from .codebase import *
 from .access import *
 from .macro import *
+from .macroexpand import *

@@ -30,13 +30,13 @@ FunctionParts(typename=[0:3] 〈int〉,
 Args:
 []
 Vars:
-[Variable(name=Token(idx=4, range=(9, 10), value='a'),
-          typename=[5:8] 〈int〉,
+[Variable(name=Token(idx=4, range=(25, 26), value='a'),
+          typename=[21:24] 〈int〉,
           preComment=None,
           postComment=None,
           end=','),
- Variable(name=Token(idx=7, range=(12, 13), value='b'),
-          typename=[5:8] 〈int〉,
+ Variable(name=Token(idx=7, range=(28, 29), value='b'),
+          typename=[21:24] 〈int〉,
           preComment=None,
           postComment=None,
           end=';')]

@@ -89,7 +89,7 @@ class FunctionParts:
         return ret
 
     def xGetArgs(self) -> Iterable[Variable]:
-        for stt in StatementList.xFromText(self.args.value):
+        for stt in StatementList.xFromText(self.args.value, base_offset=self.args.range[0]):
             var = Variable.fromVarDef(stt.tokens)
             if var:
                 yield var
@@ -100,7 +100,7 @@ class FunctionParts:
         if not self.body:
             return
         saved_type: Any = None
-        for st in StatementList.xFromText(self.body.value):
+        for st in StatementList.xFromText(self.body.value, base_offset=self.body.range[0]):
             t = st.getKind()
             if not saved_type and not t.is_decl and (t.is_statement or (t.is_expression and not t.is_initialization)):
                 break

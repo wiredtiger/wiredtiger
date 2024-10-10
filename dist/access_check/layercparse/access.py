@@ -60,6 +60,8 @@ class AccessCheck:
         return self._perModuleInvisibleNamesRe[module]
 
     def _check_function(self, defn: Definition) -> None:
+        DEBUG3(defn.scope.locationStr(defn.offset), f"Checking {defn.short_repr()}") or \
+        DEBUG(defn.scope.locationStr(defn.offset), f"Checking {defn.kind} [{defn.module}] {defn.name}")
         if defn.kind != "function" or \
                 not defn.details or \
                 not isinstance(defn.details, FunctionParts) or \
@@ -163,7 +165,7 @@ class AccessCheck:
         chain: AccessChain
 
         def _get_type_of_expr_str(clean_txt: str, root_offset: int = 0) -> str:
-            return self._globals.untypedef(_get_type_of_expr(TokenList(TokenList.xxFilterCode(TokenList.xFromText(clean_txt))), root_offset))
+            return self._globals.untypedef(_get_type_of_expr(TokenList(TokenList.xxFilterCode(TokenList.xFromText(clean_txt, 0))), root_offset))
 
         def _check_access_to_defn(defn2: Definition, offset: int, prefix: str = "") -> None:
             if defn2.is_private and defn2.module and defn2.module != module:
@@ -204,13 +206,11 @@ class AccessCheck:
                 WARNING(_locationStr(chain.offset), f"Can't deduce type of expression {chain}")
 
     # Go through function bodies. Check calls and struct member accesses.
-    def checkAccess(self, multithread = False) -> None:
+    def checkAccess(self, multithread = True) -> None:
         if not multithread:
             for defn in itertools.chain(
                         self._globals.names.values(),
                         *(namedict.values() for namedict in self._globals.static_names.values())):
-                DEBUG3(defn.scope.locationStr(defn.offset), f"debug3: Checking {defn.short_repr()}") or \
-                DEBUG(defn.scope.locationStr(defn.offset), f"debug: Checking {defn.kind} [{defn.module}] {defn.name}")
                 self._check_function(defn)
         else:
             init_multithreading()
