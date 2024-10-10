@@ -131,6 +131,7 @@ def fname_to_module(fname: str) -> str:
 class File:
     name: str
     module: str = ""
+    is_private: bool | None = field(default=None, repr=False)
     # txt: str = ""
     lineOffsets: list[int] | None = field(default=None, repr=False)
     fileKind: FileKind = field(default="", repr=False)
@@ -138,6 +139,8 @@ class File:
     def __post_init__(self):
         if not self.module:
             self.module = fname_to_module(self.name)
+        if "_private" in self.name:
+            self.is_private = True
         if not self.fileKind:
             self.fileKind = get_file_kind(self.name)
 

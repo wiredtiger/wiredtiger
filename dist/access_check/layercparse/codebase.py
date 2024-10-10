@@ -145,10 +145,11 @@ class Codebase:
     def addRecord(self, record: RecordParts, is_global_scope: bool = True) -> None:
         record.getMembers()
         is_nested = bool(record.parent)
-        default_private, default_module = None, scope_module()
+        default_private, default_module = scope_file().is_private, scope_module()
         if is_nested:  # Inherit visibility and module from parent by default
             default_private, default_module = self.types[record.parent.name.value].is_private, self.types[record.parent.name.value].module # type: ignore # record.parent is not None
-        is_private_record, local_module = _get_visibility_and_module_check(record, default_private=default_private, default_module=default_module, is_nested=is_nested)
+        is_private_record, local_module = _get_visibility_and_module_check(
+            record, default_private=default_private, default_module=default_module, is_nested=is_nested)
         _dict_upsert_def(self.types, Definition(
             name=record.name.value,
             kind="record",
@@ -162,7 +163,8 @@ class Codebase:
             self.types_restricted[record.name.value] = self.types[record.name.value]
         if record.members:
             for member in record.members:
-                is_private_field, local_module = _get_visibility_and_module_check(record, default_module=scope_module(), is_nested=True)
+                is_private_field, local_module = _get_visibility_and_module_check(
+                    record, default_private=scope_file().is_private, default_module=scope_module(), is_nested=True)
                 if record.name.value not in self.fields:
                     self.fields[record.name.value] = {}
                 _dict_upsert_def(self.fields[record.name.value], Definition(
@@ -205,7 +207,8 @@ class Codebase:
                     if st.getKind().is_function_def:
                         func = FunctionParts.fromStatement(st)
                         if func and func.body:
-                            is_private, local_module = _get_visibility_and_module_check(func, default_module=scope_module())
+                            is_private, local_module = _get_visibility_and_module_check(
+                                func, default_private=scope_file().is_private, default_module=scope_module())
                             funcdef = Definition(
                                 name=func.name.value,
                                 kind="function",
