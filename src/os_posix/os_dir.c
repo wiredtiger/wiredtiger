@@ -94,7 +94,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
 
 err:
     __wt_epoch(session, &ts);
-    WT_ERR(__wt_snprintf(closemsg, sizeof(closemsg),
+    WT_TRET(__wt_snprintf(closemsg, sizeof(closemsg),
       "[%" PRIuMAX ":%" PRIuMAX "] closedir (%s) ret %d dir fd %d", (uintmax_t)ts.tv_sec,
       (uintmax_t)ts.tv_nsec / WT_THOUSAND, directory, ret, dirfd(dirp)));
     WT_SYSCALL(closedir(dirp), tret);
