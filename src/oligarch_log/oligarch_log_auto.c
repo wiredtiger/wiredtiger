@@ -163,11 +163,11 @@ __wt_oligarch_logrec_read(
 }
 
 /*
- * __wt_oligarch_log_op_read --
+ * __wt_oligarch_logop_read --
  *     Peek at the operation type.
  */
 int
-__wt_oligarch_log_op_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek, const uint8_t *end,
+__wt_oligarch_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek, const uint8_t *end,
   uint32_t *optypep, uint32_t *opsizep)
 {
     const uint8_t *p, **pp;
@@ -1868,7 +1868,7 @@ __wt_txn_oligarch_op_printlog(
     uint32_t optype, opsize;
 
     /* Peek at the size and the type. */
-    WT_RET(__wt_oligarch_log_op_read(session, pp, end, &optype, &opsize));
+    WT_RET(__wt_oligarch_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
 
     switch (optype) {

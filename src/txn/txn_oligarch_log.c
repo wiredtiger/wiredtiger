@@ -235,7 +235,7 @@ __txn_oligarch_logrec_init(WT_SESSION_IMPL *session)
     WT_ERR(__wt_struct_pack(
       session, (uint8_t *)logrec->data + logrec->size, header_size, fmt, rectype, txn->id));
     logrec->size += (uint32_t)header_size;
-    txn->txn_log.logrec = logrec;
+    txn->txn_oligarch_log.logrec = logrec;
 
     if (0) {
 err:
@@ -268,16 +268,11 @@ __wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
 
-    /*
-     * If this operation is diagnostic only, set the ignore bit on the fileid so that recovery can
-     * skip it.
-     */
-    if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+    if (!F_ISSET(S2BT(session), WT_BTREE_OLIGARCH_LOGGED))
         FLD_SET(fileid, WT_LOGOP_IGNORE);
 
     WT_RET(__txn_oligarch_logrec_init(session));
-    logrec = txn->txn_log.logrec;
+    logrec = txn->txn_oligarch_log.logrec;
 
     switch (op->type) {
     case WT_TXN_OP_NONE:
@@ -774,7 +769,8 @@ __wt_txn_oligarch_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t f
         WT_ERR(__wt_fprintf(session, fs, "[\n"));
     args.fs = fs;
     args.flags = flags;
-    WT_ERR(__wt_oligarch_log_scan(session, start_lsn, end_lsn, 0x0, __txn_oligarch_printlog, &args));
+    WT_ERR(
+      __wt_oligarch_log_scan(session, start_lsn, end_lsn, 0x0, __txn_oligarch_printlog, &args));
     if (!LF_ISSET(WT_TXN_PRINTLOG_MSG))
         ret = __wt_fprintf(session, fs, "\n]\n");
 

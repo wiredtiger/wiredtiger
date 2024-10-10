@@ -1501,9 +1501,6 @@ extern int __wt_oligarch_log_get_backup_files(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_log_needs_recovery(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn, bool *recp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_oligarch_log_op_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek,
-  const uint8_t *end, uint32_t *optypep, uint32_t *opsizep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_log_open(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_log_printf(WT_SESSION_IMPL *session, const char *format, ...)
@@ -1598,6 +1595,9 @@ extern int __wt_oligarch_logop_prev_lsn_print(WT_SESSION_IMPL *session, const ui
   const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_logop_prev_lsn_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, WT_LSN *prev_lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_oligarch_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek,
+  const uint8_t *end, uint32_t *optypep, uint32_t *opsizep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_logop_row_modify_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec,
   uint32_t fileid, WT_ITEM *key, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_oligarch_logop_row_modify_print(WT_SESSION_IMPL *session, const uint8_t **pp,

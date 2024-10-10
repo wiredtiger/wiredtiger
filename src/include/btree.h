@@ -285,11 +285,12 @@ struct __wt_btree {
 #define WT_BTREE_LOGGED 0x0080000u          /* Commit-level durability without timestamps */
 #define WT_BTREE_NO_CHECKPOINT 0x0100000u   /* Disable checkpoints */
 #define WT_BTREE_OBSOLETE_PAGES 0x0200000u  /* Handle has obsolete pages */
-#define WT_BTREE_READONLY 0x0400000u        /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x0800000u         /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x1000000u       /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x2000000u         /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x4000000u          /* Handle is for verify */
+#define WT_BTREE_OLIGARCH_LOGGED 0x0400000u /* oligarch log enabled */
+#define WT_BTREE_READONLY 0x0800000u        /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x1000000u         /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x2000000u       /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x4000000u         /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x8000000u          /* Handle is for verify */
                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

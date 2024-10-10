@@ -1951,7 +1951,7 @@ __wt_oligarch_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *free
      * before it starts up.
      */
     if (!F_ISSET_ATOMIC_16(slot, WT_SLOT_FLUSH | WT_SLOT_SYNC_FLAGS) &&
-      FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
+      FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG)) {
         if (freep != NULL)
             *freep = false;
         __wt_atomic_storeiv64(&slot->slot_state, WT_LOG_SLOT_WRITTEN);

@@ -48,12 +48,7 @@ __wt_oligarch_log_op(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    /*
-     * Objects with checkpoint durability don't need logging unless we're in debug mode. That rules
-     * out almost all log records, check it first.
-     */
-    if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      !FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+    if (!F_ISSET(S2BT(session), WT_BTREE_OLIGARCH_LOGGED))
         return (false);
 
     /*

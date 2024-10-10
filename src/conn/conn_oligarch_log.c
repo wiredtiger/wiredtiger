@@ -218,7 +218,7 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "oligarch_log.enabled", &cval));
     enabled = cval.val != 0;
 
     /*
@@ -232,15 +232,15 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
     if (reconfig &&
       ((enabled && !FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED)) ||
         (!enabled && FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED))))
-        WT_RET_MSG(
-          session, EINVAL, "log manager reconfigure: enabled mismatch with existing setting");
+        WT_RET_MSG(session, EINVAL,
+          "oligarch log manager reconfigure: enabled mismatch with existing setting");
 
     /* Logging is incompatible with in-memory */
     if (enabled) {
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
-            WT_RET_MSG(
-              session, EINVAL, "In-memory configuration incompatible with log=(enabled=true)");
+            WT_RET_MSG(session, EINVAL,
+              "In-memory configuration incompatible with oligarch_log=(enabled=true)");
     }
 
     if (enabled)
@@ -256,11 +256,11 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
      */
     if (!reconfig) {
         conn->oligarch_log_info.log_compressor = NULL;
-        WT_RET(__wt_config_gets_none(session, cfg, "log.compressor", &cval));
+        WT_RET(__wt_config_gets_none(session, cfg, "oligarch_log.compressor", &cval));
         WT_RET(__wt_compressor_config(session, &cval, &conn->oligarch_log_info.log_compressor));
 
         conn->oligarch_log_info.log_path = NULL;
-        WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->oligarch_log_info.log_path));
     }
 
@@ -273,9 +273,9 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
      * the application, that is, ignore its default value. Look for an explicit log.remove setting,
      * then an explicit log.archive setting, then the default log.remove setting.
      */
-    if (__wt_config_gets(session, cfg + 1, "log.remove", &cval) != 0 &&
-      __wt_config_gets(session, cfg + 1, "log.archive", &cval) != 0)
-        WT_RET(__wt_config_gets(session, cfg, "log.remove", &cval));
+    if (__wt_config_gets(session, cfg + 1, "oligarch_log.remove", &cval) != 0 &&
+      __wt_config_gets(session, cfg + 1, "oligarch_log.archive", &cval) != 0)
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.remove", &cval));
     if (cval.val != 0)
         FLD_SET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_REMOVE);
 
@@ -287,7 +287,7 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
      * See above: should never happen.
      */
     if (!reconfig) {
-        WT_RET(__wt_config_gets(session, cfg, "log.file_max", &cval));
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.file_max", &cval));
         conn->oligarch_log_info.log_file_max = (wt_off_t)cval.val;
         if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
             conn->oligarch_log_info.log_file_max =
@@ -303,7 +303,7 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
         WT_STAT_CONN_SET(session, log_max_filesize, conn->oligarch_log_info.log_file_max);
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "log.os_cache_dirty_pct", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "oligarch_log.os_cache_dirty_pct", &cval));
     if (cval.val != 0)
         conn->oligarch_log_info.log_dirty_max =
           (conn->oligarch_log_info.log_file_max * cval.val) / 100;
@@ -312,15 +312,15 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
      * If pre-allocation is configured, set the initial number to a few. We'll adapt as load
      * dictates.
      */
-    WT_RET(__wt_config_gets(session, cfg, "log.prealloc", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "oligarch_log.prealloc", &cval));
     if (cval.val != 0) {
-        WT_RET(__wt_config_gets(session, cfg, "log.prealloc_init_count", &cval));
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.prealloc_init_count", &cval));
         conn->oligarch_log_info.log_prealloc = (uint32_t)cval.val;
         conn->oligarch_log_info.log_prealloc_init_count = (uint32_t)cval.val;
         WT_ASSERT(session, conn->oligarch_log_info.log_prealloc > 0);
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "oligarch_log.force_write_wait", &cval));
     if (cval.val != 0)
         conn->oligarch_log_info.log_force_write_wait = (uint32_t)cval.val;
 
@@ -331,12 +331,12 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
      * See above: should never happen.
      */
     if (!reconfig) {
-        WT_RET(__wt_config_gets_def(session, cfg, "log.recover", 0, &cval));
+        WT_RET(__wt_config_gets_def(session, cfg, "oligarch_log.recover", 0, &cval));
         if (WT_CONFIG_LIT_MATCH("error", cval))
             FLD_SET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_RECOVER_ERR);
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "oligarch_log.zero_fill", &cval));
     if (cval.val != 0) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_RET_MSG(
@@ -569,7 +569,7 @@ __wt_oligarch_log_truncate_files(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bo
     conn = S2C(session);
     if (!FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED))
         return (0);
-    if (!force && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG) &&
+    if (!force && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG) &&
       FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_REMOVE))
         WT_RET_MSG(session, EINVAL, "Attempt to remove manually while a server is running");
 
@@ -609,7 +609,7 @@ __oligarch_log_file_server(void *arg)
     session = arg;
     conn = S2C(session);
     log = conn->oligarch_log_info.log;
-    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
+    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG)) {
         /*
          * If there is a log file to close, make sure any outstanding write operations have
          * completed, then fsync and close it.
@@ -837,7 +837,7 @@ __oligarch_log_wrlsn_server(void *arg)
     log = conn->oligarch_log_info.log;
     yield = 0;
     WT_INIT_LSN(&prev);
-    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
+    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG)) {
         /*
          * Write out any log record buffers if anything was done since last time. Only call the
          * function to walk the slots if the system is not idle. On an idle system the alloc_lsn
@@ -909,7 +909,7 @@ __oligarch_log_server(void *arg)
      * records sitting in the buffer over the time it takes to sync out an earlier file.
      */
     did_work = true;
-    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
+    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG)) {
         /*
          * Slots depend on future activity. Force out buffered writes in case we are idle. This
          * cannot be part of the wrlsn thread because of interaction advancing the write_lsn and a
@@ -1048,7 +1048,7 @@ __wt_oligarch_logmgr_open(WT_SESSION_IMPL *session)
     if (!FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED))
         return (0);
 
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_LOG);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG);
 
     /*
      * Start the log close thread. It is not configurable. If logging is enabled, this thread runs.
@@ -1124,7 +1124,7 @@ __wt_oligarch_logmgr_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_LOG);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_OLIGARCH_LOG);
 
     if (!FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED)) {
         /*

@@ -1110,6 +1110,12 @@ struct __wt_session {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object has checkpoint-level
      * durability., a boolean flag; default \c true.}
      * @config{ ),,}
+     * @config{oligarch_log = (, the transaction oligarch log configuration for this object.  Only
+     * valid if \c oligarch log is enabled in ::wiredtiger_open., a set of related configuration
+     * options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object
+     * has checkpoint-level durability., a boolean flag; default \c true.}
+     * @config{ ),,}
      * @config{os_cache_dirty_max, maximum dirty system buffer cache usage\, in bytes.  If
      * non-zero\, schedule writes for dirty blocks belonging to this object in the system buffer
      * cache after that many bytes from this object are written into the buffer cache., an integer
@@ -1350,6 +1356,12 @@ struct __wt_session {
      * is soft - it is possible for pages to be temporarily larger than this value.  This setting is
      * ignored for LSM trees\, see \c chunk_size., an integer between \c 512B and \c 10TB; default
      * \c 5MB.}
+     * @config{oligarch_log = (, the transaction oligarch log configuration for this object.  Only
+     * valid if \c oligarch log is enabled in ::wiredtiger_open., a set of related configuration
+     * options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object
+     * has checkpoint-level durability., a boolean flag; default \c true.}
+     * @config{ ),,}
      * @config{os_cache_dirty_max, maximum dirty system buffer cache usage\, in bytes.  If
      * non-zero\, schedule writes for dirty blocks belonging to this object in the system buffer
      * cache after that many bytes from this object are written into the buffer cache., an integer
@@ -1531,6 +1543,11 @@ struct __wt_session {
      *
      * @param session the session handle
      * @configstart{WT_SESSION.log_flush, see dist/api_data.py}
+     * @config{oligarch_sync, forcibly flush the oligarch log and wait for it to achieve the
+     * synchronization level specified.  The \c off setting forces any buffered log records to be
+     * written to the file system.  The \c on setting forces log records to be written to the
+     * storage device., a string\, chosen from the following options: \c "off"\, \c "on"; default \c
+     * on.}
      * @config{sync, forcibly flush the log and wait for it to achieve the synchronization level
      * specified.  The \c off setting forces any buffered log records to be written to the file
      * system.  The \c on setting forces log records to be written to the storage device., a
@@ -1742,6 +1759,8 @@ struct __wt_session {
      * @config{no_timestamp, allow a commit without a timestamp\, creating values that have "always
      * existed" and are visible regardless of timestamp.  See @ref timestamp_txn_api., a boolean
      * flag; default \c false.}
+     * @config{oligarch_sync, whether to sync oligarch log records when the transaction commits\,
+     * inherited from ::wiredtiger_open \c transaction_sync., a boolean flag; default empty.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
@@ -1801,6 +1820,11 @@ struct __wt_session {
      * for the commit of a prepared transaction\, and otherwise not permitted.  The value must also
      * be after the current oldest and stable timestamps and must not be older than the commit
      * timestamp.  See @ref timestamp_prepare., a string; default empty.}
+     * @config{oligarch_sync, override whether to sync oligarch log records when the transaction
+     * commits.  The default is inherited from ::wiredtiger_open \c transaction_sync.  The \c off
+     * setting does not wait for records to be written or synchronized.  The \c on setting forces
+     * log records to be written to the storage device., a string\, chosen from the following
+     * options: \c "off"\, \c "on"; default empty.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
@@ -2423,6 +2447,23 @@ struct __wt_connection {
      * @config{ ),,}
      * @config{oligarch = (, WT-wide oligarch config., a set of related configuration options
      * defined as follows.}
+     * @config{ ),,}
+     * @config{oligarch_log = (, enable oligarch logging.  Enabling oligarch logging uses three
+     * sessions from the configured session_max., a set of related configuration options defined as
+     * follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer
+     * cache usage\, as a percentage of the oligarch log's \c file_max.  If non-zero\, schedule
+     * writes for dirty blocks belonging to the log in the system buffer cache after that percentage
+     * of the log has been written into the buffer cache without an intervening file sync., an
+     * integer between \c 0 and \c 100; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc,
+     * pre-allocate oligarch log files., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial number of pre-allocated oligarch
+     * log files., an integer between \c 1 and \c 500; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded oligarch log files., a
+     * boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write
+     * zeroes into oligarch log files., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
      * compatibility., an integer greater than or equal to \c 0; default \c 0.}
@@ -3346,6 +3387,39 @@ struct __wt_connection {
  * WiredTiger</b>., a boolean flag; default \c false.}
  * @config{oligarch = (, WT-wide oligarch config., a set of related configuration options defined as
  * follows.}
+ * @config{ ),,}
+ * @config{oligarch_log = (, enable oligarch logging.  Enabling oligarch logging uses three sessions
+ * from the configured session_max., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for oligarch log records.
+ * Permitted values are \c "none" or a custom compression engine name created with
+ * WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c
+ * "zlib" or \c "zstd" compression\, these names are also available.  See @ref compression for more
+ * information., a string; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable
+ * oligarch logging subsystem., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * file_max, the maximum size of oligarch log files., an integer between \c 100KB and \c 2GB;
+ * default \c 100MB.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system
+ * buffer cache usage\, as a percentage of the oligarch log's \c file_max.  If non-zero\, schedule
+ * writes for dirty blocks belonging to the log in the system buffer cache after that percentage of
+ * the log has been written into the buffer cache without an intervening file sync., an integer
+ * between \c 0 and \c 100; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a
+ * directory into which oligarch log files are written.  The directory must already exist.  If the
+ * value is not an absolute path\, the path is relative to the database home (see @ref absolute_path
+ * for more information)., a string; default \c ".".}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc,
+ * pre-allocate oligarch log files., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial number of pre-allocated oligarch log
+ * files., an integer between \c 1 and \c 500; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * recover, run recovery or fail with an error if recovery needs to run after an unclean shutdown.,
+ * a string\, chosen from the following options: \c "error"\, \c "on"; default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded oligarch log files., a
+ * boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes
+ * into oligarch log files., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
  * compatibility., an integer greater than or equal to \c 0; default \c 0.}
