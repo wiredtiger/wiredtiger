@@ -1,4 +1,4 @@
-/*-
+ /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *  All rights reserved.
@@ -11,6 +11,12 @@
 
 #if defined(__cplusplus)
 extern "C" {
+#endif
+
+#ifdef HAVE_DIAGNOSTIC
+#define HAVE_CONTROL_POINT /* Make control point code stand out. */
+#else
+/* Not defined. Omit control point code. */
 #endif
 
 /*******************************************
@@ -57,6 +63,18 @@ extern "C" {
  *
  * @{
  */
+
+/*!
+ * Identifies a per connection control point or a per session control point.
+ *
+ * A WT_CONTROL_POINT_ID does not specify whether a control point is
+ * a per connection control point or a per session control point since both
+ * start numbering at 0.
+ *
+ * - The maximum per connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
+ * - The maximum per session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
+ */
+typedef int32_t wt_control_point_id_t;
 
 /*******************************************
  * Public forward structure declarations
@@ -803,6 +821,25 @@ struct __wt_cursor {
     uint64_t flags;
 #endif
 };
+
+#ifdef HAVE_CONTROL_POINT
+/*!
+ * WT_CONNECTION::enable_control_point, WT_CONNECTION::disable_control_point,
+ * WT_SESSION::enable_control_point, and WT_SESSION::disable_control_point types
+ */
+
+/*!
+ * Identifies a per-connection control point or a per-session control point.
+ *
+ * A WT_CONTROL_POINT_ID does not specify whether a control point is
+ * a per-connection control point or a per-session control point since both
+ * start numbering at 0.
+ *
+ * - The maximum per-connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
+ * - The maximum per-session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
+ */
+typedef int32_t wt_control_point_id_t;
+#endif
 
 /*! WT_SESSION::timestamp_transaction_uint timestamp types */
 typedef enum {
@@ -2063,6 +2100,33 @@ struct __wt_session {
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
     /*! @} */
 
+#ifdef HAVE_CONTROL_POINT
+    /*!
+     * @name Control point support
+     * @{
+     */
+    /*!
+     * Enable a per-session control point.
+     *
+     * @param session the session handle
+     * @param id the per-session control point ID of the control point
+     * @param cfg configuration string override
+     */
+    int __F(enable_control_point)(WT_SESSION *session, wt_control_point_id_t id, const char *cfg);
+
+    /*!
+     * Disable a per-session control point.
+     *
+     * @param session the session handle
+     * @param id the per-session control point ID of the control point
+     */
+    int __F(disable_control_point)(WT_SESSION *session, wt_control_point_id_t id);
+    /*! @} */
+#elif !defined(SWIG) && !defined(DOXYGEN)  /* Keep the size the same */
+    void  *dummy1;
+    void  *dummy2;
+#endif
+
 #ifndef DOXYGEN
     /*!
      * Optionally returns the reason for the most recent rollback error returned from the API.
@@ -2520,13 +2584,13 @@ struct __wt_connection {
      * categories not explicitly set in the config string., a list\, with values chosen from the
      * following options: \c "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
      * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
-     * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "eviction"\,
-     * \c "fileops"\, \c "generation"\, \c "handleops"\, \c "history_store"\, \c
-     * "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
-     * "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c
-     * "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c
-     * "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c
-     * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
+     * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "control_point"\, \c
+     * "error_returns"\, \c "eviction"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
+     * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
+     * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c "prefetch"\, \c "read"\, \c
+     * "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
+     * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c
+     * "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -2933,6 +2997,34 @@ struct __wt_connection {
      */
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
+
+#ifdef HAVE_CONTROL_POINT
+    /*!
+     * @name Control point support
+     * @{
+     */
+    /*!
+     * Enable a per-connection control point.
+     *
+     * @param connection the connection handle
+     * @param id the per-connection control point ID of the control point
+     * @param cfg configuration string override
+     */
+    int __F(enable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id,
+        const char *cfg);
+
+    /*!
+     * Disable a per-connection control point.
+     *
+     * @param connection the connection handle
+     * @param id the per-connection control point ID of the control point
+     */
+    int __F(disable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id);
+    /*! @} */
+#elif !defined(SWIG) && !defined(DOXYGEN)  /* Keep the size the same */
+    void  *dummy1;
+    void  *dummy2;
+#endif
 };
 
 /*!
@@ -3346,6 +3438,11 @@ struct __wt_connection {
  * threads to manage merging LSM trees in the database.  Each worker thread uses a session handle
  * from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
  * @config{ ),,}
+ * @config{main_start_printing = (, Thread 0 waits for main to get here., a set of related
+ * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
+ * of triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
  * @config{mmap, Use memory mapping when accessing files in a read-only mode., a boolean flag;
  * default \c true.}
  * @config{mmap_all, Use memory mapping to read and write all data files.  May not be configured
@@ -3435,6 +3532,31 @@ struct __wt_connection {
  * setting this value above 0 configures statistics logging., an integer between \c 0 and \c 100000;
  * default \c 0.}
  * @config{ ),,}
+ * @config{thread_0 = (, Thread 1 waits for thread 0 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{thread_1 = (, Thread 2 waits for thread 1 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{thread_2 = (, Thread 3 waits for thread 2 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{thread_3 = (, Thread 4 waits for thread 3 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
+ * @config{thread_4 = (, Thread 5 waits for thread 4 to get here., a set of related configuration
+ * options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
@@ -3458,12 +3580,13 @@ struct __wt_connection {
  * explicitly set in the config string., a list\, with values chosen from the following options: \c
  * "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c
  * "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c "compact"\, \c
- * "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "eviction"\, \c "fileops"\, \c
- * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "log"\, \c
- * "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
- * "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c
- * "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\,
- * \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
+ * "compact_progress"\, \c "configuration"\, \c "control_point"\, \c "error_returns"\, \c
+ * "eviction"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c "history_store"\, \c
+ * "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\,
+ * \c "out_of_order"\, \c "overflow"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\,
+ * \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
+ * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\,
+ * \c "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}
@@ -8239,6 +8362,7 @@ typedef enum {
     WT_VERB_COMPACT,              /*!< Compact messages. */
     WT_VERB_COMPACT_PROGRESS,     /*!< Compact progress messages. */
     WT_VERB_CONFIGURATION,
+    WT_VERB_CONTROL_POINT,        /*!< Control point messages. */
     WT_VERB_DEFAULT,
     WT_VERB_ERROR_RETURNS,
     WT_VERB_EVICTION,                /*!< Eviction messages. */

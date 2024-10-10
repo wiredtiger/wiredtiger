@@ -24,6 +24,7 @@
     "WT_VERB_COMPACT", \
     "WT_VERB_COMPACT_PROGRESS", \
     "WT_VERB_CONFIGURATION", \
+    "WT_VERB_CONTROL_POINT", \
     "WT_VERB_DEFAULT", \
     "WT_VERB_ERROR_RETURNS", \
     "WT_VERB_EVICTION", \
@@ -206,6 +207,20 @@ struct __wt_verbose_multi_category {
  */
 #define __wt_verbose_debug3(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_3, fmt, __VA_ARGS__)
+
+/*
+ * __wt_verbose_debug4 --
+ *     Wrapper to __wt_verbose_level using the DEBUG_4 level.
+ */
+#define __wt_verbose_debug4(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_4, fmt, __VA_ARGS__)
+
+/*
+ * __wt_verbose_debug5 --
+ *     Wrapper to __wt_verbose_level using the DEBUG_5 level.
+ */
+#define __wt_verbose_debug5(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG_5, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose --

@@ -309,6 +309,7 @@ struct __wt_session_impl {
 #define WT_SESSION_RESOLVING_TXN 0x080000u
 #define WT_SESSION_ROLLBACK_TO_STABLE 0x100000u
 #define WT_SESSION_SCHEMA_TXN 0x200000u
+#define WT_SESSION_SHUTTING_DOWN 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
@@ -385,6 +386,17 @@ struct __wt_session_impl {
     WT_FH *optrack_fh;
 
     WT_SESSION_STATS stats;
+
+#ifdef HAVE_CONTROL_POINT
+    WT_CONTROL_POINT_REGISTRY *control_points; /* [SESSION_CONTROL_POINTS_SIZE] */
+    WT_CONTROL_POINT_REGISTRY *cp_registry;    /* For the run function for __wt_cond_wait_signal. */
+    /* For the run function for __wt_cond_wait_signal. */
+    WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *cp_data;
+#else /* Keep the size the same */
+    void *dummy1;
+    void *dummy2;
+    void *dummy3;
+#endif
 };
 
 /* Consider moving this to session_inline.h if it ever appears. */

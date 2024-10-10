@@ -87,6 +87,11 @@ src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
 src/conn/conn_tiered.c
+src/cp/cp_action.c
+src/cp/cp_api.c
+src/cp/cp_control_point.c
+src/cp/cp_pair_pred_action.c
+src/cp/cp_pred.c
 src/cursor/cur_backup.c
 src/cursor/cur_backup_incr.c
 src/cursor/cur_bulk.c

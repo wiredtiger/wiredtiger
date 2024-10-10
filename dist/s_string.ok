@@ -405,6 +405,7 @@ ULF
 ULINE
 UNC
 UNCOND
+UNITTEST
 UNSKIPPED
 UPD
 URI
@@ -1145,6 +1146,7 @@ precomp
 precompilation
 precompiled
 precompiling
+pred
 prefetch
 preload
 prepend

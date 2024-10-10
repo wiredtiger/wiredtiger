@@ -175,6 +175,27 @@ struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
+struct __wt_control_point_action_err;
+typedef struct __wt_control_point_action_err WT_CONTROL_POINT_ACTION_ERR;
+struct __wt_control_point_action_ret;
+typedef struct __wt_control_point_action_ret WT_CONTROL_POINT_ACTION_RET;
+struct __wt_control_point_action_sleep;
+typedef struct __wt_control_point_action_sleep WT_CONTROL_POINT_ACTION_SLEEP;
+struct __wt_control_point_action_wait_for_trigger;
+typedef struct __wt_control_point_action_wait_for_trigger WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER;
+struct __wt_control_point_data;
+typedef struct __wt_control_point_data WT_CONTROL_POINT_DATA;
+struct __wt_control_point_pair_data_err;
+typedef struct __wt_control_point_pair_data_err WT_CONTROL_POINT_PAIR_DATA_ERR;
+struct __wt_control_point_pair_data_ret;
+typedef struct __wt_control_point_pair_data_ret WT_CONTROL_POINT_PAIR_DATA_RET;
+struct __wt_control_point_pair_data_sleep;
+typedef struct __wt_control_point_pair_data_sleep WT_CONTROL_POINT_PAIR_DATA_SLEEP;
+struct __wt_control_point_pair_data_wait_for_trigger;
+typedef struct __wt_control_point_pair_data_wait_for_trigger
+  WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER;
+struct __wt_control_point_registry;
+typedef struct __wt_control_point_registry WT_CONTROL_POINT_REGISTRY;
 struct __wt_cursor_backup;
 typedef struct __wt_cursor_backup WT_CURSOR_BACKUP;
 struct __wt_cursor_bounds_state;
@@ -445,6 +466,8 @@ struct __wt_verify_info;
 typedef struct __wt_verify_info WT_VERIFY_INFO;
 struct __wt_version;
 typedef struct __wt_version WT_VERSION;
+union __wt_control_point_param;
+typedef union __wt_control_point_param WT_CONTROL_POINT_PARAM;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -526,6 +549,9 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
+#include "control_points.h"
+#include "cp_control_point_gen.h"
+#include "cp_action.h"
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
