@@ -50,6 +50,7 @@
 #define WT_CONF_ID_Thread_4 319ULL
 #define WT_CONF_ID_Tiered_storage 47ULL
 #define WT_CONF_ID_Transaction_sync 321ULL
+#define WT_CONF_ID_Wt_12945 326ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 93ULL
 #define WT_CONF_ID_allocation_size 13ULL
@@ -149,6 +150,7 @@
 #define WT_CONF_ID_dump_version 124ULL
 #define WT_CONF_ID_durable_timestamp 3ULL
 #define WT_CONF_ID_early_load 269ULL
+#define WT_CONF_ID_enable_count 327ULL
 #define WT_CONF_ID_enabled 37ULL
 #define WT_CONF_ID_entry 270ULL
 #define WT_CONF_ID_error_prefix 219ULL
@@ -342,7 +344,7 @@
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 252ULL
 
-#define WT_CONF_ID_COUNT 326
+#define WT_CONF_ID_COUNT 328
 /*
  * API configuration keys: END
  */
@@ -570,6 +572,9 @@ static const struct {
         uint64_t enabled;
         uint64_t method;
     } Transaction_sync;
+    struct {
+        uint64_t enable_count;
+    } Wt_12945;
     uint64_t access_pattern_hint;
     uint64_t action;
     uint64_t allocation_size;
@@ -964,6 +969,9 @@ static const struct {
   {
     WT_CONF_ID_Transaction_sync | (WT_CONF_ID_enabled << 16),
     WT_CONF_ID_Transaction_sync | (WT_CONF_ID_method << 16),
+  },
+  {
+    WT_CONF_ID_Wt_12945 | (WT_CONF_ID_enable_count << 16),
   },
   WT_CONF_ID_access_pattern_hint,
   WT_CONF_ID_action,

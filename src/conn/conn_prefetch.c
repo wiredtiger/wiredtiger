@@ -93,8 +93,11 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * these deleted pages into the cache if the fast truncate information is visible in the
          * session transaction snapshot.
          */
-        if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL)
+        if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL) {
+            CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+              session, WT_CONN_CONTROL_POINT_ID_WT_12945);
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
+        }
 
         (void)__wt_atomic_subv32(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
 

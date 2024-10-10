@@ -3441,7 +3441,8 @@ struct __wt_connection {
  * @config{main_start_printing = (, Thread 0 waits for main to get here., a set of related
  * configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
- * of triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * of triggers for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c
+ * 1.}
  * @config{ ),,}
  * @config{mmap, Use memory mapping when accessing files in a read-only mode., a boolean flag;
  * default \c true.}
@@ -3535,28 +3536,33 @@ struct __wt_connection {
  * @config{thread_0 = (, Thread 1 waits for thread 0 to get here., a set of related configuration
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
+ * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{
+ * ),,}
  * @config{thread_1 = (, Thread 2 waits for thread 1 to get here., a set of related configuration
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
+ * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{
+ * ),,}
  * @config{thread_2 = (, Thread 3 waits for thread 2 to get here., a set of related configuration
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
+ * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{
+ * ),,}
  * @config{thread_3 = (, Thread 4 waits for thread 3 to get here., a set of related configuration
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
+ * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{
+ * ),,}
  * @config{thread_4 = (, Thread 5 waits for thread 4 to get here., a set of related configuration
  * options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{ ),,}
+ * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{
+ * ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
@@ -3598,6 +3604,12 @@ struct __wt_connection {
  * write_through should be combined with \c direct_io to get the equivalent of POSIX \c O_DIRECT on
  * Windows., a list\, with values chosen from the following options: \c "data"\, \c "log"; default
  * empty.}
+ * @config{wt_12945 = (, The internal prefetch thread waits for eviction to evict this page., a set
+ * of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * enable_count, the number of triggers that are enabled., an integer between \c 1 and \c
+ * 9223372036854775807; default \c 1.}
+ * @config{ ),,}
  * @configend
  * Additionally, if files named \c WiredTiger.config or \c WiredTiger.basecfg
  * appear in the WiredTiger home directory, they are read for configuration

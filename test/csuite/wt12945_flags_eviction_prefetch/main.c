@@ -283,7 +283,10 @@ main(int argc, char *argv[])
       "create,cache_size=2G,eviction=(threads_max=5),"
       "prefetch=(available=true,default=true),"
 #if 1 /* Include if needed */
-      "verbose=[prefetch=1],"
+      "verbose=["
+      "control_point=5,"
+      "prefetch=1,"
+      "],"
 #endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
 
@@ -330,6 +333,8 @@ main(int argc, char *argv[])
     testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, session_open_config, &wt_session));
 
+    opts->conn->enable_control_point(opts->conn, WT_CONN_CONTROL_POINT_ID_WT_12945, NULL);
+
     /* Create the thread for pre-fetch and wait for it to be ready. */
     testutil_check(pthread_create(&prefetch_thread_id, NULL, thread_do_prefetch, opts));
 
@@ -365,6 +370,8 @@ main(int argc, char *argv[])
 
     print_eviction_stats(wt_session, opts, "After pthread_join", record_idx, false);
     print_prefetch_stats(wt_session, opts, "After pthread_join", record_idx, false);
+
+    opts->conn->disable_control_point(opts->conn, WT_CONN_CONTROL_POINT_ID_WT_12945);
 
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));

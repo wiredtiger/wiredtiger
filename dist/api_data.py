@@ -52,6 +52,15 @@ class Config:
 # Configuration for a control point. Used only as super classes of both
 # ConnectionControlPoint and SessionControlPoint.
 class ControlPoint(Config):
+    # Values for assigning Config.max
+    uint16_max = '65535'
+    int16_min = '-32768'
+    int16_max = '32767'
+    uint32_max = '4294967295'
+    int32_min = '-2147483648'
+    int32_max = '2147483647'
+    int64_min = '-9223372036854775808'
+    int64_max = '9223372036854775807'
     # From, To
     translation_to_lower = str.maketrans(' ABCDEFGHIJKLMNOPQRSTUVWXYZ',
                                           '_abcdefghijklmnopqrstuvwxyz')
@@ -187,7 +196,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=ControlPoint.int64_max),
            ]),
     ConnectionControlPoint('Thread 0', 'Wait for trigger', 'Always', '', r'''
            Thread 1 waits for thread 0 to get here.''',
@@ -195,7 +204,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=ControlPoint.int64_max),
            ]),
     ConnectionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
            Thread 2 waits for thread 1 to get here.''',
@@ -203,7 +212,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=ControlPoint.int64_max),
            ]),
     ConnectionControlPoint('Thread 2', 'Wait for trigger', 'Always', '', r'''
            Thread 3 waits for thread 2 to get here.''',
@@ -211,7 +220,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=ControlPoint.int64_max),
            ]),
     ConnectionControlPoint('Thread 3', 'Wait for trigger', 'Always', '', r'''
            Thread 4 waits for thread 3 to get here.''',
@@ -219,7 +228,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=ControlPoint.int64_max),
            ]),
     ConnectionControlPoint('Thread 4', 'Wait for trigger', 'Always', '', r'''
            Thread 5 waits for thread 4 to get here.''',
@@ -227,12 +236,24 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=ControlPoint.int64_max),
+           ]),
+]
+
+# To reproduce WT-12495
+wt_12495_control_points_config = [
+    ConnectionControlPoint('WT 12945', 'Wait for trigger', 'Times', '', r'''
+           The internal prefetch thread waits for eviction to evict this page.''',
+           type='category', subconfig= [
+               # Action configuration parameters
+               Config('enable_count', '1', r'''
+                      the number of triggers that are enabled''',
+                      min='1', max=ControlPoint.int64_max),
            ]),
 ]
 
 # All per connection control points
-all_per_connection_control_points_config = ex_control_points_config
+all_per_connection_control_points_config = ex_control_points_config + wt_12495_control_points_config
 
 # All per session control points
 all_per_session_control_points_config = [ ]

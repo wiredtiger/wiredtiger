@@ -544,8 +544,11 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * visibility checks for pages found to be deleted in the checkpoint aren't needed (or correct
      * when done in eviction threads).
      */
-    if (WT_READING_CHECKPOINT(session))
+    if (WT_READING_CHECKPOINT(session)) {
+        CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+          session, WT_CONN_CONTROL_POINT_ID_WT_12945);
         return (0);
+    }
 
     /*
      * The fast check is done and there are no cursors in the child pages. Make sure the child
@@ -623,6 +626,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     }
     WT_INTL_FOREACH_END;
 
+    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(session, WT_CONN_CONTROL_POINT_ID_WT_12945);
     return (0);
 }
 
