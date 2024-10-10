@@ -303,7 +303,8 @@ def LOG(level: LogLevel, location: str | Callable[[], str] | int | None, *args, 
             location = "    "
         for i in range(len(args)):
             if callable(args[i]):
-                args[i] = args[i]()  # type: ignore # Unsupported target for indexed assignment ("tuple[Any, ...]")  [index]
+                args = [arg() if callable(arg) else arg for arg in args] # type: ignore[assignment] # incompatible type
+                break
         print(location, f"{level.name.lower()}:", *args, **kwargs, file=logStream)
         return True
     return False

@@ -21,6 +21,9 @@ class FunctionParts:
     def short_repr(self) -> str:
         return f"Function({self.name} ({self.args})) : {self.typename}"
 
+    def kind(self) -> str:
+        return "function"
+
     def update(self, other: 'FunctionParts') -> list[str]:
         errors = []
         if self.typename != other.typename:

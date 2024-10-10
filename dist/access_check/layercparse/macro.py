@@ -7,6 +7,7 @@ from .common import *
 from .ctoken import *
 from .statement import *
 from .variable import *
+from .workspace import *
 
 reg_define = regex.compile(r"^\#define\s++(?P<name>\w++)(?P<args>\((?P<args_in>[^)]*+)\))?\s*+(?P<body>.*)$", re_flags)
 reg_whole_word = regex.compile(r"[\w\.]++", re_flags)
@@ -81,12 +82,20 @@ class MacroParts:
                 else:  # Not break
                     self.is_const = True
 
+    def args_short_repr(self) -> str:
+        return "(" + ", ".join([arg.value for arg in self.args]) + ")" if self.args else ""
+    def short_repr(self) -> str:
+        return f"Macro {self.name.value}{self.args_short_repr()} is_wellformed={self.is_wellformed} is_const={self.is_const}"
+
+    def kind(self) -> str:
+        return "macro"
+
     def update(self, other: 'MacroParts') -> list[str]:
         errors = []
         if self.name != other.name:
             errors.append(f"macro name mismatch for '{self.name.value}': '{self.name.value}' != '{other.name.value}'")
         if self.args != other.args:
-            errors.append(f"macro args mismatch for '{self.name.value}': '{self.args}' != '{other.args}'")
+            errors.append(f"macro args mismatch for '{self.name.value}': {self.args_short_repr()} != {other.args_short_repr()}")
         if self.body != other.body:
             errors.append(f"macro redifinition: '{self.name.value}'")
         if self.preComment is None:
@@ -105,19 +114,21 @@ class MacroParts:
             if match := reg_define.match(token.value):
                 break
             return None
+        else: # not break
+            return None
 
         is_va_args = False
         offset = token.range[0]
         args = None
-        if match["args"]:  # type: ignore # match is not None; match is indexable
+        if match["args"]:
             args = list(
-            TokenList.xFromMatches(reg_whole_word.finditer(match["args_in"]), # type: ignore # match is not None; match is indexable
-                                   offset + match.start("args_in"), kind="w")) # type: ignore # match is not None; match is indexable
+            TokenList.xFromMatches(reg_whole_word.finditer(match["args_in"]),
+                                   offset + match.start("args_in"), kind="w"))
             if args and args[-1].value == "...":
                 args[-1].value = "__VA_ARGS__"
                 is_va_args = True
 
-        body = Token.fromMatch(match, offset, "body") # type: ignore # match is not None; match is indexable
+        body = Token.fromMatch(match, offset, "body")
         body.value = clean_text_sz(body.value.replace("\\\n", " \n").strip()) # space to preserve byte offset
 
         return MacroParts(preComment=preComment, args=args, is_va_args=is_va_args,
@@ -143,11 +154,19 @@ class Macros:
         if macro := MacroParts.fromStatement(statement):
             self.add(macro)
 
-    def upsert(self, other: MacroParts) -> None:
+    def upsert(self, other: MacroParts) -> list[tuple[str | Callable[[], str] | int | None, str]]:
         if other.name.value in self.macros:
-            self.macros[other.name.value].update(other)
+            errors = self.macros[other.name.value].update(other)
+            if not errors:
+                return []
+            return [
+                (scope().locationStr(other.name.range[0]), f"Conflicting update for macro '{other.name.value}':"),
+                # (scope().locationStr(self.macros[other.name.value].name.range[0]), f"conflict here:"),
+                *(((None, err) for err in errors))
+            ]
         else:
             self.add(other)
+            return []
 
     # Macro expansion.
     #  - https://en.wikipedia.org/wiki/C_preprocessor#Order_of_expansion

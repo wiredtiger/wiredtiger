@@ -22,6 +22,9 @@ class Variable:
     def short_repr(self) -> str:
         return f"Variable({self.name} : {self.typename})"
 
+    def kind(self) -> str:
+        return "variable"
+
     def update(self, other: 'Variable') -> list[str]:
         errors = []
         if self.name != other.name:

@@ -17,7 +17,7 @@ _reg_member_access_chain = regex.compile(r"""
         ([a-zA-Z_]\w*+)(?>(?>\((?&TOKEN)*+\))|(?>\[(?&TOKEN)*+\]))*+ |  # (1) variable or function call or array index
         (\((?&TOKEN)++\))             # (2) expression
     )
-    (?>(?>->|\.)(?>([a-zA-Z_]\w*+)(?>\[(?&TOKEN)++\])?))++             # (3) member access chain via -> or .
+    (?>(?>->|\.)(?>([a-zA-Z_]\w*+)(?>(?>\((?&TOKEN)*+\))|(?>\[(?&TOKEN)*+\]))*+))++             # (3) member access chain via -> or .
 """+re_token, re_flags)
 
 @dataclass

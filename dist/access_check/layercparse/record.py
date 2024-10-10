@@ -42,6 +42,9 @@ class RecordParts:
         ret.append(")")
         return "".join(ret)
 
+    def kind(self) -> str:
+        return "record"
+
     def _getBodyOffset(self) -> int:
         ret = 0
         if self.body:
@@ -148,7 +151,7 @@ class RecordParts:
                     if record.vardefs:
                         for var in record.vardefs:
                             yield var
-                    elif record.is_unnamed:  # Pull its members up
+                    elif record.is_unnamed and record.members:  # Pull its members up
                         for var in record.members:
                             yield var
                 continue

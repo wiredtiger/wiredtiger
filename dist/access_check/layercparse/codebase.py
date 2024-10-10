@@ -25,7 +25,7 @@ class Definition:
     postComments: list[Token] = field(default_factory=list)
 
     def short_repr(self) -> str:
-        return f"{self.name} ({self.kind}) {self.scope.locationStr(self.offset)} {self.module} {'private' if self.is_private else 'public'} {self.details.short_repr() if self.details else ''}"
+        return f"{self.name} ({self.kind}) {self.scope.locationStr(self.offset)} [{self.module}] {'private' if self.is_private else 'public'} {self.details.short_repr() if self.details else ''}"
 
     def locationStr(self) -> str:
         return f"{self.scope.locationStr(self.offset)} {self.kind}{f' [{self.module}]' if self.module else ''} '{self.name}':"
@@ -86,23 +86,26 @@ def _get_visibility_and_module(thing: Details, default_private: bool | None = No
         if match := regex.search(r"\#(?>(public)|(private))\b(?>\((\w++)\))?", thing.postComment.value, flags=re_flags):
             return (bool(match[2]), match[3] if match[3] else default_module)
 
-    match = regex.match(r"^(?>(__wt_)|(__wti_|WT_))(\L<names>)?", thing.name.value, flags=re_flags,
+    match = regex.match(r"^(?>(__wt_)|(__wti_|WT_))(?>(\L<names>)_)?", thing.name.value, flags=re_flags,
                         names=workspace.moduleSrcNames)
     module_from_name = workspace.moduleAliasesSrc.get(match[3], match[3]) if match and match[3] else default_module
 
     if is_nested and match:
         return (bool(match[2]), module_from_name)
 
+    if not default_module:
+        return (default_private, module_from_name)
+
     # Top level
     if module_from_name != default_module:
-        ERROR(scope().locationStr(thing.name.range[0]), f"Module [{module_from_name}] of a top-level entry '{thing.name.value}' does not match the file's module [{default_module}]. Assigning it to module [{default_module}] because identifier name has lower priority.")
+        ERROR(scope().locationStr(thing.name.range[0]), f"Module [{module_from_name}] of a top-level {thing.kind()} '{thing.name.value}' does not match the module of the file [{default_module}]. Assigning it to module [{default_module}] because identifier name has lower priority.")
 
     return (default_private, default_module)
 
 def _get_visibility_and_module_check(thing: Details, default_private: bool | None = None, default_module: str = "", is_nested = False) -> tuple[bool | None, str]:
     ret = _get_visibility_and_module(thing, default_private=default_private, default_module=default_module, is_nested=is_nested)
-    if not is_nested and ret[1] != default_module:
-        ERROR(scope().locationStr(thing.name.range[0]), f"Module [{ret[1]}] of a top-level entry '{thing.name.value}' does not match the file's module [{default_module}]. Assigning it to module [{ret[1]}].")
+    if not is_nested and default_module and ret[1] != default_module:
+        ERROR(scope().locationStr(thing.name.range[0]), f"Module [{ret[1]}] of a top-level {thing.kind()} '{thing.name.value}' does not match the module of the file [{default_module}]. Assigning it to module [{ret[1]}].")
     return ret
 
 
@@ -151,6 +154,7 @@ class Codebase:
             module=local_module,
             is_private=is_private_record,
             details=record))
+        DEBUG3(lambda: scope().locationStr(record.name.range[0]), "Record:", self.types[record.name.value].short_repr)
         if is_private_record:
             self.types_restricted[record.name.value] = self.types[record.name.value]
         if record.members:
@@ -170,7 +174,8 @@ class Codebase:
             for typedef in record.typedefs:
                 self.typedefs[typedef.name.value] = record.name.value
         if record.vardefs:
-            pass # TODO: add global variables from struct definitions
+            if is_global_scope:
+                INFO(scope().locationStr(record.name.range[0]), f"Global variables of record '{record.name.value}' are ignored")
         if record.nested:
             for rec in record.nested:
                 self.addRecord(rec)
@@ -188,9 +193,10 @@ class Codebase:
                             var.typename = saved_type
                         if var.typename:
                             self.typedefs[var.name.value] = get_base_type(var.typename)
+                            DEBUG3(lambda: scope().locationStr(st.range()[0]), lambda: f"Typedef: {var.name.value} = {var.typename} = {self.typedefs[var.name.value]}")
                             saved_type = var.typename if var.end == "," else None
                         else:
-                            WARNING(scope().locationStr(var.name.range[0]), f"Invalid typedef near '{var.name.value}'")
+                            WARNING(scope().locationStr(st.range()[0]), f"Invalid typedef near '{var.name.value}'")
                 else:
                     saved_type = None
                     if st.getKind().is_function_def:
@@ -205,6 +211,7 @@ class Codebase:
                                 module=local_module,
                                 is_private=is_private,
                                 details=func)
+                            DEBUG3(lambda: funcdef.locationStr(), "Function:", funcdef.short_repr)
                             if scope_file().fileKind == "c" and func.is_type_static:
                                 if funcdef.is_private and funcdef.module != scope_module():
                                     ERROR(funcdef.locationStr(), f"Private static function of a foreign module defined in [{scope_module()}]")
@@ -219,16 +226,19 @@ class Codebase:
                         record = RecordParts.fromStatement(st)
                         if record:
                             self.addRecord(record)
-                        # TODO: add global variables from struct definitions
                     elif st.getKind().is_decl:
-                        pass # TODO: global function and variable declarations - add to global or static names
+                        INFO(scope().locationStr(st.range()[0]), f"Global variable ignored")
                     elif do_preproc and st.getKind().is_preproc:
                         macro = MacroParts.fromStatement(st)
                         if macro:
-                            self.macros.upsert(macro)
+                            DEBUG3(lambda: scope().locationStr(st.range()[0]), "Macro:", macro.short_repr)
+                            if errors := self.macros.upsert(macro):
+                                for error in errors:
+                                    INFO(*error)
                     elif st.getKind().is_extern_c:
                         body = next((t for t in st.tokens if t.value.startswith("{")), None)
                         if body:
+                            DEBUG3(lambda: scope().locationStr(st.range()[0]), "extern C")
                             self.updateFromText(body.value[1:-1], offset=body.range[0]+1)
 
     def updateFromFile(self, fname: str, expand_preproc = True) -> None:
@@ -246,7 +256,9 @@ class Codebase:
             for st in StatementList.preprocFromText(txt):
                 macro = MacroParts.fromStatement(st)
                 if macro:
-                    self.macros.upsert(macro)
+                    if errors := self.macros.upsert(macro):
+                        for error in errors:
+                            INFO(*error)
 
     def updateMacroFromFile(self, fname: str) -> None:
         with ScopePush(file=File(fname)):

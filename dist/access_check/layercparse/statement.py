@@ -55,7 +55,7 @@ class StatementKind:
         while i < len(clean_tokens):
             if clean_tokens[i].value in ignore_type_keywords:
                 clean_tokens.pop(i)
-                if clean_tokens[i].getKind() == "(":
+                if i < len(clean_tokens) and clean_tokens[i].getKind() == "(":
                     clean_tokens.pop(i)
             elif clean_tokens[i].value in ["const", "static"]:
                 clean_tokens.pop(i)

@@ -59,7 +59,7 @@ c_types = ["void", "char", "short", "int", "long", "float", "double", "signed", 
            "__int64", "__uint64", "__int32", "__uint32", "__int16", "__uint16", "__int8", "__uint8",]
 
 ignore_type_keywords = ["__attribute__", "__extension__", "__restrict__", "__restrict", "__inline__", "__inline", "__asm__", "__asm", "inline", "restrict",
-    "WT_GCC_FUNC_DECL_ATTRIBUTE", "WT_GCC_FUNC_ATTRIBUTE", "WT_INLINE", "wt_shared",
+    "WT_GCC_FUNC_DECL_ATTRIBUTE", "WT_GCC_FUNC_ATTRIBUTE", "WT_INLINE", "WT_ATTRIBUTE_LIBRARY_VISIBLE", "wt_shared",
     "WT_STAT_COMPR_RATIO_READ_HIST_INCR_FUNC", "WT_STAT_COMPR_RATIO_WRITE_HIST_INCR_FUNC", "WT_STAT_USECS_HIST_INCR_FUNC"
     "WT_ATOMIC_CAS_FUNC", "WT_ATOMIC_FUNC",
     "WT_CURDUMP_PASS",
