@@ -392,6 +392,10 @@ struct __wt_session_impl {
     WT_CONTROL_POINT_REGISTRY *cp_registry;    /* For the run function for __wt_cond_wait_signal. */
     /* For the run function for __wt_cond_wait_signal. */
     WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *cp_data;
+#else /* Keep the size the same */
+    void *dummy1;
+    void *dummy2;
+    void *dummy3;
 #endif
 };
 
