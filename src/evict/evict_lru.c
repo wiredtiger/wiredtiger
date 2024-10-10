@@ -70,7 +70,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
 
     /* Any page set to the oldest generation should be discarded. */
-    if (__wti_evict_page_soon_flagged(&page->read_gen))
+    if (__wti_evict_readgen_soon_flagged(&page->read_gen))
         return (WT_READGEN_OLDEST);
 
     /* Any page from a dead tree is a great choice. */
@@ -1366,7 +1366,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         read_gen_oldest = WT_READGEN_START_VALUE;
         for (candidates = 0; candidates < entries; ++candidates) {
             WT_READ_ONCE(read_gen_oldest, queue->evict_queue[candidates].score);
-            if (!__wti_evict_page_soon_flagged(&read_gen_oldest))
+            if (!__wti_evict_readgen_soon_flagged(&read_gen_oldest))
                 break;
         }
 
@@ -1378,7 +1378,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
          * 50% of the entries were at the oldest read generation, take
          * all of them.
          */
-        if (__wti_evict_page_soon_flagged(&read_gen_oldest))
+        if (__wti_evict_readgen_soon_flagged(&read_gen_oldest))
             queue->evict_candidates = entries;
         else if (candidates > entries / 2)
             queue->evict_candidates = candidates;
@@ -2149,7 +2149,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
 
     /* Pages being forcibly evicted go on the urgent queue. */
     if (modified &&
-      (__wti_evict_page_soon_flagged(&page->read_gen) ||
+      (__wti_evict_readgen_soon_flagged(&page->read_gen) ||
         __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage)) {
         WT_STAT_CONN_INCR(session, eviction_pages_queued_oldest);
         if (__wt_evict_page_urgent(session, ref))
@@ -2409,7 +2409,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         } else {
             while (ref != NULL &&
               (WT_REF_GET_STATE(ref) != WT_REF_MEM ||
-                __wti_evict_page_soon_flagged(&ref->page->read_gen)))
+                __wti_evict_readgen_soon_flagged(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
         btree->evict_ref = ref;

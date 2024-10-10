@@ -2177,7 +2177,7 @@ static WT_INLINE bool __wt_txn_visible_id_snapshot(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wti_evict_page_soon_flagged(uint64_t *readgen)
+static WT_INLINE bool __wti_evict_readgen_soon_flagged(uint64_t *readgen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2542,9 +2542,9 @@ static WT_INLINE void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 static WT_INLINE void __wt_evict_copy_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
 static WT_INLINE void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
-static WT_INLINE void __wt_evict_page_read_inmem(
-  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
 static WT_INLINE void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
+static WT_INLINE void __wt_evict_touch_page(
+  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
 static WT_INLINE void __wt_modifies_max_memsize(WT_UPDATE_VECTOR *modifies,
   const char *value_format, size_t base_value_size, size_t *max_memsize);
 static WT_INLINE void __wt_modify_max_memsize(

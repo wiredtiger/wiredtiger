@@ -706,7 +706,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
       __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         __wt_cache_dirty_incr(session, page);
 
-        /* Tell eviction we modified the page for the first time so it can update the page state. */
         __wt_evict_page_first_dirty(session, page);
 
         /*

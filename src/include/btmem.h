@@ -13,7 +13,7 @@
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_INTERNAL_OP 0x0004u
+#define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
 #define WT_READ_NOTFOUND_OK 0x0008u
 #define WT_READ_NO_SPLIT 0x0010u
 #define WT_READ_NO_WAIT 0x0020u

@@ -54,7 +54,7 @@ static WT_INLINE void
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
-    if (__wti_evict_page_soon_flagged(&page->read_gen))
+    if (__wti_evict_readgen_soon_flagged(&page->read_gen))
         return;
 
     /* Ignore pages already in the future. */
@@ -83,14 +83,14 @@ __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wti_evict_page_soon_flagged --
+ * __wti_evict_readgen_soon_flagged --
  *     Return whether a read generation value makes a page eligible for immediate eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
  *     immediately.
  */
 static WT_INLINE bool
-__wti_evict_page_soon_flagged(uint64_t *readgen)
+__wti_evict_readgen_soon_flagged(uint64_t *readgen)
 {
     uint64_t gen;
 
@@ -105,7 +105,7 @@ __wti_evict_page_soon_flagged(uint64_t *readgen)
 static WT_INLINE bool
 __wt_evict_page_soon_flagged(WT_PAGE *page)
 {
-    return (__wti_evict_page_soon_flagged(&page->read_gen));
+    return (__wti_evict_readgen_soon_flagged(&page->read_gen));
 }
 
 /*
@@ -139,15 +139,14 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_evict_page_read_inmem --
- *     Tell eviction when we read a page so it can update its state for that page. The caller may
+ * __wt_evict_touch_page --
+ *     Tell eviction when we touch a page so it can update its state for that page. The caller may
  *     set flags indicating that it doesn't expect to need the page again or that it's an internal
  *     read. The latter is used by operations such as compact, and eviction, itself, so internal
  *     operations don't update eviction state.
  */
 static WT_INLINE void
-__wt_evict_page_read_inmem(
-  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
+__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
 {
     /* Is this the first use of the page? */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
