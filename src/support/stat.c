@@ -1740,6 +1740,7 @@ static const char *const __stats_connection_desc[] = {
   "capacity: bytes written for chunk cache",
   "capacity: bytes written for eviction",
   "capacity: bytes written for log",
+  "capacity: bytes written for oligarch log",
   "capacity: bytes written total",
   "capacity: threshold to call fsync",
   "capacity: time waiting due to total capacity (usecs)",
@@ -2511,6 +2512,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_bytes_chunkcache = 0;
     stats->capacity_bytes_evict = 0;
     stats->capacity_bytes_log = 0;
+    stats->capacity_bytes_oligarch_log = 0;
     stats->capacity_bytes_written = 0;
     stats->capacity_threshold = 0;
     stats->capacity_time_total = 0;
@@ -3313,6 +3315,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_bytes_chunkcache += WT_STAT_CONN_READ(from, capacity_bytes_chunkcache);
     to->capacity_bytes_evict += WT_STAT_CONN_READ(from, capacity_bytes_evict);
     to->capacity_bytes_log += WT_STAT_CONN_READ(from, capacity_bytes_log);
+    to->capacity_bytes_oligarch_log += WT_STAT_CONN_READ(from, capacity_bytes_oligarch_log);
     to->capacity_bytes_written += WT_STAT_CONN_READ(from, capacity_bytes_written);
     to->capacity_threshold += WT_STAT_CONN_READ(from, capacity_threshold);
     to->capacity_time_total += WT_STAT_CONN_READ(from, capacity_time_total);

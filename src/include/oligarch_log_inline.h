@@ -28,11 +28,11 @@ __wt_oligarch_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 }
 
 /*
- * __wt_lsn_offset --
+ * __wt_oligarch_lsn_offset --
  *     Return a log sequence number's offset.
  */
 static WT_INLINE uint32_t
-__wt_lsn_offset(WT_LSN *lsn)
+__wt_oligarch_lsn_offset(WT_LSN *lsn)
 {
     return (__wt_atomic_load32(&lsn->l.offset));
 }

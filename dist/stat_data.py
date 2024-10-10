@@ -393,6 +393,7 @@ conn_stats = [
     CapacityStat('capacity_bytes_ckpt', 'bytes written for checkpoint'),
     CapacityStat('capacity_bytes_evict', 'bytes written for eviction'),
     CapacityStat('capacity_bytes_log', 'bytes written for log'),
+    CapacityStat('capacity_bytes_oligarch_log', 'bytes written for oligarch log'),
     CapacityStat('capacity_bytes_read', 'bytes read'),
     CapacityStat('capacity_bytes_written', 'bytes written total'),
     CapacityStat('capacity_threshold', 'threshold to call fsync'),

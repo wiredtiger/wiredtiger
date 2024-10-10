@@ -297,6 +297,7 @@ struct __wt_txn {
     uint32_t forced_iso; /* Isolation is currently forced. */
 
     WT_TXN_LOG txn_log;
+    WT_TXN_LOG txn_oligarch_log;
 
     /* Snapshot data. */
     WT_TXN_SNAPSHOT snapshot_data;

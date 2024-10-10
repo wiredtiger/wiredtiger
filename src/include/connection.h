@@ -737,6 +737,7 @@ struct __wt_connection_impl {
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
     WT_LOG_INFO log_info;
+    WT_LOG_INFO oligarch_log_info;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */

@@ -63,7 +63,8 @@ __oligarch_log_checksum_match(WT_ITEM *buf, uint32_t reclen)
  *     Retrieve the list of all log-related files of the given prefix type.
  */
 static int
-__oligarch_log_get_files(WT_SESSION_IMPL *session, const char *file_prefix, char ***filesp, u_int *countp)
+__oligarch_log_get_files(
+  WT_SESSION_IMPL *session, const char *file_prefix, char ***filesp, u_int *countp)
 {
     WT_CONNECTION_IMPL *conn;
     const char *log_path;
@@ -255,7 +256,8 @@ __oligarch_log_fsync_dir(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *
  *     Requires log->log_sync_lock to be held by the caller.
  */
 static int
-__oligarch_log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, bool use_own_fh)
+__oligarch_log_fsync_file(
+  WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, bool use_own_fh)
 {
     WT_DECL_RET;
     WT_FH *log_fh;
@@ -547,7 +549,8 @@ err:
  *     Given a log number, return a WT_ITEM of a generated log file name of the given prefix type.
  */
 int
-__wt_oligarch_log_filename(WT_SESSION_IMPL *session, uint32_t id, const char *file_prefix, WT_ITEM *buf)
+__wt_oligarch_log_filename(
+  WT_SESSION_IMPL *session, uint32_t id, const char *file_prefix, WT_ITEM *buf)
 {
     return (__wt_filename_construct(
       session, S2C(session)->oligarch_log_info.log_path, file_prefix, UINTMAX_MAX, id, buf));
@@ -669,8 +672,8 @@ __oligarch_log_size_fit(WT_SESSION_IMPL *session, WT_LSN *lsn, uint64_t recsize)
     conn = S2C(session);
     log = conn->oligarch_log_info.log;
     offset = __wt_oligarch_lsn_offset(lsn);
-    return (
-      offset == log->first_record || offset + (wt_off_t)recsize < conn->oligarch_log_info.log_file_max);
+    return (offset == log->first_record ||
+      offset + (wt_off_t)recsize < conn->oligarch_log_info.log_file_max);
 }
 
 /*
@@ -798,7 +801,7 @@ __oligarch_log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn,
     desc->log_magic = WT_LOG_MAGIC;
     desc->version = log->log_version;
     desc->log_size = (uint64_t)conn->oligarch_log_info.log_file_max;
-    __wt_oligarch_log_desc_byteswap(desc);
+    __wt_log_desc_byteswap(desc);
 
     /*
      * Now that the record is set up, initialize the record header.
@@ -809,7 +812,7 @@ __oligarch_log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn,
      */
     logrec->len = log->allocsize;
     logrec->checksum = 0;
-    __wt_oligarch_log_record_byteswap(logrec);
+    __wt_log_record_byteswap(logrec);
     logrec->checksum = __wt_checksum(logrec, log->allocsize);
 #ifdef WORDS_BIGENDIAN
     logrec->checksum = __wt_bswap32(logrec->checksum);
@@ -820,9 +823,9 @@ __oligarch_log_file_header(WT_SESSION_IMPL *session, WT_FH *fh, WT_LSN *end_lsn,
     myslot.slot = &tmp;
 
     /*
-     * We may recursively call __wt_oligarch_log_acquire to allocate log space for the log descriptor record.
-     * Call __wt_oligarch_log_fill to write it, but we do not need to call __wt_oligarch_log_release because we're not
-     * waiting for any earlier operations to complete.
+     * We may recursively call __wt_oligarch_log_acquire to allocate log space for the log
+     * descriptor record. Call __wt_oligarch_log_fill to write it, but we do not need to call
+     * __wt_oligarch_log_release because we're not waiting for any earlier operations to complete.
      */
     if (prealloc) {
         WT_ASSERT(session, fh != NULL);
@@ -928,9 +931,9 @@ __oligarch_log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, W
     WT_ERR(__oligarch_log_openfile(session, id, 0, &fh));
     WT_ERR(__oligarch_log_fs_read(session, fh, 0, allocsize, buf->mem));
     logrec = (WT_LOG_RECORD *)buf->mem;
-    __wt_oligarch_log_record_byteswap(logrec);
+    __wt_log_record_byteswap(logrec);
     desc = (WT_LOG_DESC *)logrec->record;
-    __wt_oligarch_log_desc_byteswap(desc);
+    __wt_log_desc_byteswap(desc);
     if (desc->log_magic != WT_LOG_MAGIC) {
         if (salvage_mode)
             WT_ERR_MSG(session, WT_ERROR, "log file %s corrupted: Bad magic number %" PRIu32,
@@ -952,14 +955,16 @@ __oligarch_log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, W
      * We error if the log version is less than the required minimum or larger than the required
      * maximum.
      */
-    if (__wt_version_defined(conn->compat_req_max) && desc->version > conn->oligarch_log_info.log_req_max)
+    if (__wt_version_defined(conn->compat_req_max) &&
+      desc->version > conn->oligarch_log_info.log_req_max)
         WT_ERR_MSG(session, WT_ERROR,
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a maximum version of %" PRIu16
           ", and the file is version %" PRIu16,
           conn->oligarch_log_info.log_req_max, desc->version);
 
-    if (__wt_version_defined(conn->compat_req_min) && desc->version < conn->oligarch_log_info.log_req_min)
+    if (__wt_version_defined(conn->compat_req_min) &&
+      desc->version < conn->oligarch_log_info.log_req_min)
         WT_ERR_MSG(session, WT_ERROR,
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a minimum version of %" PRIu16
@@ -997,7 +1002,7 @@ __oligarch_log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, W
           "%s: System log record checksum mismatch: calculated block checksum of %#" PRIx32
           " doesn't match expected checksum of %#" PRIx32,
           fh->name, __wt_checksum(buf, allocsize), logrec->checksum);
-    __wt_oligarch_log_record_byteswap(logrec);
+    __wt_log_record_byteswap(logrec);
     p = WT_LOG_SKIP_HEADER(buf->data);
     end = (const uint8_t *)buf->data + allocsize;
     WT_ERR(__wt_oligarch_logrec_read(session, &p, end, &rectype));
@@ -1044,7 +1049,7 @@ __oligarch_log_record_verify(
      * Make our own copy of the header so we can get the bytes in the proper order.
      */
     logrec = *logrecp;
-    __wt_oligarch_log_record_byteswap(&logrec);
+    __wt_log_record_byteswap(&logrec);
 
     if (F_ISSET(&logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
         __wt_verbose_notice(session, WT_VERB_LOG,
@@ -1300,8 +1305,8 @@ __oligarch_log_set_version(
  *     file to advance and remove all old pre-allocated files.
  */
 int
-__wt_oligarch_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32_t first_rec, bool downgrade,
-  bool live_chg, uint32_t *lognump)
+__wt_oligarch_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32_t first_rec,
+  bool downgrade, bool live_chg, uint32_t *lognump)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1317,8 +1322,8 @@ __wt_oligarch_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32
      * - Force out the slot that is currently active in the current log.
      * - Write a log record to force a record into the new log file.
      */
-    WT_WITH_OLIGARCH_SLOT_LOCK(
-      session, log, ret = __oligarch_log_set_version(session, version, first_rec, live_chg, downgrade));
+    WT_WITH_OLIGARCH_SLOT_LOCK(session, log,
+      ret = __oligarch_log_set_version(session, version, first_rec, live_chg, downgrade));
     if (!live_chg)
         return (ret);
     WT_ERR(ret);
@@ -1332,7 +1337,8 @@ __wt_oligarch_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32
      * LSNs in that new log file and an remove correctly removes all earlier logs. Write an internal
      * printf record.
      */
-    WT_ERR(__wt_oligarch_log_printf(session, "COMPATIBILITY: Version now %" PRIu16, log->log_version));
+    WT_ERR(
+      __wt_oligarch_log_printf(session, "COMPATIBILITY: Version now %" PRIu16, log->log_version));
     if (lognump != NULL)
         *lognump = log->alloc_lsn.l.file;
 err:
@@ -1341,8 +1347,8 @@ err:
 
 /*
  * __wt_oligarch_log_acquire --
- *     Called serially when switching slots. Can be called recursively from __oligarch_log_newfile when we
- *     change log files.
+ *     Called serially when switching slots. Can be called recursively from __oligarch_log_newfile
+ *     when we change log files.
  */
 int
 __wt_oligarch_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
@@ -1369,7 +1375,8 @@ __wt_oligarch_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT
      * but does not eliminate, log files that exceed the maximum file size. We want to minimize the
      * risk of an error due to no space.
      */
-    if (F_ISSET(log, WT_LOG_FORCE_NEWFILE) || !__oligarch_log_size_fit(session, &log->alloc_lsn, recsize)) {
+    if (F_ISSET(log, WT_LOG_FORCE_NEWFILE) ||
+      !__oligarch_log_size_fit(session, &log->alloc_lsn, recsize)) {
         WT_RET(__oligarch_log_newfile(session, false, &created_log));
         F_CLR(log, WT_LOG_FORCE_NEWFILE);
         if (log->log_close_fh != NULL)
@@ -1416,7 +1423,8 @@ __oligarch_log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t o
     }
 
     WT_STAT_CONN_INCR(session, log_zero_fills);
-    return (__wt_file_zero(session, log_fh, offset, conn->oligarch_log_info.log_file_max, WT_THROTTLE_LOG));
+    return (__wt_file_zero(
+      session, log_fh, offset, conn->oligarch_log_info.log_file_max, WT_THROTTLE_LOG));
 }
 
 /*
@@ -1482,7 +1490,8 @@ __oligarch_log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bo
                  * create a new, empty one.
                  */
                 need_salvage = false;
-                WT_ERR(__oligarch_log_open_verify(session, lognum, &log_fh, NULL, NULL, &need_salvage));
+                WT_ERR(
+                  __oligarch_log_open_verify(session, lognum, &log_fh, NULL, NULL, &need_salvage));
                 if (need_salvage) {
                     WT_ASSERT(session, log_fh == NULL);
                     WT_ERR(__wt_oligarch_log_remove(session, WT_LOG_FILENAME, lognum));
@@ -1649,10 +1658,10 @@ __wt_oligarch_log_open(WT_SESSION_IMPL *session)
      * Open up a file handle to the log directory if we haven't.
      */
     if (log->log_dir_fh == NULL) {
-        __wt_verbose(
-          session, WT_VERB_LOG, "log_open: open fh to directory %s", conn->oligarch_log_info.log_path);
-        WT_RET(__wt_open(
-          session, conn->oligarch_log_info.log_path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
+        __wt_verbose(session, WT_VERB_LOG, "log_open: open fh to directory %s",
+          conn->oligarch_log_info.log_path);
+        WT_RET(__wt_open(session, conn->oligarch_log_info.log_path, WT_FS_OPEN_FILE_TYPE_DIRECTORY,
+          0, &log->log_dir_fh));
     }
 
     if (!F_ISSET(conn, WT_CONN_READONLY))
@@ -1857,7 +1866,8 @@ __oligarch_log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size, 
                 logrec = (WT_LOG_RECORD *)p;
                 if (buf_left >= sizeof(WT_LOG_RECORD)) {
                     off += p - buf;
-                    WT_ERR(__oligarch_log_record_verify(session, fh, (uint32_t)off, logrec, &corrupt));
+                    WT_ERR(
+                      __oligarch_log_record_verify(session, fh, (uint32_t)off, logrec, &corrupt));
                     if (corrupt)
                         *error_offset = off;
                 }
@@ -2055,7 +2065,8 @@ __oligarch_log_salvage_message(
  *     Scan the logs, calling a function on each record found.
  */
 int
-__wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, uint32_t flags,
+__wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp,
+  uint32_t flags,
   int (*func)(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord),
   void *cookie)
@@ -2143,8 +2154,9 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
          */
         if (__wt_lsn_offset(start_lsnp) % allocsize != 0) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
-                WT_ERR_MSG(session, WT_NOTFOUND, "__wt_oligarch_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
-                  start_lsnp->l.file, __wt_lsn_offset(start_lsnp));
+                WT_ERR_MSG(session, WT_NOTFOUND,
+                  "__wt_oligarch_log_scan unaligned LSN %" PRIu32 "/%" PRIu32, start_lsnp->l.file,
+                  __wt_lsn_offset(start_lsnp));
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2156,7 +2168,8 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
         if (start_lsnp->l.file > lastlog) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
                 WT_ERR_MSG(session, WT_NOTFOUND,
-                  "__wt_oligarch_log_scan LSN %" PRIu32 "/%" PRIu32 " larger than biggest log file %" PRIu32,
+                  "__wt_oligarch_log_scan LSN %" PRIu32 "/%" PRIu32
+                  " larger than biggest log file %" PRIu32,
                   start_lsnp->l.file, __wt_lsn_offset(start_lsnp), lastlog);
             else
                 WT_ERR(WT_NOTFOUND);
@@ -2168,7 +2181,8 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
         if (!WT_IS_INIT_LSN(start_lsnp))
             WT_ASSIGN_LSN(&start_lsn, start_lsnp);
     }
-    WT_ERR(__oligarch_log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
+    WT_ERR(__oligarch_log_open_verify(
+      session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
     if (need_salvage)
         WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
     WT_ERR(__wt_filesize(session, log_fh, &log_size));
@@ -2205,7 +2219,8 @@ advance:
             /*
              * Truncate this log file before we move to the next.
              */
-            if (LF_ISSET(WT_LOGSCAN_RECOVER) && __wt_oligarch_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
+            if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
+              __wt_oligarch_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
                 __wt_verbose(session, WT_VERB_LOG, "Truncate end of log %" PRIu32 "/%" PRIu32,
                   rd_lsn.l.file, __wt_lsn_offset(&rd_lsn));
                 WT_ERR(__oligarch_log_truncate(session, &rd_lsn, true, false));
@@ -2261,8 +2276,8 @@ advance:
          */
         WT_ASSERT(session, buf->memsize >= allocsize);
         need_salvage = F_ISSET(conn, WT_CONN_SALVAGE);
-        WT_ERR(
-          __oligarch_log_fs_read(session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)allocsize, buf->mem));
+        WT_ERR(__oligarch_log_fs_read(
+          session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)allocsize, buf->mem));
         need_salvage = false;
         /*
          * See if we need to read more than the allocation size. We expect that we rarely will have
@@ -2307,8 +2322,8 @@ advance:
              * We need to round up and read in the full padded record, especially for direct I/O.
              */
             WT_ERR(__wt_buf_grow(session, buf, rdup_len));
-            WT_ERR(
-              __oligarch_log_fs_read(session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)rdup_len, buf->mem));
+            WT_ERR(__oligarch_log_fs_read(
+              session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)rdup_len, buf->mem));
             WT_STAT_CONN_INCR(session, log_scan_rereads);
         }
         /*
@@ -2364,17 +2379,17 @@ advance:
                  * It may be a partial write, or it's possible that the header is corrupt. Make a
                  * sanity check of the log record header.
                  */
-                WT_TRET(
-                  __oligarch_log_record_verify(session, log_fh, __wt_lsn_offset(&rd_lsn), logrec, &corrupt));
+                WT_TRET(__oligarch_log_record_verify(
+                  session, log_fh, __wt_lsn_offset(&rd_lsn), logrec, &corrupt));
                 if (corrupt) {
                     need_salvage = true;
-                    WT_TRET(
-                      __oligarch_log_salvage_message(session, log_fh->name, "", __wt_lsn_offset(&rd_lsn)));
+                    WT_TRET(__oligarch_log_salvage_message(
+                      session, log_fh->name, "", __wt_lsn_offset(&rd_lsn)));
                 }
             }
             break;
         }
-        __wt_oligarch_log_record_byteswap(logrec);
+        __wt_log_record_byteswap(logrec);
 
         /*
          * We have a valid log record. If it is not the log file header, invoke the callback.
@@ -2520,7 +2535,8 @@ __wt_oligarch_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
     if (!F_ISSET(log, WT_LOG_OPENED) || F_ISSET(conn, WT_CONN_READONLY))
         return (0);
     ip = record;
-    if ((compressor = conn->oligarch_log_info.log_compressor) != NULL && record->size < log->allocsize) {
+    if ((compressor = conn->oligarch_log_info.log_compressor) != NULL &&
+      record->size < log->allocsize) {
         WT_STAT_CONN_INCR(session, log_compress_small);
     } else if (compressor != NULL) {
         /* Skip the log header */
@@ -2608,7 +2624,8 @@ err:
  *     Write a record into the log.
  */
 static int
-__oligarch_log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t flags)
+__oligarch_log_write_internal(
+  WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2681,7 +2698,7 @@ __oligarch_log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN 
     logrec = (WT_LOG_RECORD *)record->mem;
     logrec->len = (uint32_t)record->size;
     logrec->checksum = 0;
-    __wt_oligarch_log_record_byteswap(logrec);
+    __wt_log_record_byteswap(logrec);
     logrec->checksum = __wt_checksum(logrec, record->size);
 #ifdef WORDS_BIGENDIAN
     logrec->checksum = __wt_bswap32(logrec->checksum);
@@ -2753,10 +2770,10 @@ err:
     /*
      * If one of the sync flags is set, assert the proper LSN has moved to match on success.
      */
-    WT_ASSERT(
-      session, ret != 0 || !LF_ISSET(WT_LOG_FLUSH) || __wt_oligarch_log_cmp(&log->write_lsn, &lsn) >= 0);
-    WT_ASSERT(
-      session, ret != 0 || !LF_ISSET(WT_LOG_FSYNC) || __wt_oligarch_log_cmp(&log->sync_lsn, &lsn) >= 0);
+    WT_ASSERT(session,
+      ret != 0 || !LF_ISSET(WT_LOG_FLUSH) || __wt_oligarch_log_cmp(&log->write_lsn, &lsn) >= 0);
+    WT_ASSERT(session,
+      ret != 0 || !LF_ISSET(WT_LOG_FSYNC) || __wt_oligarch_log_cmp(&log->sync_lsn, &lsn) >= 0);
     return (ret);
 }
 

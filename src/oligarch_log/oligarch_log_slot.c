@@ -23,12 +23,13 @@ __oligarch_log_slot_dump(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     log = conn->oligarch_log_info.log;
-    ret = __wt_verbose_dump_log(session);
+    ret = __wt_verbose_dump_oligarch_log(session);
     WT_ASSERT_ALWAYS(session, ret == 0, "Failed to dump log system information");
     earliest = 0;
     for (i = 0; i < WT_SLOT_POOL; i++) {
         slot = &log->slot_pool[i];
-        if (__wt_oligarch_log_cmp(&slot->slot_release_lsn, &log->slot_pool[earliest].slot_release_lsn) < 0)
+        if (__wt_oligarch_log_cmp(
+              &slot->slot_release_lsn, &log->slot_pool[earliest].slot_release_lsn) < 0)
             earliest = i;
         __wt_errx(session, "Slot %d (0x%p):", i, (void *)slot);
         __wt_errx(session, "    State: %" PRIx64 " Flags: %" PRIx16, (uint64_t)slot->slot_state,
@@ -308,7 +309,8 @@ __oligarch_log_slot_new(WT_SESSION_IMPL *session)
  *     Switch out the current slot and set up a new one.
  */
 static int
-__oligarch_log_slot_switch_internal(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool forced, bool *did_work)
+__oligarch_log_slot_switch_internal(
+  WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool forced, bool *did_work)
 {
     WT_DECL_RET;
     WT_LOG *log;
@@ -405,8 +407,8 @@ __wt_oligarch_log_slot_switch(
      * because we are responsible for setting up the new slot.
      */
     do {
-        WT_WITH_OLIGARCH_SLOT_LOCK(
-          session, log, ret = __oligarch_log_slot_switch_internal(session, myslot, forced, did_work));
+        WT_WITH_OLIGARCH_SLOT_LOCK(session, log,
+          ret = __oligarch_log_slot_switch_internal(session, myslot, forced, did_work));
         /*
          * If we get an unexpected error, we need to panic. If we cannot switch the slot because of
          * a real error, such as running out of space, there's nothing we can do.
@@ -522,7 +524,8 @@ __wt_oligarch_log_slot_destroy(WT_SESSION_IMPL *session)
  *     Join a consolidated logging slot.
  */
 void
-__wt_oligarch_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot)
+__wt_oligarch_log_slot_join(
+  WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;

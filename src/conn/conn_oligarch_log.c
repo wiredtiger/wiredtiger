@@ -181,7 +181,8 @@ __oligarch_logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
      * Set the version. If it is a live change the logging subsystem will do other work as well to
      * move to a new log file.
      */
-    WT_RET(__wt_oligarch_log_set_version(session, new_version, first_record, downgrade, reconfig, &lognum));
+    WT_RET(__wt_oligarch_log_set_version(
+      session, new_version, first_record, downgrade, reconfig, &lognum));
     if (reconfig && FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_DOWNGRADED))
         WT_RET(__oligarch_logmgr_force_remove(session, lognum));
     return (0);
@@ -304,7 +305,8 @@ __wt_oligarch_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool rec
 
     WT_RET(__wt_config_gets(session, cfg, "log.os_cache_dirty_pct", &cval));
     if (cval.val != 0)
-        conn->oligarch_log_info.log_dirty_max = (conn->oligarch_log_info.log_file_max * cval.val) / 100;
+        conn->oligarch_log_info.log_dirty_max =
+          (conn->oligarch_log_info.log_file_max * cval.val) / 100;
 
     /*
      * If pre-allocation is configured, set the initial number to a few. We'll adapt as load
@@ -361,7 +363,8 @@ __wt_oligarch_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __oligarch_log_remove_once_int --
- *     Helper for __oligarch_log_remove_once. Intended to be called while holding the hot backup read lock.
+ *     Helper for __oligarch_log_remove_once. Intended to be called while holding the hot backup
+ *     read lock.
  */
 static int
 __oligarch_log_remove_once_int(
@@ -468,8 +471,8 @@ __oligarch_log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     if (backup_file != 0)
         ret = __oligarch_log_remove_once_int(session, logfiles, logcount, min_lognum);
     else
-        WT_WITH_HOTBACKUP_READ_LOCK(
-          session, ret = __oligarch_log_remove_once_int(session, logfiles, logcount, min_lognum), NULL);
+        WT_WITH_HOTBACKUP_READ_LOCK(session,
+          ret = __oligarch_log_remove_once_int(session, logfiles, logcount, min_lognum), NULL);
     WT_ERR(ret);
 
     /*
@@ -788,7 +791,8 @@ restart:
                 /*
                  * If we get here we have a slot to process. Advance the LSN and process the slot.
                  */
-                WT_ASSERT(session, __wt_oligarch_log_cmp(&written[i].lsn, &slot->slot_release_lsn) == 0);
+                WT_ASSERT(
+                  session, __wt_oligarch_log_cmp(&written[i].lsn, &slot->slot_release_lsn) == 0);
                 /*
                  * We need to maintain the starting offset of a log record so that the checkpoint
                  * LSN refers to the beginning of a real record. The last offset in a slot is kept
@@ -931,7 +935,8 @@ __oligarch_log_server(void *arg)
                  * Log file pre-allocation is disabled when a hot backup cursor is open because we
                  * have agreed not to rename or remove any files in the database directory.
                  */
-                WT_WITH_HOTBACKUP_READ_LOCK(session, ret = __oligarch_log_prealloc_once(session), NULL);
+                WT_WITH_HOTBACKUP_READ_LOCK(
+                  session, ret = __oligarch_log_prealloc_once(session), NULL);
                 WT_ERR(ret);
             }
 
@@ -951,7 +956,8 @@ __oligarch_log_server(void *arg)
         }
 
         /* Wait until the next event. */
-        __wt_cond_auto_wait_signal(session, conn->oligarch_log_info.log_cond, did_work, NULL, &signalled);
+        __wt_cond_auto_wait_signal(
+          session, conn->oligarch_log_info.log_cond, did_work, NULL, &signalled);
         time_stop = __wt_clock(session);
         timediff = WT_CLOCKDIFF_MS(time_stop, time_start);
         force_write_timediff = WT_CLOCKDIFF_MS(time_stop, force_write_time_start);
@@ -1048,28 +1054,30 @@ __wt_oligarch_logmgr_open(WT_SESSION_IMPL *session)
      * Start the log close thread. It is not configurable. If logging is enabled, this thread runs.
      */
     session_flags = WT_SESSION_NO_DATA_HANDLES;
-    WT_RET(__wt_open_internal_session(
-      conn, "log-close-server", false, session_flags, 0, &conn->oligarch_log_info.log_file_session));
-    WT_RET(__wt_cond_alloc(
-      conn->oligarch_log_info.log_file_session, "log close server", &conn->oligarch_log_info.log_file_cond));
+    WT_RET(__wt_open_internal_session(conn, "log-close-server", false, session_flags, 0,
+      &conn->oligarch_log_info.log_file_session));
+    WT_RET(__wt_cond_alloc(conn->oligarch_log_info.log_file_session, "log close server",
+      &conn->oligarch_log_info.log_file_cond));
 
     /*
      * Start the log file close thread.
      */
-    WT_RET(__wt_thread_create(conn->oligarch_log_info.log_file_session, &conn->oligarch_log_info.log_file_tid,
-      __oligarch_log_file_server, conn->oligarch_log_info.log_file_session));
+    WT_RET(__wt_thread_create(conn->oligarch_log_info.log_file_session,
+      &conn->oligarch_log_info.log_file_tid, __oligarch_log_file_server,
+      conn->oligarch_log_info.log_file_session));
     conn->oligarch_log_info.log_file_tid_set = true;
 
     /*
      * Start the log write LSN thread. It is not configurable. If logging is enabled, this thread
      * runs.
      */
-    WT_RET(__wt_open_internal_session(
-      conn, "log-wrlsn-server", false, session_flags, 0, &conn->oligarch_log_info.log_wrlsn_session));
+    WT_RET(__wt_open_internal_session(conn, "log-wrlsn-server", false, session_flags, 0,
+      &conn->oligarch_log_info.log_wrlsn_session));
     WT_RET(__wt_cond_auto_alloc(conn->oligarch_log_info.log_wrlsn_session, "log write lsn server",
       10 * WT_THOUSAND, WT_MILLION, &conn->oligarch_log_info.log_wrlsn_cond));
-    WT_RET(__wt_thread_create(conn->oligarch_log_info.log_wrlsn_session, &conn->oligarch_log_info.log_wrlsn_tid,
-      __oligarch_log_wrlsn_server, conn->oligarch_log_info.log_wrlsn_session));
+    WT_RET(__wt_thread_create(conn->oligarch_log_info.log_wrlsn_session,
+      &conn->oligarch_log_info.log_wrlsn_tid, __oligarch_log_wrlsn_server,
+      conn->oligarch_log_info.log_wrlsn_session));
     conn->oligarch_log_info.log_wrlsn_tid_set = true;
 
     /*
@@ -1085,14 +1093,15 @@ __wt_oligarch_logmgr_open(WT_SESSION_IMPL *session)
         /* The log server gets its own session. */
         WT_RET(__wt_open_internal_session(
           conn, "log-server", false, session_flags, 0, &conn->oligarch_log_info.log_session));
-        WT_RET(__wt_cond_auto_alloc(conn->oligarch_log_info.log_session, "log server", 50 * WT_THOUSAND,
-          WT_MILLION, &conn->oligarch_log_info.log_cond));
+        WT_RET(__wt_cond_auto_alloc(conn->oligarch_log_info.log_session, "log server",
+          50 * WT_THOUSAND, WT_MILLION, &conn->oligarch_log_info.log_cond));
 
         /*
          * Start the thread.
          */
-        WT_RET(__wt_thread_create(conn->oligarch_log_info.log_session, &conn->oligarch_log_info.log_tid, __oligarch_log_server,
-          conn->oligarch_log_info.log_session));
+        WT_RET(
+          __wt_thread_create(conn->oligarch_log_info.log_session, &conn->oligarch_log_info.log_tid,
+            __oligarch_log_server, conn->oligarch_log_info.log_session));
         conn->oligarch_log_info.log_tid_set = true;
     }
 

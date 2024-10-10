@@ -67,7 +67,8 @@ __wt_oligarch_log_system_backup_id(WT_SESSION_IMPL *session)
         if (F_ISSET(blk, WT_BLKINCR_VALID)) {
             WT_ASSERT(session, conn->incr_granularity != 0);
             WT_ASSERT(session, blk->granularity == conn->incr_granularity);
-            WT_ERR(__wt_oligarch_logop_backup_id_pack(session, logrec, i, blk->granularity, blk->id_str));
+            WT_ERR(__wt_oligarch_logop_backup_id_pack(
+              session, logrec, i, blk->granularity, blk->id_str));
         } else
             WT_ERR(__wt_oligarch_logop_backup_id_pack(session, logrec, i, UINT64_MAX, &nul));
     }
@@ -120,7 +121,7 @@ __wt_oligarch_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN
     /* We do not compress nor encrypt this record. */
     logrec->checksum = 0;
     logrec->flags = 0;
-    __wt_oligarch_log_record_byteswap(logrec);
+    __wt_log_record_byteswap(logrec);
     logrec->checksum = __wt_checksum(logrec, log->allocsize);
 #ifdef WORDS_BIGENDIAN
     logrec->checksum = __wt_bswap32(logrec->checksum);
@@ -156,11 +157,11 @@ __wt_oligarch_log_recover_prevlsn(
 }
 
 /*
- * __wt_verbose_dump_log --
+ * __wt_verbose_dump_oligarch_log --
  *     Dump information about the logging subsystem.
  */
 int
-__wt_verbose_dump_log(WT_SESSION_IMPL *session)
+__wt_verbose_dump_oligarch_log(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
@@ -182,19 +183,19 @@ __wt_verbose_dump_log(WT_SESSION_IMPL *session)
       FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Zero fill files: %s",
       FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
-    WT_RET(
-      __wt_msg(session, "Pre-allocate files: %s", conn->oligarch_log_info.log_prealloc > 0 ? "yes" : "no"));
+    WT_RET(__wt_msg(
+      session, "Pre-allocate files: %s", conn->oligarch_log_info.log_prealloc > 0 ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Initial number of pre-allocated files: %" PRIu32,
       conn->oligarch_log_info.log_prealloc_init_count));
     WT_RET(__wt_msg(session, "Logging directory: %s", conn->oligarch_log_info.log_path));
-    WT_RET(__wt_msg(
-      session, "Logging maximum file size: %" PRId64, (int64_t)conn->oligarch_log_info.log_file_max));
+    WT_RET(__wt_msg(session, "Logging maximum file size: %" PRId64,
+      (int64_t)conn->oligarch_log_info.log_file_max));
     WT_RET(__wt_msg(session, "Log sync setting: %s",
       !FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_SYNC_ENABLED) ? "none" :
         FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_DSYNC)       ? "dsync" :
         FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_FLUSH)       ? "write to OS" :
         FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_FSYNC)       ? "fsync to disk" :
-                                                                    "unknown sync setting"));
+                                                                             "unknown sync setting"));
     WT_RET(__wt_msg(session, "Log record allocation alignment: %" PRIu32, log->allocsize));
     WT_RET(__wt_msg(session, "Current log file number: %" PRIu32, log->fileid));
     WT_RET(__wt_msg(session, "Current log version number: %" PRIu16, log->log_version));
