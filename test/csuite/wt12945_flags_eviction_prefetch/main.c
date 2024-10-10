@@ -280,7 +280,7 @@ main(int argc, char *argv[])
     uint64_t record_idx;
     int ret;
     const char *wiredtiger_open_config =
-      "create,cache_size=2G,eviction=(threads_max=5),"
+      "create,cache_size=2G,eviction=(threads_min=1,threads_max=1),"
       "prefetch=(available=true,default=true),"
 #if 1 /* Include if needed */
       "verbose=["
