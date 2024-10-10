@@ -489,7 +489,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_put(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
       ", is_delta=%d, buf=\n%s)\n",
-      plh, page_id, checkpoint_id, is_delta, palm_verbose_item(buf));
+      (void *)plh, page_id, checkpoint_id, is_delta, palm_verbose_item(buf));
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &kv_revision);
     if (ret == MDB_NOTFOUND) {
@@ -528,8 +528,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_delay(palm);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64 ")...\n", plh, page_id,
-      checkpoint_id);
+      "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64 ")...\n", (void *)plh,
+      page_id, checkpoint_id);
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
       palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
@@ -550,7 +550,7 @@ err:
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
       ", buf=\n%s) returns %d\n",
-      plh, page_id, checkpoint_id, palm_verbose_item(package), ret);
+      (void *)plh, page_id, checkpoint_id, palm_verbose_item(package), ret);
     palm_kv_rollback_transaction(&context);
     return (ret);
 }

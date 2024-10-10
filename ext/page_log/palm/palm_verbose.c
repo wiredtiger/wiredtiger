@@ -41,9 +41,9 @@ static char
 verbose_hex_char(uint8_t x)
 {
     if (x < 10)
-        return '0' + x;
+        return ((char)('0' + x));
     else
-        return 'a' + (x - 10);
+        return ((char)('a' + (x - 10)));
 }
 
 /*
