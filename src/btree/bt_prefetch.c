@@ -131,5 +131,13 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
 err:
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+    if (ret == 0)
+        __wt_verbose_debug1(session, WT_VERB_PREFETCH,
+          "Success: Read a pre-fetch page into the cache: session=%s, ref=%p", session->name,
+          pe->ref);
+    else
+        __wt_verbose_debug1(session, WT_VERB_PREFETCH,
+          "Error: Read a pre-fetch page into the cache: session=%s, ref=%p, ret=%d", session->name,
+          pe->ref, ret);
     return (ret);
 }

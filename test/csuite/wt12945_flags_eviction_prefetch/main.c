@@ -386,8 +386,8 @@ thread_do_prefetch(void *arg)
     uint64_t idx;
     uint64_t key;
     uint64_t value;
-    int64_t previous_prefetch_pages_queued;
     int64_t current_prefetch_pages_queued;
+    int64_t previous_prefetch_pages_queued;
     int ret;
 
     opts = (TEST_OPTS *)arg;
@@ -406,10 +406,12 @@ thread_do_prefetch(void *arg)
     idx = 0;
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         WT_ERR(ret);
-        current_prefetch_pages_queued = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
+        current_prefetch_pages_queued =
+          get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
         if (current_prefetch_pages_queued > previous_prefetch_pages_queued) {
-                printf("%" PRIu64 ". prefetch_pages_queued increased from %" PRId64 " to %" PRId64 ". Exit loop.\n",
-                       idx, previous_prefetch_pages_queued, current_prefetch_pages_queued);
+            printf("%" PRIu64 ". prefetch_pages_queued increased from %" PRId64 " to %" PRId64
+                   ". Exit loop.\n",
+              idx, previous_prefetch_pages_queued, current_prefetch_pages_queued);
             break;
         }
         previous_prefetch_pages_queued = current_prefetch_pages_queued;
