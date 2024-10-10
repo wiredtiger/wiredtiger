@@ -192,15 +192,17 @@ __wt_control_point_wait_for_trigger(
     start_trigger_count = cp_registry->trigger_count;
     if (WT_UNLIKELY(cp_data == NULL)) {
         __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT,
-          "False: Is disabled: wait for trigger skipped: id=%" PRId32, id);
+          "False: Is disabled: wait for trigger skipped: id=%" PRId32 ", session=%s.", id,
+          session->name);
         return (false); /* Not enabled. */
     }
     /* Does the call site and trigger site match in action? */
     if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER)) {
         __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
           "False: Control point call site and trigger site have different actions: id=%" PRId32
-          ": %d and %" PRIu32 ".",
-          id, WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported);
+          ": %d and %" PRIu32 ", session=%s.",
+          id, WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported,
+          session->name);
         return (false); /* Pretend not enabled. */
     }
     /* Is waiting necessary? */
@@ -214,9 +216,9 @@ __wt_control_point_wait_for_trigger(
         __wt_control_point_release_data(session, cp_registry, cp_data, true);
         __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
           "True: Wait not needed: id=%" PRId32 ", # to wait=%" PRIu64 ", # waited=%" PRIu64
-          ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+          ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64 ", session=%s.",
           id, (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
-          (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+          (uint64_t)current_trigger_count, (uint64_t)crossing_count, session->name);
         return (true); /* Enabled and wait fulfilled. */
     }
     /* Store data needed by run_func. */
@@ -226,10 +228,10 @@ __wt_control_point_wait_for_trigger(
     __wt_control_point_unlock(session, cp_registry);
     __wt_verbose_debug4(session, WT_VERB_CONTROL_POINT,
       "Waiting: id=%" PRId32 ", # left to wait=%" PRIu64 ", # waited=%" PRIu64
-      ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+      ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64 ", session=%s.",
       id, (uint64_t)(desired_trigger_count - current_trigger_count),
       (uint64_t)(current_trigger_count - start_trigger_count), (uint64_t)current_trigger_count,
-      (uint64_t)crossing_count);
+      (uint64_t)crossing_count, session->name);
     for (;;) {
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
           __run_wait_for_trigger, &signalled);
@@ -242,9 +244,9 @@ __wt_control_point_wait_for_trigger(
     __wt_control_point_release_data(session, cp_registry, cp_data, false);
     __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
       "True: Wait finished: id=%" PRId32 ", # to wait=%" PRIu64 ", # waited=%" PRIu64
-      ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+      ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64 ", session=%s.",
       id, (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
-      (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+      (uint64_t)current_trigger_count, (uint64_t)crossing_count, session->name);
     return (true);
 }
 

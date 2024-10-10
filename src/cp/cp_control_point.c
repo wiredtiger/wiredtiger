@@ -51,17 +51,18 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     size_t new_crossing_count, new_trigger_count;
     bool triggered;
 
-    __wt_verbose_debug4(session, WT_VERB_CONTROL_POINT, "Start: id=%" PRId32, id);
+    __wt_verbose_debug4(
+      session, WT_VERB_CONTROL_POINT, "Start: id=%" PRId32 ", session=%s.", id, session->name);
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE)) {
         __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
-          "ERROR: id(%" PRId32 ") >= CONNECTION_CONTROL_POINTS_SIZE(%" PRId32 ")", id,
-          CONNECTION_CONTROL_POINTS_SIZE);
+          "ERROR: id(%" PRId32 ") >= CONNECTION_CONTROL_POINTS_SIZE(%" PRId32 "), session=%s.", id,
+          CONNECTION_CONTROL_POINTS_SIZE, session->name);
         return (NULL);
     }
     conn = S2C(session);
     if (WT_UNLIKELY(conn->control_points == NULL)) {
-        __wt_verbose_warning(
-          session, WT_VERB_CONTROL_POINT, "control_points is NULL: id=%" PRId32, id);
+        __wt_verbose_warning(session, WT_VERB_CONTROL_POINT,
+          "control_points is NULL: id=%" PRId32 ", session=%s.", id, session->name);
         return (NULL);
     }
     cp_registry = &(conn->control_points[id]);
@@ -69,7 +70,8 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     data = __wti_control_point_get_data(session, cp_registry, false);
     if (data == NULL) {
         /* Disabled. */
-        __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT, "Is disabled: id=%" PRId32, id);
+        __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT,
+          "Is disabled: id=%" PRId32 ", session=%s.", id, session->name);
         return (NULL);
     }
     new_crossing_count = ++(cp_registry->crossing_count);
@@ -77,12 +79,14 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
     if (triggered) {
         new_trigger_count = ++(cp_registry->trigger_count);
         __wt_verbose_debug1(session, WT_VERB_CONTROL_POINT,
-          "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
-          (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
+          "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64
+          ", session=%s.",
+          id, (uint64_t)new_crossing_count, (uint64_t)new_trigger_count, session->name);
     } else {
         __wt_verbose_debug3(session, WT_VERB_CONTROL_POINT,
-          "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
-          (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
+          "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64
+          ", session=%s.",
+          id, (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count, session->name);
         __wt_control_point_release_data(session, cp_registry, data, false);
         /* Not triggered. */
         data = NULL;
@@ -109,13 +113,13 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
 
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE)) {
         __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
-          "ERROR: id(%" PRId32 ") >= SESSION_CONTROL_POINTS_SIZE(%" PRId32 ")", id,
-          SESSION_CONTROL_POINTS_SIZE);
+          "ERROR: id(%" PRId32 ") >= SESSION_CONTROL_POINTS_SIZE(%" PRId32 "), session=%s.", id,
+          SESSION_CONTROL_POINTS_SIZE, session->name);
         return (NULL);
     }
     if (WT_UNLIKELY(session->control_points == NULL)) {
-        __wt_verbose_warning(
-          session, WT_VERB_CONTROL_POINT, "control_points is NULL: id=%" PRId32, id);
+        __wt_verbose_warning(session, WT_VERB_CONTROL_POINT,
+          "control_points is NULL: id=%" PRId32 ", session=%s.", id, session->name);
         return (NULL);
     }
     cp_registry = &(session->control_points[id]);
@@ -123,7 +127,8 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     data = cp_registry->cp_data;
     if (data == NULL) {
         /* Disabled. */
-        __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT, "Is disabled: id=%" PRId32, id);
+        __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT,
+          "Is disabled: id=%" PRId32 ", session=%s.", id, session->name);
         return (NULL);
     }
 
@@ -132,12 +137,14 @@ __wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control
     if (triggered) {
         new_trigger_count = ++(cp_registry->trigger_count);
         __wt_verbose_debug1(session, WT_VERB_CONTROL_POINT,
-          "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
-          (uint64_t)new_crossing_count, (uint64_t)new_trigger_count);
+          "Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64
+          ", session=%s.",
+          id, (uint64_t)new_crossing_count, (uint64_t)new_trigger_count, session->name);
     } else {
         __wt_verbose_debug3(session, WT_VERB_CONTROL_POINT,
-          "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64, id,
-          (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
+          "Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64
+          ", session=%s.",
+          id, (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count, session->name);
         /* Not triggered. */
         data = NULL;
     }
