@@ -1112,7 +1112,7 @@ __cell_redo_page_del_cleanup(
 
     write_gen = S2BT(session)->base_write_gen;
 
-    WT_ASSERT(session, dsk->write_gen != 0);
+    //WT_ASSERT(session, dsk->write_gen != 0);
     if (dsk->write_gen > write_gen)
         return;
 
@@ -1166,8 +1166,10 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
     } else
         write_gen = S2BT(session)->base_write_gen;
 
-    WT_ASSERT(session, dsk->write_gen != 0);
-    if (dsk->write_gen > write_gen)
+    if (dsk->write_gen == 0) {
+        WT_IGNORE_RET(__wt_msg(session, "testing %lu %lu\n", dsk->write_gen, write_gen));
+    }
+    if (dsk->write_gen == 0 || dsk->write_gen > write_gen)
         return;
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))

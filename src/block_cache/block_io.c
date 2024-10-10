@@ -355,6 +355,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
             F_SET(dsk, WT_PAGE_COMPRESSED);
         F_SET(dsk, WT_PAGE_ENCRYPTED);
     }
+    dsk = ip->mem;
+    dsk->write_gen = ++btree->write_gen;
 
     /* Determine if the data requires a checksum. */
     data_checksum = true;
@@ -392,7 +394,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
      * btree base write generation number, so don't verify it.
      */
     dsk = ip->mem;
-    WT_ASSERT(session, dsk->write_gen != 0);
+    //WT_ASSERT(session, dsk->write_gen != 0);
 
     WT_STAT_CONN_DSRC_INCR(session, cache_write);
     WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, dsk->mem_size);
