@@ -2622,7 +2622,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             __wt_timer_start(session, &timer);
-            __wt_verbose(session, WT_VERB_RTS,
+            __wt_verbose_info(session, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, rts_cfg, true));
