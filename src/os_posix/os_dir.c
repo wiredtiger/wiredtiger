@@ -19,21 +19,25 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
   const char *prefix, char ***dirlistp, uint32_t *countp, bool single)
 {
     struct dirent *dp;
+    struct timespec ts;
     DIR *dirp;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t dirallocsz;
     uint32_t count;
     int tret;
+    char closemsg[256], openmsg[256], readmsg[256];
     char **entries;
+    bool open_ready, read_ready;
 
     *dirlistp = NULL;
-    *countp = 0;
+    *countp = count = 0;
 
     session = (WT_SESSION_IMPL *)wt_session;
     dirp = NULL;
     dirallocsz = 0;
     entries = NULL;
+    open_ready = read_ready = false;
 
     /*
      * If opendir fails, we should have a NULL pointer with an error value, but various static
@@ -45,7 +49,17 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
             ret = EINVAL;
         WT_RET_MSG(session, ret, "%s: directory-list: opendir", directory);
     }
+    /*
+     * There has been a very rare error where calling closedir returns EBADF. Save some state in
+     * messages so that if that failure happens we can print them out to give some clues.
+     */
+    __wt_epoch(session, &ts);
+    WT_ERR(__wt_snprintf(openmsg, sizeof(openmsg),
+      "[%" PRIuMAX ":%" PRIuMAX "] OPENDIR(%s) prefix %s dir fd %d", (uintmax_t)ts.tv_sec,
+      (uintmax_t)ts.tv_nsec / WT_THOUSAND, directory, prefix == NULL ? "" : prefix, dirfd(dirp)));
+    open_ready = true;
 
+    errno = 0;
     for (count = 0; (dp = readdir(dirp)) != NULL;) {
         /*
          * Skip . and ..
@@ -53,6 +67,11 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
         if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
             continue;
 
+        __wt_epoch(session, &ts);
+        WT_ERR(__wt_snprintf(readmsg, sizeof(readmsg),
+          "[%" PRIuMAX ":%" PRIuMAX "] READDIR(%s) dir fd %d", (uintmax_t)ts.tv_sec,
+          (uintmax_t)ts.tv_nsec / WT_THOUSAND, dp->d_name, dirfd(dirp)));
+        read_ready = true;
         /* The list of files is optionally filtered by a prefix. */
         if (prefix != NULL && !WT_PREFIX_MATCH(dp->d_name, prefix))
             continue;
@@ -64,22 +83,37 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
         if (single)
             break;
     }
-
+    /*
+     * Readdir returns NULL on failure or reaching the end of the list. So set the value into ret as
+     * soon as the loop exits.
+     */
+    ret = errno;
     *dirlistp = entries;
     *countp = count;
 
 err:
+    __wt_epoch(session, &ts);
+    WT_ERR(__wt_snprintf(closemsg, sizeof(closemsg),
+      "[%" PRIuMAX ":%" PRIuMAX "] CLOSEDIR(%s) ret %d dir fd %d", (uintmax_t)ts.tv_sec,
+      (uintmax_t)ts.tv_nsec / WT_THOUSAND, directory, ret, dirfd(dirp)));
     WT_SYSCALL(closedir(dirp), tret);
     if (tret != 0) {
         __wt_err(session, tret, "%s: directory-list: closedir", directory);
         if (ret == 0)
             ret = tret;
+        /* If we have an error print information about the run. */
+        if (open_ready)
+            __wt_errx(session, "%s", openmsg);
+        if (read_ready)
+            __wt_errx(session, "%s", readmsg);
+        __wt_errx(session, "%s", closemsg);
     }
 
     if (ret == 0)
         return (0);
 
-    WT_TRET(__wti_posix_directory_list_free(file_system, wt_session, entries, count));
+    if (open_ready)
+        WT_TRET(__wti_posix_directory_list_free(file_system, wt_session, entries, count));
 
     WT_RET_MSG(
       session, ret, "%s: directory-list, prefix \"%s\"", directory, prefix == NULL ? "" : prefix);
