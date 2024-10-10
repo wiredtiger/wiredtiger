@@ -20,6 +20,7 @@ Statement(tokens=[0:193] 〈/*-
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=0,
                                               range=(0, 178),
@@ -49,6 +50,7 @@ Statement(tokens=[193:243] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=5,
                                               range=(194, 241),
@@ -72,6 +74,7 @@ Statement(tokens=[243:418] 〈/*
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=8,
                                               range=(243, 383),
@@ -134,6 +137,7 @@ Statement(tokens=[418:1686] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=12,
                                               range=(419, 1684),
@@ -210,6 +214,7 @@ Statement(tokens=[1686:2261] 〈/*
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=15,
                                               range=(1686, 1728),
@@ -298,7 +303,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
             preComment=Token(idx=15, range=(1686, 1728), value='/*\n * WT_EXTLIST --\n *\tAn extent list.\n */'),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[2261:2784] 〈
 ⌇/*
  * WT_EXT --
@@ -331,6 +337,7 @@ Statement(tokens=[2261:2784] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=25,
                                               range=(2262, 2364),
@@ -400,7 +407,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                                    ' */'),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[2784:3304] 〈
 ⌇/*
  * WT_SIZE --
@@ -433,6 +441,7 @@ Statement(tokens=[2784:3304] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=35,
                                               range=(2785, 2854),
@@ -497,7 +506,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                              value='/*\n * WT_SIZE --\n *\tEncapsulation of a block size skiplist entry.\n */'),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[3304:3591] 〈
 ⌇/*
  * Per session handle cached block manager information.
@@ -522,6 +532,7 @@ Statement(tokens=[3304:3591] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=45,
                                               range=(3305, 3367),
@@ -570,7 +581,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                              value='/*\n * Per session handle cached block manager information.\n */'),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[3591:3878] 〈
 ⌇/*
  * WT_EXT_FOREACH --
@@ -594,6 +606,7 @@ Statement(tokens=[3591:3878] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=57,
                                               range=(3592, 3769),
@@ -639,6 +652,7 @@ Statement(tokens=[3878:4002] 〈#define WT_EXT_FOREACH_OFF(skip, head) \
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -674,6 +688,7 @@ Statement(tokens=[4002:4372] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=62,
                                               range=(4003, 4172),
@@ -727,6 +742,7 @@ Statement(tokens=[4372:4764] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=66,
                                               range=(4373, 4694),
@@ -772,6 +788,7 @@ Statement(tokens=[4764:4823] 〈#define WT_BLOCK_EXTLIST_MAGIC 71002 /* Identify
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -802,6 +819,7 @@ Statement(tokens=[4823:5060] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=71,
                                               range=(4824, 4996),
@@ -840,6 +858,7 @@ Statement(tokens=[5060:5133] 〈#define WT_BLOCK_EXTLIST_VERSION_CKPT 1 /* Check
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -870,6 +889,7 @@ Statement(tokens=[5133:5309] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=76,
                                               range=(5134, 5241),
@@ -930,6 +950,7 @@ Statement(tokens=[5309:6183] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -1043,7 +1064,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
             preComment=None,
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[6183:9959] 〈
 ⌇/*
  * WT_BM --
@@ -1127,6 +1149,7 @@ Statement(tokens=[6183:9959] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=88,
                                               range=(6184, 6270),
@@ -1491,7 +1514,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                                    ' */'),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[9959:13572] 〈
 ⌇/*
  * WT_BLOCK --
@@ -1585,6 +1609,7 @@ Statement(tokens=[9959:13572] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=98,
                                               range=(9960, 10032),
@@ -1989,8 +2014,10 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                                 preComment=None,
                                 postComment=None,
                                 nested=None,
-                                parent=...)],
-            parent=None)
+                                parent=...,
+                                is_unnamed=False)],
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[13572:14000] 〈
 ⌇/*
  * WT_BLOCK_DESC --
@@ -2021,6 +2048,7 @@ Statement(tokens=[13572:14000] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=108,
                                               range=(13573, 13626),
@@ -2077,7 +2105,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                              value="/*\n * WT_BLOCK_DESC --\n *\tThe file's description.\n */"),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[14000:14323] 〈/*
  * WT_BLOCK_DESC_SIZE is the expected structure size -- we verify the build to ensure the compiler
  * hasn't inserted padding (padding won't cause failure, we reserve the first allocation-size block
@@ -2097,6 +2126,7 @@ Statement(tokens=[14000:14323] 〈/*
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=117,
                                               range=(14000, 14292),
@@ -2156,6 +2186,7 @@ Statement(tokens=[14323:14757] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=121,
                                               range=(14324, 14437),
@@ -2246,6 +2277,7 @@ Statement(tokens=[14757:16358] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=135,
                                               range=(14758, 14937),
@@ -2361,7 +2393,8 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
                                    ' */'),
             postComment=None,
             nested=None,
-            parent=None)
+            parent=None,
+            is_unnamed=False)
 Statement(tokens=[16358:16535] 〈/*
  * WT_BLOCK_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
  * inserts padding it will break the world.
@@ -2380,6 +2413,7 @@ Statement(tokens=[16358:16535] 〈/*
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=144,
                                               range=(16358, 16502),
@@ -2431,6 +2465,7 @@ Statement(tokens=[16535:16943] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=148,
                                               range=(16536, 16693),
@@ -2504,6 +2539,7 @@ Statement(tokens=[16943:17233] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=162,
                                               range=(16944, 17054),
@@ -2562,6 +2598,7 @@ Statement(tokens=[17233:17448] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=176,
                                               range=(17234, 17368),
@@ -2600,6 +2637,7 @@ Statement(tokens=[17448:17539] 〈#define WT_BLOCK_HEADER_BYTE(dsk) ((void *)((u
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -2635,6 +2673,7 @@ Statement(tokens=[17539:18262] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=181,
                                               range=(17540, 18227),
@@ -2694,6 +2733,7 @@ Statement(tokens=[18262:18318] 〈#define WT_BLOCK_ENCRYPT_SKIP WT_BLOCK_HEADER_
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -2730,6 +2770,7 @@ Statement(tokens=[18318:18530] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=186,
                                               range=(18319, 18402),
@@ -2786,6 +2827,7 @@ Statement(tokens=[18530:18869] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=200,
                                               range=(18531, 18708),

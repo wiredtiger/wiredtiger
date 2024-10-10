@@ -22,6 +22,7 @@ int func2(int x) {
 }
 
 struct aaa;
+struct aaa bbb;
 typedef struct bbb ccc;
 
 struct aaa {

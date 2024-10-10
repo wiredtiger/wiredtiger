@@ -134,10 +134,10 @@ typedef union aaa {
 } bbb, ccc; /* post comment */
 
 int func(int a, int b);
-extern void func(int a, int b) __attribute__((__noreturn__));
-extern inline void func(int a, int b) __attribute__((__noreturn__));
-extern WT_INLINE void func(int a, int b) __attribute__((__noreturn__));
-extern void func_of_ptr(int *a[100]) {
+void func(int a, int b) __attribute__((__noreturn__));
+inline void func(int a, int b) __attribute__((__noreturn__));
+WT_INLINE void func(int a, int b) __attribute__((__noreturn__));
+void func_of_ptr(int *a[100]) {
 }
 
 /*
@@ -186,3 +186,28 @@ int *asd;
 int* asd;
 int * asd;
 int *;
+
+qwe = asd * zxc;
+int qwe = asd * zxc;
+qwe asd = {123, 456};
+struct aaa {
+  int a, b;
+} bbb = {123, 456};
+struct aaa bbb = {123, 456};
+
+qwe *func1(int a, int b) {1}
+qwe* func2(int a, int b) {2}
+qwe * func3(int a, int b) {3}
+qwe*func4(int a, int b) {4}
+
+struct StructWithNested {
+    struct {
+        int x;
+        char y;
+    };
+};
+
+static const struct {
+      int x;
+} qwe = {123};
+

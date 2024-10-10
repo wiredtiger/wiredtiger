@@ -18,7 +18,7 @@ def main():
         # Module("checksum"),
         Module("conf"),
         Module("config"),
-        Module("conn"),
+        Module("conn", fileAliases=["connection"], sourceAliases=["connection"]),
         Module("cursor", sourceAliases=["cur", "btcur", "curbackup"]),
         Module("evict"),
         Module("history", sourceAliases = ["hs"]),
@@ -42,12 +42,14 @@ def main():
 
     _globals = Codebase()
     _globals.scanFiles(files, twopass=True, multithread=True)
+    # _globals.scanFiles(files, twopass=True, multithread=False)
     # print(" ===== Globals:")
     # pprint(_globals, width=120, compact=False)
     # print(" =====")
 
     # print(" ===== Access check:")
     AccessCheck(_globals).checkAccess(multithread=True)
+    # AccessCheck(_globals).checkAccess(multithread=False)
 
 if __name__ == "__main__":
     main()

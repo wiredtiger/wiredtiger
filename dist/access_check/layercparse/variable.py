@@ -37,15 +37,10 @@ class Variable:
     # Get the variable name and type from C declaration or argument list. TODO: do proper parsing
     @staticmethod
     def fromVarDef(vardef: TokenList) -> 'Variable | None':
-        """Get the variable name from C declaration."""
-        # clean_tokens = list(itertools.takewhile(
-        #     lambda x: x.value[0] not in ["=", "+", "-", "/", "%", ">", "<", "!", "&", "|", "^", "~", "?", ":", ",", ";"],
-        #     vardef.xFilterCode()))
+        """Get the variable name and type from C declaration."""
         clean_tokens = vardef.filterCode()
         for i in range(1, len(clean_tokens)-1):
-            if clean_tokens[i].getKind() == "+" and \
-                    clean_tokens[i-1].getKind() in ["w", "("] and \
-                    clean_tokens[i+1].idx - clean_tokens[i].idx > 1:
+            if clean_tokens[i].value == "=":
                 clean_tokens = TokenList(clean_tokens[:i])
                 break
         if not clean_tokens or (len(clean_tokens) == 1 and clean_tokens[0].value in ["...", "void"]):

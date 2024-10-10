@@ -25,11 +25,15 @@ re_clean = r'''(
 )''' # /nxs;
 reg_clean = regex.compile(re_clean, re_flags)
 
+reg_cr = regex.compile(r"""[^\n]""", re_flags)
+
 # Remove comments and preprocessor directives, preserving newlines and text size
 def clean_text_sz(txt: str):
     return reg_clean.sub(lambda match: reg_cr.sub(" ", match[0]) if match["s"] else match[0], txt)
 
-reg_cr = regex.compile(r"""[^\n]""", re_flags)
+# Remove comments, preprocessor directives and strings, preserving newlines and text size
+def clean_text_more_sz(txt: str):
+    return reg_clean.sub(lambda match: reg_cr.sub(" ", match[0]), txt)
 
 # Remove comments and preprocessor directives
 def clean_text(txt: str):

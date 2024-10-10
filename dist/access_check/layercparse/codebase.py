@@ -139,7 +139,7 @@ class Codebase:
         return self.untypedef(get_base_type(
             cast(Details, self.fields[rec_type][field_name].details).typename))
 
-    def _add_record(self, record: RecordParts):
+    def addRecord(self, record: RecordParts, is_global_scope: bool = True) -> None:
         record.getMembers()
         is_private_record, local_module = _get_visibility_and_module_check(record, default_module=scope_module(), is_nested=bool(record.parent))
         # TODO: check the parent record's access
@@ -170,10 +170,10 @@ class Codebase:
             for typedef in record.typedefs:
                 self.typedefs[typedef.name.value] = record.name.value
         if record.vardefs:
-            pass # TODO
+            pass # TODO: add global variables from struct definitions
         if record.nested:
             for rec in record.nested:
-                self._add_record(rec)
+                self.addRecord(rec)
 
     def updateFromText(self, txt: str, offset: int = 0, do_preproc: bool = True) -> None:
         DEBUG3(" ---", f"Scope: {offset}")
@@ -181,13 +181,16 @@ class Codebase:
             saved_type: Any = None
             for st in StatementList.fromText(txt):
                 st.getKind()
-                if saved_type is not None or (st.getKind().is_typedef and not st.getKind().is_record):
+                if saved_type or (st.getKind().is_typedef and not st.getKind().is_record and not st.getKind().is_function_def):
                     var = Variable.fromVarDef(st.tokens)
                     if var:
                         if not var.typename:
                             var.typename = saved_type
-                        self.typedefs[var.name.value] = get_base_type(var.typename)
-                        saved_type = var.typename if var.end == "," else None
+                        if var.typename:
+                            self.typedefs[var.name.value] = get_base_type(var.typename)
+                            saved_type = var.typename if var.end == "," else None
+                        else:
+                            WARNING(scope().locationStr(var.name.range[0]), f"Invalid typedef near '{var.name.value}'")
                 else:
                     saved_type = None
                     if st.getKind().is_function_def:
@@ -215,10 +218,10 @@ class Codebase:
                     elif st.getKind().is_record:
                         record = RecordParts.fromStatement(st)
                         if record:
-                            self._add_record(record)
+                            self.addRecord(record)
                         # TODO: add global variables from struct definitions
                     elif st.getKind().is_decl:
-                        pass # TODO: global function and variable declarations
+                        pass # TODO: global function and variable declarations - add to global or static names
                     elif do_preproc and st.getKind().is_preproc:
                         macro = MacroParts.fromStatement(st)
                         if macro:
@@ -264,6 +267,7 @@ class Codebase:
                     for fname, txt, insertlist in pool.starmap(
                                 Codebase._preprocess_file_for_multi,
                                 ((self, fname) for fname in files)):
+                        DEBUG2(" ---", f"File: {fname}")
                         with ScopePush(file=File(fname)):
                             scope_file().read()
                             scope_file().updateLineInfoWithInsertList(insertlist)

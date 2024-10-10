@@ -6,6 +6,35 @@ from typing import Iterable
 from . import common
 from .internal import *
 
+TokenKind: TypeAlias = Literal[
+        "",   # undefined
+        " ",  # space
+        "/",  # comment
+        "w",  # word
+        "+",  # operator
+        "'",  # string
+        "(",  # ()
+        "{",  # {}
+        "[",  # []
+        "#",  # preproc
+        ";",  # end of expression: , or ;
+        "@"]  # invalid thing
+
+def getTokenKind(txt: str) -> TokenKind:
+    return \
+        " " if txt.startswith((" ", "\t", "\n")) else \
+        "/" if txt.startswith(("//", "/*")) else \
+        "'" if txt.startswith(("'", '"')) else \
+        "(" if txt.startswith("(") else \
+        "{" if txt.startswith("{") else \
+        "[" if txt.startswith("[") else \
+        "#" if txt.startswith("#") else \
+        ";" if txt in [",", ";"] else \
+        "+" if txt in c_ops_all else \
+        "w" if reg_word_char.match(txt) else \
+        "@" if txt.startswith("@") else \
+        ""
+
 @dataclass
 class Token:
     """One token in the source code"""

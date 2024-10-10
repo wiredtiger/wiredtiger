@@ -53,27 +53,33 @@ class MacroParts:
     preComment: Token | None = None
     # postComment: Token | None = None
     is_va_args: bool = False
-    is_wellformed: bool = False
+    is_wellformed: bool = True
     # is_multiple_statements: bool = False
     is_const: bool | None = None
 
     # TODO: Parse body into a list of tokens. Use special token types for # and ## operators and replacements
 
     def __post_init__(self):
-        self.is_wellformed = is_wellformed(self.body.value) if self.body else True
-        if self.body:
-            for token in TokenList.xxFilterCode(TokenList.xFromText(self.body.value)):
-                if token.getKind() in [" ", "#", "/"]:
-                    continue
-                if (self.is_const is None and (
-                        token.getKind() == "'" or
-                        (token.getKind() == "w" and regex.match(r"^\d", token.value)))):
+        if not self.body:
+            self.is_wellformed = True
+            self.is_const = True
+        else:
+            self.is_wellformed = is_wellformed(self.body.value)
+            if not self.is_wellformed:
+                self.is_const = False
+            else:
+                for token in TokenList.xxFilterCode(TokenList.xFromText(self.body.value)):
+                    if token.getKind() in [" ", "#", "/"]:
+                        continue
+                    if (self.is_const is None and (
+                            token.getKind() == "'" or
+                            (token.getKind() == "w" and regex.match(r"^\d", token.value)))):
+                        self.is_const = True
+                    else:
+                        self.is_const = False
+                        break
+                else:  # Not break
                     self.is_const = True
-                else:
-                    self.is_const = False
-                    break
-            else:  # Not break
-                self.is_const = True
 
     def update(self, other: 'MacroParts') -> list[str]:
         errors = []
@@ -126,6 +132,10 @@ class Macros:
     macros: dict[str, MacroParts] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
+    def __post_init__(self):
+        if "__attribute__" not in self.macros:
+            self.macros["__attribute__"] = MacroParts(name=Token(0, (0, 0), "__attribute__"), args=[Token(0, (0, 0), "arg")])
+
     def add(self, macro: MacroParts) -> None:
         self.macros[macro.name.value] = macro
 
@@ -160,15 +170,17 @@ class Macros:
         if names := [k for k, v in self.macros.items() if v.args is None]:
             if not expand_const:
                 names = [k for k in names if not self.macros[k].is_const]
-            kwargs["names_obj"] = names
-            names_re_a.append(r"""(?P<name> \b(?:\L<names_obj>)\b )""")
-            self._has_obj_like_names = True
+            if names:
+                kwargs["names_obj"] = names
+                names_re_a.append(r"""(?P<name> \b(?:\L<names_obj>)\b )""")
+                self._has_obj_like_names = True
         if names := [k for k, v in self.macros.items() if v.args is not None]:
             if not expand_const:
                 names = [k for k in names if not self.macros[k].is_const]
-            kwargs["names_func"] = names
-            names_re_a.append(r"""(?P<name> \b(?:\L<names_func>)\b )(?P<args>(?P<spc>\s*+)\((?P<list>(?&TOKEN)*+)\))""" + re_token)
-            self._has_fn_like_names = True
+            if names:
+                kwargs["names_func"] = names
+                names_re_a.append(r"""(?P<name> \b(?:\L<names_func>)\b )(?P<args>(?P<spc>\s*+)\((?P<list>(?&TOKEN)*+)\))""" + re_token)
+                self._has_fn_like_names = True
 
         self._names_reg = regex.compile(" | ".join(names_re_a), re_flags, **kwargs)  # type: ignore # **kwargs
         self._in_use: set[str] = set()
@@ -230,7 +242,7 @@ class Macros:
                 # if va_args, continue appending to the last list
             args_val[-1].append(token_arg)
         if len(args_val) < len(macro.args):  # type: ignore # macro has args
-            self.errors.append(f"error: macro {name}: got only {len(args_val)} arguments, expected {len(macro.args)}")   # type: ignore # macro has args # TODO: better error reporting
+            self.errors.append(f"macro {name}: got only {len(args_val)} arguments, expected {len(macro.args)}")   # type: ignore # macro has args # TODO: better error reporting
             return self.__update_insert_list(match[0], match, base_offset)
 
         replacement = macro.body.value  # type: ignore # match is not None

@@ -19,6 +19,7 @@ class StatementKind:
     is_expression: bool | None = None
     is_initialization: bool | None = None
     is_extern_c: bool | None = None
+    is_unnamed_record: bool | None = None # unnamed struct/union/enum which pulls its members into the parent scope
     end: str | None = None
     preComment: Token | None = None
     postComment: Token | None = None
@@ -56,9 +57,16 @@ class StatementKind:
                 clean_tokens.pop(i)
                 if clean_tokens[i].getKind() == "(":
                     clean_tokens.pop(i)
-            i += 1
+            elif clean_tokens[i].value in ["const", "static"]:
+                clean_tokens.pop(i)
+            else:
+                i += 1
 
         if not clean_tokens:
+            return ret
+
+        if len(clean_tokens) == 1:
+            ret.is_expression = True
             return ret
 
         # From here the options are:
@@ -71,14 +79,53 @@ class StatementKind:
 
         ret.postComment = get_post_comment(tokens)
 
-        if len(clean_tokens) > 1 and clean_tokens[0].value == "extern" and clean_tokens[1].value == '"C"':
-            ret.is_extern_c = True
+        if clean_tokens[0].value == "extern":
+            if len(clean_tokens) > 1 and clean_tokens[1].value == '"C"':
+                ret.is_extern_c = True
+            # Ignore any type of "extern" declaration - rely on the actual one
             return ret
 
-        curly = next((True for token in clean_tokens if token.getKind() == "{"), False)
         if clean_tokens[0].value == "typedef":
             ret.is_typedef = True
             clean_tokens.pop(0)
+            if not clean_tokens:
+                return ret
+
+        if not ret.is_typedef:
+            # Filter tokens relevant to declaration. Take first two elements
+            tokens_decl = list(islice(filter(lambda t: (t.getKind() == "{" or
+                                                        (t.getKind() == "+" and t.value != "*") or
+                                                        (t.getKind() == "w" and t.value not in ["struct", "union", "enum", "*"])),
+                                clean_tokens),
+                            0, 2))
+            if len(tokens_decl) < 2:
+                # ret.is_expression = True
+                if len(clean_tokens) == 2 and clean_tokens[0].value in ["struct", "union"] and clean_tokens[1].getKind() == "{":
+                    ret.is_record = True
+                    ret.is_unnamed_record = True
+                return ret
+            if ((tokens_decl[0].getKind() == "w" and tokens_decl[1].getKind() == "w") or
+                    tokens_decl[0].value in c_type_keywords or
+                    tokens_decl[0].value in c_types):
+                ret.is_decl = True
+
+            for i in range(1, len(clean_tokens)-1):
+                token = clean_tokens[i]
+                if token.value == "=":
+                    ret.is_expression = True
+                    if ret.is_decl or clean_tokens[0].value in ["struct", "union", "enum"]:
+                        ret.is_initialization = True
+                    break
+                elif token.getKind() == "+":
+                    if token.value == "*": # and clean_tokens[i+1].idx - token.idx == 1:
+                        pass # pointer dereference
+                    else:
+                        ret.is_expression = True
+                        break
+
+        # There is a curly brace in the tokens (before the = if there is one)
+        curly = next((token.getKind() == "{" for token in clean_tokens if token.getKind() == "{" or token.value == "="), False)
+
         if clean_tokens[0].value in ["struct", "union", "enum"]:
             if curly:
                 ret.is_record = True
@@ -86,27 +133,13 @@ class StatementKind:
                 if not ret.is_typedef:
                     ret.is_decl = True
             return ret
+
         if ret.is_typedef:
             return ret
 
         # Not a typedef or record
 
-        if len(clean_tokens) == 1:
-            ret.is_expression = True
-            return ret
-
         # There are at least two tokens
-
-        if clean_tokens[0].value in c_type_keywords or clean_tokens[0].value in c_types:
-            ret.is_decl = True
-        elif reg_identifier.match(clean_tokens[0].value):  # word
-            next_word = next((token for token in islice(clean_tokens, 1, None) if token.value != "*"), None)
-            if next_word:
-                next_next_word = next((token for token in clean_tokens if token.idx > next_word.idx and token.value != "*"), None)
-                if reg_type.match(next_word.value):
-                    ret.is_decl = True
-                elif next_word.value.startswith(("(", "[", "{")) and next_next_word and reg_type.match(next_next_word.value):
-                    ret.is_decl = True
 
         for i in range(1, len(clean_tokens)):
             token = clean_tokens[i]
@@ -118,20 +151,6 @@ class StatementKind:
                         if curly:                                   # has a body
                             ret.is_function_def = True
                 break
-
-        for i in range(1, len(clean_tokens)-1):
-            token = clean_tokens[i]
-            if token.value == "=":
-                ret.is_expression = True
-                if ret.is_decl:
-                    ret.is_initialization = True
-                break
-            elif token.value in c_operators_1c_all:
-                if token.value == "*" and clean_tokens[i+1].idx - token.idx == 1:
-                    pass # pointer dereference
-                else:
-                    ret.is_expression = True
-                    break
 
         return ret
 
@@ -229,7 +248,7 @@ class StatementList(list[Statement]):
                 comment_only = True
             elif comment_only is not False and token.getKind() not in [" ", "/"]:
                 comment_only = False
-            if not is_expr and token.value in c_operators_1c_all and i < len(tokens)-1 and tokens[i+1].getKind() == " ":
+            if not is_expr and token.getKind() == "+" and token.value != "*":
                 is_expr = True
 
             # print(f"i={i}, stype={stype}, token=<{token.value}>, is_thing={is_thing}, is_word={is_word}, is_type={is_type}")
@@ -237,7 +256,7 @@ class StatementList(list[Statement]):
             if not statement_special:   # Constructs that don't end by ; or {}
                 if token.value == "if": # if can continue with else after ;
                     statement_special = 1
-                elif token.value in ["struct", "union", "enum"]:  # These end strictly with a ;
+                elif token.value in ["struct", "union", "enum", "typedef"]:  # These end strictly with a ;
                     statement_special = 2
                     is_record = True
                 elif is_expr or token.value == "do":  # These end strictly with a ;

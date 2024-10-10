@@ -26,6 +26,7 @@ class RecordParts:
     postComment: Token | None = None
     nested: 'list[RecordParts] | None' = None
     parent: 'RecordParts | None' = None
+    is_unnamed: bool = False
 
     def short_repr(self) -> str:
         ret = ["Record(", self.name.value, " : ", repr(self.recordKind)]
@@ -78,10 +79,12 @@ class RecordParts:
 
         ret.preComment, i = get_pre_comment(tokens)
 
+        has_names = False
         for i in range(i, len(tokens)):
             token = tokens[i]
             if token.value == "typedef":
                 ret.typedefs = []
+                has_names = True
             elif token.value == "struct":
                 ret.recordKind = RecordKind.STRUCT
             elif token.value == "union":
@@ -93,6 +96,7 @@ class RecordParts:
             elif reg_identifier.match(token.value):
                 ret.name = token
                 ret.typename = TokenList([token])
+                has_names = True
             elif token.getKind() == "{":
                 ret.body = Token(token.idx, (token.range[0]+1, token.range[1]-1), token.value[1:-1])
                 break
@@ -112,6 +116,7 @@ class RecordParts:
             if var:
                 var.typename = ret.typename
                 names.append(var)
+                has_names = True
 
         if ret.typedefs is not None:
             ret.typedefs = names
@@ -119,6 +124,7 @@ class RecordParts:
             ret.vardefs = names
 
         ret.postComment = get_post_comment(tokens)
+        ret.is_unnamed = not has_names
 
         return ret
 
@@ -141,6 +147,9 @@ class RecordParts:
                     record.getMembers()
                     if record.vardefs:
                         for var in record.vardefs:
+                            yield var
+                    elif record.is_unnamed:  # Pull its members up
+                        for var in record.members:
                             yield var
                 continue
 

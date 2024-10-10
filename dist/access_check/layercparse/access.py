@@ -14,7 +14,7 @@ from .workspace import *
 _reg_member_access_chain = regex.compile(r"""
     # ((?<!\w)\((?&TOKEN)++\))*                        # Possible type conversions - not needed
     (?>
-        ([a-zA-Z_]\w*+)(?>\((?&TOKEN)*+\))? |  # (1) variable or function call
+        ([a-zA-Z_]\w*+)(?>(?>\((?&TOKEN)*+\))|(?>\[(?&TOKEN)*+\]))*+ |  # (1) variable or function call or array index
         (\((?&TOKEN)++\))             # (2) expression
     )
     (?>(?>->|\.)(?>([a-zA-Z_]\w*+)(?>\[(?&TOKEN)++\])?))++             # (3) member access chain via -> or .
@@ -65,7 +65,7 @@ class AccessCheck:
                 not isinstance(defn.details, FunctionParts) or \
                 not defn.details.body:
             return
-        body_clean = clean_text_sz(defn.details.body.value)
+        body_clean = clean_text_more_sz(defn.details.body.value)
 
         def _locationStr(offset: int) -> str:
             return (defn.scope.locationStr(defn.details.body.range[0] + offset) + # type: ignore[union-attr]
@@ -81,7 +81,7 @@ class AccessCheck:
 
         # Check local names
         localvars: dict[str, Definition] = {} # name -> type
-        for var in defn.details.getArgs() + defn.details.getLocalVars():
+        for var in defn.details.getArgs() + defn.details.getLocalVars(self._globals):
             if var.typename:
                 localvars[var.name.value] = Definition(
                     name=var.name.value,
@@ -129,7 +129,7 @@ class AccessCheck:
             # Not a ternary - the type is the type of the first token
             token = tokens[0]
             if token.getKind() == "(": # expression or type cast
-                if len(tokens) > 1 and tokens[1].getKind() in ["w", "("]:  # type cast
+                if len(tokens) > 1 and (tokens[1].getKind() in ["w", "(", "{"] or tokens[1].value in ["&", "*"]):  # type cast
                     return self._globals.untypedef(get_base_type_str(token.value[1:-1]))
                     # token_type = self._globals.untypedef(get_base_type_str(token.value[1:-1])) \
                     #              if reg_word_char.match(token.value[1]) else \
@@ -209,8 +209,8 @@ class AccessCheck:
             for defn in itertools.chain(
                         self._globals.names.values(),
                         *(namedict.values() for namedict in self._globals.static_names.values())):
-                DEBUG3(defn.scope.locationStr(0), f"debug3: Checking {defn.short_repr()}") or \
-                DEBUG(defn.scope.locationStr(0), f"debug: Checking {defn.kind} [{defn.module}] {defn.name}")
+                DEBUG3(defn.scope.locationStr(defn.offset), f"debug3: Checking {defn.short_repr()}") or \
+                DEBUG(defn.scope.locationStr(defn.offset), f"debug: Checking {defn.kind} [{defn.module}] {defn.name}")
                 self._check_function(defn)
         else:
             init_multithreading()

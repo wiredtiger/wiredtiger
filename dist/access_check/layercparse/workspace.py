@@ -30,8 +30,9 @@ def get_file_kind(fname: str) -> FileKind:
            ""
 
 def get_file_priority(fname: str) -> int:
-    return 3 if fname.endswith(".c") else \
-           2 if fname.endswith("_inline.h") else \
+    return 4 if fname.endswith(".c") else \
+           3 if fname.endswith("_inline.h") else \
+           2 if fname.endswith(".h") else \
            1 if fname else \
            0
 
@@ -64,21 +65,21 @@ def setModules(mods: list[Module]):
     for module in mods:
         name = module.name
         if name in modules:
-            # TODO: make fatal error?
+            # make fatal error?
             raise ValueError(f"Module {name} already exists")
         modules[name] = module
         if module.dirname in moduleDirs:
-            # TODO: make fatal error?
+            # make fatal error?
             raise ValueError(f"Module directory {module.dirname} conflicts with [{moduleDirs[module.dirname]}]")
         moduleDirs[module.dirname] = name
         for alias in module.fileAliases:
             if alias in moduleAliasesFile:
-                # TODO: make fatal error?
+                # make fatal error?
                 raise ValueError(f"Module file alias {alias} for [{name}] conflicts with [{moduleAliasesFile[alias]}]")
             moduleAliasesFile[alias] = name
         for alias in module.sourceAliases:
             if alias in moduleAliasesSrc:
-                # TODO: make fatal error?
+                # make fatal error?
                 raise ValueError(f"Module source alias {alias} for [{name}] conflicts with [{moduleAliasesSrc[alias]}]")
             moduleAliasesSrc[alias] = name
     moduleSrcNames = set(modules.keys()).union(set(moduleAliasesSrc.keys()))

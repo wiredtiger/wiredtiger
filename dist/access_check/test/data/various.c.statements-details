@@ -15,6 +15,7 @@ Statement(tokens=[0:25] 〈/*
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=0, range=(0, 23), value='/*\n * Block comment\n */'),
                              postComment=None))
@@ -33,6 +34,7 @@ Statement(tokens=[25:76] 〈/* pre-comment1 */⌇
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=3, range=(25, 43), value='/* pre-comment1 */'),
                              postComment=None))
@@ -59,6 +61,7 @@ Statement(tokens=[76:126] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -84,6 +87,7 @@ Statement(tokens=[126:159] 〈#define STRUCT_END(name) } name;
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
@@ -111,6 +115,7 @@ Statement(tokens=[159:206] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=10, range=(160, 178), value='/* pre-comment2 */'),
                              postComment=Token(idx=17, range=(186, 205), value='/* post-comment2 */')))
@@ -136,6 +141,7 @@ Statement(tokens=[206:264] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=20, range=(207, 225), value='/* pre-comment3 */'),
                              postComment=Token(idx=28, range=(244, 263), value='/* post-comment3 */')))
@@ -159,6 +165,7 @@ Statement(tokens=[264:368] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=Token(idx=31, range=(265, 283), value='/* pre-comment3 */'),
                              postComment=None))
@@ -206,20 +213,39 @@ Statement(tokens=[368:381] 〈
                              is_function_def=None,
                              is_function_decl=None,
                              is_statement=None,
+                             is_decl=None,
+                             is_expression=None,
+                             is_initialization=None,
+                             is_extern_c=None,
+                             is_unnamed_record=None,
+                             end=None,
+                             preComment=None,
+                             postComment=None))
+Statement(tokens=[381:397] 〈struct⌇ ⌇aaa⌇ ⌇bbb⌇;⌇
+〉,
+          kind=StatementKind(is_comment=None,
+                             is_preproc=None,
+                             is_typedef=None,
+                             is_record=None,
+                             is_function=None,
+                             is_function_def=None,
+                             is_function_decl=None,
+                             is_statement=None,
                              is_decl=True,
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
 Variable:
-Variable(name=Token(idx=43, range=(376, 379), value='aaa'),
-         typename=[0:0] 〈〉,
+Variable(name=Token(idx=50, range=(392, 395), value='bbb'),
+         typename=[388:391] 〈aaa〉,
          preComment=None,
          postComment=None,
          end=';')
-Statement(tokens=[381:405] 〈typedef⌇ ⌇struct⌇ ⌇bbb⌇ ⌇ccc⌇;⌇
+Statement(tokens=[397:421] 〈typedef⌇ ⌇struct⌇ ⌇bbb⌇ ⌇ccc⌇;⌇
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=None,
@@ -233,10 +259,11 @@ Statement(tokens=[381:405] 〈typedef⌇ ⌇struct⌇ ⌇bbb⌇ ⌇ccc⌇;⌇
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
-Statement(tokens=[405:431] 〈
+Statement(tokens=[421:447] 〈
 ⌇struct⌇ ⌇aaa⌇ ⌇{
   int a;
 }⌇;⌇
@@ -253,14 +280,15 @@ Statement(tokens=[405:431] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
 Record:
 RecordParts(recordKind=<RecordKind.STRUCT: 1>,
-            name=Token(idx=58, range=(413, 416), value='aaa'),
-            typename=[413:416] 〈aaa〉,
-            body=Token(idx=60, range=(418, 428), value='\n  int a;\n'),
+            name=Token(idx=65, range=(429, 432), value='aaa'),
+            typename=[429:432] 〈aaa〉,
+            body=Token(idx=67, range=(434, 444), value='\n  int a;\n'),
             members=[Variable(name=Token(idx=4, range=(7, 8), value='a'),
                               typename=[3:6] 〈int〉,
                               preComment=None,
@@ -271,8 +299,9 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
             preComment=None,
             postComment=None,
             nested=None,
-            parent=None)
-Statement(tokens=[431:457] 〈
+            parent=None,
+            is_unnamed=False)
+Statement(tokens=[447:473] 〈
 ⌇struct⌇ ⌇{
   int a;
 }⌇ ⌇aaa⌇;⌇
@@ -289,30 +318,32 @@ Statement(tokens=[431:457] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
 Record:
 RecordParts(recordKind=<RecordKind.STRUCT: 1>,
-            name=Token(idx=66, range=(440, 450), value='(data/various.c:0:440:)'),
-            typename=[440:450] 〈(data/various.c:0:440:)〉,
-            body=Token(idx=66, range=(440, 450), value='\n  int a;\n'),
+            name=Token(idx=73, range=(456, 466), value='(data/various.c:0:456:)'),
+            typename=[456:466] 〈(data/various.c:0:456:)〉,
+            body=Token(idx=73, range=(456, 466), value='\n  int a;\n'),
             members=[Variable(name=Token(idx=4, range=(7, 8), value='a'),
                               typename=[3:6] 〈int〉,
                               preComment=None,
                               postComment=None,
                               end=';')],
             typedefs=None,
-            vardefs=[Variable(name=Token(idx=68, range=(452, 455), value='aaa'),
-                              typename=[440:450] 〈(data/various.c:0:440:)〉,
+            vardefs=[Variable(name=Token(idx=75, range=(468, 471), value='aaa'),
+                              typename=[456:466] 〈(data/various.c:0:456:)〉,
                               preComment=None,
                               postComment=None,
                               end=';')],
             preComment=None,
             postComment=None,
             nested=None,
-            parent=None)
-Statement(tokens=[457:489] 〈
+            parent=None,
+            is_unnamed=False)
+Statement(tokens=[473:505] 〈
 ⌇struct⌇ ⌇{
   int a;
 }⌇ ⌇aaa⌇,⌇ ⌇*⌇bbb⌇;⌇
@@ -329,35 +360,37 @@ Statement(tokens=[457:489] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
 Record:
 RecordParts(recordKind=<RecordKind.STRUCT: 1>,
-            name=Token(idx=74, range=(466, 476), value='(data/various.c:0:466:)'),
-            typename=[466:476] 〈(data/various.c:0:466:)〉,
-            body=Token(idx=74, range=(466, 476), value='\n  int a;\n'),
+            name=Token(idx=81, range=(482, 492), value='(data/various.c:0:482:)'),
+            typename=[482:492] 〈(data/various.c:0:482:)〉,
+            body=Token(idx=81, range=(482, 492), value='\n  int a;\n'),
             members=[Variable(name=Token(idx=4, range=(7, 8), value='a'),
                               typename=[3:6] 〈int〉,
                               preComment=None,
                               postComment=None,
                               end=';')],
             typedefs=None,
-            vardefs=[Variable(name=Token(idx=76, range=(478, 481), value='aaa'),
-                              typename=[466:476] 〈(data/various.c:0:466:)〉,
+            vardefs=[Variable(name=Token(idx=83, range=(494, 497), value='aaa'),
+                              typename=[482:492] 〈(data/various.c:0:482:)〉,
                               preComment=None,
                               postComment=None,
                               end=','),
-                     Variable(name=Token(idx=80, range=(484, 487), value='bbb'),
-                              typename=[466:476] 〈(data/various.c:0:466:)〉,
+                     Variable(name=Token(idx=87, range=(500, 503), value='bbb'),
+                              typename=[482:492] 〈(data/various.c:0:482:)〉,
                               preComment=None,
                               postComment=None,
                               end=';')],
             preComment=None,
             postComment=None,
             nested=None,
-            parent=None)
-Statement(tokens=[489:529] 〈
+            parent=None,
+            is_unnamed=False)
+Statement(tokens=[505:545] 〈
 ⌇typedef⌇ ⌇struct⌇ ⌇{
   int a;
 }⌇ ⌇aaa⌇,⌇ ⌇*⌇bbb⌇;⌇
@@ -374,26 +407,27 @@ Statement(tokens=[489:529] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
 Record:
 RecordParts(recordKind=<RecordKind.STRUCT: 1>,
-            name=Token(idx=88, range=(506, 516), value='(data/various.c:0:506:)'),
-            typename=[506:516] 〈(data/various.c:0:506:)〉,
-            body=Token(idx=88, range=(506, 516), value='\n  int a;\n'),
+            name=Token(idx=95, range=(522, 532), value='(data/various.c:0:522:)'),
+            typename=[522:532] 〈(data/various.c:0:522:)〉,
+            body=Token(idx=95, range=(522, 532), value='\n  int a;\n'),
             members=[Variable(name=Token(idx=4, range=(7, 8), value='a'),
                               typename=[3:6] 〈int〉,
                               preComment=None,
                               postComment=None,
                               end=';')],
-            typedefs=[Variable(name=Token(idx=90, range=(518, 521), value='aaa'),
-                               typename=[506:516] 〈(data/various.c:0:506:)〉,
+            typedefs=[Variable(name=Token(idx=97, range=(534, 537), value='aaa'),
+                               typename=[522:532] 〈(data/various.c:0:522:)〉,
                                preComment=None,
                                postComment=None,
                                end=','),
-                      Variable(name=Token(idx=94, range=(524, 527), value='bbb'),
-                               typename=[506:516] 〈(data/various.c:0:506:)〉,
+                      Variable(name=Token(idx=101, range=(540, 543), value='bbb'),
+                               typename=[522:532] 〈(data/various.c:0:522:)〉,
                                preComment=None,
                                postComment=None,
                                end=';')],
@@ -401,8 +435,9 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
             preComment=None,
             postComment=None,
             nested=None,
-            parent=None)
-Statement(tokens=[529:608] 〈
+            parent=None,
+            is_unnamed=False)
+Statement(tokens=[545:624] 〈
 ⌇typedef⌇ ⌇struct⌇ ⌇xxx⌇ ⌇{
   /* pre comment5 */
   int a; /* post comment5 */
@@ -420,21 +455,22 @@ Statement(tokens=[529:608] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))
 Record:
 RecordParts(recordKind=<RecordKind.STRUCT: 1>,
-            name=Token(idx=102, range=(545, 548), value='xxx'),
-            typename=[545:548] 〈xxx〉,
-            body=Token(idx=104, range=(550, 601), value='\n  /* pre comment5 */\n  int a; /* post comment5 */\n'),
+            name=Token(idx=109, range=(561, 564), value='xxx'),
+            typename=[561:564] 〈xxx〉,
+            body=Token(idx=111, range=(566, 617), value='\n  /* pre comment5 */\n  int a; /* post comment5 */\n'),
             members=[Variable(name=Token(idx=7, range=(28, 29), value='a'),
                               typename=[24:27] 〈int〉,
                               preComment=Token(idx=2, range=(3, 21), value='/* pre comment5 */'),
                               postComment=Token(idx=10, range=(31, 50), value='/* post comment5 */'),
                               end=';')],
-            typedefs=[Variable(name=Token(idx=106, range=(603, 606), value='aaa'),
-                               typename=[545:548] 〈xxx〉,
+            typedefs=[Variable(name=Token(idx=113, range=(619, 622), value='aaa'),
+                               typename=[561:564] 〈xxx〉,
                                preComment=None,
                                postComment=None,
                                end=';')],
@@ -442,8 +478,9 @@ RecordParts(recordKind=<RecordKind.STRUCT: 1>,
             preComment=None,
             postComment=None,
             nested=None,
-            parent=None)
-Statement(tokens=[608:609] 〈
+            parent=None,
+            is_unnamed=False)
+Statement(tokens=[624:625] 〈
 〉,
           kind=StatementKind(is_comment=None,
                              is_preproc=None,
@@ -457,6 +494,7 @@ Statement(tokens=[608:609] 〈
                              is_expression=None,
                              is_initialization=None,
                              is_extern_c=None,
+                             is_unnamed_record=None,
                              end=None,
                              preComment=None,
                              postComment=None))

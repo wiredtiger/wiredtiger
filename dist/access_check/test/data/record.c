@@ -37,12 +37,14 @@ int func(int num) {
     xxx()->s2;
     xxx.s2;
     __wti_module2_func1()->x;
+    __wti_module2_func1()[5]->x;
     __wti_module2_func1(s2->s, s5)->x;
     s2->s.x;
     aa->bb->cc->dd;
     (aa->aaa)->bb->cc->dd;
     (5 ? s2 : s3)->s->x;
     (5 ? __wti_module2_func1() : s3)->x;
+    ((S1){.x=5}).x;
 
     return num * num;
 }
@@ -64,5 +66,14 @@ int __wti_module2_func3(void) {
 
 static S2 *__wti_module1_funcX(void) {
     return 5;
+}
+
+int func_local_struct(int a, char b) {
+    struct {
+        S1 s1;
+        S2 s2;
+    } local_str;
+    local_str.s1.x = a;
+    local_str.s2.s.x = a;
 }
 
