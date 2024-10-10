@@ -77,3 +77,11 @@ int func_local_struct(int a, char b) {
     local_str.s2.s.x = a;
 }
 
+/* #private(module1) */
+struct ACCESS1 {
+    int x;
+    char y;
+    struct ACCESS2 {
+        int z;
+    } z;
+};

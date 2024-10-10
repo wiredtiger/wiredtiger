@@ -58,7 +58,7 @@ class MacroParts:
     # is_multiple_statements: bool = False
     is_const: bool | None = None
 
-    # TODO: Parse body into a list of tokens. Use special token types for # and ## operators and replacements
+    # TODO(later): Parse body into a list of tokens. Use special token types for # and ## operators and replacements
 
     def __post_init__(self):
         if not self.body:
@@ -173,7 +173,7 @@ class Macros:
     #  - https://stackoverflow.com/questions/45375238/c-preprocessor-macro-expansion
     #  - https://gcc.gnu.org/onlinedocs/cpp/Argument-Prescan.html
     def expand(self, txt: str, expand_const: bool = False) -> str:
-        # TODO: Optimise: compose the result as a list of strings, then join at the end
+        # TODO(later): Optimise: compose the result as a list of strings, then join at the end
 
         if not self.macros:
             return txt
@@ -261,7 +261,7 @@ class Macros:
                 # if va_args, continue appending to the last list
             args_val[-1].append(token_arg)
         if len(args_val) < len(macro.args):  # type: ignore # macro has args
-            self.errors.append(f"macro {name}: got only {len(args_val)} arguments, expected {len(macro.args)}")   # type: ignore # macro has args # TODO: better error reporting
+            self.errors.append(f"macro {name}: got only {len(args_val)} arguments, expected {len(macro.args)}")   # type: ignore # macro has args
             return self.__update_insert_list(match[0], match, base_offset)
 
         replacement = macro.body.value  # type: ignore # match is not None

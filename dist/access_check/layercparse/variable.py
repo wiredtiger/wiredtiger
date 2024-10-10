@@ -37,7 +37,7 @@ class Variable:
             self.postComment = other.postComment
         return errors
 
-    # Get the variable name and type from C declaration or argument list. TODO: do proper parsing
+    # Get the variable name and type from C declaration or argument list.
     @staticmethod
     def fromVarDef(vardef: TokenList) -> 'Variable | None':
         """Get the variable name and type from C declaration."""

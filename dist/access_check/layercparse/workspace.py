@@ -10,12 +10,6 @@ from io import StringIO
 
 from .internal import *
 
-###### TODO::
-# 1. split preprocessor from everything else
-# 2. load preprocessor
-# 3. load everything else, expanding macros
-# No need to remove preprocessor - it's ignored anyway
-
 FileKind: TypeAlias = Literal[
     "",   # undefined
     "c",  # .c file
