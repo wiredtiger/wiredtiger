@@ -81,7 +81,7 @@ print_thread(void *thread_arg)
     fflush(stdout);
 
     /* Finished. Signal the next thread which waits for this thread to get here. */
-    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(wt_conn, args->my_id);
+    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(session, args->my_id);
 
     /* Cleanup */
     error_check(wt_session->close(wt_session, NULL));
@@ -139,7 +139,7 @@ main(int argc, char *argv[])
 
     /* Signal threads[0] which waits for this thread to get here. */
     CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-      wt_conn, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
+      session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
 
     /* This thread waits for threads[NUM_THREADS - 1] to finish. */
     CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
