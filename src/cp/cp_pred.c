@@ -87,7 +87,7 @@ __wt_control_point_pred_times(
     WT_UNUSED(session);
     /* enable_count is assigned to WT_CONTROL_PARAM.param2.value64. */
     /* Note: trigger_count is incremented after calling this function. */
-    return ((1 + cp_registry->trigger_count) < data->param2.value64);
+    return (cp_registry->trigger_count < data->param2.value64);
 }
 
 /* Predicate config parsing function. */
