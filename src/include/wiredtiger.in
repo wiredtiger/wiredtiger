@@ -2122,7 +2122,7 @@ struct __wt_session {
      */
     int __F(disable_control_point)(WT_SESSION *session, wt_control_point_id_t id);
     /*! @} */
-#elif !defined(DOXYGEN)  /* Keep the size the same */
+#elif !defined(SWIG) && !defined(DOXYGEN)  /* Keep the size the same */
     void  *dummy1;
     void  *dummy2;
 #endif
@@ -3021,7 +3021,7 @@ struct __wt_connection {
      */
     int __F(disable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id);
     /*! @} */
-#elif !defined(DOXYGEN)  /* Keep the size the same */
+#elif !defined(SWIG) && !defined(DOXYGEN)  /* Keep the size the same */
     void  *dummy1;
     void  *dummy2;
 #endif
