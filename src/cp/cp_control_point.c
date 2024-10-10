@@ -229,56 +229,6 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].config_name = "thread_5";
-    WT_ERR(__wt_spin_init(
-      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].lock), "Thread 5"));
-    /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_5].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].config_name = "thread_6";
-    WT_ERR(__wt_spin_init(
-      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].lock), "Thread 6"));
-    /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_6].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].config_name = "thread_7";
-    WT_ERR(__wt_spin_init(
-      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].lock), "Thread 7"));
-    /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_7].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].config_name = "thread_8";
-    WT_ERR(__wt_spin_init(
-      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].lock), "Thread 8"));
-    /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_8].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].config_name = "thread_9";
-    WT_ERR(__wt_spin_init(
-      session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].lock), "Thread 9"));
-    /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-
     /* After all repeats finish with this. */
     S2C(session)->control_points = control_points;
 
