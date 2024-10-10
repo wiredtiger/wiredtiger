@@ -237,7 +237,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
+      __wt_control_point_pair_init_times_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].pred = __wt_control_point_pred_times;
     control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].config_name = "wt_12495";
     WT_ERR(__wt_spin_init(
