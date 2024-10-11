@@ -181,6 +181,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PREFETCH_QUEUE_ENTRY *pe;
+    uint64_t prefetch_queue_count;
 
     conn = S2C(session);
 
@@ -234,8 +235,10 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Unlock the ref. */
     WT_REF_SET_STATE(ref, WT_REF_DISK);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
-    ++conn->prefetch_queue_count;
+    prefetch_queue_count = ++conn->prefetch_queue_count;
     __wt_spin_unlock(session, &conn->prefetch_lock);
+    __wt_verbose_debug1(session, WT_VERB_PREFETCH,
+      "Queued ref=%p, conn->prefetch_queue_count=%" PRIu64, ref, prefetch_queue_count);
     __wt_cond_signal(session, conn->prefetch_threads.wait_cond);
 
     if (0) {

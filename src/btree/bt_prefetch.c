@@ -21,6 +21,7 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_REF *next_ref;
     uint64_t block_preload;
+    int64_t prefetch_pages_queued;
 
     conn = S2C(session);
     block_preload = 0;
@@ -93,6 +94,12 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     session->pf.prefetch_prev_ref_home = ref->home;
 
     WT_STAT_CONN_INCRV(session, prefetch_pages_queued, block_preload);
+    if (WT_VERBOSE_ISSET(session, WT_VERBOSE_DEBUG_1)) {
+        prefetch_pages_queued = WT_STAT_CONN_READ(conn->stats, prefetch_pages_queued);
+        __wt_verbose_debug1(session, WT_VERB_PREFETCH,
+          "Incremented prefetch_pages_queued by %" PRIu64 " to %" PRId64, block_preload,
+          prefetch_pages_queued);
+    }
     return (ret);
 }
 
