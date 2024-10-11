@@ -2660,8 +2660,8 @@ static const uint8_t confchk_wiredtiger_open_log_subconfigs_jump[WT_CONFIG_JUMP_
   2, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 9, 9, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_main_start_printing_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    305, 1, 4294967295LL, NULL},
+  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 305, 1, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2711,8 +2711,8 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 3, 3, 3, 4, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_0_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    305, 1, 4294967295LL, NULL},
+  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 305, 1, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_0_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
@@ -2722,8 +2722,8 @@ static const uint8_t confchk_wiredtiger_open_thread_0_subconfigs_jump[WT_CONFIG_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_1_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    305, 1, 4294967295LL, NULL},
+  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 305, 1, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_1_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
@@ -2733,8 +2733,8 @@ static const uint8_t confchk_wiredtiger_open_thread_1_subconfigs_jump[WT_CONFIG_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_2_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    305, 1, 4294967295LL, NULL},
+  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 305, 1, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_2_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
@@ -2744,8 +2744,8 @@ static const uint8_t confchk_wiredtiger_open_thread_2_subconfigs_jump[WT_CONFIG_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_3_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    305, 1, 4294967295LL, NULL},
+  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 305, 1, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_3_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
@@ -2755,8 +2755,8 @@ static const uint8_t confchk_wiredtiger_open_thread_3_subconfigs_jump[WT_CONFIG_
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_4_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    305, 1, 4294967295LL, NULL},
+  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 305, 1, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_4_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
