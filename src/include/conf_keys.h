@@ -44,7 +44,8 @@
 #define WT_CONF_ID_Shared_cache 261ULL
 #define WT_CONF_ID_Statistics_log 265ULL
 #define WT_CONF_ID_Tiered_storage 51ULL
-#define WT_CONF_ID_Transaction_sync 317ULL
+#define WT_CONF_ID_Transaction_oligarch_sync 317ULL
+#define WT_CONF_ID_Transaction_sync 318ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 101ULL
 #define WT_CONF_ID_allocation_size 13ULL
@@ -324,21 +325,21 @@
 #define WT_CONF_ID_txn 184ULL
 #define WT_CONF_ID_type 9ULL
 #define WT_CONF_ID_update_restore_evict 224ULL
-#define WT_CONF_ID_use_environment 318ULL
-#define WT_CONF_ID_use_environment_priv 319ULL
+#define WT_CONF_ID_use_environment 319ULL
+#define WT_CONF_ID_use_environment_priv 320ULL
 #define WT_CONF_ID_use_timestamp 175ULL
 #define WT_CONF_ID_value_format 59ULL
 #define WT_CONF_ID_verbose 10ULL
-#define WT_CONF_ID_verify_metadata 320ULL
+#define WT_CONF_ID_verify_metadata 321ULL
 #define WT_CONF_ID_version 66ULL
 #define WT_CONF_ID_wait 202ULL
 #define WT_CONF_ID_worker_thread_max 256ULL
-#define WT_CONF_ID_write_through 321ULL
+#define WT_CONF_ID_write_through 322ULL
 #define WT_CONF_ID_write_timestamp 5ULL
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 254ULL
 
-#define WT_CONF_ID_COUNT 322
+#define WT_CONF_ID_COUNT 323
 /*
  * API configuration keys: END
  */
@@ -554,6 +555,10 @@ static const struct {
         uint64_t name;
         uint64_t shared;
     } Tiered_storage;
+    struct {
+        uint64_t enabled;
+        uint64_t method;
+    } Transaction_oligarch_sync;
     struct {
         uint64_t enabled;
         uint64_t method;
@@ -945,6 +950,10 @@ static const struct {
     WT_CONF_ID_Tiered_storage | (WT_CONF_ID_local_retention << 16),
     WT_CONF_ID_Tiered_storage | (WT_CONF_ID_name << 16),
     WT_CONF_ID_Tiered_storage | (WT_CONF_ID_shared << 16),
+  },
+  {
+    WT_CONF_ID_Transaction_oligarch_sync | (WT_CONF_ID_enabled << 16),
+    WT_CONF_ID_Transaction_oligarch_sync | (WT_CONF_ID_method << 16),
   },
   {
     WT_CONF_ID_Transaction_sync | (WT_CONF_ID_enabled << 16),

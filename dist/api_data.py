@@ -1397,6 +1397,18 @@ wiredtiger_open_common =\
             for more information''',
             choices=['dsync', 'fsync', 'none']),
         ]),
+    Config('transaction_oligarch_sync', '', r'''
+        how to sync oligarch log records when the transaction commits''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            whether to sync the oligarch oligarch log on every commit by default, can be overridden by the \c
+            sync setting to WT_SESSION::commit_transaction''',
+            type='boolean'),
+        Config('method', 'fsync', r'''
+            the method used to ensure oligarch log records are stable on disk, see @ref tune_durability
+            for more information''',
+            choices=['dsync', 'fsync', 'none']),
+        ]),
     Config('verify_metadata', 'false', r'''
         open connection and verify any WiredTiger metadata. Not supported when opening a
         connection from a backup. This API allows verification and detection of corruption in

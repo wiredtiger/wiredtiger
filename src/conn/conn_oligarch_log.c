@@ -27,13 +27,13 @@ __oligarch_logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
      * processing during a reconfigure.
      */
     txn_logsync = 0;
-    WT_RET(__wt_config_gets(session, cfg, "transaction_sync.enabled", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "transaction_oligarch_sync.enabled", &cval));
     if (cval.val)
         FLD_SET(txn_logsync, WT_LOG_SYNC_ENABLED);
     else
         FLD_CLR(txn_logsync, WT_LOG_SYNC_ENABLED);
 
-    WT_RET(__wt_config_gets(session, cfg, "transaction_sync.method", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "transaction_oligarch_sync.method", &cval));
     if (WT_CONFIG_LIT_MATCH("dsync", cval))
         FLD_SET(txn_logsync, WT_LOG_DSYNC | WT_LOG_FLUSH);
     else if (WT_CONFIG_LIT_MATCH("fsync", cval))

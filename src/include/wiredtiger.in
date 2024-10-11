@@ -3503,6 +3503,16 @@ struct __wt_connection {
  * setting this value above 0 configures statistics logging., an integer between \c 0 and \c 100000;
  * default \c 0.}
  * @config{ ),,}
+ * @config{transaction_oligarch_sync = (, how to sync oligarch log records when the transaction
+ * commits., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to sync the oligarch oligarch log on every
+ * commit by default\, can be overridden by the \c sync setting to WT_SESSION::commit_transaction.,
+ * a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, the method used to
+ * ensure oligarch log records are stable on disk\, see @ref tune_durability for more information.,
+ * a string\, chosen from the following options: \c "dsync"\, \c "fsync"\, \c "none"; default \c
+ * fsync.}
+ * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
