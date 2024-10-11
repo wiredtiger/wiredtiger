@@ -257,7 +257,6 @@ __wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_TXN_OP *op;
     uint32_t fileid;
 
-    conn = S2C(session);
     txn = session->txn;
 
     /* We'd better have a transaction. */
