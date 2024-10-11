@@ -44,8 +44,8 @@
 
 /* Update loop: [FIRST_RECORD_TO_CHANGE, FIRST_RECORD_TO_CHANGE + NUM_EVICTION - 1] */
 /* First record to change to give pre-fetch thread time to begin pre-fetching. */
-#define FIRST_RECORD_TO_CHANGE (RECORDS_PER_PAGE + 1)
-#define NUM_EVICTION RECORDS_PER_PAGE /* How many times to force eviction. */
+#define FIRST_RECORD_TO_CHANGE RECORDS_PER_PAGE
+#define NUM_EVICTION (2 * RECORDS_PER_PAGE) /* How many times to force eviction. */
 
 /* Prefetch loop: [0, NUM_WARM_UP_RECORDS - 1] But stop when pages are queued. */
 
