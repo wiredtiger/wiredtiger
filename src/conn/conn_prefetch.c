@@ -98,12 +98,9 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * session transaction snapshot.
          */
         if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && pe->ref->page_del == NULL) {
-            bool enabled;
-            enabled = false;
-            /* Wait here for the eviction thread. */
-            CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
-              session, WT_CONN_CONTROL_POINT_ID_WT_12945, enabled);
-            WT_UNUSED(enabled);
+            /* Tell the waiting eviction thread to proceed. */
+            CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+              session, WT_CONN_CONTROL_POINT_ID_WT_12945);
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
         }
 
