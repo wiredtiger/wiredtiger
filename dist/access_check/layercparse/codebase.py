@@ -320,7 +320,7 @@ class Codebase:
                 self.updateFromFile(fname, expand_preproc=False)
 
     @staticmethod
-    def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str, str, list[tuple[int, int]]]:
+    def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str, str, InsertList]:
         # Return: (fname, expanded_file_content, insert_list)
         expander = MacroExpander()
         return (fname,

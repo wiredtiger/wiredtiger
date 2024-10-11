@@ -5,7 +5,7 @@ from layercparse import *
 from pprint import pprint, pformat
 
 def main():
-    setLogLevel(LogLevel.DEBUG3)
+    # setLogLevel(LogLevel.WARNING)
 
     rootPath = os.path.realpath(sys.argv[1])
     setRootPath(rootPath)

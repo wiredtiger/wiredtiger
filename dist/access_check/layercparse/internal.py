@@ -39,6 +39,8 @@ Range: TypeAlias = tuple[int, int]
 def rangeShift(rng: Range, offset: int) -> Range:
     return (rng[0]+offset, rng[1]+offset)
 
+InsertList: TypeAlias = list[tuple[int, int]]  # (offset, delta)
+
 reg_identifier = regex.compile(r"^[a-zA-Z_]\w++$", re_flags)
 reg_type = regex.compile(r"^[\w\[\]\(\)\*\, ]++$", re_flags)
 

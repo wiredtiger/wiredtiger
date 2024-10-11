@@ -10,7 +10,7 @@ def _D2M(val: 'Definition') -> MacroParts: # type: ignore[name-defined] # circul
     return cast(MacroParts, val.details)
 
 class MacroExpander:
-    insert_list: list[tuple[int, int]]
+    insert_list: InsertList
     _macros: dict[str, MacroParts]
 
     # Macro expansion.
@@ -20,7 +20,7 @@ class MacroExpander:
     def expand(self, txt: str, macros: 'dict[str, Definition]', expand_const: bool = False) -> str: # type: ignore[name-defined] # circular dependency for Definition
         # TODO(later): Optimise: compose the result as a list of strings, then join at the end
 
-        self.insert_list: list[tuple[int, int]] = []  # (offset, delta)
+        self.insert_list: InsertList = []  # (offset, delta)
         if not macros:
             return txt
         self._macros = macros

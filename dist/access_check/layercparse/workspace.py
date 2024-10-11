@@ -152,7 +152,7 @@ class File:
                 self.lineOffsets.append(match.start())
         return self.lineOffsets
 
-    def updateLineInfoWithInsertList(self, insertList: list[tuple[int, int]]) -> None:
+    def updateLineInfoWithInsertList(self, insertList: InsertList) -> None:
         if not self.lineOffsets or not insertList:
             return
         cur_delta, cur_line = 0, 0
