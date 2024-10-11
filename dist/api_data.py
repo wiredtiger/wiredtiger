@@ -19,6 +19,15 @@ class Method:
             self.config.append(c)
 
 class Config:
+    # Values for assigning Config.max
+    uint16_max = '65535'
+    int16_min = '-32768'
+    int16_max = '32767'
+    uint32_max = '4294967295'
+    int32_min = '-2147483648'
+    int32_max = '2147483647'
+    int64_min = '-9223372036854775808'
+    int64_max = '9223372036854775807'
     def __init__(self, name, default, desc, subconfig=None, **flags):
         self.name = name
         self.default = default
@@ -187,7 +196,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=Config.int64_max),
            ]),
     ConnectionControlPoint('Thread 0', 'Wait for trigger', 'Always', '', r'''
            Thread 1 waits for thread 0 to get here.''',
@@ -195,7 +204,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=Config.int64_max),
            ]),
     ConnectionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
            Thread 2 waits for thread 1 to get here.''',
@@ -203,7 +212,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=Config.int64_max),
            ]),
     ConnectionControlPoint('Thread 2', 'Wait for trigger', 'Always', '', r'''
            Thread 3 waits for thread 2 to get here.''',
@@ -211,7 +220,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=Config.int64_max),
            ]),
     ConnectionControlPoint('Thread 3', 'Wait for trigger', 'Always', '', r'''
            Thread 4 waits for thread 3 to get here.''',
@@ -219,7 +228,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=Config.int64_max),
            ]),
     ConnectionControlPoint('Thread 4', 'Wait for trigger', 'Always', '', r'''
            Thread 5 waits for thread 4 to get here.''',
@@ -227,7 +236,7 @@ ex_control_points_config = [
                # Action configuration parameters
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
-                      min='1', max='4294967295'),
+                      min='1', max=Config.int64_max),
            ]),
 ]
 
