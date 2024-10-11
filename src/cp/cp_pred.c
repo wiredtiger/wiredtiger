@@ -204,4 +204,51 @@ __wt_control_point_config_pred_random_param2(
     return (0);
 }
 
+/*
+ * Predicate: Pointer_match: Trigger if pointer matches. The match value is assigned to
+ * param1.pointer.
+ */
+/* Predicate function. */
+/*
+ * __wt_control_point_pred_pointer_match --
+ *     Control point predicate function for "Pointer match: Trigger if pointer matches". The match
+ *     value is assigned to param1.pointer. It should be set by the call site. The test value is
+ *     assigned to param2.pointer. It should be set by the trigger site.
+ *
+ * @param session The session. @param cp_registry The control point registry. @param data The
+ *     control point's predicate data is in here.
+ */
+bool
+__wt_control_point_pred_pointer_match(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(cp_registry);
+    /* The match value is assigned to WT_CONTROL_PARAM.param1.pointer. */
+    /* The test value is assigned to WT_CONTROL_PARAM.param2.pointer. */
+    return (data->param1.pointer == data->param2.pointer);
+}
+
+/* Predicate config parsing function. */
+/*
+ * __wt_control_point_config_pred_pointer_match --
+ *     Configuration parsing for control point predicate "Pointer match: Trigger if pointer
+ *     matches". The match value is assigned to param1.pointer.
+ *
+ * @param session The session. @param data Return the parsed data in here. @param cfg The
+ *     configuration strings.
+ */
+int
+__wt_control_point_config_pred_pointer_match(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
+{
+    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
+    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_UNUSED(session);
+    WT_UNUSED(cfg);
+    /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
+    data->param1.pointer = (void *)1;
+    return (0);
+}
+
 #endif /* HAVE_CONTROL_POINT */

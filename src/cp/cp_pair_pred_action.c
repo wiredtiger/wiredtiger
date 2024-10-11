@@ -686,4 +686,40 @@ err:
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
+/* Pair "Pointer match" and "Wait for trigger". */
+/*
+ * __wt_control_point_pair_init_pointer_match_wait_for_trigger --
+ *     The pair initialization function for predicate "Pointer match" and action "Wait for trigger".
+ *
+ * @param session The session. @param cp_registry The per connection control point's control point
+ *     registry. @param cp_config_name The control point's configuration name. @param cfg
+ *     Configuration string.
+ */
+WT_CONTROL_POINT_DATA *
+__wt_control_point_pair_init_pointer_match_wait_for_trigger(
+  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+{
+    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    WT_DECL_RET;
+    WT_UNUSED(cp_config_name);
+
+    ret = __wt_calloc_one(session, &init_data);
+    if (WT_UNLIKELY(ret != 0))
+        return (NULL);
+
+    /* Initialize configuration parameters. */
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_pred_pointer_match(
+      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+
+    /* Extra initialization required for action "Wait for trigger". */
+    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+
+err:
+    if (ret != 0)
+        __wt_free(session, init_data);
+
+    return ((WT_CONTROL_POINT_DATA *)init_data);
+}
+
 #endif /* HAVE_CONTROL_POINT */

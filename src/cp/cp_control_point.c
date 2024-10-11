@@ -230,8 +230,8 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].init =
-      __wt_control_point_pair_init_always_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].pred = NULL; /* Always */
+      __wt_control_point_pair_init_pointer_match_wait_for_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].pred = __wt_control_point_pred_pointer_match;
     control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].config_name = "wt_12495";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_12945].lock), "WT 12495"));

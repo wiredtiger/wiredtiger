@@ -549,7 +549,14 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * when done in eviction threads).
      */
     if (WT_READING_CHECKPOINT(session)) {
+        WT_CONNECTION_IMPL *conn;
+        WT_CONTROL_POINT_REGISTRY *cp_registry;
+        WT_CONTROL_POINT_DATA *cp_data;
         /* Tell the waiting pre-fetch thread to proceed. */
+        conn = S2C(session);
+        cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_12945]);
+        cp_data = cp_registry->cp_data;
+        cp_data->param2.pointer = NULL; /* pe->ref; -* The test value. */
         CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
           session, WT_CONN_CONTROL_POINT_ID_WT_12945);
         return (0);

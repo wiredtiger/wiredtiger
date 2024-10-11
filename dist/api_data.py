@@ -242,10 +242,14 @@ ex_control_points_config = [
 
 # To reproduce WT-12495
 wt_12495_control_points_config = [
-    ConnectionControlPoint('WT 12945', 'Wait for trigger', 'Always', '', r'''
+    ConnectionControlPoint('WT 12945', 'Wait for trigger', 'Pointer match', '', r'''
            The internal prefetch thread waits for eviction to evict this page.''',
            type='category', subconfig= [
-               # Action configuration parameters
+               # Predicate configuration parameter
+               Config('match_value', '1', r'''
+                      the pointer for which to wait''',
+                      min='0', max=ControlPoint.int64_max),
+               # Action configuration parameter
                Config('wait_count', '1', r'''
                       the number of triggers for which to wait''',
                       min='1', max=ControlPoint.int64_max),

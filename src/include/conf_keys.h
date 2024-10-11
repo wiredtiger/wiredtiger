@@ -222,6 +222,7 @@
 #define WT_CONF_ID_log 174ULL
 #define WT_CONF_ID_log_retention 209ULL
 #define WT_CONF_ID_log_size 193ULL
+#define WT_CONF_ID_match_value 327ULL
 #define WT_CONF_ID_max_percent_overhead 184ULL
 #define WT_CONF_ID_memory_page_image_max 38ULL
 #define WT_CONF_ID_memory_page_max 39ULL
@@ -343,7 +344,7 @@
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 252ULL
 
-#define WT_CONF_ID_COUNT 327
+#define WT_CONF_ID_COUNT 328
 /*
  * API configuration keys: END
  */
@@ -572,6 +573,7 @@ static const struct {
         uint64_t method;
     } Transaction_sync;
     struct {
+        uint64_t match_value;
         uint64_t wait_count;
     } Wt_12945;
     uint64_t access_pattern_hint;
@@ -970,6 +972,7 @@ static const struct {
     WT_CONF_ID_Transaction_sync | (WT_CONF_ID_method << 16),
   },
   {
+    WT_CONF_ID_Wt_12945 | (WT_CONF_ID_match_value << 16),
     WT_CONF_ID_Wt_12945 | (WT_CONF_ID_wait_count << 16),
   },
   WT_CONF_ID_access_pattern_hint,
