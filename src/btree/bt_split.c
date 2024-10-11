@@ -1432,13 +1432,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_RET(__wti_page_inmem_prepare(session, ref));
 
-    /*
-     * The re-instantiated page inherits the eviction state (LRU position) from the original page,
-     * unless this was a forced eviction, in which case we leave the new page with the default
-     * initialization.
-     */
-    if (!__wt_evict_page_soon_flagged(orig))
-        __wt_evict_copy_page_state(orig, page);
+    __wt_evict_inherit_readgen(orig, page);
 
     /*
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
