@@ -218,7 +218,8 @@ err:
  *     @param cfg The configuration string override.
  */
 int
-__wt_conn_control_point_enable(WT_CONNECTION *wt_conn, wt_control_point_id_t id, const char *cfg)
+__wt_conn_control_point_enable(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, const char *extra_cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
@@ -233,7 +234,7 @@ __wt_conn_control_point_enable(WT_CONNECTION *wt_conn, wt_control_point_id_t id,
         return (WT_ERROR);
     cp_registry = &(conn->control_points[id]);
     cfgs[0] = conn->cfg;
-    cfgs[1] = cfg;
+    cfgs[1] = extra_cfg;
     cfgs[2] = NULL;
     return (__wti_conn_control_point_enable(conn, cp_registry, cfgs));
 }
@@ -250,7 +251,7 @@ __wt_conn_control_point_enable(WT_CONNECTION *wt_conn, wt_control_point_id_t id,
  */
 int
 __wti_session_control_point_enable(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *extra_cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
@@ -262,7 +263,7 @@ __wti_session_control_point_enable(
         /* Already enabled. */
         return (EEXIST);
     cfgs[0] = conn->cfg;
-    cfgs[1] = cfg;
+    cfgs[1] = extra_cfg;
     cfgs[2] = NULL;
     cp_data =
       cp_registry->init(session, cp_registry->config_name, false, cp_registry->init_pred, cfgs);

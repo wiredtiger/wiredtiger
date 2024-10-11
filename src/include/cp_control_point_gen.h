@@ -58,11 +58,10 @@
 /*
  * Per session control point IDs.
  */
-#if 0 /* For example */
-#define WT_SESSION_CONTROL_POINT_ID_EXAMPLE2 ((wt_control_point_id_t)0)
-#endif
+#define WT_SESSION_CONTROL_POINT_ID_THREAD_0 ((wt_control_point_id_t)0)
+#define WT_SESSION_CONTROL_POINT_ID_THREAD_1 ((wt_control_point_id_t)1)
 
 /* The number of per session control points (Could be generated). */
-#define SESSION_CONTROL_POINTS_SIZE 0
+#define SESSION_CONTROL_POINTS_SIZE 2
 
 #endif /* HAVE_CONTROL_POINT */

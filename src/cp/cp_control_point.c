@@ -265,12 +265,8 @@ err:
 int
 __wt_session_control_point_init_all(WT_SESSION_IMPL *session)
 {
-#if SESSION_CONTROL_POINTS_SIZE == 0
-    WT_UNUSED(session);
-    return (0);
-#else
-    WT_DECL_RET;
     WT_CONTROL_POINT_REGISTRY *control_points;
+    WT_DECL_RET;
 
     if (SESSION_CONTROL_POINTS_SIZE == 0)
         return (0);
@@ -279,15 +275,30 @@ __wt_session_control_point_init_all(WT_SESSION_IMPL *session)
     /*
      * This part must be edited. Repeat this for every per session control point.
      */
-#if 0 /* For example */
-    control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].init =
-        __wt_control_point_pair_init_skip_wait_for_trigger;
-    control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].pred =
-        __wt_control_point_pred_skip;
-    control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].config_name = "example2";
-  WT_ERR(__wt_spin_init(session, &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2].lock)));
-#endif
+    /* From examples/ex_control_points.c */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].init =
+      __wt_control_point_pair_init_pred_wait_for_trigger;
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].init_pred = NULL; /* Always */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].pred = NULL;      /* Always */
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].lock), "Thread 0"));
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].config_name = "thread_0";
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].enable_at_open = false;
+    /* Extra initialization required for action "Wait for trigger". */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].init =
+      __wt_control_point_pair_init_pred_wait_for_trigger;
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].init_pred = NULL; /* Always */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].pred = NULL;      /* Always */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].config_name = "thread_1";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].lock), "Thread 1"));
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].enable_at_open = false;
+    /* Extra initialization required for action "Wait for trigger". */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
     /* After all repeats finish with this. */
     session->control_points = control_points;
 
@@ -295,7 +306,6 @@ err:
     if (ret != 0)
         __wt_free(session, control_points);
     return (ret);
-#endif
 }
 
 /*
@@ -319,10 +329,6 @@ __wt_conn_control_point_enable_all_in_open(WT_CONNECTION_IMPL *conn, const char 
         return (0);
     control_points = conn->control_points;
 
-    /*
-     * This part must be edited. Repeat this for every per connection control point that starts
-     * enabled.
-     */
     for (; idx < CONNECTION_CONTROL_POINTS_SIZE; idx++) {
         if (control_points[idx].enable_at_open == false)
             break;
@@ -342,10 +348,10 @@ __wt_conn_control_point_enable_all_in_open(WT_CONNECTION_IMPL *conn, const char 
 int
 __wt_session_control_point_enable_all_in_open(WT_SESSION_IMPL *session)
 {
-#if 1 /* If no per session control points are enabled at the start. */
-    WT_UNUSED(session);
-#else
     WT_CONTROL_POINT_REGISTRY *control_points;
+    int idx;
+
+    idx = 0;
     if (SESSION_CONTROL_POINTS_SIZE == 0)
         return (0);
 
@@ -356,15 +362,12 @@ __wt_session_control_point_enable_all_in_open(WT_SESSION_IMPL *session)
         control_points = session->control_points;
     }
 
-    /*
-     * This part must be edited. Repeat this for every per session control point that starts
-     * enabled.
-     */
-#if 0 /* For example. */
-    WT_RET(__wti_session_control_point_enable(session,
-        &(control_points[WT_SESSION_CONTROL_POINT_ID_EXAMPLE2]), ""));
-#endif
-#endif
+    for (; idx < CONNECTION_CONTROL_POINTS_SIZE; idx++) {
+        if (control_points[idx].enable_at_open == false)
+            break;
+
+        WT_RET(__wti_session_control_point_enable(session, &(control_points[idx]), NULL));
+    }
     return (0);
 }
 #endif /* HAVE_CONTROL_POINT */
