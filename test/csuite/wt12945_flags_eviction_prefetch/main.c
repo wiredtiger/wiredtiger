@@ -36,7 +36,8 @@
 
 /* Constants */
 
-#define RECORDS_PER_PAGE 44603
+/* From wt verify -d dump_tree_shape file:test_wt12945_flags_eviction_prefetch.wt */
+#define RECORDS_PER_PAGE 3579
 #define NUM_WARM_UP_RECORDS (3 * RECORDS_PER_PAGE) /* How many records to insert during warmup. */
 /* First record to change to give pre-fetch thread time to begin pre-fetching. */
 #define FIRST_RECORD_TO_CHANGE (RECORDS_PER_PAGE + 1)
