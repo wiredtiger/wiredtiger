@@ -47,7 +47,7 @@
  */
 
 /* Constants */
-#define NUM_WARM_UP_RECORDS 40000
+#define NUM_WARM_UP_RECORDS 5000
 
 void *thread_do_next(void *);
 
@@ -272,7 +272,6 @@ thread_do_next(void *arg)
     testutil_check(wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor));
     wt_session->breakpoint(wt_session);
     /* Wait for the main test thread to get to the control point. */
-    __wt_sleep(1, 0);
     printf("walking cursor next\n");
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         __wt_sleep(0, 1); /* 1 microsecond */
