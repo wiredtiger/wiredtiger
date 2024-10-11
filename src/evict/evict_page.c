@@ -492,7 +492,7 @@ static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_REF *child;
-    bool busy, enabled, visible;
+    bool busy, visible;
 
     busy = false;
 #if 1 /* XXX TEMPORARY: Before the fix. Added by the revert. */
@@ -549,11 +549,9 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * when done in eviction threads).
      */
     if (WT_READING_CHECKPOINT(session)) {
-        enabled = false;
-        /* Wait here for the prefetch thread. */
-        CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
-          session, WT_CONN_CONTROL_POINT_ID_WT_12945, enabled);
-        WT_UNUSED(enabled);
+        /* Tell the waiting pre-fetch thread to proceed. */
+        CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+          session, WT_CONN_CONTROL_POINT_ID_WT_12945);
         return (0);
     }
 
@@ -633,10 +631,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     }
     WT_INTL_FOREACH_END;
 
-    enabled = false;
-    /* Wait here for the prefetch thread. */
-    CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(session, WT_CONN_CONTROL_POINT_ID_WT_12945, enabled);
-    WT_UNUSED(enabled);
+    /* Tell the waiting pre-fetch thread to proceed. */
+    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(session, WT_CONN_CONTROL_POINT_ID_WT_12945);
     return (0);
 }
 
