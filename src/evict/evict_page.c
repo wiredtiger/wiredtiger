@@ -261,6 +261,22 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     else
         WT_ERR(__evict_page_dirty_update(session, ref, flags));
 
+    /* Tell the waiting pre-fetch thread to proceed. */
+    {
+        WT_CONTROL_POINT_REGISTRY *cp_registry;
+        WT_CONTROL_POINT_DATA *cp_data;
+        /* Tell the waiting pre-fetch thread to proceed. */
+        conn = S2C(session);
+        if (conn->control_points != NULL) {
+            cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_12945]);
+            cp_data = cp_registry->cp_data;
+            if (cp_data != NULL) {
+                cp_data->param2.pointer = ref; /* The ref for the page we just evicted. */
+                CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+                session, WT_CONN_CONTROL_POINT_ID_WT_12945);
+            }
+        }
+    }
     /*
      * We have loaded the new disk image and updated the tree structure. We can no longer fail after
      * this point.
@@ -548,19 +564,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * visibility checks for pages found to be deleted in the checkpoint aren't needed (or correct
      * when done in eviction threads).
      */
-    if (WT_READING_CHECKPOINT(session)) {
-        WT_CONNECTION_IMPL *conn;
-        WT_CONTROL_POINT_REGISTRY *cp_registry;
-        WT_CONTROL_POINT_DATA *cp_data;
-        /* Tell the waiting pre-fetch thread to proceed. */
-        conn = S2C(session);
-        cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_12945]);
-        cp_data = cp_registry->cp_data;
-        cp_data->param2.pointer = NULL; /* pe->ref; -* The test value. */
-        CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-          session, WT_CONN_CONTROL_POINT_ID_WT_12945);
+    if (WT_READING_CHECKPOINT(session))
         return (0);
-    }
 
     /*
      * The fast check is done and there are no cursors in the child pages. Make sure the child
@@ -638,8 +643,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     }
     WT_INTL_FOREACH_END;
 
-    /* Tell the waiting pre-fetch thread to proceed. */
-    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(session, WT_CONN_CONTROL_POINT_ID_WT_12945);
     return (0);
 }
 

@@ -226,7 +226,12 @@ __wt_control_point_pred_pointer_match(
     WT_UNUSED(cp_registry);
     /* The match value is assigned to WT_CONTROL_PARAM.param1.pointer. */
     /* The test value is assigned to WT_CONTROL_PARAM.param2.pointer. */
-    return (data->param1.pointer == data->param2.pointer);
+    printf("%p == %p?\n", data->param1.pointer, data->param2.pointer);
+    if (data->param1.pointer == data->param2.pointer) {
+        printf("Match!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        return (true);
+    }
+    return (false);
 }
 
 /* Predicate config parsing function. */

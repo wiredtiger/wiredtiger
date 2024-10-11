@@ -103,11 +103,28 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             WT_CONTROL_POINT_DATA *cp_data;
             enabled = false;
             /* Wait here for the eviction thread. */
-            cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_12945]);
-            cp_data = cp_registry->cp_data;
-            cp_data->param1.pointer = pe->ref; /* The match value. */
-            CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
-              session, WT_CONN_CONTROL_POINT_ID_WT_12945, enabled);
+            if (conn->control_points != NULL) {
+                //TODO: Save ref of internal page or pointer to the internal page.
+                //TODO: Can we evict an internal page by force?
+                // Steps required to reproduce:
+                // 1: We get here the same way we always did
+                // 2: We then evict every leaf page from the tree while this thread waits... This is already implemented by our eviction loop.
+                // 3: We somehow get the eviction thread to evict the internal page. Problem 1: What if this internal page is the root page? if so we are dead
+                // Problem 2: How on earth do you evict an internal page by choice?
+                //
+                //
+                //
+                cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_12945]);
+                cp_data = cp_registry->cp_data;
+                if (cp_data != NULL) {
+                    cp_data->param1.pointer = pe->ref; /* The match value. */
+                    printf("Arriving at control point\n");
+
+                    CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
+                    session, WT_CONN_CONTROL_POINT_ID_WT_12945, enabled);
+                    printf("Past control point\n");
+                }
+            }
             WT_WITH_DHANDLE(session, pe->dhandle, ret = __wt_prefetch_page_in(session, pe));
             WT_UNUSED(enabled);
         }

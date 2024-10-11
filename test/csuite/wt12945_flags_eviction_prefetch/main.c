@@ -40,14 +40,14 @@
 /* define RECORDS_PER_PAGE 3579 */
 
 /* Warm-up loop: [0, NUM_WARM_UP_RECORDS - 1] 3 evictions full */
-#define RECORDS_BETWEEN_EVICTIONS 44603
-#define NUM_WARM_UP_RECORDS \
-    (3 * RECORDS_BETWEEN_EVICTIONS) /* How many records to insert during warmup. */
+// #define RECORDS_BETWEEN_EVICTIONS 44603
+#define NUM_WARM_UP_RECORDS 40000
+    //(3 * RECORDS_BETWEEN_EVICTIONS) /* How many records to insert during warmup. */
 
 /* Update loop: [FIRST_RECORD_TO_CHANGE, FIRST_RECORD_TO_CHANGE + NUM_EVICTION - 1] */
 /* First record to change to give pre-fetch thread time to begin pre-fetching. */
-#define FIRST_RECORD_TO_CHANGE (RECORDS_BETWEEN_EVICTIONS + 1)
-#define NUM_EVICTION RECORDS_BETWEEN_EVICTIONS /* How many times to force eviction. */
+// #define FIRST_RECORD_TO_CHANGE (RECORDS_BETWEEN_EVICTIONS + 1)
+// #define NUM_EVICTION RECORDS_BETWEEN_EVICTIONS /* How many times to force eviction. */
 
 /* Prefetch loop: [0, NUM_WARM_UP_RECORDS - 1] But stop when pages are queued. */
 
@@ -293,7 +293,7 @@ main(int argc, char *argv[])
 #if 1 /* Include if needed */
       "verbose=["
       "control_point=5,"
-      "prefetch=1,"
+    //   "prefetch=1,"
       "],"
 #endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
@@ -320,7 +320,7 @@ main(int argc, char *argv[])
     /* Warm-up: Insert some documents */
     testutil_check((ret = wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor)));
     for (record_idx = 0; record_idx < opts->nrecords; ++record_idx) {
-        print_eviction_stats(wt_session, opts, "Warm up", record_idx, true);
+        // print_eviction_stats(wt_session, opts, "Warm up", record_idx, true);
         /* Do one insertion */
         set_key(cursor, record_idx);
         set_value(opts, cursor, record_idx);
@@ -334,7 +334,7 @@ main(int argc, char *argv[])
             fflush(stdout);
         }
     }
-    print_eviction_stats(wt_session, opts, "After Warm up", record_idx, false);
+    // print_eviction_stats(wt_session, opts, "After Warm up", record_idx, false);
     testutil_check(cursor->close(cursor));
 
     /* Close and reopen the connection to force the warm-up documents out of the cache. */
@@ -359,15 +359,11 @@ main(int argc, char *argv[])
     /* Loop updating documents and triggering eviction. */
     testutil_check(
       wt_session->open_cursor(wt_session, opts->uri, NULL, "debug=release_evict", &cursor));
-    for (record_idx = FIRST_RECORD_TO_CHANGE; record_idx < FIRST_RECORD_TO_CHANGE + NUM_EVICTION;
-         ++record_idx) {
+    for (record_idx = 100; record_idx < NUM_WARM_UP_RECORDS;
+         record_idx += 100) {
         /* print_eviction_stats(wt_session, opts, "Update", record_idx, true); Too many. */
-        /* Do one update */
         set_key(cursor, record_idx);
-        set_value(opts, cursor, 2 * record_idx);
-        testutil_check(wt_session->begin_transaction(wt_session, NULL));
-        testutil_check(cursor->update(cursor));
-        testutil_check(wt_session->commit_transaction(wt_session, NULL));
+        testutil_check(cursor->search(cursor));
         /* Print progress. */
         if ((record_idx % 100) == 0) {
             printf("eviction thread: Updates: update key=%" PRIu64 ", value=%" PRIu64 "\n",
@@ -418,9 +414,6 @@ thread_do_prefetch(void *arg)
     testutil_check(conn->open_session(conn, NULL, session_open_config, &wt_session));
     testutil_check(wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor));
 
-    /* Tell the eviction thread that the pre-fetch thread is ready. */
-    (void)__wt_atomic_add64(&ready_counter, 1);
-
     /* Read to trigger pre-fetch */
     previous_prefetch_pages_queued = get_stat(opts, wt_session, WT_STAT_CONN_PREFETCH_PAGES_QUEUED);
     idx = 0;
@@ -432,6 +425,7 @@ thread_do_prefetch(void *arg)
             printf("%" PRIu64 ". prefetch_pages_queued increased from %" PRId64 " to %" PRId64
                    ". Exit loop.\n",
               idx, previous_prefetch_pages_queued, current_prefetch_pages_queued);
+            /* Tell the eviction thread that the pre-fetch thread is ready. */
             break;
         }
         previous_prefetch_pages_queued = current_prefetch_pages_queued;
@@ -454,8 +448,7 @@ err:
     testutil_check(wt_session->close(wt_session, NULL));
 
     opts->running = false;
-
     printf("End of the pre-fetch thread\n");
-
+    (void)__wt_atomic_add64(&ready_counter, 1);
     return (NULL);
 }
