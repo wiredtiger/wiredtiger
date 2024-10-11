@@ -38,11 +38,16 @@
 
 /* From wt verify -d dump_tree_shape file:test_wt12945_flags_eviction_prefetch.wt */
 #define RECORDS_PER_PAGE 3579
+
+/* Warm-up loop: [0, NUM_WARM_UP_RECORDS - 1] 3 pages full */
 #define NUM_WARM_UP_RECORDS (3 * RECORDS_PER_PAGE) /* How many records to insert during warmup. */
+
+/* Update loop: [FIRST_RECORD_TO_CHANGE, FIRST_RECORD_TO_CHANGE + NUM_EVICTION - 1] */
 /* First record to change to give pre-fetch thread time to begin pre-fetching. */
 #define FIRST_RECORD_TO_CHANGE (RECORDS_PER_PAGE + 1)
 #define NUM_EVICTION RECORDS_PER_PAGE /* How many times to force eviction. */
-#define NUM_LEFT_TO_PREFIX 30         /* Controls when to stop reading and just pre-fetch. */
+
+/* Prefetch loop: [0, NUM_WARM_UP_RECORDS - 1] But stop when pages are queued. */
 
 void *thread_do_prefetch(void *);
 
@@ -318,7 +323,8 @@ main(int argc, char *argv[])
         testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
         testutil_check(cursor->insert(cursor));
         testutil_check(wt_session->commit_transaction(wt_session, NULL));
-        if (record_idx % (10 * WT_THOUSAND) == 0) {
+        /* Print progress. */
+        if ((record_idx % WT_THOUSAND) == 0) {
             printf("eviction thread: Warm-up: insert key=%" PRIu64 ", value=%" PRIu64 "\n",
               record_idx, record_idx);
             fflush(stdout);
@@ -357,7 +363,8 @@ main(int argc, char *argv[])
         testutil_check(wt_session->begin_transaction(wt_session, NULL));
         testutil_check(cursor->update(cursor));
         testutil_check(wt_session->commit_transaction(wt_session, NULL));
-        if (record_idx % (10 * WT_THOUSAND) == 0) {
+        /* Print progress. */
+        if ((record_idx % 100) == 0) {
             printf("eviction thread: Updates: update key=%" PRIu64 ", value=%" PRIu64 "\n",
               record_idx, 2 * record_idx);
             fflush(stdout);
@@ -427,12 +434,11 @@ thread_do_prefetch(void *arg)
         /* Read */
         key = get_key(opts, cursor);
         value = get_value(opts, cursor);
-        if (idx % (10 * WT_THOUSAND) == 0) {
-            printf("pre-fetch thread: read key=%" PRIu64 ", value=%" PRIu64 "\n", idx, value);
+        /* Print progress. */
+        if ((idx % 100) == 0) {
+            printf("pre-fetch thread: read key=%" PRIu64 ", value=%" PRIu64 "\n", key, value);
             fflush(stdout);
         }
-        if (key == (FIRST_RECORD_TO_CHANGE - NUM_LEFT_TO_PREFIX))
-            break;                  /* Close enough for pre-fetch to do the rest. */
         __wt_sleep(0, WT_THOUSAND); /* 1 millisecond */
         ++idx;
     }
