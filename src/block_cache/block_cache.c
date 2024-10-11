@@ -244,7 +244,7 @@ __blkcache_eviction_thread(void *arg)
             {
                 if (__blkcache_should_evict(session, blkcache_item, &reason)) {
                     TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
-                    __wt_free(session, blkcache_item->block_meta);
+                    __blkcache_free(session, blkcache_item->block_meta);
                     __blkcache_free(session, blkcache_item->data);
                     __blkcache_update_ref_histogram(
                       session, blkcache_item, WT_BLKCACHE_RM_EVICTION);
@@ -545,6 +545,7 @@ __wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
                 total_usecs += sleep_usecs;
             }
             WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, total_usecs);
+            __blkcache_free(session, blkcache_item->block_meta);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
             blkcache->removals++;
