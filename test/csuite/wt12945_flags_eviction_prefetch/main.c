@@ -37,15 +37,17 @@
 /* Constants */
 
 /* From wt verify -d dump_tree_shape file:test_wt12945_flags_eviction_prefetch.wt */
-#define RECORDS_PER_PAGE 3579
+/* define RECORDS_PER_PAGE 3579 */
 
-/* Warm-up loop: [0, NUM_WARM_UP_RECORDS - 1] 3 pages full */
-#define NUM_WARM_UP_RECORDS (3 * RECORDS_PER_PAGE) /* How many records to insert during warmup. */
+/* Warm-up loop: [0, NUM_WARM_UP_RECORDS - 1] 3 evictions full */
+#define RECORDS_BETWEEN_EVICTIONS 44603
+#define NUM_WARM_UP_RECORDS \
+    (3 * RECORDS_BETWEEN_EVICTIONS) /* How many records to insert during warmup. */
 
 /* Update loop: [FIRST_RECORD_TO_CHANGE, FIRST_RECORD_TO_CHANGE + NUM_EVICTION - 1] */
 /* First record to change to give pre-fetch thread time to begin pre-fetching. */
-#define FIRST_RECORD_TO_CHANGE RECORDS_PER_PAGE
-#define NUM_EVICTION (2 * RECORDS_PER_PAGE) /* How many times to force eviction. */
+#define FIRST_RECORD_TO_CHANGE (RECORDS_BETWEEN_EVICTIONS + 1)
+#define NUM_EVICTION RECORDS_BETWEEN_EVICTIONS /* How many times to force eviction. */
 
 /* Prefetch loop: [0, NUM_WARM_UP_RECORDS - 1] But stop when pages are queued. */
 
