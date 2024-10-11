@@ -6,19 +6,19 @@ extern WT_CONTROL_POINT_DATA *__wt_conn_control_point_test_and_trigger(WT_SESSIO
   wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_pred_err(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
-  int (*pred_func)(WT_SESSION_IMPL *, WT_CONTROL_POINT_DATA *, WT_CONFIG_ITEM *), const char **cfg)
+  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_pred_ret(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
-  int (*pred_func)(WT_SESSION_IMPL *, WT_CONTROL_POINT_DATA *, WT_CONFIG_ITEM *), const char **cfg)
+  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_pred_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
-  int (*pred_func)(WT_SESSION_IMPL *, WT_CONTROL_POINT_DATA *, WT_CONFIG_ITEM *), const char **cfg)
+  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wt_control_point_pair_init_pred_wait_for_trigger(
   WT_SESSION_IMPL *session, const char *cp_config_name, bool control_point_for_connection,
-  int (*pred_func)(WT_SESSION_IMPL *, WT_CONTROL_POINT_DATA *, WT_CONFIG_ITEM *), const char **cfg)
+  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session,
   wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

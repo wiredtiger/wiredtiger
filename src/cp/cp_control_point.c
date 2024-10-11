@@ -173,7 +173,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].init_pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].config_name =
       "main_start_printing";
     WT_ERR(__wt_spin_init(session,
@@ -186,7 +186,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].init_pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].pred = NULL;      /* Always */
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].lock), "Thread 0"));
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].config_name = "thread_0";
@@ -198,7 +198,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].init_pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].config_name = "thread_1";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].lock), "Thread 1"));
@@ -210,7 +210,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].init_pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].config_name = "thread_2";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].lock), "Thread 2"));
@@ -222,7 +222,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].init_pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].config_name = "thread_3";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].lock), "Thread 3"));
@@ -234,7 +234,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].init_pred = NULL; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].config_name = "thread_4";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].lock), "Thread 4"));

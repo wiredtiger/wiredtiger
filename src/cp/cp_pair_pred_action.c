@@ -21,12 +21,22 @@
 /* See comment in cp_action.c:__wt_verbose levels used in WT_VERB_CONTROL_POINT logging. */
 
 #ifdef HAVE_CONTROL_POINT
-
+/*
+ * construct_configuration_control_point_string --
+ *     Construct the configuration string for the control point.
+ *
+ * @param session The session. @param cp_config_name The control point's configuration name. @param
+ *     control_point_for_connection Check if control point is for connection or session. @param cfg
+ *     Configuration string.
+ */
 static int
 construct_configuration_control_point_string(WT_SESSION_IMPL *session, const char *cp_config_name,
   bool control_point_for_connection, char **buf)
 {
-    size_t len = strlen("per_connection_control_points") + strlen(cp_config_name) + 10;
+    size_t len;
+
+    len = strlen("per_connection_control_points") + strlen(cp_config_name) + 10;
+
     WT_RET(__wt_calloc_def(session, len, buf));
     WT_RET(__wt_snprintf(*buf, len, "%s.%s",
       control_point_for_connection ? "per_connection_control_points" : "per_session_control_points",
@@ -35,26 +45,25 @@ construct_configuration_control_point_string(WT_SESSION_IMPL *session, const cha
 }
 
 /* Pair init function. */
-/* Pair Predicate and "Sleep". */
+/* Pair predicate function and "Sleep". */
 
 /*
- * __wt_control_point_pair_init_always_sleep --
- *     The pair initialization function for predicate "Always" and action "Sleep".
+ * __wt_control_point_pair_init_pred_sleep --
+ *     The pair initialization function for predicate function and action "Sleep".
  *
- * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param cp_config_name The control point's configuration name. @param cfg
- *     Configuration string.
+ * @param session The session. @param cp_config_name The control point's configuration name. @param
+ *     control_point_for_connection Check if control point is for connection or session. registry.
+ *     @param init_pred Predicate initialization function. @param cfg Configuration string.
  */
 
 WT_CONTROL_POINT_DATA *
 __wt_control_point_pair_init_pred_sleep(WT_SESSION_IMPL *session, const char *cp_config_name,
-  bool control_point_for_connection,
-  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
+  bool control_point_for_connection, wt_control_point_init_pred_t __F(init_pred), const char **cfg)
 {
-    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_sleep *init_data;
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    char *config_str = NULL;
+    char *config_str;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
@@ -75,28 +84,25 @@ err:
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
-/* Pair Predicate and "ERR". */
+/* Pair predicate function and "ERR". */
 /*
- * __wt_control_point_pair_init_always_err --
- *     The pair initialization function for predicate "Always" and action "ERR".
+ * __wt_control_point_pair_init_pred_err --
+ *     The pair initialization function for predicate function and action "ERR".
  *
- * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param cp_config_name The control point's configuration name. @param cfg
- *     Configuration string.
+ * @param session The session. @param cp_config_name The control point's configuration name. @param
+ *     control_point_for_connection Check if control point is for connection or session. registry.
+ *     @param init_pred Predicate initialization function. @param cfg Configuration string.
  */
 WT_CONTROL_POINT_DATA *
 __wt_control_point_pair_init_pred_err(WT_SESSION_IMPL *session, const char *cp_config_name,
-  bool control_point_for_connection,
-  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
+  bool control_point_for_connection, wt_control_point_init_pred_t __F(init_pred), const char **cfg)
 {
-    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_err *init_data;
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    char *config_str = NULL;
+    char *config_str;
 
-    ret = __wt_calloc_one(session, &init_data);
-    if (WT_UNLIKELY(ret != 0))
-        return (NULL);
+    WT_ERR(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
     WT_ERR(construct_configuration_control_point_string(
@@ -114,28 +120,25 @@ err:
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
-/* Pair Predicate and "RET". */
+/* Pair predicate function and "RET". */
 /*
- * __wt_control_point_pair_init_always_ret --
+ * __wt_control_point_pair_init_pred_ret --
  *     The pair initialization function for predicate function and action "RET".
  *
- * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param cp_config_name The control point's configuration name. @param cfg
- *     Configuration string.
+ * @param session The session. @param cp_config_name The control point's configuration name. @param
+ *     control_point_for_connection Check if control point is for connection or session. registry.
+ *     @param init_pred Predicate initialization function. @param cfg Configuration string.
  */
 WT_CONTROL_POINT_DATA *
 __wt_control_point_pair_init_pred_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
-  bool control_point_for_connection,
-  wt_control_point_init_pred_t __F(init_pred), const char **cfg)
+  bool control_point_for_connection, wt_control_point_init_pred_t __F(init_pred), const char **cfg)
 {
-    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_ret *init_data;
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    char *config_str = NULL;
+    char *config_str;
 
-    ret = __wt_calloc_one(session, &init_data);
-    if (WT_UNLIKELY(ret != 0))
-        return (NULL);
+    WT_ERR(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
     WT_ERR(construct_configuration_control_point_string(
@@ -151,28 +154,26 @@ err:
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
-/* Pair Predicate and "Wait for trigger". */
+/* Pair predicate function and "Wait for trigger". */
 /*
- * __wt_control_point_pair_init_always_wait_for_trigger --
+ * __wt_control_point_pair_init_pred_wait_for_trigger --
  *     The pair initialization function for predicate function and action "Wait for trigger".
  *
- * @param session The session. @param cp_registry The per connection control point's control point
- *     registry. @param cp_config_name The control point's configuration name. @param cfg
- *     Configuration string.
+ * @param session The session. @param cp_config_name The control point's configuration name. @param
+ *     control_point_for_connection Check if control point is for connection or session. registry.
+ *     @param init_pred Predicate initialization function. @param cfg Configuration string.
  */
 WT_CONTROL_POINT_DATA *
 __wt_control_point_pair_init_pred_wait_for_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
   wt_control_point_init_pred_t __F(init_pred), const char **cfg)
 {
-    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    char *config_str = NULL;
+    char *config_str;
 
-    ret = __wt_calloc_one(session, &init_data);
-    if (WT_UNLIKELY(ret != 0))
-        return (NULL);
+    WT_ERR(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
     WT_ERR(construct_configuration_control_point_string(

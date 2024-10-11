@@ -252,16 +252,20 @@ int
 __wti_session_control_point_enable(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *cfg)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
     const char *cfgs[2];
 
+    conn = S2C(session);
     cp_data = cp_registry->cp_data;
     if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         return (EEXIST);
-    cfgs[0] = cfg;
-    cfgs[1] = NULL;
-    cp_data = cp_registry->init(session, cp_registry->config_name, false, cp_registry->init_pred, cfgs);
+    cfgs[0] = conn->cfg;
+    cfgs[1] = cfg;
+    cfgs[2] = NULL;
+    cp_data =
+      cp_registry->init(session, cp_registry->config_name, false, cp_registry->init_pred, cfgs);
     if (WT_UNLIKELY(cp_data == NULL))
         return (WT_ERROR);
     cp_registry->cp_data = cp_data;

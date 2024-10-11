@@ -52,7 +52,8 @@ typedef int wt_control_point_init_pred_t(
  */
 struct __wt_control_point_registry {
     wt_control_point_init_t __F(init); /* Function to initialize the control point. */
-    wt_control_point_init_pred_t __F(init_pred); /* Function to initialize the predicate control point. */
+    wt_control_point_init_pred_t __F(
+      init_pred);                      /* Function to initialize the predicate control point. */
     wt_control_point_pred_t __F(pred); /* Function to test whether to trigger. */
     size_t crossing_count;             /* Count of executions of the trigger site. */
     size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
