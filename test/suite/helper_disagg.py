@@ -99,7 +99,7 @@ class DisaggConfigMixin:
     # Some possible values to return: 'verbose=1'
     # or for palm: 'verbose=1,delay_ms=13,force_delay=30'
     def disaggregated_extension_config(self):
-        return ''
+        return 'verbose=1'
 
     # Load disaggregated storage extension.
     def disagg_conn_extensions(self, extlist):
