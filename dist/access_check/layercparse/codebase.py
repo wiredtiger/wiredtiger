@@ -110,7 +110,6 @@ def _get_visibility_and_module_check(thing: Details, default_private: bool | Non
         ERROR(scope().locationStr(thing.name.range[0]), f"Module [{ret[1]}] of a top-level {thing.kind()} '{thing.name.value}' does not match the module of the file [{default_module}]. Assigning it to module [{ret[1]}].")
     return ret
 
-
 @dataclass
 class Codebase:
     # Records: structs, unions, enums
@@ -295,7 +294,7 @@ class Codebase:
         with ScopePush(file=File(fname)):
             self.updateMacroFromText(scope_file().read())
 
-    def scanFiles(self, files: Iterable[str], twopass = True, multithread = True) -> None:
+    def scanFiles__(self, files: Iterable[str], twopass = True, multithread = True) -> None:
         if twopass:
             for fname in files:
                 # if get_file_priority(fname) <= 1:
@@ -306,9 +305,9 @@ class Codebase:
                     self.updateFromFile(fname, expand_preproc=True)
             else:
                 init_multithreading()
-                with multiprocessing.Pool() as pool:
+                with multiprocessing.Pool(processes=multiprocessing.cpu_count() + 1) as pool:
                     for fname, txt, insertlist in pool.starmap(
-                                Codebase._preprocess_file_for_multi,
+                                Codebase._preprocess_file_for_multi__,
                                 ((self, fname) for fname in files)):
                         DEBUG2(" ---", f"File: {fname}")
                         with ScopePush(file=File(fname)):
@@ -320,9 +319,65 @@ class Codebase:
                 self.updateFromFile(fname, expand_preproc=False)
 
     @staticmethod
-    def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str, str, InsertList]:
+    def _preprocess_file_for_multi__(self: 'Codebase', fname: str) -> tuple[str, str, InsertList]:
         # Return: (fname, expanded_file_content, insert_list)
         expander = MacroExpander()
         return (fname,
                 expander.expand(file_content(fname), self.macros___),
                 expander.insert_list)  # Tuple evaluation is left-to-right, so the insert_list is ready
+
+    def scanFiles(self, files: Iterable[str], twopass = True, multithread = True) -> None:
+        if twopass:
+            for fname in files:
+                # if get_file_priority(fname) <= 1:
+                self.updateMacroFromFile(fname)
+            if not multithread:
+                for fname in files:
+                    # if fname == "/Users/y.ershov/src/wt-mod/src/conn/conn_handle.c":
+                    self.updateFromFile(fname, expand_preproc=True)
+            else:
+                init_multithreading()
+                with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+                    for res in pool.starmap(
+                                Codebase._preprocess_file_for_multi,
+                                ((self, fname) for fname in files)):
+                        self._update_from_multi(*res)
+        else:
+            for fname in files:
+                self.updateFromFile(fname, expand_preproc=False)
+
+    def _update_from_multi(self, fname: str,
+                           types: dict[str, Definition],
+                           fields: dict[str, dict[str, Definition]],
+                           names: dict[str, Definition],
+                           static_names: dict[str, dict[str, Definition]],
+                           typedefs: dict[str, str]) -> None:
+        DEBUG2(" ---", f"File: {fname}")
+        with ScopePush(file=File(fname)):
+            for k, v in typedefs.items():
+                self.typedefs[k] = v
+            for dst, src in ((self.types, types),
+                                (self.names, names)):
+                for name in src:
+                    _dict_upsert_def(dst, src[name])
+            for dst2, src2 in ((self.fields, fields),
+                                (self.static_names, static_names)):
+                for name2 in src2:
+                    if name2 not in dst2:
+                        dst2[name2] = {}
+                    for name in src2[name2]:
+                        _dict_upsert_def(dst2[name2], src2[name2][name])
+
+    @staticmethod
+    def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str,
+                                                                           dict[str, Definition],
+                                                                           dict[str, dict[str, Definition]],
+                                                                           dict[str, Definition],
+                                                                           dict[str, dict[str, Definition]],
+                                                                           dict[str, str]]:
+        with ScopePush(file=File(fname)):
+            expander = MacroExpander()
+            txt = expander.expand(scope_file().read(), self.macros___)
+            scope_file().updateLineInfoWithInsertList(expander.insert_list)
+            self.updateFromText(txt, do_preproc=False)
+        return (fname, self.types, self.fields, self.names, self.static_names, self.typedefs)

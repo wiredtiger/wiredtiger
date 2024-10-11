@@ -38,7 +38,6 @@ def member_access_chains(txt: str, offset_in_parent: int = 0) -> Iterable[Access
             yield AccessChain(match[2], match.allcaptures()[3], offset)  # type: ignore[misc] # Tuple index out of range
             yield from member_access_chains(match[2][1:-1], offset_in_parent + match.start(2) + 1)
 
-
 @dataclass
 class AccessCheck:
     _globals: Codebase
@@ -214,7 +213,7 @@ class AccessCheck:
                 self._check_function(defn)
         else:
             init_multithreading()
-            with multiprocessing.Pool() as pool:
+            with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
                 for res in pool.starmap(
                         AccessCheck._check_function_name_for_multi,
                         itertools.chain(
