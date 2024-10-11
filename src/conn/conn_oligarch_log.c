@@ -376,7 +376,7 @@ __oligarch_log_remove_once_int(
     for (i = 0; i < logcount; i++) {
         WT_RET(__wt_oligarch_log_extract_lognum(session, logfiles[i], &lognum));
         if (lognum < min_lognum)
-            WT_RET(__wt_oligarch_log_remove(session, WT_LOG_FILENAME, lognum));
+            WT_RET(__wt_oligarch_log_remove(session, WT_OLIGARCH_LOG_FILENAME, lognum));
     }
 
     return (0);
@@ -462,7 +462,7 @@ __oligarch_log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
      * number.
      */
     WT_ERR(__wt_fs_directory_list(
-      session, conn->oligarch_log_info.log_path, WT_LOG_FILENAME, &logfiles, &logcount));
+      session, conn->oligarch_log_info.log_path, WT_OLIGARCH_LOG_FILENAME, &logfiles, &logcount));
 
     /*
      * If backup_file is non-zero we know we're coming from an incremental backup cursor. In that
@@ -511,7 +511,7 @@ __oligarch_log_prealloc_once(WT_SESSION_IMPL *session)
      * used yet.
      */
     WT_ERR(__wt_fs_directory_list(
-      session, conn->oligarch_log_info.log_path, WT_LOG_PREPNAME, &recfiles, &reccount));
+      session, conn->oligarch_log_info.log_path, WT_OLIGARCH_LOG_PREPNAME, &recfiles, &reccount));
 
     /*
      * Adjust the number of files to pre-allocate if we find that the critical path had to allocate
@@ -537,7 +537,7 @@ __oligarch_log_prealloc_once(WT_SESSION_IMPL *session)
      * Allocate up to the maximum number that we just computed and detected.
      */
     for (i = reccount; i < (u_int)conn->oligarch_log_info.log_prealloc; i++) {
-        WT_ERR(__wt_oligarch_log_allocfile(session, ++log->prep_fileid, WT_LOG_PREPNAME));
+        WT_ERR(__wt_oligarch_log_allocfile(session, ++log->prep_fileid, WT_OLIGARCH_LOG_PREPNAME));
         WT_STAT_CONN_INCR(session, log_prealloc_files);
     }
     /*
@@ -651,7 +651,8 @@ __oligarch_log_file_server(void *arg)
                  */
                 if (conn->hot_backup_start == 0 && conn->oligarch_log_info.log_cursors == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
-                      ret = __wt_ftruncate(session, close_fh, __wt_lsn_offset(&close_end_lsn)),
+                      ret =
+                        __wt_ftruncate(session, close_fh, __wt_oligarch_lsn_offset(&close_end_lsn)),
                       NULL);
                     WT_ERR_ERROR_OK(ret, ENOTSUP, false);
                 }
@@ -692,7 +693,7 @@ typedef struct {
 #define WT_WRLSN_ENTRY_CMP_LT(entry1, entry2)        \
     ((entry1).lsn.l.file < (entry2).lsn.l.file ||    \
       ((entry1).lsn.l.file == (entry2).lsn.l.file && \
-        __wt_lsn_offset(&(entry1).lsn) < __wt_lsn_offset(&(entry2).lsn)))
+        __wt_oligarch_lsn_offset(&(entry1).lsn) < __wt_oligarch_lsn_offset(&(entry2).lsn)))
 
 /*
  * __wt_oligarch_log_wrlsn --
@@ -799,7 +800,7 @@ restart:
                  * so that the checkpoint LSN is close to the end of the record.
                  */
                 slot_last_offset = (uint32_t)__wt_atomic_loadi64(&slot->slot_last_offset);
-                if (__wt_lsn_offset(&slot->slot_start_lsn) != slot_last_offset)
+                if (__wt_oligarch_lsn_offset(&slot->slot_start_lsn) != slot_last_offset)
                     __wt_atomic_store32(&slot->slot_start_lsn.l.offset, slot_last_offset);
                 WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
                 WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);

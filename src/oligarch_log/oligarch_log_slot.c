@@ -35,11 +35,11 @@ __oligarch_log_slot_dump(WT_SESSION_IMPL *session)
         __wt_errx(session, "    State: %" PRIx64 " Flags: %" PRIx16, (uint64_t)slot->slot_state,
           slot->flags_atomic);
         __wt_errx(session, "    Start LSN: %" PRIu32 "/%" PRIu32, slot->slot_start_lsn.l.file,
-          __wt_lsn_offset(&slot->slot_start_lsn));
+          __wt_oligarch_lsn_offset(&slot->slot_start_lsn));
         __wt_errx(session, "    End  LSN: %" PRIu32 "/%" PRIu32, slot->slot_end_lsn.l.file,
-          __wt_lsn_offset(&slot->slot_end_lsn));
+          __wt_oligarch_lsn_offset(&slot->slot_end_lsn));
         __wt_errx(session, "    Release LSN: %" PRIu32 "/%" PRIu32, slot->slot_release_lsn.l.file,
-          __wt_lsn_offset(&slot->slot_release_lsn));
+          __wt_oligarch_lsn_offset(&slot->slot_release_lsn));
         __wt_errx(session, "    Offset: start: %" PRIuMAX " last:%" PRIuMAX,
           (uintmax_t)__wt_atomic_loadi64(&slot->slot_start_offset),
           (uintmax_t)__wt_atomic_loadi64(&slot->slot_last_offset));
@@ -73,8 +73,8 @@ __wt_oligarch_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     slot->slot_unbuffered = 0;
     WT_ASSIGN_LSN(&slot->slot_start_lsn, &log->alloc_lsn);
     WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
-    __wt_atomic_storei64(&slot->slot_start_offset, __wt_lsn_offset(&log->alloc_lsn));
-    __wt_atomic_storei64(&slot->slot_last_offset, __wt_lsn_offset(&log->alloc_lsn));
+    __wt_atomic_storei64(&slot->slot_start_offset, __wt_oligarch_lsn_offset(&log->alloc_lsn));
+    __wt_atomic_storei64(&slot->slot_last_offset, __wt_oligarch_lsn_offset(&log->alloc_lsn));
     slot->slot_fh = log->log_fh;
     __wt_atomic_storei32(&slot->slot_error, 0);
     WT_DIAGNOSTIC_YIELD;
@@ -101,7 +101,7 @@ __oligarch_log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *rele
 
     *releasep = false;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_OLIGARCH_SLOT));
     conn = S2C(session);
     log = conn->oligarch_log_info.log;
     if (slot == NULL)
@@ -211,8 +211,8 @@ __oligarch_log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
         last_sync = &log->sync_lsn;
     else
         last_sync = &log->dirty_lsn;
-    current_offset = __wt_lsn_offset(current);
-    last_sync_offset = __wt_lsn_offset(last_sync);
+    current_offset = __wt_oligarch_lsn_offset(current);
+    last_sync_offset = __wt_oligarch_lsn_offset(last_sync);
     if (current->l.file == last_sync->l.file && current_offset > last_sync_offset &&
       current_offset - last_sync_offset > conn->oligarch_log_info.log_dirty_max) {
         /* Schedule the asynchronous sync */
@@ -237,7 +237,7 @@ __oligarch_log_slot_new(WT_SESSION_IMPL *session)
     int count;
 #endif
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_OLIGARCH_SLOT));
     conn = S2C(session);
     log = conn->oligarch_log_info.log;
 #ifdef HAVE_DIAGNOSTIC
@@ -322,7 +322,7 @@ __oligarch_log_slot_switch_internal(
     release = false;
     slot = myslot->slot;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_OLIGARCH_SLOT));
 
     /*
      * If someone else raced us to closing this specific slot, we're done here.
@@ -539,7 +539,7 @@ __wt_oligarch_log_slot_join(
     log = conn->oligarch_log_info.log;
     time_start = 0;
 
-    WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_OLIGARCH_SLOT));
     WT_ASSERT(session, mysize != 0);
 
     /*

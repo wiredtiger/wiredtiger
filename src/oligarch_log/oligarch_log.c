@@ -75,7 +75,7 @@ __oligarch_log_get_files(
     conn = S2C(session);
     log_path = conn->oligarch_log_info.log_path;
     if (log_path == NULL)
-        log_path = "oligarch";
+        log_path = "";
     return (__wt_fs_directory_list(session, log_path, file_prefix, filesp, countp));
 }
 
@@ -96,7 +96,7 @@ __oligarch_log_get_files_single(
     conn = S2C(session);
     log_path = conn->oligarch_log_info.log_path;
     if (log_path == NULL)
-        log_path = "oligarch";
+        log_path = "";
     return (__wt_fs_directory_list_single(session, log_path, file_prefix, filesp, countp));
 }
 
@@ -121,16 +121,16 @@ __oligarch_log_prealloc_remove(WT_SESSION_IMPL *session)
      * Clean up any old interim pre-allocated files. We clean up these files because settings may
      * have changed upon reboot and we want those settings to take effect right away.
      */
-    WT_ERR(__oligarch_log_get_files(session, WT_LOG_TMPNAME, &logfiles, &logcount));
+    WT_ERR(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_TMPNAME, &logfiles, &logcount));
     for (i = 0; i < logcount; i++) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, logfiles[i], &lognum));
-        WT_ERR(__wt_oligarch_log_remove(session, WT_LOG_TMPNAME, lognum));
+        WT_ERR(__wt_oligarch_log_remove(session, WT_OLIGARCH_LOG_TMPNAME, lognum));
     }
     WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
-    WT_ERR(__oligarch_log_get_files(session, WT_LOG_PREPNAME, &logfiles, &logcount));
+    WT_ERR(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_PREPNAME, &logfiles, &logcount));
     for (i = 0; i < logcount; i++) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, logfiles[i], &lognum));
-        WT_ERR(__wt_oligarch_log_remove(session, WT_LOG_PREPNAME, lognum));
+        WT_ERR(__wt_oligarch_log_remove(session, WT_OLIGARCH_LOG_PREPNAME, lognum));
     }
 err:
     WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
@@ -236,7 +236,7 @@ __oligarch_log_fsync_dir(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *
     if (log->sync_dir_lsn.l.file < min_lsn->l.file) {
         WT_ASSERT(session, log->log_dir_fh != NULL);
         __wt_verbose(session, WT_VERB_LOG, "%s: sync directory %s to LSN %" PRIu32 "/%" PRIu32,
-          method, log->log_dir_fh->name, min_lsn->l.file, __wt_lsn_offset(min_lsn));
+          method, log->log_dir_fh->name, min_lsn->l.file, __wt_oligarch_lsn_offset(min_lsn));
         time_start = __wt_clock(session);
         WT_RET(__wt_fsync(session, log->log_dir_fh, true));
         time_stop = __wt_clock(session);
@@ -279,7 +279,7 @@ __oligarch_log_fsync_file(
         else
             log_fh = log->log_fh;
         __wt_verbose(session, WT_VERB_LOG, "%s: sync %s to LSN %" PRIu32 "/%" PRIu32, method,
-          log_fh->name, min_lsn->l.file, __wt_lsn_offset(min_lsn));
+          log_fh->name, min_lsn->l.file, __wt_oligarch_lsn_offset(min_lsn));
         time_start = __wt_clock(session);
         WT_ERR(__wt_fsync(session, log_fh, true));
         time_stop = __wt_clock(session);
@@ -511,7 +511,7 @@ __wt_oligarch_log_get_backup_files(
      */
     F_SET(log, WT_LOG_FORCE_NEWFILE);
     WT_RET(__wt_oligarch_log_force_write(session, true, NULL));
-    WT_RET(__oligarch_log_get_files(session, WT_LOG_FILENAME, &files, &count));
+    WT_RET(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_FILENAME, &files, &count));
 
     for (max = 0, i = 0; i < count;) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, files[i], &id));
@@ -605,11 +605,11 @@ __wt_oligarch_log_reset(WT_SESSION_IMPL *session, uint32_t lognum)
      * new one so that log file numbers are contiguous in the file system.
      */
     WT_RET(__wt_close(session, &log->log_fh));
-    WT_RET(__oligarch_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    WT_RET(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_FILENAME, &logfiles, &logcount));
     for (i = 0; i < logcount; i++) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, logfiles[i], &old_lognum));
         WT_ASSERT(session, old_lognum < lognum || lognum == 1);
-        WT_ERR(__wt_oligarch_log_remove(session, WT_LOG_FILENAME, old_lognum));
+        WT_ERR(__wt_oligarch_log_remove(session, WT_OLIGARCH_LOG_FILENAME, old_lognum));
     }
     log->fileid = lognum;
 
@@ -867,10 +867,10 @@ __oligarch_log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, W
      */
     if (LF_ISSET(WT_LOG_OPEN_CREATE_OK)) {
         wtopen_flags = WT_FS_OPEN_CREATE;
-        WT_ERR(__wt_oligarch_log_filename(session, id, WT_LOG_TMPNAME, buf));
+        WT_ERR(__wt_oligarch_log_filename(session, id, WT_OLIGARCH_LOG_TMPNAME, buf));
     } else {
         wtopen_flags = 0;
-        WT_ERR(__wt_oligarch_log_filename(session, id, WT_LOG_FILENAME, buf));
+        WT_ERR(__wt_oligarch_log_filename(session, id, WT_OLIGARCH_LOG_FILENAME, buf));
     }
     __wt_verbose(session, WT_VERB_LOG, "opening log %s", (const char *)buf->data);
     if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
@@ -1105,7 +1105,8 @@ __oligarch_log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
     /*
      * If there are no pre-allocated files, return WT_NOTFOUND.
      */
-    WT_RET(__oligarch_log_get_files_single(session, WT_LOG_PREPNAME, &logfiles, &logcount));
+    WT_RET(
+      __oligarch_log_get_files_single(session, WT_OLIGARCH_LOG_PREPNAME, &logfiles, &logcount));
     if (logcount == 0)
         return (WT_NOTFOUND);
 
@@ -1114,8 +1115,8 @@ __oligarch_log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 
     WT_ERR(__wt_scr_alloc(session, 0, &from_path));
     WT_ERR(__wt_scr_alloc(session, 0, &to_path));
-    WT_ERR(__wt_oligarch_log_filename(session, from_num, WT_LOG_PREPNAME, from_path));
-    WT_ERR(__wt_oligarch_log_filename(session, to_num, WT_LOG_FILENAME, to_path));
+    WT_ERR(__wt_oligarch_log_filename(session, from_num, WT_OLIGARCH_LOG_PREPNAME, from_path));
+    WT_ERR(__wt_oligarch_log_filename(session, to_num, WT_OLIGARCH_LOG_FILENAME, to_path));
     __wt_spin_lock(session, &log->log_fs_lock);
     __wt_verbose(session, WT_VERB_LOG, "log_alloc_prealloc: rename log %s to %s",
       (const char *)from_path->data, (const char *)to_path->data);
@@ -1224,7 +1225,7 @@ __oligarch_log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
          */
         if (conn->hot_backup_start == 0 && !conn_open)
             log->prep_missed++;
-        WT_RET(__wt_oligarch_log_allocfile(session, log->fileid, WT_LOG_FILENAME));
+        WT_RET(__wt_oligarch_log_allocfile(session, log->fileid, WT_OLIGARCH_LOG_FILENAME));
     }
     /*
      * Since the file system clears the output file handle pointer before searching the handle list
@@ -1387,7 +1388,7 @@ __wt_oligarch_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT
      * Pre-allocate on the first real write into the log file, if it was just created (i.e. not
      * pre-allocated).
      */
-    if (__wt_lsn_offset(&log->alloc_lsn) == log->first_record && created_log)
+    if (__wt_oligarch_lsn_offset(&log->alloc_lsn) == log->first_record && created_log)
         WT_RET(__oligarch_log_prealloc(session, log->log_fh));
     /*
      * Initialize the slot for activation.
@@ -1466,7 +1467,7 @@ __oligarch_log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bo
      * future truncates.
      */
     WT_ERR(__oligarch_log_openfile(session, lsn->l.file, 0, &log_fh));
-    WT_ERR(__oligarch_log_truncate_file(session, log_fh, __wt_lsn_offset(lsn)));
+    WT_ERR(__oligarch_log_truncate_file(session, log_fh, __wt_oligarch_lsn_offset(lsn)));
     WT_ERR(__wt_fsync(session, log_fh, true));
     WT_ERR(__wt_close(session, &log_fh));
 
@@ -1479,7 +1480,7 @@ __oligarch_log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bo
      */
     if (this_log)
         goto err;
-    WT_ERR(__oligarch_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    WT_ERR(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_FILENAME, &logfiles, &logcount));
     for (i = 0; i < logcount; i++) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, logfiles[i], &lognum));
         if (lognum > lsn->l.file && lognum < log->trunc_lsn.l.file) {
@@ -1494,8 +1495,8 @@ __oligarch_log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bo
                   __oligarch_log_open_verify(session, lognum, &log_fh, NULL, NULL, &need_salvage));
                 if (need_salvage) {
                     WT_ASSERT(session, log_fh == NULL);
-                    WT_ERR(__wt_oligarch_log_remove(session, WT_LOG_FILENAME, lognum));
-                    WT_ERR(__wt_oligarch_log_allocfile(session, lognum, WT_LOG_FILENAME));
+                    WT_ERR(__wt_oligarch_log_remove(session, WT_OLIGARCH_LOG_FILENAME, lognum));
+                    WT_ERR(__wt_oligarch_log_allocfile(session, lognum, WT_OLIGARCH_LOG_FILENAME));
                 } else
                     opened = true;
 
@@ -1559,7 +1560,7 @@ __wt_oligarch_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const cha
     WT_RET(__wt_scr_alloc(session, 0, &from_path));
     WT_ERR(__wt_scr_alloc(session, 0, &to_path));
     tmp_id = __wt_atomic_add32(&log->tmp_fileid, 1);
-    WT_ERR(__wt_oligarch_log_filename(session, tmp_id, WT_LOG_TMPNAME, from_path));
+    WT_ERR(__wt_oligarch_log_filename(session, tmp_id, WT_OLIGARCH_LOG_TMPNAME, from_path));
     WT_ERR(__wt_oligarch_log_filename(session, lognum, dest, to_path));
     __wt_spin_lock(session, &log->log_fs_lock);
     /*
@@ -1619,7 +1620,7 @@ __wt_oligarch_log_compat_verify(WT_SESSION_IMPL *session)
 
     lastlog = 0;
 
-    WT_ERR(__oligarch_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    WT_ERR(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_FILENAME, &logfiles, &logcount));
     for (i = 0; i < logcount; i++) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, logfiles[i], &lognum));
         lastlog = WT_MAX(lastlog, lognum);
@@ -1675,7 +1676,7 @@ again:
     firstlog = UINT32_MAX;
     need_salvage = false;
 
-    WT_ERR(__oligarch_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    WT_ERR(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_FILENAME, &logfiles, &logcount));
     for (i = 0; i < logcount; i++) {
         WT_ERR(__wt_oligarch_log_extract_lognum(session, logfiles[i], &lognum));
         lastlog = WT_MAX(lastlog, lognum);
@@ -1700,7 +1701,7 @@ again:
          * all over again.
          */
         if (need_salvage) {
-            WT_ERR(__wt_oligarch_log_remove(session, WT_LOG_FILENAME, lastlog));
+            WT_ERR(__wt_oligarch_log_remove(session, WT_OLIGARCH_LOG_FILENAME, lastlog));
             __wt_verbose_notice(
               session, WT_VERB_LOG, "salvage: log file %" PRIu32 " removed", lastlog);
             WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
@@ -2133,7 +2134,7 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
          */
         allocsize = WT_LOG_ALIGN;
         firstlog = UINT32_MAX;
-        WT_RET(__oligarch_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+        WT_RET(__oligarch_log_get_files(session, WT_OLIGARCH_LOG_FILENAME, &logfiles, &logcount));
         if (logcount == 0)
             WT_RET_MSG(session, ENOTSUP, "no log files found");
         for (i = 0; i < logcount; i++) {
@@ -2152,11 +2153,11 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
          * WT_NOTFOUND. It is not an error. But if it is from recovery, we expect valid LSNs so give
          * more information about that.
          */
-        if (__wt_lsn_offset(start_lsnp) % allocsize != 0) {
+        if (__wt_oligarch_lsn_offset(start_lsnp) % allocsize != 0) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
                 WT_ERR_MSG(session, WT_NOTFOUND,
                   "__wt_oligarch_log_scan unaligned LSN %" PRIu32 "/%" PRIu32, start_lsnp->l.file,
-                  __wt_lsn_offset(start_lsnp));
+                  __wt_oligarch_lsn_offset(start_lsnp));
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2170,7 +2171,7 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
                 WT_ERR_MSG(session, WT_NOTFOUND,
                   "__wt_oligarch_log_scan LSN %" PRIu32 "/%" PRIu32
                   " larger than biggest log file %" PRIu32,
-                  start_lsnp->l.file, __wt_lsn_offset(start_lsnp), lastlog);
+                  start_lsnp->l.file, __wt_oligarch_lsn_offset(start_lsnp), lastlog);
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2195,16 +2196,16 @@ __wt_oligarch_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end
     WT_ERR(__wt_scr_alloc(session, 0, &decryptitem));
     WT_ERR(__wt_scr_alloc(session, 0, &uncitem));
     for (;;) {
-        if (__wt_lsn_offset(&rd_lsn) + allocsize > log_size) {
+        if (__wt_oligarch_lsn_offset(&rd_lsn) + allocsize > log_size) {
 advance:
-            if (__wt_lsn_offset(&rd_lsn) == log_size)
+            if (__wt_oligarch_lsn_offset(&rd_lsn) == log_size)
                 partial_record = false;
             else {
                 /*
                  * See if there is anything non-zero at the end of this log file.
                  */
-                WT_ERR(__oligarch_log_has_hole(session, log_fh, log_size, __wt_lsn_offset(&rd_lsn),
-                  &bad_offset, &partial_record));
+                WT_ERR(__oligarch_log_has_hole(session, log_fh, log_size,
+                  __wt_oligarch_lsn_offset(&rd_lsn), &bad_offset, &partial_record));
                 if (bad_offset != 0) {
                     need_salvage = true;
                     WT_ERR(__oligarch_log_salvage_message(session, log_fh->name, "", bad_offset));
@@ -2222,7 +2223,7 @@ advance:
             if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
               __wt_oligarch_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
                 __wt_verbose(session, WT_VERB_LOG, "Truncate end of log %" PRIu32 "/%" PRIu32,
-                  rd_lsn.l.file, __wt_lsn_offset(&rd_lsn));
+                  rd_lsn.l.file, __wt_oligarch_lsn_offset(&rd_lsn));
                 WT_ERR(__oligarch_log_truncate(session, &rd_lsn, true, false));
             }
             /*
@@ -2252,7 +2253,7 @@ advance:
              */
             if (LF_ISSET(WT_LOGSCAN_RECOVER) && !WT_IS_INIT_LSN(&prev_lsn) &&
               !WT_IS_ZERO_LSN(&prev_lsn) &&
-              __wt_lsn_offset(&prev_lsn) != __wt_lsn_offset(&prev_eof)) {
+              __wt_oligarch_lsn_offset(&prev_lsn) != __wt_oligarch_lsn_offset(&prev_eof)) {
                 WT_ASSERT(session, prev_eof.l.file == prev_lsn.l.file);
                 break;
             }
@@ -2277,7 +2278,7 @@ advance:
         WT_ASSERT(session, buf->memsize >= allocsize);
         need_salvage = F_ISSET(conn, WT_CONN_SALVAGE);
         WT_ERR(__oligarch_log_fs_read(
-          session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)allocsize, buf->mem));
+          session, log_fh, __wt_oligarch_lsn_offset(&rd_lsn), (size_t)allocsize, buf->mem));
         need_salvage = false;
         /*
          * See if we need to read more than the allocation size. We expect that we rarely will have
@@ -2297,7 +2298,7 @@ advance:
          */
         if (reclen == 0) {
             WT_ERR(__oligarch_log_has_hole(
-              session, log_fh, log_size, __wt_lsn_offset(&rd_lsn), &bad_offset, &eol));
+              session, log_fh, log_size, __wt_oligarch_lsn_offset(&rd_lsn), &bad_offset, &eol));
             if (bad_offset != 0) {
                 need_salvage = true;
                 WT_ERR(__oligarch_log_salvage_message(session, log_fh->name, "", bad_offset));
@@ -2314,7 +2315,7 @@ advance:
              * The log file end could be the middle of this log record. If we have a partially
              * written record then this is considered the end of the log.
              */
-            if (__wt_lsn_offset(&rd_lsn) + rdup_len > log_size) {
+            if (__wt_oligarch_lsn_offset(&rd_lsn) + rdup_len > log_size) {
                 eol = true;
                 break;
             }
@@ -2323,7 +2324,7 @@ advance:
              */
             WT_ERR(__wt_buf_grow(session, buf, rdup_len));
             WT_ERR(__oligarch_log_fs_read(
-              session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)rdup_len, buf->mem));
+              session, log_fh, __wt_oligarch_lsn_offset(&rd_lsn), (size_t)rdup_len, buf->mem));
             WT_STAT_CONN_INCR(session, log_scan_rereads);
         }
         /*
@@ -2373,18 +2374,18 @@ advance:
                  */
                 need_salvage = true;
                 WT_TRET(__oligarch_log_salvage_message(
-                  session, log_fh->name, ", bad checksum", __wt_lsn_offset(&rd_lsn)));
+                  session, log_fh->name, ", bad checksum", __wt_oligarch_lsn_offset(&rd_lsn)));
             } else {
                 /*
                  * It may be a partial write, or it's possible that the header is corrupt. Make a
                  * sanity check of the log record header.
                  */
                 WT_TRET(__oligarch_log_record_verify(
-                  session, log_fh, __wt_lsn_offset(&rd_lsn), logrec, &corrupt));
+                  session, log_fh, __wt_oligarch_lsn_offset(&rd_lsn), logrec, &corrupt));
                 if (corrupt) {
                     need_salvage = true;
                     WT_TRET(__oligarch_log_salvage_message(
-                      session, log_fh->name, "", __wt_lsn_offset(&rd_lsn)));
+                      session, log_fh->name, "", __wt_oligarch_lsn_offset(&rd_lsn)));
                 }
             }
             break;
@@ -2397,7 +2398,7 @@ advance:
         WT_STAT_CONN_INCR(session, log_scan_records);
         WT_ASSIGN_LSN(&next_lsn, &rd_lsn);
         __wt_atomic_add32(&next_lsn.l.offset, rdup_len);
-        if (__wt_lsn_offset(&rd_lsn) != 0) {
+        if (__wt_oligarch_lsn_offset(&rd_lsn) != 0) {
             /*
              * We need to manage the different buffers here. Buf is the buffer this function uses to
              * read from the disk. The callback buffer may change based on whether encryption and
@@ -2436,7 +2437,7 @@ advance:
     if (LF_ISSET(WT_LOGSCAN_RECOVER) && __wt_oligarch_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
         __wt_verbose(session, WT_VERB_LOG,
           "End of recovery truncate end of log %" PRIu32 "/%" PRIu32, rd_lsn.l.file,
-          __wt_lsn_offset(&rd_lsn));
+          __wt_oligarch_lsn_offset(&rd_lsn));
         /* Preserve prior error and fall through to error handling. */
         WT_TRET(__oligarch_log_truncate(session, &rd_lsn, false, false));
     }
@@ -2854,7 +2855,7 @@ __wt_oligarch_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
      * to be flushed. Otherwise, if the workload is single-threaded we could wait here forever
      * because the write LSN doesn't switch into the new file until it contains a record.
      */
-    if (__wt_lsn_offset(&last_lsn) == log->first_record)
+    if (__wt_oligarch_lsn_offset(&last_lsn) == log->first_record)
         WT_ASSIGN_LSN(&last_lsn, &log->log_close_lsn);
 
     /*
@@ -2867,7 +2868,7 @@ __wt_oligarch_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 
     __wt_verbose_debug2(session, WT_VERB_LOG,
       "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32, flags, lsn.l.file,
-      __wt_lsn_offset(&lsn));
+      __wt_oligarch_lsn_offset(&lsn));
     /*
      * If the user wants write-no-sync, there is nothing more to do. If the user wants background
      * sync, set the LSN and we're done. If the user wants sync, force it now.

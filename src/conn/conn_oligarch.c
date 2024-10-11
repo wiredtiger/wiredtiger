@@ -684,7 +684,7 @@ err:
     __wt_err(session, ret,
       "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
       "/%" PRIu32,
-      optype, lsnp->l.file, __wt_lsn_offset(lsnp));
+      optype, lsnp->l.file, __wt_oligarch_lsn_offset(lsnp));
     return (ret);
 }
 

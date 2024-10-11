@@ -47,6 +47,10 @@ union __wt_lsn {
 #define WT_LOG_PREPNAME "WiredTigerPreplog" /* Log pre-allocated name */
 #define WT_LOG_TMPNAME "WiredTigerTmplog"   /* Log temporary name */
 
+#define WT_OLIGARCH_LOG_FILENAME "WiredTigerOligarchLog"     /* Oligarch log file name */
+#define WT_OLIGARCH_LOG_PREPNAME "WiredTigerPrepOligarchlog" /* Oligarch log pre-allocated name */
+#define WT_OLIGARCH_LOG_TMPNAME "WiredTigerTmpOligarchlog"   /* Oligarch log temporary name */
+
 /* Logging subsystem declarations. */
 #define WT_LOG_ALIGN 128
 

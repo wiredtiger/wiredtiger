@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 
 class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    conn_base_config = 'log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
 
