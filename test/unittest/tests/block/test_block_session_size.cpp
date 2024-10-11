@@ -20,7 +20,6 @@
 #include "util_block.h"
 #include "../wrappers/mock_session.h"
 
-
 TEST_CASE("Block session: __block_size_alloc", "[block_session_size]")
 {
     WT_SIZE *sz = nullptr;

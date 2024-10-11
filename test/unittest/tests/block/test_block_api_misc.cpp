@@ -105,7 +105,8 @@ TEST_CASE("Block manager: addr invalid", "[block_api_misc]")
     // will crash if it attempts to check various session flags.
     auto path = std::filesystem::current_path();
     std::string file_path(path.string() + "/test.wt");
-    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX, OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
+    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX,
+      OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
     SECTION("Test addr invalid with a valid address cookie containing non-zero values")
@@ -162,7 +163,8 @@ TEST_CASE("Block manager: addr string", "[block_api_misc]")
     WT_CLEAR(bm);
     auto path = std::filesystem::current_path();
     std::string file_path(path.string() + "/test.wt");
-    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX, OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
+    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX,
+      OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
     SECTION("Test addr string with non-zero values")
@@ -229,7 +231,8 @@ TEST_CASE("Block manager: size and stat", "[block_api_misc]")
     WT_CLEAR(bm);
     auto path = std::filesystem::current_path();
     std::string file_path(path.string() + "/test.wt");
-    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX, OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
+    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX,
+      OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
     WT_SESSION_IMPL *s = session->get_wt_session_impl();
 
     SECTION("Test that the bm->stat method updates statistics correctly")

@@ -33,7 +33,6 @@ struct addr_cookie {
     size_t size;
 };
 
-
 /*
  * Test and validate the bm->write_size() function.
  */
@@ -142,7 +141,6 @@ test_validate_cookies(WT_BM *bm, const std::shared_ptr<mock_session> &session,
     }
 }
 
-
 TEST_CASE("Block manager: file operation read, write and write_size functions", "[block_api]")
 {
     // Build Mock session, this will automatically create a mock connection.
@@ -152,7 +150,8 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
     WT_CLEAR(bm);
     auto path = std::filesystem::current_path();
     std::string file_path(path.string() + "/test.wt");
-    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX, OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
+    setup_bm(session, &bm, file_path, ALLOCATION_SIZE, BLOCK_ALLOCATION, OS_CACHE_MAX,
+      OS_CACHE_DIRTY_MAX, ACCESS_PATTERN);
 
     SECTION("Test write_size api")
     {

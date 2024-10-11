@@ -1,5 +1,5 @@
 /*-
-* Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,7 +53,6 @@ validate_and_free_ext_block(WT_EXT *ext)
     free_ext_block(ext);
 }
 
-
 void
 validate_and_free_size_block(WT_SIZE *size)
 {
@@ -77,7 +76,6 @@ validate_size_list(WT_BLOCK_MGR_SESSION *bms, int expected_items)
     REQUIRE(curr == nullptr);
 }
 
-
 void
 validate_size_block(WT_SIZE *size)
 {
@@ -92,7 +90,6 @@ free_size_block(WT_SIZE *size)
 {
     __wt_free(nullptr, size);
 }
-
 
 /*
  * Initialize a write buffer to perform bm->write().
@@ -119,10 +116,11 @@ create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::strin
     memcpy(WT_BLOCK_HEADER_BYTE(buf->mem), contents.c_str(), contents.length());
 }
 
-
 void
-setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &file_path, const std::string &allocation_size,
-    const std::string &block_allocation, const std::string &os_cache_max, const std::string &os_cache_dirty_max, const std::string &access_pattern)
+setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &file_path,
+  const std::string &allocation_size, const std::string &block_allocation,
+  const std::string &os_cache_max, const std::string &os_cache_dirty_max,
+  const std::string &access_pattern)
 {
     REQUIRE(
       (session->get_mock_connection()->setup_block_manager(session->get_wt_session_impl())) == 0);

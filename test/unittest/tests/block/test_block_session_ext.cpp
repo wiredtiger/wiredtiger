@@ -19,7 +19,6 @@
 #include "util_block.h"
 #include "../wrappers/mock_session.h"
 
-
 TEST_CASE("Block session: __block_ext_alloc", "[block_session_ext]")
 {
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
@@ -69,7 +68,8 @@ TEST_CASE("Block session: __block_ext_prealloc", "[block_session_ext]")
     }
 }
 
-TEST_CASE("Block session: __wti_block_ext_alloc with null block manager session", "[block_session_ext]")
+TEST_CASE(
+  "Block session: __wti_block_ext_alloc with null block manager session", "[block_session_ext]")
 {
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
