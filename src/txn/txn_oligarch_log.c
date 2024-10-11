@@ -251,7 +251,6 @@ err:
 int
 __wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_ITEM *logrec;
     WT_TXN *txn;
