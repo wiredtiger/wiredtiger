@@ -549,6 +549,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      * when done in eviction threads).
      */
     if (WT_READING_CHECKPOINT(session)) {
+        /* Tell the waiting pre-fetch thread to proceed. */
         CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
           session, WT_CONN_CONTROL_POINT_ID_WT_12945);
         return (0);
