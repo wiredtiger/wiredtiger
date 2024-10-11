@@ -1747,6 +1747,7 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during checkpoint (usecs)",
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
+  "capacity: time waiting during oligarch logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "capacity: time waiting for chunk cache IO bandwidth (usecs)",
   "checkpoint: checkpoint cleanup successful calls",
@@ -2519,6 +2520,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_ckpt = 0;
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
+    stats->capacity_time_oligarch_log = 0;
     stats->capacity_time_read = 0;
     stats->capacity_time_chunkcache = 0;
     stats->checkpoint_cleanup_success = 0;
@@ -3322,6 +3324,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_ckpt += WT_STAT_CONN_READ(from, capacity_time_ckpt);
     to->capacity_time_evict += WT_STAT_CONN_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_CONN_READ(from, capacity_time_log);
+    to->capacity_time_oligarch_log += WT_STAT_CONN_READ(from, capacity_time_oligarch_log);
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
     to->capacity_time_chunkcache += WT_STAT_CONN_READ(from, capacity_time_chunkcache);
     to->checkpoint_cleanup_success += WT_STAT_CONN_READ(from, checkpoint_cleanup_success);

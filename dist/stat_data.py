@@ -401,6 +401,7 @@ conn_stats = [
     CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
     CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
     CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
+    CapacityStat('capacity_time_oligarch_log', 'time waiting during oligarch logging (usecs)'),
     CapacityStat('capacity_time_read', 'time waiting during read (usecs)'),
     CapacityStat('capacity_time_total', 'time waiting due to total capacity (usecs)'),
     CapacityStat('fsync_all_fh', 'background fsync file handles synced'),

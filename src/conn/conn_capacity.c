@@ -509,6 +509,9 @@ again:
             case WT_THROTTLE_LOG:
                 WT_STAT_CONN_INCRV(session, capacity_time_log, sleep_us);
                 break;
+            case WT_THROTTLE_OLIGARCH_LOG:
+                WT_STAT_CONN_INCRV(session, capacity_time_oligarch_log, sleep_us);
+                break;
             case WT_THROTTLE_READ:
                 WT_STAT_CONN_INCRV(session, capacity_time_read, sleep_us);
                 break;
