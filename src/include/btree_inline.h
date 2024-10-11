@@ -766,6 +766,20 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
         /* Assert we never dirty a checkpoint handle. */
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
 
+        /*
+         * We should never set a btree dirty when checkpoint is triggered by RTS, recovery or when
+         * closing the connection. Those specific scenarios should always leave the database clean.
+         * The only exception is related to the metadata file: it is expected to be marked as dirty
+         * whenever a btree is checkpointed.
+         */
+        if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
+          !FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
+            WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
+              "A btree is marked dirty during RTS");
+            WT_ASSERT_ALWAYS(session,
+              !F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT), "%s",
+              "A btree is marked dirty during recovery or shutdown");
+        }
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
 
@@ -1501,23 +1515,6 @@ __wt_row_leaf_value_cell(
 
     __wt_cell_unpack_kv(session, page->dsk, __wt_cell_leaf_value_parse(page, vcell), vpack);
 }
-
-/*
- * WT_ADDR_COPY --
- *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
- * copy of the WT_REF address information.
- */
-struct __wt_addr_copy {
-    uint8_t type;
-
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    uint8_t size;
-
-    WT_TIME_AGGREGATE ta;
-
-    WT_PAGE_DELETED del; /* Fast-truncate page information */
-    bool del_set;
-};
 
 /*
  * __wt_ref_addr_copy --
