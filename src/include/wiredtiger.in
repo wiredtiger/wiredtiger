@@ -3606,9 +3606,9 @@ struct __wt_connection {
  * empty.}
  * @config{wt_12945 = (, The internal prefetch thread waits for eviction to evict this page., a set
  * of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * enable_count, the number of triggers that are enabled., an integer between \c 1 and \c
- * 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count,
+ * the number of triggers for which to wait., an integer between \c 1 and \c 9223372036854775807;
+ * default \c 1.}
  * @config{ ),,}
  * @configend
  * Additionally, if files named \c WiredTiger.config or \c WiredTiger.basecfg
