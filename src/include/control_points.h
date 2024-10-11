@@ -31,8 +31,8 @@ typedef uint32_t wt_control_point_action_id_t;
  * A function to initialize a control point's data.
  * If per-connection session = NULL.
  */
-typedef WT_CONTROL_POINT_DATA *wt_control_point_init_t(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg);
+typedef WT_CONTROL_POINT_DATA *wt_control_point_init_t(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg);
 
 /*!
  * A function to test whether a control point should be triggered.
@@ -50,6 +50,8 @@ struct __wt_control_point_registry {
     size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
     WT_SPINLOCK lock;                  /* Atomically access data and data->ref_count. */
     const char *config_name;           /* Control point config name */
+    bool enable_at_open;
+    bool control_point_for_connection;
     /* Disabled if NULL. More data may follow WT_CONTROL_POINT_DATA. */
     WT_CONTROL_POINT_DATA *cp_data;
     wt_control_point_action_id_t action_supported; /* For compatibility checking. */

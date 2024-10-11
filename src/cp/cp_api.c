@@ -201,9 +201,9 @@ __wti_conn_control_point_enable(
     if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         WT_ERR(EEXIST);
-    cp_data = cp_registry->init(NULL, cp_registry->config_name, cfg);
+    cp_data = cp_registry->init(NULL, cp_registry->config_name, true, cfg);
     if (WT_UNLIKELY(cp_data == NULL))
-        WT_ERR(WT_ERROR);
+        WT_ASSERT(NULL, false);
     cp_registry->cp_data = cp_data;
 err:
     __wt_spin_unlock(NULL, &cp_registry->lock);
@@ -261,7 +261,7 @@ __wti_session_control_point_enable(
         return (EEXIST);
     cfgs[0] = cfg;
     cfgs[1] = NULL;
-    cp_data = cp_registry->init(session, cp_registry->config_name, cfgs);
+    cp_data = cp_registry->init(session, cp_registry->config_name, false, cfgs);
     if (WT_UNLIKELY(cp_data == NULL))
         return (WT_ERROR);
     cp_registry->cp_data = cp_data;

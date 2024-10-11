@@ -21,9 +21,22 @@
 /* See comment in cp_action.c:__wt_verbose levels used in WT_VERB_CONTROL_POINT logging. */
 
 #ifdef HAVE_CONTROL_POINT
-/* Pair init function. */
 
+static int
+construct_configuration_control_point_string(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, char **buf)
+{
+    size_t len = strlen("per_connection_control_points") + strlen(cp_config_name) + 10;
+    WT_RET(__wt_calloc_def(session, len, buf));
+    WT_RET(__wt_snprintf(*buf, len, "%s.%s",
+      control_point_for_connection ? "per_connection_control_points" : "per_session_control_points",
+      cp_config_name));
+    return (0);
+}
+
+/* Pair init function. */
 /* Pair "Always" and "Sleep". */
+
 /*
  * __wt_control_point_pair_init_always_sleep --
  *     The pair initialization function for predicate "Always" and action "Sleep".
@@ -32,26 +45,31 @@
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
+
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_always_sleep(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_always_sleep(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_sleep *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, &cval));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -65,25 +83,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_always_err(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_always_err(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_err *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, &cval));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
 
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -97,25 +120,29 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_always_ret(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_always_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_ret *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, &cval));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -129,19 +156,23 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_always_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_always_wait_for_trigger(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_wait_for_trigger *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, &cval));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
     /* Extra initialization required for action "Wait for trigger". */
@@ -150,7 +181,7 @@ __wt_control_point_pair_init_always_wait_for_trigger(
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -164,25 +195,29 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_skip_sleep(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_skip_sleep(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_sleep *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, &cval));
+    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -196,25 +231,29 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_skip_err(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_skip_err(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_err *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, &cval));
+    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -228,25 +267,29 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_skip_ret(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_skip_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_ret *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, &cval));
+    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -260,20 +303,24 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_skip_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_skip_wait_for_trigger(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_wait_for_trigger *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, &cval));
+    WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
@@ -281,7 +328,7 @@ __wt_control_point_pair_init_skip_wait_for_trigger(
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -295,25 +342,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_times_sleep(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_times_sleep(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_sleep *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, &cval));
+    WT_ERR(
+      __wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -327,25 +379,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_times_err(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_times_err(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_err *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, &cval));
+    WT_ERR(
+      __wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -359,25 +416,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_times_ret(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_times_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_ret *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, &cval));
+    WT_ERR(
+      __wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -391,20 +453,25 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_times_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_times_wait_for_trigger(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_wait_for_trigger *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
-    WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, &cval));
+    WT_ERR(
+      __wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
@@ -412,7 +479,7 @@ __wt_control_point_pair_init_times_wait_for_trigger(
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -426,26 +493,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param1_sleep(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param1_sleep(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_sleep *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param1(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -459,26 +530,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param1_err(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param1_err(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_err *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param1(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -492,26 +567,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param1_ret(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param1_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_ret *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param1(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -525,21 +604,25 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param1_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param1_wait_for_trigger(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_wait_for_trigger *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param1(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
@@ -547,7 +630,7 @@ __wt_control_point_pair_init_random_param1_wait_for_trigger(
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -561,26 +644,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param2_sleep(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param2_sleep(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_sleep *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_sleep(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param2(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -594,26 +681,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param2_err(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param2_err(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_err *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_err(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_err(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param2(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -627,26 +718,30 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param2_ret(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param2_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_ret *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_ret(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_ret(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param2(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 
@@ -660,21 +755,25 @@ err:
  *     Configuration string.
  */
 WT_CONTROL_POINT_DATA *
-__wt_control_point_pair_init_random_param2_wait_for_trigger(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg)
+__wt_control_point_pair_init_random_param2_wait_for_trigger(WT_SESSION_IMPL *session,
+  const char *cp_config_name, bool control_point_for_connection, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
     struct __wt_control_point_pair_data_wait_for_trigger *init_data;
     WT_DECL_RET;
-    WT_UNUSED(cp_config_name);
+    char *config_str = NULL;
 
     ret = __wt_calloc_one(session, &init_data);
     if (WT_UNLIKELY(ret != 0))
         return (NULL);
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(construct_configuration_control_point_string(
+      session, cp_config_name, control_point_for_connection, &config_str));
+    WT_ERR(__wt_config_gets(session, cfg, config_str, &cval));
+    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, &cval));
     WT_ERR(__wt_control_point_config_pred_random_param2(
-      session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
+      session, (WT_CONTROL_POINT_DATA *)init_data, &cval));
 
     /* Extra initialization required for action "Wait for trigger". */
     __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
@@ -682,7 +781,7 @@ __wt_control_point_pair_init_random_param2_wait_for_trigger(
 err:
     if (ret != 0)
         __wt_free(session, init_data);
-
+    __wt_free(session, config_str);
     return ((WT_CONTROL_POINT_DATA *)init_data);
 }
 

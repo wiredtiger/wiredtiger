@@ -51,17 +51,16 @@
  */
 int
 __wt_control_point_config_action_sleep(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_SLEEP *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_SLEEP *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point action configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_CONFIG_ITEM cval;
     WT_CONTROL_POINT_ACTION_SLEEP *action_data;
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
 
-    action_data = &data->action_data;
-    action_data->seconds = 2;
-    action_data->microseconds = 3;
+    action_data = (WT_CONTROL_POINT_ACTION_SLEEP *)(data + 1);
+    WT_RET(__wt_config_subgets(session, item, "seconds", &cval));
+    action_data->seconds = (uint64_t)cval.val;
+    WT_RET(__wt_config_subgets(session, item, "microseconds", &cval));
+    action_data->microseconds = (uint64_t)cval.val;
     return (0);
 }
 
@@ -79,16 +78,15 @@ __wt_control_point_config_action_sleep(
  */
 int
 __wt_control_point_config_action_err(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_ERR *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_ERR *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point action configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_CONFIG_ITEM cval;
     WT_CONTROL_POINT_ACTION_ERR *action_data;
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
 
-    action_data = &data->action_data;
-    action_data->err = WT_ERROR;
+    action_data = (WT_CONTROL_POINT_ACTION_ERR *)(data + 1);
+
+    WT_RET(__wt_config_subgets(session, item, "error", &cval));
+    action_data->err = (int)cval.val;
     return (0);
 }
 
@@ -105,16 +103,15 @@ __wt_control_point_config_action_err(
  */
 int
 __wt_control_point_config_action_ret(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_RET *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_RET *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point action configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
-    WT_CONTROL_POINT_ACTION_RET *action_data;
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
+    WT_CONFIG_ITEM cval;
+    WT_CONTROL_POINT_ACTION_ERR *action_data;
 
-    action_data = &data->action_data;
-    action_data->ret_value = WT_ERROR;
+    action_data = (WT_CONTROL_POINT_ACTION_ERR *)(data + 1);
+
+    WT_RET(__wt_config_subgets(session, item, "return", &cval));
+    action_data->err = (int)cval.val;
     return (0);
 }
 
@@ -134,16 +131,14 @@ __wt_control_point_config_action_ret(
  */
 int
 __wt_control_point_config_action_wait_for_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point action configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
+    WT_CONFIG_ITEM cval;
     WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
 
-    action_data = &data->action_data;
-    action_data->wait_count = 1;
+    action_data = (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(data + 1);
+    WT_RET(__wt_config_subgets(session, item, "wait_count", &cval));
+    action_data->wait_count = (uint64_t)cval.val;
     return (0);
 }
 
