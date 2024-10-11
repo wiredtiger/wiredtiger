@@ -56,9 +56,11 @@
 #define WT_CONN_CONTROL_POINT_ID_THREAD_7 ((wt_control_point_id_t)8)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_8 ((wt_control_point_id_t)9)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_9 ((wt_control_point_id_t)10)
+#define WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT ((wt_control_point_id_t)11)
+#define WT_CONN_CONTROL_POINT_ID_WT_13450_TEST ((wt_control_point_id_t)12)
 
 /* The number of per connection control points (Could be generated). */
-#define CONNECTION_CONTROL_POINTS_SIZE 11
+#define CONNECTION_CONTROL_POINTS_SIZE 13
 
 /*
  * Per session control point IDs.

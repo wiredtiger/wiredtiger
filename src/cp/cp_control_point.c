@@ -279,6 +279,26 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_9].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].init =
+      __wt_control_point_pair_init_param_match_wait_for_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].pred =
+      __wt_control_point_pred_param_match;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].config_name = "wt_13450_ckpt";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].lock), "WT 13450"));
+    /* Extra initialization required for action "Wait for trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
+
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].init =
+      __wt_control_point_pair_init_always_wait_for_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].pred = NULL;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].config_name = "wt_13450_test";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].lock), "WT 13450"));
+    /* Extra initialization required for action "Wait for trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
     /* After all repeats finish with this. */
     S2C(session)->control_points = control_points;
 

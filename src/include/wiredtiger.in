@@ -3604,6 +3604,19 @@ struct __wt_connection {
  * write_through should be combined with \c direct_io to get the equivalent of POSIX \c O_DIRECT on
  * Windows., a list\, with values chosen from the following options: \c "data"\, \c "log"; default
  * empty.}
+ * @config{wt_13450_ckpt = (, Next cursor waits for checkpoint to get here., a set of related
+ * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;match_value, the btree
+ * id for which to wait., an integer between \c 0 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for which to wait., an integer
+ * between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{ ),,}
+ * @config{wt_13450_test = (, Test waits for cursor next to get here., a set of related
+ * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
+ * of triggers for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c
+ * 1.}
+ * @config{ ),,}
  * @configend
  * Additionally, if files named \c WiredTiger.config or \c WiredTiger.basecfg
  * appear in the WiredTiger home directory, they are read for configuration

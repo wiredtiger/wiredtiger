@@ -239,9 +239,33 @@ ex_control_points_config = [
                       min='1', max=Config.int64_max),
            ]),
 ]
-
+# To reproduce WT-13450
+wt_13450_control_points_config = [
+    ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
+        '', r'''
+           Next cursor waits for checkpoint to get here.''',
+           type='category', subconfig= [
+               # Predicate configuration paramters
+               Config('match_value', '1', r'''
+                      the btree id for which to wait''',
+                      min='0', max=Config.int64_max),
+               # Action configuration parameters
+               Config('wait_count', '1', r'''
+                      the number of triggers for which to wait''',
+                      min='1', max=Config.int64_max),
+           ]),
+    ConnectionControlPoint('WT 13450 TEST', 'Wait for trigger', 'Always',
+        '', r'''
+           Test waits for cursor next to get here.''',
+           type='category', subconfig= [
+               # Action configuration parameters
+               Config('wait_count', '1', r'''
+                      the number of triggers for which to wait''',
+                      min='1', max=Config.int64_max),
+           ]),
+]
 # All per connection control points
-all_per_connection_control_points_config = ex_control_points_config
+all_per_connection_control_points_config = ex_control_points_config + wt_13450_control_points_config
 
 # All per session control points
 all_per_session_control_points_config = [ ]

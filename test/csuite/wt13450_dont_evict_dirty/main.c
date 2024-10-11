@@ -36,10 +36,13 @@
  * - Create a clean tree with deleted content across the tree but content that can't be removed due
  * to the oldest timestamp.
  * - To clean the tree reopen the connection.
- * - Open the btree by reading a single record so it is included in checkpoint (this may be wrong, we might need to dirty one page)
- * - Begin walking a cursor next, add a control point which waits once it has seen that many deleted items, for them to appear deleted read after deletion timestamp
+ * - Open the btree by reading a single record so it is included in checkpoint (this may be wrong,
+ * we might need to dirty one page)
+ * - Begin walking a cursor next, add a control point which waits once it has seen that many deleted
+ * items, for them to appear deleted read after deletion timestamp
  * - The control point will save the btree ID
- * - Begin the checkpoint, trigger the cursor walking next control point so that it gets into the if.
+ * - Begin the checkpoint, trigger the cursor walking next control point so that it gets into the
+ * if.
  * - Somehow verify that we did trigger that control point
  */
 
@@ -49,27 +52,6 @@
 void *thread_do_next(void *);
 
 static const char *const session_open_config = "prefetch=(enabled=true)";
-
-/*
- * get_stat --
- *     Get one statistic.
- */
-// static int64_t
-// get_stat(TEST_OPTS *opts, WT_SESSION *wt_session, int which_stat)
-// {
-//     WT_CURSOR *stat_cursor;
-//     int64_t value;
-//     const char *desc, *pvalue;
-//     WT_UNUSED(opts);
-
-//     testutil_check(wt_session->open_cursor(wt_session, "statistics:", NULL, NULL, &stat_cursor));
-//     stat_cursor->set_key(stat_cursor, which_stat);
-//     testutil_check(stat_cursor->search(stat_cursor));
-//     testutil_check(stat_cursor->get_value(stat_cursor, &desc, &pvalue, &value));
-//     testutil_check(stat_cursor->close(stat_cursor));
-
-//     return (value);
-// }
 
 /*
  * set_key --
@@ -112,7 +94,7 @@ main(int argc, char *argv[])
 #if 1 /* Include if needed */
       "verbose=["
       "control_point=5,"
-    //   "prefetch=1,"
+      //   "prefetch=1,"
       "],"
 #endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
@@ -151,8 +133,8 @@ main(int argc, char *argv[])
         testutil_check(wt_session->commit_transaction(wt_session, "commit_timestamp=2"));
         /* Print progress. */
         if ((record_idx % WT_THOUSAND) == 0) {
-            printf("main thread: Warm-up: insert key=%" PRIu64 ", value=%" PRIu64 "\n",
-              record_idx, record_idx);
+            printf("main thread: Warm-up: insert key=%" PRIu64 ", value=%" PRIu64 "\n", record_idx,
+              record_idx);
             fflush(stdout);
         }
     }
@@ -162,16 +144,17 @@ main(int argc, char *argv[])
         /* Do one insertion */
         testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
         testutil_check(cursor->next(cursor));
-        testutil_check(cursor->remove(cursor));
+        if (record_idx % 50 != 0)
+            testutil_check(cursor->remove(cursor));
         testutil_check(wt_session->commit_transaction(wt_session, "commit_timestamp=3"));
         /* Print progress. */
         if ((record_idx % WT_THOUSAND) == 0) {
-            printf("main thread: Warm-up: remove key=%" PRIu64 ", value=%" PRIu64 "\n",
-              record_idx, record_idx);
+            printf("main thread: Warm-up: remove key=%" PRIu64 ", value=%" PRIu64 "\n", record_idx,
+              record_idx);
             fflush(stdout);
         }
     }
-
+    testutil_check(conn->set_timestamp(conn, "stable_timestamp=4"));
 
     testutil_check(cursor->close(cursor));
 
@@ -181,21 +164,43 @@ main(int argc, char *argv[])
 
     testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &conn));
     testutil_check(conn->open_session(conn, NULL, session_open_config, &wt_session));
+    testutil_check(conn->set_timestamp(conn, "stable_timestamp=4,oldest_timestamp=4"));
 
-    conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_12945, NULL);
+    conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, NULL);
+    conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST, NULL);
+    opts->conn = conn;
 
     /* Create the thread for cursor->next and wait until we see control point 1 trigger. */
     testutil_check(pthread_create(&next_thread_id, NULL, thread_do_next, opts));
 
-    while( #CONTROL_POINT_NOT_FIRED ){
-        //sleep.
-    }
+    {
+        bool enabled = false;
 
+        CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
+          (WT_SESSION_IMPL *)wt_session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST, enabled);
+        WT_UNUSED(enabled);
+    }
     testutil_check(conn->open_session(conn, NULL, session_open_config, &checkpoint_session));
+
+    /* Checkpoint the database, will this work if the tree is not dirtied? Probably not. We can
+     * dirty it if required. */
+
+    /* Warm-up: Insert some documents at time 2. */
+    testutil_check(
+      (ret = checkpoint_session->open_cursor(checkpoint_session, opts->uri, NULL, NULL, &cursor)));
+    set_key(cursor, opts->nrecords);
+    set_value(opts, cursor, opts->nrecords);
+    testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
+    testutil_check(cursor->insert(cursor));
+    testutil_check(wt_session->commit_transaction(wt_session, "commit_timestamp=5"));
+
+    printf("Begin checkpoint\n");
+
     checkpoint_session->checkpoint(checkpoint_session, NULL);
     testutil_check(pthread_join(next_thread_id, NULL));
 
-    conn->disable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_12945);
+    conn->disable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT);
+    conn->disable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
 
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));
@@ -223,7 +228,10 @@ thread_do_next(void *arg)
 
     testutil_check(conn->open_session(conn, NULL, session_open_config, &wt_session));
     testutil_check(wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor));
-
+    wt_session->breakpoint(wt_session);
+    /* Wait for the main test thread to get to the control point. */
+    __wt_sleep(1, 0);
+    printf("walking cursor next\n");
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         __wt_sleep(0, 1); /* 1 microsecond */
     }
@@ -231,5 +239,6 @@ thread_do_next(void *arg)
     testutil_check(cursor->close(cursor));
     testutil_check(wt_session->close(wt_session, NULL));
     opts->running = false;
+    printf("Next thread exiting\n");
     return (NULL);
 }
