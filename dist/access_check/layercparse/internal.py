@@ -99,3 +99,8 @@ def init_multithreading():
     _multithreading_initialized = True
     import multiprocessing
     multiprocessing.set_start_method('fork')  # 'fork' is faster than 'spawn'
+
+def transpose_list(l):  # https://stackoverflow.com/a/45323085
+    import functools
+    import operator
+    return functools.reduce(operator.iconcat, l, [])

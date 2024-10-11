@@ -41,6 +41,7 @@ def main():
     files.insert(0, os.path.join(os.path.realpath(rootPath), "src/include/wiredtiger.in"))
 
     _globals = Codebase()
+    # print(" ===== Scan")
     _globals.scanFiles(files, twopass=True, multithread=True)
     # _globals.scanFiles(files, twopass=True, multithread=False)
     # print(" ===== Globals:")
@@ -48,6 +49,7 @@ def main():
     # print(" =====")
 
     # print(" ===== Access check:")
+    # print(" ===== Check")
     AccessCheck(_globals).checkAccess(multithread=True)
     # AccessCheck(_globals).checkAccess(multithread=False)
 
