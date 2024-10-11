@@ -191,7 +191,7 @@ __oligarch_log_fs_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, siz
 }
 
 /*
- * __oligarch_fs_write --
+ * __oligarch_log_fs_write --
  *     Wrapper when writing to a log file. If we're writing to a new log file for the first time
  *     wait for writes to the previous log file.
  */
@@ -875,7 +875,7 @@ __oligarch_log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, W
     __wt_verbose(session, WT_VERB_LOG, "opening log %s", (const char *)buf->data);
     if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
         FLD_SET(wtopen_flags, WT_FS_OPEN_DIRECTIO);
-    WT_ERR(__wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, fhp));
+    WT_ERR(__wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, wtopen_flags, fhp));
 err:
     __wt_scr_free(session, &buf);
     return (ret);

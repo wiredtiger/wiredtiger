@@ -2179,7 +2179,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* A transaction should not have updated any of the oligarch logged tables */
     if (txn->txn_oligarch_log.logrec != NULL)
-        WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
+        WT_RET_MSG(
+          session, EINVAL, "a prepared transaction cannot include an oligarch logged table");
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not

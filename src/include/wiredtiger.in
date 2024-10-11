@@ -4839,6 +4839,7 @@ typedef enum {
     WT_FS_OPEN_FILE_TYPE_DATA,  /*!< open a data file */
     WT_FS_OPEN_FILE_TYPE_DIRECTORY, /*!< open a directory */
     WT_FS_OPEN_FILE_TYPE_LOG,   /*!< open a log file */
+    WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, /* !< open an oligarch log file */
     WT_FS_OPEN_FILE_TYPE_PANTRY,   /*!< open a pantry object */
     WT_FS_OPEN_FILE_TYPE_REGULAR    /*!< open a regular file */
 } WT_FS_OPEN_FILE_TYPE;
