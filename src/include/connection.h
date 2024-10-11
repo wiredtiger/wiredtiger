@@ -177,6 +177,22 @@ struct __wt_oligarch_manager {
 };
 
 /*
+ * WT_DISAGGREGATED_STORAGE --
+ *      Configuration for disaggregated storage, which tells the Block Manager how to find remote
+ *      object storage. This is a separate configuration from Oligarch tables.
+ */
+struct __wt_disaggregated_storage {
+    char* page_log;
+    char* stable_prefix;
+    char* storage_source;
+
+    WT_NAMED_PAGE_LOG *npage_log;
+
+    WT_BUCKET_STORAGE *bstorage;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
+};
+
+/*
  * WT_BUCKET_STORAGE --
  *	A list entry for a storage source with a unique name (bucket, prefix).
  */
@@ -659,6 +675,7 @@ struct __wt_connection_impl {
     bool prefetch_auto_on;
     bool prefetch_available;
 
+    WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_OLIGARCH_MANAGER oligarch_manager;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"

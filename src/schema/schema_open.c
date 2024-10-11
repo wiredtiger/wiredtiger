@@ -671,6 +671,7 @@ static int
 __schema_open_oligarch(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     WT_OLIGARCH *oligarch;
     const char **oligarch_cfg;
 
@@ -686,8 +687,15 @@ __schema_open_oligarch(WT_SESSION_IMPL *session)
     oligarch->collator_owned = 0;
 
     /* Save the stable prefix. */
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_prefix", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
+    WT_RET_NOTFOUND_OK(
+      __wt_config_gets(session, oligarch_cfg, "disaggregated.stable_prefix", &cval));
+    if (ret == WT_NOTFOUND) {
+        if (S2C(session)->disaggregated_storage.stable_prefix == NULL)
+            WT_RET(EINVAL);
+        WT_RET(__wt_strdup(session, S2C(session)->disaggregated_storage.stable_prefix,
+          &S2C(session)->iface.stable_prefix));
+    } else
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
 
     /* Start utility thread to watch the leader's metadata and update our metadata. */
     WT_RET(__wt_oligarch_watcher_start(session));

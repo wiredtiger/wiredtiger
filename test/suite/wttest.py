@@ -404,6 +404,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         else:
             session.commit_transaction(commit_config)
 
+    def early_setup(self):
+        """
+        Custom setup before the connection opens - to be overridden by the subclass.
+        """
+        pass
+
     def setUp(self):
         if not hasattr(self.__class__, 'wt_ntests'):
             self.__class__.wt_ntests = 0
@@ -445,6 +451,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.fdSetUp()
         self._threadLocal.currentTestCase = self
         self.ignoreTearDownLogs = False
+
+        # Custom setup before connection opens
+        self.early_setup()
+
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:

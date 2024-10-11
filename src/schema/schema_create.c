@@ -121,14 +121,28 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
   uint32_t allocsize, const char **cfg)
 {
     WT_CONFIG_ITEM page_log_item, storage_source_item;
+    WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
     WT_NAMED_STORAGE_SOURCE *nstorage;
 
-    WT_RET(__wt_config_gets(session, cfg, "page_log", &page_log_item));
-    WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
+    npage_log = NULL;
+    nstorage = NULL;
 
-    WT_RET(__wt_config_gets(session, cfg, "storage_source", &storage_source_item));
-    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
+    if (WT_PREFIX_MATCH(uri, "file:") && WT_SUFFIX_MATCH(uri, ".wt_stable")) {
+        WT_RET_NOTFOUND_OK(
+          __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
+        if (ret == WT_NOTFOUND || page_log_item.len == 0)
+            npage_log = S2C(session)->disaggregated_storage.npage_log;
+        else
+            WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
+
+        WT_RET_NOTFOUND_OK(
+          __wt_config_gets(session, cfg, "disaggregated.storage_source", &storage_source_item));
+        if (ret == WT_NOTFOUND || storage_source_item.len == 0)
+            nstorage = S2C(session)->disaggregated_storage.nstorage;
+        else
+            WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
+    }
 
     WT_ASSERT(session, npage_log == NULL || nstorage == NULL);
 
@@ -1079,6 +1093,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(disagg_config);
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp);
@@ -1088,14 +1103,15 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
-    const char *oligarch_cfg[4] = {WT_CONFIG_BASE(session, oligarch_meta), config, NULL, NULL};
-    const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
+    const char *oligarch_cfg[5] = {WT_CONFIG_BASE(session, oligarch_meta), "", config, NULL, NULL};
+    const char *stable_cfg[5] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL, NULL};
 
     conn = S2C(session);
     tablecfg = NULL;
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_RET(__wt_scr_alloc(session, 0, &disagg_config));
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Check if the oligarch table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
@@ -1119,16 +1135,33 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     WT_ASSERT_ALWAYS(session, !F_ISSET(conn, WT_CONN_READONLY),
       "Can't create an oligarch table on a read only connection");
 
+    /* Remember the relevant configuration. */
+    WT_ERR(__wt_buf_fmt(session, disagg_config,
+      "disaggregated=(page_log=%s,stable_prefix=%s,storage_source=%s)",
+      conn->disaggregated_storage.page_log ? conn->disaggregated_storage.page_log : "",
+      conn->disaggregated_storage.stable_prefix ? conn->disaggregated_storage.stable_prefix : "",
+      conn->disaggregated_storage.storage_source ? conn->disaggregated_storage.storage_source :
+                                                   ""));
+    oligarch_cfg[1] = disagg_config->data;
+
     /*
      * By default use the connection level bucket and prefix. Then we add in any user configuration
      * that may override the system one.
      */
     WT_ERR(__wt_buf_fmt(session, tmp, "ingest=\"%s\",stable=\"%s\"", ingest_uri, stable_uri));
-    oligarch_cfg[2] = tmp->data;
+    oligarch_cfg[3] = tmp->data;
 
     WT_ERR(__wt_config_collapse(session, oligarch_cfg, &tablecfg));
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "stable_prefix", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
+
+    WT_RET_NOTFOUND_OK(
+      __wt_config_gets(session, oligarch_cfg, "disaggregated.stable_prefix", &cval));
+    if (ret == WT_NOTFOUND) {
+        if (conn->disaggregated_storage.stable_prefix == NULL)
+            WT_ERR(EINVAL);
+        WT_ERR(__wt_strdup(
+          session, conn->disaggregated_storage.stable_prefix, &S2C(session)->iface.stable_prefix));
+    } else
+        WT_ERR(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
 
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
@@ -1137,16 +1170,21 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      * future in a special mode that allows for it to be ignored by recovery, but for now just
      * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
-    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=true,oligarch_constituent=true)"));
+    WT_ERR(__wt_buf_fmt(session, tmp,
+      "log=(enabled=true,oligarch_constituent=true),"
+      "disaggregated=(page_log=none,storage_source=none)"));
     ingest_cfg[2] = tmp->data;
+
     /*
      * Since oligarch constituents use table URIs, pass the full merged configuration string through
      * - otherwise file-specific metadata will be stripped out.
      */
-    WT_ERR(__wt_config_merge(session, ingest_cfg, "storage_source=,", &constituent_cfg));
+    WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+
+    stable_cfg[1] = disagg_config->data;
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
-    stable_cfg[2] = tmp->data;
+    stable_cfg[3] = tmp->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
 #if 0
@@ -1166,9 +1204,10 @@ err:
 #else
 err:
 #endif
-    __wt_scr_free(session, &tmp);
+    __wt_scr_free(session, &disagg_config);
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
+    __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
     __wt_free(session, tablecfg);
 

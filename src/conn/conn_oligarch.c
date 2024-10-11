@@ -912,3 +912,89 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 
     return (0);
 }
+
+/*
+ * __wti_disagg_conn_config --
+ *     Parse and setup the disaggregated server options for the connection.
+ */
+int
+__wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
+{
+    WT_BUCKET_STORAGE *new;
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
+    WT_STORAGE_SOURCE *storage;
+
+    conn = S2C(session);
+    new = NULL;
+    nstorage = NULL;
+
+    /* We don't currently allow reconfiguring disaggregated storage options. */
+    if (reconfig)
+        return (0);
+
+    /* Remember the configuration. */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.page_log));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.stable_prefix", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.stable_prefix));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.storage_source));
+
+    /* Setup any configured page log. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_RET(__wt_schema_open_page_log(session, &cval, &conn->disaggregated_storage.npage_log));
+
+    /* Setup any configured storage source on the data handle */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
+    WT_RET(__wt_schema_open_storage_source(session, &cval, &nstorage));
+
+    /* TODO: Deduplicate this with __btree_setup_storage_source */
+    if (nstorage != NULL) {
+        WT_ERR(__wt_calloc_one(session, &new));
+        new->auth_token = NULL;
+        new->cache_directory = NULL;
+        WT_ERR(__wt_strndup(session, "foo", 3, &new->bucket));
+        WT_ERR(__wt_strndup(session, "bar", 3, &new->bucket_prefix));
+
+        storage = nstorage->storage_source;
+        WT_ERR(storage->ss_customize_file_system(
+        storage, &session->iface, new->bucket, "", NULL, &new->file_system));
+        new->storage_source = storage;
+
+        F_SET(new, WT_BUCKET_FREE);
+        conn->disaggregated_storage.bstorage = new;
+        conn->disaggregated_storage.nstorage = nstorage;
+    }
+
+    if (0) {
+err:
+        if (new != NULL) {
+            __wt_free(session, new->bucket);
+            __wt_free(session, new->bucket_prefix);
+        }
+        __wt_free(session, new);
+    }
+
+    return (ret);
+}
+
+/*
+ * __wti_disagg_destroy_conn_config --
+ *     Free the disaggregated storage configuration.
+ */
+int
+__wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    __wt_free(session, conn->disaggregated_storage.page_log);
+    __wt_free(session, conn->disaggregated_storage.stable_prefix);
+    __wt_free(session, conn->disaggregated_storage.storage_source);
+
+    return (0);
+}

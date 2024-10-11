@@ -108,6 +108,25 @@ source_meta = [
         by the application'''),
 ]
 
+disaggregated_config = [
+    Config('disaggregated', '', r'''
+        configure a storage source for this table''',
+        type='category', subconfig=[
+        Config('page_log', '', r'''
+            The page log service used as a backing for this table. This is used experimentally
+            by oligarch tables to back their stable component in shared/object based storage''',
+            type='string', undoc=True),
+        Config('stable_prefix', '', r'''
+            directory of WT oligarch stable table''',
+            type='string', undoc=True),
+        Config('storage_source', '', r'''
+            The custom storage source used as a backing for this table - currently only used
+            experimentally by oligarch tables to back their stable component in shared/object
+            based storage''', type='string', undoc=True),
+    ],
+    undoc=True),
+]
+
 format_meta = common_meta + [
     Config('key_format', 'u', r'''
         the format of the data packed into key items. See @ref schema_format_types for details.
@@ -260,7 +279,7 @@ file_runtime_config = common_runtime_config + [
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + tiered_config + [
+file_config = format_meta + file_runtime_config + tiered_config + disaggregated_config + [
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "best" or \c "first"; the \c "best"
         configuration uses a best-fit algorithm, the \c "first" configuration uses a
@@ -369,10 +388,6 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         pages to be temporarily larger than this value. This setting is ignored for LSM trees,
         see \c chunk_size''',
         min='512B', max='10TB'),
-    Config('page_log', '', r'''
-        The page log service used as a backing for this table. This is used experimentally
-        by oligarch tables to back their stable component in shared/object based storage''',
-           type='string', undoc=True),
     Config('prefix_compression', 'false', r'''
         configure prefix compression on row-store leaf pages''',
         type='boolean'),
@@ -392,10 +407,6 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         when a Btree page is split, it will be split into smaller pages, where each page is
         the specified percentage of the maximum Btree page size''',
         min='50', max='100'),
-    Config('storage_source', '', r'''
-        The custom storage source used as a backing for this table - currently only used
-        experimentally by oligarch tables to back their stable component in shared/object
-        based storage''', type='string', undoc=True),
 ]
 
 # File metadata, including both configurable and non-configurable (internal)
@@ -491,12 +502,9 @@ oligarch_config = [
     Config('stable', '', r'''
         URI for oligarch stable table''',
         type='string', undoc=True),
-    Config('stable_prefix', '', r'''
-        directory of WT oligarch stable table''',
-        type='string', undoc=True),
 ]
 
-oligarch_meta = format_meta + oligarch_config
+oligarch_meta = format_meta + oligarch_config + disaggregated_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
@@ -674,7 +682,7 @@ connection_runtime_config = [
                 current eviction load''',
                 min=1, max=20),
             Config('evict_sample_inmem', 'true', r'''
-                If no in-memory ref is found on the root page, attempt to locate a random 
+                If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
             ]),
@@ -867,7 +875,7 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2', 
+        'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2',
         'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
         'prepare_resolution_2', 'sleep_before_read_overflow_onpage','split_1', 'split_2',
         'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
@@ -1100,6 +1108,8 @@ wiredtiger_open_tiered_storage_configuration = [
     ]),
 ]
 
+wiredtiger_open_disaggregated_storage_configuration = disaggregated_config
+
 chunk_cache_configuration_common = [
     Config('pinned', '', r'''
         List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
@@ -1191,6 +1201,7 @@ wiredtiger_open_common =\
     connection_runtime_config +\
     wiredtiger_open_chunk_cache_configuration +\
     wiredtiger_open_compatibility_configuration +\
+    wiredtiger_open_disaggregated_storage_configuration +\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
@@ -1475,7 +1486,7 @@ methods = {
         type='int'),
 ]),
 
-'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
+'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config + disaggregated_config +
         source_meta + index_only_config + table_only_config + oligarch_config + [
     Config('exclusive', 'false', r'''
         fail if the object exists. When false (the default), if the object exists, check that its
@@ -1738,7 +1749,7 @@ methods = {
 'WT_SESSION.verify' : Method([
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
-        or failures. Note: History store validation is disabled when the configuration is set as 
+        or failures. Note: History store validation is disabled when the configuration is set as
         visibility rules may not work correctly because the transaction ids are not cleared.''',
         type='boolean'),
     Config('dump_address', 'false', r'''

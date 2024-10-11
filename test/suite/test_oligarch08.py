@@ -50,8 +50,8 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_oligarch_read_write(self):
         uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S,stable_prefix=.,page_log=palm'
-        self.tty('CREATING')
+        create_session_config = 'key_format=S,value_format=S,disaggregated=(stable_prefix=.,page_log=palm)'
+        self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
         cursor = self.session.open_cursor(uri, None, None)
