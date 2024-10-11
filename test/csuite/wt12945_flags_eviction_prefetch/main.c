@@ -308,6 +308,8 @@ main(int argc, char *argv[])
 
     testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &opts->conn));
 
+    printf("Running the warm-up loop in the eviction thread.\n");
+
     /* Create the session for eviction. */
     testutil_check(opts->conn->open_session(opts->conn, NULL, session_open_config, &wt_session));
     testutil_check(
@@ -351,6 +353,7 @@ main(int argc, char *argv[])
             break;
     }
 
+    printf("Running the update loop in the eviction thread.\n");
     /* Loop updating documents and triggering eviction. */
     testutil_check(
       wt_session->open_cursor(wt_session, opts->uri, NULL, "debug=release_evict", &cursor));
@@ -430,7 +433,7 @@ thread_do_prefetch(void *arg)
             break;
         }
         previous_prefetch_pages_queued = current_prefetch_pages_queued;
-        print_prefetch_stats(wt_session, opts, "Prefix", idx, true);
+        print_prefetch_stats(wt_session, opts, "Pre-fetch", idx, true);
         /* Read */
         key = get_key(opts, cursor);
         value = get_value(opts, cursor);
@@ -442,7 +445,7 @@ thread_do_prefetch(void *arg)
         __wt_sleep(0, WT_THOUSAND); /* 1 millisecond */
         ++idx;
     }
-    print_prefetch_stats(wt_session, opts, "After Prefix", idx, false);
+    print_prefetch_stats(wt_session, opts, "After Pre-fetch", idx, false);
 
 err:
     testutil_check(cursor->close(cursor));
@@ -450,7 +453,7 @@ err:
 
     opts->running = false;
 
-    printf("End pre-fetch thread\n");
+    printf("End of the pre-fetch thread\n");
 
     return (NULL);
 }
