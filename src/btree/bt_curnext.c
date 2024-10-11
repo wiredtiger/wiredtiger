@@ -907,7 +907,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
             /* If checkpoint is happening on the btree, we can only evict clean content. */
             if (__wt_btree_syncing_by_other_session(session)) {
                 if (!__wt_page_is_modified(page)) {
-                    __wt_page_evict_soon(session, cbt->ref);
+                    __wt_evict_page_soon(session, cbt->ref);
                     WT_STAT_CONN_INCR(session, eviction_force_delete);
                 }
             } else {
