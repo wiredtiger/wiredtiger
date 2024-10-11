@@ -69,7 +69,7 @@ TEST_CASE("Block session: __block_ext_prealloc", "[block_session_ext]")
     }
 }
 
-TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session_ext]")
+TEST_CASE("Block session: __wti_block_ext_alloc with null block manager session", "[block_session_ext]")
 {
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
@@ -84,8 +84,13 @@ TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session_ext]")
         REQUIRE(__wti_block_ext_alloc(session->get_wt_session_impl(), &ext) == 0);
         validate_and_free_ext_block(ext);
     }
+}
 
+TEST_CASE("Block session: __wti_block_ext_alloc", "[block_session_ext]")
+{
+    std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
     WT_BLOCK_MGR_SESSION *bms = session->setup_block_manager_session();
+
     SECTION("Allocate with fake zero cache extent count")
     {
         WT_EXT *ext;
