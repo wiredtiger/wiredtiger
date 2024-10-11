@@ -32,7 +32,8 @@ typedef uint32_t wt_control_point_action_id_t;
  * If per-connection session = NULL.
  */
 typedef WT_CONTROL_POINT_DATA *wt_control_point_init_t(WT_SESSION_IMPL *session,
-  const char *cp_config_name, bool control_point_for_connection, const char **cfg);
+  const char *cp_config_name, bool control_point_for_connection,
+  int (*pred_func)(WT_SESSION_IMPL *, WT_CONTROL_POINT_DATA *, WT_CONFIG_ITEM *), const char **cfg);
 
 /*!
  * A function to test whether a control point should be triggered.
@@ -41,10 +42,17 @@ typedef bool wt_control_point_pred_t(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data);
 
 /*!
+ * A function to initialize predicate.
+ */
+typedef int wt_control_point_init_pred_t(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item);
+
+/*!
  * Registration data for one control point.
  */
 struct __wt_control_point_registry {
     wt_control_point_init_t __F(init); /* Function to initialize the control point. */
+    wt_control_point_init_pred_t __F(init_pred); /* Function to initialize the predicate control point. */
     wt_control_point_pred_t __F(pred); /* Function to test whether to trigger. */
     size_t crossing_count;             /* Count of executions of the trigger site. */
     size_t trigger_count;              /* Count of triggers, i.e. pred returned true. */
