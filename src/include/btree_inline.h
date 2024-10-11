@@ -72,11 +72,11 @@ __wt_readgen_evict_soon(uint64_t *readgen)
 }
 
 /*
- * __wt_page_evict_soon_check --
+ * __wt_evict_page_soon_check --
  *     Check whether the page should be evicted urgently.
  */
 static WT_INLINE bool
-__wt_page_evict_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_split)
+__wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_split)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
@@ -99,6 +99,20 @@ __wt_page_evict_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
     return (false);
+}
+
+/*
+ * __wt_page_dirty_and_evict_soon --
+ *     Mark a page dirty and set it to be evicted as soon as possible.
+ */
+static WT_INLINE int
+__wt_page_dirty_and_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_RET(__wt_page_modify_init(session, ref->page));
+    __wt_page_modify_set(session, ref->page);
+    __wt_evict_page_soon(session, ref);
+
+    return (0);
 }
 
 /*
@@ -647,7 +661,7 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
      * eviction is stuck.
      */
     if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
-        (void)__wt_atomic_addv64(&cache->eviction_progress, 1);
+        (void)__wt_atomic_addv64(&S2C(session)->evict->eviction_progress, 1);
 }
 
 /*
@@ -712,7 +726,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * generation to avoid evicting a dirty page prematurely.
          */
         if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
-            __wt_cache_read_gen_new(session, page);
+            __wt_evict_read_gen_new(session, page);
 
         /*
          * We won the race to dirty the page, but another thread could have committed in the
@@ -752,6 +766,20 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
         /* Assert we never dirty a checkpoint handle. */
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
 
+        /*
+         * We should never set a btree dirty when checkpoint is triggered by RTS, recovery or when
+         * closing the connection. Those specific scenarios should always leave the database clean.
+         * The only exception is related to the metadata file: it is expected to be marked as dirty
+         * whenever a btree is checkpointed.
+         */
+        if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
+          !FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
+            WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
+              "A btree is marked dirty during RTS");
+            WT_ASSERT_ALWAYS(session,
+              !F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT), "%s",
+              "A btree is marked dirty during recovery or shutdown");
+        }
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
 
@@ -1489,23 +1517,6 @@ __wt_row_leaf_value_cell(
 }
 
 /*
- * WT_ADDR_COPY --
- *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
- * copy of the WT_REF address information.
- */
-struct __wt_addr_copy {
-    uint8_t type;
-
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    uint8_t size;
-
-    WT_TIME_AGGREGATE ta;
-
-    WT_PAGE_DELETED del; /* Fast-truncate page information */
-    bool del_set;
-};
-
-/*
  * __wt_ref_addr_copy --
  *     Return a copy of the WT_REF address information.
  */
@@ -1858,8 +1869,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Retry if a reasonable amount of eviction time has passed, the choice of 5 eviction passes as
      * a reasonable amount of time is currently pretty arbitrary.
      */
-    if (__wt_cache_aggressive(session) ||
-      mod->last_evict_pass_gen + 5 < __wt_atomic_load64(&S2C(session)->cache->evict_pass_gen))
+    if (__wt_evict_aggressive(session) ||
+      mod->last_evict_pass_gen + 5 < __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen))
         return (true);
 
     /* Retry if the global transaction state has moved forward. */
@@ -2026,7 +2037,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         return (0);
     }
 
-    if (__wt_page_evict_soon_check(session, ref, &inmem_split)) {
+    if (__wt_evict_page_soon_check(session, ref, &inmem_split)) {
         /*
          * If the operation has disabled eviction or splitting, or the session is preventing from
          * reconciling, then just queue the page for urgent eviction. Otherwise, attempt to release
@@ -2034,7 +2045,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          */
         if (LF_ISSET(WT_READ_NO_EVICT) ||
           (inmem_split ? LF_ISSET(WT_READ_NO_SPLIT) : F_ISSET(session, WT_SESSION_NO_RECONCILE)))
-            WT_IGNORE_RET(__wt_page_evict_urgent(session, ref));
+            WT_IGNORE_RET(__wt_evict_page_urgent(session, ref));
         else {
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);

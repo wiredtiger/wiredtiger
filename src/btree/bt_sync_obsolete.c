@@ -150,7 +150,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
     if (obsolete) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page with %s obsolete has a stop time aggregate %s", (void *)ref, tag,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 
@@ -164,7 +164,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         }
 
         /* Mark the obsolete page to evict soon. */
-        __wt_page_evict_soon(session, ref);
+        __wt_evict_page_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
     } else if (__sync_obsolete_tw_check(session, newest_ta)) {
 
@@ -172,7 +172,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
          * obsolete time window information.
          */
-        __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 
@@ -257,7 +257,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
     }
 
-    __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
+    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
       "%p on-disk page obsolete check: %s"
       "obsolete, stop time aggregate %s",
       (void *)ref, obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
@@ -416,8 +416,8 @@ __checkpoint_cleanup_page_skip(
      * and also it can dirty the already existing in-memory page in the cache, skip if eviction is
      * needed.
      */
-    if (__wt_eviction_needed(session, false, false, NULL) || __wt_cache_aggressive(session) ||
-      __wt_cache_full(session) || __wt_cache_stuck(session)) {
+    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_aggressive(session) ||
+      __wt_cache_full(session) || __wt_evict_cache_stuck(session)) {
         *skipp = true;
         return (0);
     }

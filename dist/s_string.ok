@@ -277,6 +277,7 @@ NetBSD
 NoAddr
 Noll
 Nul
+OBJECTID
 ONDISK
 OOB
 OPLOG
@@ -305,6 +306,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Prealloc
 Precompiled
 Prefetch
 Preload
@@ -532,6 +534,7 @@ blkincr
 blkmod
 blkmods
 bm
+bms
 bnd
 bool
 boolean
@@ -843,6 +846,7 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
@@ -1067,6 +1071,7 @@ noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
@@ -1329,7 +1334,6 @@ tempdir
 testext
 testutil
 th
-throwIfNonZero
 tid
 timespec
 tinfo
@@ -1452,7 +1456,6 @@ whitespace
 wiredTiger
 wiredTigerTables
 wiredtiger
-wiredtigerCleanup
 workgen
 wrapup
 writeable

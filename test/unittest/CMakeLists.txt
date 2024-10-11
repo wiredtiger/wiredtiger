@@ -25,8 +25,12 @@ else()
         tests/backup/test_incremental_blkmods.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_addr.cpp
+        tests/block/test_block_api_misc.cpp
+        tests/block/test_block_api_write.cpp
         tests/block/test_block_ckpt.cpp
+        tests/block/test_block_file.cpp
         tests/block/test_block_other.cpp
+        tests/block/test_block_session_bms.cpp
         tests/block/test_block_session_ext.cpp
         tests/block/test_block_session_size.cpp
         tests/block/test_extent_list_insert_wo_block.cpp
@@ -43,6 +47,7 @@ set(unittest_sources
     tests/utils.cpp
     tests/utils_extlist.cpp
     tests/wrappers/block_mods.cpp
+    tests/wrappers/config_parser.cpp
     tests/wrappers/connection_wrapper.cpp
     tests/wrappers/item_wrapper.cpp
     tests/wrappers/mock_connection.cpp

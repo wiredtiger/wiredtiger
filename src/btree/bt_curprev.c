@@ -868,11 +868,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             if (__wt_btree_syncing_by_other_session(session)) {
                 if (!__wt_page_is_modified(page)) {
                     __wt_page_evict_soon(session, cbt->ref);
-                    WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+                    WT_STAT_CONN_INCR(session, eviction_force_delete);
                 }
             } else {
                 WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
-                WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+                WT_STAT_CONN_INCR(session, eviction_force_delete);
             }
         }
         cbt->page_deleted_count = 0;
