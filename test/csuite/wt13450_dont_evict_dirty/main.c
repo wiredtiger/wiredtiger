@@ -119,10 +119,16 @@ main(int argc, char *argv[])
     testutil_check(
       wt_session->create(wt_session, opts->uri, "key_format=Q,value_format=Q,leaf_page_max=32k"));
 
-    /* Pin the oldest timestamp at 1. */
+    /*
+     * Pin the oldest timestamp at 1. This ensures that when we restart the database the tombstones
+     * added to the keys by removing them cannot be cleaned up yet as they are not globally visible.
+     *
+     * This satisfies the condition that there are clean tombstones in the tree when we begin
+     * walking with cursor next.
+     */
     testutil_check(conn->set_timestamp(conn, "oldest_timestamp=1"));
 
-    /* Warm-up: Insert some documents at time 2. */
+    /* Warm-up: Insert some documents at timestamp 2. */
     testutil_check((ret = wt_session->open_cursor(wt_session, opts->uri, NULL, NULL, &cursor)));
     for (record_idx = 0; record_idx < opts->nrecords; ++record_idx) {
         /* Do one insertion */
@@ -139,11 +145,21 @@ main(int argc, char *argv[])
         }
     }
 
-    /* Warm-up: Delete all the records at time 3. */
+    /* Warm-up: Delete most of the records at time 3. */
     for (record_idx = 0; record_idx < opts->nrecords; ++record_idx) {
         /* Do one insertion */
         testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
         testutil_check(cursor->next(cursor));
+        /*
+         * WiredTiger likes to be smart, if we delete every single record in the tree then we never
+         * actually walk real records on the page as a resulf of the page skip logic in
+         * __wt_tree_walk_custom_skip. Which you can see in bt_curnext.c:959.
+         *
+         * To get around this cleverness, leave some undeleted records in the tree that must be
+         * visited when we walk the cursor. This effectively guarantees that we call
+         * __cursor_row_next, which we must in order to increment the deleted record count that we
+         * are interested in.
+         */
         if (record_idx % 50 != 0)
             testutil_check(cursor->remove(cursor));
         testutil_check(wt_session->commit_transaction(wt_session, "commit_timestamp=3"));
@@ -154,8 +170,12 @@ main(int argc, char *argv[])
             fflush(stdout);
         }
     }
-    testutil_check(conn->set_timestamp(conn, "stable_timestamp=4"));
 
+    /*
+     * Move the stable ahead of our modifications so they don't get unceremoniously rolled back by
+     * RTS or something... I'm not sure if that actually happens but we should do this anyway.
+     */
+    testutil_check(conn->set_timestamp(conn, "stable_timestamp=4"));
     testutil_check(cursor->close(cursor));
 
     /* Close and reopen the connection to force the warm-up documents out of the cache. */
@@ -164,39 +184,61 @@ main(int argc, char *argv[])
 
     testutil_check(wiredtiger_open(opts->home, NULL, wiredtiger_open_config, &conn));
     testutil_check(conn->open_session(conn, NULL, session_open_config, &wt_session));
+
+    /*
+     * This line of code makes our tombstones that we left in the tree globally visible. Which is
+     * 100% required as if they are not then the incremented value that gets compared against won't
+     * be incremented. The relevant global visibility check can be found in bt_curnext:521.
+     */
     testutil_check(conn->set_timestamp(conn, "stable_timestamp=4,oldest_timestamp=4"));
 
     conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, NULL);
     conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST, NULL);
     opts->conn = conn;
 
-    /* Create the thread for cursor->next and wait until we see control point 1 trigger. */
+    /*
+     * Create the thread for cursor->next and wait until we see control point TEST trigger. This
+     * ensures that we can begin the checkpoint after the cursor walking next is in the correct
+     * place in the code.
+     */
     testutil_check(pthread_create(&next_thread_id, NULL, thread_do_next, opts));
-
     {
         bool enabled = false;
+        WT_UNUSED(enabled);
 
+        /* Wait for our next thread. */
         CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
           (WT_SESSION_IMPL *)wt_session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST, enabled);
-        WT_UNUSED(enabled);
     }
+
+    /* Open a session to run checkpoint. */
     testutil_check(conn->open_session(conn, NULL, session_open_config, &checkpoint_session));
 
-    /* Checkpoint the database, will this work if the tree is not dirtied? Probably not. We can
-     * dirty it if required. */
-
-    /* Warm-up: Insert some documents at time 2. */
+    /* Open a cursor with which to dirty the tree otherwise checkpoint won't "really" happen. */
     testutil_check(
       (ret = checkpoint_session->open_cursor(checkpoint_session, opts->uri, NULL, NULL, &cursor)));
+
+    testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
+    /* Dirty the tree. Insert a record at the end. */
     set_key(cursor, opts->nrecords);
     set_value(opts, cursor, opts->nrecords);
-    testutil_check(wt_session->begin_transaction(wt_session, "isolation=snapshot"));
     testutil_check(cursor->insert(cursor));
     testutil_check(wt_session->commit_transaction(wt_session, "commit_timestamp=5"));
 
     printf("Begin checkpoint\n");
-
+    /*
+     * Checkpoint the database this will call into __wt_sync_file which will first mark the btree as
+     * syncing, then it will signal the cursor->next thread to continue. There's also a cleverness
+     * about making sure the btree ID matches, we could probably have skipped this? But I think it
+     * demostrates a nice feature of control points so we choose to have it.
+     *
+     * The reasoning behind why we could have skipped that is that there is only one b-tree that is
+     * relevant and the code paths currently guarantee that it would be the first one up for
+     * checkpoint.
+     */
     checkpoint_session->checkpoint(checkpoint_session, NULL);
+
+    /* By this stage the program has crashed. */
     testutil_check(pthread_join(next_thread_id, NULL));
 
     conn->disable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT);
