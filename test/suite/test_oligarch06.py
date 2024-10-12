@@ -36,7 +36,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     nitems = 100000
 
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
     # TODO do Python tests expect a field named uri?
@@ -49,9 +50,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
         self.pr(f"{extlist=}")
 
-    # Test records into an oligarch tree and restarting
-    def test_oligarch06(self):
-        session_config = 'key_format=S,value_format=S,disaggregated=(stable_prefix=.,storage_source=dir_store)'
+    # Custom test case setup
+    def early_setup(self):
         # FIXME: This shouldn't take an absolute path
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
@@ -63,6 +63,10 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         # non fixed-location files
         os.mkdir('follower/foo/follower')
         os.mkdir('follower/bar/follower')
+
+    # Test records into an oligarch tree and restarting
+    def test_oligarch06(self):
+        session_config = 'key_format=S,value_format=S'
 
         #
         # Part 1: Create an oligarch table and check that follower has all the data.

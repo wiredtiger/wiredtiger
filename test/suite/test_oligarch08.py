@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 
 class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    conn_base_config = 'log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
 
@@ -50,7 +51,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_oligarch_read_write(self):
         uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S,disaggregated=(stable_prefix=.,page_log=palm)'
+        create_session_config = 'key_format=S,value_format=S'
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 

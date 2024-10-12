@@ -97,6 +97,7 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     WT_CURSOR *md_cursor;
     WT_DECL_RET;
     WT_FH *metadata_fh;
+    WT_DECL_ITEM(buf);
     wt_off_t filesize;
     size_t len;
     char *entry, *tablename;
@@ -130,14 +131,21 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     WT_ERR(__wt_snprintf(entry, len, "%s|%.*s\n", tablename, (int)cval.len, cval.str));
     /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
+    /* XXX Does not belong here. Just do this now to verify that this mechanism works. */
+    WT_ERR(__wt_scr_alloc(session, len, &buf));
+    memcpy(buf->mem, entry, len);
+    buf->size = len - 1;
+    WT_ERR(__wt_disagg_put_meta(session, 0, 0, buf));
+
     WT_ERR(__wt_filesize(session, metadata_fh, &filesize));
     WT_ERR(__wt_write(session, metadata_fh, filesize, len - 1, entry)); /* len-1, don't write NUL */
 
 err:
+    __wt_scr_free(session, &buf);
     __wt_free(session, tablename);
     __wt_free(session, entry); /* TODO may not have been allocated */
 
-    return (0);
+    return (ret);
 }
 
 /*
