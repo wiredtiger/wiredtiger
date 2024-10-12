@@ -64,17 +64,20 @@ def setModules(mods: list[Module]):
         modules[name] = module
         if module.dirname in moduleDirs:
             # make fatal error?
-            raise ValueError(f"Module directory {module.dirname} conflicts with [{moduleDirs[module.dirname]}]")
+            raise ValueError(f"Module directory {module.dirname} "
+                             f"conflicts with [{moduleDirs[module.dirname]}]")
         moduleDirs[module.dirname] = name
         for alias in module.fileAliases:
             if alias in moduleAliasesFile:
                 # make fatal error?
-                raise ValueError(f"Module file alias {alias} for [{name}] conflicts with [{moduleAliasesFile[alias]}]")
+                raise ValueError(f"Module file alias {alias} for [{name}] "
+                                 f"conflicts with [{moduleAliasesFile[alias]}]")
             moduleAliasesFile[alias] = name
         for alias in module.sourceAliases:
             if alias in moduleAliasesSrc:
                 # make fatal error?
-                raise ValueError(f"Module source alias {alias} for [{name}] conflicts with [{moduleAliasesSrc[alias]}]")
+                raise ValueError(f"Module source alias {alias} for [{name}] "
+                                 f"conflicts with [{moduleAliasesSrc[alias]}]")
             moduleAliasesSrc[alias] = name
     moduleSrcNames = set(modules.keys()).union(set(moduleAliasesSrc.keys()))
 
@@ -87,7 +90,9 @@ def get_files() -> list[str]:
 
 # Get all headers, excluding inlines
 def get_h_files() -> list[str]:
-    return sorted((f for f in glob(path.join(rootPath, "src/**/*.h"), recursive=True) if not f.endswith("_inline.h")))
+    return sorted((f
+                   for f in glob(path.join(rootPath, "src/**/*.h"), recursive=True)
+                   if not f.endswith("_inline.h")))
 
 # Get all inline headers
 def get_h_inline_files() -> list[str]:

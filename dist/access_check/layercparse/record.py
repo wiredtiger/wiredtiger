@@ -56,11 +56,14 @@ class RecordParts:
     def update(self, other: 'RecordParts') -> list[str]:
         errors = []
         if self.recordKind != other.recordKind:
-            errors.append(f"record type mismatch for '{self.name.value}': {self.recordKind} != {other.recordKind}")
+            errors.append(f"record type mismatch for '{self.name.value}': "
+                          f"{self.recordKind} != {other.recordKind}")
         if self.name != other.name:
-            errors.append(f"record name mismatch for '{self.name.value}': {self.name.value} != {other.name.value}")
+            errors.append(f"record name mismatch for '{self.name.value}': "
+                          f"{self.name.value} != {other.name.value}")
         # if self.typename != other.typename:
-        #     errors.append(f"record name mismatch for {self.typename.value}: {self.typename.value} != {other.typename.value}")
+        #     errors.append(f"record name mismatch for {self.typename.value}: "
+        #                   f"{self.typename.value} != {other.typename.value}")
         if self.body is not None and other.body is not None and self.body != other.body:
             errors.append(f"record redifinition: '{self.name.value}'")
         elif other.body is not None:

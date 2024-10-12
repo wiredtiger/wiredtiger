@@ -19,7 +19,7 @@ class StatementKind:
     is_expression: bool | None = None
     is_initialization: bool | None = None
     is_extern_c: bool | None = None
-    is_unnamed_record: bool | None = None # unnamed struct/union/enum which pulls its members into the parent scope
+    is_unnamed_record: bool | None = None
     end: str | None = None
     preComment: Token | None = None
     postComment: Token | None = None
@@ -93,14 +93,17 @@ class StatementKind:
 
         if not ret.is_typedef:
             # Filter tokens relevant to declaration. Take first two elements
-            tokens_decl = list(islice(filter(lambda t: (t.getKind() == "{" or
-                                                        (t.getKind() == "+" and t.value != "*") or
-                                                        (t.getKind() == "w" and t.value not in ["struct", "union", "enum", "*"])),
-                                clean_tokens),
-                            0, 2))
+            tokens_decl = list(islice(filter(lambda t:
+                (t.getKind() == "{" or
+                (t.getKind() == "+" and t.value != "*") or
+                (t.getKind() == "w" and t.value not in ["struct", "union", "enum", "*"])),
+                clean_tokens),
+                                      0, 2))
             if len(tokens_decl) < 2:
                 # ret.is_expression = True
-                if len(clean_tokens) == 2 and clean_tokens[0].value in ["struct", "union"] and clean_tokens[1].getKind() == "{":
+                if (len(clean_tokens) == 2 and
+                            clean_tokens[0].value in ["struct", "union"] and
+                            clean_tokens[1].getKind() == "{"):
                     ret.is_record = True
                     ret.is_unnamed_record = True
                 return ret
@@ -124,7 +127,9 @@ class StatementKind:
                         break
 
         # There is a curly brace in the tokens (before the = if there is one)
-        curly = next((token.getKind() == "{" for token in clean_tokens if token.getKind() == "{" or token.value == "="), False)
+        curly = next((token.getKind() == "{"
+                      for token in clean_tokens
+                      if token.getKind() == "{" or token.value == "="), False)
 
         if clean_tokens[0].value in ["struct", "union", "enum"]:
             if curly:
@@ -211,13 +216,15 @@ class StatementList(list[Statement]):
 
     @staticmethod
     def xFromTokens(tokens: TokenList) -> Iterable[Statement]:
-        cur, complete, statement_special, curly, comment_only, is_record, is_expr = TokenList([]), False, 0, False, None, False, False
+        cur, complete, statement_special, curly, comment_only, is_record, is_expr = \
+            TokenList([]), False, 0, False, None, False, False
         else_idx = -1
 
         def push_statement():
             nonlocal cur, complete, statement_special, curly, comment_only, is_record, is_expr
             ret = Statement(cur)
-            cur, complete, statement_special, curly, comment_only, is_record, is_expr = TokenList([]), False, 0, False, None, False, False
+            cur, complete, statement_special, curly, comment_only, is_record, is_expr = \
+                TokenList([]), False, 0, False, None, False, False
             return ret
 
         for i in range(len(tokens)):
@@ -229,7 +236,8 @@ class StatementList(list[Statement]):
                     if tokens[ii].value == "else":
                         else_idx = ii
                         return True
-                    if tokens[ii].value.startswith(";") or tokens[ii].getKind() not in [" ", "#", "/"]:
+                    if (tokens[ii].value.startswith(";") or
+                            tokens[ii].getKind() not in [" ", "#", "/"]):
                         else_idx = ii
                         return False
 
@@ -251,20 +259,21 @@ class StatementList(list[Statement]):
             if not is_expr and token.getKind() == "+" and token.value != "*":
                 is_expr = True
 
-            # print(f"i={i}, stype={stype}, token=<{token.value}>, is_thing={is_thing}, is_word={is_word}, is_type={is_type}")
-
             if not statement_special:   # Constructs that don't end by ; or {}
                 if token.value == "if": # if can continue with else after ;
                     statement_special = 1
-                elif token.value in ["struct", "union", "enum", "typedef"]:  # These end strictly with a ;
+                elif token.value in ["struct", "union", "enum", "typedef"]:
+                    # These end strictly with a ;
                     statement_special = 2
                     is_record = True
-                elif is_expr or token.value == "do":  # These end strictly with a ;
+                elif is_expr or token.value == "do":
+                    # These end strictly with a ;
                     statement_special = 2
 
             cur.append(token)
 
-            if (complete and token.value == "\n") or token.getKind() == "#": # preproc is always a single token
+            if (complete and token.value == "\n") or token.getKind() == "#":
+                # preproc is always a single token
                 yield push_statement()
                 continue
 
@@ -284,7 +293,8 @@ class StatementList(list[Statement]):
             elif statement_special == 2 and token.value[0] != ";":
                 continue
 
-            complete = True  # The statement is complete but may want to attach trailing \n or comment
+            # The statement is complete but may want to attach trailing \n or comments
+            complete = True
 
         if cur:
             yield push_statement()
@@ -316,7 +326,8 @@ class StatementList(list[Statement]):
                 token = Token.fromMatch(match, kind="#", idx=i)
                 prev_tokens = [prev[1-cur_prev], prev[cur_prev]]
                 if prev_tokens[0].getKind() == "/" and prev_tokens[1].getKind() == " ":
-                    yield Statement(TokenList([prev_tokens[0], prev_tokens[1], token]), StatementKind(is_comment=True, is_preproc=True))
+                    yield Statement(TokenList([prev_tokens[0], prev_tokens[1], token]),
+                                    StatementKind(is_comment=True, is_preproc=True))
                 else:
                     yield Statement(TokenList([token]), StatementKind(is_preproc=True))
             cur_prev = 1 - cur_prev

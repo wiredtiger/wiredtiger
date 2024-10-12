@@ -50,8 +50,11 @@ class Token:
         return self.kind
 
     @staticmethod
-    def fromMatch(match: regex.Match, base_offset: int = 0, match_group: int | str = 0, idx: int = 0, kind: TokenKind | None = None) -> 'Token':
-        return Token(idx, rangeShift(match.span(match_group), base_offset), match[match_group], kind)
+    def fromMatch(match: regex.Match, base_offset: int = 0,
+                  match_group: int | str = 0, idx: int = 0,
+                  kind: TokenKind | None = None) -> 'Token':
+        return Token(idx,
+                     rangeShift(match.span(match_group), base_offset), match[match_group], kind)
 
     @staticmethod
     def empty() -> 'Token':
@@ -70,7 +73,8 @@ class TokenList(list[Token]):
         return " ".join(self.strings())
 
     @staticmethod
-    def xFromMatches(matches: Iterable[regex.Match], base_offset: int = 0, match_group: int | str = 0, kind: TokenKind | None = None) -> Iterable[Token]:
+    def xFromMatches(matches: Iterable[regex.Match], base_offset: int = 0,
+                     match_group: int | str = 0, kind: TokenKind | None = None) -> Iterable[Token]:
         i = 0
         for match in matches:
             yield Token.fromMatch(match, base_offset, match_group, idx=i, kind=kind)

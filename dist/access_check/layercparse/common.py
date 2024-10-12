@@ -1,5 +1,4 @@
 import enum
-from typing import Union, Any, Optional, TYPE_CHECKING, cast, Iterator, TypeAlias, Generator, Iterable, Callable, NamedTuple, TypedDict
 from dataclasses import dataclass
 from copy import deepcopy
 import regex

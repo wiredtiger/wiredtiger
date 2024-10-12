@@ -5,11 +5,13 @@ import regex
 from .ctoken import *
 
 def get_base_type(clean_tokens: TokenList) -> str:
-    type = TokenList((filter(lambda x: x.value not in c_type_keywords and x.value != "*", clean_tokens)))
+    type = TokenList((filter(lambda x:
+                x.value not in c_type_keywords and x.value != "*", clean_tokens)))
     return type[-1].value if type else ""
 
 def get_base_type_str(clean_txt: str, **kwargs) -> str:
-    return get_base_type(TokenList(TokenList.xxFilterCode(TokenList.xFromText(clean_txt, base_offset=0, **kwargs))))
+    return get_base_type(TokenList(TokenList.xxFilterCode(TokenList.xFromText(
+                clean_txt, base_offset=0, **kwargs))))
 
 @dataclass
 class Variable:
@@ -28,9 +30,11 @@ class Variable:
     def update(self, other: 'Variable') -> list[str]:
         errors = []
         if self.name != other.name:
-            errors.append(f"variable name mismatch for '{self.name.value}': '{self.name.value}' != '{other.name.value}'")
+            errors.append(f"variable name mismatch for '{self.name.value}': "
+                          f"'{self.name.value}' != '{other.name.value}'")
         if self.typename != other.typename:
-            errors.append(f"variable type mismatch for '{self.name.value}': '{self.typename}' != '{other.typename}'")
+            errors.append(f"variable type mismatch for '{self.name.value}': "
+                          f"'{self.typename}' != '{other.typename}'")
         if self.preComment is None:
             self.preComment = other.preComment
         if self.postComment is None:
@@ -46,7 +50,8 @@ class Variable:
             if clean_tokens[i].value == "=":
                 clean_tokens = TokenList(clean_tokens[:i])
                 break
-        if not clean_tokens or (len(clean_tokens) == 1 and clean_tokens[0].value in ["...", "void"]):
+        if not clean_tokens or (len(clean_tokens) == 1 and
+                                clean_tokens[0].value in ["...", "void"]):
             return None
         # find some words, skip standalone []s and *s
         while clean_tokens and clean_tokens[-1].value.startswith(("*", "[")):
@@ -65,7 +70,8 @@ class Variable:
         name.value = regex.sub(r"\W+", "", name.value)
 
         # Remove C keywords from type
-        type = TokenList((filter(lambda x: x.value not in c_type_keywords and x.value != "*", clean_tokens)))
+        type = TokenList((filter(lambda x:
+                    x.value not in c_type_keywords and x.value != "*", clean_tokens)))
 
         end = None
         for token in reversed(vardef):

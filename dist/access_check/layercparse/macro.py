@@ -8,7 +8,8 @@ from .statement import *
 from .variable import *
 from .workspace import *
 
-reg_define = regex.compile(r"^\#define\s++(?P<name>\w++)(?P<args>\((?P<args_in>[^)]*+)\))?\s*+(?P<body>.*)$", re_flags)
+reg_define = regex.compile(
+    r"^\#define\s++(?P<name>\w++)(?P<args>\((?P<args_in>[^)]*+)\))?\s*+(?P<body>.*)$", re_flags)
 reg_whole_word = regex.compile(r"[\w\.]++", re_flags)
 
 # The difference from re_token is that # and ## are operators rather than preprocessor directives
@@ -51,14 +52,15 @@ class MacroParts:
     args: list[Token] | None = None
     body: Token | None = None
     preComment: Token | None = None
-    postComment: Token | None = field(default=None, repr=False) # for compatibility with other details
+    postComment: Token | None = field(default=None, repr=False) # for compatibility with all details
     is_va_args: bool = False
     is_wellformed: bool = True
     # is_multiple_statements: bool = False
     is_const: bool | None = None
-    typename: TokenList = field(default_factory=TokenList, repr=False) # for compatibility with other details
+    typename: TokenList = field(default_factory=TokenList, repr=False) # compatibility with details
 
-    # TODO(later): Parse body into a list of tokens. Use special token types for # and ## operators and replacements
+    # TODO(later): Parse body into a list of tokens.
+    #              Use special token types for # and ## operators and replacements
 
     def __post_init__(self):
         if not self.body:
@@ -69,7 +71,8 @@ class MacroParts:
             if not self.is_wellformed:
                 self.is_const = False
             else:
-                for token in TokenList.xxFilterCode(TokenList.xFromText(self.body.value, base_offset=self.body.range[0])):
+                for token in TokenList.xxFilterCode(TokenList.xFromText(
+                                self.body.value, base_offset=self.body.range[0])):
                     if token.getKind() in [" ", "#", "/"]:
                         continue
                     if (self.is_const is None and (
@@ -85,7 +88,8 @@ class MacroParts:
     def args_short_repr(self) -> str:
         return "(" + ", ".join([arg.value for arg in self.args]) + ")" if self.args else ""
     def short_repr(self) -> str:
-        return f"Macro {self.name.value}{self.args_short_repr()} is_wellformed={self.is_wellformed} is_const={self.is_const}"
+        return (f"Macro {self.name.value}{self.args_short_repr()} "
+                f"is_wellformed={self.is_wellformed} is_const={self.is_const}")
 
     def kind(self) -> str:
         return "macro"
@@ -93,9 +97,11 @@ class MacroParts:
     def update(self, other: 'MacroParts') -> list[str]:
         errors = []
         if self.name != other.name:
-            errors.append(f"macro name mismatch for '{self.name.value}': '{self.name.value}' != '{other.name.value}'")
+            errors.append(f"macro name mismatch for '{self.name.value}': "
+                          f"'{self.name.value}' != '{other.name.value}'")
         if self.args != other.args:
-            errors.append(f"macro args mismatch for '{self.name.value}': {self.args_short_repr()} != {other.args_short_repr()}")
+            errors.append(f"macro args mismatch for '{self.name.value}': "
+                          f"{self.args_short_repr()} != {other.args_short_repr()}")
         if self.body != other.body:
             errors.append(f"macro redifinition: '{self.name.value}'")
         if self.preComment is None:
@@ -129,7 +135,8 @@ class MacroParts:
                 is_va_args = True
 
         body = Token.fromMatch(match, offset, "body")
-        body.value = clean_text_sz(body.value.replace("\\\n", " \n").strip()) # space to preserve byte offset
+        # space to preserve byte offset
+        body.value = clean_text_sz(body.value.replace("\\\n", " \n").strip())
 
         return MacroParts(preComment=preComment, args=args, is_va_args=is_va_args,
             name=Token.fromMatch(match, offset, "name", kind="w"), # type: ignore # match is not None; match is indexable
