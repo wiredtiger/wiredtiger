@@ -35,7 +35,8 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch03(wttest.WiredTigerTestCase):
 
     uri_base = "test_oligarch03"
-    conn_config = 'log=(enabled),verbose=[oligarch]'
+    conn_config = 'log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
+                + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
 
     uri = "oligarch:" + uri_base
 
@@ -45,11 +46,15 @@ class test_oligarch03(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
 
-    # Test inserting a record into an oligarch tree
-    def test_oligarch03(self):
-        base_create = 'key_format=S,value_format=S,disaggregated=(storage_source=dir_store)'
+    # Custom test case setup
+    def early_setup(self):
+        # FIXME: This shouldn't take an absolute path
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
+
+    # Test inserting a record into an oligarch tree
+    def test_oligarch03(self):
+        base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")
         self.session.create(self.uri, base_create)

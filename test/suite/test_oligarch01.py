@@ -37,7 +37,8 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     uri_base = "test_oligarch1"
-    conn_config = 'log=(enabled),verbose=[oligarch]'
+    conn_config = 'log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
+                + 'disaggregated=(stable_prefix=.,storage_source=dir_store)'
 
     uri = "oligarch:" + uri_base
 
@@ -52,6 +53,12 @@ class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
         if os.name == 'nt':
             extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
+
+    # Custom test case setup
+    def early_setup(self):
+        # FIXME: This shouldn't take an absolute path
+        os.mkdir('foo') # Hard coded to match library for now.
+        os.mkdir('bar') # Hard coded to match library for now.
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str):
