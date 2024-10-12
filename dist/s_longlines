@@ -23,7 +23,7 @@ l=`(find bench/wtperf examples ext src test tools/checksum_bitflip -name '*.[chs
 
 for f in $l ; do
     expand -t8 < $f | awk -- \
-        "{if(length(\$0) > 100) printf(\"%s:%d\\n\", \"$f\", NR)}"
+        "{if(length(\$0) > 100 && !/# type:/) printf(\"%s:%d\\n\", \"$f\", NR)}"
 done
 
 exit 0
