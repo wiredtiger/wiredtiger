@@ -810,13 +810,25 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
         f |= O_NOATIME;
 #endif
 
-    if (file_type == WT_FS_OPEN_FILE_TYPE_LOG && FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC)) {
+    if (file_type == WT_FS_OPEN_FILE_TYPE_LOG &&
+      FLD_ISSET(conn->log_info.txn_logsync, WT_LOG_DSYNC)) {
 #ifdef O_DSYNC
         f |= O_DSYNC;
 #elif defined(O_SYNC)
         f |= O_SYNC;
 #else
         WT_ERR_MSG(session, ENOTSUP, "unsupported log sync mode configured");
+#endif
+    }
+
+    if (file_type == WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG &&
+      FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_DSYNC)) {
+#ifdef O_DSYNC
+        f |= O_DSYNC;
+#elif defined(O_SYNC)
+        f |= O_SYNC;
+#else
+        WT_ERR_MSG(session, ENOTSUP, "unsupported oligarch log sync mode configured");
 #endif
     }
 

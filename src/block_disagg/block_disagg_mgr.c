@@ -160,6 +160,8 @@ __wt_block_disagg_manager_owns_object(WT_SESSION_IMPL *session, const char *uri)
      * It's a janky check that should be made better, but assume any handle with a page log belongs
      * to this object-based block manager for now.
      */
+    if (session->dhandle == NULL || S2BT(session) == NULL)
+        return (false);
     if (WT_PREFIX_MATCH(uri, "file:") && (S2BT(session)->page_log != NULL))
         return (true);
     return (false);

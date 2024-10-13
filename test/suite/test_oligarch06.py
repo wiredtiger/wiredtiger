@@ -36,7 +36,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
     nitems = 100000
 
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_base_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
     # TODO do Python tests expect a field named uri?

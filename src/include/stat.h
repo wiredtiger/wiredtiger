@@ -658,12 +658,14 @@ struct __wt_connection_stats {
     int64_t capacity_bytes_chunkcache;
     int64_t capacity_bytes_evict;
     int64_t capacity_bytes_log;
+    int64_t capacity_bytes_oligarch_log;
     int64_t capacity_bytes_written;
     int64_t capacity_threshold;
     int64_t capacity_time_total;
     int64_t capacity_time_ckpt;
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
+    int64_t capacity_time_oligarch_log;
     int64_t capacity_time_read;
     int64_t capacity_time_chunkcache;
     int64_t checkpoint_cleanup_success;

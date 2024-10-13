@@ -556,9 +556,10 @@ __oligarch_log_replay_op_apply(
     stable_cursor = NULL;
     applied = false;
     fileid = 0;
+    memset(&value, 0, sizeof(WT_ITEM));
 
     /* Peek at the size and the type. */
-    WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
+    WT_ERR(__wt_oligarch_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
 
     /*
@@ -572,20 +573,20 @@ __oligarch_log_replay_op_apply(
 
     switch (optype) {
     case WT_LOGOP_COL_MODIFY:
-        WT_ERR(__wt_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
+        WT_ERR(__wt_oligarch_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
         break;
     case WT_LOGOP_COL_PUT:
-        WT_ERR(__wt_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
+        WT_ERR(__wt_oligarch_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
         break;
     case WT_LOGOP_COL_REMOVE:
-        WT_ERR(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
+        WT_ERR(__wt_oligarch_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
         break;
     case WT_LOGOP_COL_TRUNCATE:
-        WT_ERR(
-          __wt_logop_col_truncate_unpack(session, pp, end, &fileid, &start_recno, &stop_recno));
+        WT_ERR(__wt_oligarch_logop_col_truncate_unpack(
+          session, pp, end, &fileid, &start_recno, &stop_recno));
         break;
     case WT_LOGOP_ROW_MODIFY:
-        WT_ERR(__wt_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
+        WT_ERR(__wt_oligarch_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
         if ((entry = manager->entries[fileid]) != NULL) {
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
@@ -606,7 +607,7 @@ __oligarch_log_replay_op_apply(
         break;
 
     case WT_LOGOP_ROW_PUT:
-        WT_ERR(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
+        WT_ERR(__wt_oligarch_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
         if ((entry = manager->entries[fileid]) != NULL) {
             /*
         __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
@@ -627,7 +628,7 @@ __oligarch_log_replay_op_apply(
          * TODO: There should not be any remove operations logged - we turn them into tombstone
          * writes.
          */
-        WT_ERR(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
+        WT_ERR(__wt_oligarch_logop_row_remove_unpack(session, pp, end, &fileid, &key));
         if ((entry = manager->entries[fileid]) != NULL) {
             WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
@@ -643,15 +644,15 @@ __oligarch_log_replay_op_apply(
         break;
 
     case WT_LOGOP_ROW_TRUNCATE:
-        WT_ERR(
-          __wt_logop_row_truncate_unpack(session, pp, end, &fileid, &start_key, &stop_key, &mode));
+        WT_ERR(__wt_oligarch_logop_row_truncate_unpack(
+          session, pp, end, &fileid, &start_key, &stop_key, &mode));
         break;
     case WT_LOGOP_TXN_TIMESTAMP:
         /*
          * Timestamp records are informational only. We have to unpack it to properly move forward
          * in the log record to the next operation, but otherwise ignore.
          */
-        WT_ERR(__wt_logop_txn_timestamp_unpack(
+        WT_ERR(__wt_oligarch_logop_txn_timestamp_unpack(
           session, pp, end, &t_sec, &t_nsec, &commit, &durable, &first_commit, &prepare, &read));
         break;
     default:
@@ -683,7 +684,7 @@ err:
     __wt_err(session, ret,
       "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
       "/%" PRIu32,
-      optype, lsnp->l.file, __wt_lsn_offset(lsnp));
+      optype, lsnp->l.file, __wt_oligarch_lsn_offset(lsnp));
     return (ret);
 }
 
@@ -736,14 +737,14 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
     WT_UNUSED(firstrecord);
 
     /* First, peek at the log record type. */
-    WT_RET(__wt_logrec_read(session, &p, end, &rectype));
+    WT_RET(__wt_oligarch_logrec_read(session, &p, end, &rectype));
 
     /* We are only ever interested in commit records */
     if (rectype != WT_LOGREC_COMMIT)
         return (0);
 
     if (!WT_IS_MAX_LSN(&manager->max_replay_lsn) &&
-      __wt_log_cmp(lsnp, &manager->max_replay_lsn) < 0) {
+      __wt_oligarch_log_cmp(lsnp, &manager->max_replay_lsn) < 0) {
         WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_skip_lsn);
         __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
           "Oligarch skipping previously applied LSN: [%" PRIu32 "][%" PRIu32 "]", lsnp->l.file,
@@ -792,9 +793,10 @@ __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thr
     if (thread->id == 0 && __wt_atomic_load32(&manager->log_applying) == 0 &&
       __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
         if (WT_IS_MAX_LSN(&manager->max_replay_lsn))
-            ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __oligarch_log_replay, NULL);
+            ret = __wt_oligarch_log_scan(
+              session, NULL, NULL, WT_LOGSCAN_FIRST, __oligarch_log_replay, NULL);
         else
-            ret = __wt_log_scan(
+            ret = __wt_oligarch_log_scan(
               session, &manager->max_replay_lsn, NULL, 0, __oligarch_log_replay, NULL);
 
         /* Ignore errors at startup or attempting to read more log record when no additional content
