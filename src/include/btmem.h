@@ -790,7 +790,7 @@ struct __wt_page {
  * outside of the special range.
  */
 #define WT_READGEN_NOTSET 0
-#define WT_READGEN_OLDEST 1
+#define WT_READGEN_EVICT_SOON 1
 #define WT_READGEN_WONT_NEED 2
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100

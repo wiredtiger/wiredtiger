@@ -54,7 +54,7 @@ static WT_INLINE void
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
-    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON)
         return;
 
     /* Ignore pages already in the future. */
@@ -83,14 +83,14 @@ __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wti_evict_readgen_soon_flagged --
+ * __wti_evict_readgen_is_soon_or_wont_need --
  *     Return whether a read generation value makes a page eligible for immediate eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
  *     immediately.
  */
 static WT_INLINE bool
-__wti_evict_readgen_soon_flagged(uint64_t *readgen)
+__wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
 {
     uint64_t gen;
 
@@ -99,13 +99,23 @@ __wti_evict_readgen_soon_flagged(uint64_t *readgen)
 }
 
 /*
- * __wt_evict_page_soon_flagged --
+ * __wt_evict_page_is_soon_or_wont_need --
  *     Return whether the page is eligible for immediate eviction.
  */
 static WT_INLINE bool
-__wt_evict_page_soon_flagged(WT_PAGE *page)
+__wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
 {
-    return (__wti_evict_readgen_soon_flagged(&page->read_gen));
+    return (__wti_evict_readgen_is_soon_or_wont_need(&page->read_gen));
+}
+
+/*
+ * __wt_evict_page_is_soon --
+ *     Return whether the page is to be evicted as soon as possible.
+ */
+static WT_INLINE bool
+__wt_evict_page_is_soon(WT_PAGE *page)
+{
+    return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
 
 /*
@@ -117,7 +127,7 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UNUSED(session);
 
-    __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_OLDEST);
+    __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_EVICT_SOON);
 }
 
 /*
@@ -181,7 +191,7 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 
     WT_READ_ONCE(orig_read_gen, orig_page->read_gen);
 
-    if (!__wti_evict_readgen_soon_flagged(&orig_read_gen))
+    if (!__wti_evict_readgen_is_soon_or_wont_need(&orig_read_gen))
         __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
 }
 

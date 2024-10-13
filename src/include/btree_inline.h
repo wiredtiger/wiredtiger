@@ -78,7 +78,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
      * dirty eviction: that is handled explicitly in __wt_sync_file.
      */
-    if (__wt_evict_page_soon_flagged(page) && btree->evict_disabled == 0 &&
+    if (__wt_evict_page_is_soon_or_wont_need(page) && btree->evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
