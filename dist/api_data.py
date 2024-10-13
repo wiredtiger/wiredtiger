@@ -1922,7 +1922,7 @@ methods = {
         type='boolean'),
     Config('oligarch_sync', '', r'''
         whether to sync oligarch log records when the transaction commits, inherited from ::wiredtiger_open
-        \c transaction_sync''',
+        \c transaction_oligarch_sync''',
         type='boolean')
 ], compilable=True),
 
@@ -1954,7 +1954,7 @@ methods = {
         choices=['off', 'on']),
     Config('oligarch_sync', '', r'''
         override whether to sync oligarch log records when the transaction commits. The default is inherited
-        from ::wiredtiger_open \c transaction_sync. The \c off setting does not wait for records
+        from ::wiredtiger_open \c transaction_oligarch_sync. The \c off setting does not wait for records
         to be written or synchronized. The \c on setting forces log records to be written to
         the storage device''',
         choices=['off', 'on']),

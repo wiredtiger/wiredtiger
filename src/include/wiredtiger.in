@@ -1760,7 +1760,8 @@ struct __wt_session {
      * existed" and are visible regardless of timestamp.  See @ref timestamp_txn_api., a boolean
      * flag; default \c false.}
      * @config{oligarch_sync, whether to sync oligarch log records when the transaction commits\,
-     * inherited from ::wiredtiger_open \c transaction_sync., a boolean flag; default empty.}
+     * inherited from ::wiredtiger_open \c transaction_oligarch_sync., a boolean flag; default
+     * empty.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
@@ -1821,9 +1822,9 @@ struct __wt_session {
      * be after the current oldest and stable timestamps and must not be older than the commit
      * timestamp.  See @ref timestamp_prepare., a string; default empty.}
      * @config{oligarch_sync, override whether to sync oligarch log records when the transaction
-     * commits.  The default is inherited from ::wiredtiger_open \c transaction_sync.  The \c off
-     * setting does not wait for records to be written or synchronized.  The \c on setting forces
-     * log records to be written to the storage device., a string\, chosen from the following
+     * commits.  The default is inherited from ::wiredtiger_open \c transaction_oligarch_sync.  The
+     * \c off setting does not wait for records to be written or synchronized.  The \c on setting
+     * forces log records to be written to the storage device., a string\, chosen from the following
      * options: \c "off"\, \c "on"; default empty.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
