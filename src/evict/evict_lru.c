@@ -2149,7 +2149,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
 
     /* Pages being forcibly evicted go on the urgent queue. */
     if (modified &&
-      (__wti_evict_readgen_soon_flagged(&page->read_gen) ||
+      (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST ||
         __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage)) {
         WT_STAT_CONN_INCR(session, eviction_pages_queued_oldest);
         if (__wt_evict_page_urgent(session, ref))
