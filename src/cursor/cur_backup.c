@@ -276,7 +276,7 @@ err:
     }
     /* Clear the flag on force stop after the completion of the checkpoint. */
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP))
-        FLD_CLR(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
+        FLD_CLR(conn->log_info.log_flags, WT_CONN_LOG_INCR_BACKUP);
 
     /*
      * When starting a hot backup, we serialize hot backup cursors and set the connection's
@@ -512,7 +512,7 @@ __backup_log_append(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool active)
     logcount = 0;
     ret = 0;
 
-    if (conn->log) {
+    if (conn->log_info.log) {
         WT_ERR(__wt_log_get_backup_files(session, &logfiles, &logcount, &cb->maxid, active));
         for (i = 0; i < logcount; i++)
             WT_ERR(__backup_list_append(session, cb, logfiles[i]));
@@ -682,7 +682,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      * Duplicate backup cursors are only for log targets or block-based incremental backups. But log
      * targets don't make sense with block-based incremental backup.
      */
-    if (!is_dup && log_config && FLD_ISSET(conn->log_flags, WT_CONN_LOG_REMOVE))
+    if (!is_dup && log_config && FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_REMOVE))
         WT_ERR_MSG(session, EINVAL,
           "incremental log file backup not possible when automatic log removal configured");
     if (is_dup && (!incremental_config && !log_config))

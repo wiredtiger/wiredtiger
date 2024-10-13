@@ -466,7 +466,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     if (WT_SUFFIX_MATCH(uri, ".wtobj"))
         return (false);
 
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (FLD_ISSET(S2C(session)->log_info.log_flags, WT_CONN_LOG_ENABLED)) {
         WT_RET(__wt_config_getones(session, config, "log.enabled", &cval));
         if (cval.val)
             logged = true;

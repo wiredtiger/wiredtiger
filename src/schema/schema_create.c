@@ -1137,7 +1137,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      * future in a special mode that allows for it to be ignored by recovery, but for now just
      * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
-    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=true,oligarch_constituent=true)"));
+    WT_ERR(__wt_buf_fmt(session, tmp, "oligarch_log=(enabled=true,oligarch_constituent=true)"));
     ingest_cfg[2] = tmp->data;
     /*
      * Since oligarch constituents use table URIs, pass the full merged configuration string through
@@ -1145,7 +1145,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, "storage_source=,", &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
-    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
+    WT_ERR(__wt_buf_fmt(session, tmp, "oligarch_log=(enabled=false)"));
     stable_cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));

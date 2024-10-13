@@ -37,7 +37,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     uri_base = "test_oligarch1"
-    conn_config = 'log=(enabled),verbose=[oligarch]'
+    conn_config = 'oligarch_log=(enabled),verbose=[oligarch]'
 
     uri = "oligarch:" + uri_base
 

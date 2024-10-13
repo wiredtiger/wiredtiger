@@ -36,7 +36,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_oligarch05"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader")'
+    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader")'
     # conn_config = 'log=(enabled)'
 
     uri = "oligarch:" + uri_base
