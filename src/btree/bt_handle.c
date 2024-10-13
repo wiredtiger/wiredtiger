@@ -465,7 +465,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * level durability and supported timestamps. In-memory configurations default to ignoring all
      * timestamps, and the application uses the logging configuration flag to turn on timestamps.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED)) {
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (cval.val)
             F_SET(btree, WT_BTREE_LOGGED);
@@ -475,6 +475,18 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (!cval.val)
             F_CLR(btree, WT_BTREE_LOGGED);
+    }
+
+    if (FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED)) {
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.enabled", &cval));
+        if (cval.val)
+            F_SET(btree, WT_BTREE_OLIGARCH_LOGGED);
+    }
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        F_SET(btree, WT_BTREE_OLIGARCH_LOGGED);
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.enabled", &cval));
+        if (!cval.val)
+            F_CLR(btree, WT_BTREE_OLIGARCH_LOGGED);
     }
 
     /*

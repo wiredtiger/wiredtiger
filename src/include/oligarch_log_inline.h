@@ -9,11 +9,11 @@
 #pragma once
 
 /*
- * __wt_log_cmp --
+ * __wt_oligarch_log_cmp --
  *     Compare 2 LSNs, return -1 if lsn1 < lsn2, 0if lsn1 == lsn2 and 1 if lsn1 > lsn2.
  */
 static WT_INLINE int
-__wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
+__wt_oligarch_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 {
     uint64_t l1, l2;
 
@@ -28,39 +28,34 @@ __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 }
 
 /*
- * __wt_lsn_offset --
+ * __wt_oligarch_lsn_offset --
  *     Return a log sequence number's offset.
  */
 static WT_INLINE uint32_t
-__wt_lsn_offset(WT_LSN *lsn)
+__wt_oligarch_lsn_offset(WT_LSN *lsn)
 {
     return (__wt_atomic_load32(&lsn->l.offset));
 }
 
 /*
- * __wt_log_op --
+ * __wt_oligarch_log_op --
  *     Return if an operation should be logged.
  */
 static WT_INLINE bool
-__wt_log_op(WT_SESSION_IMPL *session)
+__wt_oligarch_log_op(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
 
-    /*
-     * Objects with checkpoint durability don't need logging unless we're in debug mode. That rules
-     * out almost all log records, check it first.
-     */
-    if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
-      !FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+    if (!F_ISSET(S2BT(session), WT_BTREE_OLIGARCH_LOGGED))
         return (false);
 
     /*
      * Correct the above check for logging being configured. Files are configured for logging to
      * turn off timestamps, so stop here if there aren't actually any log files.
      */
-    if (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED))
+    if (!FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED))
         return (false);
 
     /* No logging during recovery. */
