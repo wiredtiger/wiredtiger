@@ -11,16 +11,16 @@ def main():
     setRootPath(rootPath)
     setModules([
         Module("block"),
-        Module("block_cache", sourceAliases = ["blkcache", "bm"]),
+        Module("block_cache", fileAliases=["block_chunkcache"], sourceAliases = ["blkcache", "bm"]),
         Module("bloom"),
-        Module("btree"),
+        Module("btree", fileAliases=["btmem", "btree_cmp", "dhandle", "modify", "ref", "serial"]),
         Module("call_log"),
         # Module("checksum"),
         Module("conf"),
         Module("config"),
         Module("conn", fileAliases=["connection"], sourceAliases=["connection"]),
         Module("cursor", sourceAliases=["cur", "btcur", "curbackup"]),
-        Module("evict"),
+        Module("evict", fileAliases=["cache"]),
         Module("history", sourceAliases = ["hs"]),
         Module("log"),
         Module("lsm", sourceAliases=["clsm"]),
@@ -34,8 +34,15 @@ def main():
         Module("session"),
         # Module("support"),
         Module("tiered"),
-        Module("txn"),
+        Module("txn", sourceAliases=["truncate"]),
         # Module("utilities"),
+
+        Module("bitstring"),
+        Module("cell"),
+        Module("checkpoint", sourceAliases=["ckpt"]),
+        Module("column", sourceAliases=["col"]),
+        Module("compact"),
+        Module("pack", sourceAliases=["intpack"]),
     ])
     files = get_files()
     files.insert(0, os.path.join(os.path.realpath(rootPath), "src/include/wiredtiger.in"))
