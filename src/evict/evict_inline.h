@@ -325,6 +325,26 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
 }
 
 /*
+ * __wt_evict_favor_clearing_dirty_cache --
+ *     !!! This function aggressively adjusts the eviction settings to encourage the removal of
+ *     dirty bytes from the cache. Use with caution, as it may significantly impact cache behavior.
+ */
+static WT_INLINE void
+__wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session)
+{
+    WT_EVICT *evict;
+
+    evict = S2C(session)->evict;
+
+    /*
+     * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
+     * of cache.
+     */
+    __wt_set_shared_double(&evict->eviction_dirty_trigger, 1.0);
+    __wt_set_shared_double(&evict->eviction_dirty_target, 0.1);
+}
+
+/*
  * __wti_evict_hs_dirty --
  *     Return if a major portion of the cache is dirty due to history store content.
  */
