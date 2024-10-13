@@ -14,10 +14,13 @@ from io import StringIO
 
 import difflib
 
+def _sort_set_txt(txt):
+    return regex.sub(r"\{(?>('[^\']*+')(?>,\s*+)?)++\}",
+                     lambda match: "{" + ", ".join(sorted(match.allcaptures()[1])) + "}",
+                     txt, re_flags)
 
 def pf(obj: Any) -> str:
     return pformat(obj, width=120, compact=False)
-
 
 class TestCaseLocal(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -226,11 +229,17 @@ class TestMacro(TestCaseLocal):
         # setLogLevel(LogLevel.DEBUG)
         # pprint(_globals.macros, width=120, compact=False)
 
-        expanded = MacroExpander().expand(src, _globals.macros___, expand_const=True)
+        expander = MacroExpander()
+        expanded = expander.expand(src, _globals.macros, expand_const=True)
         self.checkStrAgainstFile(expanded, "data/macro.c.macro-full")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.insert_list)), "data/macro.c.macro-full-inserts")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.expand_list)), "data/macro.c.macro-full-expands")
 
-        expanded = MacroExpander().expand(src, _globals.macros___, expand_const=False)
+        expander = MacroExpander()
+        expanded = expander.expand(src, _globals.macros, expand_const=False)
         self.checkStrAgainstFile(expanded, "data/macro.c.macro-noconst")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.insert_list)), "data/macro.c.macro-noconst-inserts")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.expand_list)), "data/macro.c.macro-noconst-expands")
 
     def test_macro_expand(self):
         setModules([Module("mod1"), Module("mod2")])

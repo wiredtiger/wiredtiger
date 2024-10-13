@@ -9,9 +9,22 @@ def c_string_escape(txt: str) -> str:
 def _D2M(val: 'Definition') -> MacroParts: # type: ignore[name-defined] # circular dependency for Definition
     return cast(MacroParts, val.details)
 
+# @dataclass
+# class ExpandTree:
+#     expansionTree: 'map[str, ExpandTree]'
+#     # name: str
+
+@dataclass
+class ExpandList:
+    range: Range
+    expansionList: dict[str, set[str]]  # name: set[expansion]
+    # expansionTree: ExpandTree
+
 class MacroExpander:
-    insert_list: InsertList
+    insert_list: InsertList  # sorted list by range[0] of (offset, delta)
+    expand_list: list[ExpandList]  # sorted list by range[0] of ExpandList
     _macros: dict[str, MacroParts]
+    _cur_expand_entry: dict[str, set[str]]
 
     # Macro expansion.
     #  - https://en.wikipedia.org/wiki/C_preprocessor#Order_of_expansion
@@ -20,10 +33,12 @@ class MacroExpander:
     def expand(self, txt: str, macros: 'dict[str, Definition]',expand_const: bool = False) -> str: # type: ignore[name-defined] # circular dependency for Definition
         # TODO(later): Optimise: compose the result as a list of strings, then join at the end
 
-        self.insert_list: InsertList = []  # (offset, delta)
+        self.insert_list = []  # (offset, delta)
+        self.expand_list = []
         if not macros:
             return txt
         self._macros = macros
+        self._cur_expand_entry = {}
 
         names_re_a = [
             r"""(?> (?: \# | \/\/ ) (?: [^\\\n] | \\. )*+ \n)""",
@@ -58,16 +73,39 @@ class MacroExpander:
             return txt
 
         self._names_reg = regex.compile(" | ".join(names_re_a), re_flags, **kwargs)  # type: ignore # **kwargs
-        self._in_use: set[str] = set()
-        self._in_use_stack: list[str] = []
+        self._recurse_in_use: set[str] = set()  # recursion control
+        self._owner_stack: list[str] = []       # stack of current expansion "owning" scopes
+        self._expanding_stack: list[str] = []   # stack of current expansion levels
+
+        # The difference between _owner_stack and _expanding_stack is best demonstrated by the
+        # following example. Consider the following code:
+        #
+        #     CAT(HE, LLO)
+        #
+        # The topmost expansion matches the entire macro "CAT(HE, LLO)" and _expanding_stack is
+        # entered into "CAT". The _owner_stack is empty because expansion of its arguments "HE" and
+        # "LLO" are performed on the topmost level, not within the "CAT" macro.
+        # Then, when the contents of "CAT" are expanded with arguments substituted, the _owner_stack
+        # is set to "CAT" as well.
 
         ret = self._expand_fragment(txt)
-        del self._macros # delete reference
+        del self._macros, self._cur_expand_entry # delete temporaries
         return ret
 
-    def __update_insert_list(self, replacement: str, match: regex.Match, base_offset) -> str:
-        if not self._in_use:
-            self.insert_list.append((match.start() + base_offset, len(replacement) - len(match[0])))
+    def __expand_enter(self, name: str) -> None:
+        self._expanding_stack.append(name)
+        parent = self._owner_stack[-1] if self._owner_stack else ""
+        if parent not in self._cur_expand_entry:
+            self._cur_expand_entry[parent] = set()
+        self._cur_expand_entry[parent].add(name)
+
+    def __expand_leave(self, replacement: str, match: regex.Match, base_offset) -> str:
+        self._expanding_stack.pop()
+        if not self._expanding_stack:
+            range = (match.start() + base_offset, len(replacement) - len(match[0]), )
+            self.insert_list.append(range)
+            self.expand_list.append(ExpandList(range, self._cur_expand_entry))
+            self._cur_expand_entry = {}
         return replacement
 
     def _expand_fragment(self, txt: str, base_offset: int = 0) -> str:
@@ -81,27 +119,29 @@ class MacroExpander:
 
     def _expand_obj_like(self, match: regex.Match, base_offset: int = 0) -> str:
         name = match["name"]
-        if name in self._in_use:
-            return self.__update_insert_list(match[0], match, base_offset)
+        self.__expand_enter(name)
+        if name in self._recurse_in_use:
+            return self.__expand_leave(match[0], match, base_offset)
         if not _D2M(self._macros[name]).body:
-            return self.__update_insert_list("", match, base_offset)
+            return self.__expand_leave("", match, base_offset)
 
-        self._in_use.add(name)
-        self._in_use_stack.append(name)
+        self._recurse_in_use.add(name)
+        self._owner_stack.append(name)
         # TODO: push scope
         replacement = self._expand_fragment(_D2M(self._macros[name]).body.value, base_offset)  # type: ignore # match is not None
-        self._in_use_stack.pop()
-        self._in_use.remove(name)
+        self._owner_stack.pop()
+        self._recurse_in_use.remove(name)
 
-        return self.__update_insert_list(replacement, match, base_offset)
+        return self.__expand_leave(replacement, match, base_offset)
 
     def _expand_fn_like(self, match: regex.Match, base_offset: int = 0) -> str:
         name = match["name"]
-        if name in self._in_use:
-            return self.__update_insert_list(match[0], match, base_offset)
+        self.__expand_enter(name)
+        if name in self._recurse_in_use:
+            return self.__expand_leave(match[0], match, base_offset)
         macro = _D2M(self._macros[name])
         if not macro.body:
-            return self.__update_insert_list("", match, base_offset)
+            return self.__expand_leave("", match, base_offset)
 
         # Parse args
         args_val: list[TokenList] = [TokenList([])]
@@ -122,7 +162,7 @@ class MacroExpander:
             # TODO: better error location
             ERROR(scope_file().locationStr(base_offset + match.start()),
                   f"macro {name}: got only {len(args_val)} arguments, expected {len(macro.args)}")   # type: ignore # macro has args
-            return self.__update_insert_list(match[0], match, base_offset)
+            return self.__expand_leave(match[0], match, base_offset)
 
         replacement = macro.body.value  # type: ignore # match is not None
 
@@ -155,10 +195,10 @@ class MacroExpander:
                 replacement)
 
         # Another round of global replacement
-        self._in_use.add(name)
-        self._in_use_stack.append(name)
+        self._recurse_in_use.add(name)
+        self._owner_stack.append(name)
         replacement = self._expand_fragment(replacement, base_offset+match.start())
-        self._in_use_stack.pop()
-        self._in_use.remove(name)
+        self._owner_stack.pop()
+        self._recurse_in_use.remove(name)
 
-        return self.__update_insert_list(replacement, match, base_offset)
+        return self.__expand_leave(replacement, match, base_offset)

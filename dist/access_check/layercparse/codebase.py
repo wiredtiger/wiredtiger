@@ -149,12 +149,12 @@ class Codebase:
     # Typedefs
     typedefs: dict[str, str] = field(default_factory=dict)
     # Macros
-    macros___: dict[str, Definition] = field(default_factory=dict)
+    macros: dict[str, Definition] = field(default_factory=dict)
     # macros_restricted: dict[str, Definition] = field(default_factory=dict)
 
     def __post_init__(self):
-        if "__attribute__" not in self.macros___:
-            self.macros___["__attribute__"] = Definition(
+        if "__attribute__" not in self.macros:
+            self.macros["__attribute__"] = Definition(
                 name="__attribute__",
                 kind="macro",
                 scope=Scope.empty(),
@@ -247,9 +247,9 @@ class Codebase:
             is_private=is_private,
             details=macro)
         DEBUG3(lambda: scope().locationStr(macro.name.range[0]), "Macro:", defn.short_repr)
-        _dict_upsert_def(self.macros___, defn)
+        _dict_upsert_def(self.macros, defn)
         # if is_private:
-        #     self.macros_restricted[macro.name.value] = self.macros___[macro.name.value]
+        #     self.macros_restricted[macro.name.value] = self.macros[macro.name.value]
 
     def updateFromText(self, txt: str, offset: int = 0, do_preproc: bool = True) -> None:
         DEBUG3(" ---", f"Scope: {offset}")
@@ -321,7 +321,7 @@ class Codebase:
         with ScopePush(file=File(fname)):
             if expand_preproc:
                 expander = MacroExpander()
-                txt = expander.expand(scope_file().read(), self.macros___)
+                txt = expander.expand(scope_file().read(), self.macros)
                 scope_file().updateLineInfoWithInsertList(expander.insert_list)
                 self.updateFromText(txt, do_preproc=False)
             else:
@@ -365,7 +365,7 @@ class Codebase:
         # Return: (fname, expanded_file_content, insert_list)
         expander = MacroExpander()
         return (fname,
-                expander.expand(file_content(fname), self.macros___),
+                expander.expand(file_content(fname), self.macros),
                 expander.insert_list)  # Tuple evaluation is left-to-right, so the insert_list is ok
 
     def scanFiles(self, files: Iterable[str], twopass = True, multithread = True) -> None:
@@ -419,7 +419,7 @@ class Codebase:
                     dict[str, str]]:
         with ScopePush(file=File(fname)):
             expander = MacroExpander()
-            txt = expander.expand(scope_file().read(), self.macros___)
+            txt = expander.expand(scope_file().read(), self.macros)
             scope_file().updateLineInfoWithInsertList(expander.insert_list)
             self.updateFromText(txt, do_preproc=False)
         return (fname, self.types, self.fields, self.names, self.static_names, self.typedefs)
