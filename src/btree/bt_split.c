@@ -1432,7 +1432,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_RET(__wti_page_inmem_prepare(session, ref));
 
-    __wt_evict_inherit_readgen(orig, page);
+    __wt_evict_inherit_page_state(orig, page);
 
     /*
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we

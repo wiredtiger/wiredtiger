@@ -123,9 +123,9 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 /*
  * __wt_evict_page_first_dirty --
  *     Tell eviction if this is the first time the page has been modified while in the cache. The
- *     eviction mechanism will then update the page's state as needed. In this function, although
- *     the page was not initially required, it has now been modified, so we prefer to retain it
- *     instead of evicting it immediately.
+ *     eviction mechanism will then update the page's eviction state as needed. In this function,
+ *     although the page was not initially required, it has now been modified, so we prefer to
+ *     retain it instead of evicting it immediately.
  */
 static WT_INLINE void
 __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -140,10 +140,10 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_evict_touch_page --
- *     Tell eviction when we touch a page so it can update its state for that page. The caller may
- *     set flags indicating that it doesn't expect to need the page again or that it's an internal
- *     read. The latter is used by operations such as compact, and eviction, itself, so internal
- *     operations don't update eviction state.
+ *     Tell eviction when we touch a page so it can update its eviction state for that page. The
+ *     caller may set flags indicating that it doesn't expect to need the page again or that it's an
+ *     internal read. The latter is used by operations such as compact, and eviction, itself, so
+ *     internal operations don't update page's eviction state.
  */
 static WT_INLINE void
 __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
@@ -160,7 +160,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_onl
 
 /*
  * __wt_evict_page_init --
- *     Initialize eviction state for a newly created page.
+ *     Initialize page's eviction state for a newly created page.
  */
 static WT_INLINE void
 __wt_evict_page_init(WT_PAGE *page)
@@ -169,13 +169,13 @@ __wt_evict_page_init(WT_PAGE *page)
 }
 
 /*
- * __wt_evict_inherit_readgen --
+ * __wt_evict_inherit_page_state --
  *     When creating a new page from an existing page, for example during split, initialize the read
  *     generation on the new page using the read generation of the original page, unless this was a
  *     forced eviction, in which case we leave the new page with the default initialization.
  */
 static WT_INLINE void
-__wt_evict_inherit_readgen(WT_PAGE *orig_page, WT_PAGE *new_page)
+__wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 {
     uint64_t orig_read_gen;
 
