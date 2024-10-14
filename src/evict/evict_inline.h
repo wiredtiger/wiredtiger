@@ -21,7 +21,7 @@ __wt_evict_aggressive(WT_SESSION_IMPL *session)
 
 /*
  * __wt_evict_cache_stuck --
- *     Indicate if the cache is stuck (i.e., eviction not making progress).
+ *     Indicate if the cache is stuck (i.e. eviction not making progress).
  */
 static WT_INLINE bool
 __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
@@ -132,17 +132,15 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_evict_page_first_dirty --
- *     Tell eviction if this is the first time the page has been modified while in the cache. The
- *     eviction mechanism will then update the page's eviction state as needed. In this function,
- *     although the page was not initially required, it has now been modified, so we prefer to
- *     retain it instead of evicting it immediately.
+ *     Tell eviction when a page transitions from clean to dirty. The eviction mechanism will then
+ *     update the page's eviction state as needed.
  */
 static WT_INLINE void
 __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /*
-     * In the event we dirty a page which is flagged for eviction soon, we update its read
-     * generation to avoid evicting a dirty page prematurely.
+     * In the event we dirty a page which is flagged as wont need, we update its read generation to
+     * avoid evicting a dirty page prematurely.
      */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
         __wti_evict_read_gen_new(session, page);
@@ -152,8 +150,8 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
  * __wt_evict_touch_page --
  *     Tell eviction when we touch a page so it can update its eviction state for that page. The
  *     caller may set flags indicating that it doesn't expect to need the page again or that it's an
- *     internal read. The latter is used by operations such as compact, and eviction, itself, so
- *     internal operations don't update page's eviction state.
+ *     internal operation which doesn't change eviction state. The latter is used by operations such
+ *     as compact, and eviction, itself, so internal operations don't update page's eviction state.
  */
 static WT_INLINE void
 __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
