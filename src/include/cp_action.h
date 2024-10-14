@@ -177,7 +177,7 @@ struct __wt_control_point_pair_data_err {
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID)            \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
     if (_cp_data != NULL) {                                                       \
-        int _err = ((WT_CONTROL_POINT_PAIR_DATA_ERR *)_cp_data)->err;             \
+        int _err = ((WT_CONTROL_POINT_PAIR_DATA_ERR *)_cp_data)->action_data.err; \
         /* _cp_data not needed during action. */                                  \
         __wt_control_point_release_data(_session, _cp_registry, _cp_data, false); \
         _cp_data = NULL;                                                          \

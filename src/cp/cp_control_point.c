@@ -322,7 +322,7 @@ __wt_conn_control_point_enable_all_in_open(WT_CONNECTION_IMPL *conn, const char 
 
     for (; idx < CONNECTION_CONTROL_POINTS_SIZE; idx++) {
         if (control_points[idx].enable_at_open == false)
-            break;
+            continue;
 
         WT_RET(__wti_conn_control_point_enable(conn, &(control_points[idx]), cfg));
     }
@@ -353,9 +353,9 @@ __wt_session_control_point_enable_all_in_open(WT_SESSION_IMPL *session)
         control_points = session->control_points;
     }
 
-    for (; idx < CONNECTION_CONTROL_POINTS_SIZE; idx++) {
+    for (; idx < SESSION_CONTROL_POINTS_SIZE; idx++) {
         if (control_points[idx].enable_at_open == false)
-            break;
+            continue;
 
         WT_RET(__wti_session_control_point_enable(session, &(control_points[idx]), NULL));
     }
