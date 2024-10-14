@@ -115,6 +115,9 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
+    // if (bm->is_remote) /* Temporarily enable delta for every tree for testing. */
+    F_SET(btree, WT_BTREE_PAGE_DELTA);
+
     /*
      * !!!
      * As part of block-manager configuration, we need to return the maximum

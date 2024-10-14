@@ -129,6 +129,46 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
+ * WT_DELTA_HEADER --
+ *	Header for delta
+ */
+struct __wt_delta_header {
+    /*
+     * Memory size of the delta.
+     */
+    uint32_t mem_size; /* 0-03: in-memory size */
+
+    uint8_t type; /* 04: page type */
+
+    uint8_t flags; /* 05: flags */
+
+    /* A byte of padding, positioned to be added to the flags. */
+    uint8_t unused; /* 06: unused padding */
+
+    uint8_t version; /* 07: version */
+};
+
+/*
+ * WT_PAGE_DELTA_SIZE is the number of bytes we allocate for the structure: if the compiler inserts
+ * padding it will break the world.
+ */
+#define WT_PAGE_HEADER_SIZE 28
+
+struct __wt_delta_cell_unpack {
+    WT_ITEM *key;
+    WT_ITEM *value;
+
+    WT_TIME_WINDOW tw;
+
+#define WT_DELTA_HAS_START_TS 0x01u
+#define WT_DELTA_HAS_START_DURABLE_TS 0x02u
+#define WT_DELTA_HAS_STOP_TS 0x04u
+#define WT_DELTA_HAS_STOP_DURABLE_TS 0x08u
+#define WT_DELTA_IS_DELETE 0x10u
+    uint8_t flags;
+};
+
+/*
  * WT_ADDR --
  *	An in-memory structure to hold a block's location.
  */
@@ -1436,16 +1476,17 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x04u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x08u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x10u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x20u         /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x40u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x80u        /* Update needs to be deleted from history store */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
-    uint8_t flags;
+#define WT_UPDATE_DS 0x001u                       /* Update has been written to the data store. */
+#define WT_UPDATE_DURABLE 0x002u                  /* Update has been durable. */
+#define WT_UPDATE_HS 0x004u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x008u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x010u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x020u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x040u         /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x080u         /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x100u /* Update needs to be deleted from history store */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the
  * disk image:
@@ -1482,7 +1523,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 47
+#define WT_UPDATE_SIZE 48
 
 /*
  * If there is no value, ensure that the memory allocation size matches that returned by sizeof().

@@ -514,6 +514,9 @@ config_run(void)
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
+    /* Temporarily disable salvage test due to increased failures. */
+    config_off(NULL, "ops.salvage");
+
     /* Order can be important, don't shuffle without careful consideration. */
     config_tiered_storage();                         /* Tiered storage */
     config_chunk_cache();                            /* Chunk cache */

@@ -98,7 +98,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_PAGE_BLOCK_META block_meta;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool prepare;
+    bool instantiate_upd;
 
     WT_CLEAR(block_meta);
 
@@ -200,11 +200,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
+    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &instantiate_upd));
     tmp.mem = NULL;
     ref->page->block_meta = block_meta;
-    if (prepare)
-        WT_ERR(__wti_page_inmem_prepare(session, ref));
+    if (instantiate_upd && !WT_IS_HS(session->dhandle))
+        WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the

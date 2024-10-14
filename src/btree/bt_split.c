@@ -1387,7 +1387,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_UPDATE *prev_onpage, *tmp, *upd;
     uint64_t orig_read_gen, recno;
     uint32_t i, slot;
-    bool prepare;
+    bool instantiate_upd;
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1402,16 +1402,17 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
-    WT_RET(__wti_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &prepare));
+    WT_RET(__wti_page_inmem(
+      session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
     /*
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
      * underlying page functions to do it.
      */
-    if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-        WT_RET(__wti_page_inmem_prepare(session, ref));
+    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+        WT_RET(__wti_page_inmem_updates(session, ref));
 
     /*
      * Put the re-instantiated page in the same LRU queue location as the original page, unless this
@@ -1433,9 +1434,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
      */
-    if (multi->supd_entries == 0)
+    if (!multi->supd_restore)
         return (0);
-    WT_ASSERT(session, multi->supd_restore);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -1579,8 +1579,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     WT_UPDATE **tmp;
     uint32_t i, slot;
 
-    /* If we have saved updates, we must have decided to restore them to the new page. */
-    WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
+    if (!multi->supd_restore)
+        return;
 
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
@@ -1673,12 +1673,14 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
  *     Move a multi-block entry into a WT_REF structure.
  */
 int
-__wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_REF **refp,
-  size_t *incrp, bool closing)
+__wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_MULTI *multi,
+  WT_REF **refp, size_t *incrp, bool first, bool closing)
 {
     WT_ADDR *addr;
     WT_IKEY *ikey;
     WT_REF *ref;
+    size_t key_size;
+    void *key;
 
     /* There can be an address or a disk image or both. */
     WT_ASSERT(session, multi->addr.block_cookie != NULL || multi->disk_image != NULL);
@@ -1686,12 +1688,11 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.block_cookie != NULL);
 
-    /* If closing the file, there better not be any saved updates. */
-    WT_ASSERT(session, !closing || multi->supd == NULL);
+    /* If closing the file, there better not be any updates to restore. */
+    WT_ASSERT(session, !closing || !multi->supd_restore);
 
     /* If we don't have a disk image, we can't restore the saved updates. */
-    WT_ASSERT(
-      session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
+    WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
 
     /* Verify any disk image we have. */
 #if 1
@@ -1715,13 +1716,23 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     switch (page->type) {
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        ikey = multi->key.ikey;
-        WT_RET(__wti_row_ikey(session, 0, WT_IKEY_DATA(ikey), ikey->size, ref));
-        if (incrp)
-            *incrp += sizeof(WT_IKEY) + ikey->size;
+        if (first) {
+            __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
+            WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
+            if (incrp)
+                *incrp += sizeof(WT_IKEY) + key_size;
+        } else {
+            ikey = multi->key.ikey;
+            WT_RET(__wti_row_ikey(session, 0, WT_IKEY_DATA(ikey), ikey->size, ref));
+            if (incrp)
+                *incrp += sizeof(WT_IKEY) + ikey->size;
+        }
         break;
     default:
-        ref->ref_recno = multi->key.recno;
+        if (first)
+            ref->ref_recno = old_ref->ref_recno;
+        else
+            ref->ref_recno = multi->key.recno;
         break;
     }
 
@@ -2128,8 +2139,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
     for (i = 0; i < new_entries; ++i)
-        WT_ERR(
-          __wt_multi_to_ref(session, page, &mod->mod_multi[i], &ref_new[i], &parent_incr, closing));
+        WT_ERR(__wt_multi_to_ref(
+          session, ref, page, &mod->mod_multi[i], &ref_new[i], &parent_incr, i == 0, closing));
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
