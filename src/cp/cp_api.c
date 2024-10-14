@@ -203,7 +203,7 @@ __wti_conn_control_point_enable(
         WT_ERR(EEXIST);
     cp_data = cp_registry->init(NULL, cp_registry->config_name, true, cp_registry->init_pred, cfg);
     if (WT_UNLIKELY(cp_data == NULL))
-        WT_ASSERT(NULL, false);
+        WT_ERR(WT_ERROR);
     cp_registry->cp_data = cp_data;
 err:
     __wt_spin_unlock(NULL, &cp_registry->lock);
