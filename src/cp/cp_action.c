@@ -56,7 +56,7 @@ __wt_control_point_config_action_sleep(
     WT_CONFIG_ITEM cval;
     WT_CONTROL_POINT_ACTION_SLEEP *action_data;
 
-    action_data = (WT_CONTROL_POINT_ACTION_SLEEP *)(data + 1);
+    action_data = &data->action_data;
     WT_RET(__wt_config_subgets(session, item, "seconds", &cval));
     action_data->seconds = (uint64_t)cval.val;
     WT_RET(__wt_config_subgets(session, item, "microseconds", &cval));
@@ -134,11 +134,8 @@ __wt_control_point_config_action_wait_for_trigger(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data, WT_CONFIG_ITEM *item)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
-
-    action_data = (WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *)(data + 1);
     WT_RET(__wt_config_subgets(session, item, "wait_count", &cval));
-    action_data->wait_count = (uint64_t)cval.val;
+    data->action_data.wait_count = (uint64_t)cval.val;
     return (0);
 }
 

@@ -142,7 +142,7 @@ struct __wt_control_point_pair_data_sleep {
         WT_CONTROL_POINT_PAIR_DATA_SLEEP *_pair_data =                         \
           (WT_CONTROL_POINT_PAIR_DATA_SLEEP *)_cp_data;                        \
         WT_CONTROL_POINT_ACTION_SLEEP *action_data = &_pair_data->action_data; \
-        uint64_t _seconds = action_data->sleep;                                \
+        uint64_t _seconds = action_data->seconds;                              \
         uint64_t _microseconds = action_data->microseconds;                    \
         /* The action. */                                                      \
         __wt_sleep(_seconds, _microseconds);                                   \

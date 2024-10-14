@@ -277,9 +277,10 @@ __wt_session_control_point_init_all(WT_SESSION_IMPL *session)
      */
     /* From examples/ex_control_points.c */
     control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].init_pred = NULL; /* Always */
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].pred = NULL;      /* Always */
+      __wt_control_point_pair_init_pred_sleep;
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].init_pred =
+      __wt_control_point_config_pred_skip;                            /* Always */
+    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].pred = NULL; /* Always */
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].lock), "Thread 0"));
     control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].config_name = "thread_0";

@@ -296,14 +296,20 @@ ex_control_points_config = [
         configure an encryptor for file blocks. When a table is created, its encryptor is not
         implicitly used for any related indices or column groups''',
         type='category', subconfig= [
-            SessionControlPoint('Thread 0', 'Wait for trigger', 'Always',
+            SessionControlPoint('Thread 0', 'Sleep', 'Always',
                 '', r'''
                 Thread 0 waits for main to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
+                    Config('seconds', '3', r'''
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
+                    Config('microseconds', '0', r'''
+                        the number of triggers for which to wait''',
+                        min='1', max='4294967295'),
+                    Config('skip_count', '1', r'''
+                        the number of triggers for which to wait''',
+                        min='1', max='4294967295'),
                 ]),
             SessionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
                 Thread 1 waits for thread 0 to get here.''',

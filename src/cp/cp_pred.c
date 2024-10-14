@@ -146,7 +146,7 @@ __wt_control_point_config_pred_random_param1(
 {
     /* probability is assigned to WT_CONTROL_PARAM.param1.value16aa. */
     WT_RET(__wt_config_subgets(session, item, "probability", item));
-    data->param1.value16aa = (uint64_t)item->val;
+    data->param1.value16aa = (uint16_t)item->val;
     return (0);
 }
 
@@ -191,7 +191,7 @@ __wt_control_point_config_pred_random_param2(
 
     /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
     WT_RET(__wt_config_subgets(session, item, "probability", &cval));
-    data->param2.value16aa = (uint64_t)cval.val;
+    data->param2.value16aa = (uint16_t)cval.val;
 
     return (0);
 }

@@ -38,6 +38,7 @@ static const char *home;
 
 struct thread_arguments {
     WT_CONNECTION *conn;
+    WT_SESSION *session;
     int thread_num;
     wt_control_point_id_t wait_for_id;
     wt_control_point_id_t my_id;
@@ -124,7 +125,8 @@ main(int argc, char *argv[])
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(wt_conn->enable_control_point(wt_conn, thread_control_point_ids[idx], cfg));
-
+    error_check(
+      wt_session->enable_control_point(wt_session, WT_SESSION_CONTROL_POINT_ID_THREAD_0, cfg));
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {
         struct thread_arguments *my_args = &(thread_args[idx]);
@@ -137,6 +139,10 @@ main(int argc, char *argv[])
         error_check(__wt_thread_create(NULL, &threads[idx], print_thread, &(thread_args[idx])));
     }
 
+    printf("Session should skip sleep...\n");
+    SESSION_CONTROL_POINT_DEFINE_SLEEP(session, WT_SESSION_CONTROL_POINT_ID_THREAD_0);
+    printf("Session sleeping...\n");
+    SESSION_CONTROL_POINT_DEFINE_SLEEP(session, WT_SESSION_CONTROL_POINT_ID_THREAD_0);
     /* Signal threads[0] which waits for this thread to get here. */
     CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
       session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
@@ -159,6 +165,8 @@ main(int argc, char *argv[])
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(wt_conn->disable_control_point(wt_conn, thread_control_point_ids[idx]));
 
+    error_check(
+      wt_session->disable_control_point(wt_session, WT_SESSION_CONTROL_POINT_ID_THREAD_0));
     /* Close session and connection. */
     error_check(wt_session->close(wt_session, NULL));
     error_check(wt_conn->close(wt_conn, NULL));

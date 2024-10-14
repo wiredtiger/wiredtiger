@@ -146,7 +146,7 @@ __wt_conn_control_point_disable(WT_CONNECTION *wt_conn, wt_control_point_id_t id
  */
 static int
 __session_control_point_disable(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry)
-{
+{   
     if (WT_UNLIKELY(cp_registry->cp_data == NULL))
         /* Already disabled. */
         WT_RET(WT_NOTFOUND);
@@ -255,7 +255,7 @@ __wti_session_control_point_enable(
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
-    const char *cfgs[2];
+    const char *cfgs[3];
 
     conn = S2C(session);
     cp_data = cp_registry->cp_data;
