@@ -16,7 +16,7 @@ def main():
         Module("btree", fileAliases=["btmem", "btree_cmp", "dhandle", "modify", "ref", "serial"]),
         Module("call_log"),
         # Module("checksum"),
-        Module("conf"),
+        Module("conf", sourceAliases=["conf_keys"]),
         Module("config"),
         Module("conn", fileAliases=["connection"], sourceAliases=["connection"]),
         Module("cursor", sourceAliases=["cur", "btcur", "curbackup"]),
@@ -42,7 +42,9 @@ def main():
         Module("checkpoint", sourceAliases=["ckpt"]),
         Module("column", sourceAliases=["col"]),
         Module("compact"),
-        Module("pack", sourceAliases=["intpack"]),
+        Module("generation"),
+        Module("pack", fileAliases=["intpack"]),
+        Module("stat"),
     ])
     files = get_files()
     files.insert(0, os.path.join(os.path.realpath(rootPath), "src/include/wiredtiger.in"))

@@ -19,7 +19,12 @@ class FunctionParts:
     is_type_static: bool = False
 
     def short_repr(self) -> str:
-        return f"Function({self.name} ({self.args})) : {self.typename}"
+        ret = f"Function({self.name} ({self.args})) : {self.typename}"
+        if self.is_type_const:
+            ret = ret + " const"
+        if self.is_type_static:
+            ret = ret + " static"
+        return ret
 
     def kind(self) -> str:
         return "function"

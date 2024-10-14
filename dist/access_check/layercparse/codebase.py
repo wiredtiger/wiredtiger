@@ -52,13 +52,17 @@ class Definition:
             WARNING(other.locationStr, f"conflict here:")
             WARNING(None, f"type mismatch for '{self.name}': "
                     f"{self.kind} != {other.kind}\n{self.short_repr()}\n{other.short_repr()}")
-        if self.module != other.module:
+        if self.module and other.module and self.module != other.module:
             WARNING(self.locationStr, f"conflicting update for 'module':")
             WARNING(other.locationStr, f"conflict here:")
             WARNING(None, f"module mismatch for {self.kind} '{self.name}': "
                     f"{self.module} != {other.module}\n{self.short_repr()}\n{other.short_repr()}")
+        elif not self.module and other.module:
+            self.module = other.module
         if other.is_private:
             self.is_private = True
+        elif self.is_private is None and other.is_private is not None:
+            self.is_private = other.is_private
         if type(self.details).__name__ != type(other.details).__name__:
             WARNING(self.locationStr, f"conflicting update for details type:")
             WARNING(other.locationStr, f"conflict here:")
@@ -388,13 +392,14 @@ class Codebase:
             for fname in files:
                 self.updateFromFile(fname, expand_preproc=False)
 
-    def _update_from_multi(self, fname: str,
+    def _update_from_multi(self, fname: str, errors: str,
                            types: dict[str, Definition],
                            fields: dict[str, dict[str, Definition]],
                            names: dict[str, Definition],
                            static_names: dict[str, dict[str, Definition]],
                            typedefs: dict[str, str]) -> None:
         DEBUG2(" ---", f"File: {fname}")
+        print(errors, end="", file=workspace.logStream)
         with ScopePush(file=File(fname)):
             for k, v in typedefs.items():
                 self.typedefs[k] = v
@@ -411,15 +416,17 @@ class Codebase:
                         _dict_upsert_def(dst2[name2], src2[name2][name])
 
     @staticmethod
-    def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str,
+    def _preprocess_file_for_multi(self: 'Codebase', fname: str) -> tuple[str, str,
                     dict[str, Definition],
                     dict[str, dict[str, Definition]],
                     dict[str, Definition],
                     dict[str, dict[str, Definition]],
                     dict[str, str]]:
-        with ScopePush(file=File(fname)):
-            expander = MacroExpander()
-            txt = expander.expand(scope_file().read(), self.macros)
-            scope_file().updateLineInfoWithInsertList(expander.insert_list)
-            self.updateFromText(txt, do_preproc=False)
-        return (fname, self.types, self.fields, self.names, self.static_names, self.typedefs)
+        with LogToStringScope():
+            with ScopePush(file=File(fname)):
+                expander = MacroExpander()
+                txt = expander.expand(scope_file().read(), self.macros)
+                scope_file().updateLineInfoWithInsertList(expander.insert_list)
+                self.updateFromText(txt, do_preproc=False)
+            errors = workspace.logStream.getvalue() # type: ignore # logStream is a StringIO
+        return (fname, errors, self.types, self.fields, self.names, self.static_names, self.typedefs)

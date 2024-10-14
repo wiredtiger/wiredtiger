@@ -232,14 +232,18 @@ class TestMacro(TestCaseLocal):
         expander = MacroExpander()
         expanded = expander.expand(src, _globals.macros, expand_const=True)
         self.checkStrAgainstFile(expanded, "data/macro.c.macro-full")
-        self.checkStrAgainstFile(_sort_set_txt(pf(expander.insert_list)), "data/macro.c.macro-full-inserts")
-        self.checkStrAgainstFile(_sort_set_txt(pf(expander.expand_list)), "data/macro.c.macro-full-expands")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.insert_list)),
+                                 "data/macro.c.macro-full-inserts")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.expand_list)),
+                                 "data/macro.c.macro-full-expands")
 
         expander = MacroExpander()
         expanded = expander.expand(src, _globals.macros, expand_const=False)
         self.checkStrAgainstFile(expanded, "data/macro.c.macro-noconst")
-        self.checkStrAgainstFile(_sort_set_txt(pf(expander.insert_list)), "data/macro.c.macro-noconst-inserts")
-        self.checkStrAgainstFile(_sort_set_txt(pf(expander.expand_list)), "data/macro.c.macro-noconst-expands")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.insert_list)),
+                                 "data/macro.c.macro-noconst-inserts")
+        self.checkStrAgainstFile(_sort_set_txt(pf(expander.expand_list)),
+                                 "data/macro.c.macro-noconst-expands")
 
     def test_macro_expand(self):
         setModules([Module("mod1"), Module("mod2")])
