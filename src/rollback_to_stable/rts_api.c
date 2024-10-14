@@ -118,6 +118,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
      * entire table sequentially.
      */
+    F_SET(conn, WT_CONN_RTS_ON);
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
     WT_ERR(__rts_check(session));
@@ -186,6 +187,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
 
 err:
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    F_CLR(conn, WT_CONN_RTS_ON);
     return (ret);
 }
 
@@ -289,6 +291,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
             threads = (uint32_t)cval.val;
         WT_RET_NOTFOUND_OK(ret);
     }
+    threads = 0;
 
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want

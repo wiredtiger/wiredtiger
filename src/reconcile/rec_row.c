@@ -266,6 +266,13 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
+        if (F_ISSET(S2C(session), WT_CONN_RTS_ON) &&
+          r->cur_ptr->ta.newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp)
+            WT_ASSERT_ALWAYS(session, false,
+              "__rec_row_merge ref->page %p, newest_start_durable_ts %" PRIu64
+              " stable ts %" PRIu64,
+              (void *)page, r->cur_ptr->ta.newest_start_durable_ts,
+              S2C(session)->txn_global.stable_timestamp);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
@@ -401,12 +408,23 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             page_del = cms.state == WT_CHILD_PROXY ? &cms.del : NULL;
             __wt_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
             source_ta = &addr->ta;
+            if (F_ISSET(S2C(session), WT_CONN_RTS_ON) &&
+              source_ta->newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp)
+                __wt_verbose_warning(session, WT_VERB_RECONCILE,
+                  "__wt_off_page ref %p newest_start_durable_ts %" PRIu64 " stable ts %" PRIu64,
+                  (void *)ref, source_ta->newest_start_durable_ts,
+                  S2C(session)->txn_global.stable_timestamp);
         } else if (cms.state == WT_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
             __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             source_ta = &vpack->ta;
+            if (F_ISSET(S2C(session), WT_CONN_RTS_ON) &&
+              source_ta->newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp)
+                __wt_verbose_warning(session, WT_VERB_RECONCILE,
+                  "WT_CHILD_PROXY newest_start_durable_ts %" PRIu64 " stable ts %" PRIu64,
+                  source_ta->newest_start_durable_ts, S2C(session)->txn_global.stable_timestamp);
         } else {
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
@@ -429,6 +447,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->len = val->buf.size;
             }
             source_ta = &vpack->ta;
+            if (F_ISSET(S2C(session), WT_CONN_RTS_ON) &&
+              source_ta->newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp)
+                __wt_verbose_warning(session, WT_VERB_RECONCILE,
+                  "else newest_start_durable_ts %" PRIu64 " stable ts %" PRIu64,
+                  source_ta->newest_start_durable_ts, S2C(session)->txn_global.stable_timestamp);
         }
 
         /*
@@ -706,6 +729,10 @@ __wti_rec_row_leaf(
     cbt->iface.session = (WT_SESSION *)session;
 
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
+
+    if (F_ISSET(S2C(session), WT_CONN_RTS_ON))
+        __wt_verbose_warning(
+          session, WT_VERB_RECONCILE, "__wti_rec_row_leaf ref %p", (void *)pageref);
 
     /*
      * Write any K/V pairs inserted into the page before the first from-disk key on the page.

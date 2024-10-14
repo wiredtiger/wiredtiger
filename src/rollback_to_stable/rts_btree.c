@@ -171,6 +171,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             *stable_update_found = true;
     }
 
+
+
     return (0);
 }
 
@@ -787,6 +789,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         /* Stable version according to the timestamp. */
         if (is_ondisk_stable != NULL)
             *is_ondisk_stable = true;
+        __wt_verbose_warning(session, WT_VERB_RTS,
+          "Early exit __rts_btree_abort_ondisk_kv ref %p, tw %s", (void *)ref,
+          __wt_time_window_to_string(tw, time_string));
         return (0);
     }
 
@@ -1089,11 +1094,13 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL) {
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_UPDATE_CHAIN_VERIFY
-              "aborting any unstable updates on the update chain with rollback_timestamp=%s",
-              __wt_timestamp_to_string(rollback_timestamp, ts_string));
+              "aborting any unstable updates on the update chain with rollback_timestamp=%s page mod %p",
+              __wt_timestamp_to_string(rollback_timestamp, ts_string), (void*)page->modify);
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(__rts_btree_abort_update(
               session, key, upd, rollback_timestamp, &stable_update_found));
+            __wt_verbose_warning(
+              session, WT_VERB_RTS, "After __rts_btree_abort_update mod %p", (void *)page->modify);
             have_key = true;
         } else
             have_key = false;
@@ -1123,6 +1130,8 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
                          NULL);
             WT_ERR(__rts_btree_abort_ondisk_kv(
               session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
+        } else {
+            __wt_verbose_warning(session, WT_VERB_RTS, "stable_update_found %d skipping __rts_btree_abort_ondisk_kv", stable_update_found);
         }
     }
 
@@ -1184,7 +1193,13 @@ __wti_rts_btree_abort_updates(
     }
 
     /* Mark the page as dirty to reconcile the page. */
-    if (!dryrun && page->modify)
+    // TODO - mark everything dirty to see if it fixes the issue.
+        // __wt_page_modify_set(session, page);
+    if (!dryrun && page->modify) {
+        __wt_verbose_warning(session, WT_VERB_RTS, "session page ref %p dirty, mod %p", (void*)ref, (void*)page->modify);
         __wt_page_modify_set(session, page);
+    } else {
+        __wt_verbose_warning(session, WT_VERB_RTS, "session page ref %p NOT dirty, mod %p", (void*)ref, (void*)page->modify);
+    }
     return (0);
 }

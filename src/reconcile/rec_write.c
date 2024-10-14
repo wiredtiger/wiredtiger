@@ -412,8 +412,11 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
         btree->rec_max_txn = r->max_txn;
-    if (btree->rec_max_timestamp < r->max_ts)
+    if (btree->rec_max_timestamp < r->max_ts) {
         btree->rec_max_timestamp = r->max_ts;
+        __wt_verbose_warning(session, WT_VERB_RECONCILE,
+          "__rec_write_page_status btree->rec_max_timestamp set to %" PRIu64, btree->rec_max_timestamp);
+    }
 
     /*
      * Set the page's status based on whether or not we cleaned the page.
@@ -1605,6 +1608,7 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t n
         if (S2BT(session)->type == BTREE_ROW)
             WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->min_key, r->page->type));
         WT_TIME_AGGREGATE_COPY(&r->cur_ptr->ta_min, &r->cur_ptr->ta);
+        // TODO - Check if we are copying the same ts wrongly to the new page.
 
         WT_ASSERT_ALWAYS(
           session, r->cur_ptr->min_offset == 0, "Trying to re-enter __wti_rec_split_crossing_bnd");

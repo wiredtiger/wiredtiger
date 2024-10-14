@@ -305,8 +305,12 @@ __wti_rts_btree_walk_btree_apply(
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
-        if (ret == 0)
+        if (ret == 0) {
             newest_start_durable_ts = WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
+            if (newest_start_durable_ts != WT_TS_NONE)
+                __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+                  "10 newest_start_durable_ts set to %" PRIu64, newest_start_durable_ts);
+        }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)
@@ -472,6 +476,7 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     WT_ASSERT(session, oldest_id > WT_TXN_NONE);
     btree->rec_max_txn = oldest_id - 1;
     btree->rec_max_timestamp = stable_timestamp;
-
+    __wt_verbose_warning(
+      session, WT_VERB_RTS, "3 btree->rec_max_timestamp set to %" PRIu64, btree->rec_max_timestamp);
     return (0);
 }

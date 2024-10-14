@@ -2273,6 +2273,10 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
         }
+    __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+      "4 btree->rec_max_timestamp is %" PRIu64 " and will be set to WT_MAX(%" PRIu64 ", %" PRIu64
+      ")",
+      btree->rec_max_timestamp, ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
     btree->rec_max_timestamp = WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
 }
 

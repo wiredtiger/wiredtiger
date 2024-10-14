@@ -593,8 +593,12 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
             addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
-        if (ret == 0)
+        if (ret == 0) {
             newest_start_durable_ts = WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
+            if (newest_start_durable_ts != WT_TS_NONE)
+                __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+                  "5 newest_start_durable_ts set to %" PRIu64, newest_start_durable_ts);
+        }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)

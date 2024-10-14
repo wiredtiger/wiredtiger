@@ -268,6 +268,13 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         default:
             WT_ERR(__wt_illegal_value(session, unpack.raw));
         }
+        if (F_ISSET(S2C(session), WT_CONN_RTS_ON) &&
+          addr->ta.newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp)
+            WT_ASSERT_ALWAYS(session, false,
+              "__split_ref_move ref->page %p, newest_start_durable_ts %" PRIu64
+              " stable ts %" PRIu64,
+              (void *)ref->page, addr->ta.newest_start_durable_ts,
+              S2C(session)->txn_global.stable_timestamp);
         /* If the compare-and-swap is successful, clear addr to skip the free at the end. */
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
@@ -1759,6 +1766,22 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         addr->size = multi->addr.size;
         addr->type = multi->addr.type;
 
+        if (F_ISSET(S2C(session), WT_CONN_RTS_ON)) {
+            __wt_verbose_warning(session, WT_VERB_SPLIT,
+              "RTS ON Ref %p addr->ta.newest_start_durable_ts %" PRIu64, (void *)ref,
+              addr->ta.newest_start_durable_ts);
+
+            WT_ASSERT_ALWAYS(session,
+              addr->ta.newest_start_durable_ts <= S2C(session)->txn_global.stable_timestamp,
+              "__wt_multi_to_ref ref->page %p, newest_start_durable_ts %" PRIu64
+              " stable ts %" PRIu64,
+              (void *)ref->page, addr->ta.newest_start_durable_ts,
+              S2C(session)->txn_global.stable_timestamp);
+        } else {
+            __wt_verbose_warning(session, WT_VERB_SPLIT,
+              "RTS OFF Ref %p addr->ta.newest_start_durable_ts %" PRIu64, (void *)ref,
+              addr->ta.newest_start_durable_ts);
+        }
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     }
 

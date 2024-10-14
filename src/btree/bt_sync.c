@@ -294,8 +294,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 mod = page->modify;
                 if (mod != NULL && mod->rec_max_txn > btree->rec_max_txn)
                     btree->rec_max_txn = mod->rec_max_txn;
-                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
+                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp) {
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
+                    __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+                      "1 btree->rec_max_timestamp set to %" PRIu64, btree->rec_max_timestamp);
+                }
 
                 continue;
             }
@@ -383,8 +386,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
           (btree->rec_max_txn >= txn->snapshot_data.snap_min ||
             (conn->txn_global.checkpoint_timestamp != conn->txn_global.last_ckpt_timestamp &&
-              btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp)))
+              btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp))) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+              "btree->rec_max_timestamp %" PRIu64 " conn->txn_global.checkpoint_timestamp %" PRIu64,
+              btree->rec_max_timestamp, conn->txn_global.checkpoint_timestamp);
             __wt_tree_modify_set(session);
+        }
         break;
     case WT_SYNC_CLOSE:
     case WT_SYNC_DISCARD:
