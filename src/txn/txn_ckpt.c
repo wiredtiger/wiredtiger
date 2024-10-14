@@ -1159,6 +1159,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     cache->evict_max_page_size = 0;
     cache->evict_max_ms = 0;
     cache->reentry_hs_eviction_ms = 0;
+    __wt_atomic_store32(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
     conn->rec_maximum_milliseconds = 0;
@@ -1361,6 +1362,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS_SYNC);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+        WT_ERR(ret);
     }
 
     time_stop_fsync = __wt_clock(session);
