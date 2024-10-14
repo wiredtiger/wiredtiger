@@ -518,7 +518,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
-#include "evict.h"
+#include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
 #include "checkpoint.h"
