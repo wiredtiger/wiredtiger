@@ -533,7 +533,7 @@ typedef uint64_t wt_timestamp_t;
 #include "generation.h"
 #include "hazard.h"
 #include "json.h"
-#include "../log/log.h"
+#include "log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
@@ -583,7 +583,7 @@ typedef uint64_t wt_timestamp_t;
 #include "column_inline.h"
 #include "conf_inline.h"
 #include "cursor_inline.h"
-#include "../log/log_inline.h"
+#include "log_inline.h"
 #include "modify_inline.h"
 #include "os_fhandle_inline.h"
 #include "os_fs_inline.h"
