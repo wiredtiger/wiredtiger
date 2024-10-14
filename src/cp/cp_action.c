@@ -105,11 +105,11 @@ __wt_control_point_config_action_ret(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_RET *data, WT_CONFIG_ITEM *item)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONTROL_POINT_ACTION_ERR *action_data;
+    WT_CONTROL_POINT_ACTION_RET *action_data;
 
     action_data = &data->action_data;
     WT_RET(__wt_config_subgets(session, item, "return", &cval));
-    action_data->err = (int)cval.val;
+    action_data->ret_value = (int)cval.val;
     return (0);
 }
 

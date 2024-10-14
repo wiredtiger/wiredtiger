@@ -19,6 +19,15 @@ class Method:
             self.config.append(c)
 
 class Config:
+    # Values for assigning Config.max
+    uint16_max = '65535'
+    int16_min = '-32768'
+    int16_max = '32767'
+    uint32_max = '4294967295'
+    int32_min = '-2147483648'
+    int32_max = '2147483647'
+    int64_min = '-9223372036854775808'
+    int64_max = '9223372036854775807'
     def __init__(self, name, default, desc, subconfig=None, **flags):
         self.name = name
         self.default = default
