@@ -104,7 +104,7 @@ class test_bug34(wttest.WiredTigerTestCase):
         # Reconcile all data onto the disk.
         self.session.checkpoint()
 
-        # Peform dirty eviction to trigger reconcilliation.
+        # Perform dirty eviction to trigger reconciliation.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor[str(i)] = value1
@@ -160,9 +160,10 @@ class test_bug34(wttest.WiredTigerTestCase):
         # Reconcile all data onto the disk.
         self.session.checkpoint()
 
-        # Peform dirty eviction to trigger reconcilliation.
+        # Perform dirty eviction to trigger reconciliation.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor[str(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
         self.evict_cursor(uri, self.nrows)
+
