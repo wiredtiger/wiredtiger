@@ -32,7 +32,7 @@
 #include "wiredtiger.h"
 extern "C" {
 #include "test_util.h"
-#include "../../../../src/log/log_private.h"
+#include "../log/log_private.h"
 }
 
 #include "model/test/wiredtiger_util.h"
