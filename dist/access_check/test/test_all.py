@@ -263,6 +263,20 @@ class TestMacro(TestCaseLocal):
         self.assertTrue(check1.find("Invalid access") != -1)
         self.assertMultiLineEqualDiff(check1, check2)
 
+        workspace.logStream = None
+
+    def test_macro_access(self):
+        setModules([Module("mod1"), Module("mod2")])
+
+        workspace.logStream = StringIO()
+        _globals1 = Codebase()
+        _globals1.scanFiles(["data/macro-access.c"], twopass=True, multithread=False)
+        AccessCheck(_globals1).checkAccess(multithread=False)
+        self.checkStrAgainstFile(workspace.logStream.getvalue(),
+                                 "data/macro-access.c-access")
+
+        workspace.logStream = None
+
 class TestCodebase(TestCaseLocal):
     def test_codebase(self):
         _globals = Codebase()

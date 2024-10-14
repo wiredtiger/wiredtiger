@@ -40,6 +40,9 @@ def member_access_chains(txt: str, offset_in_parent: int = 0) -> Iterable[Access
             yield AccessChain(match[2], match.allcaptures()[3], offset)  # type: ignore[misc] # Tuple index out of range
             yield from member_access_chains(match[2][1:-1], offset_in_parent + match.start(2) + 1)
 
+def _funcId(module: str, func: str, colon: str = ":") -> str:
+    return (f"[{module}] " if module else "") + f"'{func}'{colon}"
+
 @dataclass
 class AccessCheck:
     _globals: Codebase
@@ -60,6 +63,49 @@ class AccessCheck:
                 self._perModuleInvisibleNamesRe[module] = regex.compile(reg_name, re_flags)
         return self._perModuleInvisibleNamesRe[module]
 
+    def __check_macro_expansions_access(self, defn: Definition) -> None:
+        module = defn.module
+        for exps in defn.scope.file.expansions(
+                cast(Token, cast(FunctionParts, defn.details).body).range):
+            r, explist = exps.range, exps.expansions
+            for callerMacro in sorted(explist.keys()):
+                if callerMacro and callerMacro in self._globals.macros:
+                    callerDef = self._globals.macros[callerMacro]
+                    callerMod = callerDef.module
+                else:
+                    callerMod = ""
+                for calleeMacro in explist[callerMacro]:
+                    if (calleeMacro in self._globals.macros and
+                            (calleeDef := self._globals.macros[calleeMacro]) and
+                            calleeDef.is_private and
+                            (calleeMod := calleeDef.module) and
+                            calleeMod != callerMod):
+                        if not callerMacro:
+                            ERROR(defn.scope.file.locationStr(r[0]), _funcId(module, defn.name),
+                                f"Invalid access to private macro [{calleeMod}] '{calleeMacro}'")
+                        else:
+                            if "" not in explist or len(explist[""]) != 1:
+                                rootName = "a macro"
+                            else:
+                                rootName = list(explist[''])[0]
+                                rootName = f"macro " + _funcId(
+                                    (self._globals.macros[rootName].module
+                                        if rootName in self._globals.macros
+                                        else ""),
+                                    rootName, colon="")
+                            ERROR(defn.scope.file.locationStr(r[0]), _funcId(module, defn.name),
+                                f"Expansion of {rootName} leads to invalid private macro access:")
+                            ERROR(callerDef.scope.file.locationStr(
+                                        cast(MacroParts, callerDef.details).name.range[0]),
+                                "...",
+                                _funcId(callerMod, callerMacro),
+                                f"Invalid access to private macro [{calleeMod}] '{calleeMacro}'")
+                            ERROR(calleeDef.scope.file.locationStr(
+                                        cast(MacroParts, calleeDef.details).name.range[0]),
+                                "...",
+                                _funcId(calleeMod, calleeMacro),
+                                f"Defined here")
+
     def _check_function(self, defn: Definition) -> None:
         DEBUG3(defn.scope.locationStr(defn.offset), f"Checking {defn.short_repr()}") or \
         DEBUG(defn.scope.locationStr(defn.offset),
@@ -73,7 +119,7 @@ class AccessCheck:
 
         def _locationStr(offset: int) -> str:
             return (defn.scope.locationStr(defn.details.body.range[0] + offset) + # type: ignore[union-attr]
-                    (f" [{module}]" if module else "") + f" '{defn.name}':")
+                    " " + _funcId(module, defn.name))
 
         def _LOC(offset: int) -> Callable[[], str]:
             return lambda: _locationStr(offset)
@@ -82,6 +128,8 @@ class AccessCheck:
         filename = defn.scope.file.name
 
         DEBUG5(_LOC(0), f"=== body:\n{body_clean}\n===")
+
+        self.__check_macro_expansions_access(defn)
 
         # Check local names
         localvars: dict[str, Definition] = {} # name -> type

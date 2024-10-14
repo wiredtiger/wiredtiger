@@ -1,7 +1,7 @@
 #define DEF int ret
 
 /* #private(mod1) */
-int func1(void) {
+int func1(void)
 {
     char var1;
     DEF;
@@ -11,7 +11,7 @@ int func1(void) {
 }
 
 /* #private(mod2) */
-int func2(void) {
+int func2(void)
 {
     func1();
 }

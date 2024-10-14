@@ -62,6 +62,8 @@ def main():
     AccessCheck(_globals).checkAccess(multithread=True)
     # AccessCheck(_globals).checkAccess(multithread=False)
 
+    return not workspace.errors
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 

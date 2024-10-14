@@ -139,6 +139,7 @@ class File:
     is_private: bool | None = field(default=None, repr=False)
     # txt: str = ""
     lineOffsets: list[int] | None = field(default=None, repr=False)
+    expandList: list[Expansions] = field(default_factory=list, repr=False)
     fileKind: FileKind = field(default="", repr=False)
 
     def __post_init__(self):
@@ -165,7 +166,7 @@ class File:
             if offset >= self.lineOffsets[-1]:
                 break
             if not cur_delta:
-                cur_line = bisect_left(self.lineOffsets, offset) + 1
+                cur_line = bisect_left(self.lineOffsets, offset, lo=cur_line) + 1
                 cur_delta = delta
                 continue
             while cur_line < len(self.lineOffsets) and self.lineOffsets[cur_line] < offset:
@@ -194,6 +195,14 @@ class File:
         txt = file_content(self.name)
         self.fillLineInfo(txt)
         return txt
+
+    def expansions(self, range: Range) -> Iterable[Expansions]:
+        if self.expandList is None:
+            return
+        idx = bisect_left(self.expandList, range[0], key=lambda x: x.range[0])
+        while idx < len(self.expandList) and self.expandList[idx].range[0] < range[1]:
+            yield self.expandList[idx]
+            idx += 1
 
 @dataclass
 class Scope:

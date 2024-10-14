@@ -1,0 +1,18 @@
+data/macro-access.c:18:5: error: [mod2] '__wt_mod2_macro_expand_func2': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:22:5: error: [mod2] '__wt_mod2_macro_expand_func3': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:26:5: error: [mod2] '__wt_mod2_macro_expand_func33': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:30:5: error: [mod2] '__wt_mod2_macro_expand_func4': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:34:5: error: [mod2] '__wt_mod2_macro_expand_func5': Invalid access to private macro [mod1] 'M1_QWE2'
+data/macro-access.c:35:5: error: [mod2] '__wt_mod2_macro_expand_func5': Expansion of macro [mod2] 'QWE2' leads to invalid private macro access:
+data/macro-access.c:10:9: error: ... [mod2] 'QWE2': Invalid access to private macro [mod1] 'M1_QWE2'
+data/macro-access.c:6:9: error: ... [mod1] 'M1_QWE2': Defined here
+data/macro-access.c:36:5: error: [mod2] '__wt_mod2_macro_expand_func5': Expansion of macro 'QWE3' leads to invalid private macro access:
+data/macro-access.c:10:9: error: ... [mod2] 'QWE2': Invalid access to private macro [mod1] 'M1_QWE2'
+data/macro-access.c:6:9: error: ... [mod1] 'M1_QWE2': Defined here
+data/macro-access.c:37:5: error: [mod2] '__wt_mod2_macro_expand_func5': Expansion of a macro leads to invalid private macro access:
+data/macro-access.c:10:9: error: ... [mod2] 'QWE2': Invalid access to private macro [mod1] 'M1_QWE2'
+data/macro-access.c:6:9: error: ... [mod1] 'M1_QWE2': Defined here
+data/macro-access.c:42:5: error: [mod2] '__wt_mod2_macro_expand_func6': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:43:5: error: [mod2] '__wt_mod2_macro_expand_func6': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:44:5: error: [mod2] '__wt_mod2_macro_expand_func6': Invalid access to private macro [mod1] 'M1_QWE'
+data/macro-access.c:45:5: error: [mod2] '__wt_mod2_macro_expand_func6': Invalid access to private macro [mod1] 'M1_QWE'

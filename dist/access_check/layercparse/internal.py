@@ -1,5 +1,6 @@
 
 # This is an umbrella import for all submodules.
+from dataclasses import dataclass
 from typing import Union, Any, Optional, TYPE_CHECKING, cast, Iterator, TypeAlias
 from typing import Generator, Iterable, Callable, NamedTuple, TypedDict, Literal
 import regex
@@ -39,6 +40,11 @@ def rangeShift(rng: Range, offset: int) -> Range:
     return (rng[0]+offset, rng[1]+offset)
 
 InsertList: TypeAlias = list[tuple[int, int]]  # (offset, delta)
+
+@dataclass
+class Expansions:
+    range: Range
+    expansions: dict[str, set[str]]  # name: set[expansion]
 
 reg_identifier = regex.compile(r"^[a-zA-Z_]\w++$", re_flags)
 reg_type = regex.compile(r"^[\w\[\]\(\)\*\, ]++$", re_flags)

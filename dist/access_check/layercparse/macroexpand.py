@@ -14,15 +14,9 @@ def _D2M(val: 'Definition') -> MacroParts: # type: ignore[name-defined] # circul
 #     expansionTree: 'map[str, ExpandTree]'
 #     # name: str
 
-@dataclass
-class ExpandList:
-    range: Range
-    expansionList: dict[str, set[str]]  # name: set[expansion]
-    # expansionTree: ExpandTree
-
 class MacroExpander:
     insert_list: InsertList  # sorted list by range[0] of (offset, delta)
-    expand_list: list[ExpandList]  # sorted list by range[0] of ExpandList
+    expand_list: list[Expansions]  # sorted list by range[0] of ExpandList
     _macros: dict[str, MacroParts]
     _cur_expand_entry: dict[str, set[str]]
 
@@ -76,6 +70,7 @@ class MacroExpander:
         self._recurse_in_use: set[str] = set()  # recursion control
         self._owner_stack: list[str] = []       # stack of current expansion "owning" scopes
         self._expanding_stack: list[str] = []   # stack of current expansion levels
+        self._expand_offset = 0
 
         # The difference between _owner_stack and _expanding_stack is best demonstrated by the
         # following example. Consider the following code:
@@ -98,13 +93,18 @@ class MacroExpander:
         if parent not in self._cur_expand_entry:
             self._cur_expand_entry[parent] = set()
         self._cur_expand_entry[parent].add(name)
+        DEBUG4(None, lambda: f"Expanding macro {' => '.join(self._owner_stack)} => {name}")
 
     def __expand_leave(self, replacement: str, match: regex.Match, base_offset) -> str:
         self._expanding_stack.pop()
         if not self._expanding_stack:
-            range = (match.start() + base_offset, len(replacement) - len(match[0]), )
+            delta = len(replacement) - len(match[0])
+            range = (match.start() + base_offset, delta, )
             self.insert_list.append(range)
-            self.expand_list.append(ExpandList(range, self._cur_expand_entry))
+            self.expand_list.append(Expansions(
+                (self._expand_offset + range[0], self._expand_offset + range[0] + len(replacement)),
+                self._cur_expand_entry))
+            self._expand_offset += delta
             self._cur_expand_entry = {}
         return replacement
 
