@@ -2760,9 +2760,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_per_session_control_points_
   {"thread_0", "category", NULL, NULL, confchk_wiredtiger_open_thread_0_subconfigs, 3,
     confchk_wiredtiger_open_thread_0_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 310,
     INT64_MIN, INT64_MAX, NULL},
-  {"thread_1", "category", NULL, NULL, confchk_wiredtiger_open_thread_1_subconfigs, 1,
-    confchk_wiredtiger_open_thread_1_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 311,
-    INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2770,7 +2767,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_prefetch_subconfigs[] = {
   {"available", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 319,
@@ -3021,7 +3018,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     confchk_wiredtiger_open_per_connection_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 307, INT64_MIN, INT64_MAX, NULL},
   {"per_session_control_points", "category", NULL, NULL,
-    confchk_wiredtiger_open_per_session_control_points_subconfigs, 2,
+    confchk_wiredtiger_open_per_session_control_points_subconfigs, 1,
     confchk_wiredtiger_open_per_session_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
@@ -3287,7 +3284,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     confchk_wiredtiger_open_per_connection_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 307, INT64_MIN, INT64_MAX, NULL},
   {"per_session_control_points", "category", NULL, NULL,
-    confchk_wiredtiger_open_per_session_control_points_subconfigs, 2,
+    confchk_wiredtiger_open_per_session_control_points_subconfigs, 1,
     confchk_wiredtiger_open_per_session_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
@@ -3548,7 +3545,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     confchk_wiredtiger_open_per_connection_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 307, INT64_MIN, INT64_MAX, NULL},
   {"per_session_control_points", "category", NULL, NULL,
-    confchk_wiredtiger_open_per_session_control_points_subconfigs, 2,
+    confchk_wiredtiger_open_per_session_control_points_subconfigs, 1,
     confchk_wiredtiger_open_per_session_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
@@ -3805,7 +3802,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     confchk_wiredtiger_open_per_connection_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 307, INT64_MIN, INT64_MAX, NULL},
   {"per_session_control_points", "category", NULL, NULL,
-    confchk_wiredtiger_open_per_session_control_points_subconfigs, 2,
+    confchk_wiredtiger_open_per_session_control_points_subconfigs, 1,
     confchk_wiredtiger_open_per_session_control_points_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
@@ -4268,8 +4265,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "thread_2=(wait_count=1),thread_3=(wait_count=1),"
     "thread_4=(wait_count=1)),"
     "per_session_control_points=(thread_0=(microseconds=0,seconds=3,"
-    "skip_count=1),thread_1=(wait_count=1)),prefetch=(available=false"
-    ",default=false),readonly=false,salvage=false,session_max=100,"
+    "skip_count=1)),prefetch=(available=false,default=false),"
+    "readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"
@@ -4328,8 +4325,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "thread_2=(wait_count=1),thread_3=(wait_count=1),"
     "thread_4=(wait_count=1)),"
     "per_session_control_points=(thread_0=(microseconds=0,seconds=3,"
-    "skip_count=1),thread_1=(wait_count=1)),prefetch=(available=false"
-    ",default=false),readonly=false,salvage=false,session_max=100,"
+    "skip_count=1)),prefetch=(available=false,default=false),"
+    "readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"
@@ -4388,8 +4385,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "thread_2=(wait_count=1),thread_3=(wait_count=1),"
     "thread_4=(wait_count=1)),"
     "per_session_control_points=(thread_0=(microseconds=0,seconds=3,"
-    "skip_count=1),thread_1=(wait_count=1)),prefetch=(available=false"
-    ",default=false),readonly=false,salvage=false,session_max=100,"
+    "skip_count=1)),prefetch=(available=false,default=false),"
+    "readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"
@@ -4447,8 +4444,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "thread_2=(wait_count=1),thread_3=(wait_count=1),"
     "thread_4=(wait_count=1)),"
     "per_session_control_points=(thread_0=(microseconds=0,seconds=3,"
-    "skip_count=1),thread_1=(wait_count=1)),prefetch=(available=false"
-    ",default=false),readonly=false,salvage=false,session_max=100,"
+    "skip_count=1)),prefetch=(available=false,default=false),"
+    "readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"

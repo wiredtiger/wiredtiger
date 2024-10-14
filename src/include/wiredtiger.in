@@ -3457,15 +3457,12 @@ struct __wt_connection {
  * is not an absolute path\, the path is relative to the database home (see @ref absolute_path for
  * more information)., a string; default \c ".".}
  * @config{ ),,}
- * @config{per_connection_control_points = (, configure an encryptor for file blocks.  When a table
- * is created\, its encryptor is not implicitly used for any related indices or column groups., a
+ * @config{per_connection_control_points = (, Configure concurrent determinism through connection
+ * control points., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;main_start_printing = (, Thread 0 waits for main to get here., a
  * set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * main_start_printing = (, Thread 0 waits for main to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count,
- * the number of triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c
- * 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 = (, Thread 1
  * waits for thread 0 to get here., a set of related configuration options defined as follows.}
@@ -3493,23 +3490,16 @@ struct __wt_connection {
  * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{ ),,}
- * @config{per_session_control_points = (, configure an encryptor for file blocks.  When a table is
- * created\, its encryptor is not implicitly used for any related indices or column groups., a set
- * of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 =
- * (, Thread 0 waits for main to get here., a set of related configuration options defined as
- * follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;microseconds, the number of
- * triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;seconds, the number of triggers for which
+ * @config{per_session_control_points = (, Configure concurrent determinism through session control
+ * points., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 = (, Thread 0 performs a sleep on the session., a set of
+ * related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;microseconds, the number of microseconds
+ * for which to wait., an integer between \c 1 and \c 4294967295; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;seconds, the number of seconds for which
  * to wait., an integer between \c 1 and \c 4294967295; default \c 3.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;skip_count, the number of triggers for
- * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_1 = (, Thread 1
- * waits for thread 0 to get here., a set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
- * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;skip_count, the number of skips until we
+ * sleep., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{ ),,}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to

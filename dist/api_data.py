@@ -177,70 +177,10 @@ class SessionControlPoint(ControlPoint):
                 self.pred_short_name, self.default, self.desc,
                 self.enable_in_open, self.subconfig, self.flags);
 
-# Per connection control points
 # For examples/c/ex_control_points.c
 ex_control_points_config = [
     Config('per_connection_control_points', '', r'''
-        configure an encryptor for file blocks. When a table is created, its encryptor is not
-        implicitly used for any related indices or column groups''',
-        type='category', subconfig= [
-            ConnectionControlPoint('Main Start Printing', 'Wait for trigger', 'Always',
-                '', r'''
-                Thread 0 waits for main to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ]),
-            ConnectionControlPoint('Thread 0', 'Wait for trigger', 'Always', '', r'''
-                Thread 1 waits for thread 0 to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ]),
-            ConnectionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
-                Thread 2 waits for thread 1 to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ]),
-            ConnectionControlPoint('Thread 2', 'Wait for trigger', 'Always', '', r'''
-                Thread 3 waits for thread 2 to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ]),
-            ConnectionControlPoint('Thread 3', 'Wait for trigger', 'Always', '', r'''
-                Thread 4 waits for thread 3 to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ]),
-            ConnectionControlPoint('Thread 4', 'Wait for trigger', 'Always', '', r'''
-                Thread 5 waits for thread 4 to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ]),
-        ])
-    ]
-
-# For examples/c/ex_control_points.c
-ex_control_points_config = [
-    Config('per_connection_control_points', '', r'''
-        configure an encryptor for file blocks. When a table is created, its encryptor is not
-        implicitly used for any related indices or column groups''',
+        Configure concurrent determinism through connection control points''',
         type='category', subconfig= [
             ConnectionControlPoint('Main Start Printing', 'Wait for trigger', 'Always',
                 '', r'''
@@ -293,40 +233,28 @@ ex_control_points_config = [
                 ]),
         ]),
     Config('per_session_control_points', '', r'''
-        configure an encryptor for file blocks. When a table is created, its encryptor is not
-        implicitly used for any related indices or column groups''',
+        Configure concurrent determinism through session control points''',
         type='category', subconfig= [
             SessionControlPoint('Thread 0', 'Sleep', 'Always',
                 '', r'''
-                Thread 0 waits for main to get here.''',
+                Thread 0 performs a sleep on the session.''',
                 type='category', subconfig= [
                     # Action configuration parameters
                     Config('seconds', '3', r'''
-                            the number of triggers for which to wait''',
+                            the number of seconds for which to wait''',
                             min='1', max='4294967295'),
                     Config('microseconds', '0', r'''
-                        the number of triggers for which to wait''',
+                        the number of microseconds for which to wait''',
                         min='1', max='4294967295'),
                     Config('skip_count', '1', r'''
-                        the number of triggers for which to wait''',
+                        the number of skips until we sleep''',
                         min='1', max='4294967295'),
                 ]),
-            SessionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
-                Thread 1 waits for thread 0 to get here.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
-                ])
         ])
     ]
     
 # All per connection control points
 all_per_connection_control_points_config = ex_control_points_config
-
-# All per session control points
-all_per_session_control_points_config = [ ]
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -1423,8 +1351,7 @@ wiredtiger_open_chunk_cache_configuration = [
     ]),
 ]
 
-session_config = all_per_session_control_points_config +\
-    [
+session_config = [
     Config('cache_cursors', 'true', r'''
         enable caching of cursors for reuse. Any calls to WT_CURSOR::close for a cursor created
         in this session will mark the cursor as cached and keep it available to be reused for

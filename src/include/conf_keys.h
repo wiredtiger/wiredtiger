@@ -546,9 +546,6 @@ static const struct {
             uint64_t seconds;
             uint64_t skip_count;
         } Thread_0;
-        struct {
-            uint64_t wait_count;
-        } Thread_1;
     } Per_session_control_points;
     struct {
         uint64_t available;
@@ -961,10 +958,6 @@ static const struct {
         (WT_CONF_ID_seconds << 32),
       WT_CONF_ID_Per_session_control_points | (WT_CONF_ID_Thread_0 << 16) |
         (WT_CONF_ID_skip_count << 32),
-    },
-    {
-      WT_CONF_ID_Per_session_control_points | (WT_CONF_ID_Thread_1 << 16) |
-        (WT_CONF_ID_wait_count << 32),
     },
   },
   {

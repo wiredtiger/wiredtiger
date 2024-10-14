@@ -83,7 +83,7 @@ union __wt_control_point_param {
         union {
             uint32_t value32a;
             struct {
-              uint16_t value16aa;
+                uint16_t value16aa;
                 uint16_t value16ab;
             };
         };

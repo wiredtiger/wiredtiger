@@ -289,17 +289,6 @@ __wt_session_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].init_pred = NULL; /* Always */
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].pred = NULL;      /* Always */
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].config_name = "thread_1";
-    WT_ERR(__wt_spin_init(
-      session, &(control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].lock), "Thread 1"));
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_1].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
     /* After all repeats finish with this. */
     session->control_points = control_points;
 
