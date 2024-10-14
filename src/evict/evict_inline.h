@@ -326,8 +326,9 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
 
 /*
  * __wt_evict_favor_clearing_dirty_cache --
- *     !!! This function aggressively adjusts the eviction settings to encourage the removal of
- *     dirty bytes from the cache. Use with caution, as it may significantly impact cache behavior.
+ *     !!! This function should only be called when closing WiredTiger. It aggressively adjusts
+ *     eviction settings to remove dirty bytes from the cache. Use with caution as this will
+ *     significantly impact eviction behavior.
  */
 static WT_INLINE void
 __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session)
