@@ -384,6 +384,12 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
         WT_STAT_CONN_INCRV(session, capacity_bytes_log, bytes);
         WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
         break;
+    case WT_THROTTLE_OLIGARCH_LOG:
+        capacity = cap->oligarch_log;
+        reservation = &cap->reservation_oligarch_log;
+        WT_STAT_CONN_INCRV(session, capacity_bytes_oligarch_log, bytes);
+        WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
+        break;
     case WT_THROTTLE_READ:
         capacity = cap->read;
         reservation = &cap->reservation_read;
@@ -502,6 +508,9 @@ again:
                 break;
             case WT_THROTTLE_LOG:
                 WT_STAT_CONN_INCRV(session, capacity_time_log, sleep_us);
+                break;
+            case WT_THROTTLE_OLIGARCH_LOG:
+                WT_STAT_CONN_INCRV(session, capacity_time_oligarch_log, sleep_us);
                 break;
             case WT_THROTTLE_READ:
                 WT_STAT_CONN_INCRV(session, capacity_time_read, sleep_us);

@@ -126,10 +126,11 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      * is outside the conditional because we allocate the log path so that printlog can run without
      * running logging or recovery.
      */
-    if (ret == 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
+    if (ret == 0 && FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED) &&
+      FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_RECOVER_DONE))
         WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
+    WT_TRET(__wt_oligarch_logmgr_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
     WT_TRET(__wt_conn_remove_collator(session));
@@ -227,6 +228,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_statlog_create(session, cfg));
     WT_RET(__wt_tiered_storage_create(session));
     WT_RET(__wt_logmgr_create(session));
+    WT_RET(__wt_oligarch_logmgr_create(session));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
@@ -254,6 +256,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * started before any operation that can commit, or the commit can block.
      */
     WT_RET(__wt_logmgr_open(session));
+    WT_RET(__wt_oligarch_logmgr_open(session));
 
     /*
      * Start eviction threads. NOTE: Eviction must be started after the history store table is

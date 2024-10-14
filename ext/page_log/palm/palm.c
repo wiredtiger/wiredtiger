@@ -39,6 +39,7 @@
 #include "queue.h"
 
 #include "palm_kv.h"
+#include "palm_verbose.h"
 
 #ifndef WT_THOUSAND
 #define WT_THOUSAND 1000
@@ -148,12 +149,6 @@ static int palm_kv_err(PALM *, WT_SESSION *, int, const char *, ...);
 static int palm_add_reference(WT_PAGE_LOG *);
 static int palm_terminate(WT_PAGE_LOG *, WT_SESSION *);
 
-#define VERBOSE_PRINT(palm, ...)          \
-    do {                                  \
-        if ((palm)->verbose > 0)          \
-            fprintf(stderr, __VA_ARGS__); \
-    } while (0);
-
 /*
  * palm_configure
  *     Parse the configuration for the keys we care about.
@@ -260,7 +255,7 @@ palm_delay(PALM *palm)
     if (palm->force_delay != 0 &&
       (palm->object_gets + palm->object_puts) % palm->force_delay == 0) {
         us = palm_compute_delay_us(palm, (uint64_t)palm->delay_ms * WT_THOUSAND);
-        VERBOSE_PRINT(palm,
+        PALM_VERBOSE_PRINT(palm,
           "Artificial delay %" PRIu64 " microseconds after %" PRIu64 " object reads, %" PRIu64
           " object writes\n",
           us, palm->object_gets, palm->object_puts);
@@ -269,7 +264,7 @@ palm_delay(PALM *palm)
     if (palm->force_error != 0 &&
       (palm->object_gets + palm->object_puts) % palm->force_error == 0) {
         us = palm_compute_delay_us(palm, (uint64_t)palm->error_ms * WT_THOUSAND);
-        VERBOSE_PRINT(palm,
+        PALM_VERBOSE_PRINT(palm,
           "Artificial error returned after %" PRIu64 " microseconds sleep, %" PRIu64
           " object reads, %" PRIu64 " object writes\n",
           us, palm->object_gets, palm->object_puts);
@@ -448,7 +443,7 @@ palm_get_package_part(WT_PAGE_LOG *page_log, WT_SESSION *session, WT_ITEM *packa
 
     palm = (PALM *)page_log;
 
-    VERBOSE_PRINT(palm, "palm_get_package_part\n");
+    PALM_VERBOSE_PRINT(palm, "palm_get_package_part\n");
 
     sizep = (size_t *)package_buffer->data;
     bytes_left = package_buffer->size;
@@ -471,6 +466,9 @@ palm_get_package_part(WT_PAGE_LOG *page_log, WT_SESSION *session, WT_ITEM *packa
         result->size = *sizep;
         result->data = ((uint8_t *)sizep) + sizeof(size_t);
     }
+    PALM_VERBOSE_PRINT(palm,
+      "palm_get_package_part(package=\n%s, delta=%d, result=\n%s) returns 0\n",
+      palm_verbose_item(package_buffer), delta_number, palm_verbose_item(result));
     return (0);
 }
 
@@ -479,6 +477,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, bool is_delta, const WT_ITEM *buf)
 {
     PALM *palm;
+    PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     uint64_t kv_revision;
     int ret;
@@ -487,9 +486,12 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm = palm_handle->palm;
     palm_delay(palm);
 
-    VERBOSE_PRINT(palm_handle->palm, "palm_handle_put\n");
-    PALM_KV_RET(palm, session, palm_kv_begin_transaction(palm->kv_env, false));
-    ret = palm_kv_get_global(palm->kv_env, PALM_KV_GLOBAL_REVISION, &kv_revision);
+    PALM_VERBOSE_PRINT(palm_handle->palm,
+      "palm_handle_put(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
+      ", is_delta=%d, buf=\n%s)\n",
+      (void *)plh, page_id, checkpoint_id, is_delta, palm_verbose_item(buf));
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+    ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &kv_revision);
     if (ret == MDB_NOTFOUND) {
         kv_revision = 1;
         ret = 0;
@@ -498,14 +500,14 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(
-        palm->kv_env, palm_handle->table_id, page_id, checkpoint_id, kv_revision, is_delta, buf));
+        &context, palm_handle->table_id, page_id, checkpoint_id, kv_revision, is_delta, buf));
     PALM_KV_ERR(
-      palm, session, palm_kv_put_global(palm->kv_env, PALM_KV_GLOBAL_REVISION, kv_revision + 1));
-    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(palm->kv_env));
+      palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, kv_revision + 1));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     return (0);
 
 err:
-    palm_kv_rollback_transaction(palm->kv_env);
+    palm_kv_rollback_transaction(&context);
     return (ret);
 }
 
@@ -514,6 +516,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_ITEM *package)
 {
     PALM *palm;
+    PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
     size_t add_size, prev_size;
@@ -524,11 +527,12 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm = palm_handle->palm;
     palm_delay(palm);
 
-    VERBOSE_PRINT(palm_handle->palm, "palm_handle_get\n");
-    PALM_KV_ERR(palm, session, palm_kv_begin_transaction(palm->kv_env, false));
+    PALM_VERBOSE_PRINT(palm_handle->palm,
+      "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64 ")...\n", (void *)plh,
+      page_id, checkpoint_id);
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
-      palm_kv_get_page_matches(
-        palm->kv_env, palm_handle->table_id, page_id, checkpoint_id, &matches));
+      palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
     package->size = 0;
     while (palm_kv_next_page_match(&matches)) {
         prev_size = package->size;
@@ -541,9 +545,13 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         memcpy(new_addr, matches.data, matches.size);
     }
     PALM_KV_ERR(palm, session, matches.error);
-    palm_kv_rollback_transaction(palm->kv_env);
 
 err:
+    PALM_VERBOSE_PRINT(palm_handle->palm,
+      "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
+      ", buf=\n%s) returns %d\n",
+      (void *)plh, page_id, checkpoint_id, palm_verbose_item(package), ret);
+    palm_kv_rollback_transaction(&context);
     return (ret);
 }
 

@@ -160,7 +160,9 @@ __wt_block_pantry_manager_owns_object(WT_SESSION_IMPL *session, const char *uri)
      * It's a janky check that should be made better, but assume any handle with a custom storage
      * source that isn't a tiered table belongs to this object-based block manager for now.
      */
-    if (WT_PREFIX_MATCH(uri, "file:") && ((WT_BTREE *)session->dhandle->handle)->bstorage != NULL)
+    if (session->dhandle == NULL || S2BT(session) == NULL)
+        return (false);
+    if (WT_PREFIX_MATCH(uri, "file:") && S2BT(session)->bstorage != NULL)
         return (true);
     return (false);
 }

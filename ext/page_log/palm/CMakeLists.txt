@@ -3,6 +3,7 @@ project(page_log C)
 set(sources
   "palm.c"
   "palm_kv.c"
+  "palm_verbose.c"
   "../../../third_party/openldap_liblmdb/mdb.c"
   "../../../third_party/openldap_liblmdb/midl.c"
 )
@@ -28,10 +29,10 @@ target_compile_options(
 set_property(
   SOURCE ../../../third_party/openldap_liblmdb/mdb.c
   APPEND
-  PROPERTY COMPILE_OPTIONS "-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement"
+  PROPERTY COMPILE_OPTIONS "-Wno-error"
 )
 set_property(
   SOURCE ../../../third_party/openldap_liblmdb/midl.c
   APPEND
-  PROPERTY COMPILE_OPTIONS "-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement"
+  PROPERTY COMPILE_OPTIONS "-Wno-error"
   )

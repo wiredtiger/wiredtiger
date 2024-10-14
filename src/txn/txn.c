@@ -702,7 +702,28 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
      * If sync is turned off explicitly, clear the transaction's sync field.
      */
     if (cval.val == 0)
-        txn->txn_logsync = 0;
+        txn->txn_log.txn_logsync = 0;
+
+    /*
+     * The default oligarch sync setting is inherited from the connection, but can be overridden by
+     * an explicit "oligarch_sync" setting for this transaction.
+     *
+     * We want to distinguish between inheriting implicitly and explicitly.
+     */
+    F_CLR(txn, WT_TXN_OLIGARCH_SYNC_SET);
+    WT_ERR(__wt_conf_gets_def(session, conf, oligarch_sync, (int)UINT_MAX, &cval));
+    if (cval.val == 0 || cval.val == 1)
+        /*
+         * This is an explicit setting of sync. Set the flag so that we know not to overwrite it in
+         * commit_transaction.
+         */
+        F_SET(txn, WT_TXN_OLIGARCH_SYNC_SET);
+
+    /*
+     * If oligarch sync is turned off explicitly, clear the transaction's sync field.
+     */
+    if (cval.val == 0)
+        txn->txn_oligarch_log.txn_logsync = 0;
 
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
@@ -811,7 +832,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
     __wt_txn_clear_durable_timestamp(session);
 
     /* Free the scratch buffer allocated for logging. */
-    __wt_logrec_free(session, &txn->logrec);
+    __wt_oligarch_logrec_free(session, &txn->txn_oligarch_log.logrec);
+    /* Free the scratch buffer allocated for logging. */
+    __wt_logrec_free(session, &txn->txn_log.logrec);
 
     /* Discard any memory from the session's stash that we can. */
     WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
@@ -1382,6 +1405,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     commit: resolve the prepared updates in memory.
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
+    btree = S2BT(session);
 
     /*
      * We also need to handle the on disk prepared updates if we have a prepared delete and a
@@ -1795,10 +1819,62 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
-    if (txn->logrec != NULL) {
+    if (txn->txn_oligarch_log.logrec != NULL) {
         /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
         WT_ASSERT(session,
-          !F_ISSET(conn, WT_CONN_RECOVERING) && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED));
+          !F_ISSET(conn, WT_CONN_RECOVERING) &&
+            FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED));
+
+        /*
+         * The default oligarch sync setting is inherited from the connection, but can be overridden
+         * by an explicit "oligarch_sync" setting for this transaction.
+         */
+        WT_ERR(__wt_config_gets_def(session, cfg, "oligarch_sync", 0, &cval));
+
+        /*
+         * If the user chose the default setting, check whether sync is enabled for this transaction
+         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
+         * avoid the log write being flushed.
+         *
+         * Otherwise check for specific settings. We don't need to check for "on" because that is
+         * the default inherited from the connection. If the user set anything in begin_transaction,
+         * we only override with an explicit setting.
+         */
+        if (cval.len == 0) {
+            if (!FLD_ISSET(txn->txn_oligarch_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
+              !F_ISSET(txn, WT_TXN_OLIGARCH_SYNC_SET))
+                txn->txn_oligarch_log.txn_logsync = 0;
+        } else {
+            /*
+             * If the caller already set oligarch sync on begin_transaction then they should not be
+             * using oligarch_sync on commit_transaction. Flag that as an error.
+             */
+            if (F_ISSET(txn, WT_TXN_OLIGARCH_SYNC_SET))
+                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
+            if (WT_CONFIG_LIT_MATCH("off", cval))
+                txn->txn_oligarch_log.txn_logsync = 0;
+            /*
+             * We don't need to check for "on" here because that is the default to inherit from the
+             * connection setting.
+             */
+        }
+
+        /*
+         * We hold the visibility lock for reading from the time we write our log record until the
+         * time we release our transaction so that the LSN any checkpoint gets will always reflect
+         * visible data.
+         */
+        __wt_readlock(session, &txn_global->visibility_rwlock);
+        locked = true;
+        WT_ERR(__wt_txn_oligarch_log_commit(session, cfg));
+    }
+
+    /* If we are logging, write a commit log record. */
+    if (txn->txn_log.logrec != NULL) {
+        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
+        WT_ASSERT(session,
+          !F_ISSET(conn, WT_CONN_RECOVERING) &&
+            FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED));
 
         /*
          * The default sync setting is inherited from the connection, but can be overridden by an
@@ -1816,8 +1892,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * we only override with an explicit setting.
          */
         if (cval.len == 0) {
-            if (!FLD_ISSET(txn->txn_logsync, WT_LOG_SYNC_ENABLED) && !F_ISSET(txn, WT_TXN_SYNC_SET))
-                txn->txn_logsync = 0;
+            if (!FLD_ISSET(txn->txn_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
+              !F_ISSET(txn, WT_TXN_SYNC_SET))
+                txn->txn_log.txn_logsync = 0;
         } else {
             /*
              * If the caller already set sync on begin_transaction then they should not be using
@@ -1826,7 +1903,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             if (F_ISSET(txn, WT_TXN_SYNC_SET))
                 WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
             if (WT_CONFIG_LIT_MATCH("off", cval))
-                txn->txn_logsync = 0;
+                txn->txn_log.txn_logsync = 0;
             /*
              * We don't need to check for "on" here because that is the default to inherit from the
              * connection setting.
@@ -1838,8 +1915,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * time we release our transaction so that the LSN any checkpoint gets will always reflect
          * visible data.
          */
-        __wt_readlock(session, &txn_global->visibility_rwlock);
-        locked = true;
+        if (!locked) {
+            __wt_readlock(session, &txn_global->visibility_rwlock);
+            locked = true;
+        }
         WT_ERR(__wt_txn_log_commit(session, cfg));
     }
 
@@ -2098,11 +2177,17 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
 
+    /* A transaction should not have updated any of the oligarch logged tables */
+    if (txn->txn_oligarch_log.logrec != NULL)
+        WT_RET_MSG(
+          session, EINVAL, "a prepared transaction cannot include an oligarch logged table");
+
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
      * turned on.
      */
-    if (txn->logrec != NULL && !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+    if (txn->txn_log.logrec != NULL &&
+      !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
