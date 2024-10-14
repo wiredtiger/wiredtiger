@@ -84,10 +84,10 @@ __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wti_evict_readgen_is_soon_or_wont_need --
- *     Return whether a read generation value makes a page eligible for immediate eviction. Read
+ *     Return whether a read generation value makes a page eligible for forced eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
- *     immediately.
+ *     forcefully.
  */
 static WT_INLINE bool
 __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
@@ -100,7 +100,7 @@ __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
 
 /*
  * __wt_evict_page_is_soon_or_wont_need --
- *     Return whether the page is eligible for immediate eviction.
+ *     Return whether the page is eligible for forced eviction.
  */
 static WT_INLINE bool
 __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
