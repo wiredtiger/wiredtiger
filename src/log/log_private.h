@@ -8,40 +8,6 @@
 
 #pragma once
 
-/*
- * __wti_log_desc_byteswap --
- *     Handle big- and little-endian transformation of the log file description block.
- */
-static WT_INLINE void
-__wti_log_desc_byteswap(WT_LOG_DESC *desc)
-{
-#ifdef WORDS_BIGENDIAN
-    desc->log_magic = __wt_bswap32(desc->log_magic);
-    desc->version = __wt_bswap16(desc->version);
-    desc->unused = __wt_bswap16(desc->unused);
-    desc->log_size = __wt_bswap64(desc->log_size);
-#else
-    WT_UNUSED(desc);
-#endif
-}
-
-/*
- * __wti_log_record_byteswap --
- *     Handle big- and little-endian transformation of the log record header block.
- */
-static WT_INLINE void
-__wti_log_record_byteswap(WT_LOG_RECORD *record)
-{
-#ifdef WORDS_BIGENDIAN
-    record->len = __wt_bswap32(record->len);
-    record->checksum = __wt_bswap32(record->checksum);
-    record->flags = __wt_bswap16(record->flags);
-    record->mem_len = __wt_bswap32(record->mem_len);
-#else
-    WT_UNUSED(record);
-#endif
-}
-
 #define WT_LOG_PREPNAME "WiredTigerPreplog" /* Log pre-allocated name */
 #define WT_LOG_TMPNAME "WiredTigerTmplog"   /* Log temporary name */
 
@@ -361,6 +327,8 @@ extern void __wti_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot);
 extern void __wti_log_slot_join(
   WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot);
 extern void __wti_log_wrlsn(WT_SESSION_IMPL *session, int *yield);
+static WT_INLINE void __wti_log_desc_byteswap(WT_LOG_DESC *desc);
+static WT_INLINE void __wti_log_record_byteswap(WT_LOG_RECORD *record);
 
 #ifdef HAVE_UNITTEST
 
