@@ -1404,6 +1404,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     commit: resolve the prepared updates in memory.
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
+    btree = S2BT(session);
 
     /*
      * We also need to handle the on disk prepared updates if we have a prepared delete and a
@@ -1431,7 +1432,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     else if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
       !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
         resolve_case = RESOLVE_PREPARE_EVICTION_FAILURE;
-    else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
@@ -1473,8 +1474,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
-        btree = S2BT(session);
-
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
          * with maximum start timestamp to let the search point to the last version of the key.

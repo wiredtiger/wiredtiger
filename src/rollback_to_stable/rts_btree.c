@@ -688,7 +688,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
           tw->durable_start_ts > rollback_timestamp ? "true" : "false",
           !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ? "true" : "false",
           !WT_TIME_WINDOW_HAS_STOP(tw) && prepared ? "true" : "false");
-        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+          !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
             return (__rts_btree_ondisk_fixup_key(
               session, ref, rip, recno, row_key, vpack, rollback_timestamp));
         else {
@@ -712,7 +713,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         if (tw->start_ts == tw->stop_ts && tw->durable_start_ts == tw->durable_stop_ts &&
           tw->start_txn == tw->stop_txn) {
             WT_ASSERT(session, prepared == true);
-            if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+              !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
                 return (__rts_btree_ondisk_fixup_key(
                   session, ref, rip, recno, row_key, vpack, rollback_timestamp));
             else {

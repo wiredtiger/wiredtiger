@@ -1137,7 +1137,8 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      * future in a special mode that allows for it to be ignored by recovery, but for now just
      * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
-    WT_ERR(__wt_buf_fmt(session, tmp, "oligarch_log=(enabled=true,oligarch_constituent=true)"));
+    WT_ERR(__wt_buf_fmt(
+      session, tmp, "oligarch_log=(enabled=true,oligarch_constituent=true),in_memory=true"));
     ingest_cfg[2] = tmp->data;
     /*
      * Since oligarch constituents use table URIs, pass the full merged configuration string through
