@@ -194,6 +194,70 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 }
 
 /*
+ * __wt_evict_page_cache_bytes_decr --
+ *     Decrement the cache, btree, and page byte count in-memory to reflect eviction.
+ */
+static WT_INLINE void
+__wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+    WT_PAGE_MODIFY *modify;
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+    modify = page->modify;
+
+    /* Update the bytes in-memory to reflect the eviction. */
+    __wt_cache_decr_check_uint64(session, &btree->bytes_inmem,
+      __wt_atomic_loadsize(&page->memory_footprint), "WT_BTREE.bytes_inmem");
+    __wt_cache_decr_check_uint64(session, &cache->bytes_inmem,
+      __wt_atomic_loadsize(&page->memory_footprint), "WT_CACHE.bytes_inmem");
+
+    /* Update the bytes_internal value to reflect the eviction */
+    if (WT_PAGE_IS_INTERNAL(page)) {
+        __wt_cache_decr_check_uint64(session, &btree->bytes_internal,
+          __wt_atomic_loadsize(&page->memory_footprint), "WT_BTREE.bytes_internal");
+        __wt_cache_decr_check_uint64(session, &cache->bytes_internal,
+          __wt_atomic_loadsize(&page->memory_footprint), "WT_CACHE.bytes_internal");
+    }
+
+    /* Update the cache's dirty-byte count. */
+    if (modify != NULL && modify->bytes_dirty != 0) {
+        if (WT_PAGE_IS_INTERNAL(page)) {
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_dirty_intl, modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
+        } else if (!btree->lsm_primary) {
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
+        }
+    }
+
+    /* Update the cache's updates-byte count. */
+    if (modify != NULL) {
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_updates, modify->bytes_updates, "WT_CACHE.bytes_updates");
+    }
+
+    /* Update bytes and pages evicted. */
+    (void)__wt_atomic_add64(&cache->bytes_evict, __wt_atomic_loadsize(&page->memory_footprint));
+    (void)__wt_atomic_addv64(&cache->pages_evicted, 1);
+
+    /*
+     * Track if eviction makes progress. This is used in various places to determine whether
+     * eviction is stuck.
+     */
+    if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
+        (void)__wt_atomic_addv64(&S2C(session)->evict->eviction_progress, 1);
+}
+
+/*
  * __wt_evict_clean_pressure --
  *     Return true if clean cache is stressed and will soon require application threads to evict
  *     content.
@@ -347,6 +411,27 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
      * able to start until the cache is under the limit.
      */
     return (clean_needed || updates_needed || (!busy && dirty_needed));
+}
+
+/*
+ * __wt_evict_favor_clearing_dirty_cache --
+ *     !!! This function should only be called when closing WiredTiger. It aggressively adjusts
+ *     eviction settings to remove dirty bytes from the cache. Use with caution as this will
+ *     significantly impact eviction behavior.
+ */
+static WT_INLINE void
+__wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session)
+{
+    WT_EVICT *evict;
+
+    evict = S2C(session)->evict;
+
+    /*
+     * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
+     * of cache.
+     */
+    __wt_set_shared_double(&evict->eviction_dirty_trigger, 1.0);
+    __wt_set_shared_double(&evict->eviction_dirty_target, 0.1);
 }
 
 /*
