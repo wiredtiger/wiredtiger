@@ -472,6 +472,7 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     WT_ASSERT(session, oldest_id > WT_TXN_NONE);
     btree->rec_max_txn = oldest_id - 1;
     btree->rec_max_timestamp = stable_timestamp;
-
+    __wt_verbose_warning(
+      session, WT_VERB_RTS, "3 btree->rec_max_timestamp set to %" PRIu64, btree->rec_max_timestamp);
     return (0);
 }

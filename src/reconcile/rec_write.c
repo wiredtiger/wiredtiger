@@ -412,8 +412,11 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
         btree->rec_max_txn = r->max_txn;
-    if (btree->rec_max_timestamp < r->max_ts)
+    if (btree->rec_max_timestamp < r->max_ts) {
         btree->rec_max_timestamp = r->max_ts;
+        __wt_verbose_warning(session, WT_VERB_RECONCILE,
+          "2 btree->rec_max_timestamp set to %" PRIu64, btree->rec_max_timestamp);
+    }
 
     /*
      * Set the page's status based on whether or not we cleaned the page.

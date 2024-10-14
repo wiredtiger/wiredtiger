@@ -971,6 +971,10 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
         if (ret != WT_NOTFOUND && a.len != 0)
             ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
     }
+    // Not here.
+    // __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+    //   "ckpt->ta.newest_start_durable_ts has been set to %" PRIu64,
+    //   ckpt->ta.newest_start_durable_ts);
 
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
