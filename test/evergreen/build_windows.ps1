@@ -30,7 +30,7 @@ foreach {
 $env:PROCESSOR_ARCHITECTURE = "AMD64"
 
 # Ensure the swig binary location is in our PATH.
-$env:Path += ";C:\swigwin-3.0.2"
+$env:Path += ";C:\swigwin-4.2.1"
 
 if (-not (Test-Path cmake_build)) {
     mkdir cmake_build
@@ -41,7 +41,7 @@ cd cmake_build
 # Configure build with CMake.
 if ($configure -eq $true) {
     # Note that ${args} are all the command line options that are not automatically parsed by the param function.
-    C:\cmake\bin\cmake --no-warn-unused-cli -DSWIG_DIR='C:\swigwin-3.0.2' -DSWIG_EXECUTABLE='C:\swigwin-3.0.2\swig.exe' -DCMAKE_TOOLCHAIN_FILE='..\cmake\toolchains\cl.cmake' ${args} -G "Ninja" ..\.
+    C:\cmake\bin\cmake --no-warn-unused-cli -DSWIG_DIR='C:\swigwin-4.2.1' -DSWIG_EXECUTABLE='C:\swigwin-4.2.1\swig.exe' -DCMAKE_TOOLCHAIN_FILE='..\cmake\toolchains\cl.cmake' ${args} -G "Ninja" ..\.
     Die-On-Failure($LastExitCode)
 }
 
