@@ -2015,7 +2015,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /*
      * If hazard pointers aren't necessary for this file, we can't be evicting, we're done.
      */
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    if (F_ISSET(btree, WT_BTREE_NO_EVICT))
         return (0);
 
     /*
