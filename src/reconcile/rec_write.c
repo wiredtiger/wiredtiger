@@ -2052,8 +2052,8 @@ static int
 __rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
-    memset(r->delta.mem, 0, WT_PAGE_HEADER_SIZE);
-    r->delta.size = WT_PAGE_HEADER_SIZE;
+    memset(r->delta.mem, 0, WT_PAGE_DELTA_HEADER_SIZE);
+    r->delta.size = WT_PAGE_DELTA_HEADER_BYTE_SIZE;
 
     return (0);
 }
