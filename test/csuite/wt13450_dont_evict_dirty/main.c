@@ -94,7 +94,7 @@ main(int argc, char *argv[])
 #if 1 /* Include if needed */
       "verbose=["
       "control_point=5,"
-      //   "prefetch=1,"
+      /* "prefetch=1," */
       "],"
 #endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
@@ -152,7 +152,7 @@ main(int argc, char *argv[])
         testutil_check(cursor->next(cursor));
         /*
          * WiredTiger likes to be smart, if we delete every single record in the tree then we never
-         * actually walk real records on the page as a resulf of the page skip logic in
+         * actually walk real records on the page as a result of the page skip logic in
          * __wt_tree_walk_custom_skip. Which you can see in bt_curnext.c:959.
          *
          * To get around this cleverness, leave some undeleted records in the tree that must be
@@ -202,14 +202,9 @@ main(int argc, char *argv[])
      * place in the code.
      */
     testutil_check(pthread_create(&next_thread_id, NULL, thread_do_next, opts));
-    {
-        bool enabled = false;
-        WT_UNUSED(enabled);
-
-        /* Wait for our next thread. */
-        CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
-          (WT_SESSION_IMPL *)wt_session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST, enabled);
-    }
+    /* Wait for our next thread. */
+    CONNECTION_CONTROL_POINT_DO_WAIT_FOR_TRIGGER(
+      (WT_SESSION_IMPL *)wt_session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
 
     /* Open a session to run checkpoint. */
     testutil_check(conn->open_session(conn, NULL, session_open_config, &checkpoint_session));
@@ -230,7 +225,7 @@ main(int argc, char *argv[])
      * Checkpoint the database this will call into __wt_sync_file which will first mark the btree as
      * syncing, then it will signal the cursor->next thread to continue. There's also a cleverness
      * about making sure the btree ID matches, we could probably have skipped this? But I think it
-     * demostrates a nice feature of control points so we choose to have it.
+     * demonstrates a nice feature of control points so we choose to have it.
      *
      * The reasoning behind why we could have skipped that is that there is only one b-tree that is
      * relevant and the code paths currently guarantee that it would be the first one up for

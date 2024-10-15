@@ -904,30 +904,15 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         if (page != NULL &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
-            WT_CONNECTION_IMPL *conn = S2C(session);
-            WT_CONTROL_POINT_REGISTRY *cp_registry;
-            WT_CONTROL_POINT_DATA *cp_data;
-            bool enabled = false;
-            if (conn->control_points != NULL) {
-                cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST]);
-                cp_data = cp_registry->cp_data;
-                /* Signal the test thread. */
-                if (cp_data != NULL)
-                    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-                      session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+            /* Signal the test thread. */
+            CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+              session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+            printf("Arriving at control point\n");
+            /* Wait here for the checkpoint thread. */
+            CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_DO_WAIT_FOR_TRIGGER(
+              session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
+            printf("Past control point\n");
 
-                cp_registry = &(conn->control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT]);
-                cp_data = cp_registry->cp_data;
-                if (cp_data != NULL) {
-                    cp_data->param1.value64 = CUR2BT(cbt)->id; /* The match value. */
-                    printf("Arriving at control point\n");
-                    /* Wait here for the checkpoint thread. */
-                    CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
-                      session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, enabled);
-                    printf("Past control point\n");
-                }
-            }
-            WT_UNUSED(enabled);
             /* If checkpoint is happening on the btree, we can only evict clean content. */
             if (__wt_btree_syncing_by_other_session(session)) {
                 if (!__wt_page_is_modified(page)) {

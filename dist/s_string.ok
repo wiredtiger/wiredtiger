@@ -655,6 +655,7 @@ curindex
 curjoin
 curlog
 curmetadata
+curnext
 cursoring
 cursorp
 curstartrecno
@@ -1386,6 +1387,7 @@ uncached
 unconfigured
 uncustomized
 undef
+undeleted
 underflowed
 unencrypted
 unesc
