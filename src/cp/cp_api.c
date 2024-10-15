@@ -97,7 +97,7 @@ __wti_conn_control_point_get_registry(
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
         WT_ERR(EINVAL);
     if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
-        WT_ERR(WT_SHUTTING_DOWN);
+        WT_ERR(EINVAL);
     if (conn->control_points == NULL)
         WT_ERR(WT_CP_DISABLED);
     *cp_registryp = &(conn->control_points[id]);
@@ -124,7 +124,7 @@ __wti_session_control_point_get_registry(
     if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
         WT_ERR(EINVAL);
     if (WT_UNLIKELY(F_ISSET(session, WT_SESSION_SHUTTING_DOWN)))
-        WT_ERR(WT_SHUTTING_DOWN);
+        WT_ERR(EINVAL);
 
     /* Lazy initialization. */
     if (session->control_points == NULL) {

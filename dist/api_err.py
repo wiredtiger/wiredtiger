@@ -85,10 +85,6 @@ errors = [
         'control point is disabled', '''
         This error is generated when attempting to operate upon a control point that is disabled.
         This is like EINVAL but more specific.'''),
-    Error('WT_SHUTTING_DOWN', -31811,
-        'WiredTiger is shutting down', '''
-        This error is generated to disallow control point operations while WiredTiger is shutting
-        down. This is like EINVAL but more specific.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.
