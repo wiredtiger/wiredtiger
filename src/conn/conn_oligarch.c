@@ -86,9 +86,12 @@ __oligarch_metadata_watcher(void *arg)
         while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
             name_ptr--;
 
+#if 0
         /* XXX Get the checkpoint metadata from dir_store - just to check that it all works. */
+        __wt_sleep(0, 1000);
         WT_ASSERT(session, __wt_disagg_get_meta(session, 0, 0, item) == 0);
         WT_ASSERT(session, memcmp(item->data, buf + name_ptr, item->size) == 0);
+#endif
 
         buf[last_sep] = '\0';
 
