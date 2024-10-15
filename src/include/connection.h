@@ -326,6 +326,7 @@ struct __wt_name_flag {
  */
 #define WT_CONN_HOTBACKUP_START(conn)                                             \
     do {                                                                          \
+        (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;    \
         __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt_most_recent); \
         (conn)->hot_backup_list = NULL;                                           \
     } while (0)
