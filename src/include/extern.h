@@ -14,8 +14,6 @@ extern bool __wt_compact_check_eligibility(WT_SESSION_IMPL *session, const char 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_config_get_choice(const char **choices, WT_CONFIG_ITEM *item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_fsync_background_chk(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
@@ -565,22 +563,6 @@ extern int __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_errno(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_esc_hex_to_raw(WT_SESSION_IMPL *session, const char *from, WT_ITEM *to)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state,
-  uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_destroy(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_threads_create(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ext_config_get(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
   WT_CONFIG_ARG *cfg_arg, const char *key, WT_CONFIG_ITEM *cval)
@@ -1190,8 +1172,6 @@ extern int __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_backup(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
@@ -1403,8 +1383,6 @@ extern int __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,
-  double pct_full) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[], uint32_t open_flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1702,12 +1680,6 @@ extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 5, 6)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler);
-extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
-extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
-extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
-extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
-extern void __wt_evict_server_wake(WT_SESSION_IMPL *session);
-extern void __wt_evict_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_ext_scr_free(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, void *p);
 extern void __wt_ext_spin_destroy(WT_EXTENSION_API *wt_api, WT_EXTENSION_SPINLOCK *ext_spinlock);
 extern void __wt_ext_spin_lock(
@@ -1836,7 +1808,6 @@ extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);
 extern void __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
 extern void __wti_cursor_set_key_notsup(WT_CURSOR *cursor, ...);
 extern void __wti_cursor_set_value_notsup(WT_CURSOR *cursor, ...);
-extern void __wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages);
 extern void __wti_free_ref_index(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages);
@@ -1891,22 +1862,6 @@ static WT_INLINE bool __wt_conf_get_compiled(WT_CONNECTION_IMPL *conn, const cha
 static WT_INLINE bool __wt_conf_is_compiled(WT_CONNECTION_IMPL *conn, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_cursor_has_cached_memory(WT_CURSOR *cursor)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_aggressive(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly,
-  double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_page_is_soon(WT_PAGE *page)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref,
   bool *inmem_split) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1993,12 +1948,6 @@ static WT_INLINE bool __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id
 static WT_INLINE bool __wt_txn_visible_id_snapshot(
   uint64_t id, uint64_t snap_min, uint64_t snap_max, uint64_t *snapshot, uint32_t snapshot_count)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE const char *__wt_page_type_str(uint8_t val)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE const char *__wt_prepare_state_str(uint8_t val)
@@ -2006,8 +1955,6 @@ static WT_INLINE const char *__wt_prepare_state_str(uint8_t val)
 static WT_INLINE const char *__wt_update_type_str(uint8_t val)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE double __wt_read_shared_double(double *to_read)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE double __wti_evict_dirty_target(WT_EVICT *evict)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_btcur_bounds_early_exit(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   bool next, bool *key_out_of_boundsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2068,8 +2015,6 @@ static WT_INLINE int __wt_dsk_cell_data_ref_addr(WT_SESSION_IMPL *session, int p
   WT_CELL_UNPACK_ADDR *unpack, WT_ITEM *store) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_dsk_cell_data_ref_kv(WT_SESSION_IMPL *session, int page_type,
   WT_CELL_UNPACK_KV *unpack, WT_ITEM *store) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy,
-  bool readonly, bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_extlist_read_pair(const uint8_t **p, wt_off_t *offp, wt_off_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_extlist_write_pair(uint8_t **p, wt_off_t off, wt_off_t size)
@@ -2355,14 +2300,6 @@ static WT_INLINE void __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_cursor_free_cached_memory(WT_CURSOR *cursor);
 static WT_INLINE void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
-static WT_INLINE void __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session);
-static WT_INLINE void __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
-static WT_INLINE void __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
-static WT_INLINE void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
-static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
-static WT_INLINE void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
-static WT_INLINE void __wt_evict_touch_page(
-  WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
 static WT_INLINE void __wt_modifies_max_memsize(WT_UPDATE_VECTOR *modifies,
   const char *value_format, size_t base_value_size, size_t *max_memsize);
 static WT_INLINE void __wt_modify_max_memsize(
@@ -2428,8 +2365,6 @@ static WT_INLINE void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
 static WT_INLINE void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
 static WT_INLINE void __wt_usec_to_timespec(time_t usec, struct timespec *tsp);
-static WT_INLINE void __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
-static WT_INLINE void __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline bool __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page,
   WT_TIME_AGGREGATE **ta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
