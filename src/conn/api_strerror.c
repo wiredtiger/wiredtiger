@@ -43,8 +43,6 @@ __wt_wiredtiger_error(int error)
         return ("WT_TRY_SALVAGE: database corruption detected");
     case WT_CP_DISABLED:
         return ("WT_CP_DISABLED: control point is disabled");
-    case WT_SHUTTING_DOWN:
-        return ("WT_SHUTTING_DOWN: WiredTiger is shutting down");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

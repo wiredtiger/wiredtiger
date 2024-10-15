@@ -94,6 +94,14 @@
 
 /*
  * Action: Sleep: Delay at a specific code location during an execution via __wt_sleep
+ *
+ * # Action configuration parameters
+ * Config('seconds', '1', r'''
+ *     the number of seconds to sleep''',
+ *     min='0', max=ControlPoint.int64_max),
+ * Config('microseconds', '1', r'''
+ *     the number of microseconds to sleep''',
+ *     min='0', max=ControlPoint.int64_max),
  */
 #ifdef HAVE_CONTROL_POINT
 /* Action data type */
@@ -154,6 +162,11 @@ struct __wt_control_point_pair_data_sleep {
 
 /*
  * Action: ERR: Change the control flow to trigger an error condition via WT_ERR
+ *
+ * # Action configuration parameter
+ * Config('err', '1', r'''
+ *     the error to return''',
+ *     min='0', max=ControlPoint.int64_max),
  */
 #ifdef HAVE_CONTROL_POINT
 /* Action data type */
@@ -205,6 +218,11 @@ struct __wt_control_point_pair_data_err {
 
 /*
  * Action: RET: Return an error via WT_RET
+ *
+ * # Action configuration parameter
+ * Config('ret_value', '1', r'''
+ *     the value to return''',
+ *     min='0', max=ControlPoint.int64_max),
  */
 #ifdef HAVE_CONTROL_POINT
 /* Action data type */
@@ -255,6 +273,11 @@ struct __wt_control_point_pair_data_ret {
 
 /*
  * Action: Wait for trigger: Blocking the testing thread until a control point is triggered.
+ *
+ * # Action configuration parameter
+ * Config('wait_count', '1', r'''
+ *     the number of triggers for which to wait''',
+ *     min='0', max=ControlPoint.int64_max),
  */
 #ifdef HAVE_CONTROL_POINT
 /* Action data type */

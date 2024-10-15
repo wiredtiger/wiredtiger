@@ -4324,12 +4324,6 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * is disabled. This is like EINVAL but more specific.
  */
 #define	WT_CP_DISABLED	(-31810)
-/*!
- * WiredTiger is shutting down.
- * This error is generated to disallow control point operations while WiredTiger
- * is shutting down. This is like EINVAL but more specific.
- */
-#define	WT_SHUTTING_DOWN	(-31811)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

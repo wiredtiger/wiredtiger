@@ -85,10 +85,6 @@ salvage the file or retry wiredtiger_open with the 'salvage=true' configuration 
 This error is generated when attempting to operate upon a control point that is disabled. This is
 like EINVAL but more specific.
 
-@par \c WT_SHUTTING_DOWN
-This error is generated to disallow control point operations while WiredTiger is shutting down. This
-is like EINVAL but more specific.
-
 @if IGNORE_BUILT_BY_API_ERR_END
 @endif
 
