@@ -671,7 +671,7 @@ err:
 
 /* Pair "Param match" and "Sleep". */
 /*
- * __wt_control_point_pair_init_param_match_sleep --
+ * __wt_control_point_pair_init_param_64_match_sleep --
  *     The pair initialization function for predicate "Param match" and action "Sleep".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
@@ -679,8 +679,8 @@ err:
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_param_match_sleep(WT_SESSION_IMPL *session, const char *cp_config_name,
-  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_param_64_match_sleep(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
     struct __wt_control_point_pair_data_sleep *init_data;
     WT_DECL_RET;
@@ -703,7 +703,7 @@ err:
 
 /* Pair "Param match" and "ERR". */
 /*
- * __wt_control_point_pair_init_param_match_err --
+ * __wt_control_point_pair_init_param_64_match_err --
  *     The pair initialization function for predicate "Param match" and action "ERR".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
@@ -711,8 +711,8 @@ err:
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_param_match_err(WT_SESSION_IMPL *session, const char *cp_config_name,
-  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_param_64_match_err(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
     struct __wt_control_point_pair_data_err *init_data;
     WT_DECL_RET;
@@ -735,7 +735,7 @@ err:
 
 /* Pair "Param match" and "RET". */
 /*
- * __wt_control_point_pair_init_param_match_ret --
+ * __wt_control_point_pair_init_param_64_match_ret --
  *     The pair initialization function for predicate "Param match" and action "RET".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
@@ -743,8 +743,8 @@ err:
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_param_match_ret(WT_SESSION_IMPL *session, const char *cp_config_name,
-  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_param_64_match_ret(WT_SESSION_IMPL *session,
+  const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
     struct __wt_control_point_pair_data_ret *init_data;
     WT_DECL_RET;
@@ -767,7 +767,7 @@ err:
 
 /* Pair "Param match" and "Trigger". */
 /*
- * __wt_control_point_pair_init_param_match_trigger --
+ * __wt_control_point_pair_init_param_64_match_trigger --
  *     The pair initialization function for predicate "Param match" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
@@ -775,7 +775,7 @@ err:
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_param_match_trigger(WT_SESSION_IMPL *session,
+__wt_control_point_pair_init_param_64_match_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
     struct __wt_control_point_pair_data_trigger *init_data;
