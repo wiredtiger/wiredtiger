@@ -149,10 +149,19 @@ struct __wt_delta_header {
 };
 
 /*
- * WT_PAGE_DELTA_SIZE is the number of bytes we allocate for the structure: if the compiler inserts
- * padding it will break the world.
+ * WT_PAGE_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
+ * inserts padding it will break the world.
  */
-#define WT_PAGE_HEADER_SIZE 28
+#define WT_PAGE_DELTA_HEADER_SIZE 8
+
+/*
+ * WT_PAGE_DELTA_HEADER_BYTE --
+ * WT_PAGE_DELTA_HEADER_BYTE_SIZE --
+ *	The first usable data byte on the block (past the combined headers).
+ */
+#define WT_PAGE_DELTA_HEADER_BYTE_SIZE(btree) ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header))
+#define WT_PAGE_DELTA_HEADER_BYTE(btree, dsk) \
+    ((void *)((uint8_t *)(dsk) + WT_PAGE_DELTA_HEADER_BYTE_SIZE(btree)))
 
 struct __wt_delta_cell_unpack {
     WT_ITEM *key;
@@ -1476,7 +1485,7 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x001u                       /* Update has been written to the data store. */
+#define WT_UPDATE_DS 0x001u                       /* Update has been chosen to the data store. */
 #define WT_UPDATE_DURABLE 0x002u                  /* Update has been durable. */
 #define WT_UPDATE_HS 0x004u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x008u /* Prepared update restored from data store. */

@@ -919,6 +919,7 @@ connection_runtime_config = [
             'out_of_order',
             'oligarch',
             'overflow',
+            'page_delta',
             'prefetch',
             'read',
             'reconcile',
@@ -935,8 +936,7 @@ connection_runtime_config = [
             'transaction',
             'verify',
             'version',
-            'write',
-            'page_delta']),
+            'write']),
 ]
 
 # wiredtiger_open and WT_CONNECTION.reconfigure compatibility configurations.

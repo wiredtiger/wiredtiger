@@ -514,7 +514,7 @@ config_run(void)
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
-    /* Temporarily disable salvage test due to increased failures. */
+    /* TODO: Temporarily disable salvage test due to increased failures. */
     config_off(NULL, "ops.salvage");
 
     /* Order can be important, don't shuffle without careful consideration. */

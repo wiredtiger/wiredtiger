@@ -162,6 +162,7 @@ __page_inmem_tombstone(
 
     size = 0;
     *sizep = 0;
+    *updp = NULL;
 
     tombstone = NULL;
     total_size = 0;

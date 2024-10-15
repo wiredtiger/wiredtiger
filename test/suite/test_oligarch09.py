@@ -36,7 +36,7 @@ class test_oligarch09(wttest.WiredTigerTestCase):
         nrows = 1000000
 
         # Create a table.
-        uri = "table:test_page_delta01"
+        uri = "table:test_oligarch09"
         ds = SimpleDataSet(self, uri, nrows, key_format='i', value_format='S')
         ds.populate()
 

@@ -2191,6 +2191,8 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     uint32_t i;
 
     WT_ASSERT(session, r->multi_next == 1);
+    /* Only row store leaf page is supported. */
+    WT_ASSERT(session, r->ref->page->type == WT_PAGE_ROW_LEAF);
 
     start = __wt_clock(session);
 
