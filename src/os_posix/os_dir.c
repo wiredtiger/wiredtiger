@@ -26,9 +26,9 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
     size_t dirallocsz;
     uint32_t count;
     int tret;
-    char closemsg[256], openmsg[256], readmsg[256];
+    char closemsg[256], openmsg[256], readerrmsg[256], readmsg[256];
     char **entries;
-    bool open_ready, read_ready;
+    bool err_msg, open_ready, read_ready;
 
     *dirlistp = NULL;
     *countp = count = 0;
@@ -37,7 +37,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
     dirp = NULL;
     dirallocsz = 0;
     entries = NULL;
-    open_ready = read_ready = false;
+    err_msg = open_ready = read_ready = false;
 
     /*
      * If opendir fails, we should have a NULL pointer with an error value, but various static
@@ -85,10 +85,18 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
             break;
     }
     /*
-     * Reading the directory returns NULL on failure or reaching the end of the list. So set the
-     * value into ret as soon as the loop exits.
+     * Reading the directory returns NULL on failure or reaching the end of the list. Record a
+     * special message if readdir failed.
      */
-    ret = errno;
+    if (errno != 0) {
+        __wt_epoch(session, &ts);
+        WT_ERR(__wt_snprintf(readerrmsg, sizeof(readerrmsg),
+          "[%" PRIuMAX ":%" PRIuMAX "] readdir failed errno %d (%s) dir fd %d",
+          (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, errno,
+          __wt_strerror(session, errno, NULL, 0), dirfd(dirp)));
+        ret = errno;
+        err_msg = true;
+    }
     *dirlistp = entries;
     *countp = count;
 
@@ -107,14 +115,15 @@ err:
             __wt_errx(session, "%s", openmsg);
         if (read_ready)
             __wt_errx(session, "%s", readmsg);
+        if (err_msg)
+            __wt_errx(session, "%s", readerrmsg);
         __wt_errx(session, "%s", closemsg);
     }
 
     if (ret == 0)
         return (0);
 
-    if (open_ready)
-        WT_TRET(__wti_posix_directory_list_free(file_system, wt_session, entries, count));
+    WT_TRET(__wti_posix_directory_list_free(file_system, wt_session, entries, count));
 
     WT_RET_MSG(
       session, ret, "%s: directory-list, prefix \"%s\"", directory, prefix == NULL ? "" : prefix);
