@@ -326,7 +326,6 @@ struct __wt_control_point_pair_data_wait_for_trigger {
     do {                                                                         \
         WT_SESSION_IMPL *const _session = (SESSION);                             \
         WT_CONNECTION_IMPL *const _conn = S2C(_session);                         \
-        WT_CONNECTION *const _wt_conn = (WT_CONNECTION *)_conn;                  \
         const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                 \
         WT_CONTROL_POINT_REGISTRY *_cp_registry;                                 \
         WT_CONTROL_POINT_DATA *_cp_data;                                         \
