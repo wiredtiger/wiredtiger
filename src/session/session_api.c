@@ -350,6 +350,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_CONTROL_POINT
     WT_RET(__wt_session_control_point_shutdown(session));
+    __wt_free(session, session->cfg);
 #endif
 
     /* Close all open cursors while the cursor cache is disabled. */
@@ -2725,8 +2726,12 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * Configuration: currently, the configuration for open_session is the same as
      * session.reconfigure, so use that function.
      */
+#ifndef HAVE_CONTROL_POINT
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
+#else
+    WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
+#endif
 
     /*
      * Release write to ensure structure fields are set before any other thread will consider the

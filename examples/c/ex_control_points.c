@@ -117,7 +117,7 @@ main(int argc, char *argv[])
     home = example_setup(argc, argv);
 
     error_check(wiredtiger_open(home, NULL, "create", &wt_conn));
-    error_check(wt_conn->open_session(wt_conn, NULL, "cache_cursors=true", &wt_session));
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
 
     /* Enable all control points. */
