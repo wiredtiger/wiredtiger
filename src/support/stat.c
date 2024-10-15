@@ -1741,12 +1741,14 @@ static const char *const __stats_connection_desc[] = {
   "capacity: bytes written for chunk cache",
   "capacity: bytes written for eviction",
   "capacity: bytes written for log",
+  "capacity: bytes written for oligarch log",
   "capacity: bytes written total",
   "capacity: threshold to call fsync",
   "capacity: time waiting due to total capacity (usecs)",
   "capacity: time waiting during checkpoint (usecs)",
   "capacity: time waiting during eviction (usecs)",
   "capacity: time waiting during logging (usecs)",
+  "capacity: time waiting during oligarch logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "capacity: time waiting for chunk cache IO bandwidth (usecs)",
   "checkpoint: checkpoint cleanup successful calls",
@@ -2516,12 +2518,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_bytes_chunkcache = 0;
     stats->capacity_bytes_evict = 0;
     stats->capacity_bytes_log = 0;
+    stats->capacity_bytes_oligarch_log = 0;
     stats->capacity_bytes_written = 0;
     stats->capacity_threshold = 0;
     stats->capacity_time_total = 0;
     stats->capacity_time_ckpt = 0;
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
+    stats->capacity_time_oligarch_log = 0;
     stats->capacity_time_read = 0;
     stats->capacity_time_chunkcache = 0;
     stats->checkpoint_cleanup_success = 0;
@@ -3323,12 +3327,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_bytes_chunkcache += WT_STAT_CONN_READ(from, capacity_bytes_chunkcache);
     to->capacity_bytes_evict += WT_STAT_CONN_READ(from, capacity_bytes_evict);
     to->capacity_bytes_log += WT_STAT_CONN_READ(from, capacity_bytes_log);
+    to->capacity_bytes_oligarch_log += WT_STAT_CONN_READ(from, capacity_bytes_oligarch_log);
     to->capacity_bytes_written += WT_STAT_CONN_READ(from, capacity_bytes_written);
     to->capacity_threshold += WT_STAT_CONN_READ(from, capacity_threshold);
     to->capacity_time_total += WT_STAT_CONN_READ(from, capacity_time_total);
     to->capacity_time_ckpt += WT_STAT_CONN_READ(from, capacity_time_ckpt);
     to->capacity_time_evict += WT_STAT_CONN_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_CONN_READ(from, capacity_time_log);
+    to->capacity_time_oligarch_log += WT_STAT_CONN_READ(from, capacity_time_oligarch_log);
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
     to->capacity_time_chunkcache += WT_STAT_CONN_READ(from, capacity_time_chunkcache);
     to->checkpoint_cleanup_success += WT_STAT_CONN_READ(from, checkpoint_cleanup_success);

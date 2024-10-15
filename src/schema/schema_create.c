@@ -1171,7 +1171,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
      * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
     WT_ERR(__wt_buf_fmt(session, tmp,
-      "log=(enabled=true,oligarch_constituent=true),"
+      "oligarch_log=(enabled=true,oligarch_constituent=true),in_memory=true,"
       "disaggregated=(page_log=none,storage_source=none)"));
     ingest_cfg[2] = tmp->data;
 
@@ -1183,7 +1183,7 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
 
     stable_cfg[1] = disagg_config->data;
-    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
+    WT_ERR(__wt_buf_fmt(session, tmp, "oligarch_log=(enabled=false)"));
     stable_cfg[3] = tmp->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));

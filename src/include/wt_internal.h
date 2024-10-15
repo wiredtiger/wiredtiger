@@ -289,6 +289,8 @@ struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
 typedef struct __wt_log_desc WT_LOG_DESC;
+struct __wt_log_info;
+typedef struct __wt_log_info WT_LOG_INFO;
 struct __wt_log_op_desc;
 typedef struct __wt_log_op_desc WT_LOG_OP_DESC;
 struct __wt_log_rec_desc;
@@ -445,6 +447,8 @@ struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
 typedef struct __wt_txn_global WT_TXN_GLOBAL;
+struct __wt_txn_log;
+typedef struct __wt_txn_log WT_TXN_LOG;
 struct __wt_txn_op;
 typedef struct __wt_txn_op WT_TXN_OP;
 struct __wt_txn_printlog_args;
@@ -597,6 +601,7 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_inline.h"
 #include "cursor_inline.h"
 #include "log_inline.h"
+#include "oligarch_log_inline.h"
 #include "os_fhandle_inline.h"
 #include "os_fs_inline.h"
 #include "os_fstream_inline.h"

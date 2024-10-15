@@ -37,7 +37,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     uri_base = "test_oligarch1"
-    conn_config = 'log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
+    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,storage_source=dir_store)'
 
     uri = "oligarch:" + uri_base

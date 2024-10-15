@@ -167,7 +167,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * configuration when finished so that handle close behaves correctly.
      */
     if (btree->original ||
-      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+      F_ISSET(btree, WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
         btree->evict_disabled_open = true;
     }
@@ -454,11 +454,15 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Page sizes */
     WT_RET(__btree_page_sizes(session));
 
+    /*
+     * This option turns off eviction for a tree. Therefore, its memory footprint can only grow. But
+     * checkpoint will still visit it to persist the data.
+     */
     WT_RET(__wt_config_gets(session, cfg, "cache_resident", &cval));
     if (cval.val)
-        F_SET(btree, WT_BTREE_IN_MEMORY);
+        F_SET(btree, WT_BTREE_NO_EVICT);
     else
-        F_CLR(btree, WT_BTREE_IN_MEMORY);
+        F_CLR(btree, WT_BTREE_NO_EVICT);
 
     WT_RET(__wt_config_gets(session, cfg, "ignore_in_memory_cache_size", &cval));
     if (cval.val) {
@@ -477,16 +481,40 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * level durability and supported timestamps. In-memory configurations default to ignoring all
      * timestamps, and the application uses the logging configuration flag to turn on timestamps.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_ENABLED)) {
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (cval.val)
             F_SET(btree, WT_BTREE_LOGGED);
     }
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+
+    /*
+     * This option allows the tree to be reconciled by eviction. But we only replace the disk image
+     * in memory to reduce the memory footprint and nothing is written to disk and no data is moved
+     * to the history store. Checkpoint will also skip this tree.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_IN_MEMORY);
+    else
+        F_CLR(btree, WT_BTREE_IN_MEMORY);
+
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         F_SET(btree, WT_BTREE_LOGGED);
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (!cval.val)
             F_CLR(btree, WT_BTREE_LOGGED);
+    }
+
+    if (FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED)) {
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.enabled", &cval));
+        if (cval.val)
+            F_SET(btree, WT_BTREE_OLIGARCH_LOGGED);
+    }
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        F_SET(btree, WT_BTREE_OLIGARCH_LOGGED);
+        WT_RET(__wt_config_gets(session, cfg, "oligarch_log.enabled", &cval));
+        if (!cval.val)
+            F_CLR(btree, WT_BTREE_OLIGARCH_LOGGED);
     }
 
     /*
@@ -1138,7 +1166,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);

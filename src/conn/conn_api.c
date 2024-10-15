@@ -2209,7 +2209,7 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    __wt_writelock(session, &conn->debug_log_retention_lock);
+    __wt_writelock(session, &conn->log_info.debug_log_retention_lock);
 
     WT_ERR(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
 
@@ -2232,7 +2232,7 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn->debug_log_cnt = (uint32_t)cval.val;
 
 err:
-    __wt_writeunlock(session, &conn->debug_log_retention_lock);
+    __wt_writeunlock(session, &conn->log_info.debug_log_retention_lock);
     return (ret);
 }
 
@@ -2875,7 +2875,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     if (exist)
         WT_RET(__wt_turtle_validate_version(session));
 
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+    if (FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_CONFIG_ENABLED))
         WT_RET(__wt_log_compat_verify(session));
 
     return (0);
@@ -3173,7 +3173,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * If the log extend length is not set use the default of the configured maximum log file size.
      * That size is not known until it is initialized as part of the log server initialization.
      */
-    conn->log_extend_len = WT_CONFIG_UNSET;
+    conn->log_info.log_extend_len = WT_CONFIG_UNSET;
     for (ft = file_types; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
@@ -3187,10 +3187,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
                  * length in that case to use the default.
                  */
                 if (sval.val == 1)
-                    conn->log_extend_len = WT_CONFIG_UNSET;
+                    conn->log_info.log_extend_len = WT_CONFIG_UNSET;
                 else if (sval.val == 0 ||
                   (sval.val >= WT_LOG_FILE_MIN && sval.val <= WT_LOG_FILE_MAX))
-                    conn->log_extend_len = sval.val;
+                    conn->log_info.log_extend_len = sval.val;
                 else
                     WT_ERR_MSG(session, EINVAL, "invalid log extend length: %" PRId64, sval.val);
                 break;
@@ -3305,6 +3305,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * we may need the log path and encryption and compression settings.
      */
     WT_ERR(__wti_logmgr_config(session, cfg, false));
+    WT_ERR(__wt_oligarch_logmgr_config(session, cfg, false));
     WT_ERR(__conn_version_verify(session));
 
     /*
@@ -3434,7 +3435,8 @@ err:
          * checking that WT_CONN_LOG_RECOVER_DONE is not set because other errors earlier than
          * recovery will not have that flag set.
          */
-        if (ret == WT_RUN_RECOVERY || FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_FAILED))
+        if (ret == WT_RUN_RECOVERY ||
+          FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_RECOVER_FAILED))
             F_SET(conn, WT_CONN_PANIC);
         /*
          * If we detected a data corruption issue, we really want to indicate the corruption instead
