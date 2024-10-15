@@ -1426,8 +1426,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
+        WT_RET(__wt_page_modify_init(session, ref->page));
         __wt_page_modify_set(session, ref->page);
+    }
 
     /*
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
