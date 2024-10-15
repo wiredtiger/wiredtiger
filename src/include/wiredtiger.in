@@ -4305,6 +4305,12 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * wiredtiger_open with the 'salvage=true' configuration setting.
  */
 #define	WT_TRY_SALVAGE	(-31809)
+/*!
+ * Control point is disabled.
+ * This error is generated when attempting to operate upon a control point that
+ * is disabled. This is like EINVAL but more specific.
+ */
+#define	WT_CP_DISABLED	(-31810)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

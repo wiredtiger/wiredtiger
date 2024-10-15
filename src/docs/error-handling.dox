@@ -81,6 +81,10 @@ This error is generated when corruption is detected in an on-disk file. During n
 this may occur in rare circumstances as a result of a system crash. The application may choose to
 salvage the file or retry wiredtiger_open with the 'salvage=true' configuration setting.
 
+@par \c WT_CP_DISABLED
+This error is generated when attempting to operate upon a control point that is disabled. This is
+like EINVAL but more specific.
+
 @if IGNORE_BUILT_BY_API_ERR_END
 @endif
 

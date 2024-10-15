@@ -81,6 +81,10 @@ errors = [
         result of a system crash. The application may choose to salvage the
         file or retry wiredtiger_open with the 'salvage=true' configuration
         setting.'''),
+    Error('WT_CP_DISABLED', -31810,
+        'control point is disabled', '''
+        This error is generated when attempting to operate upon a control point that is disabled.
+        This is like EINVAL but more specific.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.

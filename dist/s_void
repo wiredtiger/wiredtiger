@@ -31,15 +31,17 @@ file_parse()
 func_ok()
 {
     sed \
-        -e '/int __wt_control_point_config_action_sleep/d' \
-        -e '/int __wt_control_point_config_action_err/d' \
-        -e '/int __wt_control_point_config_action_ret/d' \
-        -e '/int __wt_control_point_config_action_wait_for_trigger/d' \
-        -e '/int __wt_control_point_config_pred_param_match/d' \
-        -e '/int __wt_control_point_config_pred_skip/d' \
-        -e '/int __wt_control_point_config_pred_times/d' \
-        -e '/int __wt_control_point_config_pred_random_param1/d' \
-        -e '/int __wt_control_point_config_pred_random_param2/d' \
+        -e '/int __wt_conn_control_point_enable$/d' \
+        -e '/int __wt_control_point_config_action_err$/d' \
+        -e '/int __wt_control_point_config_action_ret$/d' \
+        -e '/int __wt_control_point_config_action_sleep$/d' \
+        -e '/int __wt_control_point_config_action_trigger$/d' \
+        -e '/int __wt_control_point_config_pred_param_64_match$/d' \
+        -e '/int __wt_control_point_config_pred_random_param1$/d' \
+        -e '/int __wt_control_point_config_pred_random_param2$/d' \
+        -e '/int __wt_control_point_config_pred_skip$/d' \
+        -e '/int __wt_control_point_config_pred_times$/d' \
+        -e '/int __wt_session_control_point_enable$/d' \
         -e '/int __bm_stat$/d' \
         -e '/int __checkpoint_presync$/d' \
         -e '/int __compact_uri_analyze$/d' \

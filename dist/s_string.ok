@@ -62,6 +62,7 @@ CLOEXEC
 CMP
 CONF
 CONFIG
+CP
 CPP
 CPUs
 CRC
@@ -83,6 +84,7 @@ CmP
 Codec
 Comparator
 Config
+ControlPoint
 Coverity
 CreateFileMappingW
 CreateFileW
