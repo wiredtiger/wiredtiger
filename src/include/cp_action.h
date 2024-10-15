@@ -18,12 +18,12 @@
  * - Action data type (Must be manual): WT_CONTROL_POINT_ACTION_EXAMPLE_ACTION.
  * - Pair data type (Could be generated): WT_CONTROL_POINT_PAIR_DATA_EXAMPLE_ACTION.
  *   Note, the pair data type is dependent upon only the action, not the predicate.
- * - Macro to define a per connection control point with this action (Must be manual):
+ * - Macro to define a per-connection control point with this action (Must be manual):
  * CONNECTION_CONTROL_POINT_DEFINE_EXAMPLE_ACTION.
- * - Macro to define a per session control point with this action (Must be manual):
+ * - Macro to define a per-session control point with this action (Must be manual):
  * SESSION_CONTROL_POINT_DEFINE_EXAMPLE_ACTION.
  *
- * An action that is called from the call site can only be used by a per connection control point.
+ * An action that is called from the call site can only be used by a per-connection control point.
  * Such an action also has:
  * - Macro used at the call site (Must be manual): CONNECTION_CONTROL_POINT_EXAMPLE_ACTION.
  * - A non-zero control point action ID (Could be generated):
@@ -32,13 +32,13 @@
 
 #ifdef HAVE_CONTROL_POINT
 /*
- * Define a per connection control point.
+ * Define a per-connection control point.
  */
 /*!
- * The first part of a per connection control point definition macro.
+ * The first part of a per-connection control point definition macro.
  * Sets _cp_data = WT_CONTROL_POINT_REGISTRY.cp_data if triggered, and
  * NULL if not triggered.
- * Sets _conn, _session, _cp_registry, and _cp_id.
+ * Sets _conn, _session, _cp_registry, _cp_data, and _cp_id.
  */
 #define CONNECTION_CONTROL_POINT_DEFINE_START(SESSION, CONTROL_POINT_ID) \
     do {                                                                 \
@@ -55,7 +55,7 @@
             _cp_data = __wt_conn_control_point_test_and_trigger(_session, _cp_id);
 
 /*!
- * The last part of a per connection control point definition macro.
+ * The last part of a per-connection control point definition macro.
  */
 #define CONNECTION_CONTROL_POINT_DEFINE_END(LOCKED)                                  \
     if (_cp_data != NULL)                                                            \
@@ -64,13 +64,13 @@
     while (0)
 
 /*
- * Define a per session control point.
+ * Define a per-session control point.
  */
 /*!
- * The first part of a per session control point definition macro.
+ * The first part of a per-session control point definition macro.
  * Sets _cp_data = WT_CONTROL_POINT_REGISTRY.cp_data if triggered, and
  * NULL if not triggered.
- * Sets _conn, _session, _cp_registry, and _cp_id.
+ * Sets _session, _cp_registry, _cp_data, and _cp_id.
  */
 #define SESSION_CONTROL_POINT_DEFINE_START(SESSION, CONTROL_POINT_ID) \
     do {                                                              \
@@ -85,7 +85,7 @@
             _cp_data = __wt_session_control_point_test_and_trigger(_session, _cp_id);
 
 /*!
- * The last part of a per session control point definition macro.
+ * The last part of a per-session control point definition macro.
  */
 #define SESSION_CONTROL_POINT_DEFINE_END \
     }                                    \
@@ -113,7 +113,7 @@ struct __wt_control_point_pair_data_sleep {
 #define WT_CONTROL_POINT_ACTION_ID_SLEEP 0
 #endif /* HAVE_CONTROL_POINT */
 
-/* Macro to define a per connection control point with this action. */
+/* Macro to define a per-connection control point with this action. */
 #ifdef HAVE_CONTROL_POINT
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)          \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
@@ -134,7 +134,7 @@ struct __wt_control_point_pair_data_sleep {
 #define CONNECTION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/* Macro to define a per session control point with this action. */
+/* Macro to define a per-session control point with this action. */
 #ifdef HAVE_CONTROL_POINT
 #define SESSION_CONTROL_POINT_DEFINE_SLEEP(SESSION, CONTROL_POINT_ID)          \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
@@ -172,7 +172,7 @@ struct __wt_control_point_pair_data_err {
 #define WT_CONTROL_POINT_ACTION_ID_ERR 0
 #endif /* HAVE_CONTROL_POINT */
 
-/* Macro to define a per connection control point with this action. */
+/* Macro to define a per-connection control point with this action. */
 #ifdef HAVE_CONTROL_POINT
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID)            \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
@@ -189,7 +189,7 @@ struct __wt_control_point_pair_data_err {
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/* Macro to define a per session control point with this action. */
+/* Macro to define a per-session control point with this action. */
 #ifdef HAVE_CONTROL_POINT
 #define SESSION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID)   \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID)) \
@@ -223,7 +223,7 @@ struct __wt_control_point_pair_data_ret {
 #define WT_CONTROL_POINT_ACTION_ID_RET 0
 #endif /* HAVE_CONTROL_POINT */
 
-/* Macro to define a per connection control point with this action. */
+/* Macro to define a per-connection control point with this action. */
 #ifdef HAVE_CONTROL_POINT
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)            \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
@@ -239,7 +239,7 @@ struct __wt_control_point_pair_data_ret {
 #define CONNECTION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/* Macro to define a per session control point with this action. */
+/* Macro to define a per-session control point with this action. */
 #ifdef HAVE_CONTROL_POINT
 #define SESSION_CONTROL_POINT_DEFINE_RET(SESSION, CONTROL_POINT_ID)               \
     SESSION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))             \
@@ -254,7 +254,7 @@ struct __wt_control_point_pair_data_ret {
 #endif
 
 /*
- * Action: Wait for trigger: Blocking the testing thread until a control point is triggered
+ * Action: Wait for trigger: Blocking the testing thread until a control point is triggered.
  */
 #ifdef HAVE_CONTROL_POINT
 /* Action data type */
@@ -274,34 +274,81 @@ struct __wt_control_point_pair_data_wait_for_trigger {
 
 /* Control point action ID. */
 #define WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER 1
+#endif /* HAVE_CONTROL_POINT */
 
-/* Macro used at the call site. */
+/* Macros used at the call site. */
+#ifdef HAVE_CONTROL_POINT
+/* Wait for the control point to be triggered. */
 /*!
- * The call site portion of control point action "Wait for Trigger: Blocking the testing thread
- * until a control point is triggered".
+ * Wait for a per-connection control point with action "Wait for Trigger: Blocking the testing
+ * thread until a control point is triggered" to be triggered.
  */
-#define CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID, ENABLED)        \
-    do {                                                                                     \
-        WT_SESSION_IMPL *const _session = (SESSION);                                         \
-        WT_CONNECTION_IMPL *const _conn = S2C(_session);                                     \
-        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                             \
-        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                             \
-        WT_CONTROL_POINT_DATA *_cp_data;                                                     \
-        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                        \
-        _cp_registry = &(_conn->control_points[_cp_id]);                                     \
-        _cp_data = _cp_registry->cp_data;                                                    \
-        if (_cp_data != NULL)                                                                \
-            (ENABLED) = __wt_control_point_wait_for_trigger(_session, _cp_registry, _cp_id); \
-        else                                                                                 \
-            (ENABLED) = false;                                                               \
+#define CONNECTION_CONTROL_POINT_DO_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID)  \
+    do {                                                                         \
+        WT_SESSION_IMPL *const _session = (SESSION);                             \
+        WT_CONNECTION_IMPL *const _conn = S2C(_session);                         \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                 \
+        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                 \
+        WT_CONTROL_POINT_DATA *_cp_data;                                         \
+        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);            \
+        _cp_registry = &(_conn->control_points[_cp_id]);                         \
+        _cp_data = _cp_registry->cp_data;                                        \
+        if (_cp_data != NULL)                                                    \
+            __wt_control_point_wait_for_trigger(_session, _cp_registry, _cp_id); \
     } while (0)
+#else
+#define CONNECTION_CONTROL_POINT_DO_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID) /* NOP */
 #endif
 
-/* Macro to define a per connection control point with this action. */
 #ifdef HAVE_CONTROL_POINT
+/* Set the "match value". */
 /*!
- * The trigger site portion of control point action "Wait for Trigger: Blocking the testing thread
- * until a control point is triggered".
+ * Set the "match value" at the call site of a per-connection control point with predicate "Param 64
+ * match".
+ */
+#define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_FOR_PARAM_64_MATCH( \
+  CONNECTION, CONTROL_POINT_ID, PARAM)                               \
+    __wt_conn_control_point_set_param1((CONNECTION), (CONTROL_POINT_ID), (PARAM))
+#else
+#define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_FOR_PARAM_64_MATCH( \
+  CONNECTION, CONTROL_POINT_ID, PARAM)                               \
+    (0) /* NOP */
+#endif
+
+#ifdef HAVE_CONTROL_POINT
+/* Set the "match value" and wait for the control point to be triggered. */
+/*!
+ * Set the "match value" and wait for a per-connection control point with action "Wait for Trigger:
+ * Blocking the testing thread until a control point is triggered" to be triggered.
+ */
+#define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_DO_WAIT_FOR_TRIGGER(        \
+  SESSION, CONTROL_POINT_ID, PARAM)                                              \
+    do {                                                                         \
+        WT_SESSION_IMPL *const _session = (SESSION);                             \
+        WT_CONNECTION_IMPL *const _conn = S2C(_session);                         \
+        WT_CONNECTION *const _wt_conn = (WT_CONNECTION *)_conn;                  \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                 \
+        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                 \
+        WT_CONTROL_POINT_DATA *_cp_data;                                         \
+        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);            \
+        _cp_registry = &(_conn->control_points[_cp_id]);                         \
+        _cp_data = _cp_registry->cp_data;                                        \
+        if (_cp_data != NULL) {                                                  \
+            _cp_data->param1 = (PARAM);                                          \
+            __wt_control_point_wait_for_trigger(_session, _cp_registry, _cp_id); \
+        }                                                                        \
+    } while (0)
+#else
+#define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_DO_WAIT_FOR_TRIGGER( \
+  SESSION, CONTROL_POINT_ID, PARAM) /* NOP */
+#endif
+
+/* Macros used at the trigger site. */
+#ifdef HAVE_CONTROL_POINT
+/* Define a per-connection control point with this action. */
+/*!
+ * Define a per-connection control point with action "Wait for Trigger: Blocking the testing thread
+ * until a control point is triggered". When triggered signal any waiting threads.
  */
 #define CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(SESSION, CONTROL_POINT_ID)       \
     CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))                  \
@@ -316,4 +363,44 @@ struct __wt_control_point_pair_data_wait_for_trigger {
     CONNECTION_CONTROL_POINT_DEFINE_END(false)
 #else
 #define CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(CONNECTION, CONTROL_POINT_ID) /* NOP */
+#endif
+
+#ifdef HAVE_CONTROL_POINT
+/* Set the "test value". */
+/*!
+ * Set the "test value" at the trigger site of a per-connection control point with predicate "Param
+ * 64 match".
+ */
+#define CONNECTION_CONTROL_POINT_SET_TEST_VALUE_FOR_PARAM_64_MATCH( \
+  CONNECTION, CONTROL_POINT_ID, PARAM)                              \
+    __wt_conn_control_point_set_param2((CONNECTION), (CONTROL_POINT_ID), (PARAM))
+#else
+#define CONNECTION_CONTROL_POINT_SET_TEST_VALUE_FOR_PARAM_64_MATCH( \
+  CONNECTION, CONTROL_POINT_ID, PARAM)                              \
+    (0) /* NOP */
+#endif
+
+#ifdef HAVE_CONTROL_POINT
+/* Set the "test value" and define a per-connection control point with this action. */
+/*!
+ * Set the test value and define a per-connection control point with action "Wait for Trigger:
+ * Blocking the testing thread until a control point is triggered". When triggered signal any
+ * waiting threads.
+ */
+#define CONNECTION_CONTROL_POINT_SET_TEST_VALUE_AND_DEFINE_WAIT_FOR_TRIGGER(              \
+  SESSION, CONTROL_POINT_ID, PARAM)                                                       \
+    CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))                  \
+    if (_cp_data != NULL) {                                                               \
+        WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *_pair_data =                         \
+          (WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *)_cp_data;                        \
+        WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data = &_pair_data->action_data; \
+        __wt_control_point_unlock(_session, _cp_registry);                                \
+        _cp_data->param2 = (PARAM);                                                       \
+        /* The action. */                                                                 \
+        __wt_cond_signal(_session, action_data->condvar);                                 \
+    }                                                                                     \
+    CONNECTION_CONTROL_POINT_DEFINE_END(false)
+#else
+#define CONNECTION_CONTROL_POINT_SET_TEST_VALUE_AND_DEFINE_WAIT_FOR_TRIGGER( \
+  SESSION, CONTROL_POINT_ID, PARAM) /* NOP */
 #endif

@@ -248,6 +248,9 @@ def function_scoping():
             return '/'.join(os_ports)
         return module
 
+    # Load the list of functions whose scope is not enforced.
+    exceptions = set(l.strip() for l in open('s_funcs.list', 'r').readlines())
+
     # Find all "__wt" and "__wti" function definitions.
     fn_defs = dict()
     for source_file in source_files():
@@ -336,13 +339,11 @@ def function_scoping():
 
                 # Check whether a "__wti" function is used outside of its module.
                 # Exception: Unittest files are allowed to call __wti_ functions.
-                if fn.visibility_module and module != fn.module and module != "unittest":
+                if fn.visibility_module and module != fn.module and module != "unittest" and \
+                    fn_name not in exceptions:
                     print(f'{source_file}:{line_no}: {fn_name} is used outside of its module ' +
                           f'"{fn.module}"')
                     failed = True
-
-    # Load the list of functions whose scope is not enforced.
-    exceptions = set(l.strip() for l in open('s_funcs.list', 'r').readlines())
 
     # Control point data needed for the below.
     connection_cp = api_data.ConnectionControlPoint('', '', '', '', '', type='category')

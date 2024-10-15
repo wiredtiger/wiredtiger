@@ -31,8 +31,8 @@ typedef uint32_t wt_control_point_action_id_t;
  * A function to initialize a control point's data.
  * If per-connection session = NULL.
  */
-typedef WT_CONTROL_POINT_DATA *wt_control_point_init_t(
-  WT_SESSION_IMPL *session, const char *cp_config_name, const char **cfg);
+typedef int wt_control_point_init_t(WT_SESSION_IMPL *session, const char *cp_config_name,
+  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap);
 
 /*!
  * A function to test whether a control point should be triggered.
