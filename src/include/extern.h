@@ -486,8 +486,8 @@ extern int __wt_control_point_config_action_ret(
 extern int __wt_control_point_config_action_sleep(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_SLEEP *data, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_action_wait_for_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data, const char **cfg)
+extern int __wt_control_point_config_action_trigger(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_TRIGGER *data, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_pred_param_64_match(WT_SESSION_IMPL *session,
   WT_CONTROL_POINT_DATA *data, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -508,7 +508,7 @@ extern int __wt_control_point_pair_init_always_ret(WT_SESSION_IMPL *session,
 extern int __wt_control_point_pair_init_always_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_always_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_always_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_param_match_err(WT_SESSION_IMPL *session,
@@ -520,7 +520,7 @@ extern int __wt_control_point_pair_init_param_match_ret(WT_SESSION_IMPL *session
 extern int __wt_control_point_pair_init_param_match_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_param_match_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_param_match_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_random_param1_err(WT_SESSION_IMPL *session,
@@ -532,7 +532,7 @@ extern int __wt_control_point_pair_init_random_param1_ret(WT_SESSION_IMPL *sessi
 extern int __wt_control_point_pair_init_random_param1_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_random_param1_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_random_param1_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_random_param2_err(WT_SESSION_IMPL *session,
@@ -544,7 +544,7 @@ extern int __wt_control_point_pair_init_random_param2_ret(WT_SESSION_IMPL *sessi
 extern int __wt_control_point_pair_init_random_param2_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_random_param2_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_random_param2_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_skip_err(WT_SESSION_IMPL *session,
@@ -556,7 +556,7 @@ extern int __wt_control_point_pair_init_skip_ret(WT_SESSION_IMPL *session,
 extern int __wt_control_point_pair_init_skip_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_skip_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_skip_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_times_err(WT_SESSION_IMPL *session,
@@ -568,7 +568,7 @@ extern int __wt_control_point_pair_init_times_ret(WT_SESSION_IMPL *session,
 extern int __wt_control_point_pair_init_times_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_times_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_times_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
@@ -2035,13 +2035,13 @@ extern void __wt_config_subinit(WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CO
 extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
-extern void __wt_control_point_action_init_wait_for_trigger(WT_SESSION_IMPL *session,
-  const char *control_point_name, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data);
+extern void __wt_control_point_action_init_trigger(WT_SESSION_IMPL *session,
+  const char *control_point_name, WT_CONTROL_POINT_PAIR_DATA_TRIGGER *data);
 extern void __wt_control_point_release_data(WT_SESSION_IMPL *session,
   WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *cp_data, bool locked);
 extern void __wt_control_point_unlock(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry);
-extern void __wt_control_point_wait_for_trigger(
+extern void __wt_control_point_wait(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
 extern void __wt_cursor_get_hash(

@@ -11,7 +11,7 @@
 
 /*
  * The names of pairs are derived from the configuration names of the predicate and the action, for
- * example from predicate "times" and action "Wait for trigger".
+ * example from predicate "times" and action "Trigger".
  *
  * Each pair has:
  * - Pair init function (Could be generated).
@@ -119,31 +119,31 @@ err:
     return (ret);
 }
 
-/* Pair "Always" and "Wait for trigger". */
+/* Pair "Always" and "Trigger". */
 /*
- * __wt_control_point_pair_init_always_wait_for_trigger --
- *     The pair initialization function for predicate "Always" and action "Wait for trigger".
+ * __wt_control_point_pair_init_always_trigger --
+ *     The pair initialization function for predicate "Always" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_always_wait_for_trigger(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_always_trigger(WT_SESSION_IMPL *session, const char *cp_config_name,
+  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
-    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    struct __wt_control_point_pair_data_trigger *init_data;
     WT_DECL_RET;
     WT_UNUSED(cp_config_name);
 
     WT_RET(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_trigger(session, init_data, cfg));
     /* The predicate is "Always" therefore no predicate configuration parameters to initialize. */
 
-    /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+    /* Extra initialization required for action "Trigger". */
+    __wt_control_point_action_init_trigger(session, cp_config_name, init_data);
     *cp_datap = (WT_CONTROL_POINT_DATA *)init_data;
 
     if (0) {
@@ -246,31 +246,31 @@ err:
     return (ret);
 }
 
-/* Pair "Skip" and "Wait for trigger". */
+/* Pair "Skip" and "Trigger". */
 /*
- * __wt_control_point_pair_init_skip_wait_for_trigger --
- *     The pair initialization function for predicate "Skip" and action "Wait for trigger".
+ * __wt_control_point_pair_init_skip_trigger --
+ *     The pair initialization function for predicate "Skip" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_skip_wait_for_trigger(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_skip_trigger(WT_SESSION_IMPL *session, const char *cp_config_name,
+  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
-    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    struct __wt_control_point_pair_data_trigger *init_data;
     WT_DECL_RET;
     WT_UNUSED(cp_config_name);
 
     WT_RET(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_skip(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
-    /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+    /* Extra initialization required for action "Trigger". */
+    __wt_control_point_action_init_trigger(session, cp_config_name, init_data);
     *cp_datap = (WT_CONTROL_POINT_DATA *)init_data;
 
     if (0) {
@@ -373,31 +373,31 @@ err:
     return (ret);
 }
 
-/* Pair "Times" and "Wait for trigger". */
+/* Pair "Times" and "Trigger". */
 /*
- * __wt_control_point_pair_init_times_wait_for_trigger --
- *     The pair initialization function for predicate "Times" and action "Wait for trigger".
+ * __wt_control_point_pair_init_times_trigger --
+ *     The pair initialization function for predicate "Times" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_times_wait_for_trigger(WT_SESSION_IMPL *session,
-  const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_times_trigger(WT_SESSION_IMPL *session, const char *cp_config_name,
+  const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
-    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    struct __wt_control_point_pair_data_trigger *init_data;
     WT_DECL_RET;
     WT_UNUSED(cp_config_name);
 
     WT_RET(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_times(session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
-    /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+    /* Extra initialization required for action "Trigger". */
+    __wt_control_point_action_init_trigger(session, cp_config_name, init_data);
     *cp_datap = (WT_CONTROL_POINT_DATA *)init_data;
 
     if (0) {
@@ -503,32 +503,32 @@ err:
     return (ret);
 }
 
-/* Pair "Random param1" and "Wait for trigger". */
+/* Pair "Random param1" and "Trigger". */
 /*
- * __wt_control_point_pair_init_random_param1_wait_for_trigger --
- *     The pair initialization function for predicate "Random param1" and action "Wait for trigger".
+ * __wt_control_point_pair_init_random_param1_trigger --
+ *     The pair initialization function for predicate "Random param1" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_random_param1_wait_for_trigger(WT_SESSION_IMPL *session,
+__wt_control_point_pair_init_random_param1_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
-    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    struct __wt_control_point_pair_data_trigger *init_data;
     WT_DECL_RET;
     WT_UNUSED(cp_config_name);
 
     WT_RET(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param1(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
-    /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+    /* Extra initialization required for action "Trigger". */
+    __wt_control_point_action_init_trigger(session, cp_config_name, init_data);
     *cp_datap = (WT_CONTROL_POINT_DATA *)init_data;
 
     if (0) {
@@ -634,32 +634,32 @@ err:
     return (ret);
 }
 
-/* Pair "Random param2" and "Wait for trigger". */
+/* Pair "Random param2" and "Trigger". */
 /*
- * __wt_control_point_pair_init_random_param2_wait_for_trigger --
- *     The pair initialization function for predicate "Random param2" and action "Wait for trigger".
+ * __wt_control_point_pair_init_random_param2_trigger --
+ *     The pair initialization function for predicate "Random param2" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_random_param2_wait_for_trigger(WT_SESSION_IMPL *session,
+__wt_control_point_pair_init_random_param2_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
-    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    struct __wt_control_point_pair_data_trigger *init_data;
     WT_DECL_RET;
     WT_UNUSED(cp_config_name);
 
     WT_RET(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_random_param2(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
-    /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+    /* Extra initialization required for action "Trigger". */
+    __wt_control_point_action_init_trigger(session, cp_config_name, init_data);
     *cp_datap = (WT_CONTROL_POINT_DATA *)init_data;
 
     if (0) {
@@ -765,32 +765,32 @@ err:
     return (ret);
 }
 
-/* Pair "Param match" and "Wait for trigger". */
+/* Pair "Param match" and "Trigger". */
 /*
- * __wt_control_point_pair_init_param_match_wait_for_trigger --
- *     The pair initialization function for predicate "Param match" and action "Wait for trigger".
+ * __wt_control_point_pair_init_param_match_trigger --
+ *     The pair initialization function for predicate "Param match" and action "Trigger".
  *
  * @param session The session. @param cp_registry The per connection control point's control point
  *     registry. @param cp_config_name The control point's configuration name. @param cfg
  *     Configuration string.
  */
 int
-__wt_control_point_pair_init_param_match_wait_for_trigger(WT_SESSION_IMPL *session,
+__wt_control_point_pair_init_param_match_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
 {
-    struct __wt_control_point_pair_data_wait_for_trigger *init_data;
+    struct __wt_control_point_pair_data_trigger *init_data;
     WT_DECL_RET;
     WT_UNUSED(cp_config_name);
 
     WT_RET(__wt_calloc_one(session, &init_data));
 
     /* Initialize configuration parameters. */
-    WT_ERR(__wt_control_point_config_action_wait_for_trigger(session, init_data, cfg));
+    WT_ERR(__wt_control_point_config_action_trigger(session, init_data, cfg));
     WT_ERR(__wt_control_point_config_pred_param_64_match(
       session, (WT_CONTROL_POINT_DATA *)init_data, cfg));
 
-    /* Extra initialization required for action "Wait for trigger". */
-    __wt_control_point_action_init_wait_for_trigger(session, cp_config_name, init_data);
+    /* Extra initialization required for action "Trigger". */
+    __wt_control_point_action_init_trigger(session, cp_config_name, init_data);
     *cp_datap = (WT_CONTROL_POINT_DATA *)init_data;
 
     if (0) {

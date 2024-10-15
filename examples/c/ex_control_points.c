@@ -65,7 +65,7 @@ print_thread(void *thread_arg)
     __wt_random_init_seed(session, &rnd_state);
 
     /* Wait for main or the previous thread. */
-    CONNECTION_CONTROL_POINT_DO_WAIT_FOR_TRIGGER(session, args->wait_for_id);
+    CONNECTION_CONTROL_POINT_WAIT(session, args->wait_for_id);
 
     /* Sleep a random time. */
     rnd_num1 = __wt_random(&rnd_state);
@@ -80,7 +80,7 @@ print_thread(void *thread_arg)
     fflush(stdout);
 
     /* Finished. Signal the next thread which waits for this thread to get here. */
-    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(session, args->my_id);
+    CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(session, args->my_id);
 
     /* Cleanup */
     error_check(wt_session->close(wt_session, NULL));
@@ -136,12 +136,10 @@ main(int argc, char *argv[])
     }
 
     /* Signal threads[0] which waits for this thread to get here. */
-    CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
-      session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
+    CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
 
     /* This thread waits for threads[NUM_THREADS - 1] to finish. */
-    CONNECTION_CONTROL_POINT_DO_WAIT_FOR_TRIGGER(
-      session, thread_control_point_ids[NUM_THREADS - 1]);
+    CONNECTION_CONTROL_POINT_WAIT(session, thread_control_point_ids[NUM_THREADS - 1]);
 
     /* Join all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx)
