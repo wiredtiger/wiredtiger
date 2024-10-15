@@ -190,9 +190,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     } else if (WT_CONFIG_LIT_MATCH("backup_checkpoint", cval)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
         ts = WT_TS_NONE;
-        /* Only return the value if a backup is in progress. */
-        if (__wt_atomic_load64(&conn->hot_backup_start) != 0)
-            WT_WITH_HOTBACKUP_READ_LOCK(session, ts = conn->hot_backup_timestamp, NULL);
+        WT_WITH_HOTBACKUP_READ_LOCK_BACKUP(session, ts = conn->hot_backup_timestamp, NULL);
     } else if (WT_CONFIG_LIT_MATCH("last_checkpoint", cval)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_COMPILER_BARRIER();

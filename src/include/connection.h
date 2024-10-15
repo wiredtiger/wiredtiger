@@ -323,12 +323,14 @@ struct __wt_name_flag {
 /*
  * WT_CONN_HOTBACKUP_START --
  *	Macro to set connection data appropriately for when we commence hot backup.
+ *	This macro must be called with the hot backup lock held for writing.
  */
-#define WT_CONN_HOTBACKUP_START(conn)                                             \
-    do {                                                                          \
-        (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;    \
-        __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt_most_recent); \
-        (conn)->hot_backup_list = NULL;                                           \
+#define WT_CONN_HOTBACKUP_START(conn)                                                          \
+    do {                                                                                       \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE)); \
+        (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;                 \
+        __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt_most_recent);              \
+        (conn)->hot_backup_list = NULL;                                                        \
     } while (0)
 
 /*
