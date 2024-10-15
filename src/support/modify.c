@@ -436,10 +436,11 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     // if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
     //     WT_RET_MSG(session, WT_ROLLBACK,
     //       "Read-uncommitted readers do not support reconstructing a record with modifies.");
-retry:
     WT_RET(__wt_msg(session, "waiting for trigger point\n"));
     CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
         session, WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT, enabled);
+    WT_RET(__wt_msg(session, "passed trigger poin \n"));
+retry:
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
     /* Find a complete update. */
@@ -453,7 +454,6 @@ retry:
         if (upd->type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_update_vector_push(&modifies, upd));
     }
-
     /*
      * If there's no full update, the base item is the on-page item. If the update is a tombstone,
      * the base item is an empty item.
@@ -466,7 +466,6 @@ retry:
          * required by a previous modify update). Assert the case.
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
-
         WT_ERR_ERROR_OK(
           __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw), WT_RESTART, true);
 
@@ -493,9 +492,6 @@ retry:
         base_value_size = upd_value->buf.size + item_offset;
     } else {
         /* The base update must not be a tombstone. */
-
-
-        WT_RET(__wt_msg(session, "passed trigger poin %d\n", upd->type));
         WT_UNUSED(enabled);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         base_value_size = upd->size;
