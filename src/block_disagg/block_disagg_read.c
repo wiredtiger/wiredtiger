@@ -44,6 +44,9 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
   WT_PAGE_BLOCK_META *block_meta, uint64_t disagg_id, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
+    WT_DECL_ITEM(page_package);
+    WT_DECL_RET;
+    WT_PAGE_LOG *page_log;
     size_t bufsize;
 
     if (block_meta != NULL)
@@ -70,8 +73,16 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
         bufsize = WT_MAX(size, buf->memsize + 10);
     }
     WT_RET(__wt_buf_init(session, buf, bufsize));
-    WT_RET(
-      block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, disagg_id, 0, buf));
+
+    WT_RET(__wt_scr_alloc(session, 0, &page_package));
+    WT_ERR(block_disagg->plhandle->plh_get(
+      block_disagg->plhandle, &session->iface, disagg_id, 0, page_package));
+
+    /* TODO: save the page_package in the block meta struct. */
+    page_log = block_disagg->plhandle->page_log;
+
+    /* For now, we want the full-page, so no delta is specified. */
+    WT_ERR(page_log->pl_get_package_part(page_log, &session->iface, page_package, 0, buf));
 
     if (block_meta != NULL)
         /* Set the other metadata returned by the Page Service. */
@@ -81,18 +92,18 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
      * handling early on, and then select from the original or swapped structure as needed.
      */
-    blk = WT_BLOCK_HEADER_REF(buf->mem);
+    blk = WT_BLOCK_HEADER_REF(buf->data);
     __wt_block_disagg_header_byteswap_copy(blk, &swap);
     if (swap.checksum == checksum) {
         blk->checksum = 0;
-        if (__wt_checksum_match(buf->mem,
+        if (__wt_checksum_match(buf->data,
               F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP, checksum)) {
             /*
              * Swap the page-header as needed; this doesn't belong here, but it's the best place to
              * catch all callers.
              */
-            __wt_page_header_byteswap(buf->mem);
-            return (0);
+            __wt_page_header_byteswap((void *)buf->data);
+            goto done;
         }
 
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
@@ -120,8 +131,12 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
     /* Panic if a checksum fails during an ordinary read. */
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-        return (WT_ERROR);
-    WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
+        WT_ERR(WT_ERROR);
+    WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
+err:
+done:
+    __wt_scr_free(session, &page_package);
+    return (ret);
 }
 
 /*

@@ -604,6 +604,7 @@ palm_open_handle(
     palm = (PALM *)page_log;
     if ((palm_handle = calloc(1, sizeof(PALM_HANDLE))) == NULL)
         return (errno);
+    palm_handle->iface.page_log = page_log;
     palm_handle->iface.plh_put = palm_handle_put;
     palm_handle->iface.plh_get = palm_handle_get;
     palm_handle->iface.plh_close = palm_handle_close;
