@@ -188,7 +188,7 @@ TEST_CASE("Block manager: addr string", "[block_api_misc]")
     REQUIRE(__wt_block_close(s, bm.block) == 0);
 }
 
-TEST_CASE("Block header", "[block_api_misc]")
+TEST_CASE("Block manager: block header", "[block_api_misc]")
 {
     // Declare a block manager and set it up so that we can use its legal API methods.
     WT_BM bm;
