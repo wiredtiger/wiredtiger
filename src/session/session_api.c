@@ -567,6 +567,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
 
+#ifdef HAVE_CONTROL_POINT
+    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
+    if (config == NULL)
+        goto done;
+#endif
+
     WT_ERR(__wt_txn_context_check(session, false));
 
     WT_ERR(__wt_session_reset_cursors(session, false));
@@ -581,10 +587,8 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__session_config_prefetch(session, cfg));
 
-#ifdef HAVE_CONTROL_POINT
-    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
-#endif
 err:
+done:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2722,10 +2726,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
         F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
-    /*
-     * Configuration: currently, the configuration for open_session is the same as
-     * session.reconfigure, so use that function.
-     */
+        /*
+         * Configuration: currently, the configuration for open_session is the same as
+         * session.reconfigure, so use that function.
+         */
 #ifndef HAVE_CONTROL_POINT
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
