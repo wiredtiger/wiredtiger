@@ -414,7 +414,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
     size_t base_value_size, item_offset, max_memsize;
-    bool onpage_retry;
+    bool onpage_retry, enabled;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
@@ -432,10 +432,14 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * the function, or if it is being done in parallel. In this case, we will return back to the
      * user with a rollback error.
      */
-    if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
-        WT_RET_MSG(session, WT_ROLLBACK,
-          "Read-uncommitted readers do not support reconstructing a record with modifies.");
+    WT_UNUSED(context);
+    // if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
+    //     WT_RET_MSG(session, WT_ROLLBACK,
+    //       "Read-uncommitted readers do not support reconstructing a record with modifies.");
 retry:
+    WT_RET(__wt_msg(session, "waiting for trigger point\n"));
+    CONNECTION_CONTROL_POINT_WAIT_FOR_TRIGGER(
+        session, WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT, enabled);
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
     /* Find a complete update. */
@@ -489,6 +493,10 @@ retry:
         base_value_size = upd_value->buf.size + item_offset;
     } else {
         /* The base update must not be a tombstone. */
+
+
+        WT_RET(__wt_msg(session, "passed trigger poin %d\n", upd->type));
+        WT_UNUSED(enabled);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         base_value_size = upd->size;
     }

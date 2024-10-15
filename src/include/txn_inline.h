@@ -1318,6 +1318,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
     WT_VISIBLE_TYPE upd_visible;
     uint64_t prepare_txnid;
     uint8_t prepare_state;
+    bool enabled;
 
     prepare_txnid = WT_TXN_NONE;
 
@@ -1425,6 +1426,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
      * If the caller has specifically asked us to skip assigning the buffer, we shouldn't bother
      * reconstructing the modify.
      */
+    WT_UNUSED(enabled);
     if (upd->type != WT_UPDATE_MODIFY || cbt->upd_value->skip_buf)
         __wt_upd_value_assign(cbt->upd_value, upd);
     else

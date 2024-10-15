@@ -348,7 +348,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         WT_TRET(__wt_call_log_close_session(session));
 #endif
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
     WT_RET(__wt_session_control_point_shutdown(session));
     __wt_free(session, session->cfg);
 #endif
@@ -566,6 +566,11 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
+#if 1
+    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
+    if (config == NULL)
+        goto done;
+#endif
 
     WT_ERR(__wt_txn_context_check(session, false));
 
@@ -581,10 +586,8 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__session_config_prefetch(session, cfg));
 
-#ifdef HAVE_CONTROL_POINT
-    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
-#endif
 err:
+done:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2517,81 +2520,125 @@ static int
 __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config,
   WT_SESSION_IMPL **sessionp)
 {
-    static const WT_SESSION
-      stds =
-        {
-          NULL,
-          NULL,
-          __session_close,
-          __session_reconfigure,
-          __wt_session_strerror,
-          __session_open_cursor,
-          __session_alter,
-          __session_bind_configuration,
-          __session_create,
-          __wti_session_compact,
-          __session_drop,
-          __session_join,
-          __session_log_flush,
-          __session_log_printf,
-          __session_rename,
-          __session_reset,
-          __session_salvage,
-          __session_truncate,
-          __session_verify,
-          __session_begin_transaction,
-          __session_commit_transaction,
-          __session_prepare_transaction,
-          __session_rollback_transaction,
-          __session_query_timestamp,
-          __session_timestamp_transaction,
-          __session_timestamp_transaction_uint,
-          __session_checkpoint,
-          __session_reset_snapshot,
-          __session_transaction_pinned_range,
-#ifdef HAVE_CONTROL_POINT
-          __wt_session_control_point_enable,
-          __wt_session_control_point_disable,
+    static const WT_SESSION stds =
+    { NULL,
+        NULL,
+        __session_close,
+        __session_reconfigure,
+        __wt_session_strerror,
+        __session_open_cursor,
+        __session_alter,
+        __session_bind_configuration,
+        __session_create,
+        __wti_session_compact,
+        __session_drop,
+        __session_join,
+        __session_log_flush,
+        __session_log_printf,
+        __session_rename,
+        __session_reset,
+        __session_salvage,
+        __session_truncate,
+        __session_verify,
+        __session_begin_transaction,
+        __session_commit_transaction,
+        __session_prepare_transaction,
+        __session_rollback_transaction,
+        __session_query_timestamp,
+        __session_timestamp_transaction,
+        __session_timestamp_transaction_uint,
+        __session_checkpoint,
+        __session_reset_snapshot,
+        __session_transaction_pinned_range,
+#if 1
+        __wt_session_control_point_enable,
+        __wt_session_control_point_disable,
 #else
-          NULL,
-          NULL,
+        NULL,
+        NULL,
 #endif
-          __session_get_rollback_reason,
-          __wt_session_breakpoint,
-        },
-      stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup, __wt_session_strerror,
-        __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
-        __session_create_readonly, __wti_session_compact_readonly, __session_drop_readonly,
-        __session_join_notsup, __session_log_flush_readonly, __session_log_printf_readonly,
-        __session_rename_readonly, __session_reset_notsup, __session_salvage_readonly,
-        __session_truncate_readonly, __session_verify_notsup, __session_begin_transaction_notsup,
-        __session_commit_transaction_notsup, __session_prepare_transaction_readonly,
-        __session_rollback_transaction_notsup, __session_query_timestamp_notsup,
-        __session_timestamp_transaction_notsup, __session_timestamp_transaction_uint_notsup,
-        __session_checkpoint_readonly, __session_reset_snapshot_notsup,
+        __session_get_rollback_reason,
+        __wt_session_breakpoint,
+    },
+                            stds_min =
+    { NULL,
+        NULL,
+        __session_close,
+        __session_reconfigure_notsup,
+        __wt_session_strerror,
+        __session_open_cursor,
+        __session_alter_readonly,
+        __session_bind_configuration,
+        __session_create_readonly,
+        __wti_session_compact_readonly,
+        __session_drop_readonly,
+        __session_join_notsup,
+        __session_log_flush_readonly,
+        __session_log_printf_readonly,
+        __session_rename_readonly,
+        __session_reset_notsup,
+        __session_salvage_readonly,
+        __session_truncate_readonly,
+        __session_verify_notsup,
+        __session_begin_transaction_notsup,
+        __session_commit_transaction_notsup,
+        __session_prepare_transaction_readonly,
+        __session_rollback_transaction_notsup,
+        __session_query_timestamp_notsup,
+        __session_timestamp_transaction_notsup,
+        __session_timestamp_transaction_uint_notsup,
+        __session_checkpoint_readonly,
+        __session_reset_snapshot_notsup,
         __session_transaction_pinned_range_notsup,
-#ifdef HAVE_CONTROL_POINT
-        __wt_session_control_point_enable, __wt_session_control_point_disable,
+#if 1
+        __wt_session_control_point_enable,
+        __wt_session_control_point_disable,
 #else
-        NULL, NULL,
+        NULL,
+        NULL,
 #endif
-        __session_get_rollback_reason, __wt_session_breakpoint},
-      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
-        __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
-        __session_create_readonly, __wti_session_compact_readonly, __session_drop_readonly,
-        __session_join, __session_log_flush_readonly, __session_log_printf_readonly,
-        __session_rename_readonly, __session_reset, __session_salvage_readonly,
-        __session_truncate_readonly, __session_verify, __session_begin_transaction,
-        __session_commit_transaction, __session_prepare_transaction_readonly,
-        __session_rollback_transaction, __session_query_timestamp, __session_timestamp_transaction,
-        __session_timestamp_transaction_uint, __session_checkpoint_readonly,
-        __session_reset_snapshot, __session_transaction_pinned_range,
-#ifdef HAVE_CONTROL_POINT
-        __wt_session_control_point_enable, __wt_session_control_point_disable,
+        __session_get_rollback_reason,
+        __wt_session_breakpoint },
+                            stds_readonly = {
+                                NULL,
+                                NULL,
+                                __session_close,
+                                __session_reconfigure,
+                                __wt_session_strerror,
+                                __session_open_cursor,
+                                __session_alter_readonly,
+                                __session_bind_configuration,
+                                __session_create_readonly,
+                                __wti_session_compact_readonly,
+                                __session_drop_readonly,
+                                __session_join,
+                                __session_log_flush_readonly,
+                                __session_log_printf_readonly,
+                                __session_rename_readonly,
+                                __session_reset,
+                                __session_salvage_readonly,
+                                __session_truncate_readonly,
+                                __session_verify,
+                                __session_begin_transaction,
+                                __session_commit_transaction,
+                                __session_prepare_transaction_readonly,
+                                __session_rollback_transaction,
+                                __session_query_timestamp,
+                                __session_timestamp_transaction,
+                                __session_timestamp_transaction_uint,
+                                __session_checkpoint_readonly,
+                                __session_reset_snapshot,
+                                __session_transaction_pinned_range,
+#if 1
+                                __wt_session_control_point_enable,
+                                __wt_session_control_point_disable,
 #else
-        NULL, NULL,
+                                NULL,
+                                NULL,
 #endif
-        __session_get_rollback_reason, __wt_session_breakpoint};
+                                __session_get_rollback_reason,
+                                __wt_session_breakpoint
+                            };
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
@@ -2722,10 +2769,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
         F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
-    /*
-     * Configuration: currently, the configuration for open_session is the same as
-     * session.reconfigure, so use that function.
-     */
+        /*
+         * Configuration: currently, the configuration for open_session is the same as
+         * session.reconfigure, so use that function.
+         */
 #ifndef HAVE_CONTROL_POINT
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
@@ -2767,7 +2814,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     /* Acquire a session. */
     WT_RET(__open_session(conn, event_handler, config, &session));
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
     WT_RET(__wt_session_control_point_init_all(session));
     WT_RET(__wt_session_control_point_enable_all_in_open(session));
 #endif

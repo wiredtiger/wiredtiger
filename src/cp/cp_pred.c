@@ -21,7 +21,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
 /*
  * Predicate: Skip: Skip the first skip-count control point.
  */

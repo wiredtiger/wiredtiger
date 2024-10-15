@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
 
 /* cp_action.c: Definitions for control point actions. */
 /* This file must be edited when a new control point action is created. */

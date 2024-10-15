@@ -20,7 +20,7 @@
 
 /* See comment in cp_action.c:__wt_verbose levels used in WT_VERB_CONTROL_POINT logging. */
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
 /*
  * __construct_configuration_control_point_string --
  *     Construct the configuration string for the control point.

@@ -46,7 +46,7 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      */
     WT_RELEASE_BARRIER();
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
     WT_RET(__wt_conn_control_point_init_all(session));
     WT_RET(__wt_conn_control_point_enable_all_in_open(conn, cfg));
 #endif
@@ -153,7 +153,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     /* Destroy Eviction. */
     WT_TRET(__wt_evict_destroy(session));
 
-#ifdef HAVE_CONTROL_POINT
+#if 1
     WT_TRET(__wt_conn_control_point_shutdown(session));
 #endif
 

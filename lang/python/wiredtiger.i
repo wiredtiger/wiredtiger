@@ -64,6 +64,10 @@ from packing import pack, unpack
     typedef unsigned int uint32_t;
 %}
 
+%inline %{
+    typedef int int32_t;
+%}
+
 /* Set the input argument to point to a temporary variable */ 
 %typemap(in, numinputs=0) WT_CONNECTION ** (WT_CONNECTION *temp = NULL) {
 	$1 = &temp;
