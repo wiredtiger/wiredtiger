@@ -24,6 +24,11 @@
 #ifdef HAVE_CONTROL_POINT
 /*
  * Predicate: Skip: Skip the first skip-count control point.
+ *
+ * # Predicate configuration parameter
+ * Config('skip_count', '1', r'''
+ *     the number of control point crossings to skip''',
+ *     min='0', max=ControlPoint.int64_max),
  */
 /* Predicate function. */
 /*
@@ -68,6 +73,11 @@ __wt_control_point_config_pred_skip(
 
 /*
  * Predicate: Times: Enable only the first enable-count control point crossings.
+ *
+ * # Predicate configuration parameter
+ * Config('enable_count', '1', r'''
+ *     the number of control point crossings to enable. Later crossings do not trigger.''',
+ *     min='0', max=ControlPoint.int64_max),
  */
 /* Predicate function. */
 /*
@@ -115,6 +125,11 @@ __wt_control_point_config_pred_times(
 /*
  * Predicate: Random_param1: Trigger with probability. Probability
  *     is assigned to param1.value16aa.
+ *
+ * # Predicate configuration parameter
+ * Config('probability', '1', r'''
+ *     the probability a control point crossing triggers.''',
+ *     min='0', max='100'),
  */
 /* Predicate function. */
 /*
@@ -161,6 +176,11 @@ __wt_control_point_config_pred_random_param1(
 /*
  * Predicate: Random_param2: Trigger with probability. Probability
  *     is assigned to param2.value16aa.
+ *
+ * # Predicate configuration parameter
+ * Config('probability', '1', r'''
+ *     the probability a control point crossing triggers.''',
+ *     min='0', max='100'),
  */
 /* Predicate function. */
 /*
@@ -205,51 +225,64 @@ __wt_control_point_config_pred_random_param2(
 }
 
 /*
- * Predicate: Param_match: Trigger if pointer matches. The match value is assigned to
- * param1.pointer.
+ * Predicate: "Param 64 match: Trigger if 64 bit parameter match."
+ *
+ * The call site match value is assigned to
+ * param1.value64. The trigger site test value is assigned to param2.value64.
+ *
+ * # Predicate configuration parameters
+ * Config('match_value', '1', r'''
+ *         the 64 bit value for which to wait''',
+ *         min='0', max=ControlPoint.int64_max),
+ * Config('test_value', '1', r'''
+ *         the 64 bit value to test''',
+ *         min='0', max=ControlPoint.int64_max),
  */
 /* Predicate function. */
 /*
- * __wt_control_point_pred_param_match --
- *     Control point predicate function for "Param match: Trigger if WT_CONTROL_DATA.param1 matches
- *     WT_CONTROL_DATA.param2". The match value is assigned to param1.value64 or .pointer. It should
- *     be set by the call site. The test value is assigned to param2.value64 or .pointer. It should
- *     be set by the trigger site.
+ * __wt_control_point_pred_param_64_match --
+ *     Control point predicate function for "Param 64 match: Trigger if 64 bit parameter match".
+ *
+ * The match value is assigned to param1.value64 or .pointer. It should be set by the call site. The
+ *     test value is assigned to param2.value64 or .pointer. It should be set by the trigger site.
  *
  * @param session The session. @param cp_registry The control point registry. @param data The
  *     control point's predicate data is in here.
  */
 bool
-__wt_control_point_pred_param_match(
+__wt_control_point_pred_param_64_match(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *data)
 {
     WT_UNUSED(session);
     WT_UNUSED(cp_registry);
-    /* The match value from the call site is assigned to WT_CONTROL_PARAM.param1.pointer. */
-    /* The test value from the trigger site is assigned to WT_CONTROL_PARAM.param2.pointer. */
+    /* The match value from the call site is assigned to WT_CONTROL_PARAM.param1.value64 or .pointer
+     */
+    /* The test value from the trigger site is assigned to WT_CONTROL_PARAM.param2.value64 or
+     * .pointer. */
     return (data->param1.pointer == data->param2.pointer);
 }
 
 /* Predicate config parsing function. */
 /*
- * __wt_control_point_config_pred_param_match --
- *     Configuration parsing for control point predicate "Param match: Trigger if param1 matches
- *     param2". The match value is assigned to param1.value64 or .pointer. It should be set by the
- *     call site. The test value is assigned to param2.value64 or .pointer. It should be set by the
- *     trigger site.
+ * __wt_control_point_config_pred_param_64_match --
+ *     Configuration parsing for control point predicate "Param 64 match: Trigger if 64 bit
+ *     parameter match".
+ *
+ * The match value is assigned to param1.value64 or .pointer. It should be set by the call site. The
+ *     test value is assigned to param2.value64 or .pointer. It should be set by the trigger site.
  *
  * @param session The session. @param data Return the parsed data in here. @param cfg The
  *     configuration strings.
  */
 int
-__wt_control_point_config_pred_param_match(
+__wt_control_point_config_pred_param_64_match(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
 {
     /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
     /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
     WT_UNUSED(session);
     WT_UNUSED(cfg);
-    /* match_value is assigned to WT_CONTROL_PARAM.param1.ponter. */
+    /* match_value is assigned to WT_CONTROL_PARAM.param1.value64 or .pointer. */
     data->param1.pointer = (void *)1;
     return (0);
 }

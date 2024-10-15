@@ -88,7 +88,7 @@ __wt_control_point_config_action_err(
     WT_UNUSED(cfg);
 
     action_data = &data->action_data;
-    action_data->err = WT_ERROR;
+    action_data->err = EINVAL;
     return (0);
 }
 
@@ -114,7 +114,7 @@ __wt_control_point_config_action_ret(
     WT_UNUSED(cfg);
 
     action_data = &data->action_data;
-    action_data->ret_value = WT_ERROR;
+    action_data->ret_value = EINVAL;
     return (0);
 }
 
@@ -174,7 +174,7 @@ __run_wait_for_trigger(WT_SESSION_IMPL *session)
  *
  * @param session The session. @param cp_registry The control point's registry.
  */
-bool
+void
 __wt_control_point_wait_for_trigger(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id)
 {
@@ -193,7 +193,7 @@ __wt_control_point_wait_for_trigger(
     if (WT_UNLIKELY(cp_data == NULL)) {
         __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT,
           "False: Is disabled: wait for trigger skipped: id=%" PRId32, id);
-        return (false); /* Not enabled. */
+        return; /* Not enabled. */
     }
     /* Does the call site and trigger site match in action? */
     if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER)) {
@@ -201,7 +201,7 @@ __wt_control_point_wait_for_trigger(
           "False: Control point call site and trigger site have different actions: id=%" PRId32
           ": %d and %" PRIu32 ".",
           id, WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported);
-        return (false); /* Pretend not enabled. */
+        return; /* Pretend not enabled. */
     }
     /* Is waiting necessary? */
     pair_data = (WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *)cp_data;
@@ -217,7 +217,7 @@ __wt_control_point_wait_for_trigger(
           ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
           id, (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
           (uint64_t)current_trigger_count, (uint64_t)crossing_count);
-        return (true); /* Enabled and wait fulfilled. */
+        return; /* Enabled and wait fulfilled. */
     }
     /* Store data needed by run_func. */
     action_data->desired_trigger_count = desired_trigger_count;
@@ -245,7 +245,7 @@ __wt_control_point_wait_for_trigger(
       ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
       id, (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
       (uint64_t)current_trigger_count, (uint64_t)crossing_count);
-    return (true);
+    return; /* Enabled and wait finished. */
 }
 
 /* Extra initialization. */

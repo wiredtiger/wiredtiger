@@ -107,7 +107,7 @@ class ControlPoint(Config):
         if self.action_short_name.translate(
                 ControlPoint.translation_to_lower) != 'wait_for_trigger':
                 return ''
-        return ('CONNECTION_CONTROL_POINT_' +
+        return ('CONNECTION_CONTROL_POINT_DO_' +
                 self.name.translate(
                     ControlPoint.translation_to_upper))
 
