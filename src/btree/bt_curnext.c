@@ -905,11 +905,11 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
             /* Signal the test thread. */
-            CONNECTION_CONTROL_POINT_DEFINE_WAIT_FOR_TRIGGER(
+            CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(
               session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
             printf("Arriving at control point\n");
             /* Wait here for the checkpoint thread. */
-            CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_DO_WAIT_FOR_TRIGGER(
+            CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT(
               session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
             printf("Past control point\n");
 

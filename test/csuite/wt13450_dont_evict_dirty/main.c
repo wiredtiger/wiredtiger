@@ -203,7 +203,7 @@ main(int argc, char *argv[])
      */
     testutil_check(pthread_create(&next_thread_id, NULL, thread_do_next, opts));
     /* Wait for our next thread. */
-    CONNECTION_CONTROL_POINT_DO_WAIT_FOR_TRIGGER(
+    CONNECTION_CONTROL_POINT_WAIT(
       (WT_SESSION_IMPL *)wt_session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
 
     /* Open a session to run checkpoint. */
