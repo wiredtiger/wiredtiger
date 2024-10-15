@@ -394,7 +394,7 @@ struct __wt_control_point_pair_data_wait_for_trigger {
           (WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *)_cp_data;                        \
         WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data = &_pair_data->action_data; \
         __wt_control_point_unlock(_session, _cp_registry);                                \
-        _cp_data->param2.value64 = (VALUE64);                                                     \
+        _cp_data->param2.value64 = (VALUE64);                                             \
         /* The action. */                                                                 \
         __wt_cond_signal(_session, action_data->condvar);                                 \
     }                                                                                     \
