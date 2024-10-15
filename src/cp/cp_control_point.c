@@ -43,7 +43,8 @@
  * @param session The session. @param id The per connection control point's ID.
  */
 WT_CONTROL_POINT_DATA *
-__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_point_id_t id)
+__wt_conn_control_point_test_and_trigger(
+  WT_SESSION_IMPL *session, wt_control_point_id_t id, bool assign, uint64_t value64)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *data;
@@ -72,6 +73,8 @@ __wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session, wt_control_po
         __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT, "Is disabled: id=%" PRId32, id);
         return (NULL);
     }
+    if (assign)
+        data->param2.value64 = value64;
     new_crossing_count = ++(cp_registry->crossing_count);
     triggered = cp_registry->pred ? cp_registry->pred(session, cp_registry, data) : true;
     if (triggered) {

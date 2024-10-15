@@ -2,8 +2,9 @@
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern WT_CONTROL_POINT_DATA *__wt_conn_control_point_test_and_trigger(WT_SESSION_IMPL *session,
-  wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_CONTROL_POINT_DATA *__wt_conn_control_point_test_and_trigger(
+  WT_SESSION_IMPL *session, wt_control_point_id_t id, bool assign, uint64_t value64)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wt_session_control_point_test_and_trigger(WT_SESSION_IMPL *session,
   wt_control_point_id_t id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_CONTROL_POINT_DATA *__wti_control_point_get_data(
