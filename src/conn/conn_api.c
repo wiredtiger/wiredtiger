@@ -1376,6 +1376,9 @@ err:
         F_SET(conn, WT_CONN_PANIC);
     }
 
+    /* Free the disaggregated storage config. */
+    WT_TRET(__wti_disagg_destroy_conn_config(session));
+
     /*
      * Now that the final checkpoint is complete, the shutdown process should not allocate a
      * significant amount of new memory. If a user configured leaking memory on shutdown, we will
@@ -3271,6 +3274,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * for some operations.
      */
     WT_ERR(__wt_tiered_conn_config(session, cfg, false));
+
+    /*
+     * Do early initialization for disaggregated storage, as we'll need it later for some metadata
+     * operations.
+     */
+    WT_ERR(__wti_disagg_conn_config(session, cfg, false));
 
     /*
      * The metadata/log encryptor is configured after extensions, since extensions may load

@@ -35,10 +35,11 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch07(wttest.WiredTigerTestCase):
     nitems = 500
 
-    conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
-    create_session_config = 'key_format=S,value_format=S,stable_prefix=.,storage_source=dir_store'
+    create_session_config = 'key_format=S,value_format=S'
 
     uri = "oligarch:test_oligarch07"
 
@@ -49,8 +50,8 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
         self.pr(f"{extlist=}")
 
-    # Test inserting records into a follower that turned into a leader
-    def test_oligarch07(self):
+    # Custom test case setup
+    def early_setup(self):
         # FIXME: This shouldn't take an absolute path
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
@@ -63,6 +64,8 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         os.mkdir('follower/foo/follower')
         os.mkdir('follower/bar/follower')
 
+    # Test inserting records into a follower that turned into a leader
+    def test_oligarch07(self):
         #
         # Part 1: Create an oligarch table and insert some data to the leader.
         #

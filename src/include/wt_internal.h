@@ -231,6 +231,8 @@ struct __wt_data_handle_cache;
 typedef struct __wt_data_handle_cache WT_DATA_HANDLE_CACHE;
 struct __wt_delete_hs_upd;
 typedef struct __wt_delete_hs_upd WT_DELETE_HS_UPD;
+struct __wt_disaggregated_storage;
+typedef struct __wt_disaggregated_storage WT_DISAGGREGATED_STORAGE;
 struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
