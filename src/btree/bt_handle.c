@@ -116,7 +116,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     bm = btree->bm;
 
     // if (bm->is_remote) /* Temporarily enable delta for every tree for testing. */
-    F_SET(btree, WT_BTREE_PAGE_DELTA);
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_IN_MEMORY))
+        F_SET(btree, WT_BTREE_PAGE_DELTA);
 
     /*
      * !!!
