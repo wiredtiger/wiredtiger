@@ -299,7 +299,7 @@ err:
  */
 int
 __wt_conn_control_point_get_param1(
-  WT_CONNECTION *wt_conn, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM *param1p)
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t *value64p)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
@@ -307,7 +307,7 @@ __wt_conn_control_point_get_param1(
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
-    *param1p = cp_data->param1;
+    *value64p = cp_data->param1.value64;
 err:
     return (ret);
 }
@@ -318,7 +318,7 @@ err:
  */
 int
 __wt_session_control_point_get_param1(
-  WT_SESSION *wt_session, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM *param1p)
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t *value64p)
 {
     WT_CONTROL_POINT_DATA *cp_data;
     WT_DECL_RET;
@@ -326,7 +326,7 @@ __wt_session_control_point_get_param1(
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_ERR(__session_control_point_get_data(session, id, &cp_data));
-    *param1p = cp_data->param1;
+    *value64p = cp_data->param1.value64;
 err:
     return (ret);
 }
@@ -337,7 +337,7 @@ err:
  */
 int
 __wt_conn_control_point_get_param2(
-  WT_CONNECTION *wt_conn, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM *param2p)
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t *value64p)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
@@ -345,7 +345,7 @@ __wt_conn_control_point_get_param2(
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
-    *param2p = cp_data->param2;
+    *value64p = cp_data->param2.value64;
 err:
     return (ret);
 }
@@ -356,7 +356,7 @@ err:
  */
 int
 __wt_session_control_point_get_param2(
-  WT_SESSION *wt_session, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM *param2p)
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t *value64p)
 {
     WT_CONTROL_POINT_DATA *cp_data;
     WT_DECL_RET;
@@ -364,7 +364,7 @@ __wt_session_control_point_get_param2(
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_ERR(__session_control_point_get_data(session, id, &cp_data));
-    *param2p = cp_data->param2;
+    *value64p = cp_data->param2.value64;
 err:
     return (ret);
 }
@@ -379,7 +379,7 @@ err:
  */
 int
 __wt_conn_control_point_set_param1(
-  WT_CONNECTION *wt_conn, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM param1)
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t value64)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
@@ -387,7 +387,7 @@ __wt_conn_control_point_set_param1(
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
-    cp_data->param1 = param1;
+    cp_data->param1.value64 = value64;
 err:
     return (ret);
 }
@@ -402,7 +402,7 @@ err:
  */
 int
 __wt_session_control_point_set_param1(
-  WT_SESSION *wt_session, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM param1)
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t value64)
 {
     WT_CONTROL_POINT_DATA *cp_data;
     WT_DECL_RET;
@@ -410,7 +410,7 @@ __wt_session_control_point_set_param1(
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_ERR(__session_control_point_get_data(session, id, &cp_data));
-    cp_data->param1 = param1;
+    cp_data->param1.value64 = value64;
 err:
     return (ret);
 }
@@ -425,7 +425,7 @@ err:
  */
 int
 __wt_conn_control_point_set_param2(
-  WT_CONNECTION *wt_conn, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM param2)
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t value64)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
@@ -433,7 +433,7 @@ __wt_conn_control_point_set_param2(
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
-    cp_data->param2 = param2;
+    cp_data->param2.value64 = value64;
 err:
     return (ret);
 }
@@ -448,7 +448,7 @@ err:
  */
 int
 __wt_session_control_point_set_param2(
-  WT_SESSION *wt_session, wt_control_point_id_t id, WT_CONTROL_POINT_PARAM param2)
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t value64)
 {
     WT_CONTROL_POINT_DATA *cp_data;
     WT_DECL_RET;
@@ -456,7 +456,7 @@ __wt_session_control_point_set_param2(
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_ERR(__session_control_point_get_data(session, id, &cp_data));
-    cp_data->param2 = param2;
+    cp_data->param2.value64 = value64;
 err:
     return (ret);
 }
