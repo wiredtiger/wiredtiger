@@ -307,15 +307,22 @@ static int
 __btree_setup_page_log(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONFIG_ITEM page_log_item;
+    WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
     const char **cfg;
 
     cfg = btree->dhandle->cfg;
 
     /* Setup any configured page log on the data handle */
-    WT_RET(__wt_config_gets(session, cfg, "page_log", &page_log_item));
-    WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
+    WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
+    if (ret == WT_NOTFOUND || page_log_item.len == 0) {
+        npage_log = S2C(session)->disaggregated_storage.npage_log;
+        if (npage_log != NULL)
+            btree->page_log = npage_log->page_log;
+        return (0);
+    }
 
+    WT_RET(__wt_schema_open_page_log(session, &page_log_item, &npage_log));
     if (npage_log == NULL)
         return (0);
 
@@ -342,9 +349,14 @@ __btree_setup_storage_source(WT_SESSION_IMPL *session, WT_BTREE *btree)
     nstorage = NULL;
 
     /* Setup any configured storage source on the data handle */
-    WT_RET(__wt_config_gets(session, cfg, "storage_source", &storage_source_item));
-    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
+    WT_RET_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.storage_source", &storage_source_item));
+    if (ret == WT_NOTFOUND || storage_source_item.len == 0) {
+        btree->bstorage = S2C(session)->disaggregated_storage.bstorage;
+        return (0);
+    }
 
+    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
     if (nstorage == NULL)
         return (0);
 
@@ -532,16 +544,16 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
 
-    WT_RET(__btree_setup_page_log(session, btree));
-    WT_RET(__btree_setup_storage_source(session, btree));
-
-    /* A page log service and a storage source cannot both be enabled. */
-    WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
-
-    /* Detect if the btree is disaggregated. */
-    if (__wt_block_disagg_manager_owns_object(session, btree->dhandle->name) ||
-      __wt_block_pantry_manager_owns_object(session, btree->dhandle->name))
+    /* Detect if the btree is disaggregated (for now, just use the file extension). */
+    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_stable")) {
         F_SET(btree, WT_BTREE_DISAGGREGATED);
+
+        WT_RET(__btree_setup_page_log(session, btree));
+        WT_RET(__btree_setup_storage_source(session, btree));
+
+        /* A page log service and a storage source cannot both be enabled. */
+        WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
+    }
 
     /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;

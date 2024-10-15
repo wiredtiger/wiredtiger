@@ -235,6 +235,8 @@ struct __wt_delta_cell_unpack;
 typedef struct __wt_delta_cell_unpack WT_DELTA_CELL_UNPACK;
 struct __wt_delta_header;
 typedef struct __wt_delta_header WT_DELTA_HEADER;
+struct __wt_disaggregated_storage;
+typedef struct __wt_disaggregated_storage WT_DISAGGREGATED_STORAGE;
 struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
