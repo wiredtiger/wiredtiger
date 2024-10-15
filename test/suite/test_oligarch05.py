@@ -36,7 +36,8 @@ class test_oligarch05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_oligarch05"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader")'
+    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader"),' \
+                + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
     # conn_config = 'log=(enabled)'
 
     uri = "oligarch:" + uri_base
@@ -47,11 +48,15 @@ class test_oligarch05(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('storage_sources', 'dir_store')
 
-    # Test records into an oligarch tree and restarting
-    def test_oligarch05(self):
-        base_create = 'key_format=S,value_format=S,stable_prefix=.,storage_source=dir_store'
+    # Custom test case setup
+    def early_setup(self):
+        # FIXME: This shouldn't take an absolute path
         os.mkdir('foo') # Hard coded to match library for now.
         os.mkdir('bar') # Hard coded to match library for now.
+
+    # Test records into an oligarch tree and restarting
+    def test_oligarch05(self):
+        base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")
         self.session.create(self.uri, base_create)

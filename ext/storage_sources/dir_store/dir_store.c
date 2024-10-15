@@ -1223,7 +1223,8 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
 
     /* Determine if this is a directory of objects (for now, just use a file extension). */
     dir_store_fh->object_directory =
-      (strlen(name) > 10 && strcmp(name + (strlen(name) - 10), ".wt_stable") == 0);
+      (strlen(name) > 10 && strcmp(name + (strlen(name) - 10), ".wt_stable") == 0) ||
+      (strlen(name) > 5 && strcmp(name + (strlen(name) - 5), ".meta") == 0);
 
     /*
      * First eight bytes are reserved as out-of-band. This is a 64 bit space so we can write an
@@ -1552,6 +1553,9 @@ dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
      */
     if (dir_store_fh->dir_store->read_ops != 0 || dir_store_fh->dir_store->write_ops != 0)
         return (EINVAL);
+
+    if (new_max < dir_store_fh->object_map_size)
+        return (0);
 
     if (new_max < 1000)
         new_size = 1000;

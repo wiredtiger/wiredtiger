@@ -13,6 +13,7 @@ __oligarch_metadata_watcher(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *md_cursor;
+    WT_DECL_ITEM(item);
     WT_DECL_RET;
     WT_FH *md_fh;
     WT_SESSION_IMPL *session;
@@ -28,6 +29,8 @@ __oligarch_metadata_watcher(void *arg)
     conn = S2C(session);
     md_fh = NULL;
     memset(buf, 0, 4096);
+
+    WT_ERR(__wt_scr_alloc(session, 4096, &item));
 
     len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
     WT_ERR(__wt_calloc_def(session, len, &md_path));
@@ -79,10 +82,18 @@ __oligarch_metadata_watcher(void *arg)
             }
         }
 
-        buf[last_sep] = '\0';
         name_ptr = last_sep;
         while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
             name_ptr--;
+
+#if 0
+        /* XXX Get the checkpoint metadata from dir_store - just to check that it all works. */
+        __wt_sleep(0, 1000);
+        WT_ASSERT(session, __wt_disagg_get_meta(session, 0, 0, item) == 0);
+        WT_ASSERT(session, memcmp(item->data, buf + name_ptr, item->size) == 0);
+#endif
+
+        buf[last_sep] = '\0';
 
         /* Open up a metadata cursor pointing at our table */
         WT_ERR(__wt_metadata_cursor(session, &md_cursor));
@@ -120,6 +131,7 @@ __oligarch_metadata_watcher(void *arg)
 
 err:
     fprintf(stderr, "metadata watcher returning %d\n", ret);
+    __wt_scr_free(session, &item);
     __wt_free(session, md_path);
     __wt_free(session, new_md_value);
     WT_IGNORE_RET(__wt_close(session, &md_fh));
@@ -912,4 +924,181 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     WT_STAT_CONN_SET(session, oligarch_manager_running, 0);
 
     return (0);
+}
+
+/*
+ * __wti_disagg_conn_config --
+ *     Parse and setup the disaggregated server options for the connection.
+ */
+int
+__wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
+{
+    WT_BUCKET_STORAGE *bstorage;
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npage_log;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
+    WT_STORAGE_SOURCE *storage;
+
+    conn = S2C(session);
+    npage_log = NULL;
+    bstorage = NULL;
+    nstorage = NULL;
+
+    /* We don't currently allow reconfiguring disaggregated storage options. */
+    if (reconfig)
+        return (0);
+
+    /* Remember the configuration. */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.page_log));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.stable_prefix", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.stable_prefix));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.storage_source));
+
+    /* Setup any configured page log. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_RET(__wt_schema_open_page_log(session, &cval, &npage_log));
+    conn->disaggregated_storage.npage_log = npage_log;
+
+    /* Setup any configured storage source on the data handle */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
+    WT_RET(__wt_schema_open_storage_source(session, &cval, &nstorage));
+
+    /* TODO: Deduplicate this with __btree_setup_storage_source */
+    if (nstorage != NULL) {
+        WT_ERR(__wt_calloc_one(session, &bstorage));
+        bstorage->auth_token = NULL;
+        bstorage->cache_directory = NULL;
+        WT_ERR(__wt_strndup(session, "foo", 3, &bstorage->bucket));
+        WT_ERR(__wt_strndup(session, "bar", 3, &bstorage->bucket_prefix));
+
+        storage = nstorage->storage_source;
+        WT_ERR(storage->ss_customize_file_system(
+          storage, &session->iface, bstorage->bucket, "", NULL, &bstorage->file_system));
+        bstorage->storage_source = storage;
+
+        F_SET(bstorage, WT_BUCKET_FREE);
+        conn->disaggregated_storage.bstorage = bstorage;
+        conn->disaggregated_storage.nstorage = nstorage;
+    }
+
+    /* Set up a handle for accessing shared metadata. */
+    if (npage_log != NULL) {
+        WT_ERR(npage_log->page_log->pl_open_handle(
+          npage_log->page_log, &session->iface, 0, &conn->disaggregated_storage.page_log_meta));
+    }
+    if (bstorage != NULL) {
+        WT_WITH_BUCKET_STORAGE(bstorage, session, {
+            WT_FILE_SYSTEM *fs = bstorage->file_system;
+            ret =
+              fs->fs_open_file(fs, &session->iface, "metadata.meta", WT_FS_OPEN_FILE_TYPE_REGULAR,
+                WT_FS_OPEN_CREATE, &conn->disaggregated_storage.bstorage_meta);
+        });
+    }
+
+    if (0) {
+err:
+        if (conn->disaggregated_storage.bstorage == NULL) {
+            if (bstorage != NULL) {
+                __wt_free(session, bstorage->bucket);
+                __wt_free(session, bstorage->bucket_prefix);
+                __wt_free(session, bstorage);
+            }
+        }
+    }
+
+    return (ret);
+}
+
+/*
+ * __wti_disagg_destroy_conn_config --
+ *     Free the disaggregated storage state.
+ */
+int
+__wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    __wt_free(session, disagg->page_log);
+    __wt_free(session, disagg->stable_prefix);
+    __wt_free(session, disagg->storage_source);
+
+    /* Close the metadata handles. */
+    if (disagg->page_log_meta != NULL) {
+        WT_TRET(disagg->page_log_meta->plh_close(disagg->page_log_meta, &session->iface));
+        disagg->page_log_meta = NULL;
+    }
+    if (disagg->bstorage_meta != NULL) {
+        WT_TRET(disagg->bstorage_meta->close(disagg->bstorage_meta, &session->iface));
+        disagg->bstorage_meta = NULL;
+    }
+
+    return (ret);
+}
+
+/*
+ * __wt_disagg_get_meta --
+ *     Read metadata from disaggregated storage.
+ */
+int
+__wt_disagg_get_meta(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *item)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    if (disagg->page_log_meta != NULL) {
+        WT_ASSERT(session, disagg->bstorage_meta == NULL);
+        return (disagg->page_log_meta->plh_get(
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, item));
+    }
+
+    if (disagg->bstorage_meta != NULL) {
+        WT_RET(
+          disagg->bstorage_meta->fh_obj_checkpoint_load(disagg->bstorage_meta, &session->iface));
+        return (
+          disagg->bstorage_meta->fh_obj_get(disagg->bstorage_meta, &session->iface, page_id, item));
+    }
+
+    return (ENOTSUP);
+}
+
+/*
+ * __wt_disagg_put_meta --
+ *     Write metadata to disaggregated storage.
+ */
+int
+__wt_disagg_put_meta(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *item)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    if (disagg->page_log_meta != NULL) {
+        WT_ASSERT(session, disagg->bstorage_meta == NULL);
+        return (disagg->page_log_meta->plh_put(
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, false, item));
+    }
+
+    if (disagg->bstorage_meta != NULL) {
+        WT_RET(
+          disagg->bstorage_meta->fh_obj_put(disagg->bstorage_meta, &session->iface, page_id, item));
+        return (disagg->bstorage_meta->fh_obj_checkpoint(disagg->bstorage_meta, &session->iface));
+    }
+
+    return (ENOTSUP);
 }
