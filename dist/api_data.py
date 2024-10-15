@@ -186,10 +186,11 @@ class SessionControlPoint(ControlPoint):
                 self.pred_short_name, self.default, self.desc,
                 self.enable_in_open, self.subconfig, self.flags);
 
-# For examples/c/ex_control_points.c
-ex_control_points_config = [
+# All per connection control points.
+all_per_connection_control_points_config = [
+    # For examples/c/ex_control_points.c
     Config('per_connection_control_points', '', r'''
-        Configure concurrent determinism through connection control points''',
+        Configure concurrent determinism through per-connection control points''',
         type='category', subconfig= [
             ConnectionControlPoint('Main Start Printing', 'Wait for trigger', 'Always',
                 '', r'''
@@ -241,8 +242,10 @@ ex_control_points_config = [
                             min='1', max='4294967295'),
                 ]),
         ]),
+    ]
+all_per_session_control_points_config = [
     Config('per_session_control_points', '', r'''
-        Configure concurrent determinism through session control points''',
+        Configure concurrent determinism through per-session control points''',
         type='category', subconfig= [
             SessionControlPoint('Thread 0', 'Sleep', 'Always',
                 '', r'''
@@ -261,9 +264,6 @@ ex_control_points_config = [
                 ]),
         ])
     ]
-    
-# All per connection control points
-all_per_connection_control_points_config = ex_control_points_config
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -1360,7 +1360,7 @@ wiredtiger_open_chunk_cache_configuration = [
     ]),
 ]
 
-session_config = [
+session_config =  all_per_session_control_points_config + [
     Config('cache_cursors', 'true', r'''
         enable caching of cursors for reuse. Any calls to WT_CURSOR::close for a cursor created
         in this session will mark the cursor as cached and keep it available to be reused for

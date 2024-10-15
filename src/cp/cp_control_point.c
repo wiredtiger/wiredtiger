@@ -159,9 +159,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
 {
     WT_CONTROL_POINT_REGISTRY *control_points;
     WT_DECL_RET;
-    int idx;
 
-    idx = 0;
     if (CONNECTION_CONTROL_POINTS_SIZE == 0)
         return (0);
     WT_RET(__wt_calloc_def(session, CONNECTION_CONTROL_POINTS_SIZE, &control_points));
@@ -243,9 +241,6 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
-    for (; idx < CONNECTION_CONTROL_POINTS_SIZE; idx++) {
-        control_points[idx].control_point_for_connection = true;
-    }
     /* After all repeats finish with this. */
     S2C(session)->control_points = control_points;
 

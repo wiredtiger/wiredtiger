@@ -84,7 +84,7 @@ __wt_control_point_config_action_err(
     WT_CONTROL_POINT_ACTION_ERR *action_data;
 
     action_data = &data->action_data;
-    WT_RET(__wt_config_subgets(session, item, "error", &cval));
+    WT_RET(__wt_config_subgets(session, item, "err", &cval));
     action_data->err = (int)cval.val;
     return (0);
 }
@@ -108,7 +108,7 @@ __wt_control_point_config_action_ret(
     WT_CONTROL_POINT_ACTION_RET *action_data;
 
     action_data = &data->action_data;
-    WT_RET(__wt_config_subgets(session, item, "return", &cval));
+    WT_RET(__wt_config_subgets(session, item, "ret_value", &cval));
     action_data->ret_value = (int)cval.val;
     return (0);
 }

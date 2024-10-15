@@ -223,7 +223,7 @@ __wt_conn_control_point_enable(
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    const char *cfgs[3];
+    const char *cfg[3];
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
@@ -233,10 +233,10 @@ __wt_conn_control_point_enable(
     if (conn->control_points == NULL)
         return (WT_ERROR);
     cp_registry = &(conn->control_points[id]);
-    cfgs[0] = conn->cfg;
-    cfgs[1] = extra_cfg;
-    cfgs[2] = NULL;
-    return (__wti_conn_control_point_enable(conn, cp_registry, cfgs));
+    cfg[0] = conn->cfg;
+    cfg[1] = extra_cfg;
+    cfg[2] = NULL;
+    return (__wti_conn_control_point_enable(conn, cp_registry, cfg));
 }
 
 /*
@@ -253,20 +253,18 @@ int
 __wti_session_control_point_enable(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *extra_cfg)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_DATA *cp_data;
-    const char *cfgs[3];
+    const char *cfg[3];
 
-    conn = S2C(session);
     cp_data = cp_registry->cp_data;
     if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         return (EEXIST);
-    cfgs[0] = conn->cfg;
-    cfgs[1] = extra_cfg;
-    cfgs[2] = NULL;
+    cfg[0] = session->cfg;
+    cfg[1] = extra_cfg;
+    cfg[2] = NULL;
     cp_data =
-      cp_registry->init(session, cp_registry->config_name, false, cp_registry->init_pred, cfgs);
+      cp_registry->init(session, cp_registry->config_name, false, cp_registry->init_pred, cfg);
     if (WT_UNLIKELY(cp_data == NULL))
         return (WT_ERROR);
     cp_registry->cp_data = cp_data;
