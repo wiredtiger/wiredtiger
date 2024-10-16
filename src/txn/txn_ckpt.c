@@ -24,11 +24,10 @@ static int
 __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
+    WT_CONNECTION_IMPL *conn = S2C(session);
     uint64_t now, start, timeout;
     int yield_count;
 
-    conn = S2C(session);
     yield_count = 0;
     now = start = 0;
 

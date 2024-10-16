@@ -183,13 +183,9 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 static WT_INLINE int
 __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 {
-    WT_BM *bm;
-    WT_BTREE *btree;
     WT_DECL_RET;
-    size_t size;
-
-    btree = S2BT(session);
-    bm = btree->bm;
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
 
     if (btree->type == BTREE_COL_FIX) {
         /* Fixed-size column-stores take a single byte. */
@@ -213,7 +209,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
           kv->size, WT_BTREE_MAX_OBJECT_SIZE);
 
     /* Check what the block manager can actually write. */
-    size = kv->size;
+    size_t size = kv->size;
     if ((ret = bm->write_size(bm, session, &size)) != 0)
         WT_RET_MSG(
           session, ret, "item size of %" WT_SIZET_FMT " refused by block manager", kv->size);

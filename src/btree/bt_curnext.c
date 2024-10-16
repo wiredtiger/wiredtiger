@@ -537,13 +537,11 @@ restart_read_page:
 static int
 __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
-    WT_BTREE *btree;
+    WT_BTREE *btree = S2BT(session);
     WT_DECL_RET;
-    int cmp;
+    int cmp = 0;
 
     WT_UNUSED(ret);
-    btree = S2BT(session);
-    cmp = 0; /* -Werror=maybe-uninitialized */
 
     if (cbt->lastrecno != WT_RECNO_OOB) {
         if (cbt->lastrecno < cbt->recno)
@@ -645,9 +643,7 @@ __wti_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
 int
 __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
 {
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(cbt);
+    WT_SESSION_IMPL *session = CUR2S(cbt);
 
     cbt->lastref = cbt->ref;
     cbt->lastslot = cbt->slot;
