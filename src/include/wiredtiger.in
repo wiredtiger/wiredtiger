@@ -921,6 +921,19 @@ struct __wt_session {
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
+     * @config{per_session_control_points = (, Configure concurrent determinism through per-session
+     * control points., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 = (, Thread 0 performs a sleep on the session., a
+     * set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;microseconds, the number of
+     * microseconds for which to wait., an integer between \c 1 and \c 9223372036854775807; default
+     * \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;seconds, the number of seconds
+     * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 3.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;skip_count, the number of skips until
+     * we sleep., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+     * @config{ ),,}
      * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
      * pre-fetch future content into the cache., a set of related configuration options defined as
      * follows.}
@@ -2697,6 +2710,19 @@ struct __wt_connection {
      * @config{isolation, the default isolation level for operations in this session., a string\,
      * chosen from the following options: \c "read-uncommitted"\, \c "read-committed"\, \c
      * "snapshot"; default \c snapshot.}
+     * @config{per_session_control_points = (, Configure concurrent determinism through per-session
+     * control points., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 = (, Thread 0 performs a sleep on the session., a
+     * set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;microseconds, the number of
+     * microseconds for which to wait., an integer between \c 1 and \c 9223372036854775807; default
+     * \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;seconds, the number of seconds
+     * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 3.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;skip_count, the number of skips until
+     * we sleep., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+     * @config{ ),,}
      * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
      * pre-fetch future content into the cache., a set of related configuration options defined as
      * follows.}
@@ -3438,12 +3464,6 @@ struct __wt_connection {
  * threads to manage merging LSM trees in the database.  Each worker thread uses a session handle
  * from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
  * @config{ ),,}
- * @config{main_start_printing = (, Thread 0 waits for main to get here., a set of related
- * configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
- * of triggers for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c
- * 1.}
- * @config{ ),,}
  * @config{mmap, Use memory mapping when accessing files in a read-only mode., a boolean flag;
  * default \c true.}
  * @config{mmap_all, Use memory mapping to read and write all data files.  May not be configured
@@ -3462,6 +3482,52 @@ struct __wt_connection {
  * into which operation tracking files are written.  The directory must already exist.  If the value
  * is not an absolute path\, the path is relative to the database home (see @ref absolute_path for
  * more information)., a string; default \c ".".}
+ * @config{ ),,}
+ * @config{per_connection_control_points = (, Configure concurrent determinism through
+ * per-connection control points., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;main_start_printing = (, Thread 0 waits for main to get here., a
+ * set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 = (, Thread 1
+ * waits for thread 0 to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_1 = (, Thread 2
+ * waits for thread 1 to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_2 = (, Thread 3
+ * waits for thread 2 to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_3 = (, Thread 4
+ * waits for thread 3 to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_4 = (, Thread 5
+ * waits for thread 4 to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wt_13450_ckpt = (, Next
+ * cursor waits for checkpoint to get here., a set of related configuration options defined as
+ * follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;match_value, the btree id for
+ * which to wait., an integer between \c 0 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wt_13450_test = (, Test
+ * waits for cursor next to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{ ),,}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
  * pre-fetch future content into the cache., a set of related configuration options defined as
@@ -3533,36 +3599,6 @@ struct __wt_connection {
  * setting this value above 0 configures statistics logging., an integer between \c 0 and \c 100000;
  * default \c 0.}
  * @config{ ),,}
- * @config{thread_0 = (, Thread 1 waits for thread 0 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
- * @config{
- * ),,}
- * @config{thread_1 = (, Thread 2 waits for thread 1 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
- * @config{
- * ),,}
- * @config{thread_2 = (, Thread 3 waits for thread 2 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
- * @config{
- * ),,}
- * @config{thread_3 = (, Thread 4 waits for thread 3 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
- * @config{
- * ),,}
- * @config{thread_4 = (, Thread 5 waits for thread 4 to get here., a set of related configuration
- * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers
- * for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c 1.}
- * @config{
- * ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
@@ -3604,19 +3640,6 @@ struct __wt_connection {
  * write_through should be combined with \c direct_io to get the equivalent of POSIX \c O_DIRECT on
  * Windows., a list\, with values chosen from the following options: \c "data"\, \c "log"; default
  * empty.}
- * @config{wt_13450_ckpt = (, Next cursor waits for checkpoint to get here., a set of related
- * configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;match_value, the btree
- * id for which to wait., an integer between \c 0 and \c 9223372036854775807; default \c 1.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for which to wait., an integer
- * between \c 1 and \c 9223372036854775807; default \c 1.}
- * @config{ ),,}
- * @config{wt_13450_test = (, Test waits for cursor next to get here., a set of related
- * configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number
- * of triggers for which to wait., an integer between \c 1 and \c 9223372036854775807; default \c
- * 1.}
- * @config{ ),,}
  * @configend
  * Additionally, if files named \c WiredTiger.config or \c WiredTiger.basecfg
  * appear in the WiredTiger home directory, they are read for configuration

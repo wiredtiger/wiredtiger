@@ -578,7 +578,8 @@ __wti_conn_control_point_enable(
     if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         WT_ERR(EEXIST);
-    WT_ERR(cp_registry->init(NULL, cp_registry->config_name, cfg, &cp_data));
+    WT_ERR(cp_registry->init(
+      NULL, cp_registry->config_name, true, cp_registry->init_pred, cfg, &cp_data));
     cp_registry->cp_data = cp_data;
 err:
     __wt_spin_unlock(NULL, &cp_registry->lock);
@@ -593,21 +594,19 @@ err:
  *     @param cfg The configuration string override.
  */
 int
-__wt_conn_control_point_enable(WT_CONNECTION *wt_conn, wt_control_point_id_t id, const char *cfg)
+__wt_conn_control_point_enable(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, const char *extra_cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
-    WT_DECL_RET;
-    const char *cfgs[3];
+    const char *cfg[3];
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    WT_ERR(__wti_conn_control_point_get_registry(conn, id, &cp_registry));
-    cfgs[0] = conn->cfg;
-    cfgs[1] = cfg;
-    cfgs[2] = NULL;
-    ret = __wti_conn_control_point_enable(conn, cp_registry, cfgs);
-err:
-    return (ret);
+    cp_registry = &(conn->control_points[id]);
+    cfg[0] = conn->cfg;
+    cfg[1] = extra_cfg;
+    cfg[2] = NULL;
+    return (__wti_conn_control_point_enable(conn, cp_registry, cfg));
 }
 
 /*
@@ -622,22 +621,22 @@ err:
  */
 int
 __wti_session_control_point_enable(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, const char *extra_cfg)
 {
     WT_CONTROL_POINT_DATA *cp_data;
-    WT_DECL_RET;
-    const char *cfgs[2];
+    const char *cfg[3];
 
     cp_data = cp_registry->cp_data;
     if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
-        WT_ERR(EEXIST);
-    cfgs[0] = cfg;
-    cfgs[1] = NULL;
-    WT_ERR(cp_registry->init(session, cp_registry->config_name, cfgs, &cp_data));
+        return (EEXIST);
+    cfg[0] = session->cfg;
+    cfg[1] = extra_cfg;
+    cfg[2] = NULL;
+    WT_RET(cp_registry->init(
+      session, cp_registry->config_name, false, cp_registry->init_pred, cfg, &cp_data));
     cp_registry->cp_data = cp_data;
-err:
-    return (ret);
+    return (0);
 }
 
 /*

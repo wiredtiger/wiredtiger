@@ -350,6 +350,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_CONTROL_POINT
     WT_RET(__wt_session_control_point_shutdown(session));
+    __wt_free(session, session->cfg);
 #endif
 
     /* Close all open cursors while the cursor cache is disabled. */
@@ -566,6 +567,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
 
+#ifdef HAVE_CONTROL_POINT
+    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
+    if (config == NULL)
+        goto done;
+#endif
+
     WT_ERR(__wt_txn_context_check(session, false));
 
     WT_ERR(__wt_session_reset_cursors(session, false));
@@ -579,7 +586,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     WT_ERR(__session_config_int(session, config));
 
     WT_ERR(__session_config_prefetch(session, cfg));
+
 err:
+done:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2717,12 +2726,16 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
         F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
-    /*
-     * Configuration: currently, the configuration for open_session is the same as
-     * session.reconfigure, so use that function.
-     */
+        /*
+         * Configuration: currently, the configuration for open_session is the same as
+         * session.reconfigure, so use that function.
+         */
+#ifndef HAVE_CONTROL_POINT
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
+#else
+    WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
+#endif
 
     /*
      * Release write to ensure structure fields are set before any other thread will consider the
@@ -2759,6 +2772,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     WT_RET(__open_session(conn, event_handler, config, &session));
 
 #ifdef HAVE_CONTROL_POINT
+    WT_RET(__wt_session_control_point_init_all(session));
     WT_RET(__wt_session_control_point_enable_all_in_open(session));
 #endif
 

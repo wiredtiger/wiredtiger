@@ -2613,6 +2613,8 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
       "timing_stress_for_test=,"
       "use_environment_priv=,"
       "verbose=,"
+      "per_session_control_points=,"
+      "per_connection_control_points=,"
       "verify_metadata=,",
       &base_config));
     __wt_config_init(session, &parser, base_config);

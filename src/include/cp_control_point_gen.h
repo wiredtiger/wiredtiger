@@ -51,25 +51,18 @@
 #define WT_CONN_CONTROL_POINT_ID_THREAD_2 ((wt_control_point_id_t)3)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_3 ((wt_control_point_id_t)4)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_4 ((wt_control_point_id_t)5)
-#define WT_CONN_CONTROL_POINT_ID_THREAD_5 ((wt_control_point_id_t)6)
-#define WT_CONN_CONTROL_POINT_ID_THREAD_6 ((wt_control_point_id_t)7)
-#define WT_CONN_CONTROL_POINT_ID_THREAD_7 ((wt_control_point_id_t)8)
-#define WT_CONN_CONTROL_POINT_ID_THREAD_8 ((wt_control_point_id_t)9)
-#define WT_CONN_CONTROL_POINT_ID_THREAD_9 ((wt_control_point_id_t)10)
-#define WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT ((wt_control_point_id_t)11)
-#define WT_CONN_CONTROL_POINT_ID_WT_13450_TEST ((wt_control_point_id_t)12)
+#define WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT ((wt_control_point_id_t)6)
+#define WT_CONN_CONTROL_POINT_ID_WT_13450_TEST ((wt_control_point_id_t)7)
 
 /* The number of per connection control points (Could be generated). */
-#define CONNECTION_CONTROL_POINTS_SIZE 13
+#define CONNECTION_CONTROL_POINTS_SIZE 8
 
 /*
  * Per session control point IDs.
  */
-#if 0 /* For example */
-#define WT_SESSION_CONTROL_POINT_ID_EXAMPLE2 ((wt_control_point_id_t)0)
-#endif
+#define WT_SESSION_CONTROL_POINT_ID_THREAD_0 ((wt_control_point_id_t)0)
 
 /* The number of per session control points (Could be generated). */
-#define SESSION_CONTROL_POINTS_SIZE 0
+#define SESSION_CONTROL_POINTS_SIZE 1
 
 #endif /* HAVE_CONTROL_POINT */
