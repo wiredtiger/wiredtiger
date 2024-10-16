@@ -310,6 +310,11 @@ class Codebase:
                                         self.names[func.name.value]
                     elif st.getKind().is_record:
                         self.addRecord(RecordParts.fromStatement(st))
+                    elif st.getKind().is_function_decl:
+                        func = FunctionParts.fromStatement(st)
+                        INFO(scope().locationStr(st.range()[0]),
+                                f"Function declaration ignored for '{func.name.value}'" if func else
+                                "Function declaration ignored")
                     elif st.getKind().is_decl:
                         INFO(scope().locationStr(st.range()[0]), f"Global variable ignored")
                     elif do_preproc and st.getKind().is_preproc:

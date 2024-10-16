@@ -46,6 +46,17 @@ def is_wellformed(txt: str) -> bool:
         offset = match.end()
     return offset == len(txt)
 
+def get_unbalanced(txt: str) -> list[str]:
+    ret: list[str] = []
+    offset = 0
+    for match in reg_token_preproc.finditer(txt):
+        if match.start() != offset:
+            ret.append(txt[offset:match.start()])
+        offset = match.end()
+    if offset != len(txt):
+        ret.append(txt[offset:])
+    return ret
+
 _re_clean_preproc = r'''(
     (?P<s>(?>(?> \/\/ (?:[^\\\n]|\\.)*+ \n) |
     (?> \/\* (?:[^*]|\*[^\/])*+ \*\/ ))++) |
@@ -82,6 +93,8 @@ class MacroParts:
             self.is_wellformed = is_wellformed(self.body.value)
             if not self.is_wellformed:
                 self.is_const = False
+                DEBUG3(scope().locationStr(self.body.range[0]),
+                       f"Macro '{self.name.value}' unbalanced: {get_unbalanced(self.body.value)}")
             else:
                 for token in TokenList.xxFilterCode(TokenList.xFromText(
                                 self.body.value, base_offset=self.body.range[0])):
@@ -133,7 +146,7 @@ class MacroParts:
                 break
             return None
         else: # not break
-            return Nonef
+            return None
 
         is_va_args = False
         offset = token.range[0]

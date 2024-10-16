@@ -96,6 +96,7 @@ class MacroExpander:
         DEBUG4(None, lambda: f"Expanding macro {' => '.join(self._owner_stack)} => {name}")
 
     def __expand_leave(self, replacement: str, match: regex.Match, base_offset) -> str:
+        DEBUG5(None, f"Macro expand {self._expanding_stack}: <<<{replacement}>>>")
         self._expanding_stack.pop()
         if not self._expanding_stack:
             delta = len(replacement) - len(match[0])
