@@ -2849,7 +2849,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         __conn_add_storage_source,
         __conn_get_storage_source,
         __conn_get_extension_api,
-#if 1
+#ifdef HAVE_CONTROL_POINT
         __wt_conn_control_point_enable,
         __wt_conn_control_point_disable
 #else

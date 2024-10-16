@@ -348,7 +348,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         WT_TRET(__wt_call_log_close_session(session));
 #endif
 
-#if 1
+#ifdef HAVE_CONTROL_POINT
     WT_RET(__wt_session_control_point_shutdown(session));
     __wt_free(session, session->cfg);
 #endif
@@ -566,7 +566,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
-#if 1
+#ifdef HAVE_CONTROL_POINT
     WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
     if (config == NULL)
         goto done;
@@ -2550,7 +2550,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_checkpoint,
         __session_reset_snapshot,
         __session_transaction_pinned_range,
-#if 1
+#ifdef HAVE_CONTROL_POINT
         __wt_session_control_point_enable,
         __wt_session_control_point_disable,
 #else
@@ -2590,7 +2590,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_checkpoint_readonly,
         __session_reset_snapshot_notsup,
         __session_transaction_pinned_range_notsup,
-#if 1
+#ifdef HAVE_CONTROL_POINT
         __wt_session_control_point_enable,
         __wt_session_control_point_disable,
 #else
@@ -2629,7 +2629,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
                                 __session_checkpoint_readonly,
                                 __session_reset_snapshot,
                                 __session_transaction_pinned_range,
-#if 1
+#ifdef HAVE_CONTROL_POINT
                                 __wt_session_control_point_enable,
                                 __wt_session_control_point_disable,
 #else
@@ -2814,7 +2814,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     /* Acquire a session. */
     WT_RET(__open_session(conn, event_handler, config, &session));
 
-#if 1
+#ifdef HAVE_CONTROL_POINT
     WT_RET(__wt_session_control_point_init_all(session));
     WT_RET(__wt_session_control_point_enable_all_in_open(session));
 #endif

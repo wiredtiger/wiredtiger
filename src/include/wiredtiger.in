@@ -822,7 +822,7 @@ struct __wt_cursor {
 #endif
 };
 
-#if 1
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
 /*!
  * WT_CONNECTION::enable_control_point, WT_CONNECTION::disable_control_point,
  * WT_SESSION::enable_control_point, and WT_SESSION::disable_control_point types
@@ -2112,7 +2112,7 @@ struct __wt_session {
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
     /*! @} */
 
-#if 1
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
     /*!
      * @name Control point support
      * @{
@@ -2124,7 +2124,7 @@ struct __wt_session {
      * @param id the per-session control point ID of the control point
      * @param cfg configuration string override
      */
-    int __F(enable_control_point)(WT_SESSION *session, int32_t id, const char *cfg);
+    int __F(enable_control_point)(WT_SESSION *session, wt_control_point_id_t id, const char *cfg);
 
     /*!
      * Disable a per-session control point.
@@ -2132,7 +2132,7 @@ struct __wt_session {
      * @param session the session handle
      * @param id the per-session control point ID of the control point
      */
-    int __F(disable_control_point)(WT_SESSION *session, int32_t id);
+    int __F(disable_control_point)(WT_SESSION *session, wt_control_point_id_t id);
     /*! @} */
 #elif !defined(SWIG) && !defined(DOXYGEN)  /* Keep the size the same */
     void  *dummy1;
@@ -3022,6 +3022,7 @@ struct __wt_connection {
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
 
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
     /*!
      * @name Control point support
      * @{
@@ -3033,7 +3034,7 @@ struct __wt_connection {
      * @param id the per-connection control point ID of the control point
      * @param cfg configuration string override
      */
-    int __F(enable_control_point)(WT_CONNECTION *connection, int32_t id,
+    int __F(enable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id,
         const char *cfg);
 
     /*!
@@ -3042,8 +3043,9 @@ struct __wt_connection {
      * @param connection the connection handle
      * @param id the per-connection control point ID of the control point
      */
-    int __F(disable_control_point)(WT_CONNECTION *connection, int32_t id);
+    int __F(disable_control_point)(WT_CONNECTION *connection, wt_control_point_id_t id);
     /*! @} */
+#endif
 };
 
 /*!
@@ -3508,19 +3510,13 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
  * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_txn_abort = (,
- * Thread signal for transaction to get aborted., a set of related configuration options defined as
- * follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_wait_for_upd_abort =
+ * (, Thread waits for transaction to get aborted., a set of related configuration options defined
+ * as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enable_count, the number of
  * triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
  * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_wait_for_upd_abort =
- * (, Thread waits for transaction to get aborted., a set of related configuration options defined
- * as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of
- * triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{ ),,}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to

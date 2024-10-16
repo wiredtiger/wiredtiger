@@ -248,14 +248,6 @@ all_per_connection_control_points_config = [
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
-                ]),
-            ConnectionControlPoint('thread_txn_abort', 'Wait for trigger', 'Always', '', 
-                r'''Thread signal for transaction to get aborted.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
                     Config('enable_count', '1', r'''
                         the number of triggers for which to wait''',
                         min='1', max='4294967295'),

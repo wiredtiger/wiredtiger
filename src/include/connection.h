@@ -921,7 +921,7 @@ struct __wt_connection_impl {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
-#if 1
+#ifdef HAVE_CONTROL_POINT
     WT_CONTROL_POINT_REGISTRY *control_points; /* [CONNECTION_CONTROL_POINTS_SIZE] */
 #else                                          /* Keep the size the same */
     void *dummy1;

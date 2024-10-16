@@ -30,7 +30,7 @@
 
 /* See comment in cp_action.c:__wt_verbose levels used in WT_VERB_CONTROL_POINT logging. */
 
-#if 1
+#ifdef HAVE_CONTROL_POINT
 /*
  * Functions used at the trigger site.
  */
@@ -244,8 +244,9 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].init =
       __wt_control_point_pair_init_pred_wait_for_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].init_pred =
-      NULL;                                                                         /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].pred = NULL; /* Always */
+      __wt_control_point_config_pred_times; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].pred =
+      __wt_control_point_pred_times; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].config_name =
       "thread_wait_for_upd_abort";
     WT_ERR(__wt_spin_init(session,
@@ -254,20 +255,6 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].enable_at_open = false;
     /* Extra initialization required for action "Wait for trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].action_supported =
-      WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
-
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].init_pred =
-      __wt_control_point_config_pred_times; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].pred =
-      __wt_control_point_pred_times; /* Always */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].config_name = "thread_txn_abort";
-    WT_ERR(__wt_spin_init(session,
-      &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].lock), "Thread txn abort"));
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].enable_at_open = false;
-      /* Extra initialization required for action "Wait for trigger". */
-    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT].action_supported =
       WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER;
 
     /* After all repeats finish with this. */

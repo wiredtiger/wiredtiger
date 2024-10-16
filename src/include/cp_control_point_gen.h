@@ -12,7 +12,7 @@
 /* In the future this file will be generated. Until then this file must be edited when a new control
  * point is created. */
 
-#if 1
+#ifdef HAVE_CONTROL_POINT
 
 /*
  * The name below is for a per connection control point named "Example control point".
@@ -52,9 +52,8 @@
 #define WT_CONN_CONTROL_POINT_ID_THREAD_3 ((wt_control_point_id_t)4)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_4 ((wt_control_point_id_t)5)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT ((wt_control_point_id_t)6)
-#define WT_CONN_CONTROL_POINT_ID_THREAD_TXN_ABORT ((wt_control_point_id_t)7)
 /* The number of per connection control points (Could be generated). */
-#define CONNECTION_CONTROL_POINTS_SIZE 8
+#define CONNECTION_CONTROL_POINTS_SIZE 7
 
 /*
  * Per session control point IDs.

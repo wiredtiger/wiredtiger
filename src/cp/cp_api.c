@@ -10,7 +10,7 @@
 
 #include "wt_internal.h"
 
-#if 1
+#ifdef HAVE_CONTROL_POINT
 /*
  * Lock/unlock functions used by per connection control points.
  */
