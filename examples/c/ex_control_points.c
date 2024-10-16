@@ -35,9 +35,11 @@
 static const char *home;
 
 #define NUM_THREADS 5
+#define SKIP_COUNT 1
 
 struct thread_arguments {
     WT_CONNECTION *conn;
+    WT_SESSION *session;
     int thread_num;
     wt_control_point_id_t wait_for_id;
     wt_control_point_id_t my_id;
@@ -98,7 +100,7 @@ main(int argc, char *argv[])
     WT_SESSION_IMPL *session;
     wt_thread_t threads[NUM_THREADS];
     struct thread_arguments thread_args[NUM_THREADS];
-    int idx;
+    int idx, i;
     const wt_control_point_id_t thread_control_point_ids[NUM_THREADS] = {
       WT_CONN_CONTROL_POINT_ID_THREAD_0,
       WT_CONN_CONTROL_POINT_ID_THREAD_1,
@@ -122,7 +124,8 @@ main(int argc, char *argv[])
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(wt_conn->enable_control_point(wt_conn, thread_control_point_ids[idx], cfg));
-
+    error_check(
+      wt_session->enable_control_point(wt_session, WT_SESSION_CONTROL_POINT_ID_THREAD_0, cfg));
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {
         struct thread_arguments *my_args = &(thread_args[idx]);
@@ -133,6 +136,14 @@ main(int argc, char *argv[])
         my_args->my_id = thread_control_point_ids[idx];
 
         error_check(__wt_thread_create(NULL, &threads[idx], print_thread, &(thread_args[idx])));
+    }
+
+    for (i = 0; i < 2; i++) {
+        if (i < SKIP_COUNT)
+            printf("Session should skip sleep...\n");
+        else
+            printf("Session sleeping...\n");
+        SESSION_CONTROL_POINT_DEFINE_SLEEP(session, WT_SESSION_CONTROL_POINT_ID_THREAD_0);
     }
 
     /* Signal threads[0] which waits for this thread to get here. */
@@ -154,6 +165,8 @@ main(int argc, char *argv[])
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(wt_conn->disable_control_point(wt_conn, thread_control_point_ids[idx]));
 
+    error_check(
+      wt_session->disable_control_point(wt_session, WT_SESSION_CONTROL_POINT_ID_THREAD_0));
     /* Close session and connection. */
     error_check(wt_session->close(wt_session, NULL));
     error_check(wt_conn->close(wt_conn, NULL));

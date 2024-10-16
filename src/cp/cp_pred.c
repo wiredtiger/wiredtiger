@@ -60,14 +60,11 @@ __wt_control_point_pred_skip(
  */
 int
 __wt_control_point_config_pred_skip(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
-    /* skip_count is assigned to WT_CONTROL_PARAM.param1.value64. */
-    data->param1.value64 = 1;
+    WT_CONFIG_ITEM cval;
+    WT_RET(__wt_config_subgets(session, item, "skip_count", &cval));
+    data->param1.value64 = (uint64_t)cval.val;
     return (0);
 }
 
@@ -111,14 +108,12 @@ __wt_control_point_pred_times(
  */
 int
 __wt_control_point_config_pred_times(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
+    WT_CONFIG_ITEM cval;
     /* enable_count is assigned to WT_CONTROL_PARAM.param2.value64. */
-    data->param2.value64 = 1;
+    WT_RET(__wt_config_subgets(session, item, "enable_count", &cval));
+    data->param2.value64 = (uint64_t)cval.val;
     return (0);
 }
 
@@ -162,14 +157,11 @@ __wt_control_point_pred_random_param1(
  */
 int
 __wt_control_point_config_pred_random_param1(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
     /* probability is assigned to WT_CONTROL_PARAM.param1.value16aa. */
-    data->param1.value16aa = 1;
+    WT_RET(__wt_config_subgets(session, item, "probability", item));
+    data->param1.value16aa = (uint16_t)item->val;
     return (0);
 }
 
@@ -213,14 +205,14 @@ __wt_control_point_pred_random_param2(
  */
 int
 __wt_control_point_config_pred_random_param2(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
+    WT_CONFIG_ITEM cval;
+
     /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
-    data->param2.value64 = 1;
+    WT_RET(__wt_config_subgets(session, item, "probability", &cval));
+    data->param2.value16aa = (uint16_t)cval.val;
+
     return (0);
 }
 
@@ -276,15 +268,13 @@ __wt_control_point_pred_param_64_match(
  */
 int
 __wt_control_point_config_pred_param_64_match(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, const char **cfg)
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
 {
-    /* TODO. Replace these hard wired values with control point predicate configuration parsing. */
-    /* TODO. When the hard wire is removed, delete this function from func_ok() in dist/s_void. */
-    WT_UNUSED(session);
-    WT_UNUSED(cfg);
-    /* match_value is assigned to WT_CONTROL_PARAM.param1.value64 or .pointer. */
-    data->param1.pointer = (void *)1;
+    WT_CONFIG_ITEM cval;
+
+    /* probability is assigned to WT_CONTROL_PARAM.param2.value16aa. */
+    WT_RET(__wt_config_subgets(session, item, "pointer", &cval));
+    data->param1.pointer = (void *)cval.val;
     return (0);
 }
-
 #endif /* HAVE_CONTROL_POINT */

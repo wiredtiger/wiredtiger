@@ -184,65 +184,84 @@ class SessionControlPoint(ControlPoint):
                 self.pred_short_name, self.default, self.desc,
                 self.enable_in_open, self.subconfig, self.flags);
 
-# Per connection control points
-# For examples/c/ex_control_points.c
-ex_control_points_config = [
-    ConnectionControlPoint('Main Start Printing', 'Trigger', 'Always',
-        '', r'''
-           Thread 0 waits for main to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-    ConnectionControlPoint('Thread 0', 'Trigger', 'Always', '', r'''
-           Thread 1 waits for thread 0 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-    ConnectionControlPoint('Thread 1', 'Trigger', 'Always', '', r'''
-           Thread 2 waits for thread 1 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-    ConnectionControlPoint('Thread 2', 'Trigger', 'Always', '', r'''
-           Thread 3 waits for thread 2 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-    ConnectionControlPoint('Thread 3', 'Trigger', 'Always', '', r'''
-           Thread 4 waits for thread 3 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-    ConnectionControlPoint('Thread 4', 'Trigger', 'Always', '', r'''
-           Thread 5 waits for thread 4 to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-]
-
-# All per connection control points
-all_per_connection_control_points_config = ex_control_points_config
-
-# All per session control points
-all_per_session_control_points_config = [ ]
+# All per connection control points.
+all_per_connection_control_points_config = [
+    # For examples/c/ex_control_points.c
+    Config('per_connection_control_points', '', r'''
+        Configure concurrent determinism through per-connection control points''',
+        type='category', subconfig= [
+            ConnectionControlPoint('Main Start Printing', 'Trigger', 'Always',
+                '', r'''
+                Thread 0 waits for main to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                ]),
+            ConnectionControlPoint('Thread 0', 'Trigger', 'Always', '', r'''
+                Thread 1 waits for thread 0 to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                ]),
+            ConnectionControlPoint('Thread 1', 'Trigger', 'Always', '', r'''
+                Thread 2 waits for thread 1 to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                ]),
+            ConnectionControlPoint('Thread 2', 'Trigger', 'Always', '', r'''
+                Thread 3 waits for thread 2 to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                ]),
+            ConnectionControlPoint('Thread 3', 'Trigger', 'Always', '', r'''
+                Thread 4 waits for thread 3 to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                ]),
+            ConnectionControlPoint('Thread 4', 'Trigger', 'Always', '', r'''
+                Thread 5 waits for thread 4 to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                ]),
+        ]),
+    ]
+all_per_session_control_points_config = [
+    Config('per_session_control_points', '', r'''
+        Configure concurrent determinism through per-session control points''',
+        type='category', subconfig= [
+            SessionControlPoint('Thread 0', 'Sleep', 'Always',
+                '', r'''
+                Thread 0 performs a sleep on the session.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('seconds', '3', r'''
+                            the number of seconds for which to wait''',
+                            min='1', max='4294967295'),
+                    Config('microseconds', '0', r'''
+                        the number of microseconds for which to wait''',
+                        min='1', max='4294967295'),
+                    Config('skip_count', '1', r'''
+                        the number of skips until we sleep''',
+                        min='1', max='4294967295'),
+                ]),
+        ])
+    ]
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -1339,8 +1358,7 @@ wiredtiger_open_chunk_cache_configuration = [
     ]),
 ]
 
-session_config = all_per_session_control_points_config +\
-    [
+session_config =  all_per_session_control_points_config + [
     Config('cache_cursors', 'true', r'''
         enable caching of cursors for reuse. Any calls to WT_CURSOR::close for a cursor created
         in this session will mark the cursor as cached and keep it available to be reused for
