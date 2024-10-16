@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "log_private.h"
 
 /*
  * __curlog_logrec --
@@ -180,7 +181,8 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
      * The log cursor sets the LSN and step count as the cursor key and log record related data in
      * the value. The data in the value contains any operation key/value that was in the log record.
      */
-    __wt_cursor_set_key(cursor, cl->cur_lsn->l.file, __wt_lsn_offset(cl->cur_lsn), key_count);
+    __wt_cursor_set_key(
+      cursor, __wt_lsn_file(cl->cur_lsn), __wt_lsn_offset(cl->cur_lsn), key_count);
     __wt_cursor_set_value(cursor, cl->txnid, cl->rectype, optype, fileid, cl->opkey, cl->opvalue);
 
 err:
@@ -336,9 +338,9 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
       __wt_cursor_notsup,                             /* prev */
       __curlog_reset,                                 /* reset */
       __curlog_search,                                /* search */
-      __wti_cursor_search_near_notsup,                /* search-near */
+      __wt_cursor_search_near_notsup,                 /* search-near */
       __wt_cursor_notsup,                             /* insert */
-      __wti_cursor_modify_notsup,                     /* modify */
+      __wt_cursor_modify_notsup,                      /* modify */
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
@@ -381,7 +383,7 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
          * The user may be trying to read a log record they just wrote. Log records may be buffered,
          * so force out any now.
          */
-        WT_ERR(__wt_log_force_write(session, true, NULL));
+        WT_ERR(__wti_log_force_write(session, true, NULL));
 
         /* Log cursors block removal. */
         __wt_readlock(session, &log->log_remove_lock);

@@ -506,7 +506,7 @@ descend:
              * An expected error, so "couple" is unchanged.
              */
             if (ret == WT_NOTFOUND) {
-                WT_STAT_CONN_INCR(session, cache_eviction_walk_leaf_notfound);
+                WT_STAT_CONN_INCR(session, eviction_walk_leaf_notfound);
                 WT_NOT_READ(ret, 0);
                 break;
             }
@@ -613,7 +613,7 @@ __wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleaf
      */
     do {
         WT_RET(__tree_walk_internal(session, refp, NULL, __tree_walk_skip_count_callback,
-          skipleafcntp, WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
+          skipleafcntp, WT_READ_INTERNAL_OP | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
 
         /*
          * The walk skipped internal pages, any page returned must be a leaf page.

@@ -169,8 +169,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      * whether we correctly resolved the transaction becomes hard. It is easier to skip this check
      * in that instance.
      */
-    if (__wt_atomic_load64(&cbt->ref->page->read_gen) == WT_READGEN_OLDEST &&
-      !F_ISSET(session->txn, WT_TXN_PREPARE))
+    if (__wt_evict_page_is_soon(cbt->ref->page) && !F_ISSET(session->txn, WT_TXN_PREPARE))
         return (false);
 
     return (true);
@@ -2180,7 +2179,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 
     session = trunc_info->session;
     btree = CUR2BT(trunc_info->start);
-    logging = __wt_log_op(session);
+    logging = __wt_txn_log_op_check(session);
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
