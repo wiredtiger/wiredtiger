@@ -12,7 +12,7 @@
 
 #ifdef HAVE_CONTROL_POINT
 /*
- * Lock/unlock functions used by per connection control points.
+ * Lock/unlock functions used by per-connection control points.
  */
 /*
  * __wti_control_point_get_data --
@@ -77,6 +77,391 @@ __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGIS
 }
 
 /*
+ * Get functions used to implement the API.
+ */
+/*
+ * __wti_conn_control_point_get_registry --
+ *     Get the control point registry of a per-connection control point.
+ */
+int
+__wti_conn_control_point_get_registry(
+  WT_CONNECTION_IMPL *conn, wt_control_point_id_t id, WT_CONTROL_POINT_REGISTRY **cp_registryp)
+{
+    WT_DECL_RET;
+#if CONNECTION_CONTROL_POINTS_SIZE == 0
+    WT_ERR(EINVAL);
+    WT_UNUSED(conn);
+    WT_UNUSED(id);
+    WT_UNUSED(cp_registryp);
+#else
+    if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
+        WT_ERR(EINVAL);
+    if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
+        WT_ERR(EINVAL);
+    if (conn->control_points == NULL)
+        WT_ERR(WT_CP_DISABLED);
+    *cp_registryp = &(conn->control_points[id]);
+#endif
+err:
+    return (ret);
+}
+
+/*
+ * __wti_session_control_point_get_registry --
+ *     Get the control point registry of a per-session control point.
+ */
+int
+__wti_session_control_point_get_registry(
+  WT_SESSION_IMPL *session, wt_control_point_id_t id, WT_CONTROL_POINT_REGISTRY **cp_registryp)
+{
+    WT_DECL_RET;
+#if SESSION_CONTROL_POINTS_SIZE == 0
+    WT_ERR(EINVAL);
+    WT_UNUSED(session);
+    WT_UNUSED(id);
+    WT_UNUSED(cp_registryp);
+#else
+    if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
+        WT_ERR(EINVAL);
+    if (WT_UNLIKELY(F_ISSET(session, WT_SESSION_SHUTTING_DOWN)))
+        WT_ERR(EINVAL);
+
+    /* Lazy initialization. */
+    if (session->control_points == NULL) {
+        /* Initialize and optionally enable per session control points */
+        WT_ERR(__wt_session_control_point_init_all(session));
+        WT_ERR(__wt_session_control_point_enable_all_in_open(session));
+    }
+
+    *cp_registryp = &(session->control_points[id]);
+#endif
+err:
+    return (ret);
+}
+
+/*
+ * __conn_control_point_get_data --
+ *     Get the control point data of a per-connection control point.
+ */
+static int
+__conn_control_point_get_data(
+  WT_CONNECTION_IMPL *conn, wt_control_point_id_t id, WT_CONTROL_POINT_DATA **cp_datap)
+{
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+
+    WT_ERR(__wti_conn_control_point_get_registry(conn, id, &cp_registry));
+    *cp_datap = cp_registry->cp_data;
+err:
+    return (ret);
+}
+
+/*
+ * __session_control_point_get_data --
+ *     Get the control point registry of a per-session control point.
+ */
+static int
+__session_control_point_get_data(
+  WT_SESSION_IMPL *session, wt_control_point_id_t id, WT_CONTROL_POINT_DATA **cp_datap)
+{
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+
+    WT_ERR(__wti_session_control_point_get_registry(session, id, &cp_registry));
+    *cp_datap = cp_registry->cp_data;
+err:
+    return (ret);
+}
+
+/*
+ * API: Get from WT_CONTROL_POINT_REGISTRY.
+ */
+/*
+ * __wt_conn_control_point_get_crossing_count --
+ *     Get the crossing count of a per-connection control point.
+ */
+int
+__wt_conn_control_point_get_crossing_count(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, size_t *crossing_countp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__wti_conn_control_point_get_registry(conn, id, &cp_registry));
+    *crossing_countp = cp_registry->crossing_count;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_get_crossing_count --
+ *     Get the crossing count of a per-session control point.
+ */
+int
+__wt_session_control_point_get_crossing_count(
+  WT_SESSION *wt_session, wt_control_point_id_t id, size_t *crossing_countp)
+{
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__wti_session_control_point_get_registry(session, id, &cp_registry));
+    *crossing_countp = cp_registry->crossing_count;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_conn_control_point_get_trigger_count --
+ *     Get the trigger count of a per-connection control point.
+ */
+int
+__wt_conn_control_point_get_trigger_count(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, size_t *trigger_countp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__wti_conn_control_point_get_registry(conn, id, &cp_registry));
+    *trigger_countp = cp_registry->trigger_count;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_get_trigger_count --
+ *     Get the trigger count of a per-session control point.
+ */
+int
+__wt_session_control_point_get_trigger_count(
+  WT_SESSION *wt_session, wt_control_point_id_t id, size_t *trigger_countp)
+{
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__wti_session_control_point_get_registry(session, id, &cp_registry));
+    *trigger_countp = cp_registry->trigger_count;
+err:
+    return (ret);
+}
+
+/*
+ * API: Get from WT_CONTROL_POINT_DATA and set in WT_CONTROL_POINT_DATA.
+ */
+/*
+ * __wt_conn_control_point_is_enabled --
+ *     Get whether a per-connection control point is enabled.
+ */
+int
+__wt_conn_control_point_is_enabled(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, bool *is_enabledp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
+    *is_enabledp = (cp_data != NULL);
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_is_enabled --
+ *     Get whether a per-session control point is enabled.
+ */
+int
+__wt_session_control_point_is_enabled(
+  WT_SESSION *wt_session, wt_control_point_id_t id, bool *is_enabledp)
+{
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__session_control_point_get_data(session, id, &cp_data));
+    *is_enabledp = (cp_data != NULL);
+err:
+    return (ret);
+}
+
+/*
+ * __wt_conn_control_point_get_param1 --
+ *     Get param1 of a per-connection control point with predicate "Param 64 match".
+ */
+int
+__wt_conn_control_point_get_param1(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t *value64p)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
+    *value64p = cp_data->param1.value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_get_param1 --
+ *     Get param1 of a per-session control point with predicate "Param 64 match".
+ */
+int
+__wt_session_control_point_get_param1(
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t *value64p)
+{
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__session_control_point_get_data(session, id, &cp_data));
+    *value64p = cp_data->param1.value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_conn_control_point_get_param2 --
+ *     Get param2 of a per-connection control point with predicate "Param 64 match".
+ */
+int
+__wt_conn_control_point_get_param2(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t *value64p)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
+    *value64p = cp_data->param2.value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_get_param2 --
+ *     Get param2 of a per-session control point with predicate "Param 64 match".
+ */
+int
+__wt_session_control_point_get_param2(
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t *value64p)
+{
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__session_control_point_get_data(session, id, &cp_data));
+    *value64p = cp_data->param2.value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_conn_control_point_set_param1 --
+ *     Set param1 of a per-connection control point with predicate "Param 64 match".
+ *
+ * Note, this is only for use with predicate "Param 64 match". The configuration strings are not
+ *     changed. If WT_CONNECTION.disable_control_point() and WT_CONNECTION.enable_control_point()
+ *     are called the change is lost.
+ */
+int
+__wt_conn_control_point_set_param1(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t value64)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
+    cp_data->param1.value64 = value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_set_param1 --
+ *     Set param1 of a per-session control point with predicate "Param 64 match".
+ *
+ * Note, this is only for use with predicate "Param 64 match". The configuration strings are not
+ *     changed. If WT_SESSION.disable_control_point() and WT_SESSION.enable_control_point() are
+ *     called the change is lost.
+ */
+int
+__wt_session_control_point_set_param1(
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t value64)
+{
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__session_control_point_get_data(session, id, &cp_data));
+    cp_data->param1.value64 = value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_conn_control_point_set_param2 --
+ *     Set param2 of a per-connection control point with predicate "Param 64 match".
+ *
+ * Note, this is only for use with predicate "Param 64 match". The configuration strings are not
+ *     changed. If WT_CONNECTION.disable_control_point() and WT_CONNECTION.enable_control_point()
+ *     are called the change is lost.
+ */
+int
+__wt_conn_control_point_set_param2(
+  WT_CONNECTION *wt_conn, wt_control_point_id_t id, uint64_t value64)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__conn_control_point_get_data(conn, id, &cp_data));
+    cp_data->param2.value64 = value64;
+err:
+    return (ret);
+}
+
+/*
+ * __wt_session_control_point_set_param2 --
+ *     Set param2 of a per-session control point with predicate "Param 64 match".
+ *
+ * Note, this is only for use with predicate "Param 64 match". The configuration strings are not
+ *     changed. If WT_SESSION.disable_control_point() and WT_SESSION.enable_control_point() are
+ *     called the change is lost.
+ */
+int
+__wt_session_control_point_set_param2(
+  WT_SESSION *wt_session, wt_control_point_id_t id, uint64_t value64)
+{
+    WT_CONTROL_POINT_DATA *cp_data;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_ERR(__session_control_point_get_data(session, id, &cp_data));
+    cp_data->param2.value64 = value64;
+err:
+    return (ret);
+}
+
+/*
  * API: Disable a per connection control point.
  */
 /*
@@ -121,17 +506,13 @@ __wt_conn_control_point_disable(WT_CONNECTION *wt_conn, wt_control_point_id_t id
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
 
-    if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
-        return (EINVAL);
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
-        return (WT_ERROR);
-    if (conn->control_points == NULL)
-        return (WT_ERROR);
-
-    cp_registry = &(conn->control_points[id]);
-    return (__conn_control_point_disable(conn, cp_registry));
+    WT_ERR(__wti_conn_control_point_get_registry(conn, id, &cp_registry));
+    ret = __conn_control_point_disable(conn, cp_registry);
+err:
+    return (ret);
 }
 
 /*
@@ -164,18 +545,14 @@ int
 __wt_session_control_point_disable(WT_SESSION *wt_session, wt_control_point_id_t id)
 {
     WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
-        return (EINVAL);
-    if (WT_UNLIKELY(F_ISSET(session, WT_SESSION_SHUTTING_DOWN)))
-        return (WT_ERROR);
-    if (session->control_points == NULL)
-        return (0);
-
-    cp_registry = &(session->control_points[id]);
-    return (__session_control_point_disable(session, cp_registry));
+    WT_ERR(__wti_session_control_point_get_registry(session, id, &cp_registry));
+    ret = __session_control_point_disable(session, cp_registry);
+err:
+    return (ret);
 }
 
 /*
@@ -201,9 +578,8 @@ __wti_conn_control_point_enable(
     if (WT_UNLIKELY(cp_data != NULL))
         /* Already enabled. */
         WT_ERR(EEXIST);
-    cp_data = cp_registry->init(NULL, cp_registry->config_name, true, cp_registry->init_pred, cfg);
-    if (WT_UNLIKELY(cp_data == NULL))
-        WT_ERR(WT_ERROR);
+    WT_ERR(cp_registry->init(
+      NULL, cp_registry->config_name, true, cp_registry->init_pred, cfg, &cp_data));
     cp_registry->cp_data = cp_data;
 err:
     __wt_spin_unlock(NULL, &cp_registry->lock);
@@ -226,12 +602,6 @@ __wt_conn_control_point_enable(
     const char *cfg[3];
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    if (WT_UNLIKELY(id >= CONNECTION_CONTROL_POINTS_SIZE))
-        return (EINVAL);
-    if (WT_UNLIKELY(F_ISSET(conn, WT_CONN_SHUTTING_DOWN)))
-        return (WT_ERROR);
-    if (conn->control_points == NULL)
-        return (WT_ERROR);
     cp_registry = &(conn->control_points[id]);
     cfg[0] = conn->cfg;
     cfg[1] = extra_cfg;
@@ -263,10 +633,8 @@ __wti_session_control_point_enable(
     cfg[0] = session->cfg;
     cfg[1] = extra_cfg;
     cfg[2] = NULL;
-    cp_data =
-      cp_registry->init(session, cp_registry->config_name, false, cp_registry->init_pred, cfg);
-    if (WT_UNLIKELY(cp_data == NULL))
-        return (WT_ERROR);
+    WT_RET(cp_registry->init(
+      session, cp_registry->config_name, false, cp_registry->init_pred, cfg, &cp_data));
     cp_registry->cp_data = cp_data;
     return (0);
 }
@@ -282,23 +650,14 @@ int
 __wt_session_control_point_enable(WT_SESSION *wt_session, wt_control_point_id_t id, const char *cfg)
 {
     WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    if (WT_UNLIKELY(id >= SESSION_CONTROL_POINTS_SIZE))
-        return (EINVAL);
-    if (WT_UNLIKELY(F_ISSET(session, WT_SESSION_SHUTTING_DOWN)))
-        return (WT_ERROR);
-
-    /* Lazy initialization. */
-    if (session->control_points == NULL) {
-        /* Initialize and optionally enable per session control points */
-        WT_RET(__wt_session_control_point_init_all(session));
-        WT_RET(__wt_session_control_point_enable_all_in_open(session));
-    }
-
-    cp_registry = &(session->control_points[id]);
-    return (__wti_session_control_point_enable(session, cp_registry, cfg));
+    WT_ERR(__wti_session_control_point_get_registry(session, id, &cp_registry));
+    ret = __wti_session_control_point_enable(session, cp_registry, cfg);
+err:
+    return (ret);
 }
 
 /*
