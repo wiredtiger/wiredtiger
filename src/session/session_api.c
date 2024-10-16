@@ -572,6 +572,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
         goto done;
 #endif
 
+#ifdef HAVE_CONTROL_POINT
+    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
+    if (config == NULL)
+        goto done;
+#endif
+
     WT_ERR(__wt_txn_context_check(session, false));
 
     WT_ERR(__wt_session_reset_cursors(session, false));

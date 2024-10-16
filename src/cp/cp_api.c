@@ -635,8 +635,6 @@ __wti_session_control_point_enable(
     cfg[2] = NULL;
     WT_RET(cp_registry->init(
       session, cp_registry->config_name, false, cp_registry->init_pred, cfg, &cp_data));
-    if (WT_UNLIKELY(cp_data == NULL))
-        return (WT_ERROR);
     cp_registry->cp_data = cp_data;
     return (0);
 }
