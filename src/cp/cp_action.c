@@ -20,7 +20,7 @@
  * - Action config parsing function (Must be manual):
  * __wt_control_point_config_action_example_action().
  *
- * Some actions (only "Wait for trigger" so far) have additional functions. These functions are
+ * Some actions (only "Trigger" so far) have additional functions. These functions are
  * named __wt_control_point_*_example_action.
  */
 
@@ -114,13 +114,13 @@ __wt_control_point_config_action_ret(
 }
 
 /*
- * Action: Wait for trigger: Blocking the testing thread until a control point is triggered.
+ * Action: Trigger: Block the testing thread until a control point is triggered.
  */
 #define WT_DELAY_UNTIL_TRIGGERED_USEC (10 * WT_THOUSAND) /* 10 milliseconds */
 
 /* Action config parsing function. */
 /*
- * __wt_control_point_config_action_wait_for_trigger --
+ * __wt_control_point_config_action_trigger --
  *     Configuration parsing for control point action "Wait until trigger: Blocking the testing
  *     thread until a control point is triggered".
  *
@@ -128,8 +128,8 @@ __wt_control_point_config_action_ret(
  *     configuration strings.
  */
 int
-__wt_control_point_config_action_wait_for_trigger(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data, WT_CONFIG_ITEM *item)
+__wt_control_point_config_action_trigger(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_TRIGGER *data, WT_CONFIG_ITEM *item)
 {
     WT_CONFIG_ITEM cval;
     WT_RET(__wt_config_subgets(session, item, "wait_count", &cval));
@@ -139,16 +139,16 @@ __wt_control_point_config_action_wait_for_trigger(
 
 /* Functions used at the call site. */
 /*
- * __run_wait_for_trigger --
+ * __run_trigger --
  *     The run function for __wt_cond_wait_signal for the call site portion of control point action
  *     "Wait until trigger: Blocking the testing thread until a control point is triggered".
  *
  * @param session The session.
  */
 static bool
-__run_wait_for_trigger(WT_SESSION_IMPL *session)
+__run_trigger(WT_SESSION_IMPL *session)
 {
-    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+    WT_CONTROL_POINT_ACTION_TRIGGER *action_data;
     WT_CONTROL_POINT_REGISTRY *cp_registry;
 
     cp_registry = session->cp_registry;
@@ -157,20 +157,19 @@ __run_wait_for_trigger(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_control_point_wait_for_trigger --
- *     The call site portion of control point action "Wait until trigger: Blocking the testing
- *     thread until a control point is triggered" given a WT_CONTROL_POINT_REGISTRY. Return true if
- *     triggered.
+ * __wt_control_point_wait --
+ *     The call site portion of control point action "Trigger: Block the testing thread until a
+ *     control point is triggered" given a WT_CONTROL_POINT_REGISTRY. Return true if triggered.
  *
  * @param session The session. @param cp_registry The control point's registry.
  */
-bool
-__wt_control_point_wait_for_trigger(
+void
+__wt_control_point_wait(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id)
 {
-    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+    WT_CONTROL_POINT_ACTION_TRIGGER *action_data;
     WT_CONTROL_POINT_DATA *cp_data;
-    WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *pair_data;
+    WT_CONTROL_POINT_PAIR_DATA_TRIGGER *pair_data;
     size_t crossing_count;
     size_t current_trigger_count;
     size_t desired_trigger_count;
@@ -181,20 +180,20 @@ __wt_control_point_wait_for_trigger(
     cp_data = __wti_control_point_get_data(session, cp_registry, true);
     start_trigger_count = cp_registry->trigger_count;
     if (WT_UNLIKELY(cp_data == NULL)) {
-        __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT,
-          "False: Is disabled: wait for trigger skipped: id=%" PRId32, id);
-        return (false); /* Not enabled. */
+        __wt_verbose_debug5(
+          session, WT_VERB_CONTROL_POINT, "False: Is disabled: trigger skipped: id=%" PRId32, id);
+        return; /* Not enabled. */
     }
     /* Does the call site and trigger site match in action? */
-    if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER)) {
+    if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_TRIGGER)) {
         __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
           "False: Control point call site and trigger site have different actions: id=%" PRId32
           ": %d and %" PRIu32 ".",
-          id, WT_CONTROL_POINT_ACTION_ID_WAIT_FOR_TRIGGER, cp_registry->action_supported);
-        return (false); /* Pretend not enabled. */
+          id, WT_CONTROL_POINT_ACTION_ID_TRIGGER, cp_registry->action_supported);
+        return; /* Pretend not enabled. */
     }
     /* Is waiting necessary? */
-    pair_data = (WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *)cp_data;
+    pair_data = (WT_CONTROL_POINT_PAIR_DATA_TRIGGER *)cp_data;
     action_data = &pair_data->action_data;
     wait_count = action_data->wait_count;
     desired_trigger_count = start_trigger_count + wait_count;
@@ -207,7 +206,7 @@ __wt_control_point_wait_for_trigger(
           ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
           id, (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
           (uint64_t)current_trigger_count, (uint64_t)crossing_count);
-        return (true); /* Enabled and wait fulfilled. */
+        return; /* Enabled and wait fulfilled. */
     }
     /* Store data needed by run_func. */
     action_data->desired_trigger_count = desired_trigger_count;
@@ -221,8 +220,8 @@ __wt_control_point_wait_for_trigger(
       (uint64_t)(current_trigger_count - start_trigger_count), (uint64_t)current_trigger_count,
       (uint64_t)crossing_count);
     for (;;) {
-        __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC,
-          __run_wait_for_trigger, &signalled);
+        __wt_cond_wait_signal(
+          session, action_data->condvar, WT_DELAY_UNTIL_TRIGGERED_USEC, __run_trigger, &signalled);
         current_trigger_count = cp_registry->trigger_count;
         if (current_trigger_count >= desired_trigger_count)
             /* Delay condition satisfied. */
@@ -235,12 +234,12 @@ __wt_control_point_wait_for_trigger(
       ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
       id, (uint64_t)wait_count, (uint64_t)(current_trigger_count - start_trigger_count),
       (uint64_t)current_trigger_count, (uint64_t)crossing_count);
-    return (true);
+    return; /* Enabled and wait finished. */
 }
 
 /* Extra initialization. */
 /*
- * __wt_control_point_action_init_wait_for_trigger --
+ * __wt_control_point_action_init_trigger --
  *     Extra initialization required for action "Wait until trigger: Blocking the testing thread
  *     until a control point is triggered".
  *
@@ -248,10 +247,10 @@ __wt_control_point_wait_for_trigger(
  *     The control point's data.
  */
 void
-__wt_control_point_action_init_wait_for_trigger(WT_SESSION_IMPL *session,
-  const char *control_point_name, WT_CONTROL_POINT_PAIR_DATA_WAIT_FOR_TRIGGER *data)
+__wt_control_point_action_init_trigger(WT_SESSION_IMPL *session, const char *control_point_name,
+  WT_CONTROL_POINT_PAIR_DATA_TRIGGER *data)
 {
-    WT_CONTROL_POINT_ACTION_WAIT_FOR_TRIGGER *action_data;
+    WT_CONTROL_POINT_ACTION_TRIGGER *action_data;
     WT_DECL_RET;
 
     action_data = &data->action_data;

@@ -41,6 +41,8 @@ __wt_wiredtiger_error(int error)
         return ("WT_PREPARE_CONFLICT: conflict with a prepared update");
     case WT_TRY_SALVAGE:
         return ("WT_TRY_SALVAGE: database corruption detected");
+    case WT_CP_DISABLED:
+        return ("WT_CP_DISABLED: control point is disabled");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

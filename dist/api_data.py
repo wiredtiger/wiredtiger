@@ -103,13 +103,11 @@ class ControlPoint(Config):
                     ControlPoint.translation_to_upper))
 
     def get_control_point_call_site_macro_name(self):
-        # So far only "Wait for trigger" has a call site macro.
+        # So far only "Trigger" has a call site macro.
         if self.action_short_name.translate(
-                ControlPoint.translation_to_lower) != 'wait_for_trigger':
+                ControlPoint.translation_to_lower) != 'trigger':
                 return ''
-        return ('CONNECTION_CONTROL_POINT_' +
-                self.name.translate(
-                    ControlPoint.translation_to_upper))
+        return ('CONNECTION_CONTROL_POINT_WAIT')
 
     def get_control_point_define_macro_name(self, for_connection = None):
         if for_connection == None:
@@ -192,7 +190,7 @@ all_per_connection_control_points_config = [
     Config('per_connection_control_points', '', r'''
         Configure concurrent determinism through per-connection control points''',
         type='category', subconfig= [
-            ConnectionControlPoint('Main Start Printing', 'Wait for trigger', 'Always',
+            ConnectionControlPoint('Main Start Printing', 'Trigger', 'Always',
                 '', r'''
                 Thread 0 waits for main to get here.''',
                 type='category', subconfig= [
@@ -201,7 +199,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
-            ConnectionControlPoint('Thread 0', 'Wait for trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 0', 'Trigger', 'Always', '', r'''
                 Thread 1 waits for thread 0 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
@@ -209,7 +207,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
-            ConnectionControlPoint('Thread 1', 'Wait for trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 1', 'Trigger', 'Always', '', r'''
                 Thread 2 waits for thread 1 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
@@ -217,7 +215,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
-            ConnectionControlPoint('Thread 2', 'Wait for trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 2', 'Trigger', 'Always', '', r'''
                 Thread 3 waits for thread 2 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
@@ -225,7 +223,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
-            ConnectionControlPoint('Thread 3', 'Wait for trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 3', 'Trigger', 'Always', '', r'''
                 Thread 4 waits for thread 3 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
@@ -233,7 +231,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
-            ConnectionControlPoint('Thread 4', 'Wait for trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 4', 'Trigger', 'Always', '', r'''
                 Thread 5 waits for thread 4 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
@@ -241,7 +239,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
-            ConnectionControlPoint('thread_wait_for_upd_abort', 'Wait for trigger', 'Always', '', 
+            ConnectionControlPoint('thread_wait_for_upd_abort', 'Trigger', 'Always', '', 
                 r'''Thread waits for transaction to get aborted.''',
                 type='category', subconfig= [
                     # Action configuration parameters
@@ -2364,7 +2362,7 @@ def test_one_control_point(cp):
     print('get_predicate_function_name=' + cp.get_predicate_function_name())
 
 def test_control_point():
-    conn_cp = ConnectionControlPoint('Connection CP', 'Wait for trigger',
+    conn_cp = ConnectionControlPoint('Connection CP', 'Trigger',
         'Skip', '', r'''
             Example per connection control point''',
             type='category', subconfig= [
