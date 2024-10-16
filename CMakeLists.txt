@@ -9,6 +9,8 @@ endif(CCACHE_FOUND)
 
 project(WiredTiger C CXX ASM)
 
+set (HAVE_UNITTEST 1)
+
 # Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)
