@@ -237,7 +237,7 @@ ex_control_points_config = [
                       min='1', max=Config.int64_max),
            ]),
 ]
-# To reproduce WT-13450
+# To reproduce WT 13450
 wt_13450_control_points_config = [
     ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
         '', r'''

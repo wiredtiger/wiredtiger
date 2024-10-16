@@ -904,6 +904,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         if (page != NULL &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
+#ifdef HAVE_CONTROL_POINT /* The #ifdef is for just the printf()s. */
             /* Signal the test thread. */
             CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(
               session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
@@ -912,13 +913,12 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
             CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT(
               session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
             printf("Past control point\n");
-
+#endif
             /* If checkpoint is happening on the btree, we can only evict clean content. */
             if (__wt_btree_syncing_by_other_session(session)) {
                 if (!__wt_page_is_modified(page)) {
-                    printf("I'm going to crash now!!!\n");
-                    WT_ASSERT(session, false);
                     __wt_evict_page_soon(session, cbt->ref);
+                    WT_STAT_CONN_INCR(session, eviction_force_delete_in_checkpoint);
                     WT_STAT_CONN_INCR(session, eviction_force_delete);
                 }
             } else {

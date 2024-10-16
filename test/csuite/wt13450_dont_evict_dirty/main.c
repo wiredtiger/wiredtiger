@@ -28,7 +28,7 @@
 #include "test_util.h"
 
 /*
- * JIRA ticket reference: WT-13450 Don't add dirty pages in a tree to the urgent queue if checkpoint
+ * JIRA ticket reference: WT 13450 Don't add dirty pages in a tree to the urgent queue if checkpoint
  * is running on the same tree.
  *
  * Reproducer steps:
@@ -51,7 +51,7 @@
 
 void *thread_do_next(void *);
 
-static const char *const session_open_config = "prefetch=(enabled=true)";
+static const char *const session_open_config = "";
 
 /*
  * set_key --
@@ -76,7 +76,8 @@ set_value(TEST_OPTS *opts, WT_CURSOR *cursor, uint64_t value)
 
 /*
  * main --
- *     TODO: Add a comment describing this function.
+ *     The main entry point for reproducing WT 13450 "Fix the cursor traversal logic to mark
+ *     obsolete page for clean eviction".
  */
 int
 main(int argc, char *argv[])
@@ -90,11 +91,10 @@ main(int argc, char *argv[])
     int ret;
     const char *wiredtiger_open_config =
       "create,cache_size=2G,eviction=(threads_min=1,threads_max=1),"
-      "prefetch=(available=true,default=true),"
+      "log=(enabled,file_max=100K,remove=false),"
 #if 1 /* Include if needed */
       "verbose=["
       "control_point=5,"
-      /* "prefetch=1," */
       "],"
 #endif
       "statistics=(all),statistics_log=(json,on_close,wait=1)";
