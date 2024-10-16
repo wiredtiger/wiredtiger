@@ -159,7 +159,6 @@ class MacroExpander:
                 # if va_args, continue appending to the last list
             args_val[-1].append(token_arg)
         if len(args_val) < len(macro.args):  # type: ignore # macro has args
-            # TODO: better error location
             ERROR(scope_file().locationStr(base_offset + match.start()),
                   f"macro {name}: got only {len(args_val)} arguments, expected {len(macro.args)}")   # type: ignore # macro has args
             return self.__expand_leave(match[0], match, base_offset)
@@ -176,6 +175,7 @@ class MacroExpander:
                     for k, v in args_dict.items()}
 
             # Replace operators # and ## and arguments
+            # TODO: protect from expanding in comments and strings
             reg_macro_subst = regex.compile(r"""
                 (?P<h> \#\s*+ (?P<n>\w++) ) |
                 (?P<hh> (?P<n>\w++)(?>\s*+(\#\#)\s*+(?P<n>\w++))++) |

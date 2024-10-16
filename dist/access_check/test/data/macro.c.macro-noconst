@@ -20,6 +20,24 @@ qwe /* AAA */ zxc;
 "qwe AAA zxc";
 
 
+#define VARIADIC(...) func(__VA_ARGS__)
+#define PRINTF_LIKE(fmt, ...) printf(fmt, __VA_ARGS__)
+#define PRINTF_LIKE2(fmt, ...) printf("%s" fmt, #fmt, __VA_ARGS__)
+#define PRINTF_LIKE3(fmt, ...) \
+    qwe; \
+    printf("%s" fmt, #fmt, __VA_ARGS__); \
+    zxc
+
+func(5);
+func(5, 6, 7);
+printf("%d", 5);
+printf("%d %s", 5, "qwe");
+printf("%s" "%d", "\"%d\"", 5);
+printf("%s" "%d %s", "\"%d %s\"", 5, "qwe");
+printf("%s" "%d %s %s", "\"%d %s %s\"", 5, "qwe", asd);
+qwe;  
+    printf("%s" "%d %s %s", "\"%d %s %s\"", 5, "qwe", asd);  
+    zxc;
 
 // from https://en.wikipedia.org/wiki/C_preprocessor#Order_of_expansion
 

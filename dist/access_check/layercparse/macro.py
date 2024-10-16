@@ -46,6 +46,18 @@ def is_wellformed(txt: str) -> bool:
         offset = match.end()
     return offset == len(txt)
 
+_re_clean_preproc = r'''(
+    (?P<s>(?>(?> \/\/ (?:[^\\\n]|\\.)*+ \n) |
+    (?> \/\* (?:[^*]|\*[^\/])*+ \*\/ ))++) |
+    ((?> " (?>[^\\"]|\\.)* " ) |
+    (?> ' (?>[^\\']|\\.)* ' ))
+)''' # /nxs;
+_reg_clean_preproc = regex.compile(_re_clean_preproc, re_flags)
+
+# Remove comments for preprocessor
+def _clean_text_preproc(txt: str):
+    return _reg_clean_preproc.sub(lambda match: reg_cr.sub(" ", match[0]) if match["s"] else match[0], txt)
+
 @dataclass
 class MacroParts:
     name: Token
@@ -121,7 +133,7 @@ class MacroParts:
                 break
             return None
         else: # not break
-            return None
+            return Nonef
 
         is_va_args = False
         offset = token.range[0]
@@ -136,7 +148,7 @@ class MacroParts:
 
         body = Token.fromMatch(match, offset, "body")
         # space to preserve byte offset
-        body.value = clean_text_sz(body.value.replace("\\\n", " \n").strip())
+        body.value = _clean_text_preproc(body.value.replace("\\\n", " \n").strip())
 
         return MacroParts(preComment=preComment, args=args, is_va_args=is_va_args,
             name=Token.fromMatch(match, offset, "name", kind="w"), # type: ignore # match is not None; match is indexable

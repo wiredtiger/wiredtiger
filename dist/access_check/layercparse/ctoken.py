@@ -22,7 +22,7 @@ TokenKind: TypeAlias = Literal[
 
 def getTokenKind(txt: str) -> TokenKind:
     return \
-        " " if txt.startswith((" ", "\t", "\n")) else \
+        " " if txt.startswith((" ", "\t", "\n", "\r")) else \
         "/" if txt.startswith(("//", "/*")) else \
         "'" if txt.startswith(("'", '"')) else \
         "(" if txt.startswith("(") else \

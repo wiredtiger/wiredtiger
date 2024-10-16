@@ -186,6 +186,9 @@ class TestStatement(TestCaseLocal):
         self.checkStrAgainstFile(self.parseDetailsFromFile("data/block.h"),
                                  "data/block.h.statements-details")
 
+    def test_statement_details2(self):
+        self.checkStrAgainstFile(self.parseDetailsFromFile("data/bt_handle.c"),
+                                 "data/bt_handle.c.statements-details")
 
 class TestStatementDetails(TestCaseLocal):
     def test_func(self):

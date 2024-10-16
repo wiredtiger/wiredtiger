@@ -31,10 +31,10 @@ data/record.c:19:34: [module2] '__wti_module2_func1': debug2: locals vars:
     s2: S2
 data/record.c:20:13: [module2] '__wti_module2_func1': debug2: Access chain: s2->s
 data/record.c:20:13: [module2] '__wti_module2_func1': debug3: Access type: S2
-data/record.c:20:13: [module2] '__wti_module2_func1': error: Invalid access to private record 'S2' of [module1]
+data/record.c:20:13: [module2] '__wti_module2_func1': error: Invalid access to private record [module1] 'S2'
 data/record.c:20:13: [module2] '__wti_module2_func1': debug3: Field access chain: s2->s
 data/record.c:20:13: [module2] '__wti_module2_func1': debug3: Field access: S2->s
-data/record.c:20:13: [module2] '__wti_module2_func1': error: Invalid access to private field 'S2 :: s' of [module1]
+data/record.c:20:13: [module2] '__wti_module2_func1': error: Invalid access to private field [module1] 'S2.s'
 data/record.c:24:5: debug3: Checking func (function) data/record.c:24:5: [module1] public Function(Token(idx=45, range=(246, 250), value='func') (Token(idx=46, range=(251, 258), value='int num'))) : [242:245] 〈int〉
 data/record.c:24:5: debug: Checking function [module1] func
 data/record.c:24:20: [module1] 'func': debug2: locals vars:
@@ -153,7 +153,7 @@ data/record.c:63:5: debug3: Checking __wti_module2_func3 (function) data/record.
 data/record.c:63:5: debug: Checking function [module2] __wti_module2_func3
 data/record.c:64:12: [module2] '__wti_module2_func3': debug2: Access chain: __wti_module1_func2->x
 data/record.c:64:12: [module2] '__wti_module2_func3': debug3: Access type: S2
-data/record.c:64:12: [module2] '__wti_module2_func3': error: Invalid access to private record 'S2' of [module1]
+data/record.c:64:12: [module2] '__wti_module2_func3': error: Invalid access to private record [module1] 'S2'
 data/record.c:64:12: [module2] '__wti_module2_func3': debug3: Field access chain: __wti_module1_func2->x
 data/record.c:64:12: [module2] '__wti_module2_func3': debug3: Field access: S2->x
 data/record.c:64:12: [module2] '__wti_module2_func3': warning: Can't deduce type of member 'x' in __wti_module1_func2->x
@@ -177,7 +177,7 @@ data/record.c:77:5: 'func_local_struct': debug3: Access type: (:0:3592:)
 data/record.c:77:5: 'func_local_struct': debug3: Field access chain: local_str->s2.s.x
 data/record.c:77:5: 'func_local_struct': debug3: Field access: (:0:3592:)->s2
 data/record.c:77:5: 'func_local_struct': debug3: Field access: S2->s
-data/record.c:77:5: 'func_local_struct': error: Invalid access to private field 'S2 :: s' of [module1]
+data/record.c:77:5: 'func_local_struct': error: Invalid access to private field [module1] 'S2.s'
 data/record.c:77:5: 'func_local_struct': debug3: Field access: S1->x
 data/record.c:53:12: debug3: Checking __wti_module1_func2 (function) data/record.c:53:12: [module1] private Function(Token(idx=58, range=(858, 877), value='__wti_module1_func2') (Token(idx=59, range=(878, 882), value='void'))) : [854:858] 〈S2⌇*〉 static
 data/record.c:53:12: debug: Checking function [module1] __wti_module1_func2
