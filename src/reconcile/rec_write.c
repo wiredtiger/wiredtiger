@@ -2052,8 +2052,8 @@ static int
 __rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
-    memset(r->delta.mem, 0, WT_PAGE_DELTA_HEADER_SIZE);
-    r->delta.size = WT_PAGE_DELTA_HEADER_BYTE_SIZE(S2BT(session));
+    memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
+    r->delta.size = WT_DELTA_HEADER_BYTE_SIZE(S2BT(session));
 
     return (0);
 }
@@ -2216,6 +2216,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header = (WT_DELTA_HEADER *)r->delta.data;
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
+    header->distinguished = 1;
 
     /* TODO: write the delta to cloud. */
 

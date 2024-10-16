@@ -131,43 +131,42 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 /*
  * WT_DELTA_HEADER --
  *	A delta is a durable record of changes to a page since the previous delta or full-page image
- * was recorded. It is composed of a WT_DELTA_HEADER, followed by a variable number of delta entries.
- * The number of entries does not explicitly appear, it is inferred by the size of the overall delta.
- * Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK), followed by up
- * to 4 timestamps as indicated by the flags, followed by the key size and the key bytes. If the
- * WT_DELTA_IS_DELETE flag is not set, the entry then includes the value size and the value bytes.
+ * was recorded. It is composed of a WT_DELTA_HEADER, followed by a variable number of delta
+ *entries. The number of entries does not explicitly appear, it is inferred by the size of the
+ *overall delta. Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK),
+ *followed by up to 4 timestamps as indicated by the flags, followed by the key size and the key
+ *bytes. If the WT_DELTA_IS_DELETE flag is not set, the entry then includes the value size and the
+ *value bytes.
  */
 struct __wt_delta_header {
-    uint32_t magic_bytes; /* 0-03: magic bytes */
     /*
      * Memory size of the delta.
      */
-    uint32_t mem_size; /* 04-07: in-memory size */
+    uint32_t mem_size; /* 00-03: in-memory size */
 
-    uint8_t version; /* 08: version */
+    uint8_t version; /* 04: version */
 
-    uint8_t type; /* 09: page type */
+    uint8_t type; /* 05: page type */
 
-    uint8_t flags; /* 10: flags */
+    uint8_t flags; /* 06: flags */
 
-    /* A byte of padding, positioned to be added to the flags. */
-    uint8_t unused; /* 11: unused padding */
+    uint8_t distinguished; /* 07: cannot be zero, distinguishes from a full-page image */
 };
 
 /*
- * WT_PAGE_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
+ * WT_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
  * inserts padding it will break the world.
  */
-#define WT_PAGE_DELTA_HEADER_SIZE 12
+#define WT_DELTA_HEADER_SIZE 8
 
 /*
- * WT_PAGE_DELTA_HEADER_BYTE --
- * WT_PAGE_DELTA_HEADER_BYTE_SIZE --
+ * WT_DELTA_HEADER_BYTE --
+ * WT_DELTA_HEADER_BYTE_SIZE --
  *	The first usable data byte on the block (past the combined headers).
  */
-#define WT_PAGE_DELTA_HEADER_BYTE_SIZE(btree) ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header))
-#define WT_PAGE_DELTA_HEADER_BYTE(btree, dsk) \
-    ((void *)((uint8_t *)(dsk) + WT_PAGE_DELTA_HEADER_BYTE_SIZE(btree)))
+#define WT_DELTA_HEADER_BYTE_SIZE(btree) ((u_int)(WT_DELTA_HEADER_SIZE + (btree)->block_header))
+#define WT_DELTA_HEADER_BYTE(btree, dsk) \
+    ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_BYTE_SIZE(btree)))
 
 struct __wt_delta_cell_unpack {
     WT_ITEM *key;
