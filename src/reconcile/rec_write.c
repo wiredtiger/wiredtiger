@@ -2052,8 +2052,8 @@ static int
 __rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
-    memset(r->delta.mem, 0, WT_PAGE_DELTA_HEADER_SIZE);
-    r->delta.size = WT_PAGE_DELTA_HEADER_BYTE_SIZE(S2BT(session));
+    memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
+    r->delta.size = WT_DELTA_HEADER_BYTE_SIZE(S2BT(session));
 
     return (0);
 }
@@ -2118,8 +2118,8 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
      * 1 header byte
      * 4 timestamps (4 * 9)
      * key size (5)
-     * key
      * value size (5)
+     * key
      * value
      */
     max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + supd->onpage_upd->size;
@@ -2159,11 +2159,13 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         }
 
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
+        WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
+
         memcpy(p, key->data, key->size);
         p += key->size;
 
         /* TODO: resolve modifies. Currently it works only for full values. */
-        WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
+        WT_ASSERT(session, supd->onpage_upd->type == WT_UPDATE_STANDARD);
         memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
         p += supd->onpage_upd->size;
     }
@@ -2188,7 +2190,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
     uint64_t start, stop;
-    uint32_t i;
+    uint32_t count, i;
 
     WT_ASSERT(session, r->multi_next == 1);
     /* Only row store leaf page is supported. */
@@ -2197,6 +2199,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     start = __wt_clock(session);
 
     multi = &r->multi[0];
+    count = 0;
 
     WT_RET(__rec_build_delta_init(session, r));
 
@@ -2211,11 +2214,13 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             continue;
 
         WT_RET(__rec_pack_delta_leaf(session, r, supd));
+        ++count;
     }
 
     header = (WT_DELTA_HEADER *)r->delta.data;
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
+    header->u.entries = count;
 
     /* TODO: write the delta to cloud. */
 
