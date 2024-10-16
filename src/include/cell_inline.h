@@ -1257,7 +1257,7 @@ __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp)
  * __cell_data_ref --
  *     Set a buffer to reference the data from an unpacked cell.
  */
-static int
+static WT_INLINE int
 __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
   WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
