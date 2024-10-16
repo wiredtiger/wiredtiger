@@ -1992,7 +1992,6 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    uint32_t read_flags;
 
     btree = S2BT(session);
 
@@ -2031,7 +2030,12 @@ rand_prev:
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
 rand_next:
-        read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT |
+        /*
+         * Note, braces are deliberately not aligned correctly in this POC so that the indenting
+         * of existing code doesn't change
+         */
+        {
+        uint32_t read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT |
           WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
         if (btree->evict_ref == NULL) {
             for (;;) {
@@ -2051,6 +2055,7 @@ rand_next:
             }
         }
         break;
+        }
     }
 
     return (ret);
@@ -2681,7 +2686,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     uint64_t cache_max_wait_us, initial_progress, max_progress;
-    uint64_t elapsed, time_start, time_stop;
+    uint64_t time_start, time_stop;
     bool app_thread;
 
     WT_TRACK_OP_INIT(session);
@@ -2802,7 +2807,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
 err:
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+        uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
         WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
