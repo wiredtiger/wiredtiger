@@ -65,7 +65,7 @@ from packing import pack, unpack
 %}
 
 %inline %{
-    typedef int wt_control_point_id_t;
+    typedef int int32_t;
 %}
 
 /* Set the input argument to point to a temporary variable */ 
