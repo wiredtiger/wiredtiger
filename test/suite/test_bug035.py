@@ -67,7 +67,7 @@ class test_bug35(wttest.WiredTigerTestCase):
 
         session.close()
 
-    def test_ts(self):
+    def test_bug35(self):
         create_params = 'key_format=r,value_format=S'
         self.session.create(self.uri, create_params)
         value1 = 'a' * 500
