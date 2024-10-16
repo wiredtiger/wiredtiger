@@ -566,11 +566,6 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, reconfigure, config, cfg);
     WT_UNUSED(cfg);
-#ifdef HAVE_CONTROL_POINT
-    WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
-    if (config == NULL)
-        goto done;
-#endif
 
 #ifdef HAVE_CONTROL_POINT
     WT_ERR(__wt_strdup(session, cfg[0], &session->cfg));
