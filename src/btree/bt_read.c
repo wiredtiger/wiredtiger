@@ -189,7 +189,7 @@ __bt_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, 
 {
     int i;
 
-    for (i = delta_size - 1; i >= 0; --i)
+    for (i = (int)delta_size - 1; i >= 0; --i)
         WT_RET(__bt_reconstruct_delta(session, ref, &deltas[i]));
 
     return (0);
