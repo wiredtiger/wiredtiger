@@ -1242,8 +1242,8 @@ static WT_INLINE void
 __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA *unpack)
 {
     WT_DECL_RET;
-    const uint8_t *p;
     uint64_t v;
+    const uint8_t *p;
 
     unpack->flags = cell->__chunk[0];
     p = (uint8_t *)&cell[1];

@@ -2221,6 +2221,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
     header->u.entries = count;
+    header->distinguished = 1;
 
     /* TODO: write the delta to cloud. */
 

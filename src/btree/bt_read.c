@@ -91,12 +91,12 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 {
+    WT_CELL_UNPACK_DELTA unpack;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
-    WT_CELL_UNPACK_DELTA unpack;
     WT_DELTA_HEADER *header;
-    WT_PAGE *page;
     WT_ITEM key, value;
+    WT_PAGE *page;
     WT_UPDATE *upd, *standard_value, *tombstone;
     size_t size, tmp_size, total_size;
 
@@ -186,8 +186,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
-    WT_ITEM tmp;
     WT_ITEM *deltas;
+    WT_ITEM tmp;
     WT_PAGE *notused;
     WT_PAGE_BLOCK_META block_meta;
     size_t delta_size, i;

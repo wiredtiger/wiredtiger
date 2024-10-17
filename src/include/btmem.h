@@ -139,32 +139,30 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *value bytes.
  */
 struct __wt_delta_header {
-    uint32_t magic_bytes; /* 0-03: magic bytes */
     /*
      * Memory size of the delta.
      */
-    uint32_t mem_size; /* 04-07: in-memory size */
+    uint32_t mem_size; /* 00-03: in-memory size */
 
     union {
-        uint32_t entries; /* 08-11: number of cells on page */
-        uint32_t datalen; /* 08-11: overflow data length */
+        uint32_t entries; /* 04-07: number of cells on page */
+        uint32_t datalen; /* 04-07: overflow data length */
     } u;
 
-    uint8_t version; /* 12: version */
+    uint8_t version; /* 08: version */
 
-    uint8_t type; /* 13: page type */
+    uint8_t type; /* 09: page type */
 
-    uint8_t flags; /* 14: flags */
+    uint8_t flags; /* 10: flags */
 
-    /* A byte of padding, positioned to be added to the flags. */
-    uint8_t unused; /* 15: unused padding */
+    uint8_t distinguished; /* 11: cannot be zero, distinguishes from a full-page image */
 };
 
 /*
  * WT_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
  * inserts padding it will break the world.
  */
-#define WT_DELTA_HEADER_SIZE 16
+#define WT_DELTA_HEADER_SIZE 12
 
 /*
  * WT_DELTA_HEADER_BYTE --
