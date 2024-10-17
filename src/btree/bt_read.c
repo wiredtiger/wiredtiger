@@ -114,6 +114,23 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
         key.size = unpack.key_size;
         upd = standard_value = tombstone = NULL;
         size = 0;
+
+        /* Search the page and apply the modification. */
+        WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
+        /*
+         * We apply deltas from newest to oldest, ignore keys that have already got a delta update.
+         */
+        if (cbt.compare == 0) {
+            if (cbt.ins != NULL && cbt.ins->upd != NULL &&
+              F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                continue;
+
+            rip = &page->pg_row[cbt.slot];
+            first_upd = WT_ROW_UPDATE(page, rip);
+            if (first_upd != NULL && F_ISSET(first_upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                continue;
+        }
+
         if (F_ISSET(&unpack, WT_DELTA_IS_DELETE)) {
             WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
             F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
@@ -133,27 +150,12 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
                 tombstone->start_ts = unpack.tw.stop_ts;
                 tombstone->durable_ts = unpack.tw.durable_stop_ts;
                 F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
-                standard_value->next = tombstone;
+                tombstone->next = standard_value;
                 upd = tombstone;
             } else
                 upd = standard_value;
         }
 
-        /* Search the page and apply the modification. */
-        WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
-        /*
-         * We apply deltas from newest to oldest, ignore keys that have already got a delta update.
-         */
-        if (cbt.compare == 0) {
-            if (cbt.ins != NULL && cbt.ins->upd != NULL &&
-              F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))
-                continue;
-
-            rip = &page->pg_row[cbt.slot];
-            first_upd = WT_ROW_UPDATE(page, rip);
-            if (first_upd != NULL && F_ISSET(first_upd, WT_UPDATE_RESTORED_FROM_DELTA))
-                continue;
-        }
         WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
         total_size += size;
@@ -346,8 +348,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* Reconstruct deltas*/
-    if (delta_size > 0)
-        WT_ERR(__bt_reconstruct_deltas(session, ref, deltas, delta_size));
+    if (delta_size > 0) {
+        ret = __bt_reconstruct_deltas(session, ref, deltas, delta_size);
+        for (i = 0; i < delta_size; ++i)
+            __wt_buf_free(session, &deltas[i]);
+        WT_ERR(ret);
+    }
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
@@ -357,11 +363,6 @@ skip_read:
     return (0);
 
 err:
-    if (delta_size > 0) {
-        for (i = 0; i < delta_size; ++i)
-            __wt_buf_free(session, &deltas[i]);
-    }
-
     /*
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.

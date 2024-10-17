@@ -1285,7 +1285,8 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
         unpack->value_size = (uint32_t)v;
 
         unpack->key = p;
-        unpack->value = p + unpack->key_size;
+        p += unpack->key_size;
+        unpack->value = p;
         unpack->__len = WT_PTRDIFF(p + unpack->value_size, &cell->__chunk[0]);
     }
 
