@@ -121,14 +121,15 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
          * We apply deltas from newest to oldest, ignore keys that have already got a delta update.
          */
         if (cbt.compare == 0) {
-            if (cbt.ins != NULL && cbt.ins->upd != NULL &&
-              F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))
-                continue;
-
-            rip = &page->pg_row[cbt.slot];
-            first_upd = WT_ROW_UPDATE(page, rip);
-            if (first_upd != NULL && F_ISSET(first_upd, WT_UPDATE_RESTORED_FROM_DELTA))
-                continue;
+            if (cbt.ins != NULL) {
+                if (cbt.ins->upd != NULL && F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                    continue;
+            } else {
+                rip = &page->pg_row[cbt.slot];
+                first_upd = WT_ROW_UPDATE(page, rip);
+                if (first_upd != NULL && F_ISSET(first_upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                    continue;
+            }
         }
 
         if (F_ISSET(&unpack, WT_DELTA_IS_DELETE)) {
