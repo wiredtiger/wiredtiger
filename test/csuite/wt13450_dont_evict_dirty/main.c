@@ -91,7 +91,6 @@ main(int argc, char *argv[])
     int ret;
     const char *wiredtiger_open_config =
       "create,cache_size=2G,eviction=(threads_min=1,threads_max=1),"
-      "log=(enabled,file_max=100K,remove=false),"
 #if 1 /* Include if needed */
       "verbose=["
       "control_point=5,"
