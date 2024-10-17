@@ -30,13 +30,13 @@ import wiredtiger, wttest, threading
 # test_bug36.py
 # This python test uses control points to reproduce WT-10905.
 # 1. Populate data in the table
-# 2. Create tombstones on all data in the table
+# 2. Create tombstones on all the data in the table
+# 3. Enable control point to control the execution of the concurrency between two threads.
 # 4. Create two threads. One thread T1 will perform reads under isolation read-uncommitted and
-# aonther thread T2 will generate an update and a modify.
-# 5. Enable control point to control the execution of the concurrency between two threads.
-# 6. Pause T1 when the thread starts to reconstruct the modify in the update list.
-# 7. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
-# 8. T1 is now in an invalid state and should assert.
+# another thread T2 will generate an update and a modify.
+# 5. Pause T1 when the thread starts to reconstruct the modify in the update list.
+# 6. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
+# 7. T1 is now in an invalid state and should assert.
 class test_bug36(wttest.WiredTigerTestCase):
 
     uri = 'table:test_bug036'
@@ -47,6 +47,7 @@ class test_bug36(wttest.WiredTigerTestCase):
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
         session.begin_transaction("isolation=read-uncommitted")
+        # 5. Pause thread when it starts to reconstruct the modify in the update list.
         for i in range(1, self.nrows):
             cursor.set_key(str(i))
             cursor.search()
@@ -61,7 +62,7 @@ class test_bug36(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Populate data in the data store table.
+        # 1. Populate data in the data store table.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
@@ -69,17 +70,20 @@ class test_bug36(wttest.WiredTigerTestCase):
             cursor[str(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-        # Add in a tombstone.
+        # 2. Create tombstones on all the data in the table.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor.set_key(str(i))
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
 
+        # 3. Enable control point to control the execution of the concurrency between two threads.
         self.conn.enable_control_point(6, "")
-        thread = threading.Thread(target=self.construct_modify_upd_list)
 
-        thread.start()
+        # 4. Create another thread which will perform reads under isolation read-uncommitted.
+        read_uncommitted_thread = threading.Thread(target=self.construct_modify_upd_list)
+        read_uncommitted_thread.start()
+
         # Add in a update and a modify.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
@@ -88,5 +92,7 @@ class test_bug36(wttest.WiredTigerTestCase):
             cursor.set_key(str(i))
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
+        # 6. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
         self.session.rollback_transaction()
-        thread.join()
+        # 7. T1 is now in an invalid state and should assert at this point.
+        read_uncommitted_thread.join()
