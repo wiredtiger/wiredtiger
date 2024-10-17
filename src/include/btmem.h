@@ -1503,6 +1503,7 @@ struct __wt_update {
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x010u   /* Fast truncate instantiation */
 #define WT_UPDATE_RESTORED_FROM_DS 0x020u         /* Update restored from data store. */
 #define WT_UPDATE_RESTORED_FROM_HS 0x040u         /* Update restored from history store. */
+#define WT_UPDATE_RESTORED_FROM_DELTA 0x08u       /* Update restored from delta. */
 #define WT_UPDATE_RTS_DRYRUN_ABORT 0x080u         /* Used by dry run to mark a would-be abort. */
 #define WT_UPDATE_TO_DELETE_FROM_HS 0x100u /* Update needs to be deleted from history store */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */

@@ -115,7 +115,7 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
         size = 0;
         if (F_ISSET(&unpack, WT_DELTA_IS_DELETE)) {
             WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
-            F_SET(tombstone, WT_UPDATE_DURABLE);
+            F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             size += tmp_size;
             upd = tombstone;
         } else {
@@ -124,12 +124,14 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
             WT_RET(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
             standard_value->start_ts = unpack.tw.start_ts;
             standard_value->durable_ts = unpack.tw.durable_start_ts;
+            F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             size += tmp_size;
 
             if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
                 WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
                 tombstone->start_ts = unpack.tw.stop_ts;
                 tombstone->durable_ts = unpack.tw.durable_stop_ts;
+                F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
                 standard_value->next = tombstone;
                 upd = tombstone;
             } else
@@ -138,6 +140,8 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 
         /* Search the page and apply the modification. */
         WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
+        /* TODO: We can optimize this to do nothing if we know there is already a delta change on
+         * this key. */
         WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
         total_size += size;
@@ -169,9 +173,9 @@ err:
 static int
 __bt_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
 {
-    size_t i;
+    int i;
 
-    for (i = 0; i < delta_size; ++i)
+    for (i = delta_size - 1; i >= 0; --i)
         WT_RET(__bt_reconstruct_delta(session, ref, &deltas[i]));
 
     return (0);

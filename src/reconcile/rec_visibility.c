@@ -95,7 +95,7 @@ __rec_append_orig_value(
         }
 
         /* Done if the update was restored from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA))
             return (0);
 
         /* Done if the update is a full update restored from the data store. */
