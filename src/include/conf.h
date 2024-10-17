@@ -170,7 +170,7 @@ WT_CONF_API_DECLARE(file, meta, 7, 70);
 WT_CONF_API_DECLARE(index, meta, 2, 17);
 WT_CONF_API_DECLARE(lsm, meta, 9, 82);
 WT_CONF_API_DECLARE(object, meta, 7, 72);
-WT_CONF_API_DECLARE(oligarch, meta, 2, 14);
+WT_CONF_API_DECLARE(oligarch, meta, 3, 19);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
 WT_CONF_API_DECLARE(tier, meta, 7, 73);
 WT_CONF_API_DECLARE(tiered, meta, 7, 75);
