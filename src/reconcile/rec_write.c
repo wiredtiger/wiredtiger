@@ -2100,6 +2100,7 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
 static int
 __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *supd)
 {
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_ITEM *key;
     size_t max_packed_size;
@@ -2107,6 +2108,8 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     uint8_t *p, *head;
 
     flags = 0;
+
+    cbt = &r->update_modify_cbt;
 
     /* Ensure enough room for a column-store key without checking. */
     WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -2164,10 +2167,20 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         memcpy(p, key->data, key->size);
         p += key->size;
 
-        /* TODO: resolve modifies. Currently it works only for full values. */
-        WT_ASSERT(session, supd->onpage_upd->type == WT_UPDATE_STANDARD);
-        memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
-        p += supd->onpage_upd->size;
+        if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
+            if (supd->rip != NULL)
+                cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
+            else
+                cbt->slot = UINT32_MAX;
+            WT_ERR(__wt_modify_reconstruct_from_upd_list(
+              session, cbt, supd->onpage_upd, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
+            memcpy(p, cbt->upd_value->buf.data, cbt->upd_value->buf.size);
+            p += cbt->upd_value->buf.size;
+        } else {
+            memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
+            p += supd->onpage_upd->size;
+        }
     }
 
     r->delta.size += WT_PTRDIFF(p, head);
