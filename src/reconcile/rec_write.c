@@ -2154,6 +2154,12 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         memcpy(p, key->data, key->size);
         p += key->size;
     } else {
+        /*
+         * TODO: how should we handle the case that in the previous reconciliation, we write the
+         * full value and in this reconciliation, it is deleted by a tombstone. Should we still
+         * include the full value in the delta? We can omit it but it will make the rest of the
+         * system more complicated. Include it for now to simplify the prototype.
+         */
         if (supd->onpage_upd->start_ts != WT_TS_NONE) {
             LF_SET(WT_DELTA_HAS_START_TS);
             WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));

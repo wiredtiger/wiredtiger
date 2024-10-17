@@ -178,7 +178,7 @@ __rec_append_orig_value(
                 tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
-            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+            F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
         } else {
             /*
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
@@ -220,7 +220,7 @@ __rec_append_orig_value(
             append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
-        F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
+        F_SET(append, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
     }
 
     if (tombstone != NULL) {
