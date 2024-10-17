@@ -97,7 +97,8 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
     WT_DELTA_HEADER *header;
     WT_ITEM key, value;
     WT_PAGE *page;
-    WT_UPDATE *upd, *standard_value, *tombstone;
+    WT_ROW *rip;
+    WT_UPDATE *first_upd, *upd, *standard_value, *tombstone;
     size_t size, tmp_size, total_size;
 
     header = (WT_DELTA_HEADER *)delta->data;
@@ -140,8 +141,19 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 
         /* Search the page and apply the modification. */
         WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
-        /* TODO: We can optimize this to do nothing if we know there is already a delta change on
-         * this key. */
+        /*
+         * We apply deltas from newest to oldest, ignore keys that have already got a delta update.
+         */
+        if (cbt.compare == 0) {
+            if (cbt.ins != NULL && cbt.ins->upd != NULL &&
+              F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                continue;
+
+            rip = &page->pg_row[cbt.slot];
+            first_upd = WT_ROW_UPDATE(page, rip);
+            if (first_upd != NULL && F_ISSET(first_upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                continue;
+        }
         WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
         total_size += size;
