@@ -190,6 +190,7 @@ __bt_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, 
 {
     int i;
 
+    /* TODO: this is not the optimal algorithm. We can optimize this by using a min heap. */
     for (i = (int)delta_size - 1; i >= 0; --i)
         WT_RET(__bt_reconstruct_delta(session, ref, &deltas[i]));
 
