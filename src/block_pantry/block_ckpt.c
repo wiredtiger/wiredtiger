@@ -121,7 +121,7 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 
     len += cval.len + 2; /* +2 for the separator and the newline */
     WT_ERR(__wt_calloc_def(session, len, &entry));
-    WT_ERR(__wt_snprintf(entry, len, "%s|%.*s\n", tablename, (int)cval.len, cval.str));
+    WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
     /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
     /* TODO: Add checkpoint ID. */

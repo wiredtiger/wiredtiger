@@ -92,6 +92,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
         self.session.checkpoint()
+        time.sleep(1)
         conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
 
         #

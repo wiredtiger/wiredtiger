@@ -23,8 +23,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     char buf[4096], *cfg_ret,
       *metadata_value_cfg; /* TODO the 4096 puts an upper bound on metadata entry length */
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
-    size_t len;
-    wt_off_t sep;
+    size_t len, sep;
 
     conn = S2C(session);
 
@@ -44,7 +43,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_ERR(__wt_disagg_get_meta(session, 0, checkpoint_id, item));
 
     if (item->size >= sizeof(buf))
-        WT_ERR(EINVAL);
+        WT_ERR(ENOMEM);
     memcpy(buf, item->data, item->size);
     buf[item->size] = '\0';
     if (item->size > 0 && buf[item->size - 1] == '\n')
@@ -52,8 +51,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
 
     /* Parse out the key and the new checkpoint config value. */
     metadata_key = buf;
-    for (sep = (wt_off_t)item->size; sep >= 0; sep--)
-        if (buf[sep] == '|') {
+    for (sep = 0; sep < item->size; sep++)
+        if (buf[sep] == '\n') {
             buf[sep] = '\0';
             metadata_value = buf + sep + 1;
             break;
@@ -71,7 +70,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
 
     /* Pull the value out. */
     WT_ERR(md_cursor->get_value(md_cursor, &current_value));
-    len = strlen(metadata_value) + strlen("checkpoint=") + 1 /* for NUL */;
+    len = strlen("checkpoint=") + strlen(metadata_value) + 1 /* for NUL */;
 
     /* Allocate/create a new config we're going to insert */
     WT_ERR(__wt_calloc_def(session, len, &metadata_value_cfg));
