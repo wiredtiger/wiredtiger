@@ -7,6 +7,9 @@
  */
 #pragma once
 
+#include <string>
+#include <memory>
+
 #include "wt_internal.h"
 #include "../wrappers/mock_session.h"
 
