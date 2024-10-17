@@ -1482,7 +1482,7 @@ tasks:
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
 
-  # Compile WiredTiger with uncommon build flags to make sure we compile code that 
+  # Compile WiredTiger with uncommon build flags to make sure we compile code that
   # is often pre-processed out.
   - name: compile-uncommon-build-flags
     tags: ["pull_request", "pull_request_compilers"]
@@ -1498,8 +1498,8 @@ tasks:
           CODE_COVERAGE_FLAGS: -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1
 
       # Check that WiredTiger compiles when building for big endian systems.
-      # This doesn't need to run on a big endian machine, we're just checking 
-      # that the code inside #ifdef WORDS_BIGENDIAN paths will compile. 
+      # This doesn't need to run on a big endian machine, we're just checking
+      # that the code inside #ifdef WORDS_BIGENDIAN paths will compile.
       - func: "compile wiredtiger"
         vars:
           WORDS_BIGENDIAN: -DWORDS_BIGENDIAN=1

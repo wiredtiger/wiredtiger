@@ -32,10 +32,9 @@ test_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
     REQUIRE(to->disk_size == __wt_bswap32(prev_from.disk_size));
 #endif
 
-    /* 
-     * Test that the block header we are copying from is not changed. 
-     * Byteswap is allowed to swap blocks in-place, so only check this
-     * when we copy into a different block.
+    /*
+     * Test that the block header we are copying from is not changed. The byte swap function is
+     * allowed to swap blocks in-place, so only check this when we copy into a different block.
      */
     if (from != to) {
         REQUIRE(from->disk_size == prev_from.disk_size);
