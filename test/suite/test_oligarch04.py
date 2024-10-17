@@ -37,7 +37,7 @@ class test_oligarch04(wttest.WiredTigerTestCase):
     uri_base = "test_oligarch04"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader"),' \
-                + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
     # conn_config = 'log=(enabled)'
 
     uri = "oligarch:" + uri_base
@@ -46,7 +46,7 @@ class test_oligarch04(wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+        extlist.extension('storage_sources', 'dir_store')
 
     # Custom test case setup
     def early_setup(self):
