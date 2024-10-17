@@ -92,7 +92,7 @@ class test_bug36(wttest.WiredTigerTestCase):
             cursor.set_key(str(i))
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
-        # 6. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
+        # 7. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
         self.session.rollback_transaction()
-        # 7. T1 is now in an invalid state and should assert at this point.
+        # 8. T1 is now in an invalid state and should assert at this point.
         read_uncommitted_thread.join()
