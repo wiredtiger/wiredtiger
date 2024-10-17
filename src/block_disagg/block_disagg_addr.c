@@ -62,8 +62,8 @@ int
 __wt_block_disagg_addr_unpack(const uint8_t **buf, size_t buf_size, uint64_t *page_idp,
   uint64_t *checkpoint_idp, uint64_t *reconciliation_idp, uint32_t *sizep, uint32_t *checksump)
 {
-    const uint8_t *begin;
     uint64_t c, cp, p, r, s;
+    const uint8_t *begin;
 
     /* TODO: read extensible byte */
     begin = *buf;

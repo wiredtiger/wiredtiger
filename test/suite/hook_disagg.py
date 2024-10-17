@@ -380,7 +380,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
 
     def getDisaggService(self):
         return self.disagg_service
-        
+
     def getDisaggConfig(self):
         return self.disagg_config
 

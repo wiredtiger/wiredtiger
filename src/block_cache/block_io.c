@@ -121,9 +121,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         time_start = timer ? __wt_clock(session) : 0;
 
         /*
-         * XXX
-         * With the disaggregated storage block manager, we'll get all the results. For now, we only
-         * use the first result (the full page) and ignore any deltas.
+         * XXX With the disaggregated storage block manager, we'll get all the results. For now, we
+         * only use the first result (the full page) and ignore any deltas.
          */
         if (bm->read_multiple != NULL) {
             WT_ITEM results[32];
