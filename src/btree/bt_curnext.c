@@ -761,6 +761,7 @@ __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
+    static bool wait = true;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -909,15 +910,18 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
             CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(
               session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
             printf("Arriving at control point\n");
-            /* Wait here for the checkpoint thread. */
-            CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT(
-              session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
+            /* Wait here only once for the checkpoint thread. */
+            if (wait) {
+                CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT(
+                  session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
+                wait = false;
+            }
             printf("Past control point\n");
 #endif
             /* If checkpoint is happening on the btree, we can only evict clean content. */
             if (__wt_btree_syncing_by_other_session(session)) {
                 if (!__wt_page_is_modified(page)) {
-#if 0                           /* Old way */
+#if 0 /* Old way */
                     printf("I'm going to crash now!!!\n");
                     WT_ASSERT(session, false);
 #endif

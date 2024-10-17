@@ -276,9 +276,9 @@ thread_do_next(void *arg)
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_SESSION *wt_session;
-    int64_t stat_prev;
-    int64_t stat_now;
     uint64_t idx;
+    int64_t stat_now;
+    int64_t stat_prev;
     int ret;
 
     opts = (TEST_OPTS *)arg;
@@ -296,8 +296,9 @@ thread_do_next(void *arg)
     while ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
         stat_now = get_stat(NULL, wt_session, WT_STAT_CONN_EVICTION_FORCE_DELETE_IN_CHECKPOINT);
         if (stat_now != stat_prev) {
-            printf("%" PRIu64 ". Changed: eviction_force_delete_in_checkpoint from %" PRId64 " to %" PRId64 "\n",
-                   idx, stat_prev, stat_now);
+            printf("%" PRIu64 ". Changed: eviction_force_delete_in_checkpoint from %" PRId64
+                   " to %" PRId64 "\n",
+              idx, stat_prev, stat_now);
             fflush(stdout);
             stat_prev = stat_now;
         }
