@@ -1253,7 +1253,7 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
         WT_ASSERT(session, ret == 0);
         unpack->key_size = (uint32_t)v;
         unpack->key = p;
-        unpack->__len = WT_PTRDIFF(p + unpack->key_size, &cell->__chunk[0]);
+        unpack->__len = (uint32_t)WT_PTRDIFF(p + unpack->key_size, &cell->__chunk[0]);
     } else {
         WT_TIME_WINDOW_INIT(&unpack->tw);
 
@@ -1287,7 +1287,7 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
         unpack->key = p;
         p += unpack->key_size;
         unpack->value = p;
-        unpack->__len = WT_PTRDIFF(p + unpack->value_size, &cell->__chunk[0]);
+        unpack->__len = (uint32_t)WT_PTRDIFF(p + unpack->value_size, &cell->__chunk[0]);
     }
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
