@@ -300,12 +300,15 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
     va_list ap;
     WT_EXTENSION_API *wt_api;
     char buf[1000];
+    const char *lmdb_error;
 
     va_start(ap, format);
     wt_api = palm->wt_api;
     if (vsnprintf(buf, sizeof(buf), format, ap) >= (int)sizeof(buf))
         wt_api->err_printf(wt_api, session, "palm: error overflow");
-    wt_api->err_printf(wt_api, session, "palm lmdb: %s: %s", mdb_strerror(ret), buf);
+    lmdb_error = mdb_strerror(ret);
+    wt_api->err_printf(wt_api, session, "palm lmdb: %s: %s", lmdb_error, buf);
+    PALM_VERBOSE_PRINT(palm, "palm lmdb: %s: %s\n", lmdb_error, buf);
     va_end(ap);
 
     return (WT_ERROR);
@@ -458,6 +461,11 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
 err:
     palm_kv_rollback_transaction(&context);
+
+    PALM_VERBOSE_PRINT(palm_handle->palm,
+      "palm_handle_put(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
+      ", is_delta=%d) returned %d\n",
+      (void *)plh, page_id, checkpoint_id, is_delta, ret);
     return (ret);
 }
 
@@ -503,7 +511,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     }
     /* Did the caller give us enough output entries to hold all the results? */
     if (count == *results_count && palm_kv_next_page_match(&matches))
-        return (ENOMEM);
+        PALM_KV_ERR(palm, session, ENOMEM);
 
     *results_count = count;
     PALM_KV_ERR(palm, session, matches.error);
@@ -519,7 +527,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
             p += results_array[count].size;
         }
         if ((size_t)(p - (uint8_t *)all_results->mem) > all_results->memsize)
-            return (ENOMEM); /* TODO: raise something more serious, with a message, or assert */
+            /* TODO: raise something more serious, with a message, or assert */
+            PALM_KV_ERR(palm, session, ENOMEM);
     }
 err:
     palm_kv_rollback_transaction(&context);
