@@ -822,23 +822,12 @@ struct __wt_cursor {
 #endif
 };
 
-#ifdef HAVE_CONTROL_POINT
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
 /*!
  * WT_CONNECTION::enable_control_point, WT_CONNECTION::disable_control_point,
  * WT_SESSION::enable_control_point, and WT_SESSION::disable_control_point types
  */
 
-/*!
- * Identifies a per-connection control point or a per-session control point.
- *
- * A WT_CONTROL_POINT_ID does not specify whether a control point is
- * a per-connection control point or a per-session control point since both
- * start numbering at 0.
- *
- * - The maximum per-connection control point ID is CONNECTION_CONTROL_POINTS_SIZE - 1.
- * - The maximum per-session control point ID is SESSION_CONTROL_POINTS_SIZE - 1.
- */
-typedef int32_t wt_control_point_id_t;
 #endif
 
 /*! WT_SESSION::timestamp_transaction_uint timestamp types */
@@ -2112,7 +2101,7 @@ struct __wt_session {
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
     /*! @} */
 
-#ifdef HAVE_CONTROL_POINT
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
     /*!
      * @name Control point support
      * @{
@@ -3022,7 +3011,7 @@ struct __wt_connection {
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
 
-#ifdef HAVE_CONTROL_POINT
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
     /*!
      * @name Control point support
      * @{
@@ -3510,6 +3499,14 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_4 = (, Thread 5
  * waits for thread 4 to get here., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
+ * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_wait_for_upd_abort =
+ * (, Thread waits for transaction to get aborted., a set of related configuration options defined
+ * as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enable_count, the number of
+ * triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
  * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}

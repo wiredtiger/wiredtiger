@@ -2218,6 +2218,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         if (cursor != NULL)
             __wt_buf_free(session, &cursor->key);
     }
+    CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(
+      session, WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT);
     txn->mod_count = 0;
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, txn->prepare_count == prepare_count);

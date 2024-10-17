@@ -188,16 +188,16 @@ struct __wt_control_point_pair_data_err {
 
 /* Macro to define a per-connection control point with this action. */
 #ifdef HAVE_CONTROL_POINT
-#define CONNECTION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID)             \
-    CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID), false, 0) \
-    if (_cp_data != NULL) {                                                        \
-        int _err = ((WT_CONTROL_POINT_PAIR_DATA_ERR *)_cp_data)->err;              \
-        /* _cp_data not needed during action. */                                   \
-        __wt_control_point_release_data(_session, _cp_registry, _cp_data, false);  \
-        _cp_data = NULL;                                                           \
-        /* The action. */                                                          \
-        WT_ERR(_err);                                                              \
-    }                                                                              \
+#define CONNECTION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID)            \
+    CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID))          \
+    if (_cp_data != NULL) {                                                       \
+        int _err = ((WT_CONTROL_POINT_PAIR_DATA_ERR *)_cp_data)->action_data.err; \
+        /* _cp_data not needed during action. */                                  \
+        __wt_control_point_release_data(_session, _cp_registry, _cp_data, false); \
+        _cp_data = NULL;                                                          \
+        /* The action. */                                                         \
+        WT_ERR(_err);                                                             \
+    }                                                                             \
     CONNECTION_CONTROL_POINT_DEFINE_END(false)
 #else
 #define CONNECTION_CONTROL_POINT_DEFINE_ERR(SESSION, CONTROL_POINT_ID) /* NOP */

@@ -435,6 +435,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
         WT_RET_MSG(session, WT_ROLLBACK,
           "Read-uncommitted readers do not support reconstructing a record with modifies.");
+    CONNECTION_CONTROL_POINT_WAIT(session, WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT);
 retry:
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);
