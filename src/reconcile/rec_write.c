@@ -2239,24 +2239,6 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->u.entries = count;
     header->distinguished = 1;
 
-    /* TODO: write the delta to cloud. */
-
-    /* We cannot fail from here. */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        if (supd->onpage_upd == NULL)
-            continue;
-
-        if (supd->onpage_tombstone != NULL) {
-            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
-                continue;
-
-            F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
-        }
-
-        if (!F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
-            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
-    }
-
     stop = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_PAGE_DELTA,
@@ -2681,8 +2663,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
+    WT_SAVE_UPD *supd;
     WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
-    uint32_t i;
+    uint32_t i, j;
     uint8_t previous_ref_state;
 
     btree = S2BT(session);
@@ -2773,6 +2756,24 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
       r->multi_next);
+
+    /*
+     * TODO: This is still not the correct place. We may still fail after this. Let's put it here
+     * for now to minimize code changes. We should decide where it should be. It's not clear how we
+     * will do error handling in disaggreated storage. What should we do if we only write a subset
+     * of split pages successfully? Can we discard the pages we already written and start again?
+     */
+    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        for (j = 0, supd = multi->supd; j < multi->supd_entries; ++j, ++supd) {
+            if (supd->onpage_upd == NULL)
+                continue;
+
+            if (supd->onpage_tombstone != NULL)
+                F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+
+            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+        }
+    }
 
     switch (r->multi_next) {
     case 0: /* Page delete */
@@ -2958,14 +2959,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     WT_ERR(__wt_hs_delete_updates(session, r));
 
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL) {
+    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        if (multi->supd != NULL)
             WT_ERR(__wt_hs_insert_updates(session, r, multi));
-            if (!multi->supd_restore) {
-                __wt_free(session, multi->supd);
-                multi->supd_entries = 0;
-            }
-        }
+    }
 
 err:
     return (ret);
