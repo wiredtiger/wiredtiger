@@ -141,13 +141,6 @@ struct __wt_oligarch_manager {
 #define WT_OLIGARCH_MANAGER_STOPPING 3 /* The oligarch manager is being shut down */
     wt_shared uint32_t state; /* Atomic: Indicating whether the manager is already running */
 
-#define WT_OLIGARCH_WATCHER_OFF 0
-#define WT_OLIGARCH_WATCHER_RUNNING 1
-#define WT_OLIGARCH_WATCHER_STARTING 2
-#define WT_OLIGARCH_WATCHER_STOPPING 3
-    wt_shared uint32_t watcher_state;
-    wt_thread_t watcher_tid;
-    bool watcher_tid_set;
     bool update_dhandle;
 
     wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
@@ -170,8 +163,6 @@ struct __wt_oligarch_manager {
 
     WT_LSN max_replay_lsn;
     uint64_t max_applied_txnid;
-
-    WT_FH *metadata_fh;
 
     bool leader;
 };

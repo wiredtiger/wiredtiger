@@ -88,11 +88,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 10000 == 0:
+            if i % 25000 == 0:
                 time.sleep(1)
-                #session_follow.checkpoint()
-                if i == 10000:
-                    cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
 
         cursor.reset()
 
@@ -110,8 +107,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        session_follow.checkpoint()
-        time.sleep(2)
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
 
         cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -130,9 +126,8 @@ class test_oligarch06(wttest.WiredTigerTestCase):
             cursor["** Hello " + str(i)] = "World"
             cursor["** Hi " + str(i)] = "There"
             cursor["** OK " + str(i)] = "Go"
-            if i % 10000 == 0:
+            if i % 25000 == 0:
                 time.sleep(1)
-                #session_follow.checkpoint()
 
         cursor.reset()
         cursor.close()
@@ -140,8 +135,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        session_follow.checkpoint()
-        time.sleep(2)
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
 
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -150,7 +144,6 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         self.assertEqual(item_count, self.nitems * 6)
 
         # Close cursors
-        cursor_follow1.close()
         cursor_follow2.close()
         cursor_follow3.close()
 
@@ -175,8 +168,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
         self.session.checkpoint()
-        session_follow.checkpoint()
-        time.sleep(2)
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
 
         # Reopen the follower connection.
         session_follow.close()
