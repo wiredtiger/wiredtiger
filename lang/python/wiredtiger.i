@@ -205,42 +205,40 @@ from packing import pack, unpack
         SWIG_exception_fail(SWIG_AttributeError,
           "bad string value for WT_ITEM");
     $1 = &item;
- }
-
-/* Why do we need an explicit conversion for pl_get_package_part - doesn't the previous typemap cover this? */
-%typemap(in) struct __wt_item *package_buffer (WT_ITEM item) {
-    memset(&item, 0, sizeof(item));
-    if (unpackBytesOrString($input, &item.data, &item.size) != 0)
-        SWIG_exception_fail(SWIG_AttributeError,
-          "bad string value for WT_ITEM");
-    $1 = &item;
- }
-
-/* Special handling for plh_get return arg */
-%typemap(in,numinputs=0) (WT_ITEM *package_result) (WT_ITEM item) {
-    memset(&item, 0, sizeof(item));
-    $1 = &item;
- }
-
-%typemap(argout) (WT_ITEM *package_result) {
-    WT_ITEM *item = $1;
-    PyBytesObject *pbo = PyBytes_FromStringAndSize(item->data, item->size);
-    free(item->data);
-    item->data = NULL;
-    $result = pbo;
 }
 
-/* Special handling for pl_get_package_part return arg */
-%typemap(in,numinputs=0) (WT_ITEM *result) (WT_ITEM item) {
-    memset(&item, 0, sizeof(item));
-    $1 = &item;
+/*
+ * This typemap removes the three last arguments for plh_get, and uses local variables for them instead.
+ * The local variables will be used in the matching argout typemap.
+ * Code in this typemap appears before the call to the API function.
+ */
+%typemap(in,numinputs=0) (WT_ITEM *all_results, WT_ITEM *results_array, u_int *results_count)
+  (WT_ITEM all, WT_ITEM results[32], u_int count) {
+    memset(&all, 0, sizeof(all));
+    memset(&results, 0, sizeof(results));
+    count = 32;
+    $1 = &all;
+    $2 = results;
+    $3 = &count;
  }
 
-%typemap(argout) (WT_ITEM *result) {
-    WT_ITEM *item = $1;
-    PyBytesObject *pbo = PyBytes_FromStringAndSize(item->data, item->size);
-    item->data = NULL;
-    $result = pbo;
+/*
+ * This typemap is for plh_get, and is used in conjunction with the previous typemap.
+ * Code in this typemap appears after the call to the API function.
+ * Using the local variables set up previously, and used in the call to plh_get
+ * now are converted to a python list of byte strings.
+ */
+%typemap(argout) (WT_ITEM *all_results, WT_ITEM *results_array, u_int *results_count) {
+    int i;
+    WT_ITEM *results_array;
+
+    results_array = $2;
+    $result = PyList_New(*$3);
+    for (i = 0; i < *$3; i++) {
+        PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[i].data, results_array[i].size);
+        PyList_SetItem($result, i, pbo);
+    }
+    free($1->mem);
  }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -1163,10 +1161,6 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),
   (self, session, checkpoint_id))
 
-SIDESTEP_METHOD(__wt_page_log, pl_get_package_part,
-  (WT_SESSION *session, WT_ITEM *package_buffer, int delta, WT_ITEM *result),
-  (self, session, package_buffer, delta, result))
-
 SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
   (WT_SESSION *session, int table_id, WT_PAGE_LOG_HANDLE **handle),
   (self, session, table_id, handle))
@@ -1180,8 +1174,9 @@ SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
   (self, session, page_id, checkpoint_id, is_delta, buf))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *result),
-  (self, session, page_id, checkpoint_id, result))
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *all_results, WT_ITEM *results_array,
+    u_int *results_count),
+  (self, session, page_id, checkpoint_id, all_results, results_array, results_count))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
   (WT_SESSION *session),

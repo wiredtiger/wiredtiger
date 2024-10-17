@@ -5617,25 +5617,6 @@ struct __wt_page_log {
     int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id);
 
     /*!
-     * Decode a portion of the package. This can be called successively with a returned package
-     * buffer to get the full page image, when package_id is zero, and any attached deltas.
-     * Returns WT_NOTFOUND when the delta_number is too large, that is, the set of returns
-     * has been exhausted.
-     *
-     * @errors
-     *
-     * @param page_log the WT_PAGE_LOG
-     * @param session the current WiredTiger session
-     * @param package_buffer the buffer returned by WT_PAGE_LOG_HANDLE::plh_get.
-     * @param delta_number the index of the delta number.  Using a delta number of 0 indicates
-     *        that the full page image is returned.  The full page image is always available.
-     *        Otherwise, the index number has no meaning except as a way to step through the
-     *        ordered list of returned deltas.
-     */
-    int (*pl_get_package_part)(WT_PAGE_LOG *page_log, WT_SESSION *session, WT_ITEM *package_buffer,
-         int delta_number, WT_ITEM *result);
-
-    /*!
      * Open a handle for further operations on a table.
      *
      * @errors
@@ -5694,17 +5675,17 @@ struct __wt_page_log_handle {
      * @param session the current WiredTiger session
      * @param page_id the page to be read
      * @param checkpoint_id the checkpoint to use
-     * @param result the content read in the form of a package.
-     *    This includes the full page and any deltas.
-     *    The package can be decoded by WT_PAGE_LOG::pl_get_package_part.
-     *    The result->data is memory that is owned by the caller, and is
-     *    realloced as necessary.  That is, initially, result can be zeroed,
-     *    and memory will be initially allocated in result->data. After this,
-     *    the result can be used for subsequent calls, and finally, the caller
-     *    should call free() to deallocate result->data when done with the result.
+     * @param all_results memory allocated by the caller for results
+     * @param results_array an array of results allocated by the
+     *        caller. Each result's data field will be filled with a
+     *        pointer to some memory within all_results, along with
+     *        its relevant size.
+     * @param results_count on input, the size of allocated results_array.
+     *        On output, the number of items filled by the call.
      */
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
-        uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *package_result);
+        uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *all_results,
+        WT_ITEM *results_array, u_int *results_count);
 
     /*!
      * Close the handle

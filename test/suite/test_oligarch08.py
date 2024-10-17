@@ -62,7 +62,13 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.checkpoint()
 
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.reopen_conn()
+        time.sleep(1.0)
 
         cursor = self.session.open_cursor(uri, None, None)
 

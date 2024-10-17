@@ -46,13 +46,6 @@
 #define WT_MILLION 1000000
 #endif
 
-/* Round up, the round_amt must be a power of 2. */
-static size_t
-round_up(size_t val, size_t round_amt)
-{
-    return ((val + round_amt) & ~(round_amt - 1));
-}
-
 /*
  * This page log implementation is used for demonstration and testing. All objects are stored as
  * local files in a designated directory.
@@ -323,10 +316,11 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
  *     Resize a buffer as needed.
  */
 static int
-palm_resize_item(WT_ITEM *item, size_t new_size)
+palm_resize_item(WT_ITEM *item, size_t new_size, bool *resized)
 {
     if (item->memsize < new_size) {
         item->mem = realloc(item->mem, new_size);
+        *resized = true;
         if (item->mem == NULL)
             return (errno);
         item->memsize = new_size;
@@ -428,50 +422,6 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
     return (0);
 }
 
-/*
- * palm_get_package_part --
- *     Decode a portion of the package.
- */
-static int
-palm_get_package_part(WT_PAGE_LOG *page_log, WT_SESSION *session, WT_ITEM *package_buffer,
-  int delta_number, WT_ITEM *result)
-{
-    PALM *palm;
-    int delta_count;
-    size_t bytes_left, *sizep;
-    uint8_t *newp, *rawp;
-
-    palm = (PALM *)page_log;
-
-    PALM_VERBOSE_PRINT(palm, "palm_get_package_part\n");
-
-    sizep = (size_t *)package_buffer->data;
-    bytes_left = package_buffer->size;
-
-    delta_count = 0;
-    while (bytes_left >= sizeof(size_t) && delta_count < delta_number) {
-        rawp = (uint8_t *)sizep;
-        newp = rawp + sizeof(size_t) + round_up(*sizep, sizeof(size_t));
-        sizep = (size_t *)newp;
-        bytes_left -= (size_t)(newp - rawp);
-        ++delta_count;
-    }
-    if (delta_count < delta_number)
-        return (palm_err(palm, session, ENOMEM, "get_package_part: input buffer not big enough"));
-
-    if (bytes_left < sizeof(size_t)) {
-        result->size = 0;
-        result->data = NULL;
-    } else {
-        result->size = *sizep;
-        result->data = ((uint8_t *)sizep) + sizeof(size_t);
-    }
-    PALM_VERBOSE_PRINT(palm,
-      "palm_get_package_part(package=\n%s, delta=%d, result=\n%s) returns 0\n",
-      palm_verbose_item(package_buffer), delta_number, palm_verbose_item(result));
-    return (0);
-}
-
 static int
 palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, bool is_delta, const WT_ITEM *buf)
@@ -513,15 +463,17 @@ err:
 
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, WT_ITEM *package)
+  uint64_t checkpoint_id, WT_ITEM *all_results, WT_ITEM *results_array, u_int *results_count)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
     size_t add_size, prev_size;
-    uint8_t *new_addr;
+    uint8_t *new_addr, *p;
+    u_int count, i;
     int ret;
+    bool resized;
 
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
@@ -533,25 +485,53 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
       palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
-    package->size = 0;
-    while (palm_kv_next_page_match(&matches)) {
-        prev_size = package->size;
-        add_size = round_up(sizeof(matches.size) + matches.size, sizeof(matches.size));
-        PALM_KV_ERR(palm, session, palm_resize_item(package, package->size + add_size));
-        new_addr = package->mem;
+    all_results->size = 0;
+    resized = false;
+    for (count = 0; count < *results_count; ++count) {
+        if (!palm_kv_next_page_match(&matches))
+            break;
+        prev_size = all_results->size;
+        add_size = matches.size;
+        PALM_KV_ERR(
+          palm, session, palm_resize_item(all_results, all_results->size + add_size, &resized));
+        new_addr = all_results->mem;
+        memset(&results_array[count], 0, sizeof(WT_ITEM));
+        results_array[count].data = new_addr;
+        results_array[count].size = add_size;
         new_addr += prev_size;
-        *((size_t *)new_addr) = matches.size;
-        new_addr += sizeof(matches.size);
         memcpy(new_addr, matches.data, matches.size);
     }
+    /* Did the caller give us enough output entries to hold all the results? */
+    if (count == *results_count && palm_kv_next_page_match(&matches))
+        return (ENOMEM);
+
+    *results_count = count;
     PALM_KV_ERR(palm, session, matches.error);
 
+    /*
+     * If we realloc-ed memory along the way, we need to shift pointers to point into the currently
+     * allocated memory.
+     */
+    if (resized) {
+        p = all_results->mem;
+        for (count = 0; count < *results_count; ++count) {
+            results_array[count].data = p;
+            p += results_array[count].size;
+        }
+        if ((size_t)(p - (uint8_t *)all_results->mem) > all_results->memsize)
+            return (ENOMEM); /* TODO: raise something more serious, with a message, or assert */
+    }
 err:
+    palm_kv_rollback_transaction(&context);
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
-      ", buf=\n%s) returns %d\n",
-      (void *)plh, page_id, checkpoint_id, palm_verbose_item(package), ret);
-    palm_kv_rollback_transaction(&context);
+      ", buf=\n%s) returns %d (in %d parts)\n",
+      (void *)plh, page_id, checkpoint_id, palm_verbose_item(all_results), ret, (int)count);
+    if (ret == 0) {
+        for (i = 0; i < count; ++i)
+            PALM_VERBOSE_PRINT(
+              palm_handle->palm, "   part %d: %s\n", (int)i, palm_verbose_item(&results_array[i]));
+    }
     return (ret);
 }
 
@@ -681,7 +661,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_begin_checkpoint = palm_begin_checkpoint;
     palm->page_log.pl_complete_checkpoint = palm_complete_checkpoint;
     palm->page_log.pl_get_complete_checkpoint = palm_get_complete_checkpoint;
-    palm->page_log.pl_get_package_part = palm_get_package_part;
     palm->page_log.pl_open_handle = palm_open_handle;
     palm->page_log.terminate = palm_terminate;
 

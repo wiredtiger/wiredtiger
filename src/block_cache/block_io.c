@@ -119,7 +119,20 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     if (!found) {
         timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
         time_start = timer ? __wt_clock(session) : 0;
-        WT_ERR(bm->read(bm, session, ip, &block_meta_tmp, addr, addr_size));
+
+        /*
+         * XXX
+         * With the disaggregated storage block manager, we'll get all the results. For now, we only
+         * use the first result (the full page) and ignore any deltas.
+         */
+        if (bm->read_multiple != NULL) {
+            WT_ITEM results[32];
+            u_int count;
+            count = WT_ELEMENTS(results);
+            WT_ERR(bm->read_multiple(
+              bm, session, ip, &block_meta_tmp, addr, addr_size, results, &count));
+        } else
+            WT_ERR(bm->read(bm, session, ip, &block_meta_tmp, addr, addr_size));
         if (timer) {
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
