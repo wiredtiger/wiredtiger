@@ -2102,7 +2102,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_ITEM *key;
+    WT_ITEM *key, value;
     size_t max_packed_size;
     uint8_t flags;
     uint8_t *p, *head;
@@ -2116,6 +2116,21 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
 
+    if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
+        if (supd->rip != NULL)
+            cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
+        else
+            cbt->slot = UINT32_MAX;
+        WT_ERR(
+          __wt_modify_reconstruct_from_upd_list(session, cbt, supd->onpage_upd, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
+        value.data = cbt->upd_value->buf.data;
+        value.size = cbt->upd_value->buf.size;
+    } else {
+        value.data = supd->onpage_upd->data;
+        value.size = supd->onpage_upd->size;
+    }
+
     /*
      * The max length of a delta:
      * 1 header byte
@@ -2125,7 +2140,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
      * key
      * value
      */
-    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + supd->onpage_upd->size;
+    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + value.size;
 
     if (r->delta.size + max_packed_size > r->delta.memsize)
         WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
@@ -2167,20 +2182,8 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         memcpy(p, key->data, key->size);
         p += key->size;
 
-        if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
-            if (supd->rip != NULL)
-                cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
-            else
-                cbt->slot = UINT32_MAX;
-            WT_ERR(__wt_modify_reconstruct_from_upd_list(
-              session, cbt, supd->onpage_upd, cbt->upd_value));
-            __wt_value_return(cbt, cbt->upd_value);
-            memcpy(p, cbt->upd_value->buf.data, cbt->upd_value->buf.size);
-            p += cbt->upd_value->buf.size;
-        } else {
-            memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
-            p += supd->onpage_upd->size;
-        }
+        memcpy(p, value.data, value.size);
+        p += value.size;
     }
 
     r->delta.size += WT_PTRDIFF(p, head);
