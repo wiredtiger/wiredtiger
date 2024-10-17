@@ -154,6 +154,25 @@ struct __wt_cell {
     uint8_t __chunk[98];
 };
 
+/*
+ * WT_DELTA_CELL --
+ *	Variable-length, delta cell header.
+ */
+struct __wt_delta_cell {
+    /*
+     * Maximum of 47 bytes:
+     *  1: cell descriptor byte
+     * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
+     *  5: key length		(uint32_t encoding, max 5 bytes)
+     *  5: key length		(uint32_t encoding, max 5 bytes)
+     *
+     * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
+     * validity window, 64V value, fast-delete information and data length are all optional in some
+     * or even most cases.
+     */
+    uint8_t __chunk[47];
+};
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
 #define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x2u /* time window cleared because of restart */
@@ -215,4 +234,25 @@ struct __wt_cell_unpack_kv {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_WINDOW tw; /* Value validity window */
+};
+
+/*
+ * WT_CELL_UNPACK_DELTA --
+ *     Unpacked delta cell.
+ */
+struct __wt_cell_unpack_delta {
+    uint32_t __len;
+    const void *key;
+    uint32_t key_size;
+    const void *value;
+    uint32_t value_size;
+
+    WT_TIME_WINDOW tw;
+
+#define WT_DELTA_HAS_START_TS 0x01u
+#define WT_DELTA_HAS_START_DURABLE_TS 0x02u
+#define WT_DELTA_HAS_STOP_TS 0x04u
+#define WT_DELTA_HAS_STOP_DURABLE_TS 0x08u
+#define WT_DELTA_IS_DELETE 0x10u
+    uint8_t flags;
 };

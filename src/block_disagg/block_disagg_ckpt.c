@@ -91,8 +91,8 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursor;
-    WT_DECL_RET;
     WT_DECL_ITEM(buf);
+    WT_DECL_RET;
     size_t len;
     char *entry, *tablename;
     const char *md_value;
