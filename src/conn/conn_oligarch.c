@@ -8,192 +8,97 @@
 
 #include "wt_internal.h"
 
-static WT_THREAD_RET
-__oligarch_metadata_watcher(void *arg)
+/*
+ * __disagg_pick_up_checkpoint --
+ *     Pick up a new checkpoint.
+ */
+static int
+__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *md_cursor;
     WT_DECL_ITEM(item);
     WT_DECL_RET;
-    WT_FH *md_fh;
-    WT_SESSION_IMPL *session;
-    char buf[4096], *cfg_ret, *md_path,
-      *new_md_value; /* TODO the 4096 puts an upper bound on metadata entry length */
-    const char *value, *cfg[3];
-    int i;
+    WT_SESSION_IMPL *internal_session;
+    char buf[4096], *cfg_ret,
+      *metadata_value_cfg; /* TODO the 4096 puts an upper bound on metadata entry length */
+    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
     size_t len;
-    wt_off_t last_sep, last_sz, name_ptr, new_sz;
+    wt_off_t sep;
 
-    md_fh = NULL;
-    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
-    md_fh = NULL;
-    memset(buf, 0, 4096);
+
+    internal_session = NULL;
+    md_cursor = NULL;
+    metadata_key = NULL;
+    metadata_value = NULL;
+    metadata_value_cfg = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 4096, &item));
 
-    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
-    WT_ERR(__wt_calloc_def(session, len, &md_path));
-    WT_ERR(
-      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
+    /* Only followers are allowed to pick up new checkpoints. */
+    if (conn->oligarch_manager.leader)
+        WT_ERR(EINVAL);
+
+    /* Read the checkpoint metadata from the special metadata page. */
+    WT_ERR(__wt_disagg_get_meta(session, 0, checkpoint_id, item));
+
+    if (item->size >= sizeof(buf))
+        WT_ERR(EINVAL);
+    memcpy(buf, item->data, item->size);
+    buf[item->size] = '\0';
+    if (item->size > 0 && buf[item->size - 1] == '\n')
+        buf[item->size - 1] = '\0';
+
+    /* Parse out the key and the new checkpoint config value. */
+    metadata_key = buf;
+    for (sep = (wt_off_t)item->size; sep >= 0; sep--)
+        if (buf[sep] == '|') {
+            buf[sep] = '\0';
+            metadata_value = buf + sep + 1;
+            break;
+        }
+    if (metadata_value == NULL)
+        WT_ERR(EINVAL);
+
+    /* We need an internal session when modifying metadata. */
+    WT_RET(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
+
+    /* Open up a metadata cursor pointing at our table */
+    WT_ERR(__wt_metadata_cursor(internal_session, &md_cursor));
+    md_cursor->set_key(md_cursor, metadata_key);
+    WT_ERR(md_cursor->search(md_cursor));
+
+    /* Pull the value out. */
+    WT_ERR(md_cursor->get_value(md_cursor, &current_value));
+    len = strlen(metadata_value) + strlen("checkpoint=") + 1 /* for NUL */;
+
+    /* Allocate/create a new config we're going to insert */
+    WT_ERR(__wt_calloc_def(session, len, &metadata_value_cfg));
+    WT_ERR(__wt_snprintf(metadata_value_cfg, len, "checkpoint=%s", metadata_value));
+    cfg[0] = current_value;
+    cfg[1] = metadata_value_cfg;
+    cfg[2] = NULL;
+    WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+
+    /* Put our new config in */
+    WT_ERR(__wt_metadata_insert(internal_session, metadata_key, cfg_ret));
+
+    conn->oligarch_manager.update_dhandle = true; /* TODO concurrency hazard, needs better design */
 
     /*
-     * TODO this loop is currently needed so that we don't ENOENT out of the watcher thread while
-     * the primary is starting up and hasn't yet created the shared file.
+     * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
+     * cursor triggers __wt_btree_open (even if the file has been opened before).
      */
-    for (i = 0; i < 1000; i++) {
-        ret = __wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &md_fh);
-        if (ret == ENOENT)
-            __wt_sleep(1, 0);
-        else if (ret == 0)
-            break;
-        else
-            WT_ERR(ret);
-    }
-    if (i == 1000)
-        WT_ERR(WT_NOTFOUND);
-    WT_ERR(__wt_filesize(session, md_fh, &last_sz));
-
-    /* TODO this will need to handle multiple tables */
-    for (;;) {
-        __wt_sleep(0, 1000);
-        if (F_ISSET(conn, WT_CONN_CLOSING))
-            break;
-
-        if (S2C(session)->oligarch_manager.leader)
-            continue;
-
-        WT_ERR(__wt_filesize(session, md_fh, &new_sz));
-        if (new_sz == last_sz)
-            continue;
-
-        last_sz = new_sz;
-
-        /* Read 4095 characters from before EOF */
-        WT_ERR(
-          __wt_read(session, md_fh, WT_MAX(0, last_sz - 4095), (size_t)WT_MIN(4095, last_sz), buf));
-
-        /* Parse out the key and new checkpoint config */
-        last_sep = 0;
-        for (new_sz = 4095; new_sz >= 0; new_sz--) {
-            if (buf[new_sz] == '|') {
-                last_sep = new_sz;
-                break;
-            }
-        }
-
-        name_ptr = last_sep;
-        while (name_ptr != 0 && buf[name_ptr - 1] != '\n')
-            name_ptr--;
-
-#if 0
-        /* XXX Get the checkpoint metadata from dir_store - just to check that it all works. */
-        __wt_sleep(0, 1000);
-        WT_ASSERT(session, __wt_disagg_get_meta(session, 0, 0, item) == 0);
-        WT_ASSERT(session, memcmp(item->data, buf + name_ptr, item->size) == 0);
-#endif
-
-        buf[last_sep] = '\0';
-
-        /* Open up a metadata cursor pointing at our table */
-        WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-        md_cursor->set_key(md_cursor, &buf[name_ptr]);
-        WT_ERR(md_cursor->search(md_cursor));
-
-        /* Pull the value out */
-        WT_ERR(md_cursor->get_value(md_cursor, &value));
-        len = strlen(&buf[last_sep + 1]);
-        buf[last_sep + (wt_off_t)len] = '\0'; /* lop off the trailing newline */
-        len += strlen("checkpoint=");         /* -1 for trailing newline */
-
-        /* Allocate/create a new config we're going to insert */
-        WT_ERR(__wt_calloc_def(session, len, &new_md_value));
-        WT_ERR(__wt_snprintf(new_md_value, len, "checkpoint=%s", &buf[last_sep + 1]));
-        /* fprintf(stderr, "[%s] loading metadata %s\n", S2C(session)->home, new_md_value); */
-        cfg[0] = value;
-        cfg[1] = new_md_value;
-        cfg[2] = NULL;
-        WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
-
-        /* Put our new config in */
-        WT_ERR(__wt_metadata_insert(session, &buf[name_ptr], cfg_ret));
-        WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
-        S2C(session)->oligarch_manager.update_dhandle =
-          true; /* TODO concurrency hazard, needs better design */
-        md_cursor = NULL;
-
-        /*
-         * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
-         * cursor triggers __wt_btree_open (even if the file has been opened before).
-         */
-        WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints_refreshed);
-    }
+    WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints_refreshed);
 
 err:
-    fprintf(stderr, "metadata watcher returning %d\n", ret);
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
+    __wt_free(session, metadata_value_cfg);
     __wt_scr_free(session, &item);
-    __wt_free(session, md_path);
-    __wt_free(session, new_md_value);
-    WT_IGNORE_RET(__wt_close(session, &md_fh));
-
-    return (WT_THREAD_RET_VALUE);
-}
-
-/* TODO the model here is a bit wrong, enforce singleton-ness some other way */
-int
-__wt_oligarch_watcher_start(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_OLIGARCH_MANAGER *manager;
-
-    conn = S2C(session);
-    manager = &conn->oligarch_manager;
-
-    if (!__wt_atomic_cas32(
-          &manager->watcher_state, WT_OLIGARCH_WATCHER_OFF, WT_OLIGARCH_WATCHER_STARTING)) {
-        while (__wt_atomic_load32(&manager->watcher_state) != WT_OLIGARCH_WATCHER_RUNNING)
-            __wt_sleep(0, 1000);
-        return (0);
-    }
-
-    WT_RET(__wt_open_internal_session(
-      conn, "oligarch-metadata-server", true, 0, 0, &conn->oligarch_metadata_session));
-    WT_RET(__wt_thread_create(conn->oligarch_metadata_session, &manager->watcher_tid,
-      __oligarch_metadata_watcher, conn->oligarch_metadata_session));
-    manager->watcher_tid_set = true;
-
-    fprintf(stderr, "oligarch watcher started\n");
-    __wt_atomic_store32(&manager->watcher_state, WT_OLIGARCH_WATCHER_RUNNING);
-    return (0);
-}
-
-/* Set up the file that contains metadata for the stable tables. */
-static int
-__oligarch_metadata_create(WT_SESSION_IMPL *session, WT_OLIGARCH_MANAGER *manager)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    size_t len;
-    char *md_path;
-
-    conn = S2C(session);
-
-    fprintf(stderr, "__oligarch_metadata_create\n");
-
-    len = strlen(conn->iface.stable_prefix) + strlen(WT_OLIGARCH_METADATA_FILE) + 2;
-    WT_RET(__wt_calloc_def(session, len, &md_path));
-    WT_ERR(
-      __wt_snprintf(md_path, len, "%s/%s", conn->iface.stable_prefix, WT_OLIGARCH_METADATA_FILE));
-
-    if (manager->leader)
-        WT_ERR(__wt_open(session, md_path, WT_FS_OPEN_FILE_TYPE_DATA,
-          WT_FS_OPEN_FIXED | WT_FS_OPEN_CREATE, &manager->metadata_fh));
-    else
-        WT_ERR(__wt_open(
-          session, md_path, WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_FIXED, &manager->metadata_fh));
-
-err:
-    __wt_free(session, md_path);
     return (ret);
 }
 
@@ -273,8 +178,6 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
       __wt_oligarch_manager_thread_chk, __wt_oligarch_manager_thread_run, NULL));
 
     WT_MAX_LSN(&manager->max_replay_lsn);
-
-    WT_ERR(__oligarch_metadata_create(session, manager));
 
     WT_STAT_CONN_SET(session, oligarch_manager_running, 1);
     __wt_verbose_level(
@@ -918,8 +821,6 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     manager->open_oligarch_table_count = 0;
     WT_MAX_LSN(&manager->max_replay_lsn);
 
-    WT_RET(__wt_close(session, &manager->metadata_fh));
-
     __wt_atomic_store32(&manager->state, WT_OLIGARCH_MANAGER_OFF);
     WT_STAT_CONN_SET(session, oligarch_manager_running, 0);
 
@@ -946,9 +847,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     bstorage = NULL;
     nstorage = NULL;
 
-    /* We don't currently allow reconfiguring disaggregated storage options. */
-    if (reconfig)
+    /* Reconfiguration can be used only to advance to the next checkpoint. */
+    if (reconfig) {
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            WT_ERR(__disagg_pick_up_checkpoint(session, (uint64_t)cval.val));
         return (0);
+    }
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -1001,12 +906,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     if (0) {
 err:
-        if (conn->disaggregated_storage.bstorage == NULL) {
-            if (bstorage != NULL) {
-                __wt_free(session, bstorage->bucket);
-                __wt_free(session, bstorage->bucket_prefix);
-                __wt_free(session, bstorage);
-            }
+        if (bstorage != NULL && conn->disaggregated_storage.bstorage == NULL) {
+            __wt_free(session, bstorage->bucket);
+            __wt_free(session, bstorage->bucket_prefix);
+            __wt_free(session, bstorage);
         }
     }
 

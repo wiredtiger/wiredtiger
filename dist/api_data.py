@@ -108,23 +108,42 @@ source_meta = [
         by the application'''),
 ]
 
-disaggregated_config = [
+connection_disaggregated_config_common = [
+    Config('checkpoint_id', '-1', r'''
+        The checkpoint ID from which to start (or restart) the node''',
+        min='-1', type='int', undoc=True),
+]
+disaggregated_config_common = [
+    Config('page_log', '', r'''
+        The page log service used as a backing for this table. This is used experimentally
+        by oligarch tables to back their stable component in shared/object based storage''',
+        type='string', undoc=True),
+    Config('stable_prefix', '', r'''
+        directory of WT oligarch stable table''',
+        type='string', undoc=True),
+    Config('storage_source', '', r'''
+        The custom storage source used as a backing for this table - currently only used
+        experimentally by oligarch tables to back their stable component in shared/object
+        based storage''', type='string', undoc=True),
+]
+# FIXME: We cannot set undoc=True, because an undocumented category must be the same for all
+# methods, but we need different sets supported fields for connection open, reconfigure, and create.
+connection_disaggregated_config = [
     Config('disaggregated', '', r'''
-        configure a storage source for this table''',
-        type='category', subconfig=[
-        Config('page_log', '', r'''
-            The page log service used as a backing for this table. This is used experimentally
-            by oligarch tables to back their stable component in shared/object based storage''',
-            type='string', undoc=True),
-        Config('stable_prefix', '', r'''
-            directory of WT oligarch stable table''',
-            type='string', undoc=True),
-        Config('storage_source', '', r'''
-            The custom storage source used as a backing for this table - currently only used
-            experimentally by oligarch tables to back their stable component in shared/object
-            based storage''', type='string', undoc=True),
-    ],
-    undoc=True),
+        configure disaggregated storage for this connection''',
+        type='category', subconfig=connection_disaggregated_config_common +\
+              disaggregated_config_common),
+]
+file_disaggregated_config = [
+    Config('disaggregated', '', r'''
+        configure disaggregated storage for this file''',
+        type='category', subconfig=disaggregated_config_common),
+]
+wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config
+connection_reconfigure_disaggregated_configuration = [
+    Config('disaggregated', '', r'''
+        configure disaggregated storage for this connection''',
+        type='category', subconfig=connection_disaggregated_config_common),
 ]
 
 format_meta = common_meta + [
@@ -287,7 +306,7 @@ file_runtime_config = common_runtime_config + [
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + tiered_config + disaggregated_config + [
+file_config = format_meta + file_runtime_config + tiered_config + file_disaggregated_config + [
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "best" or \c "first"; the \c "best"
         configuration uses a best-fit algorithm, the \c "first" configuration uses a
@@ -515,7 +534,7 @@ oligarch_config = [
         type='string', undoc=True),
 ]
 
-oligarch_meta = format_meta + oligarch_config + disaggregated_config
+oligarch_meta = format_meta + oligarch_config #XXXXXXXX+ connection_disaggregated_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
@@ -1178,8 +1197,6 @@ wiredtiger_open_tiered_storage_configuration = [
     ]),
 ]
 
-wiredtiger_open_disaggregated_storage_configuration = disaggregated_config
-
 chunk_cache_configuration_common = [
     Config('pinned', '', r'''
         List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
@@ -1568,8 +1585,9 @@ methods = {
         type='int'),
 ]),
 
-'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config + disaggregated_config +
-        source_meta + index_only_config + table_only_config + oligarch_config + [
+'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +\
+        file_disaggregated_config + source_meta + index_only_config + table_only_config +\
+        oligarch_config + [
     Config('exclusive', 'false', r'''
         fail if the object exists. When false (the default), if the object exists, check that its
         settings match the specified configuration''',
@@ -2122,6 +2140,7 @@ methods = {
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_chunk_cache_configuration +\
     connection_reconfigure_compatibility_configuration +\
+    connection_reconfigure_disaggregated_configuration +\
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
     connection_reconfigure_tiered_storage_configuration +\
