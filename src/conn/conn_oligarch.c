@@ -1065,10 +1065,9 @@ __wt_disagg_get_meta(
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         count = 1;
         WT_RET(disagg->page_log_meta->plh_get(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, item, &result, &count));
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &result, &count));
         WT_ASSERT(session, count == 1); /* TODO: corrupt data */
-        item->data = result.data;
-        item->size = result.size;
+        *item = result;
         return (0);
     }
 

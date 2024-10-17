@@ -225,8 +225,8 @@ extern int __wt_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
-  WT_ITEM *results_memory, WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size,
-  WT_ITEM *buffer_array, u_int *buffer_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size, WT_ITEM *buffer_array,
+  u_int *buffer_count) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_disagg_salvage_next(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr,

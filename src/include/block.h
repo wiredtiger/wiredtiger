@@ -206,8 +206,8 @@ struct __wt_bm {
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
     int (*read)(
       WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, const uint8_t *, size_t);
-    int (*read_multiple)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *,
-      const uint8_t *, size_t, WT_ITEM *items, u_int *item_count);
+    int (*read_multiple)(WT_BM *, WT_SESSION_IMPL *, WT_PAGE_BLOCK_META *, const uint8_t *, size_t,
+      WT_ITEM *items, u_int *item_count);
     int (*salvage_end)(WT_BM *, WT_SESSION_IMPL *);
     int (*salvage_next)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*salvage_start)(WT_BM *, WT_SESSION_IMPL *);

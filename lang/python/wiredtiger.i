@@ -212,14 +212,12 @@ from packing import pack, unpack
  * The local variables will be used in the matching argout typemap.
  * Code in this typemap appears before the call to the API function.
  */
-%typemap(in,numinputs=0) (WT_ITEM *all_results, WT_ITEM *results_array, u_int *results_count)
-  (WT_ITEM all, WT_ITEM results[32], u_int count) {
-    memset(&all, 0, sizeof(all));
+%typemap(in,numinputs=0) (WT_ITEM *results_array, u_int *results_count)
+  (WT_ITEM results[32], u_int count) {
     memset(&results, 0, sizeof(results));
     count = 32;
-    $1 = &all;
-    $2 = results;
-    $3 = &count;
+    $1 = results;
+    $2 = &count;
  }
 
 /*
@@ -228,17 +226,19 @@ from packing import pack, unpack
  * Using the local variables set up previously, and used in the call to plh_get
  * now are converted to a python list of byte strings.
  */
-%typemap(argout) (WT_ITEM *all_results, WT_ITEM *results_array, u_int *results_count) {
+%typemap(argout) (WT_ITEM *results_array, u_int *results_count) {
     int i;
     WT_ITEM *results_array;
 
-    results_array = $2;
-    $result = PyList_New(*$3);
-    for (i = 0; i < *$3; i++) {
+    results_array = $1;
+    $result = PyList_New(*$2);
+    for (i = 0; i < *$2; i++) {
         PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[i].data, results_array[i].size);
         PyList_SetItem($result, i, pbo);
     }
-    free($1->mem);
+    /* Free in reverse order, since the first item might hold all the memory used by other items. */
+    for (i = *$2 - 1; i >= 0; i--)
+        free(results_array[i].mem);
  }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -1174,9 +1174,8 @@ SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
   (self, session, page_id, checkpoint_id, is_delta, buf))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *all_results, WT_ITEM *results_array,
-    u_int *results_count),
-  (self, session, page_id, checkpoint_id, all_results, results_array, results_count))
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *results_array, u_int *results_count),
+  (self, session, page_id, checkpoint_id, results_array, results_count))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
   (WT_SESSION *session),

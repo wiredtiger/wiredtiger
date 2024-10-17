@@ -5675,16 +5675,17 @@ struct __wt_page_log_handle {
      * @param session the current WiredTiger session
      * @param page_id the page to be read
      * @param checkpoint_id the checkpoint to use
-     * @param all_results memory allocated by the caller for results
      * @param results_array an array of results allocated by the
-     *        caller. Each result's data field will be filled with a
-     *        pointer to some memory within all_results, along with
-     *        its relevant size.
+     *        caller. Each result, up to the returned count, must be
+     *        filled in by the implementation.  The implementation
+     *        may allocate storage to hold results using the WT_ITEM::mem field,
+     *        if that is done, the caller will call free to dispose of the memory
+     *        when done.
      * @param results_count on input, the size of allocated results_array.
      *        On output, the number of items filled by the call.
      */
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
-        uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *all_results,
+        uint64_t page_id, uint64_t checkpoint_id,
         WT_ITEM *results_array, u_int *results_count);
 
     /*!

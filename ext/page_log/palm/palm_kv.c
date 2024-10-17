@@ -41,7 +41,7 @@
 #include "palm_kv.h"
 
 /*
- * Set the size of the LMDB cache.  Ideally, this should be a parameter of some kind.
+ * Set the size of the LMDB cache. Ideally, this should be a parameter of some kind.
  */
 static const size_t PALM_LMDB_CACHE_SIZE = 100 * 1024 * 1024;
 

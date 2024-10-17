@@ -319,11 +319,10 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
  *     Resize a buffer as needed.
  */
 static int
-palm_resize_item(WT_ITEM *item, size_t new_size, bool *resized)
+palm_resize_item(WT_ITEM *item, size_t new_size)
 {
     if (item->memsize < new_size) {
         item->mem = realloc(item->mem, new_size);
-        *resized = true;
         if (item->mem == NULL)
             return (errno);
         item->memsize = new_size;
@@ -471,17 +470,14 @@ err:
 
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, WT_ITEM *all_results, WT_ITEM *results_array, u_int *results_count)
+  uint64_t checkpoint_id, WT_ITEM *results_array, u_int *results_count)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
-    size_t add_size, prev_size;
-    uint8_t *new_addr, *p;
     u_int count, i;
     int ret;
-    bool resized;
 
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
@@ -493,21 +489,12 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
       palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
-    all_results->size = 0;
-    resized = false;
     for (count = 0; count < *results_count; ++count) {
         if (!palm_kv_next_page_match(&matches))
             break;
-        prev_size = all_results->size;
-        add_size = matches.size;
-        PALM_KV_ERR(
-          palm, session, palm_resize_item(all_results, all_results->size + add_size, &resized));
-        new_addr = all_results->mem;
         memset(&results_array[count], 0, sizeof(WT_ITEM));
-        results_array[count].data = new_addr;
-        results_array[count].size = add_size;
-        new_addr += prev_size;
-        memcpy(new_addr, matches.data, matches.size);
+        PALM_KV_ERR(palm, session, palm_resize_item(&results_array[count], matches.size));
+        memcpy(results_array[count].mem, matches.data, matches.size);
     }
     /* Did the caller give us enough output entries to hold all the results? */
     if (count == *results_count && palm_kv_next_page_match(&matches))
@@ -516,26 +503,12 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     *results_count = count;
     PALM_KV_ERR(palm, session, matches.error);
 
-    /*
-     * If we realloc-ed memory along the way, we need to shift pointers to point into the currently
-     * allocated memory.
-     */
-    if (resized) {
-        p = all_results->mem;
-        for (count = 0; count < *results_count; ++count) {
-            results_array[count].data = p;
-            p += results_array[count].size;
-        }
-        if ((size_t)(p - (uint8_t *)all_results->mem) > all_results->memsize)
-            /* TODO: raise something more serious, with a message, or assert */
-            PALM_KV_ERR(palm, session, ENOMEM);
-    }
 err:
     palm_kv_rollback_transaction(&context);
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
-      ", buf=\n%s) returns %d (in %d parts)\n",
-      (void *)plh, page_id, checkpoint_id, palm_verbose_item(all_results), ret, (int)count);
+      ") returns %d (in %d parts)\n",
+      (void *)plh, page_id, checkpoint_id, ret, (int)count);
     if (ret == 0) {
         for (i = 0; i < count; ++i)
             PALM_VERBOSE_PRINT(
