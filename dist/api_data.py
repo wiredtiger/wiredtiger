@@ -927,6 +927,7 @@ connection_runtime_config = [
             'out_of_order',
             'oligarch',
             'overflow',
+            'page_delta',
             'prefetch',
             'read',
             'reconcile',
