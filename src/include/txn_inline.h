@@ -1226,8 +1226,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA) && upd->type == WT_UPDATE_STANDARD) {
             /*
-             * If we see the first invisible update restored from delta, check the history store
-             * file.
+             * If we see an update that is not visible to the reader and it is restored from delta,
+             * we should search the history store.
              */
             if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
               !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
