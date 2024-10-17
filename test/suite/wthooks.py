@@ -306,6 +306,14 @@ class WiredTigerHookPlatformAPI(object):
         """The first local backing file name created for this URI."""
         raise NotImplementedError('initialFileName method not implemented')
 
+    def getDisaggService(self):
+        """The disaggregated page log service for this test case."""
+        raise NotImplementedError('getDisaggService method not implemented')
+
+    def getDisaggConfig(self):
+        """The disaggregated configuration for this test case."""
+        raise NotImplementedError('getDisaggConfig method not implemented')
+
     def getTimestamp(self):
         """The timestamp generator for this test case."""
         raise NotImplementedError('getTimestamp method not implemented')
@@ -338,6 +346,12 @@ class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
             return uri[5:]
         else:
             raise Exception('bad uri')
+
+    def getDisaggService(self):
+        return 'palm'
+
+    def getDisaggConfig(self):
+        return None
 
     # By default, there is no automatic timestamping by test infrastructure classes.
     def getTimestamp(self):
@@ -390,6 +404,25 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
             except NotImplementedError:
                 pass
         raise Exception('initialFileName: no implementation')  # should never happen
+
+    def getDisaggService(self):
+        """The disaggregated page log service for this test case."""
+        for api in self.apis:
+            try:
+                return api.getDisaggService()
+            except NotImplementedError:
+                pass
+        raise Exception('getDisaggService: no implementation')  # should never happen
+
+    def getDisaggConfig(self):
+        """The disaggregated configuration for this test case."""
+        for api in self.apis:
+            try:
+                return api.getDisaggConfig()
+            except NotImplementedError:
+                pass
+        raise Exception('getDisaggConfig: no implementation')  # should never happen
+
 
     def getTimestamp(self):
         """The timestamp generator for this test case."""

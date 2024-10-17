@@ -99,10 +99,10 @@ class test_disagg01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         handle.plh_put(session, 21, 2, True, page21_delta1)
         handle.plh_put(session, 20, 2, True, page20_delta2)
 
-        page20_package = handle.plh_get(session, 20, 2)
-        page21_package = handle.plh_get(session, 21, 2)
+        page20_results = handle.plh_get(session, 20, 2)
+        page21_results = handle.plh_get(session, 21, 2)
 
-        self.check_package(page_log, page20_package, [page20_full, page20_delta1, page20_delta2])
-        self.check_package(page_log, page21_package, [page21_full, page21_delta1])
+        self.assertEquals(page20_results, [page20_full, page20_delta1, page20_delta2])
+        self.assertEquals(page21_results, [page21_full, page21_delta1])
 
         page_log.terminate(session)

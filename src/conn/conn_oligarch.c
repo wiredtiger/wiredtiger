@@ -1054,14 +1054,22 @@ __wt_disagg_get_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
+    WT_ITEM result;
+    u_int count;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+    WT_CLEAR(result);
 
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
-        return (disagg->page_log_meta->plh_get(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, item));
+        count = 1;
+        WT_RET(disagg->page_log_meta->plh_get(
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, item, &result, &count));
+        WT_ASSERT(session, count == 1); /* TODO: corrupt data */
+        item->data = result.data;
+        item->size = result.size;
+        return (0);
     }
 
     if (disagg->bstorage_meta != NULL) {
