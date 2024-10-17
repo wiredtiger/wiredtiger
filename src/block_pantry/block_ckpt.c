@@ -95,8 +95,8 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     WT_BLOCK_PANTRY *block_pantry;
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursor;
-    WT_DECL_RET;
     WT_DECL_ITEM(buf);
+    WT_DECL_RET;
     size_t len;
     char *entry, *tablename;
     const char *md_value;
