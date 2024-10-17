@@ -302,6 +302,7 @@ conn_stats = [
     EvictStat('eviction_force', 'forced eviction - pages selected count'),
     EvictStat('eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     EvictStat('eviction_force_delete', 'forced eviction - pages selected because of too many deleted items count'),
+    EvictStat('eviction_force_delete_in_checkpoint', 'forced eviction - btree being checkpointed and pages selected because of too many deleted items count'),
     EvictStat('eviction_force_dirty', 'forced eviction - pages evicted that were dirty count'),
     EvictStat('eviction_force_fail', 'forced eviction - pages selected unable to be evicted count'),
     EvictStat('eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),

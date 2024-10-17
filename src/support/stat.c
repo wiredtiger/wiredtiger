@@ -1815,6 +1815,8 @@ static const char *const __stats_connection_desc[] = {
   "eviction: eviction worker thread stable number",
   "eviction: files with active eviction walks",
   "eviction: files with new eviction walks started",
+  "eviction: forced eviction - btree being checkpointed and pages selected because of too many "
+  "deleted items count",
   "eviction: forced eviction - do not retry count to evict pages selected to evict during "
   "reconciliation",
   "eviction: forced eviction - history store pages failed to evict while session has history store "
@@ -2576,6 +2578,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing eviction_stable_state_workers */
     /* not clearing eviction_walks_active */
     stats->eviction_walks_started = 0;
+    stats->eviction_force_delete_in_checkpoint = 0;
     stats->eviction_force_no_retry = 0;
     stats->eviction_force_hs_fail = 0;
     stats->eviction_force_hs = 0;
@@ -3367,6 +3370,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_stable_state_workers += WT_STAT_CONN_READ(from, eviction_stable_state_workers);
     to->eviction_walks_active += WT_STAT_CONN_READ(from, eviction_walks_active);
     to->eviction_walks_started += WT_STAT_CONN_READ(from, eviction_walks_started);
+    to->eviction_force_delete_in_checkpoint +=
+      WT_STAT_CONN_READ(from, eviction_force_delete_in_checkpoint);
     to->eviction_force_no_retry += WT_STAT_CONN_READ(from, eviction_force_no_retry);
     to->eviction_force_hs_fail += WT_STAT_CONN_READ(from, eviction_force_hs_fail);
     to->eviction_force_hs += WT_STAT_CONN_READ(from, eviction_force_hs);

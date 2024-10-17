@@ -655,6 +655,7 @@ curindex
 curjoin
 curlog
 curmetadata
+curnext
 cursoring
 cursorp
 curstartrecno
@@ -874,6 +875,7 @@ idlems
 idx
 ie
 iface
+ifdef
 ifdef's
 iiSii
 iiiS
@@ -1386,6 +1388,7 @@ uncached
 unconfigured
 uncustomized
 undef
+undeleted
 underflowed
 unencrypted
 unesc

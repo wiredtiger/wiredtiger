@@ -438,3 +438,11 @@ define_c_test(
     # This test takes over 15 minutes under TSan testing
     LABEL "long_running"
 )
+
+define_c_test(
+    TARGET test_wt13450_dont_evict_dirty
+    SOURCES wt13450_dont_evict_dirty/main.c
+    DIR_NAME wt13450_dont_evict_dirty
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)

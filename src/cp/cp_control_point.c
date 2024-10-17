@@ -172,7 +172,7 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
      */
     /* From examples/ex_control_points.c */
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
+      __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].init_pred = NULL; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].config_name =
@@ -180,68 +180,90 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     WT_ERR(__wt_spin_init(session,
       &(control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].lock), "Main Start Printing"));
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].enable_at_open = true;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
+      __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].init_pred = NULL; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].pred = NULL;      /* Always */
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].lock), "Thread 0"));
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].config_name = "thread_0";
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_0].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
+      __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].init_pred = NULL; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].config_name = "thread_1";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].lock), "Thread 1"));
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_1].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
+      __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].init_pred = NULL; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].config_name = "thread_2";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].lock), "Thread 2"));
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_2].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
+      __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].init_pred = NULL; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].config_name = "thread_3";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].lock), "Thread 3"));
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_3].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].init =
-      __wt_control_point_pair_init_pred_wait_for_trigger;
+      __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].init_pred = NULL; /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].pred = NULL;      /* Always */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].config_name = "thread_4";
     WT_ERR(__wt_spin_init(
       session, &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].lock), "Thread 4"));
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_TRIGGER;
+
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].init =
+      __wt_control_point_pair_init_pred_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].pred =
+      __wt_control_point_pred_param_64_match;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].config_name = "wt_13450_ckpt";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].lock), "WT 13450"));
+    /* Extra initialization required for action "Trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_TRIGGER;
+
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].init =
+      __wt_control_point_pair_init_pred_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].init_pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].pred = NULL;      /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].config_name = "wt_13450_test";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].lock), "WT 13450"));
+    /* Extra initialization required for action "Trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     /* After all repeats finish with this. */
@@ -284,7 +306,7 @@ __wt_session_control_point_init_all(WT_SESSION_IMPL *session)
       session, &(control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].lock), "Thread 0"));
     control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].config_name = "thread_0";
     control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].enable_at_open = false;
-    /* Extra initialization required for action "Wait for trigger". */
+    /* Extra initialization required for action "Trigger". */
     control_points[WT_SESSION_CONTROL_POINT_ID_THREAD_0].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
