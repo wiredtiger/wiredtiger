@@ -9,7 +9,7 @@
 #include <catch2/catch.hpp>
 
 #include "wiredtiger.h"
-#include "wrappers/mock_session.h"
+#include "../wrappers/mock_session.h"
 
 /*
  * [mock_session]:

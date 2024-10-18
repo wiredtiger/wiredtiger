@@ -8,10 +8,10 @@
 
 #include <catch2/catch.hpp>
 
-#include "utils.h"
 #include "wiredtiger.h"
-#include "wrappers/connection_wrapper.h"
 #include "wt_internal.h"
+#include "../wrappers/connection_wrapper.h"
+#include "../utils.h"
 
 TEST_CASE("Reconciliation tracking: ovfl_track_init", "[reconciliation]")
 {

@@ -11,11 +11,11 @@
 
 #include <catch2/catch.hpp>
 
-#include "utils.h"
-#include "wt_internal.h"
-#include "wrappers/item_wrapper.h"
-#include "wrappers/connection_wrapper.h"
 #include "wiredtiger.h"
+#include "wt_internal.h"
+#include "../utils.h"
+#include "../wrappers/item_wrapper.h"
+#include "../wrappers/connection_wrapper.h"
 
 namespace {
 

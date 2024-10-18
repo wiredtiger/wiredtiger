@@ -15,8 +15,8 @@
  */
 #include "wt_internal.h"
 #include <catch2/catch.hpp>
-#include "../wrappers/mock_session.h"
-#include "util_block.h"
+#include "../util_block.h"
+#include "../../wrappers/mock_session.h"
 
 TEST_CASE("Block session: __wti_block_ext_prealloc with null block manager", "[block_session_bms]")
 {

@@ -19,8 +19,8 @@
 #include <iostream>
 
 #include "wt_internal.h"
-#include "../wrappers/mock_session.h"
-#include "../wrappers/config_parser.h"
+#include "../../wrappers/mock_session.h"
+#include "../../wrappers/config_parser.h"
 
 const std::string ALLOCATION_SIZE = "512";
 const std::string BLOCK_ALLOCATION = "best";
@@ -109,7 +109,7 @@ validate_free_block(std::shared_ptr<mock_session> session, WT_BLOCK *block, conf
     REQUIRE(conn->block_lock.session_id != session->get_wt_session_impl()->id);
 }
 
-TEST_CASE("Block: __wt_block_open and __wti_bm_close_block", "[block_file]")
+TEST_CASE("Block manager: __wt_block_open and __wti_bm_close_block", "[block_file]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();

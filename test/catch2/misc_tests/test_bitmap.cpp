@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "wiredtiger.h"
-#include "wrappers/mock_session.h"
+#include "../wrappers/mock_session.h"
 #include "wt_internal.h"
 
 TEST_CASE("Chunk cache bitmap: __chunkcache_bitmap_find_free", "[bitmap]")

@@ -3,7 +3,7 @@ project(unittest CXX)
 # Assertion unit tests require overriding wt_abort such that WiredTiger no longer crashes.
 # This change will break assertions for all other testing so these tests must be run on their own.
 if(HAVE_UNITTEST_ASSERTS)
-    set(unittests tests/test_assertions.cpp)
+    set(unittests misc_tests/test_assertions.cpp)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
@@ -12,7 +12,6 @@ else()
         misc_tests/test_bounds_restore.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_error.cpp
-        misc_tests/test_extent_list.cpp
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_mock_session.cpp
@@ -34,6 +33,7 @@ else()
         block/unit/test_block_session_bms.cpp
         block/unit/test_block_session_ext.cpp
         block/unit/test_block_session_size.cpp
+        block/unit//test_extent_list.cpp
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
@@ -45,7 +45,8 @@ endif()
 set(unittest_sources
     main.cpp
     utils.cpp
-    tests/utils_extlist.cpp
+    block/util_block.cpp
+    block/utils_extlist.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp

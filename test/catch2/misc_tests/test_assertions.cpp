@@ -9,9 +9,9 @@
 #include <iostream>
 #include <catch2/catch.hpp>
 
-#include "utils.h"
 #include "wiredtiger.h"
-#include "wrappers/connection_wrapper.h"
+#include "../utils.h"
+#include "../wrappers/connection_wrapper.h"
 #include "wt_internal.h"
 
 /*

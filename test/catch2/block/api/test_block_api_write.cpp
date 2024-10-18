@@ -17,9 +17,9 @@
 #include <filesystem>
 
 #include "wt_internal.h"
-#include "util_block.h"
-#include "../wrappers/item_wrapper.h"
-#include "../wrappers/mock_session.h"
+#include "../util_block.h"
+#include "../../wrappers/item_wrapper.h"
+#include "../../wrappers/mock_session.h"
 
 const std::string ALLOCATION_SIZE = "256";
 const std::string BLOCK_ALLOCATION = "best";

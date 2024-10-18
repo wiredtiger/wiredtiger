@@ -10,9 +10,9 @@
 
 #include "wiredtiger.h"
 #include "wt_internal.h"
-#include "../utils.h"
-#include "../wrappers/connection_wrapper.h"
-#include "../wrappers/item_wrapper.h"
+#include "../../utils.h"
+#include "../../wrappers/connection_wrapper.h"
+#include "../../wrappers/item_wrapper.h"
 
 static void
 init_wt_item(WT_ITEM &item)

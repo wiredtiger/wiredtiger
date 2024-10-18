@@ -15,7 +15,7 @@
 
 #include <catch2/catch.hpp>
 
-#include "utils_extlist.h"
+#include "../utils_extlist.h"
 #include "wt_internal.h"
 
 using namespace utils;

@@ -1,4 +1,4 @@
-# WiredTiger unit tests
+# WiredTiger catch2 framework tests
 
 ## Building/running
 
@@ -14,9 +14,14 @@ You can also use the `--list-tags` option if you're not sure, or even the
 command-line help at
 https://github.com/catchorg/Catch2/blob/devel/docs/command-line.md.
 
-## Adding tests
+## Contributor's Guide
+
+### Adding tests
 
 If you want add new tests to an existing subsytem, simply edit the relevant
 .cpp file. If you want to test a new subsystem, or a subsystem with no
 existing tests, create a new .cpp file and add it to the `SOURCES` list in
 `create_test_executable()` (in `CMakeLists.txt`).
+
+A script can be used that automates all of the steps of adding a test under create_test.sh
+`Usage: ./create_test.sh [-m module] my_test`

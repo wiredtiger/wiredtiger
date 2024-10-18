@@ -9,7 +9,7 @@
 #include <catch2/catch.hpp>
 
 #include "wt_internal.h"
-#include "wrappers/mock_session.h"
+#include "../wrappers/mock_session.h"
 
 /*
  * session_config.cpp: Test one of the session configuration functions, __session_config_int. Ensure

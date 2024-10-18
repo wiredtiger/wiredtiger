@@ -22,9 +22,9 @@
 #include <string>
 
 #include "wt_internal.h"
-#include "util_block.h"
+#include "../util_block.h"
 #include "../utils_extlist.h"
-#include "../wrappers/mock_session.h"
+#include "../../wrappers/mock_session.h"
 
 const std::string ALLOCATION_SIZE = "256";
 const std::string BLOCK_ALLOCATION = "best";

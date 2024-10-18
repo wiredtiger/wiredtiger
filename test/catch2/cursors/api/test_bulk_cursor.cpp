@@ -11,9 +11,9 @@
 
 #include "wiredtiger.h"
 #include "wt_internal.h"
-#include "../utils.h"
-#include "../wrappers/connection_wrapper.h"
-#include "../wrappers/item_wrapper.h"
+#include "../../utils.h"
+#include "../../wrappers/connection_wrapper.h"
+#include "../../wrappers/item_wrapper.h"
 
 static int
 insert_key_value(WT_CURSOR *cursor, const char *key, const char *value)

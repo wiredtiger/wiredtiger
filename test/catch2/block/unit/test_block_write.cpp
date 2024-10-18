@@ -16,9 +16,9 @@
 #include <iostream>
 
 #include "wt_internal.h"
-#include "../wrappers/mock_session.h"
-#include "../wrappers/config_parser.h"
-#include "../wrappers/item_wrapper.h"
+#include "../../wrappers/mock_session.h"
+#include "../../wrappers/config_parser.h"
+#include "../../wrappers/item_wrapper.h"
 
 const int DEFAULT_BLOCK_SIZE = 256;
 const std::string ALLOCATION_SIZE = "256";

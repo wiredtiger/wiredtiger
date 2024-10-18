@@ -21,9 +21,9 @@
 
 #include "test_util.h"
 #include "wt_internal.h"
-#include "../utils.h"
 #include "../utils_extlist.h"
-#include "../wrappers/mock_session.h"
+#include "../../utils.h"
+#include "../../wrappers/mock_session.h"
 
 using namespace utils;
 
@@ -32,7 +32,7 @@ using namespace utils;
  */
 struct {
     bool
-    operator()(const off_size &left, const off_size &right)
+    operator()(const off_size &left, const off_size &right) const
     {
         return (left < right);
     }
