@@ -33,7 +33,6 @@ struct addr_cookie {
     size_t size;
 };
 
-
 /*
  * Validate that the write buffer contents was correctly written to the file. We do this through
  * performing a bm->read and a file read and making sure that the read() matches the original write

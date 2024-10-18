@@ -157,7 +157,8 @@ setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &f
  * Test and validate the bm->write_size() function.
  */
 void
-test_and_validate_write_size(WT_BM *bm, const std::shared_ptr<mock_session> &session, size_t size, size_t allocation_size)
+test_and_validate_write_size(
+  WT_BM *bm, const std::shared_ptr<mock_session> &session, size_t size, size_t allocation_size)
 {
     size_t ret_size = size;
     // This function internally reads and changes the variable.
