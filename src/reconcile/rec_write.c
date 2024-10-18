@@ -2100,29 +2100,47 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
 static int
 __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *supd)
 {
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_ITEM *key;
+    WT_ITEM *key, value;
     size_t max_packed_size;
     uint8_t flags;
     uint8_t *p, *head;
 
     flags = 0;
 
+    cbt = &r->update_modify_cbt;
+
     /* Ensure enough room for a column-store key without checking. */
     WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
+
+    if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
+        if (supd->rip != NULL)
+            cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
+        else
+            cbt->slot = UINT32_MAX;
+        WT_ERR(
+          __wt_modify_reconstruct_from_upd_list(session, cbt, supd->onpage_upd, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
+        value.data = cbt->upd_value->buf.data;
+        value.size = cbt->upd_value->buf.size;
+    } else {
+        value.data = supd->onpage_upd->data;
+        value.size = supd->onpage_upd->size;
+    }
 
     /*
      * The max length of a delta:
      * 1 header byte
      * 4 timestamps (4 * 9)
      * key size (5)
-     * key
      * value size (5)
+     * key
      * value
      */
-    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + supd->onpage_upd->size;
+    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + value.size;
 
     if (r->delta.size + max_packed_size > r->delta.memsize)
         WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
@@ -2136,6 +2154,12 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         memcpy(p, key->data, key->size);
         p += key->size;
     } else {
+        /*
+         * TODO: how should we handle the case that in the previous reconciliation, we write the
+         * full value and in this reconciliation, it is deleted by a tombstone. Should we still
+         * include the full value in the delta? We can omit it but it will make the rest of the
+         * system more complicated. Include it for now to simplify the prototype.
+         */
         if (supd->onpage_upd->start_ts != WT_TS_NONE) {
             LF_SET(WT_DELTA_HAS_START_TS);
             WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
@@ -2159,13 +2183,13 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         }
 
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
+        WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
+
         memcpy(p, key->data, key->size);
         p += key->size;
 
-        /* TODO: resolve modifies. Currently it works only for full values. */
-        WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
-        memcpy(p, supd->onpage_upd->data, supd->onpage_upd->size);
-        p += supd->onpage_upd->size;
+        memcpy(p, value.data, value.size);
+        p += value.size;
     }
 
     r->delta.size += WT_PTRDIFF(p, head);
@@ -2188,7 +2212,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
     uint64_t start, stop;
-    uint32_t i;
+    uint32_t count, i;
 
     WT_ASSERT(session, r->multi_next == 1);
     /* Only row store leaf page is supported. */
@@ -2197,6 +2221,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     start = __wt_clock(session);
 
     multi = &r->multi[0];
+    count = 0;
 
     WT_RET(__rec_build_delta_init(session, r));
 
@@ -2211,30 +2236,13 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             continue;
 
         WT_RET(__rec_pack_delta_leaf(session, r, supd));
+        ++count;
     }
 
     header = (WT_DELTA_HEADER *)r->delta.data;
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
-    header->distinguished = 1;
-
-    /* TODO: write the delta to cloud. */
-
-    /* We cannot fail from here. */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        if (supd->onpage_upd == NULL)
-            continue;
-
-        if (supd->onpage_tombstone != NULL) {
-            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
-                continue;
-
-            F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
-        }
-
-        if (!F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
-            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
-    }
+    header->u.entries = count;
 
     stop = __wt_clock(session);
 
@@ -2660,8 +2668,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
+    WT_SAVE_UPD *supd;
     WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
-    uint32_t i;
+    uint32_t i, j;
     uint8_t previous_ref_state;
 
     btree = S2BT(session);
@@ -2752,6 +2761,24 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
       r->multi_next);
+
+    /*
+     * TODO: This is still not the correct place. We may still fail after this. Let's put it here
+     * for now to minimize code changes. We should decide where it should be. It's not clear how we
+     * will do error handling in disaggreated storage. What should we do if we only write a subset
+     * of split pages successfully? Can we discard the pages we already written and start again?
+     */
+    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        for (j = 0, supd = multi->supd; j < multi->supd_entries; ++j, ++supd) {
+            if (supd->onpage_upd == NULL)
+                continue;
+
+            if (supd->onpage_tombstone != NULL)
+                F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+
+            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+        }
+    }
 
     switch (r->multi_next) {
     case 0: /* Page delete */
@@ -2937,14 +2964,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     WT_ERR(__wt_hs_delete_updates(session, r));
 
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL) {
+    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        if (multi->supd != NULL)
             WT_ERR(__wt_hs_insert_updates(session, r, multi));
-            if (!multi->supd_restore) {
-                __wt_free(session, multi->supd);
-                multi->supd_entries = 0;
-            }
-        }
+    }
 
 err:
     return (ret);

@@ -144,20 +144,25 @@ struct __wt_delta_header {
      */
     uint32_t mem_size; /* 00-03: in-memory size */
 
-    uint8_t version; /* 04: version */
+    union {
+        uint32_t entries; /* 04-07: number of cells on page */
+        uint32_t datalen; /* 04-07: overflow data length */
+    } u;
 
-    uint8_t type; /* 05: page type */
+    uint8_t version; /* 08: version */
 
-    uint8_t flags; /* 06: flags */
+    uint8_t type; /* 09: page type */
 
-    uint8_t distinguished; /* 07: cannot be zero, distinguishes from a full-page image */
+    uint8_t flags; /* 10: flags */
+
+    uint8_t unused; /* 11: unused padding */
 };
 
 /*
  * WT_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
  * inserts padding it will break the world.
  */
-#define WT_DELTA_HEADER_SIZE 8
+#define WT_DELTA_HEADER_SIZE 12
 
 /*
  * WT_DELTA_HEADER_BYTE --
@@ -168,19 +173,20 @@ struct __wt_delta_header {
 #define WT_DELTA_HEADER_BYTE(btree, dsk) \
     ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_BYTE_SIZE(btree)))
 
-struct __wt_delta_cell_unpack {
-    WT_ITEM *key;
-    WT_ITEM *value;
-
-    WT_TIME_WINDOW tw;
-
-#define WT_DELTA_HAS_START_TS 0x01u
-#define WT_DELTA_HAS_START_DURABLE_TS 0x02u
-#define WT_DELTA_HAS_STOP_TS 0x04u
-#define WT_DELTA_HAS_STOP_DURABLE_TS 0x08u
-#define WT_DELTA_IS_DELETE 0x10u
-    uint8_t flags;
-};
+/*
+ * __wt_delta_header_byteswap --
+ *     Handle big- and little-endian transformation of a page header.
+ */
+static WT_INLINE void
+__wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
+{
+#ifdef WORDS_BIGENDIAN
+    dsk->mem_size = __wt_bswap64(dsk->mem_size);
+    dsk->u.entries = __wt_bswap32(dsk->u.entries);
+#else
+    WT_UNUSED(dsk);
+#endif
+}
 
 /*
  * WT_ADDR --
@@ -1495,10 +1501,11 @@ struct __wt_update {
 #define WT_UPDATE_HS 0x004u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x008u /* Prepared update restored from data store. */
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x010u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x020u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x040u         /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x080u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x100u /* Update needs to be deleted from history store */
+#define WT_UPDATE_RESTORED_FROM_DELTA 0x020u      /* Update restored from delta. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x040u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x080u         /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x100u         /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x200u /* Update needs to be deleted from history store */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 

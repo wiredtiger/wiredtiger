@@ -517,8 +517,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             /*
              * If we've reached a full update and it's in the history store we don't need to
              * continue as anything beyond this point won't help with calculating deltas.
+             *
+             * No need to insert any data that is older than the update restored from delta. They
+             * are already in the history store.
              */
-            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
+            if (upd->type == WT_UPDATE_STANDARD &&
+              F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DELTA))
                 break;
 
             /*
