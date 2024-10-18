@@ -8,6 +8,8 @@ described in MODULARITY.md.
 """
 
 import sys, os
+
+# layercparse is a library written and maintained by the WiredTiger team.
 import layercparse as lcp
 from layercparse import Module
 
@@ -53,12 +55,12 @@ def main():
         Module("pack", fileAliases=["intpack"]),
         Module("stat"),
     ])
-    files = lcp.get_files()
+    files = lcp.get_files()  # list of all source files
     files.insert(0, os.path.join(os.path.realpath(rootPath), "src/include/wiredtiger.in"))
 
     _globals = lcp.Codebase()
-    _globals.scanFiles(files, twopass=True, multithread=True)
-    lcp.AccessCheck(_globals).checkAccess(multithread=True)
+    _globals.scanFiles(files)
+    lcp.AccessCheck(_globals).checkAccess()
 
     return not lcp.workspace.errors
 
