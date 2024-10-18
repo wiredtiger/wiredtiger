@@ -120,4 +120,4 @@ cd ../../dist || exit 1
 # Last changes to be done manually
 echo "Follow the next steps to execute your new test:"
 echo "1. Start editing $1.cpp"
-echo "2. Compile your changes, run the unit test via test/unittest/catch2-unittests [tag_name]"
+echo "2. Compile your changes, run the unit test via test/catch2/catch2-unittests [tag_name]"
