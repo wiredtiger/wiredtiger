@@ -151,6 +151,7 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
                 tombstone->start_ts = unpack.tw.stop_ts;
                 tombstone->durable_ts = unpack.tw.durable_stop_ts;
                 F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+                size += tmp_size;
                 tombstone->next = standard_value;
                 upd = tombstone;
             } else
@@ -172,10 +173,8 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 
     if (0) {
 err:
-        if (standard_value != NULL)
-            __wt_free(session, standard_value);
-        if (tombstone != NULL)
-            __wt_free(session, tombstone);
+        __wt_free(session, standard_value);
+        __wt_free(session, tombstone);
     }
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
@@ -190,7 +189,12 @@ __bt_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, 
 {
     int i;
 
-    /* TODO: this is not the optimal algorithm. We can optimize this by using a min heap. */
+    /*
+     * We apply the order in reverse order because we only care about the latest change of a key.
+     * The older changes are ignore.
+     *
+     * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
+     */
     for (i = (int)delta_size - 1; i >= 0; --i)
         WT_RET(__bt_reconstruct_delta(session, ref, &deltas[i]));
 
