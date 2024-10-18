@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+""" Access checker script.
+
+This script checks that WiredTiger sources comply with modularity rules
+described in MODULARITY.md.
+
+"""
+
 import sys, os
 from layercparse import *
 from pprint import pprint, pformat
@@ -50,17 +57,8 @@ def main():
     files.insert(0, os.path.join(os.path.realpath(rootPath), "src/include/wiredtiger.in"))
 
     _globals = Codebase()
-    # print(" ===== Scan")
     _globals.scanFiles(files, twopass=True, multithread=True)
-    # _globals.scanFiles(files, twopass=True, multithread=False)
-    # print(" ===== Globals:")
-    # pprint(_globals, width=120, compact=False)
-    # print(" =====")
-
-    # print(" ===== Access check:")
-    # print(" ===== Check")
     AccessCheck(_globals).checkAccess(multithread=True)
-    # AccessCheck(_globals).checkAccess(multithread=False)
 
     return not workspace.errors
 

@@ -2,7 +2,7 @@
 
 ## Definition of a Module
 
-* Whatever resides in a subdirectory under `src/` is considered to be a module.
+* Anything that resides in a subdirectory under `src/` is considered to be a module.
 
 * The module names are pre-configured as a list of subdirectories under `src/`, with some exclusions like `include`, `checksum`, `os*`, etc. These exclusions are because these directories don’t really contain modular code. If the module name, as deduced by any method, is not in this list, there is no associated module, and the content is exempt from modularity checks.
 
@@ -16,7 +16,8 @@
    1. If the file is not in the `include` directory, the module is the topmost subdirectory name after `src/`.
    2. For files in `include/`, the module name is derived from the file name with `.h` and `_inline` stripped.
 
-2. If the file name contains `_private`, everything in that file is considered private by default. Otherwise, everything is public by default.
+2. If the file name contains `_private`, all identifiers in that file is considered "private" access scope by default. Otherwise, "public" by default.
+
 
 ### 2. Identifier Name-Based Rules
 
@@ -29,7 +30,7 @@ This applies to all identifiers like function or struct names, record members, v
 ### 3. Comment Tag-Based Rules
 
 1. A comment is considered to describe an entity if it precedes the entity or follows it on the same line.
-2. If the entity’s comment includes `#public` or `#private`, the visibility is set accordingly and it belongs to the current context’s module.
+2. If the entity’s comment includes `#public` or `#private`, the visibility is set accordingly.
 3. If the entity’s comment includes `#public(module)` or `#private(module)`, it gets the corresponding visibility and belongs to the specified module.
 
 ### 4. Nested Declarations/Definitions
