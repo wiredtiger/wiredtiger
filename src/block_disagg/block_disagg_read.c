@@ -44,7 +44,7 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
   WT_PAGE_BLOCK_META *block_meta, uint64_t disagg_id, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
-    size_t bufsize;
+    size_t bufsize, results_count;
 
     if (block_meta != NULL)
         WT_CLEAR(*block_meta);
@@ -70,12 +70,15 @@ __block_disagg_read(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_
         bufsize = WT_MAX(size, buf->memsize + 10);
     }
     WT_RET(__wt_buf_init(session, buf, bufsize));
-    WT_RET(
-      block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, disagg_id, 0, buf));
+    WT_RET(block_disagg->plhandle->plh_get(
+      block_disagg->plhandle, &session->iface, disagg_id, 1, buf, &results_count));
 
-    if (block_meta != NULL)
+    if (block_meta != NULL) {
         /* Set the other metadata returned by the Page Service. */
         block_meta->page_id = disagg_id;
+        if (results_count > 1)
+            block_meta->is_delta = true;
+    }
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian

@@ -634,6 +634,8 @@ struct __wt_split_page_hist {
 struct __wt_page_block_meta {
     uint64_t page_id;
 
+    bool is_delta;
+
     /* TODO: Place additional metadata here, e.g., checkpoint ID, number of deltas. */
 };
 

@@ -2259,11 +2259,14 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Build delta.
  */
 static int
-__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *build_delta)
 {
+    *build_delta = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-        if (WT_BUILD_DELTA_LEAF(session, r))
+        if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, r));
+            *build_delta = true;
+        }
     }
 
     return (0);
@@ -2282,12 +2285,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    bool build_delta;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
+    build_delta = false;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -2386,31 +2391,39 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Check the eviction flag as checkpoint also saves updates. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
-        /*
-         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
-         * or history store updates against empty row-store leaf pages, column-store modify attempts
-         * to allocate a zero-length array.
-         */
-        if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-            return (__wt_set_return(session, EBUSY));
+        if (chunk->entries == 0) {
+            /*
+             * XXX If no entries were used, the page is empty and we can only restore
+             * eviction/restore or history store updates against empty row-store leaf pages,
+             * column-store modify attempts to allocate a zero-length array.
+             */
+            if (r->page->type != WT_PAGE_ROW_LEAF)
+                return (__wt_set_return(session, EBUSY));
 
-        /* If we need to restore the page to memory, copy the disk image. */
-        if (multi->supd_restore)
+            /* If the row leaf page is empty and we need to restore the page to memory, copy the
+             * disk image. */
             goto copy_image;
-
-        WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
+        }
     }
 
-    if (last_block)
-        WT_RET(__rec_build_delta(session, r));
-
     /* Write the disk image and get an address. */
-    WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
-      &chunk->block_meta, addr, &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
-      compressed_image != NULL));
+    if (last_block)
+        WT_RET(__rec_build_delta(session, r, &build_delta));
+
+    if (build_delta) {
+        chunk->block_meta.is_delta = true;
+        WT_RET(__wt_blkcache_write(session, &r->delta, &chunk->block_meta, addr, &addr_size,
+          &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
+        /* Turn off compression adjustment for delta. */
+        compressed_size = 0;
+    } else {
+        WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
+          &chunk->block_meta, addr, &addr_size, &compressed_size, false,
+          F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
-    verify_image = true;
+        verify_image = true;
 #endif
+    }
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.block_cookie));
     multi->addr.block_cookie_size = (uint8_t)addr_size;
 
