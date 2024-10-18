@@ -1180,8 +1180,8 @@ SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
   (self, session, page_id, checkpoint_id, is_delta, buf))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *result),
-  (self, session, page_id, checkpoint_id, result))
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *results_array, size_t *results_count),
+  (self, session, page_id, checkpoint_id, results_array, results_count))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
   (WT_SESSION *session),

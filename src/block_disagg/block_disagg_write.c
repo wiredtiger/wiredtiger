@@ -116,7 +116,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
     /* Write the block. */
-    WT_RET(plhandle->plh_put(plhandle, &session->iface, disagg_id, 0, false, buf));
+    WT_RET(plhandle->plh_put(plhandle, &session->iface, disagg_id, 1, false, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);

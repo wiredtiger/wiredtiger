@@ -2392,15 +2392,16 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Check the eviction flag as checkpoint also saves updates. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         if (chunk->entries == 0) {
-        /*
-         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
-         * or history store updates against empty row-store leaf pages, column-store modify attempts
-         * to allocate a zero-length array.
-         */
-        if (r->page->type != WT_PAGE_ROW_LEAF)
-            return (__wt_set_return(session, EBUSY));
+            /*
+             * XXX If no entries were used, the page is empty and we can only restore
+             * eviction/restore or history store updates against empty row-store leaf pages,
+             * column-store modify attempts to allocate a zero-length array.
+             */
+            if (r->page->type != WT_PAGE_ROW_LEAF)
+                return (__wt_set_return(session, EBUSY));
 
-        /* If the row leaf page is empty and we need to restore the page to memory, copy the disk image. */
+            /* If the row leaf page is empty and we need to restore the page to memory, copy the
+             * disk image. */
             goto copy_image;
         }
     }
@@ -2410,14 +2411,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_RET(__rec_build_delta(session, r, &build_delta));
 
     if (build_delta) {
-        WT_RET(__wt_blkcache_write(session, &r->detla, &chunk->block_meta, addr, addr_sizep, &compressed_size,
-      false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
+        chunk->block_meta.is_delta = true;
+        WT_RET(__wt_blkcache_write(session, &r->delta, &chunk->block_meta, addr, &addr_size,
+          &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
     } else {
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
-        &chunk->block_meta, addr, &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
-        compressed_image != NULL));
+          &chunk->block_meta, addr, &addr_size, &compressed_size, false,
+          F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
 #endif

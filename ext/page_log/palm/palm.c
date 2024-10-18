@@ -513,7 +513,7 @@ err:
 
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, WT_ITEM *package)
+  uint64_t checkpoint_id, WT_ITEM *package, size_t *results_count)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
@@ -545,6 +545,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         memcpy(new_addr, matches.data, matches.size);
     }
     PALM_KV_ERR(palm, session, matches.error);
+    *results_count = 1;
 
 err:
     PALM_VERBOSE_PRINT(palm_handle->palm,

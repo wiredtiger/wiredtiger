@@ -5699,6 +5699,7 @@ struct __wt_page_log_handle {
      * @param page_id the page to be read
      * @param checkpoint_id the checkpoint to use
      * @param result the content read in the form of a package.
+     * @param results_count the number of image plus deltas.
      *    This includes the full page and any deltas.
      *    The package can be decoded by WT_PAGE_LOG::pl_get_package_part.
      *    The result->data is memory that is owned by the caller, and is
@@ -5708,7 +5709,7 @@ struct __wt_page_log_handle {
      *    should call free() to deallocate result->data when done with the result.
      */
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
-        uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *package_result);
+        uint64_t page_id, uint64_t checkpoint_id, WT_ITEM *package_result, size_t *results_count);
 
     /*!
      * Close the handle

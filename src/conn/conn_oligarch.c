@@ -956,14 +956,17 @@ __wt_disagg_get_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
+    size_t results_count;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
+    WT_UNUSED(results_count);
+
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         return (disagg->page_log_meta->plh_get(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, item));
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, item, &results_count));
     }
 
     if (disagg->bstorage_meta != NULL) {
