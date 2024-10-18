@@ -155,7 +155,7 @@ struct __wt_delta_header {
 
     uint8_t flags; /* 10: flags */
 
-    uint8_t distinguished; /* 11: cannot be zero, distinguishes from a full-page image */
+    uint8_t unused; /* 11: unused padding */
 };
 
 /*
@@ -1501,11 +1501,11 @@ struct __wt_update {
 #define WT_UPDATE_HS 0x004u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x008u /* Prepared update restored from data store. */
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x010u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x020u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x040u         /* Update restored from history store. */
-#define WT_UPDATE_RESTORED_FROM_DELTA 0x08u       /* Update restored from delta. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x080u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x100u /* Update needs to be deleted from history store */
+#define WT_UPDATE_RESTORED_FROM_DELTA 0x020u      /* Update restored from delta. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x040u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x080u         /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x100u         /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x200u /* Update needs to be deleted from history store */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 
