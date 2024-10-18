@@ -158,19 +158,19 @@ err:
     return (ret);
 }
 
-/* Pair predicate function and "Wait for trigger". */
+/* Pair predicate function and "Trigger". */
 /*
- * __wt_control_point_pair_init_pred_wait_for_trigger --
- *     The pair initialization function for predicate function and action "Wait for trigger".
+ * __wt_control_point_pair_init_pred_trigger --
+ *     The pair initialization function for predicate function and action "Trigger".
  *
  * @param session The session. @param cp_config_name The control point's configuration name. @param
  *     control_point_for_connection Check if control point is for connection or session. registry.
  *     @param init_pred Predicate initialization function. @param cfg Configuration string.
  */
 int
-__wt_control_point_pair_init_pred_wait_for_trigger(WT_SESSION_IMPL *session,
-  const char *cp_config_name, bool control_point_for_connection,
-  wt_control_point_init_pred_t __F(init_pred), const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
+__wt_control_point_pair_init_pred_trigger(WT_SESSION_IMPL *session, const char *cp_config_name,
+  bool control_point_for_connection, wt_control_point_init_pred_t __F(init_pred), const char **cfg,
+  WT_CONTROL_POINT_DATA **cp_datap)
 {
     struct __wt_control_point_pair_data_trigger *init_data;
     WT_CONFIG_ITEM cval;

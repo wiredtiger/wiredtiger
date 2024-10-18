@@ -517,7 +517,7 @@ extern int __wt_control_point_pair_init_pred_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
   wt_control_point_init_pred_t __F(init_pred), const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_pred_wait_for_trigger(WT_SESSION_IMPL *session,
+extern int __wt_control_point_pair_init_pred_trigger(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
   wt_control_point_init_pred_t __F(init_pred), const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

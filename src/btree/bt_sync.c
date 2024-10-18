@@ -243,6 +243,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
+        /* Notify the waiting thread that we are syncing a btree. */
+        /* The id of the btree we are syncing. */
+        CONNECTION_CONTROL_POINT_SET_TEST_VALUE_AND_DEFINE_TRIGGER(
+          session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, btree->id);
+
         /*
          * Reset the number of obsolete time window pages to let the eviction threads and checkpoint
          * cleanup operation to continue marking the clean obsolete time window pages as dirty once
