@@ -8,15 +8,15 @@ described in MODULARITY.md.
 """
 
 import sys, os
-from layercparse import *
-from pprint import pprint, pformat
+import layercparse as lcp
+from layercparse import Module
 
 def main():
     # setLogLevel(LogLevel.WARNING)
 
     rootPath = os.path.realpath(sys.argv[1])
-    setRootPath(rootPath)
-    setModules([
+    lcp.setRootPath(rootPath)
+    lcp.setModules([
         Module("block"),
         Module("block_cache", fileAliases=["block_chunkcache"], sourceAliases = ["blkcache", "bm"]),
         Module("bloom"),
@@ -53,14 +53,14 @@ def main():
         Module("pack", fileAliases=["intpack"]),
         Module("stat"),
     ])
-    files = get_files()
+    files = lcp.get_files()
     files.insert(0, os.path.join(os.path.realpath(rootPath), "src/include/wiredtiger.in"))
 
-    _globals = Codebase()
+    _globals = lcp.Codebase()
     _globals.scanFiles(files, twopass=True, multithread=True)
-    AccessCheck(_globals).checkAccess(multithread=True)
+    lcp.AccessCheck(_globals).checkAccess(multithread=True)
 
-    return not workspace.errors
+    return not lcp.workspace.errors
 
 if __name__ == "__main__":
     sys.exit(main())
