@@ -9,7 +9,6 @@ else()
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
-        misc_tests/test_bounds_restore.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_error.cpp
         misc_tests/test_fnv.cpp
@@ -33,11 +32,12 @@ else()
         block/unit/test_block_session_bms.cpp
         block/unit/test_block_session_ext.cpp
         block/unit/test_block_session_size.cpp
-        block/unit//test_extent_list.cpp
+        block/unit/test_extent_list.cpp
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
         cursors/api/test_bulk_cursor.cpp
+        cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
     )
 endif()
