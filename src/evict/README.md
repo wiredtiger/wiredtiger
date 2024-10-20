@@ -43,7 +43,3 @@ The eviction APIs, defined in `evict.h`, allow other modules in WT to manage evi
     4. Allowing external modules to participate in the eviction process, enabling them to evict individual pages or entire data trees if needed.
 
     5. Modifying page states, crucial for prioritising or de-prioritising pages for eviction.
-
-### Conclusion
-
-WiredTiger’s eviction mechanism is tunable and it aims to keep the cache within user-defined limits.
