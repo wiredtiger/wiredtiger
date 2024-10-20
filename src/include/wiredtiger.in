@@ -3506,9 +3506,11 @@ struct __wt_connection {
  * (, Thread waits for transaction to get aborted., a set of related configuration options defined
  * as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enable_count, the number of
- * triggers for which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_count, the number of triggers for
- * which to wait., an integer between \c 1 and \c 4294967295; default \c 1.}
+ * control point crossings to enable.  Later crossings do not trigger., an integer between \c 0 and
+ * \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ * wait_count, the number of triggers for which to wait., an integer between \c 1 and \c 4294967295;
+ * default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{ ),,}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to

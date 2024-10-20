@@ -239,6 +239,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                 ]),
+            # For test/suite/test_bug035.py and test/suite/bug036.py
             ConnectionControlPoint('thread_wait_for_upd_abort', 'Trigger', 'Always', '', 
                 r'''Thread waits for transaction to get aborted.''',
                 type='category', subconfig= [
@@ -247,8 +248,9 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
                     Config('enable_count', '1', r'''
-                        the number of triggers for which to wait''',
-                        min='1', max='4294967295'),
+                        the number of control point crossings to enable. Later crossings do not 
+                        trigger.''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
         ]),
     ]
