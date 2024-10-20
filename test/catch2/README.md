@@ -1,4 +1,7 @@
 # WiredTiger Catch2 framework tests
+Catch2 is a unit testing framework that allows testing to be performed underneath the WiredTiger
+API layer. Further more information about the framework can be found here:
+https://github.com/catchorg/Catch2
 
 ## Building/running
 
