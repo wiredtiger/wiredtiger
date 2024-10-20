@@ -2,7 +2,7 @@
 
 ### Overview
 
-Eviction process ensures that the cache in WiredTiger is efficiently managed and it stays within user-defined boundaries. These boundaries are set through **target** and **trigger thresholds** for total, dirty, and update content. When the cache exceeds these limits, eviction processes begins to reduce the cache content.
+Eviction process ensures that the cache in WiredTiger is efficiently managed and it stays within user-defined boundaries. These boundaries are set through **target** and **trigger thresholds** for total, dirty, and update content. When the cache exceeds these limits, eviction processes begins to evict the content in cache.
 
 ### Key Parameters
 
@@ -34,12 +34,8 @@ The eviction process involves three components:
 
 The eviction APIs, defined in `evict.h`, allow other modules in WT to manage eviction processes. Below is a brief description of the functionalities provided by these APIs:
 
-    1. Interrupting and waking up the eviction server when necessary.
-
-    2. Specifying which files to prioritise or exclude from the eviction process.
-
-    3. Retrieving the state of cache health from the eviction.
-
-    4. Allowing external modules to participate in the eviction process, enabling them to evict individual pages or entire data trees if needed.
-
-    5. Modifying page states, crucial for prioritising or de-prioritising pages for eviction.
+- Interrupting and waking up the eviction server when necessary.
+- Specifying which files to prioritise or exclude from the eviction process.
+- Retrieving the state of cache health from the eviction.
+- Allowing external modules to participate in the eviction process, enabling them to evict individual pages or entire data trees if needed.
+- Modifying page states, crucial for prioritising or de-prioritising pages for eviction.
