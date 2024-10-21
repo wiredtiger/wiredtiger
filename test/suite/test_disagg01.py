@@ -93,16 +93,19 @@ class test_disagg01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         page21_full = encode_bytes('Hello21')
         page21_delta1 = encode_bytes('Delta21-1')
 
-        handle.plh_put(session, 20, 2, False, page20_full)
-        handle.plh_put(session, 20, 2, True, page20_delta1)
-        handle.plh_put(session, 21, 2, False, page21_full)
-        handle.plh_put(session, 21, 2, True, page21_delta1)
-        handle.plh_put(session, 20, 2, True, page20_delta2)
+        flags_main_page = 0x0
+        flags_delta = wiredtiger.WT_PAGE_LOG_DELTA
 
-        page20_package = handle.plh_get(session, 20, 2)
-        page21_package = handle.plh_get(session, 21, 2)
+        handle.plh_put(session, 20, 2, 0, 0, flags_main_page, page20_full)
+        handle.plh_put(session, 20, 2, 0, 0, flags_delta, page20_delta1)
+        handle.plh_put(session, 21, 2, 0, 0, flags_main_page, page21_full)
+        handle.plh_put(session, 21, 2, 0, 0, flags_delta, page21_delta1)
+        handle.plh_put(session, 20, 2, 0, 0, flags_delta, page20_delta2)
 
-        self.check_package(page_log, page20_package, [page20_full, page20_delta1, page20_delta2])
-        self.check_package(page_log, page21_package, [page21_full, page21_delta1])
+        page20_results = handle.plh_get(session, 20, 2)
+        page21_results = handle.plh_get(session, 21, 2)
+
+        self.assertEquals(page20_results, [page20_full, page20_delta1, page20_delta2])
+        self.assertEquals(page21_results, [page21_full, page21_delta1])
 
         page_log.terminate(session)
