@@ -23,9 +23,9 @@ WiredTiger offers multiple configuration options to manage the eviction of pages
 
 The eviction process involves three components:
 
-- **Eviction Server**: The `eviction server` thread identifies evictable candidates, places them in eviction queues and sorts them based on the **Least Recently Used (LRU)** algorithm. It is a background process that commences when the **target<sup>1</sup> thresholds** are reached.
+- **Eviction Server**: The `eviction server` thread identifies evictable pages/candidates, places them in eviction queues and sorts them based on the **Least Recently Used (LRU)** algorithm. It is a background process that commences when the **target<sup>1</sup> thresholds** are reached.
 - **Eviction Worker Threads**: These threads pop pages from the eviction queues and evicts them. The `threads_max` and `threads_min` configurations in [api_data.py](../../dist/api_data.py) control the maximum and minimum number of eviction worker threads in WiredTiger. They also run in the background to assist the server.
-    > It is possible to run only the eviction server without worker threads, but this may result in slower eviction as the only the server thread will be responsible for evicting the pages from the queues.
+    > It is possible to run only the eviction server without the eviction worker threads, but this may result in slower eviction as the server thread alone would be responsible for evicting the pages from the eviction queues.
 - **Application Threads Eviction**: 
     - When eviction threads are unable to maintain cache content, and cache content reaches **trigger<sup>2</sup> thresholds**, application threads begin assissting the eviction worker threads by also evicting pages from the eviction queues.
     - Another scenario, known as **forced eviction**, occurs when application threads directly evict pages in specific conditions, such as:
@@ -35,7 +35,7 @@ The eviction process involves three components:
         - Obsolete pages
         - Pages with long update chains
         - Pages showing many deleted records
-    > In both the cases described above, application threads may experience higher read/write latencies.
+    > In both cases described above, application threads may experience higher read/write latencies.
 
 ### APIs for Eviction
 
@@ -50,7 +50,7 @@ The eviction APIs, defined in `evict.h`, allow other modules in WT to manage evi
 ### Terminology
 
 - <sup>1</sup>target: The level of cache usage eviction tries to maintain.
-- <sup>2</sup>trigger: The level of cache usage levels at which application threads assist with the eviction of pages.
+- <sup>2</sup>trigger: The level of cache usage at which application threads assist with the eviction of pages.
 - <sup>3</sup>total: The combined memory usage of clean pages, dirty pages, and in-memory updates.
 - <sup>4</sup>dirty: The memory usage of all the modified pages that have not yet been written to disk.
 - <sup>5</sup>updates: The memory usage of all the in-memory updates.
