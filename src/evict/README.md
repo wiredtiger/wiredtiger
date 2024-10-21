@@ -19,7 +19,6 @@ WiredTiger offers multiple configuration options to manage the eviction of pages
 
 > **Note:** Target<sup>1</sup> sizes must always be lower than their corresponding trigger<sup>2</sup> sizes.
 
-
 ### Eviction Process
 
 The eviction process involves three components:
@@ -36,7 +35,7 @@ The eviction process involves three components:
         - Obsolete pages
         - Pages with long update chains
         - Pages showing many deleted records
-    > In both cases, application threads may experience higher read/write latencies.
+    > In both the cases described above, application threads may experience higher read/write latencies.
 
 ### APIs for Eviction
 
@@ -45,7 +44,7 @@ The eviction APIs, defined in `evict.h`, allow other modules in WT to manage evi
 - Interrupting and waking up the eviction server when necessary.
 - Specifying which Btrees to prioritise or exclude from the eviction process.
 - Retrieving the state of cache health.
-- Allowing external modules to participate in the eviction process, enabling them to evict individual pages or entire Btrees if needed.
+- Allow callers to evict pages or entire Btrees directly, bypassing the background eviction process.
 - Modifying page states, crucial for prioritising or de-prioritising pages for eviction.
 
 ### Terminology
