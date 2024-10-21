@@ -85,18 +85,15 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 100 == 0:
+            if i % 250 == 0:
                 time.sleep(1)
-            if i == 0:
-                cursor_follow1 = session_follow.open_cursor(self.uri, None, None) # TODO needed so we make the metadata watcher thread earlier
 
         # Ensure that all data makes it to the follower.
-        cursor_follow1.close()
         cursor.close()
         time.sleep(1)
         self.session.checkpoint()
-        session_follow.checkpoint()
-        time.sleep(2)
+        time.sleep(1)
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
 
         #
         # Part 2: The big switcheroo
@@ -114,17 +111,13 @@ class test_oligarch07(wttest.WiredTigerTestCase):
             cursor["* Hello " + str(i)] = "World"
             cursor["* Hi " + str(i)] = "There"
             cursor["* OK " + str(i)] = "Go"
-            if i % 100 == 0:
+            if i % 250 == 0:
                 time.sleep(1)
-            if i == 0:
-                cursor_follow1 = self.session.open_cursor(self.uri, None, None)
 
         cursor.close()
-        cursor_follow1.close()
         time.sleep(1)
         session_follow.checkpoint()
-        self.session.checkpoint()
-        time.sleep(2)
+        self.conn.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
 
         #
         # Part 4: Ensure that all data is in both leader and follower.

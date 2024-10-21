@@ -454,7 +454,6 @@ struct __wt_block_pantry {
      */
 
     WT_FH *fh;
-    WT_FH *metadata_fh;
 };
 
 /*
@@ -516,7 +515,6 @@ struct __wt_block_disagg {
      */
 
     WT_PAGE_LOG_HANDLE *plhandle;
-    WT_FH *metadata_fh;
 };
 
 /*

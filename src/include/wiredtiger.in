@@ -1216,6 +1216,9 @@ struct __wt_session {
      * row-store/variable-length column-store leaf page value dictionary; see @ref
      * file_formats_compression for more information., an integer greater than or equal to \c 0;
      * default \c 0.}
+     * @config{disaggregated = (, configure disaggregated storage for this file., a set of related
+     * configuration options defined as follows.}
+     * @config{ ),,}
      * @config{encryption = (, configure an encryptor for file blocks.  When a table is created\,
      * its encryptor is not implicitly used for any related indices or column groups., a set of
      * related configuration options defined as follows.}
@@ -2337,6 +2340,9 @@ struct __wt_connection {
      * true\, control all dirty page evictions through forcing update restore eviction., a boolean
      * flag; default \c false.}
      * @config{ ),,}
+     * @config{disaggregated = (, configure disaggregated storage for this connection., a set of
+     * related configuration options defined as follows.}
+     * @config{ ),,}
      * @config{error_prefix, prefix string for error messages., a string; default empty.}
      * @config{eviction = (, eviction configuration options., a set of related configuration options
      * defined as follows.}
@@ -2563,11 +2569,11 @@ struct __wt_connection {
      * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
      * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
      * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
-     * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c "prefetch"\,
-     * \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c
-     * "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
-     * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
-     * default \c [].}
+     * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c
+     * "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
+     * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
+     * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c
+     * "verify"\, \c "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -3218,6 +3224,9 @@ struct __wt_connection {
  * cursor to use direct I/O. \c direct_io should be combined with \c write_through to get the
  * equivalent of \c O_DIRECT on Windows., a list\, with values chosen from the following options: \c
  * "checkpoint"\, \c "data"\, \c "log"; default empty.}
+ * @config{disaggregated = (, configure disaggregated storage for this connection., a set of related
+ * configuration options defined as follows.}
+ * @config{ ),,}
  * @config{encryption = (, configure an encryptor for system wide metadata and logs.  If a system
  * wide encryptor is set\, it is also used for encrypting data files and tables\, unless encryption
  * configuration is explicitly set for them when they are created with WT_SESSION::create., a set of
@@ -3561,10 +3570,11 @@ struct __wt_connection {
  * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
  * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
  * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
- * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c "prefetch"\, \c
- * "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
- * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\,
- * \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
+ * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c "page_delta"\,
+ * \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\,
+ * \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
+ * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default
+ * \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}
@@ -8685,6 +8695,7 @@ typedef enum {
     WT_VERB_VERIFY,               /*!< Verify messages. */
     WT_VERB_VERSION,              /*!< Version messages. */
     WT_VERB_WRITE,
+    WT_VERB_PAGE_DELTA,
 /* VERBOSE ENUM STOP */
     WT_VERB_NUM_CATEGORIES
 } WT_VERBOSE_CATEGORY;

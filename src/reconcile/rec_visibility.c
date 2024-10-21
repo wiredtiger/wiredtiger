@@ -18,8 +18,6 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 {
     WT_SAVE_UPD *supd;
 
-    WT_ASSERT_ALWAYS(session, onpage_upd != NULL || supd_restore,
-      "If nothing is committed, the update chain must be restored");
     WT_ASSERT_ALWAYS(session,
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY,
@@ -70,11 +68,14 @@ static int
 __rec_append_orig_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
     bool tombstone_globally_visible;
+
+    conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
       upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare,
@@ -93,8 +94,12 @@ __rec_append_orig_value(
                 continue;
         }
 
-        /* Done if the update was restored from the data store or the history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
+        /* Done if the update was restored from the history store. */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA))
+            return (0);
+
+        /* Done if the update is a full update restored from the data store. */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS) && upd->type == WT_UPDATE_STANDARD)
             return (0);
 
         /*
@@ -162,18 +167,30 @@ __rec_append_orig_value(
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
-            tombstone->txnid = unpack->tw.stop_txn;
+            /*
+             * When reconciling during recovery, we need to clear the transaction id as we haven't
+             * done so when we read the page into memory to avoid using the transaction id from the
+             * previous run.
+             */
+            if (F_ISSET(conn, WT_CONN_RECOVERING))
+                tombstone->txnid = WT_TXN_NONE;
+            else
+                tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
-            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+            F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
         } else {
             /*
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
-             * WT_TS_NONE in the time window.
+             * WT_TS_NONE in the time window. In RTS in recovery, we may have cleared the
+             * transaction id of the tombstone but we haven't cleared the transaction ids on the
+             * disk-image if we are still in recovery.
              */
             WT_ASSERT(session,
               (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
-                (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
+                (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE ||
+                  (oldest_upd->txnid == WT_TXN_NONE && F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+                    F_ISSET(oldest_upd, WT_UPDATE_RESTORED_FROM_DS))));
 
             if (tombstone_globally_visible)
                 return (0);
@@ -192,10 +209,18 @@ __rec_append_orig_value(
           unpack->cell == NULL || __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
         WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
-        append->txnid = unpack->tw.start_txn;
+        /*
+         * When reconciling during recovery, we need to clear the transaction id as we haven't done
+         * so when we read the page into memory to avoid using the transaction id from the previous
+         * run.
+         */
+        if (F_ISSET(conn, WT_CONN_RECOVERING))
+            append->txnid = WT_TXN_NONE;
+        else
+            append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
-        F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
+        F_SET(append, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
     }
 
     if (tombstone != NULL) {
@@ -271,6 +296,14 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
+
+    if (F_ISSET(S2BT(session), WT_BTREE_PAGE_DELTA)) {
+        if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DURABLE))
+            return (true);
+
+        if (upd_select->tombstone != NULL && !F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE))
+            return (true);
+    }
 
     /* No need to save the update chain if we want to delete the key from the disk image. */
     if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
@@ -534,7 +567,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             continue;
 
         /* Give up if the update is from this transaction and on the metadata file.*/
-        if (WT_IS_METADATA(session->dhandle) && txnid == session_txnid)
+        if (WT_IS_METADATA(session->dhandle) && txnid != WT_TXN_NONE && txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
 
         /*
@@ -747,15 +780,7 @@ __rec_fill_tw_from_upd_select(
          * ends when this tombstone started. (Note: this may have been true at one point, but
          * currently we either append the onpage value and return that, or return the tombstone
          * itself; there is no case that returns no update but sets the time window.)
-         *
-         * If the tombstone is restored from the disk or the history store, the onpage value and the
-         * history store value should have been restored together. Therefore, we should not end up
-         * here.
          */
-        WT_ASSERT_ALWAYS(session,
-          !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS),
-          "A tombstone written to the disk image or history store should be accompanied by "
-          "the full value.");
         WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
 
         /*
@@ -764,7 +789,8 @@ __rec_fill_tw_from_upd_select(
          */
         if (last_upd->next != NULL) {
             WT_ASSERT_ALWAYS(session,
-              last_upd->next->txnid == vpack->tw.start_txn &&
+              last_upd->next->txnid ==
+                  (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE : vpack->tw.start_txn) &&
                 last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
               "Tombstone is globally visible, but the tombstoned update is on the update "

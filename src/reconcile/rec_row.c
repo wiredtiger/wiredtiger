@@ -513,6 +513,9 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
+    if (first_upd->type == WT_UPDATE_TOMBSTONE)
+        return (0);
+
     if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
         __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
           "oligarch table record garbage collected 5");
@@ -548,6 +551,9 @@ __rec_row_garbage_collect_fixup_insert_list(
         return (0);
     /* The insert list should have an update, but be paranoid */
     if ((first_upd = ins->upd) == NULL)
+        return (0);
+
+    if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
     if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {

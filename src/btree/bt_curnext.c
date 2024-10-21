@@ -58,7 +58,8 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.size = 1;
     } else {
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        WT_RET(
+          __wt_txn_read_upd_list(session, cbt, NULL, WT_INSERT_RECNO(cbt->ins), cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             cbt->v = 0;
@@ -118,7 +119,8 @@ restart_read:
     __wt_upd_value_clear(cbt->upd_value);
     if (cbt->ins != NULL)
         /* Check the update list. */
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        WT_RET(
+          __wt_txn_read_upd_list(session, cbt, NULL, WT_INSERT_RECNO(cbt->ins), cbt->ins->upd));
     if (cbt->upd_value->type == WT_UPDATE_INVALID)
         /*
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
@@ -184,7 +186,8 @@ restart_read:
             WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_next_early_exit);
         WT_RET(ret);
 
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        WT_RET(
+          __wt_txn_read_upd_list(session, cbt, NULL, WT_INSERT_RECNO(cbt->ins), cbt->ins->upd));
 
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
@@ -276,7 +279,8 @@ restart_read:
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
         __wt_upd_value_clear(cbt->upd_value);
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+            WT_RET(
+              __wt_txn_read_upd_list(session, cbt, NULL, WT_INSERT_RECNO(cbt->ins), cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
                 if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
@@ -458,7 +462,7 @@ restart_read_insert:
                 WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_next_early_exit);
             WT_RET(ret);
 
-            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, key, WT_RECNO_OOB, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
                 continue;

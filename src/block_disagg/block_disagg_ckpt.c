@@ -91,9 +91,8 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursor;
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_FH *metadata_fh;
-    wt_off_t filesize;
     size_t len;
     char *entry, *tablename;
     const char *md_value;
@@ -101,11 +100,6 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
     if (failed)
-        return (0);
-
-    metadata_fh = S2C(session)->oligarch_manager.metadata_fh;
-    if (metadata_fh == NULL)
-        /* TODO I think this is only during shutdown... */
         return (0);
 
     /* Get a metadata cursor pointing to this table */
@@ -123,13 +117,17 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
     len += cval.len + 2; /* +2 for the separator and the newline */
     WT_ERR(__wt_calloc_def(session, len, &entry));
-    WT_ERR(__wt_snprintf(entry, len, "%s|%.*s\n", tablename, (int)cval.len, cval.str));
+    WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
     /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
-    WT_ERR(__wt_filesize(session, metadata_fh, &filesize));
-    WT_ERR(__wt_write(session, metadata_fh, filesize, len - 1, entry)); /* len-1, don't write NUL */
+    /* TODO: Add checkpoint ID. */
+    WT_ERR(__wt_scr_alloc(session, len, &buf));
+    memcpy(buf->mem, entry, len);
+    buf->size = len - 1;
+    WT_ERR(__wt_disagg_put_meta(session, 0, 0, buf));
 
 err:
+    __wt_scr_free(session, &buf);
     __wt_free(session, tablename);
     __wt_free(session, entry); /* TODO may not have been allocated */
 

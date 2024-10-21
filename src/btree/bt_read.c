@@ -85,6 +85,123 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __bt_reconstruct_delta --
+ *     Reconstruct delta on a page
+ */
+static int
+__bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
+{
+    WT_CELL_UNPACK_DELTA unpack;
+    WT_CURSOR_BTREE cbt;
+    WT_DECL_RET;
+    WT_DELTA_HEADER *header;
+    WT_ITEM key, value;
+    WT_PAGE *page;
+    WT_ROW *rip;
+    WT_UPDATE *first_upd, *upd, *standard_value, *tombstone;
+    size_t size, tmp_size, total_size;
+
+    header = (WT_DELTA_HEADER *)delta->data;
+    total_size = 0;
+    page = ref->page;
+
+    __wt_btcur_init(session, &cbt);
+    __wt_btcur_open(&cbt);
+
+    WT_CELL_FOREACH_DELTA(session, header, unpack)
+    {
+        key.data = unpack.key;
+        key.size = unpack.key_size;
+        upd = standard_value = tombstone = NULL;
+        size = 0;
+
+        /* Search the page and apply the modification. */
+        WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
+        /*
+         * We apply deltas from newest to oldest, ignore keys that have already got a delta update.
+         */
+        if (cbt.compare == 0) {
+            if (cbt.ins != NULL) {
+                if (cbt.ins->upd != NULL && F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                    continue;
+            } else {
+                rip = &page->pg_row[cbt.slot];
+                first_upd = WT_ROW_UPDATE(page, rip);
+                if (first_upd != NULL && F_ISSET(first_upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                    continue;
+            }
+        }
+
+        if (F_ISSET(&unpack, WT_DELTA_IS_DELETE)) {
+            WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
+            F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+            size += tmp_size;
+            upd = tombstone;
+        } else {
+            value.data = unpack.value;
+            value.size = unpack.value_size;
+            WT_RET(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
+            standard_value->start_ts = unpack.tw.start_ts;
+            standard_value->durable_ts = unpack.tw.durable_start_ts;
+            F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+            size += tmp_size;
+
+            if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+                WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
+                tombstone->start_ts = unpack.tw.stop_ts;
+                tombstone->durable_ts = unpack.tw.durable_stop_ts;
+                F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+                size += tmp_size;
+                tombstone->next = standard_value;
+                upd = tombstone;
+            } else
+                upd = standard_value;
+        }
+
+        WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+
+        total_size += size;
+    }
+    WT_CELL_FOREACH_END;
+
+    /*
+     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
+     * updates to avoid reconciling the page every time.
+     */
+    __wt_page_modify_clear(session, page);
+    __wt_cache_page_inmem_incr(session, page, total_size);
+
+    if (0) {
+err:
+        __wt_free(session, standard_value);
+        __wt_free(session, tombstone);
+    }
+    WT_TRET(__wt_btcur_close(&cbt, true));
+    return (ret);
+}
+
+/*
+ * __bt_reconstruct_deltas --
+ *     Reconstruct deltas on a page
+ */
+static int
+__bt_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
+{
+    int i;
+
+    /*
+     * We apply the order in reverse order because we only care about the latest change of a key.
+     * The older changes are ignore.
+     *
+     * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
+     */
+    for (i = (int)delta_size - 1; i >= 0; --i)
+        WT_RET(__bt_reconstruct_delta(session, ref, &deltas[i]));
+
+    return (0);
+}
+
+/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -93,14 +210,17 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+    WT_ITEM *deltas;
     WT_ITEM tmp;
     WT_PAGE *notused;
     WT_PAGE_BLOCK_META block_meta;
+    size_t delta_size, i;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool prepare;
+    bool instantiate_upd;
 
     WT_CLEAR(block_meta);
+    delta_size = 0;
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -186,6 +306,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ERR(
       __wt_blkcache_read(session, &tmp, &block_meta, addr.block_cookie, addr.block_cookie_size));
 
+    deltas = NULL;
+
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
      * the disk image on return, the in-memory object steals it.
@@ -200,11 +322,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
+    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &instantiate_upd));
     tmp.mem = NULL;
     ref->page->block_meta = block_meta;
-    if (prepare)
-        WT_ERR(__wti_page_inmem_prepare(session, ref));
+    if (instantiate_upd && !WT_IS_HS(session->dhandle))
+        WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
@@ -229,6 +351,14 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             ref->page->modify->instantiated = true;
         } else
             WT_ERR(__wti_delete_page_instantiate(session, ref));
+    }
+
+    /* Reconstruct deltas*/
+    if (delta_size > 0) {
+        ret = __bt_reconstruct_deltas(session, ref, deltas, delta_size);
+        for (i = 0; i < delta_size; ++i)
+            __wt_buf_free(session, &deltas[i]);
+        WT_ERR(ret);
     }
 
 skip_read:
