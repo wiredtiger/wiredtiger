@@ -6,7 +6,7 @@ Eviction process ensures that the cache in WiredTiger is efficiently managed and
 
 ### Key Parameters
 
-WiredTiger offers multiple configuration options to manage the eviction of pages from the cache. These settings can be adjusted during database opening (`wiredtiger_open`) or reconfigured later (`WT_CONNECTION::reconfigure`).
+WiredTiger offers multiple configuration options to manage the eviction of pages from the cache. These are defined in [api_data.py](../../dist/api_data.py). These settings can be adjusted during database opening (`wiredtiger_open`) or reconfigured later (`WT_CONNECTION::reconfigure`). The most important configuration options for eviction are:
 
 | Parameter               | Description                                                                                              |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -24,20 +24,28 @@ WiredTiger offers multiple configuration options to manage the eviction of pages
 
 The eviction process involves three components:
 
-- **Eviction Server**: The primary background process that commences when the **target<sup>1</sup> thresholds** are reached. It identifies evictable candidates, places them in eviction queues and sorts them based on the **Least Recently Used (LRU)** algorithm.
-- **Eviction Worker Threads**: These threads pop pages from the queues and evicts them. They run in the background to assist the server.
-- **Application Threads**: These threads assist with eviction when **trigger<sup>2</sup> thresholds** are reached or may assist in evicting pages directly if needed (this is known as *forced eviction*).
-
-> It is possible to run only the eviction server without worker threads, but this may result in slower eviction processes as the server will be also be responsible for evicting the pages from the queues.
+- **Eviction Server**: The `eviction server` thread identifies evictable candidates, places them in eviction queues and sorts them based on the **Least Recently Used (LRU)** algorithm. It is a background process that commences when the **target<sup>1</sup> thresholds** are reached.
+- **Eviction Worker Threads**: These threads pop pages from the eviction queues and evicts them. The `threads_max` and `threads_min` configurations in [api_data.py](../../dist/api_data.py) control the maximum and minimum number of eviction worker threads in WiredTiger. They also run in the background to assist the server.
+    > It is possible to run only the eviction server without worker threads, but this may result in slower eviction as the only the server thread will be responsible for evicting the pages from the queues.
+- **Application Threads Eviction**: 
+    - When eviction threads are unable to maintain cache content, and cache content reaches **trigger<sup>2</sup> thresholds**, application threads begin assissting the eviction worker threads by also evicting pages from the eviction queues.
+    - Another scenario, known as **forced eviction**, occurs when application threads directly evict pages in specific conditions, such as:
+        - Pages exceeding the configured `memory_page_max` size (defined in [api_data.py](../../dist/api_data.py))
+        - Pages with large skip list
+        - Empty Internal pages
+        - Obsolete pages
+        - Pages with long update chains
+        - Pages showing many deleted records
+    > In both cases, application threads may experience higher read/write latencies.
 
 ### APIs for Eviction
 
 The eviction APIs, defined in `evict.h`, allow other modules in WT to manage eviction processes. Below is a brief description of the functionalities provided by these APIs:
 
 - Interrupting and waking up the eviction server when necessary.
-- Specifying which files to prioritise or exclude from the eviction process.
-- Retrieving the state of cache health from the eviction.
-- Allowing external modules to participate in the eviction process, enabling them to evict individual pages or entire data trees if needed.
+- Specifying which Btrees to prioritise or exclude from the eviction process.
+- Retrieving the state of cache health.
+- Allowing external modules to participate in the eviction process, enabling them to evict individual pages or entire Btrees if needed.
 - Modifying page states, crucial for prioritising or de-prioritising pages for eviction.
 
 ### Terminology
