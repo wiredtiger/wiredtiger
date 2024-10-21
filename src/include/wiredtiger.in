@@ -5658,7 +5658,7 @@ struct __wt_page_log {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_LOG_COMPRESSED 0x1u
 #define WT_PAGE_LOG_DELTA 0x2u
-#define WT_PAGE_LOG_ENCRYPTED 0x3u
+#define WT_PAGE_LOG_ENCRYPTED 0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 struct __wt_page_log_handle {
