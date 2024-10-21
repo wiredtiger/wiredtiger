@@ -1,0 +1,4 @@
+# Metadata
+
+<!-- MODULE: {"sourceAliases": ["metadata"]} -->
+
