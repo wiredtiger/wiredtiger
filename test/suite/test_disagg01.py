@@ -93,11 +93,14 @@ class test_disagg01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         page21_full = encode_bytes('Hello21')
         page21_delta1 = encode_bytes('Delta21-1')
 
-        handle.plh_put(session, 20, 2, False, page20_full)
-        handle.plh_put(session, 20, 2, True, page20_delta1)
-        handle.plh_put(session, 21, 2, False, page21_full)
-        handle.plh_put(session, 21, 2, True, page21_delta1)
-        handle.plh_put(session, 20, 2, True, page20_delta2)
+        flags_main_page = 0x0
+        flags_delta = wiredtiger.WT_PAGE_LOG_DELTA
+
+        handle.plh_put(session, 20, 2, 0, 0, flags_main_page, page20_full)
+        handle.plh_put(session, 20, 2, 0, 0, flags_delta, page20_delta1)
+        handle.plh_put(session, 21, 2, 0, 0, flags_main_page, page21_full)
+        handle.plh_put(session, 21, 2, 0, 0, flags_delta, page21_delta1)
+        handle.plh_put(session, 20, 2, 0, 0, flags_delta, page20_delta2)
 
         page20_results = handle.plh_get(session, 20, 2)
         page21_results = handle.plh_get(session, 21, 2)

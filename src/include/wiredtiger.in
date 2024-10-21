@@ -5654,6 +5654,13 @@ struct __wt_page_log {
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
 
+/* Flags used with WT_PAGE_LOG_HANDLE::plh_put */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_PAGE_LOG_COMPRESSED 0x1u
+#define WT_PAGE_LOG_DELTA 0x2u
+#define WT_PAGE_LOG_ENCRYPTED 0x3u
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+
 struct __wt_page_log_handle {
 
     /*
@@ -5670,11 +5677,14 @@ struct __wt_page_log_handle {
      * @param session the current WiredTiger session
      * @param page_id the page to be written
      * @param checkpoint_id the checkpoint to be written to
-     * @param is_delta is true if this is a delta, otherwise it is a full page image
+     * @param backlink_checkpoint_id the backlink checkpoint
+     * @param base_checkpoint_id the base checkpoint
+     * @param flags flags applicable to the object
      * @param buf content to be written
      */
     int (*plh_put)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
-        uint64_t page_id, uint64_t checkpoint_id, bool is_delta, const WT_ITEM *buf);
+        uint64_t page_id, uint64_t checkpoint_id, uint64_t backlink_checkpoint_id,
+        uint64_t base_checkpoint_id, uint32_t flags, const WT_ITEM *buf);
 
     /*!
      * Get an object from the paging/logging service.

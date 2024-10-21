@@ -1000,7 +1000,7 @@ __wt_disagg_put_meta(
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         return (disagg->page_log_meta->plh_put(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, false, item));
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, 0, 0, 0, item));
     }
 
     if (disagg->bstorage_meta != NULL) {

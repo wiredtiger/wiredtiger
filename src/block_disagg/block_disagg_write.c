@@ -59,7 +59,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_PAGE_LOG_HANDLE *plhandle;
     uint64_t page_id;
-    uint32_t checksum;
+    uint32_t checksum, flags;
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
@@ -114,8 +114,13 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     blk->checksum = checksum =
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
+    /* XXX Set encrypted, compressed, delta flags */
+    flags = 0;
+
     /* Write the block. */
-    WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, false, buf));
+    /* XXX Set backlink_checkpoint_id, base_checkpoint_id */
+    WT_RET(plhandle->plh_put(
+      plhandle, &session->iface, page_id, block_meta->checkpoint_id, 0, 0, flags, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);
