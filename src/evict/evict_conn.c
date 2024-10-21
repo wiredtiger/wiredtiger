@@ -178,9 +178,14 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_evict_config --
- *     This function parses user-defined eviction-related config string during `wiredtiger_open` or
- *     `WT_CONNECTION::reconfigure` to set eviction parameters such as eviction target and trigger
- *     thresholds. It supports reconfiguration via multiple calls.
+ *     This function parses eviction-related configuration strings during `wiredtiger_open` or
+ *     `WT_CONNECTION::reconfigure` to set eviction parameters. The input parameters are: (1)
+ *     `cfg[]`: a stack of configuration strings, where each string specifies a configuration
+ *     option (e.g., `eviction.threads_max`). The full list of valid eviction configurations are
+ *     defined in `api_data.py`. (2) `reconfig`: a boolean that indicates whether this function is
+ *     being called during `WT_CONNECTION::reconfigure`. It supports reconfiguration via multiple
+ *     calls. This function return 0 on success, or error code on failure. Errors occur for invalid
+ *     configurations.
  */
 int
 __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
