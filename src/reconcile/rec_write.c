@@ -2259,11 +2259,14 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Build delta.
  */
 static int
-__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *build_deltap)
 {
+    *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-        if (WT_BUILD_DELTA_LEAF(session, r))
+        if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, r));
+            *build_deltap = true;
+        }
     }
 
     return (0);
@@ -2282,6 +2285,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    bool build_delta;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
@@ -2401,8 +2405,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
 
-    if (last_block)
-        WT_RET(__rec_build_delta(session, r));
+    if (last_block) {
+        WT_RET(__rec_build_delta(session, r, &build_delta));
+        /* Discard the delta if it is larger than one tenth of the size of the full image. */
+        if (build_delta && r->delta.size > chunk->image.size / 10)
+            build_delta = false;
+    }
 
     /* Write the disk image and get an address. */
     WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
