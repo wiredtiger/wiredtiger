@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -426,8 +427,7 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
 
 static int
 palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, uint64_t backlink_checkpoint_id, uint64_t base_checkpoint_id,
-  uint32_t flags, const WT_ITEM *buf)
+  uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *put_args, const WT_ITEM *buf)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
@@ -440,13 +440,16 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm = palm_handle->palm;
     palm_delay(palm);
 
-    is_delta = (flags & WT_PAGE_LOG_DELTA) != 0;
+    /*
+     * XXX Use args, for inputs and outputs.
+     */
+    is_delta = (put_args->flags & WT_PAGE_LOG_DELTA) != 0;
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_put(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
       ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
       ", is_delta=%d, buf=\n%s)\n",
-      (void *)plh, page_id, checkpoint_id, backlink_checkpoint_id, base_checkpoint_id, is_delta,
-      palm_verbose_item(buf));
+      (void *)plh, page_id, checkpoint_id, put_args->backlink_checkpoint_id,
+      put_args->base_checkpoint_id, is_delta, palm_verbose_item(buf));
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &kv_revision);
     if (ret == MDB_NOTFOUND) {
@@ -475,7 +478,8 @@ err:
 
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, WT_ITEM *results_array, u_int *results_count)
+  uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
+  u_int *results_count)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
@@ -487,6 +491,11 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
     palm_delay(palm);
+
+    /*
+     * XXX Use lsn if set, and return lsn. Return other output arguments.
+     */
+    (void)get_args;
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64 ")...\n", (void *)plh,

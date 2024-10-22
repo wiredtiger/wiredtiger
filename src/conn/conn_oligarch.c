@@ -956,19 +956,21 @@ __wt_disagg_get_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
+    WT_PAGE_LOG_GET_ARGS get_args;
     WT_ITEM result;
     u_int count;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
     WT_CLEAR(result);
+    WT_CLEAR(get_args);
 
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         count = 1;
-        WT_RET(disagg->page_log_meta->plh_get(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &result, &count));
-        WT_ASSERT(session, count == 1); /* TODO: corrupt data */
+        WT_RET(disagg->page_log_meta->plh_get(disagg->page_log_meta, &session->iface, page_id,
+          checkpoint_id, &get_args, &result, &count));
+        WT_ASSERT(session, count == 1 && get_args.delta_count == 0); /* TODO: corrupt data */
         *item = result;
         return (0);
     }
@@ -993,14 +995,16 @@ __wt_disagg_put_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
+    WT_PAGE_LOG_PUT_ARGS put_args;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
+    WT_CLEAR(put_args);
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         return (disagg->page_log_meta->plh_put(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, 0, 0, 0, item));
+          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &put_args, item));
     }
 
     if (disagg->bstorage_meta != NULL) {

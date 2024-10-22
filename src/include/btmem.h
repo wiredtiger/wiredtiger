@@ -636,7 +636,11 @@ struct __wt_page_block_meta {
     uint64_t checkpoint_id;
     uint64_t reconciliation_id;
 
-    /* TODO: Place additional metadata here, e.g., checkpoint ID, number of deltas. */
+    uint64_t backlink_checkpoint_id;
+    uint64_t base_checkpoint_id;
+    uint32_t delta_count;
+    uint64_t disagg_lsn;
+    uint64_t disagg_lsn_frontier;
 };
 
 /*

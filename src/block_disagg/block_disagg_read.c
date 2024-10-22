@@ -50,9 +50,16 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_DECL_RET;
     WT_ITEM *current;
+    WT_PAGE_LOG_GET_ARGS get_args;
 
     WT_UNUSED(reconciliation_id);
 
+    /*
+     * Disaggregated storage only supports up to 32 items. We shouldn't ask for more.
+     */
+    WT_ASSERT(session, *results_count <= 32);
+
+    WT_CLEAR(get_args);
     if (block_meta != NULL)
         WT_CLEAR(*block_meta);
 
@@ -67,7 +74,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
      * Output buffers do not need to be preallocated, the PALI interface does that.
      */
     WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
-      checkpoint_id, results_array, results_count));
+      checkpoint_id, &get_args, results_array, results_count));
 
     /*
      * XXX We'll need to handle deltas here.
@@ -75,9 +82,19 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ASSERT(session, *results_count == 1);
 
     current = &results_array[0];
-    if (block_meta != NULL)
+
+    if (block_meta != NULL) {
         /* Set the other metadata returned by the Page Service. */
         block_meta->page_id = page_id;
+        block_meta->checkpoint_id = checkpoint_id;
+        /* XXX: verify the reconcilation id from the header */
+        block_meta->reconciliation_id = reconciliation_id;
+        block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
+        block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
+        block_meta->disagg_lsn = get_args.lsn;
+        block_meta->disagg_lsn_frontier = get_args.lsn_frontier;
+        block_meta->delta_count = get_args.delta_count;
+    }
 
     /*
      * We incrementally read through the structure before doing a checksum, do little- to big-endian
