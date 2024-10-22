@@ -59,6 +59,9 @@ for line in sys.stdin:
         # Scripts in dist rely on them to figure out where to generate code.
         if 'DO NOT EDIT' in comment:
             block = False
+       # Skip formatting if the comment contains the NO_AUTO_FORMAT marker.
+        if 'NO_AUTO_FORMAT' in comment:
+            block = False
         if multiline and not block:
             sys.stdout.write(comment)
         elif multiline:

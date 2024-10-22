@@ -19,6 +19,10 @@ def missing_comment():
                 # This is just re-exposing an internal function for unit
                 # tests, no comment needed in this case.
                 continue
+            comment = m.group(1)
+            if comment and "NO_AUTO_FORMAT" in comment:
+                # Skip formatting check for function comments with NO_AUTO_FORMAT marker.
+                continue
             if not m.group(1) or \
                not m.group(1).startswith('/*\n * %s --\n' % m.group(2)):
                    print("%s:%d: missing or malformed comment for %s" % \
