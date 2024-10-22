@@ -122,7 +122,7 @@ import(void *arg)
             testutil_check(session->drop(session, IMPORT_URI, "remove_files=false"));
             /* Try the import again. It may work or it may fail. */
             testutil_snprintf(buf, sizeof(buf),
-              "%s,import=(enabled,repair=false,panic_corruption=false,file_metadata=(%s))",
+              "%s,import=(enabled,repair=false,panic_corrupt=false,file_metadata=(%s))",
               table_config, file_config);
             ret = session->create(session, IMPORT_URI, buf);
             if (ret != 0) {
