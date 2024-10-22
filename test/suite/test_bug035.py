@@ -26,7 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, threading
+import wiredtiger, wttest, threading, time
+from wiredtiger import stat
 # test_bug35.py
 # This python test uses control points to reproduce WT-12349.
 # 1. Populate data in the table
@@ -60,12 +61,14 @@ class test_bug35(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(self.uri)
         session.begin_transaction("isolation=read-uncommitted")
         # 5. Pause thread due to control point when it starts to reconstruct the modify in the update list.
-        for i in range(1, self.nrows):
-            cursor.set_key(i)
-            cursor.search()
-        session.commit_transaction()
+        cursor.set_key(1)
+        self.assertRaisesException(wiredtiger.WiredTigerError, 
+                lambda: cursor.search(), '/conflict between concurrent operations/')
+
+        session.rollback_transaction()
         cursor.close()
         session.close()
+        self.ignoreStderrPatternIfExists("Read-uncommitted readers")
 
     def test_bug35(self):
         create_params = 'key_format=r,value_format=S'
@@ -108,7 +111,16 @@ class test_bug35(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
+        
+        # Wait for checkpoint to start before calling compact.
+        modify_reconstruct = False
+        while not modify_reconstruct:
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            modify_reconstruct = stat_cursor[stat.conn.txn_modify_reconstruct_uncommited][2] != 0
+            stat_cursor.close()
+            time.sleep(0.1)
         # 6. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
         self.session.rollback_transaction()
         # 7. T1 is now in an invalid state and should assert at this point.
         read_uncommitted_thread.join()
+        self.captureerr.check(self)

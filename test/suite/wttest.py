@@ -620,6 +620,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500):
         self.captureerr.check(self)
         yield
+        print()
         self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars)
 
     @contextmanager

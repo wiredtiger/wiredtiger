@@ -1066,6 +1066,7 @@ struct __wt_connection_stats {
     int64_t txn_prepared_updates_rolledback;
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;
+    int64_t txn_modify_reconstruct_uncommited;
     int64_t txn_rollback_oldest_pinned;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
@@ -1413,6 +1414,7 @@ struct __wt_dsrc_stats {
     int64_t session_compact;
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;
+    int64_t txn_modify_reconstruct_uncommited;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
