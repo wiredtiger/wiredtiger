@@ -27,7 +27,7 @@ The eviction process involves three components:
 - **Eviction Worker Threads**: These threads pop pages from the eviction queues and evicts them. The `threads_max` and `threads_min` configurations in [api_data.py](../../dist/api_data.py) control the maximum and minimum number of eviction worker threads in WiredTiger. They also run in the background to assist the server.
     > It is possible to run only the eviction server without the eviction worker threads, but this may result in slower eviction as the server thread alone would be responsible for evicting the pages from the eviction queues.
 - **Application Threads Eviction**: 
-    - When eviction threads are unable to maintain cache content, and cache content reaches **trigger<sup>2</sup> thresholds**, application threads begin assissting the eviction worker threads by also evicting pages from the eviction queues.
+    - When eviction threads are unable to maintain cache content, and cache content reaches **trigger<sup>2</sup> thresholds**, application threads begin assisting the eviction worker threads by also evicting pages from the eviction queues.
     - Another scenario, known as **forced eviction**, occurs when application threads directly evict pages in specific conditions, such as:
         - Pages exceeding the configured `memory_page_max` size (defined in [api_data.py](../../dist/api_data.py))
         - Pages with large skip list
