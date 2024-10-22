@@ -932,8 +932,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      */
     WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->maxintlpage));
     WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
-    if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
-      btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
+    bool intl_page_size_invalid = btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0;
+    bool leaf_page_size_invalid = btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0;
+    if (intl_page_size_invalid || leaf_page_size_invalid)
         WT_RET_MSG(session, EINVAL,
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
           btree->allocsize);
