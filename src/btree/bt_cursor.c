@@ -1025,7 +1025,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
         /*
          * Set the "insert" flag for row-store search; we may intend to position the cursor at the
-         * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
+         * end of the tree, rather than match an existing record. (LSM requires this semantic.)
          */
         if (btree->type == BTREE_ROW)
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
