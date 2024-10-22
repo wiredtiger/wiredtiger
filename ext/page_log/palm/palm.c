@@ -479,13 +479,13 @@ err:
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
-  u_int *results_count)
+  uint32_t *results_count)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
-    u_int count, i;
+    uint32_t count, i;
     int ret;
 
     count = 0;

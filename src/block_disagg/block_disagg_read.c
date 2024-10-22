@@ -45,7 +45,7 @@ static int
 __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
   WT_PAGE_BLOCK_META *block_meta, uint64_t page_id, uint64_t checkpoint_id,
   uint64_t reconciliation_id, uint32_t size, uint32_t checksum, WT_ITEM *results_array,
-  u_int *results_count)
+  uint32_t *results_count)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_DECL_RET;
