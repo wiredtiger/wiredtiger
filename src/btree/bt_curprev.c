@@ -34,21 +34,23 @@
 static WT_INLINE int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
-    WT_INSERT *current, *ins, *next_ins;
-    WT_ITEM key;
-    WT_SESSION_IMPL *session;
-    uint64_t recno;
-    int i;
-
-    session = CUR2S(cbt);
+    WT_SESSION_IMPL *session = CUR2S(cbt);
 
 restart:
     /*
+     * TODO: The braces are deliberately not indented correctly here so that the example changes keep
+     * most code unchanged
+     */
+    {
+    WT_INSERT *current = NULL;
+
+    /*
      * If the search stack does not point at the current item, fill it in with a search.
      */
-    recno = WT_INSERT_RECNO(cbt->ins);
+    uint64_t recno = WT_INSERT_RECNO(cbt->ins);
     while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
         if (CUR2BT(cbt)->type == BTREE_ROW) {
+            WT_ITEM key;
             key.data = WT_INSERT_KEY(current);
             key.size = WT_INSERT_KEY_SIZE(current);
             WT_RET(__wt_search_insert(session, cbt, cbt->ins_head, &key));
@@ -66,8 +68,9 @@ restart:
      * and the exit conditions to end up with the right values are
      * non-trivial.
      */
-    ins = NULL; /* -Wconditional-uninitialized */
-    for (i = 0; i < WT_SKIP_MAXDEPTH - 1; i++)
+    WT_INSERT *ins = NULL; /* -Wconditional-uninitialized */
+    int i = 0;
+    for (; i < WT_SKIP_MAXDEPTH - 1; i++)
         if ((ins = PREV_INS(cbt, i + 1)) != current)
             break;
 
@@ -115,6 +118,7 @@ restart:
          *
          * Place an acquire barrier to avoid this issue.
          */
+        WT_INSERT *next_ins = NULL;
         WT_ACQUIRE_READ_WITH_BARRIER(next_ins, ins->next[i]);
         if (next_ins != current) /* Stay at this level */
             ins = next_ins;
@@ -131,6 +135,7 @@ restart:
 
     cbt->ins = PREV_INS(cbt, 0);
     return (0);
+    }
 }
 
 /*
