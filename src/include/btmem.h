@@ -640,7 +640,6 @@ struct __wt_page_block_meta {
     uint64_t base_checkpoint_id;
     uint32_t delta_count;
     uint64_t disagg_lsn;
-    uint64_t disagg_lsn_frontier;
 };
 
 /*

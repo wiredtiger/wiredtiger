@@ -92,7 +92,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
         block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
         block_meta->disagg_lsn = get_args.lsn;
-        block_meta->disagg_lsn_frontier = get_args.lsn_frontier;
         block_meta->delta_count = get_args.delta_count;
     }
 

@@ -5692,7 +5692,6 @@ struct __wt_page_log_get_args {
         */
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
-       uint64_t lsn_frontier;
        uint32_t delta_count;
 };
 
