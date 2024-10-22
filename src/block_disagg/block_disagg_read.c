@@ -38,8 +38,8 @@ err:
 
 /*
  * __block_disagg_read_multiple --
- *     Read a page referenced by a page id, checkpoint id, reconciliation id triple into multiple
- *     buffers.
+ *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
+ *     page id, checkpoint id pair.
  */
 static int
 __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,

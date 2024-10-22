@@ -488,6 +488,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     u_int count, i;
     int ret;
 
+    count = 0;
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
     palm_delay(palm);
