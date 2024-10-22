@@ -322,6 +322,7 @@ RCPC
 RCS
 RCpc
 RDNOLOCK
+READGEN
 READONLY
 REALLOC
 RECNO
@@ -699,6 +700,7 @@ dev
 dh
 dhandle
 dhandles
+didworkp
 difftime
 dir
 directio

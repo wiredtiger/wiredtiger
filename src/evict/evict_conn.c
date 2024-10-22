@@ -253,8 +253,8 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
  *
  *     Input parameter:
  *       `cfg[]`: An array of configuration strings. This is passed to `__evict_config`, which
- *                handles all eviction-related configs (i.e., `eviction.*`) as part of the eviction
- *                setup process.
+ *       handles all eviction-related configs (i.e., `eviction.*`) as part of the eviction
+ *       setup process.
  *
  *     This function returns an error code for invalid configurations, memory allocation, or
  *     spinlock initialization failures.
