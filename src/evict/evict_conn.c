@@ -252,9 +252,9 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
  *     before any eviction threads are spawned.
  *
  *     Input parameter:
- *       `cfg[]`: A stack of configuration strings, where each string specifies a configuration
- *       option (e.g., `eviction.threads_max`). It is passed here because this function calls the
- *       eviction configuration parser.
+ *       `cfg[]`: An array of configuration strings. This is passed to `__evict_config`, which
+ *                handles all eviction-related configs (i.e., `eviction.*`) as part of the eviction
+ *                setup process.
  *
  *     This function returns an error code for invalid configurations, memory allocation, or
  *     spinlock initialization failures.
@@ -318,7 +318,8 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
  * __wt_evict_destroy --
  *     This function releases all memory and locks related to eviction. It ensures the eviction
  *     system is properly destroyed. It must be called exactly once during `WT_CONNECTION::close`,
- *     and must be called after all the eviction threads are destroyed.
+ *     and must be called after all the eviction threads are destroyed (via
+ *     `__wt_evict_threads_destroy`).
  *
  *     This function returns an error code if it is unable to close the internal eviction session.
  */
