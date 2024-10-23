@@ -157,6 +157,8 @@ class test_import12(test_import_base):
             c = self.session.open_cursor('metadata:', None, None)
             latest_meta = c[self.new_uri]
             c.close()
+            self.pr('latest_meta: ' + latest_meta)
+            self.assertTrue(latest_meta.find(alter_config) != -1)
 
             # Drop the file but don't remove it.
             self.pr("Drop table")
@@ -178,14 +180,13 @@ class test_import12(test_import_base):
                 self.pr("Create again with " + import_repair)
                 self.session.create(self.new_uri, import_repair)
 
-            # Check we opened at the latest checkpoint. Check the alter change stuck.
-            # XXX: This is part of related ticket WT-13639. Not fixed here.
+            # Check we opened at the latest checkpoint. Check the alter change made
+            # it to the checkpoint metadata in the file used for repair=true. 
+            # XXX: This is part of related ticket WT-13639. Not fixed yet.
             #c = self.session.open_cursor('metadata:', None, None)
             #repair_meta = c[self.new_uri]
             #c.close()
-            #self.pr('latest_meta: ' + latest_meta)
             #self.pr('repair_meta: ' + repair_meta)
-            #self.assertTrue(latest_meta.find(alter_config) != -1)
             #self.assertTrue(repair_meta.find(alter_config) != -1)
             #self.assertEqual(latest_meta, repair_meta)
 
