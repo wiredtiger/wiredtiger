@@ -48,6 +48,7 @@ class test_bug36(wttest.WiredTigerTestCase):
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
         session.begin_transaction("isolation=read-uncommitted")
+        self.pr("1")
         # 5. Pause thread when it starts to reconstruct the modify in the update list.
         cursor.set_key(str(1))
         self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -55,6 +56,7 @@ class test_bug36(wttest.WiredTigerTestCase):
         session.commit_transaction()
         cursor.close()
         session.close()
+        self.pr("2")
         self.ignoreStderrPatternIfExists("Read-uncommitted readers")
 
     def test_bug36(self):
@@ -83,7 +85,6 @@ class test_bug36(wttest.WiredTigerTestCase):
 
         # 4. Create another thread which will perform reads under isolation read-uncommitted.
         read_uncommitted_thread = threading.Thread(target=self.construct_modify_upd_list)
-        read_uncommitted_thread.start()
 
         # Add in a update and a modify.
         self.session.begin_transaction()
@@ -94,6 +95,7 @@ class test_bug36(wttest.WiredTigerTestCase):
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
 
+        read_uncommitted_thread.start()
         # Wait for read-uncommited thread to reconstruct the modify before calling rollback.
         modify_reconstruct = False
         while not modify_reconstruct:
