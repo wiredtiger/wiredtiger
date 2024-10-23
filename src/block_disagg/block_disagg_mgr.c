@@ -17,9 +17,8 @@ __bmd_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, siz
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
-    WT_UNUSED(addr_size);
 
-    return (__wt_block_disagg_addr_invalid(addr));
+    return (__wt_block_disagg_addr_invalid(addr, addr_size));
 }
 
 /*
@@ -135,6 +134,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->is_mapped = __wt_bmp_is_mapped;
     bm->map_discard = __wt_bmp_map_discard;
     bm->read = __wt_block_disagg_read;
+    bm->read_multiple = __wt_block_disagg_read_multiple;
     bm->salvage_end = __wt_bmp_salvage_end;
     bm->salvage_next = __wt_bmp_salvage_next;
     bm->salvage_start = __wt_bmp_salvage_start;

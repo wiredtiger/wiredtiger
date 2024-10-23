@@ -205,42 +205,40 @@ from packing import pack, unpack
         SWIG_exception_fail(SWIG_AttributeError,
           "bad string value for WT_ITEM");
     $1 = &item;
- }
-
-/* Why do we need an explicit conversion for pl_get_package_part - doesn't the previous typemap cover this? */
-%typemap(in) struct __wt_item *package_buffer (WT_ITEM item) {
-    memset(&item, 0, sizeof(item));
-    if (unpackBytesOrString($input, &item.data, &item.size) != 0)
-        SWIG_exception_fail(SWIG_AttributeError,
-          "bad string value for WT_ITEM");
-    $1 = &item;
- }
-
-/* Special handling for plh_get return arg */
-%typemap(in,numinputs=0) (WT_ITEM *package_result) (WT_ITEM item) {
-    memset(&item, 0, sizeof(item));
-    $1 = &item;
- }
-
-%typemap(argout) (WT_ITEM *package_result) {
-    WT_ITEM *item = $1;
-    PyBytesObject *pbo = PyBytes_FromStringAndSize(item->data, item->size);
-    free(item->data);
-    item->data = NULL;
-    $result = pbo;
 }
 
-/* Special handling for pl_get_package_part return arg */
-%typemap(in,numinputs=0) (WT_ITEM *result) (WT_ITEM item) {
-    memset(&item, 0, sizeof(item));
-    $1 = &item;
+/*
+ * This typemap removes the three last arguments for plh_get, and uses local variables for them instead.
+ * The local variables will be used in the matching argout typemap.
+ * Code in this typemap appears before the call to the API function.
+ */
+%typemap(in,numinputs=0) (WT_ITEM *results_array, u_int *results_count)
+  (WT_ITEM results[32], u_int count) {
+    memset(&results, 0, sizeof(results));
+    count = 32;
+    $1 = results;
+    $2 = &count;
  }
 
-%typemap(argout) (WT_ITEM *result) {
-    WT_ITEM *item = $1;
-    PyBytesObject *pbo = PyBytes_FromStringAndSize(item->data, item->size);
-    item->data = NULL;
-    $result = pbo;
+/*
+ * This typemap is for plh_get, and is used in conjunction with the previous typemap.
+ * Code in this typemap appears after the call to the API function.
+ * Using the local variables set up previously, and used in the call to plh_get
+ * now are converted to a python list of byte strings.
+ */
+%typemap(argout) (WT_ITEM *results_array, u_int *results_count) {
+    int i;
+    WT_ITEM *results_array;
+
+    results_array = $1;
+    $result = PyList_New(*$2);
+    for (i = 0; i < *$2; i++) {
+        PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[i].data, results_array[i].size);
+        PyList_SetItem($result, i, pbo);
+    }
+    /* Free in reverse order, since the first item might hold all the memory used by other items. */
+    for (i = *$2 - 1; i >= 0; i--)
+        free(results_array[i].mem);
  }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -657,6 +655,8 @@ NOTFOUND_OK(__wt_cursor::_modify)
 NOTFOUND_OK(__wt_cursor::largest_key)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
+ANY_OK(__wt_page_log_get_args::__wt_page_log_get_args)
+ANY_OK(__wt_page_log_put_args::__wt_page_log_put_args)
 
 COMPARE_OK(__wt_cursor::_compare)
 COMPARE_OK(__wt_cursor::_equals)
@@ -696,6 +696,18 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
 %ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, int *);
+
+/* TODO: workaround for issues with getting a Python version of structs working. */
+%ignore __wt_page_log_put_args::backlink_checkpoint_id;
+%ignore __wt_page_log_put_args::base_checkpoint_id;
+%ignore __wt_page_log_put_args::flags;
+%ignore __wt_page_log_put_args::lsn;
+%ignore __wt_page_log_get_args::lsn;
+%ignore __wt_page_log_get_args::backlink_checkpoint_id;
+%ignore __wt_page_log_get_args::base_checkpoint_id;
+%ignore __wt_page_log_get_args::lsn_frontier;
+%ignore __wt_page_log_get_args::delta_count;
+
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
@@ -1163,10 +1175,6 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),
   (self, session, checkpoint_id))
 
-SIDESTEP_METHOD(__wt_page_log, pl_get_package_part,
-  (WT_SESSION *session, WT_ITEM *package_buffer, int delta, WT_ITEM *result),
-  (self, session, package_buffer, delta, result))
-
 SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
   (WT_SESSION *session, int table_id, WT_PAGE_LOG_HANDLE **handle),
   (self, session, table_id, handle))
@@ -1176,12 +1184,13 @@ SIDESTEP_METHOD(__wt_page_log, terminate,
   (self, session))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
-  (WT_SESSION *session, int page_id, int checkpoint_id, bool is_delta, WT_ITEM *buf),
-  (self, session, page_id, checkpoint_id, is_delta, buf))
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_PUT_ARGS *put_args, WT_ITEM *buf),
+  (self, session, page_id, checkpoint_id, put_args, buf))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_ITEM *result),
-  (self, session, page_id, checkpoint_id, result))
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args,
+    WT_ITEM *results_array, u_int *results_count),
+  (self, session, page_id, checkpoint_id, get_args, results_array, results_count))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
   (WT_SESSION *session),
@@ -1389,7 +1398,9 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(Connection) __wt_connection;
 %rename(FileHandle) __wt_file_handle;
 %rename(PageLog) __wt_page_log;
+%rename(PageLogGetArgs) __wt_page_log_get_args;
 %rename(PageLogHandle) __wt_page_log_handle;
+%rename(PageLogPutArgs) __wt_page_log_put_args;
 %rename(StorageSource) __wt_storage_source;
 %rename(FileSystem) __wt_file_system;
 

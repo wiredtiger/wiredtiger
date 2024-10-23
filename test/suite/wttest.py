@@ -192,6 +192,14 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def initialFileName(self, name):
         return self.platform_api.initialFileName(name)
 
+    # Return the disaggregated page log service for this testcase, or 'palm' if there is none.
+    def getDisaggService(self):
+        return self.platform_api.getDisaggService()
+
+    # Return the disaggregated page log configuration for this testcase, or None.
+    def getDisaggConfig(self):
+        return self.platform_api.getDisaggConfig()
+
     # Return the WiredTigerTimestamp for this testcase, or None if there is none.
     def getTimestamp(self):
         return self.platform_api.getTimestamp()

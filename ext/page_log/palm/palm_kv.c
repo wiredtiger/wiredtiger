@@ -41,6 +41,11 @@
 #include "palm_kv.h"
 
 /*
+ * Set the size of the LMDB cache. Ideally, this should be a parameter of some kind.
+ */
+static const size_t PALM_LMDB_CACHE_SIZE = 100 * 1024 * 1024;
+
+/*
  * LMDB requires the number of tables to be known at startup. If we add any more tables, we need to
  * increment this.
  */
@@ -94,6 +99,10 @@ palm_kv_env_create(PALM_KV_ENV **envp)
         return (ret);
     }
     if ((ret = mdb_env_set_maxdbs(env->lmdb_env, PALM_MAX_DBI)) != 0) {
+        free(env);
+        return (ret);
+    }
+    if ((ret = mdb_env_set_mapsize(env->lmdb_env, PALM_LMDB_CACHE_SIZE)) != 0) {
         free(env);
         return (ret);
     }
@@ -269,6 +278,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
         return (ret);
     ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_SET_RANGE);
     if (ret == MDB_NOTFOUND) {
+        /* If we went off the end, backup to the last record. */
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
     }
     if (ret == 0) {
@@ -276,10 +286,17 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
             return (EIO); /* not expected, data damaged, could be assert */
         result_key = (PAGE_KEY *)kval.mv_data;
     }
+    /*
+     * Now back up until we get a match. This will be the last valid record that matches the
+     * table/page.
+     */
     while (ret == 0 && (result_key->table_id != table_id || result_key->page_id != page_id)) {
-        result_key = (PAGE_KEY *)kval.mv_data;
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
+        result_key = (PAGE_KEY *)kval.mv_data;
     }
+    /*
+     * Now back up until we match table/page/checkpoint.
+     */
     while (ret == 0 && result_key->table_id == table_id && result_key->page_id == page_id &&
       result_key->checkpoint_id >= checkpoint_id) {
 
