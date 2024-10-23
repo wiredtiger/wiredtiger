@@ -476,7 +476,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
     return report
 
 
-def build_pr_comment(code_change_info: dict) -> str | None:
+def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str | None:
     # Do nothing if the PR has no relevant changes.
     if int(code_change_info['summary_info']['num_lines']) == 0:
         return None
@@ -518,6 +518,8 @@ def build_pr_comment(code_change_info: dict) -> str | None:
         |------------------------------------------|-------|
         | Line coverage                            | {lines_covered} |
         | Branch coverage                          | {branches_covered} |
+
+        - [Code change report]({code_change_report_url})
     """)
 
     # Complexity
@@ -587,6 +589,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--code_change_info', required=True, help='Path to the code change info file')
     parser.add_argument('-o', '--html_output', required=True, help='Path of the html file to write output to')
+    parser.add_argument('--code_change_report_url', help='URL of the code change report')
     parser.add_argument('--github_repo', default='wiredtiger/wiredtiger', help='The github repo for this change')
     parser.add_argument('--github_pr_number', help='A github PR id for this change')
     parser.add_argument('--github_token', help='An API token for github for leaving pr comments')
@@ -602,6 +605,7 @@ def main():
         print('====================')
         print('Configuration:')
         print('  Code change info file:  {}'.format(args.code_change_info))
+        print('  Code change report URL:  {}'.format(args.code_change_report_url))
         print('  Html output file:  {}'.format(args.html_output))
         print('  Leave PR Comment: {}'.format(leave_pr_comment))
 
@@ -612,7 +616,7 @@ def main():
         output_file.writelines(html_report_as_text)
 
     if leave_pr_comment:
-        comment = build_pr_comment(code_change_info=code_change_info)
+        comment = build_pr_comment(code_change_info=code_change_info, code_change_report_url=args.code_change_report_url)
         post_pr_comment(args.github_repo, args.github_pr_number, args.github_token, comment)
 
 
