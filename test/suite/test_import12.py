@@ -181,7 +181,7 @@ class test_import12(test_import_base):
                 self.session.create(self.new_uri, import_repair)
 
             # Check we opened at the latest checkpoint. Check the alter change made
-            # it to the checkpoint metadata in the file used for repair=true. 
+            # it to the checkpoint metadata in the file used for repair=true.
             # XXX: This is part of related ticket WT-13639. Not fixed yet.
             #c = self.session.open_cursor('metadata:', None, None)
             #repair_meta = c[self.new_uri]
