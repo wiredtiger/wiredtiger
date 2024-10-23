@@ -128,9 +128,14 @@ import(void *arg)
                     testutil_check(ret);
                 testutil_assert(++drop_cnt < MAX_RETRY_DROP);
             }
-            /* Try the import again. It may work or it may fail. */
+            /*
+             * Try the import again. It may work or it may fail. It is expected to fail if we forced
+             * checkpoints. When it fails, we retry the import with repair set to true. We only do
+             * that on failure because it is less efficient as it must read the entire table to find
+             * the latest checkpoint.
+             */
             testutil_snprintf(buf, sizeof(buf),
-              "%s,import=(enabled,repair=false,panic_corrupt=false,file_metadata=(%s))",
+              "%s,import=(enabled,repair=false,panic_corrupt=false,file_metadata=(%s))t",
               table_config, file_config);
             ret = session->create(session, IMPORT_URI, buf);
             if (ret != 0) {
