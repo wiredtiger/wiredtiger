@@ -244,6 +244,22 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_4].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].init =
+      __wt_control_point_pair_init_pred_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].init_pred =
+      __wt_control_point_config_pred_times; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].pred =
+      __wt_control_point_pred_times; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].config_name =
+      "thread_wait_for_upd_abort";
+    WT_ERR(__wt_spin_init(session,
+      &(control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].lock),
+      "Thread wait for upd abort"));
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].enable_at_open = false;
+    /* Extra initialization required for action "Trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_TRIGGER;
+
     control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].init =
       __wt_control_point_pair_init_pred_trigger;
     control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].pred =

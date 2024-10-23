@@ -1160,6 +1160,7 @@ conn_dsrc_stats = [
     ##########################################
     # Transaction statistics
     ##########################################
+    TxnStat('txn_modify_reconstruct_uncommited', 'number of times we have reconstructed a modify under read-uncommitted isolation'),
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_commit', 'a reader raced with a prepared transaction commit and skipped an update or updates'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
