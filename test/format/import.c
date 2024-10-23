@@ -112,13 +112,13 @@ import(void *arg)
             testutil_snprintf(buf, sizeof(buf),
               "%s,import=(enabled,repair=false,file_metadata=(%s))", table_config, file_config);
             testutil_check(session->create(session, IMPORT_URI, buf));
-            /* Set random access pattern hint as an innocent alter command. */
-            testutil_check(session->alter(session, IMPORT_URI, "access_pattern_hint=random"));
             /* Checkpoint before drop. Sometimes with force. */
             if (import_value == 2)
                 testutil_check(session->checkpoint(session, NULL));
             else
                 testutil_check(session->checkpoint(session, "force=true"));
+            /* Set random access pattern hint as an innocent alter command. */
+            testutil_check(session->alter(session, IMPORT_URI, "access_pattern_hint=random"));
             testutil_check(session->drop(session, IMPORT_URI, "remove_files=false"));
             /* Try the import again. It may work or it may fail. */
             testutil_snprintf(buf, sizeof(buf),
