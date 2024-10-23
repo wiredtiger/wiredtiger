@@ -36,6 +36,9 @@
 /* Define to 1 for diagnostic tests. */
 #cmakedefine HAVE_DIAGNOSTIC 1
 
+/* Define to 1 for control points. */
+#cmakedefine HAVE_CONTROL_POINT 1
+
 #cmakedefine HAVE_CALL_LOG 1
 
 /* Define to 1 for ref tracking */

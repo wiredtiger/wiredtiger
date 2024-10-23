@@ -3,6 +3,7 @@ include(cmake/configs/version.cmake)
 
 # Setup defaults based on the build type and available libraries.
 set(default_have_diagnostics ON)
+set(default_have_control_points ON)
 set(default_enable_python OFF)
 set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
@@ -15,6 +16,7 @@ set(default_enable_shared ON)
 
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     set(default_have_diagnostics OFF)
+    set(default_have_control_points OFF)
 endif()
 
 # Enable python if we have the minimum version.
@@ -104,6 +106,12 @@ config_bool(
     HAVE_DIAGNOSTIC
     "Enable WiredTiger diagnostics. Automatically enables debug info."
     DEFAULT ${default_have_diagnostics}
+)
+
+config_bool(
+    HAVE_CONTROL_POINT
+    "Enable control points."
+    DEFAULT ${default_have_control_points}
 )
 
 config_bool(

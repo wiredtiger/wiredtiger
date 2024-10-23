@@ -94,13 +94,14 @@ class test_bug36(wttest.WiredTigerTestCase):
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
 
-        # Wait for checkpoint to start before calling compact.
+        # Wait for read-uncommited thread to reconstruct the modify before calling rollback.
         modify_reconstruct = False
         while not modify_reconstruct:
             stat_cursor = self.session.open_cursor('statistics:', None, None)
             modify_reconstruct = stat_cursor[stat.conn.txn_modify_reconstruct_uncommited][2] != 0
             stat_cursor.close()
             time.sleep(0.1)
+
         # 7. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
         self.session.rollback_transaction()
         # 8. T1 is now in an invalid state and should assert at this point.

@@ -588,7 +588,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     WT_ERR(__session_config_prefetch(session, cfg));
 
 err:
+#ifdef HAVE_CONTROL_POINT
 done:
+#endif
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
