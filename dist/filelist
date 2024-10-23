@@ -111,6 +111,7 @@ src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
 src/history/hs_verify.c
+src/hw/aarch64.c            ARM64_HOST
 src/log/log.c
 src/log/log_auto.c
 src/log/log_cursor.c
