@@ -62,7 +62,7 @@ class test_bug35(wttest.WiredTigerTestCase):
         session.begin_transaction("isolation=read-uncommitted")
         # 5. Pause thread due to control point when it starts to reconstruct the modify in the update list.
         cursor.set_key(1)
-        self.assertRaisesException(wiredtiger.WiredTigerError, 
+        self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: cursor.search(), '/conflict between concurrent operations/')
 
         session.rollback_transaction()
@@ -111,7 +111,7 @@ class test_bug35(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             mods = [wiredtiger.Modify("b", 0, 1)]
             self.assertEquals(cursor.modify(mods), 0)
-        
+
         # Wait for read-uncommited thread to reconstruct the modify before calling rollback.
         modify_reconstruct = False
         while not modify_reconstruct:

@@ -50,7 +50,7 @@ class test_bug36(wttest.WiredTigerTestCase):
         session.begin_transaction("isolation=read-uncommitted")
         # 5. Pause thread when it starts to reconstruct the modify in the update list.
         cursor.set_key(str(1))
-        self.assertRaisesException(wiredtiger.WiredTigerError, 
+        self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: cursor.search(), '/conflict between concurrent operations/')
         session.commit_transaction()
         cursor.close()

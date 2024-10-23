@@ -158,7 +158,7 @@ err:
     return (ret);
 }
 
-/* Pair predicate function and "Wait for trigger". */
+/* Pair predicate function and "Trigger". */
 /*
  * __wt_control_point_pair_init_pred_trigger --
  *     The pair initialization function for predicate function and action "Wait for trigger".

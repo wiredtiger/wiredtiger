@@ -258,6 +258,28 @@ __wt_conn_control_point_init_all(WT_SESSION_IMPL *session)
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].enable_at_open = false;
     /* Extra initialization required for action "Trigger". */
     control_points[WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_TRIGGER
+
+        control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT]
+          .init = __wt_control_point_pair_init_pred_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].pred =
+      __wt_control_point_pred_param_64_match;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].config_name = "wt_13450_ckpt";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].lock), "WT 13450"));
+    /* Extra initialization required for action "Trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT].action_supported =
+      WT_CONTROL_POINT_ACTION_ID_TRIGGER;
+
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].init =
+      __wt_control_point_pair_init_pred_trigger;
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].init_pred = NULL; /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].pred = NULL;      /* Always */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].config_name = "wt_13450_test";
+    WT_ERR(__wt_spin_init(
+      session, &(control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].lock), "WT 13450"));
+    /* Extra initialization required for action "Trigger". */
+    control_points[WT_CONN_CONTROL_POINT_ID_WT_13450_TEST].action_supported =
       WT_CONTROL_POINT_ACTION_ID_TRIGGER;
 
     /* After all repeats finish with this. */

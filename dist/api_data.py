@@ -186,10 +186,10 @@ class SessionControlPoint(ControlPoint):
 
 # All per connection control points.
 all_per_connection_control_points_config = [
-    # For examples/c/ex_control_points.c
     Config('per_connection_control_points', '', r'''
         Configure concurrent determinism through per-connection control points''',
         type='category', subconfig= [
+            # For examples/c/ex_control_points.c
             ConnectionControlPoint('Main Start Printing', 'Trigger', 'Always',
                 '', r'''
                 Thread 0 waits for main to get here.''',
@@ -197,7 +197,7 @@ all_per_connection_control_points_config = [
                     # Action configuration parameters
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                 ]),
             ConnectionControlPoint('Thread 0', 'Trigger', 'Always', '', r'''
                 Thread 1 waits for thread 0 to get here.''',
@@ -205,7 +205,7 @@ all_per_connection_control_points_config = [
                     # Action configuration parameters
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                 ]),
             ConnectionControlPoint('Thread 1', 'Trigger', 'Always', '', r'''
                 Thread 2 waits for thread 1 to get here.''',
@@ -213,7 +213,7 @@ all_per_connection_control_points_config = [
                     # Action configuration parameters
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                 ]),
             ConnectionControlPoint('Thread 2', 'Trigger', 'Always', '', r'''
                 Thread 3 waits for thread 2 to get here.''',
@@ -221,7 +221,7 @@ all_per_connection_control_points_config = [
                     # Action configuration parameters
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                 ]),
             ConnectionControlPoint('Thread 3', 'Trigger', 'Always', '', r'''
                 Thread 4 waits for thread 3 to get here.''',
@@ -229,7 +229,7 @@ all_per_connection_control_points_config = [
                     # Action configuration parameters
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                 ]),
             ConnectionControlPoint('Thread 4', 'Trigger', 'Always', '', r'''
                 Thread 5 waits for thread 4 to get here.''',
@@ -237,7 +237,7 @@ all_per_connection_control_points_config = [
                     # Action configuration parameters
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                 ]),
             # For test/suite/test_bug035.py and test/suite/bug036.py
             ConnectionControlPoint('thread_wait_for_upd_abort', 'Trigger', 'Always', '', 
@@ -252,8 +252,32 @@ all_per_connection_control_points_config = [
                         trigger.''',
                         min='0', max=ControlPoint.int64_max),
                 ]),
-        ]),
+            # To reproduce WT 13450
+            ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
+                '', r'''
+                Next cursor waits for checkpoint to get here.''',
+                type='category', subconfig= [
+                    # Predicate configuration paramters
+                    Config('match_value', '1', r'''
+                            the btree id for which to wait''',
+                            min='0', max=Config.int64_max),
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max=Config.int64_max),
+                ]),
+            ConnectionControlPoint('WT 13450 TEST', 'Wait for trigger', 'Always',
+                '', r'''
+                Test waits for cursor next to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max=Config.int64_max),
+                ]),
+        ])
     ]
+
 all_per_session_control_points_config = [
     Config('per_session_control_points', '', r'''
         Configure concurrent determinism through per-session control points''',
@@ -265,13 +289,14 @@ all_per_session_control_points_config = [
                     # Action configuration parameters
                     Config('seconds', '3', r'''
                             the number of seconds for which to wait''',
-                            min='1', max='4294967295'),
+                            min='1', max=Config.int64_max),
                     Config('microseconds', '0', r'''
                         the number of microseconds for which to wait''',
-                        min='1', max='4294967295'),
+                        min='1', max=Config.int64_max),
+                    # Predicate configuration paramters
                     Config('skip_count', '1', r'''
                         the number of skips until we sleep''',
-                        min='1', max='4294967295'),
+                        min='1', max=Config.int64_max),
                 ]),
         ])
     ]
@@ -2371,11 +2396,11 @@ def test_control_point():
                 # Action configuration parameters
                 Config('wait_count', '1', r'''
                     the number of triggers for which to wait''',
-                    min='1', max='4294967295'),
+                    min='1', max=Config.int64_max),
                 # Predicate configuration parameters
                 Config('skip_count', '1', r'''
                     the number of control point crossings to skip''',
-                    min='1', max='4294967295'),
+                    min='1', max=Config.int64_max),
             ])
     test_one_control_point(conn_cp)
 
@@ -2390,14 +2415,14 @@ def test_control_point():
                         # Action configuration parameters
                         Config('seconds', '1', r'''
                                the number of seconds to sleep''',
-                               min='1', max='4294967295'),
+                               min='1', max=Config.int64_max),
                         Config('microseconds', '100', r'''
                                the number of microseconds to sleep''',
-                               min='1', max='4294967295'),
+                               min='1', max=Config.int64_max),
                         # Predicate configuration parameters
                         Config('enable_count', '10', r'''
                                the number of triggers to enable''',
-                               min='1', max='4294967295'),
+                               min='1', max=Config.int64_max),
             ])
     test_one_control_point(session_cp)
 
