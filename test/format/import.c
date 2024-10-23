@@ -47,6 +47,7 @@ static void verify_import(WT_SESSION *);
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_FILE "file:import.wt"
 
+#define MAX_RETRY_DROP 10
 /*
  * import --
  *     Periodically import table.
@@ -58,7 +59,7 @@ import(void *arg)
     WT_DECL_RET;
     WT_SESSION *import_session, *session;
     uint32_t import_value;
-    u_int period;
+    u_int drop_cnt, period;
     char buf[2048];
     const char *file_config, *table_config;
 
@@ -119,7 +120,14 @@ import(void *arg)
                 testutil_check(session->checkpoint(session, "force=true"));
             /* Set random access pattern hint as an innocent alter command. */
             testutil_check(session->alter(session, IMPORT_URI, "access_pattern_hint=random"));
-            testutil_check(session->drop(session, IMPORT_URI, "remove_files=false"));
+            drop_cnt = 0;
+            while ((ret = session->drop(session, IMPORT_URI, "remove_files=false")) != 0) {
+                if (ret == EBUSY)
+                    testutil_check(session->checkpoint(session, "force=true"));
+                else
+                    testutil_check(ret);
+                testutil_assert(++drop_cnt < MAX_RETRY_DROP);
+            }
             /* Try the import again. It may work or it may fail. */
             testutil_snprintf(buf, sizeof(buf),
               "%s,import=(enabled,repair=false,panic_corrupt=false,file_metadata=(%s))",
