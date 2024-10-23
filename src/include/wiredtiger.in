@@ -13,6 +13,12 @@
 extern "C" {
 #endif
 
+#ifdef HAVE_DIAGNOSTIC
+#define HAVE_CONTROL_POINT /* Make control point code stand out. */
+#else
+/* Not defined. Omit control point code. */
+#endif
+
 /*******************************************
  * Version information
  *******************************************/
@@ -816,7 +822,7 @@ struct __wt_cursor {
 #endif
 };
 
-#if defined(HAVE_CONTROL_POINT)
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
 /*!
  * WT_CONNECTION::enable_control_point, WT_CONNECTION::disable_control_point,
  * WT_SESSION::enable_control_point, and WT_SESSION::disable_control_point types
@@ -2096,7 +2102,7 @@ struct __wt_session {
     int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
     /*! @} */
 
-#if defined(HAVE_CONTROL_POINT)
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
     /*!
      * @name Control point support
      * @{
@@ -3007,7 +3013,7 @@ struct __wt_connection {
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
 
-#if defined(HAVE_CONTROL_POINT)
+#if defined(HAVE_CONTROL_POINT) || defined(SWIG)
     /*!
      * @name Control point support
      * @{

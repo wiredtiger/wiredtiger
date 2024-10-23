@@ -761,7 +761,9 @@ __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
+#ifdef HAVE_CONTROL_POINT
     static bool wait = true;
+#endif
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
