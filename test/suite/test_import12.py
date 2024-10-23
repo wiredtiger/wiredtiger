@@ -145,7 +145,7 @@ class test_import12(test_import_base):
                 else:
                     # !!!
                     # Doing a forced checkpoint as the second checkpoint causes the second
-                    # create/import below to fail because having two checkpoins renders the
+                    # create/import below to fail because having two checkpoints renders the
                     # original root page non-existent in the on-disk imported table that was
                     # created-with-import and then dropped but leave the file on disk.
                     self.session.checkpoint("force=true")
@@ -182,7 +182,7 @@ class test_import12(test_import_base):
 
             # Check we opened at the latest checkpoint. Check the alter change made
             # it to the checkpoint metadata in the file used for repair=true.
-            # XXX: This is part of related ticket WT-13639. Not fixed yet.
+            # FIXME-WT-13639. Uncomment this.
             #c = self.session.open_cursor('metadata:', None, None)
             #repair_meta = c[self.new_uri]
             #c.close()
