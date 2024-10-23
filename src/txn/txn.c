@@ -2915,4 +2915,4 @@ __ut_txn_mod_compare(const void *a, const void *b)
 }
 #endif
 
-// Dummy change
+/* Dummy change */
