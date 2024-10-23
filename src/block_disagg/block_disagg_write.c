@@ -120,7 +120,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     put_args.base_checkpoint_id = block_meta->base_checkpoint_id;
     /* XXX Set encrypted, compressed flags */
     if (block_meta->reconciliation_id > 0)
-        put_args.flags = WT_PAGE_LOG_DELTA;
+        FLD_SET(put_args.flags, WT_PAGE_LOG_DELTA);
 
     /* Write the block. */
     /* XXX Set backlink_checkpoint_id, base_checkpoint_id */

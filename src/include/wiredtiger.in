@@ -5571,6 +5571,9 @@ struct __wt_storage_source {
  * interface from multiple threads concurrently. It is the responsibility of
  * the implementation to protect any shared data.
  *
+ * <b>Reentrancy:</b>Methods on the WT_PAGE_LOG interface are not expected to
+ * support reentrant use.
+ *
  * Applications register implementations with WiredTiger by calling
  * WT_CONNECTION::add_page_log.
  *
@@ -5703,6 +5706,9 @@ struct __wt_page_log_get_args {
  * <b>Thread safety:</b> WiredTiger may invoke methods on the WT_PAGE_LOG_HANDLES
  * interface from multiple threads concurrently. It is the responsibility of
  * the implementation to protect any shared data.
+ *
+ * <b>Reentrancy:</b>Methods on the WT_PAGE_LOG_HANDLE interface are not expected to
+ * support reentrant use.
  */
 struct __wt_page_log_handle {
 
