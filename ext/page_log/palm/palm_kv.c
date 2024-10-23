@@ -61,6 +61,14 @@ typedef struct PAGE_KEY {
     uint64_t checkpoint_id;
     uint64_t revision;
     uint32_t is_delta;
+
+    /*
+     * These are not really things we key on, but they are more convenenient to store
+     * in the key rather than the data.
+     */
+    uint64_t backlink;
+    uint64_t base;
+    uint32_t flags;
 } PAGE_KEY;
 
 #ifdef PALM_KV_DEBUG
@@ -227,7 +235,8 @@ palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *v
 
 int
 palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
-  uint64_t checkpoint_id, uint64_t revision, bool is_delta, const WT_ITEM *buf)
+  uint64_t checkpoint_id, uint64_t revision, bool is_delta, uint64_t backlink, uint64_t base,
+  uint32_t flags, const WT_ITEM *buf)
 {
     MDB_val kval;
     MDB_val vval;
@@ -240,6 +249,9 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
     page_key.checkpoint_id = checkpoint_id;
     page_key.revision = revision;
     page_key.is_delta = is_delta;
+    page_key.backlink = backlink;
+    page_key.base = base;
+    page_key.flags = flags;
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
     vval.mv_size = buf->size;
@@ -355,6 +367,10 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
       page_key->page_id == matches->page_id && page_key->checkpoint_id == matches->checkpoint_id) {
         matches->size = vval.mv_size;
         matches->data = vval.mv_data;
+        matches->revision = page_key->revision;
+        matches->backlink = page_key->backlink;
+        matches->base = page_key->base;
+        matches->flags = page_key->flags;
         return (true);
     }
 
