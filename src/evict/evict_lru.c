@@ -961,16 +961,16 @@ __evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)
  *  NO_AUTO_FORMAT
  *
  * __wt_evict_file_exclusive_on --
- *     This function gets exclusive access to a file/tree. It does this by incrementing the
- *     `evict_disabled` counter for a tree, effectively disabling eviction for that tree. It then
- *     proceeds to remove all pages belonging to that tree from all eviction queues.
+ *     This function gets exclusive access to a file/tree making it possible to evict the entire
+ *     file using `__wt_evict_file`. It does this by incrementing the `evict_disabled` counter for
+ *     a tree, which disables all other means of eviction (except file eviction).
  *
  *     For the incremented `evict_disabled` value, the eviction server skips walking this tree for
  *     eviction candidates, and force-evicting or queuing pages from this tree is not allowed.
- *     This function can be called multiple times to disable eviction for a tree.
+ *     This function can be called multiple times to disable eviction for a tree by these means.
  *
- *     It is called from multiple places in the code base, such as when opening or closing trees, or
- *     during `verify`.
+ *     It is called from multiple places in the code base, such as when initiating file eviction
+ *     `__wt_evict_file` or when opening or closing trees.
  *
  *     Returns an error code if it fails to acquire necessary locks or clear the eviction queues.
  */
