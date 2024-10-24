@@ -2677,11 +2677,20 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
  *     Set the updates druable. This must be called when the reconciliation can no longer fail.
  */
 static WT_INLINE void
-__rec_set_updates_durable(WT_RECONCILE *r) {
+__rec_set_updates_durable(WT_RECONCILE *r)
+{
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
     uint32_t i, j;
 
+    /*
+     * TODO: we should rethink where we should call this. Is this safe to call this right after we
+     * have called the write function of PALI? What will happen if we fail after the write and
+     * before we call this function or if we fail after calling this function.
+     *
+     * Instead of thinking all this failure cases, we may be better off to always write a full page
+     * in the next reconciliation if this reconciliation fail.
+     */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         for (j = 0, supd = multi->supd; j < multi->supd_entries; ++j, ++supd) {
             if (supd->onpage_upd == NULL)
