@@ -2259,13 +2259,13 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Build delta.
  */
 static int
-__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *build_delta)
+__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *build_deltap)
 {
-    *build_delta = false;
+    *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, r));
-            *build_delta = true;
+            *build_deltap = true;
         }
     }
 
@@ -2406,17 +2406,22 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         }
     }
 
-    /* Write the disk image and get an address. */
-    if (last_block)
+    if (last_block && chunk->block_meta.delta_count < WT_PAGE_DELTA_MAX) {
         WT_RET(__rec_build_delta(session, r, &build_delta));
+        /* Discard the delta if it is larger than one tenth of the size of the full image. */
+        if (build_delta && r->delta.size > chunk->image.size / 10)
+            build_delta = false;
+    }
 
+    /* Write the disk image and get an address. */
     if (build_delta) {
-        chunk->block_meta.is_delta = true;
+        ++chunk->block_meta.delta_count;
         WT_RET(__wt_blkcache_write(session, &r->delta, &chunk->block_meta, addr, &addr_size,
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
     } else {
+        chunk->block_meta.delta_count = 0;
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
           &chunk->block_meta, addr, &addr_size, &compressed_size, false,
           F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));

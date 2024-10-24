@@ -387,12 +387,10 @@ typedef struct {
         WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
     } while (0)
 
-/* Called when building the leaf disk image. */
-#define WT_TRY_BUILD_DELTA_LEAF(session, r)                                                     \
-    F_ISSET(S2BT(session), WT_BTREE_PAGE_DELTA) && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && \
-      (r)->multi_next == 0 && !r->ovfl_items && (r->ref->page)->dsk != NULL
-
 /* Called when writing the leaf disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                                                         \
-    F_ISSET(S2BT(session), WT_BTREE_PAGE_DELTA) && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && \
-      (r)->multi_next == 1 && !r->ovfl_items && (r->ref->page)->dsk != NULL
+#define WT_BUILD_DELTA_LEAF(session, r)                                                      \
+    F_ISSET(S2BT(session), WT_BTREE_PAGE_DELTA) && (r)->multi_next == 1 && !r->ovfl_items && \
+      (((r)->ref->page->modify->rec_result == 0 && (r)->ref->page->dsk != NULL) ||           \
+        (r)->ref->page->modify->rec_result == WT_PM_REC_REPLACE ||                           \
+        ((r)->ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK &&                       \
+          (r)->ref->page->modify->mod_multi_entries == 1))

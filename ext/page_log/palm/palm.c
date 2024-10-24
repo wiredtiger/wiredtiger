@@ -26,6 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -45,13 +46,6 @@
 #define WT_THOUSAND 1000
 #define WT_MILLION 1000000
 #endif
-
-/* Round up, the round_amt must be a power of 2. */
-static size_t
-round_up(size_t val, size_t round_amt)
-{
-    return ((val + round_amt) & ~(round_amt - 1));
-}
 
 /*
  * This page log implementation is used for demonstration and testing. All objects are stored as
@@ -307,12 +301,15 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
     va_list ap;
     WT_EXTENSION_API *wt_api;
     char buf[1000];
+    const char *lmdb_error;
 
     va_start(ap, format);
     wt_api = palm->wt_api;
     if (vsnprintf(buf, sizeof(buf), format, ap) >= (int)sizeof(buf))
         wt_api->err_printf(wt_api, session, "palm: error overflow");
-    wt_api->err_printf(wt_api, session, "palm lmdb: %s: %s", mdb_strerror(ret), buf);
+    lmdb_error = mdb_strerror(ret);
+    wt_api->err_printf(wt_api, session, "palm lmdb: %s: %s", lmdb_error, buf);
+    PALM_VERBOSE_PRINT(palm, "palm lmdb: %s: %s\n", lmdb_error, buf);
     va_end(ap);
 
     return (WT_ERROR);
@@ -428,68 +425,31 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
     return (0);
 }
 
-/*
- * palm_get_package_part --
- *     Decode a portion of the package.
- */
-static int
-palm_get_package_part(WT_PAGE_LOG *page_log, WT_SESSION *session, WT_ITEM *package_buffer,
-  int delta_number, WT_ITEM *result)
-{
-    PALM *palm;
-    int delta_count;
-    size_t bytes_left, *sizep;
-    uint8_t *newp, *rawp;
-
-    palm = (PALM *)page_log;
-
-    PALM_VERBOSE_PRINT(palm, "palm_get_package_part\n");
-
-    sizep = (size_t *)package_buffer->data;
-    bytes_left = package_buffer->size;
-
-    delta_count = 0;
-    while (bytes_left >= sizeof(size_t) && delta_count < delta_number) {
-        rawp = (uint8_t *)sizep;
-        newp = rawp + sizeof(size_t) + round_up(*sizep, sizeof(size_t));
-        sizep = (size_t *)newp;
-        bytes_left -= (size_t)(newp - rawp);
-        ++delta_count;
-    }
-    if (delta_count < delta_number)
-        return (palm_err(palm, session, ENOMEM, "get_package_part: input buffer not big enough"));
-
-    if (bytes_left < sizeof(size_t)) {
-        result->size = 0;
-        result->data = NULL;
-    } else {
-        result->size = *sizep;
-        result->data = ((uint8_t *)sizep) + sizeof(size_t);
-    }
-    PALM_VERBOSE_PRINT(palm,
-      "palm_get_package_part(package=\n%s, delta=%d, result=\n%s) returns 0\n",
-      palm_verbose_item(package_buffer), delta_number, palm_verbose_item(result));
-    return (0);
-}
-
 static int
 palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, bool is_delta, const WT_ITEM *buf)
+  uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *put_args, const WT_ITEM *buf)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     uint64_t kv_revision;
     int ret;
+    bool is_delta;
 
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
     palm_delay(palm);
 
+    /*
+     * XXX Use args, for inputs and outputs.
+     */
+    is_delta = (put_args->flags & WT_PAGE_LOG_DELTA) != 0;
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_put(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
+      ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
       ", is_delta=%d, buf=\n%s)\n",
-      (void *)plh, page_id, checkpoint_id, is_delta, palm_verbose_item(buf));
+      (void *)plh, page_id, checkpoint_id, put_args->backlink_checkpoint_id,
+      put_args->base_checkpoint_id, is_delta, palm_verbose_item(buf));
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &kv_revision);
     if (ret == MDB_NOTFOUND) {
@@ -508,24 +468,35 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
 err:
     palm_kv_rollback_transaction(&context);
+
+    PALM_VERBOSE_PRINT(palm_handle->palm,
+      "palm_handle_put(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
+      ", is_delta=%d) returned %d\n",
+      (void *)plh, page_id, checkpoint_id, is_delta, ret);
     return (ret);
 }
 
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
-  uint64_t checkpoint_id, WT_ITEM *package, size_t *results_count)
+  uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
+  uint32_t *results_count)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
-    size_t add_size, prev_size;
-    uint8_t *new_addr;
+    uint32_t count, i;
     int ret;
 
+    count = 0;
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
     palm_delay(palm);
+
+    /*
+     * XXX Use lsn if set, and return lsn. Return other output arguments.
+     */
+    (void)get_args;
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64 ")...\n", (void *)plh,
@@ -533,26 +504,32 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
       palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, checkpoint_id, &matches));
-    package->size = 0;
-    while (palm_kv_next_page_match(&matches)) {
-        prev_size = package->size;
-        add_size = round_up(sizeof(matches.size) + matches.size, sizeof(matches.size));
-        PALM_KV_ERR(palm, session, palm_resize_item(package, package->size + add_size));
-        new_addr = package->mem;
-        new_addr += prev_size;
-        *((size_t *)new_addr) = matches.size;
-        new_addr += sizeof(matches.size);
-        memcpy(new_addr, matches.data, matches.size);
+    for (count = 0; count < *results_count; ++count) {
+        if (!palm_kv_next_page_match(&matches))
+            break;
+        memset(&results_array[count], 0, sizeof(WT_ITEM));
+        PALM_KV_ERR(palm, session, palm_resize_item(&results_array[count], matches.size));
+        memcpy(results_array[count].mem, matches.data, matches.size);
     }
+    /* Did the caller give us enough output entries to hold all the results? */
+    if (count == *results_count && palm_kv_next_page_match(&matches))
+        PALM_KV_ERR(palm, session, ENOMEM);
+
+    *results_count = count;
     PALM_KV_ERR(palm, session, matches.error);
     *results_count = 1;
 
 err:
+    palm_kv_rollback_transaction(&context);
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_get(plh=%p, page_id=%" PRIx64 ", checkpoint_id=%" PRIx64
-      ", buf=\n%s) returns %d\n",
-      (void *)plh, page_id, checkpoint_id, palm_verbose_item(package), ret);
-    palm_kv_rollback_transaction(&context);
+      ") returns %d (in %d parts)\n",
+      (void *)plh, page_id, checkpoint_id, ret, (int)count);
+    if (ret == 0) {
+        for (i = 0; i < count; ++i)
+            PALM_VERBOSE_PRINT(
+              palm_handle->palm, "   part %d: %s\n", (int)i, palm_verbose_item(&results_array[i]));
+    }
     return (ret);
 }
 
@@ -605,6 +582,7 @@ palm_open_handle(
     palm = (PALM *)page_log;
     if ((palm_handle = calloc(1, sizeof(PALM_HANDLE))) == NULL)
         return (errno);
+    palm_handle->iface.page_log = page_log;
     palm_handle->iface.plh_put = palm_handle_put;
     palm_handle->iface.plh_get = palm_handle_get;
     palm_handle->iface.plh_close = palm_handle_close;
@@ -681,7 +659,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_begin_checkpoint = palm_begin_checkpoint;
     palm->page_log.pl_complete_checkpoint = palm_complete_checkpoint;
     palm->page_log.pl_get_complete_checkpoint = palm_get_complete_checkpoint;
-    palm->page_log.pl_get_package_part = palm_get_package_part;
     palm->page_log.pl_open_handle = palm_open_handle;
     palm->page_log.terminate = palm_terminate;
 

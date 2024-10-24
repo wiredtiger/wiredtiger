@@ -53,22 +53,23 @@ __wt_block_disagg_write_size(size_t *sizep)
  */
 int
 __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint64_t *disagg_idp, uint32_t *sizep,
-  uint32_t *checksump, bool data_checksum, bool checkpoint_io)
+  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint32_t *sizep, uint32_t *checksump,
+  bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_PAGE_LOG_HANDLE *plhandle;
-    uint64_t disagg_id;
+    WT_PAGE_LOG_PUT_ARGS put_args;
+    uint64_t page_id;
     uint32_t checksum;
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
 
-    *disagg_idp = 0; /* -Werror=maybe-uninitialized */
-    *sizep = 0;      /* -Werror=maybe-uninitialized */
-    *checksump = 0;  /* -Werror=maybe-uninitialized */
+    *sizep = 0;     /* -Werror=maybe-uninitialized */
+    *checksump = 0; /* -Werror=maybe-uninitialized */
 
     plhandle = block_disagg->plhandle;
+    WT_CLEAR(put_args);
 
     WT_ASSERT_ALWAYS(session, plhandle != NULL, "Disaggregated block store requires page log");
 
@@ -90,7 +91,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     }
 
     /* Get the page ID. */
-    disagg_id = block_meta->page_id;
+    page_id = block_meta->page_id;
 
     /*
      * Update the block's checksum: if our caller specifies, checksum the complete data, otherwise
@@ -115,8 +116,16 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     blk->checksum = checksum =
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
+    put_args.backlink_checkpoint_id = block_meta->backlink_checkpoint_id;
+    put_args.base_checkpoint_id = block_meta->base_checkpoint_id;
+    /* XXX Set encrypted, compressed flags */
+    if (block_meta->reconciliation_id > 0)
+        FLD_SET(put_args.flags, WT_PAGE_LOG_DELTA);
+
     /* Write the block. */
-    WT_RET(plhandle->plh_put(plhandle, &session->iface, disagg_id, 1, false, buf));
+    /* XXX Set backlink_checkpoint_id, base_checkpoint_id */
+    WT_RET(plhandle->plh_put(
+      plhandle, &session->iface, page_id, block_meta->checkpoint_id, &put_args, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);
@@ -125,9 +134,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
 
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
-      (uintmax_t)disagg_id, (uintmax_t)buf->size, checksum);
+      (uintmax_t)page_id, (uintmax_t)buf->size, checksum);
 
-    *disagg_idp = disagg_id;
+    /* Some extra data is set by the put interface, and must be returned up the chain. */
+    block_meta->disagg_lsn = put_args.lsn;
+
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
 
@@ -144,7 +155,6 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
   bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
-    uint64_t disagg_id;
     uint32_t checksum, size;
     uint8_t *endp;
 
@@ -161,12 +171,13 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    WT_RET(__wt_block_disagg_write_internal(session, block_disagg, buf, block_meta, &disagg_id,
-      &size, &checksum, data_checksum, checkpoint_io));
+    WT_RET(__wt_block_disagg_write_internal(
+      session, block_disagg, buf, block_meta, &size, &checksum, data_checksum, checkpoint_io));
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
-    WT_RET(__wt_block_disagg_addr_pack(&endp, disagg_id, size, checksum));
+    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->checkpoint_id,
+      block_meta->reconciliation_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);
