@@ -89,7 +89,7 @@ static void
 test_pack_and_unpack_addr_cookie(
   WT_BLOCK *block, wt_off_t pack_offset, uint32_t pack_size, uint32_t pack_checksum)
 {
-    uint8_t p[WT_BTREE_MAX_ADDR_COOKIE], *pp;
+    uint8_t p[WT_ADDR_MAX_COOKIE], *pp;
     pp = p;
 
     size_t addr_size;
@@ -118,7 +118,7 @@ test_pack_and_unpack_addr_cookie_manual(
       static_cast<uint32_t>(cookie_vals[1]), static_cast<uint32_t>(cookie_vals[2]));
 }
 
-TEST_CASE("Block addr pack and unpack", "[block_addr]")
+TEST_CASE("Block manager: addr pack and unpack", "[block_addr]")
 {
     WT_BLOCK b;
     WT_BM bm, *bmp;

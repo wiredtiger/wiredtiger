@@ -621,7 +621,7 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
 
     if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint prepare %s for %" PRIu64 " seconds and it has gathered %" PRIu64
           " dhandles and skipped %" PRIu64 " dhandles",
           final ? "ran" : "has been running", time_diff, conn->ckpt_apply, conn->ckpt_skip);
@@ -647,7 +647,7 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
 
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
           closing ? "ran" : "has been running", time_diff, conn->ckpt_write_pages,
           conn->ckpt_write_bytes / WT_MEGABYTE);
@@ -723,7 +723,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 
     /* Get time diff in milliseconds. */
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
-    __wt_verbose(session, WT_VERB_CHECKPOINT,
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
       "time: %" PRIu64 " ms, gen: %" PRIu64 ": Full database checkpoint %s", msec,
       __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 }
