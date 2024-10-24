@@ -63,8 +63,8 @@ typedef struct PAGE_KEY {
     uint32_t is_delta;
 
     /*
-     * These are not really things we key on, but they are more convenenient to store
-     * in the key rather than the data.
+     * These are not really things we key on, but they are more convenient to store in the key
+     * rather than the data.
      */
     uint64_t backlink;
     uint64_t base;

@@ -459,9 +459,9 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_KV_ERR(palm, session, ret);
 
     PALM_KV_ERR(palm, session,
-      palm_kv_put_page(
-        &context, palm_handle->table_id, page_id, checkpoint_id, kv_revision, is_delta,
-        put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, put_args->flags, buf));
+      palm_kv_put_page(&context, palm_handle->table_id, page_id, checkpoint_id, kv_revision,
+        is_delta, put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, put_args->flags,
+        buf));
     PALM_KV_ERR(
       palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, kv_revision + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
