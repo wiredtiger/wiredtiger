@@ -2673,6 +2673,29 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 }
 
 /*
+ * __rec_set_updates_durable --
+ *     Set the updates druable. This must be called when the reconciliation can no longer fail.
+ */
+static WT_INLINE void
+__rec_set_updates_durable(WT_RECONCILE *r) {
+    WT_MULTI *multi;
+    WT_SAVE_UPD *supd;
+    uint32_t i, j;
+
+    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        for (j = 0, supd = multi->supd; j < multi->supd_entries; ++j, ++supd) {
+            if (supd->onpage_upd == NULL)
+                continue;
+
+            if (supd->onpage_tombstone != NULL)
+                F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+
+            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+        }
+    }
+}
+
+/*
  * __rec_write_wrapup --
  *     Finish the reconciliation.
  */
@@ -2685,9 +2708,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
-    WT_SAVE_UPD *supd;
     WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
-    uint32_t i, j;
+    uint32_t i;
     uint8_t previous_ref_state;
 
     btree = S2BT(session);
@@ -2779,24 +2801,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
       r->multi_next);
 
-    /*
-     * TODO: This is still not the correct place. We may still fail after this. Let's put it here
-     * for now to minimize code changes. We should decide where it should be. It's not clear how we
-     * will do error handling in disaggreated storage. What should we do if we only write a subset
-     * of split pages successfully? Can we discard the pages we already written and start again?
-     */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-        for (j = 0, supd = multi->supd; j < multi->supd_entries; ++j, ++supd) {
-            if (supd->onpage_upd == NULL)
-                continue;
-
-            if (supd->onpage_tombstone != NULL)
-                F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
-
-            F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
-        }
-    }
-
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
@@ -2820,6 +2824,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         mod->rec_result = WT_PM_REC_EMPTY;
         /* Mark the block meta invalid. */
         ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+        __rec_set_updates_durable(r);
         break;
     case 1: /* 1-for-1 page swap */
         r->ref->page->block_meta = r->multi->block_meta;
@@ -2846,6 +2851,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * leaving that work to us.)
          */
         if (r->wrapup_checkpoint == NULL) {
+            __rec_set_updates_durable(r);
             mod->mod_replace = r->multi->addr;
             r->multi->addr.block_cookie = NULL;
             mod->mod_disk_image = r->multi->disk_image;
@@ -2857,6 +2863,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
               __rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta, NULL,
                 NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
+            __rec_set_updates_durable(r);
         }
 
         mod->rec_result = WT_PM_REC_REPLACE;
@@ -2878,6 +2885,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:
+        __rec_set_updates_durable(r);
+
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
         mod->rec_result = WT_PM_REC_MULTIBLOCK;
