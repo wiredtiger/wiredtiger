@@ -27,6 +27,7 @@
     "./wt -h WT_HOME_COVERAGE load -j -f ../test/evergreen/code_coverage/test_table.json"
   ],
   "test_tasks": [
+    "python3 ../test/suite/run.py test_txn15",
     "python3 ../test/suite/run.py test_util05"
   ]
 }
