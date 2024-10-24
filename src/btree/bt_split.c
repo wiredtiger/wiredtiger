@@ -1776,6 +1776,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      */
     if (multi->disk_image != NULL && !closing) {
         WT_RET(__split_multi_inmem(session, page, multi, ref));
+        ref->page->block_meta = multi->block_meta;
         WT_REF_SET_STATE(ref, WT_REF_MEM);
     }
     __wt_free(session, multi->disk_image);

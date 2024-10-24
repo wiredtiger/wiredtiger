@@ -1029,7 +1029,7 @@ __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
  *     Initialize a single chunk structure.
  */
 static int
-__rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk, bool first)
+__rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk)
 {
     chunk->recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
@@ -1053,17 +1053,6 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
      */
     WT_RET(__wt_buf_init(session, &chunk->image, r->disk_img_buf_size));
     memset(chunk->image.mem, 0, WT_PAGE_HEADER_SIZE);
-
-    /*
-     * Initialize the block page metadata.
-     */
-    /* TODO Use the code below once checkpoint-based page versioning is ready. */
-    /*if (first)
-        chunk->block_meta = r->page->block_meta;
-    else
-        __wt_page_block_meta_init(session, &chunk->block_meta);*/
-    WT_UNUSED(first);
-    __wt_page_block_meta_init(session, &chunk->block_meta);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -1196,7 +1185,7 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, u
     r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
-    WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A, true));
+    WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A));
     r->cur_ptr = &r->chunk_A;
     r->prev_ptr = NULL;
 
@@ -1531,7 +1520,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
             WT_RET(__rec_split_write(session, r, r->prev_ptr, NULL, false));
 
         if (r->prev_ptr == NULL) {
-            WT_RET(__rec_split_chunk_init(session, r, &r->chunk_B, false));
+            WT_RET(__rec_split_chunk_init(session, r, &r->chunk_B));
             r->prev_ptr = &r->chunk_B;
         }
         tmp = r->prev_ptr;
@@ -1540,7 +1529,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
     }
 
     /* Initialize the next chunk, including the key. */
-    WT_RET(__rec_split_chunk_init(session, r, r->cur_ptr, false));
+    WT_RET(__rec_split_chunk_init(session, r, r->cur_ptr));
     r->cur_ptr->recno = r->recno;
     if (btree->type == BTREE_ROW)
         WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key, r->page->type));
@@ -1687,7 +1676,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         tmp = r->prev_ptr;
         r->prev_ptr = r->cur_ptr;
         r->cur_ptr = tmp;
-        return (__rec_split_chunk_init(session, r, r->prev_ptr, false));
+        return (__rec_split_chunk_init(session, r, r->prev_ptr));
     }
 
     if (prev_ptr->min_offset != 0 && cur_ptr->image.size < r->min_split_size) {
@@ -2378,7 +2367,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint = compressed_image;
             r->wrapup_checkpoint_compressed = true;
         }
-        r->wrapup_checkpoint_block_meta = chunk->block_meta;
+        r->wrapup_checkpoint_block_meta = r->ref->page->block_meta;
         return (0);
     }
 
@@ -2408,7 +2397,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         }
     }
 
-    if (last_block && chunk->block_meta.delta_count < WT_PAGE_DELTA_MAX) {
+    if (last_block && r->ref->page->block_meta.delta_count < WT_PAGE_DELTA_MAX) {
         WT_RET(__rec_build_delta(session, r, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && r->delta.size > chunk->image.size / 10)
@@ -2417,15 +2406,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Write the disk image and get an address. */
     if (build_delta) {
-        ++chunk->block_meta.delta_count;
-        WT_RET(__wt_blkcache_write(session, &r->delta, &chunk->block_meta, addr, &addr_size,
+        multi->block_meta = r->ref->page->block_meta;
+        ++multi->block_meta.delta_count;
+        ++multi->block_meta.reconciliation_id;
+        WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, &addr_size,
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
     } else {
-        chunk->block_meta.delta_count = 0;
+        __wt_page_block_meta_init(session, &multi->block_meta);
+        ++multi->block_meta.reconciliation_id;
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
-          &chunk->block_meta, addr, &addr_size, &compressed_size, false,
+          &multi->block_meta, addr, &addr_size, &compressed_size, false,
           F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
