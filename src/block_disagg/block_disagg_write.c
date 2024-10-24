@@ -49,21 +49,24 @@ __wt_block_disagg_write_size(size_t *sizep)
 
 /*
  * __wt_block_disagg_write_internal --
- *     Write a buffer into a block, returning the block's id, size and checksum.
+ *     Write a buffer into a block, returning the block's id, size, checksum, and the new block
+ *     metadata for the page. Note that the current and the new block page metadata pointers could
+ *     be the same.
  */
 int
 __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint32_t *sizep, uint32_t *checksump,
-  bool data_checksum, bool checkpoint_io)
+  WT_ITEM *buf, const WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *new_block_meta,
+  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
-    uint64_t page_id;
+    uint64_t checkpoint_id, page_id;
     uint32_t checksum;
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
+    WT_ASSERT(session, new_block_meta != NULL);
 
     *sizep = 0;     /* -Werror=maybe-uninitialized */
     *checksump = 0; /* -Werror=maybe-uninitialized */
@@ -92,6 +95,9 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 
     /* Get the page ID. */
     page_id = block_meta->page_id;
+
+    /* Get the checkpoint ID. */
+    checkpoint_id = 1; /* XXX Use the current checkpoint order instead of hardcoding this. */
 
     /*
      * Update the block's checksum: if our caller specifies, checksum the complete data, otherwise
@@ -123,9 +129,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
         FLD_SET(put_args.flags, WT_PAGE_LOG_DELTA);
 
     /* Write the block. */
-    /* XXX Set backlink_checkpoint_id, base_checkpoint_id */
-    WT_RET(plhandle->plh_put(
-      plhandle, &session->iface, page_id, block_meta->checkpoint_id, &put_args, buf));
+    WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, checkpoint_id, &put_args, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);
@@ -136,8 +140,13 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
       (uintmax_t)page_id, (uintmax_t)buf->size, checksum);
 
+    /* Set the new metadata. */
+    if (new_block_meta != block_meta)
+        memcpy(new_block_meta, block_meta, sizeof(*new_block_meta));
+    new_block_meta->checkpoint_id = checkpoint_id;
+
     /* Some extra data is set by the put interface, and must be returned up the chain. */
-    block_meta->disagg_lsn = put_args.lsn;
+    new_block_meta->disagg_lsn = put_args.lsn;
 
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
@@ -171,8 +180,8 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    WT_RET(__wt_block_disagg_write_internal(
-      session, block_disagg, buf, block_meta, &size, &checksum, data_checksum, checkpoint_io));
+    WT_RET(__wt_block_disagg_write_internal(session, block_disagg, buf, block_meta, block_meta,
+      &size, &checksum, data_checksum, checkpoint_io));
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;

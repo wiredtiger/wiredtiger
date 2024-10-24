@@ -41,7 +41,7 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * which will be written into the block manager checkpoint cookie.
      */
     WT_RET(__wt_block_disagg_write_internal(
-      session, block_disagg, root_image, block_meta, &size, &checksum, true, true));
+      session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
 
     WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
       block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
@@ -124,7 +124,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_ERR(__wt_scr_alloc(session, len, &buf));
     memcpy(buf->mem, entry, len);
     buf->size = len - 1;
-    WT_ERR(__wt_disagg_put_meta(session, 0, 0, buf));
+    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, 1, buf));
 
 err:
     __wt_scr_free(session, &buf);
