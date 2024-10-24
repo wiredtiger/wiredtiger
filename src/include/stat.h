@@ -643,7 +643,6 @@ struct __wt_connection_stats {
     int64_t eviction_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_leaf;
-    int64_t cache_bytes_dirty;
     int64_t cache_bytes_dirty_internal;
     int64_t cache_bytes_dirty_leaf;
     int64_t cache_pages_dirty;
@@ -1254,7 +1253,6 @@ struct __wt_dsrc_stats {
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
-    int64_t cache_bytes_dirty;
     int64_t cache_bytes_dirty_internal;
     int64_t cache_bytes_dirty_leaf;
     int64_t cache_eviction_blocked_uncommitted_truncate;

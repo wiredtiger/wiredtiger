@@ -103,7 +103,6 @@ __wti_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, cache_bytes_inuse, inuse);
     WT_STATP_CONN_SET(session, stats, cache_overhead, cache->overhead_pct);
 
-    WT_STATP_CONN_SET(session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_dirty_leaf, __wt_cache_dirty_leaf_inuse(cache));
     WT_STATP_CONN_SET(
       session, stats, cache_bytes_dirty_internal, __wt_cache_dirty_intl_inuse(cache));
