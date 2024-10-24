@@ -507,9 +507,9 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
         if pct_branches_covered >= 80:
             coverage_note = "Woohoo, the code changed in this PR is pretty well tested! :tada:"
         elif pct_branches_covered >= 50 and pct_lines_covered >= 80:
-            coverage_note = "Test coverage is ok, please try and improve it if that's feasible."
+            coverage_note = "Test coverage is ok, please refer to the Code change/coverage report links below and try to improve it if feasible."
         else:
-            coverage_note = "Test coverage is too low, this change probably shouldn't be merged as-is."
+            coverage_note = "Test coverage is very low, please refer to the Code change/coverage report links below and try to improve it if feasible."
 
     message += textwrap.dedent(f"""
         {coverage_note}
