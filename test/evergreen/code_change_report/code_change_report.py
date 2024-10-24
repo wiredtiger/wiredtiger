@@ -511,6 +511,14 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
         else:
             coverage_note = "Test coverage is very low, please refer to the Code change/coverage report links below and try to improve it if feasible."
 
+    task_name_code_change_report      = "code-change-report"
+    task_name_coverage_report_catch2  = "coverage-report-catch2"
+    task_name_coverage_report_full    = "generate-coverage-report"
+    file_name_code_change_report_html = "code_change_report.html"
+    file_name_coverage_report_html    = "1_coverage_report_main.html"
+    code_coverage_report_catch2_url   = code_change_report_url.replace(task_name_code_change_report, task_name_coverage_report_catch2).replace(file_name_code_change_report_html, file_name_coverage_report_html)
+    code_coverage_report_full_url     = code_change_report_url.replace(task_name_code_change_report, task_name_coverage_report_full).replace(file_name_code_change_report_html, file_name_coverage_report_html)
+
     message += textwrap.dedent(f"""
         {coverage_note}
 
@@ -520,6 +528,8 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
         | Branch coverage                          | {branches_covered} |
 
         - [Code change report]({code_change_report_url})
+        - [Code coverage report (catch2)]({code_coverage_report_catch2_url})
+        - [Code coverage report (full)]({code_coverage_report_full_url})
     """)
 
     # Complexity
