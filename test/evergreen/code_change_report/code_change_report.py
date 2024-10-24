@@ -479,6 +479,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str | None:
     # Do nothing if the PR has no relevant changes.
     if int(code_change_info['summary_info']['num_lines']) == 0:
+        print("There's no need to post a PR comment as no relevant change is found.")
         return None
 
     message = ""
@@ -518,6 +519,9 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
     file_name_coverage_report_html    = "1_coverage_report_main.html"
     code_coverage_report_catch2_url   = code_change_report_url.replace(task_name_code_change_report, task_name_coverage_report_catch2).replace(file_name_code_change_report_html, file_name_coverage_report_html)
     code_coverage_report_full_url     = code_change_report_url.replace(task_name_code_change_report, task_name_coverage_report_full).replace(file_name_code_change_report_html, file_name_coverage_report_html)
+    print(f"{code_change_report_url=}")
+    print(f"{code_coverage_report_catch2_url=}")
+    print(f"{code_coverage_report_full_url=}")
 
     message += textwrap.dedent(f"""
         {coverage_note}
@@ -531,6 +535,7 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
         - [Code coverage report (catch2)]({code_coverage_report_catch2_url})
         - [Code coverage report (full)]({code_coverage_report_full_url})
     """)
+    print(message)
 
     # Complexity
     changed_functions = code_change_info["changed_functions"]
@@ -560,7 +565,10 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
 
 
 def post_pr_comment(fq_repo, pr_id, token, body):
+    print(f"{token=}")
+    print(f"{body=}")
     url = f"https://api.github.com/repos/{fq_repo}/issues/{pr_id}/comments"
+    print(f"{url=}")
     magic_string = "<!-- STICKY_COMMENT:CODE_QUALITY -->"
     headers = {
         "Authorization": f"token {token}",
@@ -588,6 +596,7 @@ def post_pr_comment(fq_repo, pr_id, token, body):
         "body": f"{body}\n\n{magic_string}"
     }
 
+    print(f"{existing=}")
     if existing:
         resp = requests.patch(existing["url"], json=data, headers=headers)
     else:
