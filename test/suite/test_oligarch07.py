@@ -93,7 +93,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
 
         #
         # Part 2: The big switcheroo
@@ -117,7 +117,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
         session_follow.checkpoint()
-        self.conn.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
+        self.conn.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
 
         #
         # Part 4: Ensure that all data is in both leader and follower.
