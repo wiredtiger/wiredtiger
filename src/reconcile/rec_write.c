@@ -2272,6 +2272,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
     bool build_delta;
@@ -2282,6 +2283,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     btree = S2BT(session);
     page = r->page;
     build_delta = false;
+    block_meta = &r->ref->page->block_meta;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -2397,7 +2399,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         }
     }
 
-    if (last_block && r->ref->page->block_meta.delta_count < WT_PAGE_DELTA_MAX) {
+    if (last_block && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
+      block_meta->delta_count < WT_PAGE_DELTA_MAX) {
         WT_RET(__rec_build_delta(session, r, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && r->delta.size > chunk->image.size / 10)
@@ -2406,7 +2409,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Write the disk image and get an address. */
     if (build_delta) {
-        multi->block_meta = r->ref->page->block_meta;
+        /* We must only have one delta. Building deltas for split case is a future thing. */
+        WT_ASSERT(session, last_block);
+        multi->block_meta = *block_meta;
         ++multi->block_meta.delta_count;
         ++multi->block_meta.reconciliation_id;
         WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, &addr_size,
@@ -2813,8 +2818,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * again.
          */
         mod->rec_result = WT_PM_REC_EMPTY;
+        /* Mark the block meta invalid. */
+        ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         break;
     case 1: /* 1-for-1 page swap */
+        r->ref->page->block_meta = r->multi->block_meta;
         /*
          * Because WiredTiger's pages grow without splitting, we're replacing a single page with
          * another single page most of the time.
@@ -2862,6 +2870,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Optionally display the actual split keys in verbose mode. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_SPLIT, WT_VERBOSE_DEBUG_2))
             WT_RET(__rec_split_dump_keys(session, r));
+
+        /*
+         * TODO: Mark the page id as invalid if we split to prevent we write a delta for this page.
+         * Build deltas for split pages is a future thing.
+         */
+        r->ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:
         mod->mod_multi = r->multi;
