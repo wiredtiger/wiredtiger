@@ -59,8 +59,7 @@ struct __wt_rec_chunk {
 
     size_t min_offset; /* byte offset */
 
-    WT_ITEM image;                 /* disk-image */
-    WT_PAGE_BLOCK_META block_meta; /* the metadata for the disk image */
+    WT_ITEM image; /* disk-image */
 
     /* For fixed-length column store, track where the time windows start and how many we have. */
     uint32_t aux_start_offset;
@@ -386,6 +385,8 @@ typedef struct {
         (upd_select)->no_ts_tombstone = false;  \
         WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
     } while (0)
+
+#define WT_PAGE_DELTA_MAX 32
 
 /* Called when writing the leaf disk image. */
 #define WT_BUILD_DELTA_LEAF(session, r)                                                      \

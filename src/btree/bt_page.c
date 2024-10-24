@@ -39,6 +39,15 @@ __wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
 
     meta->page_id = page_id;
+    /* 0 means the page hasn't been reconciled. */
+    meta->reconciliation_id = 0;
+    /* TODO: hard code the checkpoint id to 1. */
+    meta->checkpoint_id = 1;
+    meta->backlink_checkpoint_id = 1;
+    meta->base_checkpoint_id = 1;
+    meta->disagg_lsn = 0;
+    /* 0 means there is no delta written for this page yet. */
+    meta->delta_count = 0;
 }
 
 /*
