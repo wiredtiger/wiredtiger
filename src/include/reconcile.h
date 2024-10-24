@@ -387,6 +387,8 @@ typedef struct {
         WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
     } while (0)
 
+#define WT_PAGE_DELTA_MAX 32
+
 /* Called when writing the leaf disk image. */
 #define WT_BUILD_DELTA_LEAF(session, r)                                                      \
     F_ISSET(S2BT(session), WT_BTREE_PAGE_DELTA) && (r)->multi_next == 1 && !r->ovfl_items && \

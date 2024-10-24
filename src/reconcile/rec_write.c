@@ -2400,8 +2400,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             if (r->page->type != WT_PAGE_ROW_LEAF)
                 return (__wt_set_return(session, EBUSY));
 
-            /* If the row leaf page is empty and we need to restore the page to memory, copy the
-             * disk image. */
+            /*
+             * If the row leaf page is empty and we need to restore the page to memory, copy the
+             * disk image.
+             */
             goto copy_image;
         }
     }

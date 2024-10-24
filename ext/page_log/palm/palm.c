@@ -517,7 +517,6 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     *results_count = count;
     PALM_KV_ERR(palm, session, matches.error);
-    *results_count = 1;
 
 err:
     palm_kv_rollback_transaction(&context);
