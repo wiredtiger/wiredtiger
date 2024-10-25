@@ -40,7 +40,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
         WT_ERR(EINVAL);
 
     /* Read the checkpoint metadata from the special metadata page. */
-    WT_ERR(__wt_disagg_get_meta(session, 0, checkpoint_id, item));
+    WT_ERR(__wt_disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, item));
 
     if (item->size >= sizeof(buf))
         WT_ERR(ENOMEM);
@@ -891,8 +891,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* Set up a handle for accessing shared metadata. */
     if (npage_log != NULL) {
-        WT_ERR(npage_log->page_log->pl_open_handle(
-          npage_log->page_log, &session->iface, 0, &conn->disaggregated_storage.page_log_meta));
+        WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
+          WT_DISAGG_METADATA_TABLE_ID, &conn->disaggregated_storage.page_log_meta));
     }
     if (bstorage != NULL) {
         WT_WITH_BUCKET_STORAGE(bstorage, session, {

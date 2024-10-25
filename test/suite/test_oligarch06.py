@@ -107,7 +107,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
 
         cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -135,7 +135,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
 
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -168,7 +168,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
         self.session.checkpoint()
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=0)') # TODO Use a real checkpoint ID
+        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
 
         # Reopen the follower connection.
         session_follow.close()
