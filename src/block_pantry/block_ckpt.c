@@ -128,7 +128,7 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
     WT_ERR(__wt_scr_alloc(session, len, &buf));
     memcpy(buf->mem, entry, len);
     buf->size = len - 1;
-    WT_ERR(__wt_disagg_put_meta(session, 0, 0, buf));
+    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, 1, buf));
 
 err:
     __wt_scr_free(session, &buf);
