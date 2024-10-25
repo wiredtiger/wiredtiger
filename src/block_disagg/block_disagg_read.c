@@ -107,10 +107,12 @@ reread:
 
     if (*results_count == 0) {
         /*
-         * There's no normal way to be asking for a page that we haven't previously written.
-         * However, if it hasn't materialized yet, this can happen, so retry with a delay.
+         * The page was not found for this page id. This would normally be an error, as we will
+         * never ask for a page that we haven't previously written. However, if it hasn't
+         * materialized yet in the page service, this can happen, so retry with a delay.
          *
-         * This code may go away once we establish a way to ask for a particular delta.
+         * This code may go away once we establish a way to ask for a particular delta, and the PALI
+         * interface will be obligated to wait until it appears.
          */
         if (retry < 100)
             goto reread;
