@@ -158,7 +158,7 @@ TEST_CASE("Basic cols and non key'd op", "[mod_compare]")
     init_op(&ops[0], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
     init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_COL, 54, NULL);
 
-    __wt_qsort(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
+    __wt_qsort(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare_dup);
     REQUIRE(__mod_ops_sorted(ops, 2, 0) == true);
 }
 
