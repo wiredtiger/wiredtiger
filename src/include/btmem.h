@@ -13,8 +13,8 @@
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_NOTFOUND_OK 0x0004u
-#define WT_READ_NO_GEN 0x0008u
+#define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
+#define WT_READ_NOTFOUND_OK 0x0008u
 #define WT_READ_NO_SPLIT 0x0010u
 #define WT_READ_NO_WAIT 0x0020u
 #define WT_READ_PREFETCH 0x0040u
@@ -27,6 +27,11 @@
 #define WT_READ_VISIBLE_ALL 0x2000u
 #define WT_READ_WONT_NEED 0x4000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+
+#define WT_READ_EVICT_WALK_FLAGS \
+    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT
+#define WT_READ_EVICT_READ_FLAGS WT_READ_EVICT_WALK_FLAGS | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK
+#define WT_READ_DATA_FLAGS WT_READ_NO_SPLIT | WT_READ_SKIP_INTL
 
 /*
  * Helper: in order to read a Btree without triggering eviction we have to ignore the cache size and
@@ -790,7 +795,7 @@ struct __wt_page {
  * outside of the special range.
  */
 #define WT_READGEN_NOTSET 0
-#define WT_READGEN_OLDEST 1
+#define WT_READGEN_EVICT_SOON 1
 #define WT_READGEN_WONT_NEED 2
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100

@@ -101,7 +101,7 @@ class test_bug35(wttest.WiredTigerTestCase):
 
         # 5. Create another thread which will perform reads under isolation read-uncommitted.
         read_uncommitted_thread = threading.Thread(target=self.construct_modify_upd_list)
-        
+
         # Add in a update and a modify.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
