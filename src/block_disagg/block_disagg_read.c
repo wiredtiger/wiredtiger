@@ -87,7 +87,16 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
+    if (0) {
 reread:
+        /*
+         * Retry a read again. This code may go away once we establish a way to ask for a particular
+         * delta.
+         */
+        __wt_sleep(0, 100 + retry * 100);
+        memset(results_array, 0, *results_count * sizeof(results_array[0]));
+        ++retry;
+    }
     /*
      * Output buffers do not need to be preallocated, the PALI interface does that.
      */
@@ -96,8 +105,17 @@ reread:
 
     WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT);
 
-    if (*results_count == 0)
+    if (*results_count == 0) {
+        /*
+         * There's no normal way to be asking for a page that we haven't previously written.
+         * However, if it hasn't materialized yet, this can happen, so retry with a delay.
+         *
+         * This code may go away once we establish a way to ask for a particular delta.
+         */
+        if (retry < 100)
+            goto reread;
         return (WT_NOTFOUND);
+    }
 
     last = (int32_t)(*results_count - 1);
 
@@ -126,12 +144,8 @@ reread:
          * This code may go away once we establish a way to ask for a particular delta.
          */
         if (result == last && swap.checksum != checksum &&
-          swap.reconciliation_id < reconciliation_id && retry < 100) {
-            __wt_sleep(0, 100 + retry * 100);
-            memset(results_array, 0, *results_count * sizeof(results_array[0]));
-            ++retry;
+          swap.reconciliation_id < reconciliation_id && retry < 100)
             goto reread;
-        }
 
         if (swap.checksum == checksum) {
             blk->checksum = 0;
