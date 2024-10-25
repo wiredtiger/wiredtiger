@@ -253,8 +253,8 @@ __evict_queue_full(WT_EVICT_QUEUE *queue)
  *     time when cache usage is below the target thresholds. When the cache is expected to exceed
  *     these thresholds, callers can nudge the eviction server to wake up and resume its work.
  *
- *     This function can be called multiple times. It is called in situations such as when pages
- *     are queued for urgent eviction or when application threads request eviction assistance.
+ *     This function is called in situations where pages are queued for urgent eviction or when
+ *     application threads request eviction assistance.
  */
 void
 __wt_evict_server_wake(WT_SESSION_IMPL *session)
@@ -988,7 +988,6 @@ __evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)
  *
  *     For the incremented `evict_disabled` value, the eviction server skips walking this tree for
  *     eviction candidates, and force-evicting or queuing pages from this tree is not allowed.
- *     This function can be called multiple times to disable eviction for a tree by these means.
  *
  *     It is called from multiple places in the code base, such as when initiating file eviction
  *     `__wt_evict_file` or when opening or closing trees.
@@ -2915,8 +2914,7 @@ done:
  * __wt_evict_page_urgent --
  *     This function is responsible for placing a page into the urgent eviction queue. It is called
  *     by the eviction server if pages require immediate eviction or by the application threads as
- *     part of forced eviction when directly evicting pages is not feasible. This function can be
- *     called multiple times.
+ *     part of forced eviction when directly evicting pages is not feasible.
  *
  *     Input parameters:
  *       `ref`: A reference to the page that is being added to the urgent eviction queue.
@@ -3000,8 +2998,8 @@ done:
  *     with a non-zero priority unless eviction is in an aggressive state and the Btree is
  *     significantly utilizing the cache.
  *
- *     This function can be called multiple times. At present, it is exclusively called for metadata
- *     and bloom filter files, as these are meant to be retained in the cache.
+ *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
+ *     to be retained in the cache.
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.

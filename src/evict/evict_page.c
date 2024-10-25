@@ -128,8 +128,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  * __wt_evict --
  *     This function evicts a page from memory by taking exclusive access to the page. Based on the
  *     page's state, the function either reconciles and writes the page to disk or simply discards
- *     it from the cache. It can be called multiple times to evict a page by either eviction worker
- *     threads or application threads.
+ *     it from the cache. It is called by both eviction worker threads and application threads.
  *
  *     Input parameters:
  *       (1) `ref`: Reference to the page getting evicted.

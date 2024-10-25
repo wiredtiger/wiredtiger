@@ -14,10 +14,9 @@
  *     As eviction continues to struggle, this function lets the caller know that eviction has
  *     become inefficient (or made no progress).
  *
- *     This function can be called multiple times and is used in various places to determine if
- *     eviction strategies need to be more forceful due to ongoing inefficiencies. Additionally, it
- *     serves as a useful indicator of the health of the eviction process which callers can use to
- *     inform their behavior.
+ *     This function is called to determine if eviction strategies need to be more forceful due
+ *     to ongoing inefficiencies. Additionally, it serves as a useful indicator of the health of
+ *     the eviction process which callers can use to inform their behavior.
  */
 static WT_INLINE bool
 __wt_evict_aggressive(WT_SESSION_IMPL *session)
@@ -33,9 +32,8 @@ __wt_evict_aggressive(WT_SESSION_IMPL *session)
  *     that the cache has crossed the trigger thresholds even after significant efforts towards
  *     forceful eviction.
  *
- *     This function can be called multiple times and is called in various places to serve as a
- *     useful indicator of the health of the eviction process, based on which certain choices to
- *     reduce cache pressure can be made.
+ *     This function is called in various places to serve as a useful indicator of the health of
+ *     the eviction process, based on which certain choices to reduce cache pressure can be made.
  */
 static WT_INLINE bool
 __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
@@ -162,8 +160,8 @@ __wt_evict_page_is_soon(WT_PAGE *page)
  *     eviction. Furthermore, application threads that encounter these pages will either
  *     forcefully evict them or queue them for urgent eviction.
  *
- *     This function is called from multiple places to evict empty internal pages, pages
- *     exceeding a certain size, obsolete pages, pages with long skip list/update chains, among
+ *     This function allows its callers to evict empty internal pages, pages exceeding a
+ *     certain size, obsolete pages, pages with long skip list/update chains, among
  *     other similar cases.
  *
  *     Input parameter:
@@ -488,8 +486,8 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
  *     for the cache have been reached. Once any of these thresholds are met, application
  *     threads are signaled to assist with the eviction of pages.
  *
- *     This function can be called multiple times and is used in various places to determine whether
- *     cache is under pressure or application thread eviction is required.
+ *     This function is called to determine whether cache is under pressure or application thread
+ *     eviction is required.
  *
  *     Input parameters:
  *       (1) `busy`: A flag indicating if the session is actively pinning resources, in which
