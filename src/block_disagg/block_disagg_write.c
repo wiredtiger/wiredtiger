@@ -152,8 +152,12 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     }
     /* blk->version and blk->compatiable_version are implicitly 0. */
 
+    /*
+     * The reconciliation id stored in the block header is diagnostic, we don't care if it's
+     * truncated.
+     */
     blk->reconciliation_id =
-      WT_MIN(block_meta->reconciliation_id, WT_BLOCK_OVERFLOW_RECONCILIATION_ID);
+      (uint8_t)WT_MIN(block_meta->reconciliation_id, WT_BLOCK_OVERFLOW_RECONCILIATION_ID);
     blk->previous_checksum = block_meta->checksum;
     blk->checksum = 0;
     __wt_block_disagg_header_byteswap(blk);

@@ -39,13 +39,13 @@ err:
 static void
 __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uint32_t size,
   uint64_t page_id, uint64_t checkpoint_id, uint32_t checksum, uint32_t expected_checksum,
-  uint32_t rec_id, uint32_t expected_rec_id, const char *context_msg)
+  uint64_t rec_id, uint64_t expected_rec_id, const char *context_msg)
 {
     __wt_errx(session,
       "%s: read checksum error for %" PRIu32
       "B block at "
-      "page %" PRIuMAX ", checkpoint %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu32
-      ") doesn't match expected checksum of %" PRIu32 " (%" PRIu32 ")",
+      "page %" PRIuMAX ", checkpoint %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu64
+      ") doesn't match expected checksum of %" PRIu32 " (%" PRIu64 ")",
       name, size, page_id, checkpoint_id, context_msg, checksum, rec_id, expected_checksum,
       expected_rec_id);
 }
@@ -127,7 +127,8 @@ reread:
      */
     for (result = last; result >= 0; result--) {
         current = &results_array[result];
-        size = current->size;
+        WT_ASSERT(session, current->size < UINT32_MAX);
+        size = (uint32_t)current->size;
         is_delta = (result != 0);
 
         /*
