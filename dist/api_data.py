@@ -239,29 +239,42 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max=Config.int64_max),
                 ]),
+            # For test/suite/test_bug035.py and test/suite/bug036.py
+            ConnectionControlPoint('thread_wait_for_upd_abort', 'Trigger', 'Always', '', 
+                r'''Thread waits for transaction to get aborted.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max='4294967295'),
+                    Config('enable_count', '1', r'''
+                        the number of control point crossings to enable. Later crossings do not 
+                        trigger.''',
+                        min='0', max=ControlPoint.int64_max),
+                ]),
             # To reproduce WT 13450
-    ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
-        '', r'''
-           Next cursor waits for checkpoint to get here.''',
-           type='category', subconfig= [
-               # Predicate configuration paramters
-               Config('match_value', '1', r'''
-                      the btree id for which to wait''',
-                      min='0', max=Config.int64_max),
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
-    ConnectionControlPoint('WT 13450 TEST', 'Wait for trigger', 'Always',
-        '', r'''
-           Test waits for cursor next to get here.''',
-           type='category', subconfig= [
-               # Action configuration parameters
-               Config('wait_count', '1', r'''
-                      the number of triggers for which to wait''',
-                      min='1', max=Config.int64_max),
-           ]),
+            ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
+                '', r'''
+                Next cursor waits for checkpoint to get here.''',
+                type='category', subconfig= [
+                    # Predicate configuration paramters
+                    Config('match_value', '1', r'''
+                            the btree id for which to wait''',
+                            min='0', max=Config.int64_max),
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max=Config.int64_max),
+                ]),
+            ConnectionControlPoint('WT 13450 TEST', 'Wait for trigger', 'Always',
+                '', r'''
+                Test waits for cursor next to get here.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('wait_count', '1', r'''
+                            the number of triggers for which to wait''',
+                            min='1', max=Config.int64_max),
+                ]),
         ])
     ]
 

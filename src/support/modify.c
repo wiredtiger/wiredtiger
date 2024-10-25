@@ -432,9 +432,12 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * the function, or if it is being done in parallel. In this case, we will return back to the
      * user with a rollback error.
      */
-    if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
+    if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED) {
+        WT_STAT_CONN_INCR(session, txn_modify_reconstruct_uncommited);
+        CONNECTION_CONTROL_POINT_WAIT(session, WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT);
         WT_RET_MSG(session, WT_ROLLBACK,
           "Read-uncommitted readers do not support reconstructing a record with modifies.");
+    }
 retry:
     /* Construct full update */
     __wt_update_vector_init(session, &modifies);

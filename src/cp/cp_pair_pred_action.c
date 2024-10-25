@@ -161,7 +161,7 @@ err:
 /* Pair predicate function and "Trigger". */
 /*
  * __wt_control_point_pair_init_pred_trigger --
- *     The pair initialization function for predicate function and action "Trigger".
+ *     The pair initialization function for predicate function and action "Wait for trigger".
  *
  * @param session The session. @param cp_config_name The control point's configuration name. @param
  *     control_point_for_connection Check if control point is for connection or session. registry.

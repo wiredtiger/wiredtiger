@@ -2836,7 +2836,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #ifdef HAVE_CONTROL_POINT
       __wt_conn_control_point_enable, __wt_conn_control_point_disable
 #else
-      NULL, NULL,
+        NULL,
+        NULL,
 #endif
     };
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
