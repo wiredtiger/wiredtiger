@@ -121,7 +121,7 @@ __wt_control_point_config_action_ret(
 /* Action config parsing function. */
 /*
  * __wt_control_point_config_action_trigger --
- *     Configuration parsing for control point action "Wait until trigger: Blocking the testing
+ *     Configuration parsing for control point action "Trigger: Block the testing
  *     thread until a control point is triggered".
  *
  * @param session The session. @param data Return the parsed data in here. @param cfg The
@@ -141,7 +141,7 @@ __wt_control_point_config_action_trigger(
 /*
  * __run_trigger --
  *     The run function for __wt_cond_wait_signal for the call site portion of control point action
- *     "Wait until trigger: Blocking the testing thread until a control point is triggered".
+ *     "Trigger: Block the testing thread until a control point is triggered".
  *
  * @param session The session.
  */
@@ -240,7 +240,7 @@ __wt_control_point_wait(
 /* Extra initialization. */
 /*
  * __wt_control_point_action_init_trigger --
- *     Extra initialization required for action "Wait until trigger: Blocking the testing thread
+ *     Extra initialization required for action "Trigger: Block the testing thread
  *     until a control point is triggered".
  *
  * @param session The session. @param control_point_name The name of the control point. @param data
