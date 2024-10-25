@@ -936,6 +936,9 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
+    /* New empty page doesn't have a page id. */
+    ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
