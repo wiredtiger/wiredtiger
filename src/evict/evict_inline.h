@@ -17,8 +17,8 @@
  *
  *     This function can be called multiple times and is used in various places to determine if
  *     eviction strategies need to be more forceful due to ongoing inefficiencies. Additionally, it
- *     serves as a useful indicator of the health of the eviction process, based on which certain
- *     choices by the caller are made.
+ *     serves as a useful indicator of the health of the eviction process which callers can use to
+ *     inform their behavior.
  */
 static WT_INLINE bool
 __wt_evict_aggressive(WT_SESSION_IMPL *session)
@@ -358,7 +358,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     eviction.
  *
  *     At present, this function is primarily called by the prefetch thread to determine whether it
- *     should avoid to prefetch pages, as application threads may soon be involved in eviction.
+ *     should avoid prefetching pages, as application threads may soon be involved in eviction.
  *
  *     Returns `true` if the cache is nearing the eviction trigger thresholds.
  */
@@ -609,7 +609,8 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
  * NO_AUTO_FORMAT
  * __wt_evict_app_assist_worker_check --
  *     This function is called by application threads to check whether eviction trigger thresholds
- *     are reached and assist the eviction worker threads with eviction of pages from the queues.
+ *     are reached and the thread should assist eviction worker threads with eviction of pages from
+ *     the queues.
  *
  *     Input parameters:
  *       (1) `busy`: A flag indicating if the session is actively pinning resources, in which

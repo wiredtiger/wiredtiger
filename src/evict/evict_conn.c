@@ -187,7 +187,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
  *           option (e.g., `eviction.threads_max`). The full list of valid eviction configurations
  *           are defined in `api_data.py`.
  *       (2) `reconfig`: a boolean that indicates whether this function is being called during
- *           `WT_CONNECTION::reconfigure`. It supports reconfiguration via multiple calls.
+ *           `WT_CONNECTION::reconfigure`.
  *
  *     This function returns an error code for invalid configurations.
  */

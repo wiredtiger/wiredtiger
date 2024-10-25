@@ -252,8 +252,7 @@ __evict_queue_full(WT_EVICT_QUEUE *queue)
  * __wt_evict_server_wake --
  *     This function wakes the eviction server thread. The eviction server typically sleeps for some
  *     time when cache usage is below the target thresholds. When the cache is expected to exceed
- *     these thresholds, this function is used to nudge the eviction server to wake up and resume
- *     its work.
+ *     these thresholds, callers can nudge the eviction server to wake up and resume its work.
  *
  *     This function can be called multiple times. It is called in situations such as when pages
  *     are queued for urgent eviction or when application threads request eviction assistance.
