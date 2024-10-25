@@ -249,7 +249,6 @@ __evict_queue_full(WT_EVICT_QUEUE *queue)
 
 /*
  * NO_AUTO_FORMAT
- *
  * __wt_evict_server_wake --
  *     This function wakes the eviction server thread. The eviction server typically sleeps for some
  *     time when cache usage is below the target thresholds. When the cache is expected to exceed
@@ -547,7 +546,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
 /*
  * NO_AUTO_FORMAT
- *
  * __wt_evict_threads_create --
  *     This function starts the eviction process by creating and launching the eviction threads.
  *
@@ -608,7 +606,6 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
 
 /*
  * NO_AUTO_FORMAT
- *
  * __wt_evict_threads_destroy --
  *     This function stops and destroys the eviction threads. It must be called exactly once during
  *     `WT_CONNECTION::close` or recovery to ensure all eviction threads are properly terminated.
@@ -1048,7 +1045,6 @@ err:
 
 /*
  * NO_AUTO_FORMAT
- *
  * __wt_evict_file_exclusive_off --
  *     This function releases the exclusive access to a file/tree by decrementing the
  *     `evict_disabled` count back to zero, allowing eviction to proceed for the tree.
@@ -2956,7 +2952,6 @@ done:
 
 /*
  * NO_AUTO_FORMAT
- *
  * __wt_evict_priority_set --
  *     This function sets a tree's eviction priority. A higher priority indicates less likelihood
  *     for the tree to be considered for eviction. The eviction server skips the eviction of trees
