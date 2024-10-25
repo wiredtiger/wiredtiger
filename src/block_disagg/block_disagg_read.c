@@ -36,6 +36,10 @@ err:
     return (ret);
 }
 
+/*
+ * __block_disagg_read_checksum_err --
+ *     Print a checksum or reconciliation id mismatch in a standard way.
+ */
 static void
 __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uint32_t size,
   uint64_t page_id, uint64_t checkpoint_id, uint32_t checksum, uint32_t expected_checksum,
