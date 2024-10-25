@@ -8,8 +8,7 @@
 
 #pragma once
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_aggressive --
  *     This function indicates when eviction is unable to make any progress for some amount of time.
  *     As eviction continues to struggle, this function lets the caller know that eviction has
@@ -27,8 +26,7 @@ __wt_evict_aggressive(WT_SESSION_IMPL *session)
       __wt_atomic_load32(&S2C(session)->evict->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_cache_stuck --
  *     This function represents a more severe state compared to aggressive eviction. It indicates
  *     that eviction has remained inefficient (or made no progress) for a significant period and
@@ -114,8 +112,7 @@ __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
     return (gen != WT_READGEN_NOTSET && gen < WT_READGEN_START_VALUE);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_page_is_soon_or_wont_need --
  *     This function indicates whether a page is a candidate for forced eviction.
  *
@@ -136,8 +133,7 @@ __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
     return (__wti_evict_readgen_is_soon_or_wont_need(&page->read_gen));
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_page_is_soon --
  *     This function checks whether a page is marked with the `WT_READGEN_EVICT_SOON` state,
  *     indicating it should be evicted as soon as possible.
@@ -158,8 +154,7 @@ __wt_evict_page_is_soon(WT_PAGE *page)
     return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_page_soon --
  *     This function marks the page to be evicted as soon as possible by setting the
  *     `WT_READGEN_EVICT_SOON` flag. Once this flag is set, eviction threads aggressively
@@ -182,8 +177,7 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_EVICT_SOON);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_page_first_dirty --
  *     This function updates a page's eviction state (read generation) when a page transitions from
  *     clean to dirty.
@@ -204,8 +198,7 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
         __wti_evict_read_gen_new(session, page);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_touch_page --
  *     This function updates a page's eviction state (read generation) when it is accessed. A Page
  *     that is recently read will have a higher read generation, indicating that it is less likely
@@ -235,8 +228,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_onl
         __wti_evict_read_gen_bump(session, page);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_page_init --
  *     This function initializes the page's eviction state (read generation) for a newly created
  *     page in memory. Even if the page is evicted and later reallocated, this function will be
@@ -255,8 +247,7 @@ __wt_evict_page_init(WT_PAGE *page)
     __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_inherit_page_state --
  *     This function initializes the read generation on the new page using the read generation of
  *     the original page, unless this was a forced eviction, in which case we leave the new page
@@ -279,8 +270,7 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
         __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_page_cache_bytes_decr --
  *     This function decrements the in-memory byte count for the cache, B-tree, and page to reflect
  *     the eviction of a page.
@@ -350,8 +340,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
         (void)__wt_atomic_addv64(&S2C(session)->evict->eviction_progress, 1);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_clean_pressure --
  *     This function checks whether the cache is approaching or has surpassed its eviction trigger
  *     thresholds, indicating that application threads will soon be required to assist with
@@ -380,8 +369,7 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
     return (false);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_clean_needed --
  *     This function checks if the configured eviction trigger threshold for the total volume of
  *     data in the cache has been reached. Once this threshold is met, application threads are
@@ -428,8 +416,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_dirty_needed --
  *     This function checks if the configured eviction dirty trigger threshold for the total volume
  *     of dirty data in the cache has been reached. Once this threshold is met, application threads
@@ -462,8 +449,7 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
       bytes_dirty > (uint64_t)(S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wti_evict_updates_needed --
  *     This function checks if the configured eviction update trigger threshold for the total volume
  *     of updates in the cache has been reached. Once this threshold is met, application threads
@@ -496,8 +482,7 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
       bytes_updates > (uint64_t)(S2C(session)->evict->eviction_updates_trigger * bytes_max) / 100);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_needed --
  *     This function checks if the configured clean/dirty/update eviction trigger thresholds
  *     for the cache have been reached. Once any of these thresholds are met, application
@@ -562,8 +547,7 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
     return (clean_needed || updates_needed || (!busy && dirty_needed));
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_favor_clearing_dirty_cache --
  *    !!! Use this function with caution as it will significantly impact eviction behavior. !!!
  *
@@ -605,8 +589,7 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
       ((uint64_t)(conn->evict->eviction_dirty_trigger * bytes_max) / 100));
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_app_assist_worker_check --
  *     This function is called by application threads to check whether eviction trigger thresholds
  *     are reached and the thread should assist eviction worker threads with eviction of pages from

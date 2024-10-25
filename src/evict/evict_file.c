@@ -8,9 +8,7 @@
 
 #include "wt_internal.h"
 
-/*
- *  NO_AUTO_FORMAT
- *
+/* !!!
  * __wt_evict_file --
  *     This function evicts all pages for a specific tree/file. It walks through the tree, either
  *     evicting or discarding pages based on the specified sync operation. Before calling this

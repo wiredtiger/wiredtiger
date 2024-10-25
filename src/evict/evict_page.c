@@ -124,8 +124,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict --
  *     This function evicts a page from memory by taking exclusive access to the page. Based on the
  *     page's state, the function either reconciles and writes the page to disk or simply discards

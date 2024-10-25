@@ -176,8 +176,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_config --
  *     This function parses eviction-related configuration strings during `wiredtiger_open` or
  *     `WT_CONNECTION::reconfigure` to set eviction parameters.
@@ -242,8 +241,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     return (0);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_create --
  *     This function sets up eviction's internal structures and stats during `wiredtiger_open` to
  *     manage eviction. It must be called exactly once during `wiredtiger_open` and must be called
@@ -310,8 +308,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_destroy --
  *     This function releases all memory and locks related to eviction. It ensures the eviction
  *     system is properly destroyed. It must be called exactly once during `WT_CONNECTION::close`,
@@ -349,8 +346,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     return (ret);
 }
 
-/*
- * NO_AUTO_FORMAT
+/* !!!
  * __wt_evict_stats_update --
  *     This function is responsible for initializing eviction stats, ensuring they start with
  *     initial values during the startup process. It should be called exactly once when initializing
