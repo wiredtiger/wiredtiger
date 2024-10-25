@@ -2993,6 +2993,7 @@ tasks:
             echo ". task_id       =  ${task_id}"
             echo ". task_name     =  ${task_name}"
             echo ". build_id      =  ${build_id}"
+            echo ". build_variant =  ${build_variant}"
             echo ". version_id    =  ${version_id}"
             echo ". revision      =  ${revision}"
             echo ". github_commit =  ${github_commit}"
@@ -3036,6 +3037,21 @@ tasks:
                 pr_args+="--github_pr_number ${github_pr_number} "
                 pr_args+="--github_token ${github_token} "
             fi
+
+            # Compose and append the code change coverage report URL.
+            # An artifact URL is composed of a few components:
+            # - <domain>/
+            #     e.g. https://build_external.s3.amazonaws.com/
+            # - <project>/<build_variant>/<revision>/
+            #     e.g. wiredtiger/code-statistics/eb9b4dcafba665d0cd78af6382b47ff595d741da/
+            # - <task_name>_<build_id>-<execution>/
+            #     e.g. code-change-report_wiredtiger_code_statistics_patch_eb9b4dcafba665d0cd78af6382b47ff595d741da_6717f121c5311a000762e3c4_24_10_22_18_38_26-0/
+            # - <file_name>
+            #     e.g. code_change_report.html
+            domain="https://build_external.s3.amazonaws.com"
+            file_name="code_change_report.html"
+            code_change_report_url=$domain/${project}/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/$file_name
+            pr_args+="--code_change_report_url $code_change_report_url "
 
             if [ ${is_patch|false} = true ]; then
               ./test/evergreen/coverage-report.sh true ${python_binary|python3} ${github_commit} "$pr_args"

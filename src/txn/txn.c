@@ -2914,3 +2914,13 @@ __ut_txn_mod_compare(const void *a, const void *b)
     return (__txn_mod_compare(a, b));
 }
 #endif
+
+/* Dummy change to test code coverage PR comment */
+#ifdef HAVE_UNITTEST
+int WT_CDECL
+__ut_txn_mod_compare_dup(const void *a, const void *b)
+{
+    return (__txn_mod_compare(a, b));
+}
+#endif
+
