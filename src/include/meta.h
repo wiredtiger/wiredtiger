@@ -39,6 +39,9 @@
 #define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */
 
+#define WT_DISAGG_METADATA_TABLE_ID 1     /* The table ID for metadata */
+#define WT_DISAGG_METADATA_MAIN_PAGE_ID 1 /* The page ID for the main system metadata */
+
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
 #define WT_SYSTEM_CKPT_URI "system:checkpoint"                   /* Checkpoint timestamp URI */
