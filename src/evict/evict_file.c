@@ -10,9 +10,9 @@
 
 /* !!!
  * __wt_evict_file --
- *     This function evicts all pages for a specific tree/file. It walks through the tree, either
- *     evicting or discarding pages based on the specified sync operation. Before calling this
- *     function, ensure exclusive access to the tree by using `__wt_evict_file_exclusive_on`.
+ *     Evict all pages for a specific tree/file. Traverse through the tree and either evict or
+ *     discard pages based on the specified sync operation. Before calling this function, ensure
+ *     exclusive access to the tree by using `__wt_evict_file_exclusive_on`.
  *
  *     Input parameter:
  *       `syncop`: The sync operation to perform, with only two legal options:
@@ -20,7 +20,7 @@
  *            are durably written to disk.
  *         - `WT_SYNC_DISCARD`: Discard both clean and dirty pages, bypassing reconciliation.
  *
- *     Returns an error code from failed reconciliation, inability to evict a page, or other issues
+ *     Return an error code from failed reconciliation, inability to evict a page, or other issues
  *     encountered during this process.
  */
 int

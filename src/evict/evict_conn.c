@@ -188,7 +188,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
  *       (2) `reconfig`: a boolean that indicates whether this function is being called during
  *           `WT_CONNECTION::reconfigure`.
  *
- *     Returns an error code for invalid configurations.
+ *     Return an error code for invalid configurations.
  */
 int
 __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
@@ -252,7 +252,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
  *       handles all eviction-related configs (i.e., `eviction.*`) as part of the eviction
  *       setup process.
  *
- *     Returns an error code for invalid configurations, memory allocation, or spinlock
+ *     Return an error code for invalid configurations, memory allocation, or spinlock
  *     initialization failures.
  */
 int
@@ -314,7 +314,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
  *     destroyed. It must be called exactly once during `WT_CONNECTION::close`, and must be called
  *     after all the eviction threads are destroyed (via `__wt_evict_threads_destroy`).
  *
- *     Returns an error code if it is unable to close the internal eviction session.
+ *     Return an error code if the internal eviction session cannot be closed.
  */
 int
 __wt_evict_destroy(WT_SESSION_IMPL *session)

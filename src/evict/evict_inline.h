@@ -10,13 +10,12 @@
 
 /* !!!
  * __wt_evict_aggressive --
- *     This function indicates when eviction is unable to make any progress for some amount of time.
- *     As eviction continues to struggle, this function lets the caller know that eviction has
- *     become inefficient (or made no progress).
+ *     Check whether eviction is unable to make any progress for some amount of time.
  *
- *     This function is called to determine if eviction strategies need to be more forceful due
- *     to ongoing inefficiencies. Additionally, it serves as a useful indicator of the health of
- *     the eviction process which callers can use to inform their behavior.
+ *     As eviction continues to struggle, let the caller know that eviction has become inefficient
+ *     (or made no progress). This helps determine if eviction strategies need to be more
+ *     forceful due to ongoing inefficiencies. Additionally, it serves as a useful indicator of
+ *     the health of the eviction process which callers can use to inform their behavior.
  */
 static WT_INLINE bool
 __wt_evict_aggressive(WT_SESSION_IMPL *session)
@@ -27,13 +26,13 @@ __wt_evict_aggressive(WT_SESSION_IMPL *session)
 
 /* !!!
  * __wt_evict_cache_stuck --
- *     This function represents a more severe state compared to aggressive eviction. It indicates
- *     that eviction has remained inefficient (or made no progress) for a significant period and
- *     that the cache has crossed the trigger thresholds even after significant efforts towards
- *     forceful eviction.
+ *     Check whether eviction has remained inefficient (or made no progress) for a significant
+ *     period and that the cache has crossed the trigger thresholds even after significant
+ *     efforts towards forceful eviction.
  *
- *     This function is called in various places to serve as a useful indicator of the health of
- *     the eviction process, based on which certain choices to reduce cache pressure can be made.
+ *     This function represents a more severe state compared to aggressive eviction and servers as a
+ *     useful indicator of eviction's health, based on which callers may make certain choices to
+ *     reduce cache pressure.
  */
 static WT_INLINE bool
 __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
@@ -112,7 +111,7 @@ __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
 
 /* !!!
  * __wt_evict_page_is_soon_or_wont_need --
- *     This function indicates whether a page is a candidate for forced eviction.
+ *     Check whether a page is a candidate for forced eviction.
  *
  *     Pages marked with lower eviction state (read generation) including `WT_READGEN_EVICT_SOON`
  *     or `WT_READGEN_WONT_NEED` have precedence to be immediately removed from the cache.
@@ -123,7 +122,7 @@ __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
  *     Input parameter:
  *       `page`: The page to be checked if it is subject to forced eviction.
  *
- *     This function returns `true` if the page should be forcefully evicted.
+ *     Return `true` if the page should be forcefully evicted.
  */
 static WT_INLINE bool
 __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
@@ -133,8 +132,8 @@ __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
 
 /* !!!
  * __wt_evict_page_is_soon --
- *     This function checks whether a page is marked with the `WT_READGEN_EVICT_SOON` state,
- *     indicating it should be evicted as soon as possible.
+ *     Check whether a page is marked with the `WT_READGEN_EVICT_SOON` state, indicating that
+ *     it should be evicted as soon as possible.
  *
  *     Currently, this function is called once when deciding whether to unpin the cursor to
  *     facilitate eviction. The `__wt_evict_page_is_soon_or_wont_need` function is not used in this
@@ -144,7 +143,7 @@ __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
  *     Input parameter:
  *       `page`: The page to be checked for the evict soon state.
  *
- *     Returns `true` if the page is marked to be evicted soon.
+ *     Return `true` if the page is marked to be evicted soon.
  */
 static WT_INLINE bool
 __wt_evict_page_is_soon(WT_PAGE *page)
@@ -154,11 +153,13 @@ __wt_evict_page_is_soon(WT_PAGE *page)
 
 /* !!!
  * __wt_evict_page_soon --
- *     This function marks the page to be evicted as soon as possible by setting the
- *     `WT_READGEN_EVICT_SOON` flag. Once this flag is set, eviction threads aggressively
- *     prioritize evicting such pages by putting them in the urgent queue for immediate
- *     eviction. Furthermore, application threads that encounter these pages will either
- *     forcefully evict them or queue them for urgent eviction.
+ *     Mark the page to be evicted as soon as possible by setting the `WT_READGEN_EVICT_SOON`
+ *     flag.
+ *
+ *     Once this flag is set, eviction threads aggressively prioritize evicting such pages
+ *     by putting them in the urgent queue for immediate eviction. Furthermore, application
+ *     threads that encounter these pages will either forcefully evict them or queue them
+ *     for urgent eviction.
  *
  *     This function allows its callers to evict empty internal pages, pages exceeding a
  *     certain size, obsolete pages, pages with long skip list/update chains, among
@@ -177,8 +178,8 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /* !!!
  * __wt_evict_page_first_dirty --
- *     This function updates a page's eviction state (read generation) when a page transitions from
- *     clean to dirty.
+ *     Update a page's eviction state (read generation) when a page transitions from clean to
+ *     dirty.
  *
  *     It is called every time a page transitions from clean to dirty for the first time in memory.
  *
@@ -198,9 +199,10 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /* !!!
  * __wt_evict_touch_page --
- *     This function updates a page's eviction state (read generation) when it is accessed. A Page
- *     that is recently read will have a higher read generation, indicating that it is less likely
- *     to be evicted. This mechanism helps eviction to prioritize the order in which pages
+ *     Update a page's eviction state (read generation) when it is accessed.
+ *
+ *     A page that is recently read will have a higher read generation, indicating that it is less
+ *     likely to be evicted. This mechanism helps eviction to prioritize the order in which pages
  *     are evicted.
  *
  *     This function is called every time a page is touched in the cache.
@@ -228,13 +230,13 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_onl
 
 /* !!!
  * __wt_evict_page_init --
- *     This function initializes the page's eviction state (read generation) for a newly created
- *     page in memory. Even if the page is evicted and later reallocated, this function will be
- *     called to reset the eviction state. This initialization is essential as it sets the
- *     `read_gen` value, which eviction uses to determine the priority of pages for eviction.
+ *     Initialize the page's eviction state (read generation) for a newly created page in memory.
+ *     Even if the page is evicted and later reallocated, this function will be called to reset
+ *     the eviction state. This initialization is essential as it sets the `read_gen` value, which
+ *     eviction uses to determine the priority of pages for eviction.
  *
  *     It is called only once when the page is first allocated in memory and should not be called
- *     multiple times.
+ *     again for that page.
  *
  *     Input parameter:
  *       `page`: The page for which to initialize the read generation.
@@ -247,9 +249,9 @@ __wt_evict_page_init(WT_PAGE *page)
 
 /* !!!
  * __wt_evict_inherit_page_state --
- *     This function initializes the read generation on the new page using the read generation of
- *     the original page, unless this was a forced eviction, in which case we leave the new page
- *     with the default initialization.
+ *     Initialize the read generation on the new page using the read generation of the original
+ *     page, unless this was a forced eviction, in which case we leave the new page with the
+ *     default initialization.
  *
  *     It is called when creating a new page from an existing page, for example during split.
  *
@@ -270,10 +272,10 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 
 /* !!!
  * __wt_evict_page_cache_bytes_decr --
- *     This function decrements the in-memory byte count for the cache, B-tree, and page to reflect
- *     the eviction of a page.
+ *     Decrement the in-memory byte count for the cache, B-tree, and page to reflect the eviction
+ *     of a page.
  *
- *     This function is called once each time a page is evicted from memory.
+ *     It is called once each time a page is evicted from memory.
  *
  *     Input parameter:
  *       `page`: The page being evicted, for which byte counts are decremented.
@@ -340,14 +342,13 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /* !!!
  * __wt_evict_clean_pressure --
- *     This function checks whether the cache is approaching or has surpassed its eviction trigger
- *     thresholds, indicating that application threads will soon be required to assist with
- *     eviction.
+ *     Check whether the cache is approaching or has surpassed its eviction trigger thresholds,
+ *     indicating that application threads will soon be required to assist with eviction.
  *
  *     At present, this function is primarily called by the prefetch thread to determine whether it
  *     should avoid prefetching pages, as application threads may soon be involved in eviction.
  *
- *     Returns `true` if the cache is nearing the eviction trigger thresholds.
+ *     Return `true` if the cache is nearing the eviction trigger thresholds.
  */
 static WT_INLINE bool
 __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
@@ -369,18 +370,18 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
 
 /* !!!
  * __wt_evict_clean_needed --
- *     This function checks if the configured eviction trigger threshold for the total volume of
- *     data in the cache has been reached. Once this threshold is met, application threads are
- *     signaled to assist with eviction. The eviction trigger threshold is configurable, and defined
- *     in `api_data.py`.
+ *     Check whether the configured eviction trigger threshold for the total volume of data in the
+ *     cache has been reached. Once this threshold is met, application threads are signaled to
+ *     assist with eviction. The eviction trigger threshold is configurable, and defined in
+ *     `api_data.py`.
  *
- *     This function is called by the eviction server to determine the cache's current
- *     state and to set the internal flags accordingly.
+ *     This function is called by the eviction server to determine the cache's current state and to
+ *     set the internal flags accordingly.
  *
  *     Input parameter:
  *       `pct_full`: A pointer to store the percentage of cache used, if not NULL.
  *
- *     Returns `true` if the cache usage exceeds the eviction trigger threshold.
+ *     Return `true` if the cache usage exceeds the eviction trigger threshold.
  */
 static WT_INLINE bool
 __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
@@ -416,7 +417,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 
 /* !!!
  * __wt_evict_dirty_needed --
- *     This function checks if the configured eviction dirty trigger threshold for the total volume
+ *     Check whether the configured eviction dirty trigger threshold for the total volume
  *     of dirty data in the cache has been reached. Once this threshold is met, application threads
  *     are signaled to assist with the eviction of dirty pages. The eviction dirty trigger threshold
  *     is configurable, and defined in `api_data.py`.
@@ -427,7 +428,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
  *     Input parameter:
  *       `pct_full`: A pointer to store the percentage of the cache used by the dirty leaf pages.
  *
- *     Returns `true` if the cache usage exceeds the eviction dirty trigger threshold.
+ *     Return `true` if the cache usage exceeds the eviction dirty trigger threshold.
  */
 static WT_INLINE bool
 __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
@@ -482,9 +483,9 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 
 /* !!!
  * __wt_evict_needed --
- *     This function checks if the configured clean/dirty/update eviction trigger thresholds
- *     for the cache have been reached. Once any of these thresholds are met, application
- *     threads are signaled to assist with the eviction of pages.
+ *     Check whether the configured clean/dirty/update eviction trigger thresholds for the cache
+ *     have been reached. Once any of these thresholds are met, application threads are signaled
+ *     to assist with the eviction of pages.
  *
  *     This function is called to determine whether cache is under pressure or application thread
  *     eviction is required.
@@ -496,7 +497,7 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
  *            update triggers are ignored.
  *       (3) `pct_full`: A pointer to store the calculated cache full percentage, if not NULL.
  *
- *     Returns `true` if the cache usage exceeds any of the clean/dirty/update eviction trigger
+ *     Return `true` if the cache usage exceeds any of the clean/dirty/update eviction trigger
  *     thresholds.
  */
 static WT_INLINE bool
@@ -549,8 +550,8 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
  * __wt_evict_favor_clearing_dirty_cache --
  *    !!! Use this function with caution as it will significantly impact eviction behavior. !!!
  *
- *    This function adjusts eviction settings (`dirty_target` and `dirty_trigger`) to
- *    aggressively remove dirty bytes from the cache.
+ *    Adjust eviction settings (`dirty_target` and `dirty_trigger`) to aggressively remove dirty
+ *    bytes from the cache.
  *
  *    It should only be called once during `WT_CONNECTION::close`.
  */
@@ -589,9 +590,8 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
 
 /* !!!
  * __wt_evict_app_assist_worker_check --
- *     This function is called by application threads to check whether eviction trigger thresholds
- *     are reached and the thread should assist eviction worker threads with eviction of pages from
- *     the queues.
+ *     Check if eviction trigger thresholds have reached to determine whether application threads
+ *     should assist eviction worker threads with eviction of pages from the queues.
  *
  *     Input parameters:
  *       (1) `busy`: A flag indicating if the session is actively pinning resources, in which
@@ -600,7 +600,7 @@ __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
  *            update triggers are ignored.
  *       (3) `didworkp`: A pointer to indicate whether eviction work was done (optional).
  *
- *     Returns an  error code from `__wti_evict_app_assist_worker` if it is unable to perform
+ *     Return an  error code from `__wti_evict_app_assist_worker` if it is unable to perform
  *     meaningful work (eviction cache stuck).
  */
 static WT_INLINE int

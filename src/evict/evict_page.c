@@ -126,9 +126,11 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 
 /* !!!
  * __wt_evict --
- *     This function evicts a page from memory by taking exclusive access to the page. Based on the
- *     page's state, the function either reconciles and writes the page to disk or simply discards
- *     it from the cache. It is called by both eviction worker threads and application threads.
+ *     Evict a page from memory by taking exclusive access to the page.
+ *
+ *     Based on the page's state, the function either reconciles and writes the page to disk or
+ *     simply discards it from the cache. It is called by both eviction worker threads and
+ *     application threads.
  *
  *     Input parameters:
  *       (1) `ref`: Reference to the page getting evicted.
@@ -137,8 +139,8 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  *       (3) `flags`: Eviction-related flags indicating conditions such as `urgent eviction`,
  *           `no splits`, or `tree closing`.
  *
- *     This function returns an error code for cases blocking exclusive access to the page, failure
- *     in reconciliation, or certain conditions preventing the page's eviction.
+ *     Return an error code for cases blocking exclusive access to the page, failure in
+ *     reconciliation, or certain conditions preventing the page's eviction.
  */
 int
 __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, uint32_t flags)
