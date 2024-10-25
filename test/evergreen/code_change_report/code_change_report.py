@@ -479,6 +479,7 @@ def generate_html_report_as_text(code_change_info: dict, verbose: bool):
 def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str | None:
     # Do nothing if the PR has no relevant changes.
     if int(code_change_info['summary_info']['num_lines']) == 0:
+        logging.info("No need to post a PR comment as there's no relevant change made.")
         return None
 
     message = ""
@@ -531,6 +532,7 @@ def build_pr_comment(code_change_info: dict, code_change_report_url: str) -> str
         - [Code coverage report (catch2)]({code_coverage_report_catch2_url})
         - [Code coverage report (full)]({code_coverage_report_full_url})
     """)
+    logging.debug(message)
 
     # Complexity
     changed_functions = code_change_info["changed_functions"]
