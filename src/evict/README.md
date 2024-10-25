@@ -39,13 +39,13 @@ The eviction process involves three components:
 
 ### APIs for Eviction
 
-The eviction APIs, defined in `evict.h`, allow other modules in WT to manage eviction processes. Below is a brief description of the functionalities provided by these APIs:
-
+The eviction APIs, declared in `evict.h`, allow other modules in WT to manage eviction processes. Below is a brief description of the functionalities provided by these APIs:
 - Pausing and resuming the eviction server when necessary.
 - Specifying which Btrees to prioritize or exclude from the eviction process.
 - Retrieving the state of cache health.
 - Allow callers to evict pages or entire Btrees directly, bypassing the background eviction process.
 - Modifying page states, crucial for prioritizing or deprioritizing pages for eviction.
+> For a detailed explanation of API functionality (declared in `evict.h`), refer to the comments located above each function definition.
 
 ### Terminology
 
