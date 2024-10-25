@@ -56,6 +56,11 @@ typedef struct PALM_KV_PAGE_MATCHES {
     uint64_t table_id;
     uint64_t page_id;
     uint64_t checkpoint_id;
+    uint64_t revision;
+
+    uint64_t backlink;
+    uint64_t base;
+    uint32_t flags;
 } PALM_KV_PAGE_MATCHES;
 
 int palm_kv_env_create(PALM_KV_ENV **env);
@@ -75,7 +80,8 @@ typedef enum PALM_KV_GLOBAL_KEY {
 int palm_kv_put_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t value);
 int palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *valuep);
 int palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
-  uint64_t checkpoint_id, uint64_t revision, bool is_delta, const WT_ITEM *buf);
+  uint64_t checkpoint_id, uint64_t revision, bool is_delta, uint64_t backlink, uint64_t base,
+  uint32_t flags, const WT_ITEM *buf);
 int palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
   uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matchesp);
 bool palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches);
