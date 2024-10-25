@@ -450,9 +450,9 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 
 /* !!!
  * __wti_evict_updates_needed --
- *     This function checks if the configured eviction update trigger threshold for the total volume
- *     of updates in the cache has been reached. Once this threshold is met, application threads
- *     are signaled to assist with the eviction of pages with updates. The eviction update trigger
+ *     Check whether the configured eviction update trigger threshold for the total volume of
+ *     updates in the cache has been reached. Once this threshold is met, application threads are
+ *     signaled to assist with the eviction of pages with updates. The eviction update trigger
  *     threshold is configurable, and defined in `api_data.py`.
  *
  *     This function is called by the eviction server to determine the cache's current
