@@ -112,9 +112,8 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_4,
     };
     const char *cfg;
-    const char *wiredtiger_open_config =
-      "create,"
-#if 1 /* Include if needed */
+    const char *wiredtiger_open_config = "create,"
+#if 0 /* Include if needed */
       "verbose=["
       "control_point=5,"
       "],"

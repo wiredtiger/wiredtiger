@@ -338,18 +338,20 @@ __wt_control_point_wait_thread_barrier(
           __func__, id, WT_CONTROL_POINT_ACTION_ID_THREAD_BARRIER, cp_registry->action_supported);
         return; /* Pretend not enabled. */
     }
-    /* Is waiting necessary? */
+
     pair_data = (WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *)cp_data;
     action_data = &pair_data->action_data;
     thread_count = action_data->thread_count;
     num_threads_waiting = action_data->num_threads_waiting;
-    WT_ASSERT(session, num_threads_waiting < thread_count);
+    action_data->num_threads_waiting = ++num_threads_waiting;
+    WT_ASSERT(session, num_threads_waiting <= 2 * thread_count);
     num_threads_woke_up = action_data->num_threads_woke_up;
     WT_ASSERT(session, num_threads_woke_up < thread_count);
-    WT_ASSERT(session, (num_threads_waiting + num_threads_woke_up) < thread_count);
     current_trigger_count = cp_registry->trigger_count;
     crossing_count = cp_registry->crossing_count;
-    if ((num_threads_waiting + num_threads_woke_up + 1) == thread_count) { /* No */
+
+    /* Is waiting necessary? */
+    if (num_threads_waiting == thread_count) { /* No */
         action_data->num_threads_woke_up = ++num_threads_woke_up;
         __wt_control_point_release_data(session, cp_registry, cp_data, true);
         __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
@@ -358,9 +360,10 @@ __wt_control_point_wait_thread_barrier(
           __func__, id, thread_count, num_threads_waiting, num_threads_woke_up,
           (uint64_t)current_trigger_count, (uint64_t)crossing_count);
         __wt_cond_signal(session, action_data->condvar);
-        return; /* Enabled and all threads have arrived. */
+        /* Enabled and all threads have arrived. */
+        goto check_reset;
     }
-    action_data->num_threads_waiting = ++num_threads_waiting;
+
     /* Store data needed by run_func. */
     session->cp_registry = cp_registry;
     session->cp_data = &(pair_data->iface);
@@ -368,32 +371,46 @@ __wt_control_point_wait_thread_barrier(
     __wt_verbose_debug4(session, WT_VERB_CONTROL_POINT,
       "%s: Waiting: id=%" PRId32 ", # left to wait=%" PRIu64 ", # waiting=%" PRIu64
       ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
-      __func__, id, (thread_count - (num_threads_waiting + num_threads_woke_up)),
-      num_threads_waiting, num_threads_woke_up, (uint64_t)current_trigger_count,
-      (uint64_t)crossing_count);
+      __func__, id, (thread_count - num_threads_waiting), num_threads_waiting, num_threads_woke_up,
+      (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+
+    /* Wait for all threads to wait. */
     for (;;) {
         __wt_cond_wait_signal(session, action_data->condvar, WT_DELAY_UNTIL_BARRIER_USEC,
           __run_thread_barrier, &signalled);
-        if ((num_threads_waiting + num_threads_woke_up) == thread_count) {
+        if (action_data->num_threads_waiting == thread_count) {
             /* Delay condition satisfied. */
             break;
         }
     }
 
     num_threads_woke_up = ++(action_data->num_threads_woke_up);
-    num_threads_waiting = --(action_data->num_threads_waiting);
+
+    current_trigger_count = cp_registry->trigger_count;
     crossing_count = cp_registry->crossing_count;
-    __wt_control_point_release_data(session, cp_registry, cp_data, false);
+
     __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
       "%s: True: Wait finished: id=%" PRId32 ", # to wait=%" PRIu64 ", # waiting=%" PRIu64
       ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
       __func__, id, thread_count, num_threads_waiting, num_threads_woke_up,
       (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+
+check_reset:
     if (num_threads_woke_up == thread_count) {
         /* All threads woke up. Reset for next use. */
-        action_data->num_threads_woke_up = 0;
+        num_threads_waiting = action_data->num_threads_waiting;
+        WT_ASSERT(session, num_threads_waiting >= thread_count);
+        num_threads_waiting -= thread_count;
+        action_data->num_threads_waiting = num_threads_waiting;
+
+        num_threads_woke_up = action_data->num_threads_woke_up;
+        WT_ASSERT(session, num_threads_woke_up >= thread_count);
+        num_threads_woke_up -= thread_count;
+        action_data->num_threads_woke_up = num_threads_woke_up;
+
         __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
-          "%s: Woke up finished, reset num_threads_woke_up to 0: id=%" PRId32, __func__, id);
+          "%s: Wake up finished, reset: id=%" PRId32 ", # waiting=%" PRIu64 ", # woke up=%" PRIu64,
+          __func__, id, num_threads_waiting, num_threads_woke_up);
     }
     return; /* Enabled and wait finished. */
 }
