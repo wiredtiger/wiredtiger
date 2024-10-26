@@ -909,7 +909,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
             (newpage && cbt->page_deleted_count > 0))) {
 #ifdef HAVE_CONTROL_POINT /* The #ifdef is for just the printf()s. */
             /* Signal the test thread. */
-            CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(
+            CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(
               session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
             printf("Arriving at control point\n");
             /* Wait here only once for the checkpoint thread. */
@@ -928,7 +928,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                     WT_ASSERT(session, false);
 #endif
                     __wt_evict_page_soon(session, cbt->ref);
-                    WT_STAT_CONN_INCR(session, eviction_force_delete_in_checkpoint);
                     WT_STAT_CONN_INCR(session, eviction_force_delete);
                 }
             } else {

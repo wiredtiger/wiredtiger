@@ -37,6 +37,8 @@ static const char *home;
 #define NUM_THREADS 5
 #define SKIP_COUNT 1
 
+static const char *const session_open_config = "";
+
 struct thread_arguments {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -62,12 +64,12 @@ print_thread(void *thread_arg)
     args = thread_arg;
     wt_conn = args->conn;
     /* Initialize */
-    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &wt_session));
+    error_check(wt_conn->open_session(wt_conn, NULL, session_open_config, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_random_init_seed(session, &rnd_state);
 
     /* Wait for main or the previous thread. */
-    CONNECTION_CONTROL_POINT_WAIT(session, args->wait_for_id);
+    CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(session, args->wait_for_id);
 
     /* Sleep a random time. */
     rnd_num1 = __wt_random(&rnd_state);
@@ -81,8 +83,9 @@ print_thread(void *thread_arg)
       args->thread_num, args->wait_for_id, args->my_id, seconds, microseconds);
     fflush(stdout);
 
-    /* Finished. Signal the next thread which waits for this thread to get here. */
-    CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(session, args->my_id);
+    /* Finished. Both this thread and the next thread wait for the other to get to this control
+     * point. */
+    CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(session, args->my_id);
 
     /* Cleanup */
     error_check(wt_session->close(wt_session, NULL));
@@ -109,13 +112,21 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_4,
     };
     const char *cfg;
+    const char *wiredtiger_open_config =
+      "create,"
+#if 1 /* Include if needed */
+      "verbose=["
+      "control_point=5,"
+      "],"
+#endif
+      ;
 
     cfg = "";
     /* Setup */
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create", &wt_conn));
-    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &wt_session));
+    error_check(wiredtiger_open(home, NULL, wiredtiger_open_config, &wt_conn));
+    error_check(wt_conn->open_session(wt_conn, NULL, session_open_config, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
 
     /* Enable all control points. */
@@ -146,11 +157,14 @@ main(int argc, char *argv[])
         SESSION_CONTROL_POINT_DEFINE_SLEEP(session, WT_SESSION_CONTROL_POINT_ID_THREAD_0);
     }
 
-    /* Signal threads[0] which waits for this thread to get here. */
-    CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
+    /* Both this thread and threads[0] wait for the other to get to this control point. */
+    CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(
+      session, WT_CONN_CONTROL_POINT_ID_MAIN_START_PRINTING);
 
-    /* This thread waits for threads[NUM_THREADS - 1] to finish. */
-    CONNECTION_CONTROL_POINT_WAIT(session, thread_control_point_ids[NUM_THREADS - 1]);
+    /* Both this thread and threads[NUM_THREADS - 1] wait for the other to get to this control
+     * point, i.e. for threads[NUM_THREADS - 1] to finish. */
+    CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(
+      session, thread_control_point_ids[NUM_THREADS - 1]);
 
     /* Join all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx)

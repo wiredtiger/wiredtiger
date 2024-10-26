@@ -554,7 +554,6 @@ struct __wt_connection_stats {
     int64_t eviction_stable_state_workers;
     int64_t eviction_walks_active;
     int64_t eviction_walks_started;
-    int64_t eviction_force_delete_in_checkpoint;
     int64_t eviction_force_no_retry;
     int64_t eviction_force_hs_fail;
     int64_t eviction_force_hs;

@@ -325,6 +325,7 @@
 #define WT_CONF_ID_target 142ULL
 #define WT_CONF_ID_terminate 272ULL
 #define WT_CONF_ID_this_id 134ULL
+#define WT_CONF_ID_thread_count 315ULL
 #define WT_CONF_ID_threads 284ULL
 #define WT_CONF_ID_threads_max 222ULL
 #define WT_CONF_ID_threads_min 223ULL
@@ -346,7 +347,6 @@
 #define WT_CONF_ID_verify_metadata 335ULL
 #define WT_CONF_ID_version 62ULL
 #define WT_CONF_ID_wait 195ULL
-#define WT_CONF_ID_wait_count 315ULL
 #define WT_CONF_ID_worker_thread_max 255ULL
 #define WT_CONF_ID_write_through 336ULL
 #define WT_CONF_ID_write_timestamp 5ULL
@@ -529,33 +529,33 @@ static const struct {
     } Operation_tracking;
     struct {
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Main_start_printing;
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Thread_0;
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Thread_1;
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Thread_2;
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Thread_3;
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Thread_4;
         struct {
             uint64_t enable_count;
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Thread_wait_for_upd_abort;
         struct {
             uint64_t match_value;
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Wt_13450_ckpt;
         struct {
-            uint64_t wait_count;
+            uint64_t thread_count;
         } Wt_13450_test;
     } Per_connection_control_points;
     struct {
@@ -946,43 +946,43 @@ static const struct {
   {
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Main_start_printing << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_0 << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_1 << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_2 << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_3 << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_4 << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_wait_for_upd_abort << 16) |
         (WT_CONF_ID_enable_count << 32),
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_wait_for_upd_abort << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Wt_13450_ckpt << 16) |
         (WT_CONF_ID_match_value << 32),
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Wt_13450_ckpt << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Wt_13450_test << 16) |
-        (WT_CONF_ID_wait_count << 32),
+        (WT_CONF_ID_thread_count << 32),
     },
   },
   {

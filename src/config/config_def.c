@@ -2703,8 +2703,8 @@ static const uint8_t confchk_wiredtiger_open_log_subconfigs_jump[WT_CONFIG_JUMP_
   2, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 9, 9, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_main_start_printing_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2712,68 +2712,68 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_0_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_0_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_1_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_1_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_2_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_2_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_3_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_3_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_4_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_thread_4_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_thread_wait_for_upd_abort_subconfigs[] = {
   {"enable_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_INT, 321, 0, 9223372036854775807LL, NULL},
-  {"wait_count", "int", NULL, "min=1,max=4294967295", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    315, 1, 4294967295LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2781,13 +2781,13 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2};
+    0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_wt_13450_ckpt_subconfigs[] = {
   {"match_value", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_INT, 323, 0, 9223372036854775807LL, NULL},
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2795,11 +2795,11 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2};
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_wt_13450_test_subconfigs[] = {
-  {"wait_count", "int", NULL, "min=1,max=9223372036854775807", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 315, 1, 9223372036854775807LL, NULL},
+  {"thread_count", "int", NULL, "min=0,max=9223372036854775807", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 315, 0, 9223372036854775807LL, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2807,7 +2807,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_per_connection_control_points_subconfigs[] = {
   {"main_start_printing", "category", NULL, NULL,
@@ -4328,13 +4328,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "worker_thread_max=4),mmap=true,mmap_all=false,multiprocess=false"
     ",operation_timeout_ms=0,operation_tracking=(enabled=false,"
     "path=\".\"),"
-    "per_connection_control_points=(main_start_printing=(wait_count=1)"
-    ",thread_0=(wait_count=1),thread_1=(wait_count=1),"
-    "thread_2=(wait_count=1),thread_3=(wait_count=1),"
-    "thread_4=(wait_count=1),"
-    "thread_wait_for_upd_abort=(enable_count=1,wait_count=1),"
-    "wt_13450_ckpt=(match_value=1,wait_count=1),"
-    "wt_13450_test=(wait_count=1)),prefetch=(available=false,"
+    "per_connection_control_points=(main_start_printing=(thread_count=2)"
+    ",thread_0=(thread_count=2),thread_1=(thread_count=2),"
+    "thread_2=(thread_count=2),thread_3=(thread_count=2),"
+    "thread_4=(thread_count=2),"
+    "thread_wait_for_upd_abort=(enable_count=1,thread_count=2),"
+    "wt_13450_ckpt=(match_value=1,thread_count=2),"
+    "wt_13450_test=(thread_count=2)),prefetch=(available=false,"
     "default=false),readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
@@ -4389,13 +4389,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "worker_thread_max=4),mmap=true,mmap_all=false,multiprocess=false"
     ",operation_timeout_ms=0,operation_tracking=(enabled=false,"
     "path=\".\"),"
-    "per_connection_control_points=(main_start_printing=(wait_count=1)"
-    ",thread_0=(wait_count=1),thread_1=(wait_count=1),"
-    "thread_2=(wait_count=1),thread_3=(wait_count=1),"
-    "thread_4=(wait_count=1),"
-    "thread_wait_for_upd_abort=(enable_count=1,wait_count=1),"
-    "wt_13450_ckpt=(match_value=1,wait_count=1),"
-    "wt_13450_test=(wait_count=1)),prefetch=(available=false,"
+    "per_connection_control_points=(main_start_printing=(thread_count=2)"
+    ",thread_0=(thread_count=2),thread_1=(thread_count=2),"
+    "thread_2=(thread_count=2),thread_3=(thread_count=2),"
+    "thread_4=(thread_count=2),"
+    "thread_wait_for_upd_abort=(enable_count=1,thread_count=2),"
+    "wt_13450_ckpt=(match_value=1,thread_count=2),"
+    "wt_13450_test=(thread_count=2)),prefetch=(available=false,"
     "default=false),readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
@@ -4450,13 +4450,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
     "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
-    "per_connection_control_points=(main_start_printing=(wait_count=1)"
-    ",thread_0=(wait_count=1),thread_1=(wait_count=1),"
-    "thread_2=(wait_count=1),thread_3=(wait_count=1),"
-    "thread_4=(wait_count=1),"
-    "thread_wait_for_upd_abort=(enable_count=1,wait_count=1),"
-    "wt_13450_ckpt=(match_value=1,wait_count=1),"
-    "wt_13450_test=(wait_count=1)),prefetch=(available=false,"
+    "per_connection_control_points=(main_start_printing=(thread_count=2)"
+    ",thread_0=(thread_count=2),thread_1=(thread_count=2),"
+    "thread_2=(thread_count=2),thread_3=(thread_count=2),"
+    "thread_4=(thread_count=2),"
+    "thread_wait_for_upd_abort=(enable_count=1,thread_count=2),"
+    "wt_13450_ckpt=(match_value=1,thread_count=2),"
+    "wt_13450_test=(thread_count=2)),prefetch=(available=false,"
     "default=false),readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
@@ -4510,13 +4510,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
     "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
     "operation_tracking=(enabled=false,path=\".\"),"
-    "per_connection_control_points=(main_start_printing=(wait_count=1)"
-    ",thread_0=(wait_count=1),thread_1=(wait_count=1),"
-    "thread_2=(wait_count=1),thread_3=(wait_count=1),"
-    "thread_4=(wait_count=1),"
-    "thread_wait_for_upd_abort=(enable_count=1,wait_count=1),"
-    "wt_13450_ckpt=(match_value=1,wait_count=1),"
-    "wt_13450_test=(wait_count=1)),prefetch=(available=false,"
+    "per_connection_control_points=(main_start_printing=(thread_count=2)"
+    ",thread_0=(thread_count=2),thread_1=(thread_count=2),"
+    "thread_2=(thread_count=2),thread_3=(thread_count=2),"
+    "thread_4=(thread_count=2),"
+    "thread_wait_for_upd_abort=(enable_count=1,thread_count=2),"
+    "wt_13450_ckpt=(match_value=1,thread_count=2),"
+    "wt_13450_test=(thread_count=2)),prefetch=(available=false,"
     "default=false),readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
