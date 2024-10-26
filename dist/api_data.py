@@ -247,13 +247,14 @@ all_per_connection_control_points_config = [
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
                             min='1', max='4294967295'),
+                    # Predicate configuration paramters
                     Config('enable_count', '1', r'''
                         the number of control point crossings to enable. Later crossings do not 
                         trigger.''',
                         min='0', max=ControlPoint.int64_max),
                 ]),
             # To reproduce WT 13450
-            ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
+            ConnectionControlPoint('WT 13450 CKPT', 'Trigger', 'Param match',
                 '', r'''
                 Next cursor waits for checkpoint to get here.''',
                 type='category', subconfig= [
@@ -266,7 +267,7 @@ all_per_connection_control_points_config = [
                             the number of triggers for which to wait''',
                             min='1', max=Config.int64_max),
                 ]),
-            ConnectionControlPoint('WT 13450 TEST', 'Wait for trigger', 'Always',
+            ConnectionControlPoint('WT 13450 TEST', 'Trigger', 'Always',
                 '', r'''
                 Test waits for cursor next to get here.''',
                 type='category', subconfig= [
