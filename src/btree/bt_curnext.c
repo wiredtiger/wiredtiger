@@ -914,7 +914,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
             printf("Arriving at control point\n");
             /* Wait here only once for the checkpoint thread. */
             if (wait) {
-                CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT(
+                CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT_THREAD_BARRIER(
                   session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
                 wait = false;
             }

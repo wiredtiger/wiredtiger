@@ -53,6 +53,23 @@ __wt_control_point_unlock(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *c
 }
 
 /*
+ * __wti_control_point_relock --
+ *     Lock cp_registry->lock again after unlocking.
+ *
+ * This relocks after __wti_control_point_get_data() and __wt_control_point_unlock().
+ *
+ * @param session The session. @param cp_registry The control point registry. @param cp_data The
+ *     control point data last time.
+ */
+void
+__wti_control_point_relock(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *cp_data)
+{
+    __wt_spin_lock(session, &cp_registry->lock);
+    WT_ASSERT(session, cp_registry->cp_data == cp_data);
+}
+
+/*
  * __wt_control_point_release_data --
  *     Call when done using WT_CONTROL_POINT_REGISTRY->cp_data that was returned by
  *     __wti_control_point_get_data.
