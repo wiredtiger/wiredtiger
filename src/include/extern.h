@@ -1814,8 +1814,8 @@ extern void __wt_control_point_unlock(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry);
 extern void __wt_control_point_wait(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id);
-extern void __wt_control_point_wait_thread_barrier(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id);
+extern void __wt_control_point_wait_thread_barrier(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id, bool define);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
 extern void __wt_cursor_get_hash(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup, uint64_t *hash_value);

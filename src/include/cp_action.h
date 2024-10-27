@@ -463,18 +463,18 @@ struct __wt_control_point_pair_data_thread_barrier {
  * Wait for a per-connection control point with action "Thread Barrier: Block the testing thread(s)
  * and define thread until a control point is triggered".
  */
-#define CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(SESSION, CONTROL_POINT_ID)     \
-    do {                                                                            \
-        WT_SESSION_IMPL *const _session = (SESSION);                                \
-        WT_CONNECTION_IMPL *const _conn = S2C(_session);                            \
-        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                    \
-        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                    \
-        WT_CONTROL_POINT_DATA *_cp_data;                                            \
-        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);               \
-        _cp_registry = &(_conn->control_points[_cp_id]);                            \
-        _cp_data = _cp_registry->cp_data;                                           \
-        if (_cp_data != NULL)                                                       \
-            __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id); \
+#define CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(SESSION, CONTROL_POINT_ID)            \
+    do {                                                                                   \
+        WT_SESSION_IMPL *const _session = (SESSION);                                       \
+        WT_CONNECTION_IMPL *const _conn = S2C(_session);                                   \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                           \
+        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                           \
+        WT_CONTROL_POINT_DATA *_cp_data;                                                   \
+        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                      \
+        _cp_registry = &(_conn->control_points[_cp_id]);                                   \
+        _cp_data = _cp_registry->cp_data;                                                  \
+        if (_cp_data != NULL)                                                              \
+            __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id, false); \
     } while (0)
 #else
 #define CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(SESSION, CONTROL_POINT_ID) /* NOP */
@@ -486,21 +486,21 @@ struct __wt_control_point_pair_data_thread_barrier {
  * Set the "match value" and wait for a per-connection control point with action "Thread Barrier:
  * Block the testing thread(s) and define thread until a control point is triggered".
  */
-#define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT_THREAD_BARRIER(           \
-  SESSION, CONTROL_POINT_ID, VALUE64)                                               \
-    do {                                                                            \
-        WT_SESSION_IMPL *const _session = (SESSION);                                \
-        WT_CONNECTION_IMPL *const _conn = S2C(_session);                            \
-        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                    \
-        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                    \
-        WT_CONTROL_POINT_DATA *_cp_data;                                            \
-        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);               \
-        _cp_registry = &(_conn->control_points[_cp_id]);                            \
-        _cp_data = _cp_registry->cp_data;                                           \
-        if (_cp_data != NULL) {                                                     \
-            _cp_data->param1.value64 = (VALUE64);                                   \
-            __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id); \
-        }                                                                           \
+#define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT_THREAD_BARRIER(                  \
+  SESSION, CONTROL_POINT_ID, VALUE64)                                                      \
+    do {                                                                                   \
+        WT_SESSION_IMPL *const _session = (SESSION);                                       \
+        WT_CONNECTION_IMPL *const _conn = S2C(_session);                                   \
+        const wt_control_point_id_t _cp_id = (CONTROL_POINT_ID);                           \
+        WT_CONTROL_POINT_REGISTRY *_cp_registry;                                           \
+        WT_CONTROL_POINT_DATA *_cp_data;                                                   \
+        WT_ASSERT(_session, _cp_id < CONNECTION_CONTROL_POINTS_SIZE);                      \
+        _cp_registry = &(_conn->control_points[_cp_id]);                                   \
+        _cp_data = _cp_registry->cp_data;                                                  \
+        if (_cp_data != NULL) {                                                            \
+            _cp_data->param1.value64 = (VALUE64);                                          \
+            __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id, false); \
+        }                                                                                  \
     } while (0)
 #else
 #define CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT_THREAD_BARRIER( \
@@ -514,14 +514,17 @@ struct __wt_control_point_pair_data_thread_barrier {
  * Define a per-connection control point with action "Thread Barrier: Block the testing thread(s)
  * and define thread until a control point is triggered". When triggered signal any waiting threads.
  */
-#define CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(SESSION, CONTROL_POINT_ID)  \
-    CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID), false, 0) \
-    if (_cp_data != NULL) {                                                        \
-        __wt_control_point_unlock(_session, _cp_registry);                         \
-        /* The action. */                                                          \
-        __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id);    \
-    }                                                                              \
-    CONNECTION_CONTROL_POINT_DEFINE_END(false)
+#define CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(SESSION, CONTROL_POINT_ID)       \
+    CONNECTION_CONTROL_POINT_DEFINE_START((SESSION), (CONTROL_POINT_ID), false, 0)      \
+    if (_cp_data != NULL) {                                                             \
+        WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *_pair_data =                         \
+          (WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *)_cp_data;                        \
+        WT_CONTROL_POINT_ACTION_THREAD_BARRIER *action_data = &_pair_data->action_data; \
+        /* The action. */                                                               \
+        __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id, true);   \
+        __wt_cond_signal(_session, action_data->condvar);                               \
+    }                                                                                   \
+    CONNECTION_CONTROL_POINT_DEFINE_END(true);
 #else
 #define CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(CONNECTION, CONTROL_POINT_ID) /* NOP */
 #endif
@@ -540,11 +543,11 @@ struct __wt_control_point_pair_data_thread_barrier {
         WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *_pair_data =                           \
           (WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *)_cp_data;                          \
         WT_CONTROL_POINT_ACTION_THREAD_BARRIER *action_data = &_pair_data->action_data;   \
-        __wt_control_point_unlock(_session, _cp_registry);                                \
         /* The action. */                                                                 \
+        __wt_control_point_wait_thread_barrier(_session, _cp_registry, _cp_id, true);     \
         __wt_cond_signal(_session, action_data->condvar);                                 \
     }                                                                                     \
-    CONNECTION_CONTROL_POINT_DEFINE_END(false)
+    CONNECTION_CONTROL_POINT_DEFINE_END(true);
 #else
 #define CONNECTION_CONTROL_POINT_SET_TEST_VALUE_AND_DEFINE_THREAD_BARRIER( \
   SESSION, CONTROL_POINT_ID, VALUE64) /* NOP */

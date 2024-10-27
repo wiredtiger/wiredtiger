@@ -309,11 +309,15 @@ __run_thread_barrier(WT_SESSION_IMPL *session)
  *     and define thread until a control point is triggered" given a WT_CONTROL_POINT_REGISTRY.
  *     Return true if triggered.
  *
+ * If define, already locked and get_data done. Return locked.
+ *
+ * If not define, not locked, get_data not done. Call get_data. Return not get_data, and not locked.
+ *
  * @param session The session. @param cp_registry The control point's registry.
  */
 void
-__wt_control_point_wait_thread_barrier(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id)
+__wt_control_point_wait_thread_barrier(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id, bool define)
 {
     WT_CONTROL_POINT_ACTION_THREAD_BARRIER *action_data;
     WT_CONTROL_POINT_DATA *cp_data;
@@ -325,19 +329,23 @@ __wt_control_point_wait_thread_barrier(
     uint64_t thread_count;
     bool signalled;
 
-    cp_data = __wti_control_point_get_data(session, cp_registry, true);
+    cp_data =
+      define ? cp_registry->cp_data : __wti_control_point_get_data(session, cp_registry, true);
     if (WT_UNLIKELY(cp_data == NULL)) {
         __wt_verbose_debug5(session, WT_VERB_CONTROL_POINT,
-          "%s: False: Is disabled: trigger skipped: id=%" PRId32, __func__, id);
+          "%s: False: Is disabled: trigger skipped: id=%" PRId32 ", %s.", __func__, id,
+          define ? "define" : "call");
         return; /* Not enabled. */
     }
     /* Does the call site and trigger site match in action? */
     if (WT_UNLIKELY(cp_registry->action_supported != WT_CONTROL_POINT_ACTION_ID_THREAD_BARRIER)) {
-        __wt_control_point_release_data(session, cp_registry, cp_data, true);
+        if (!define)
+            __wt_control_point_release_data(session, cp_registry, cp_data, true);
         __wt_verbose_error(session, WT_VERB_CONTROL_POINT,
           "%s: False: Control point call site and trigger site have different actions: id=%" PRId32
-          ": %d and %" PRIu32 ".",
-          __func__, id, WT_CONTROL_POINT_ACTION_ID_THREAD_BARRIER, cp_registry->action_supported);
+          ": %d and %" PRIu32 ", %s.",
+          __func__, id, WT_CONTROL_POINT_ACTION_ID_THREAD_BARRIER, cp_registry->action_supported,
+          define ? "define" : "call");
         return; /* Pretend not enabled. */
     }
 
@@ -359,9 +367,9 @@ __wt_control_point_wait_thread_barrier(
 
         __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
           "%s: True: Wait not needed: id=%" PRId32 ", thread_count=%" PRIu64 ", # waiting=%" PRIu64
-          ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+          ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64 ", %s.",
           __func__, id, thread_count, num_threads_waiting, num_threads_woke_up,
-          (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+          (uint64_t)current_trigger_count, (uint64_t)crossing_count, define ? "define" : "call");
         __wt_cond_signal(session, action_data->condvar);
 
         __wti_control_point_relock(session, cp_registry, &(pair_data->iface));
@@ -375,9 +383,9 @@ __wt_control_point_wait_thread_barrier(
     __wt_control_point_unlock(session, cp_registry);
     __wt_verbose_debug4(session, WT_VERB_CONTROL_POINT,
       "%s: Waiting: id=%" PRId32 ", # left to wait=%" PRIu64 ", # waiting=%" PRIu64
-      ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+      ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64 ", %s.",
       __func__, id, (thread_count - num_threads_waiting), num_threads_waiting, num_threads_woke_up,
-      (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+      (uint64_t)current_trigger_count, (uint64_t)crossing_count, define ? "define" : "call");
 
     /* Wait for all threads to wait. */
     for (;;) {
@@ -397,9 +405,9 @@ __wt_control_point_wait_thread_barrier(
 
     __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
       "%s: True: Wait finished: id=%" PRId32 ", # to wait=%" PRIu64 ", # waiting=%" PRIu64
-      ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64,
+      ", # woke up=%" PRIu64 ", trigger_count=%" PRIu64 ", crossing_count=%" PRIu64 ", %s.",
       __func__, id, thread_count, num_threads_waiting, num_threads_woke_up,
-      (uint64_t)current_trigger_count, (uint64_t)crossing_count);
+      (uint64_t)current_trigger_count, (uint64_t)crossing_count, define ? "define" : "call");
 
 check_reset:
     if (num_threads_woke_up == thread_count) {
@@ -415,11 +423,13 @@ check_reset:
         action_data->num_threads_woke_up = num_threads_woke_up;
 
         __wt_verbose_debug2(session, WT_VERB_CONTROL_POINT,
-          "%s: Wake up finished, reset: id=%" PRId32 ", # waiting=%" PRIu64 ", # woke up=%" PRIu64,
-          __func__, id, num_threads_waiting, num_threads_woke_up);
+          "%s: Wake up finished, reset: id=%" PRId32 ", # waiting=%" PRIu64 ", # woke up=%" PRIu64
+          ", %s.",
+          __func__, id, num_threads_waiting, num_threads_woke_up, define ? "define" : "call");
     }
 
-    __wt_control_point_release_data(session, cp_registry, cp_data, true);
+    if (!define)
+        __wt_control_point_release_data(session, cp_registry, cp_data, true);
     return; /* Enabled and wait finished. */
 }
 
