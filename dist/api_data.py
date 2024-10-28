@@ -243,8 +243,21 @@ all_per_connection_control_points_config = [
                         min='0', max=ControlPoint.int64_max),
                 ]),
             # For test/suite/test_bug035.py and test/suite/bug036.py
-            ConnectionControlPoint('thread_wait_for_upd_abort', 'Thread Barrier', 'Always', '', 
+            ConnectionControlPoint('thread_wait_for_upd_abort', 'Thread Barrier', 'Times', '', 
                 r'''Thread waits for transaction to get aborted.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
+                    # Predicate configuration paramters
+                    Config('enable_count', '1', r'''
+                        the number of control point crossings to enable. Later crossings do not 
+                        trigger.''',
+                        min='0', max=ControlPoint.int64_max),
+                ]),
+            ConnectionControlPoint('thread_wait_for_reconstruct', 'Thread Barrier', 'Times', '', 
+                r'''Thread waits for modify to be reconstructed.''',
                 type='category', subconfig= [
                     # Action configuration parameters
                     Config('thread_count', '2', r'''

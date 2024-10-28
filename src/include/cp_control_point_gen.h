@@ -52,11 +52,12 @@
 #define WT_CONN_CONTROL_POINT_ID_THREAD_3 ((wt_control_point_id_t)4)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_4 ((wt_control_point_id_t)5)
 #define WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT ((wt_control_point_id_t)6)
-#define WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT ((wt_control_point_id_t)7)
-#define WT_CONN_CONTROL_POINT_ID_WT_13450_TEST ((wt_control_point_id_t)8)
+#define WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_RECONSTRUCT ((wt_control_point_id_t)7)
+#define WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT ((wt_control_point_id_t)8)
+#define WT_CONN_CONTROL_POINT_ID_WT_13450_TEST ((wt_control_point_id_t)9)
 
 /* The number of per connection control points (Could be generated). */
-#define CONNECTION_CONTROL_POINTS_SIZE 9
+#define CONNECTION_CONTROL_POINTS_SIZE 10
 
 /*
  * Per session control point IDs.
