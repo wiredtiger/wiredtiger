@@ -16,11 +16,11 @@ static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
- * __wt_page_block_meta_init --
+ * __wt_page_block_meta_assign --
  *     Initialize the page's block management metadata.
  */
 void
-__wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
+__wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
 {
     WT_BTREE *btree;
     uint64_t page_id;
@@ -41,12 +41,18 @@ __wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     meta->page_id = page_id;
     /* 0 means the page hasn't been reconciled. */
     meta->reconciliation_id = 0;
-    /* TODO: hard code the checkpoint id to 1. */
+    /*
+     * TODO: hard code the checkpoint id to 1. In the future, should assign to the current
+     * checkpoint id.
+     */
     meta->checkpoint_id = WT_DISAGG_METADATA_TABLE_ID;
     meta->backlink_checkpoint_id = WT_DISAGG_METADATA_TABLE_ID;
     meta->base_checkpoint_id = WT_DISAGG_METADATA_TABLE_ID;
     meta->disagg_lsn = 0;
-    /* 0 means there is no delta written for this page yet. */
+    /*
+     * 0 means there is no delta written for this page yet. We always write a full page for a new
+     * page.
+     */
     meta->delta_count = 0;
 }
 
@@ -146,8 +152,8 @@ err:
         return (__wt_illegal_value(session, type));
     }
 
-    /* Allocate the page metadata that are relevant to how it's stored. */
-    __wt_page_block_meta_init(session, &page->block_meta);
+    /* A new page doesn't have a page id. */
+    page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);

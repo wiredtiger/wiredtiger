@@ -1855,8 +1855,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /* The second page in the split is a new WT_REF/page pair. */
     WT_ERR(__wt_page_alloc(session, type, 0, false, &right));
 
-    right->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-
     /*
      * The new page is dirty by definition, plus column-store splits update the page-modify
      * structure, so create it now.

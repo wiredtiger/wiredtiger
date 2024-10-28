@@ -115,9 +115,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
-    if (bm->is_remote)
-        F_SET(btree, WT_BTREE_PAGE_DELTA);
-
     /*
      * !!!
      * As part of block-manager configuration, we need to return the maximum
@@ -935,9 +932,6 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
         break;
     }
-
-    /* New empty page doesn't have a page id. */
-    ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are

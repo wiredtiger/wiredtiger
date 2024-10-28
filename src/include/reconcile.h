@@ -389,9 +389,9 @@ typedef struct {
 #define WT_PAGE_DELTA_MAX 32
 
 /* Called when writing the leaf disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                                                      \
-    F_ISSET(S2BT(session), WT_BTREE_PAGE_DELTA) && (r)->multi_next == 1 && !r->ovfl_items && \
-      (((r)->ref->page->modify->rec_result == 0 && (r)->ref->page->dsk != NULL) ||           \
-        (r)->ref->page->modify->rec_result == WT_PM_REC_REPLACE ||                           \
-        ((r)->ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK &&                       \
+#define WT_BUILD_DELTA_LEAF(session, r)                                                         \
+    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && (r)->multi_next == 1 && !r->ovfl_items && \
+      (((r)->ref->page->modify->rec_result == 0 && (r)->ref->page->dsk != NULL) ||              \
+        (r)->ref->page->modify->rec_result == WT_PM_REC_REPLACE ||                              \
+        ((r)->ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK &&                          \
           (r)->ref->page->modify->mod_multi_entries == 1))

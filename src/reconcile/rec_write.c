@@ -2398,7 +2398,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
 
-    if (last_block && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
+    if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
       block_meta->delta_count < WT_PAGE_DELTA_MAX) {
         WT_RET(__rec_build_delta(session, r, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
@@ -2418,7 +2418,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
     } else {
-        __wt_page_block_meta_init(session, &multi->block_meta);
+        /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
+        if (last_block && r->multi_next == 1) {
+            multi->block_meta = block_meta;
+            multi->delta_count = 0;
+        } else
+            __wt_page_block_meta_assign(session, &multi->block_meta);
         ++multi->block_meta.reconciliation_id;
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
           &multi->block_meta, addr, &addr_size, &compressed_size, false,
@@ -2836,6 +2841,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         break;
     case 1: /* 1-for-1 page swap */
         r->ref->page->block_meta = r->multi->block_meta;
+
         /*
          * Because WiredTiger's pages grow without splitting, we're replacing a single page with
          * another single page most of the time.
