@@ -2422,7 +2422,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         compressed_size = 0;
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
-        if (last_block && r->multi_next == 1) {
+        if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
             multi->block_meta.delta_count = 0;
         } else
