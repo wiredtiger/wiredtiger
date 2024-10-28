@@ -2376,7 +2376,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
          * internal page yet.
          */
         __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
-        ++r->wrapup_checkpoint_block_meta.reconciliation_id;
         return (0);
     }
 
@@ -2418,6 +2417,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_ASSERT(session, last_block);
         multi->block_meta = *block_meta;
         ++multi->block_meta.delta_count;
+        /* TODO: reset reconciliation id to 0 if we start a new checkpoint id. */
         ++multi->block_meta.reconciliation_id;
         WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, &addr_size,
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
@@ -2428,9 +2428,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
             multi->block_meta.delta_count = 0;
+            /* TODO: reset reconciliation id to 0 if we start a new checkpoint id. */
+            ++multi->block_meta.reconciliation_id;
         } else
             __wt_page_block_meta_assign(session, &multi->block_meta);
-        ++multi->block_meta.reconciliation_id;
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
           &multi->block_meta, addr, &addr_size, &compressed_size, false,
           F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));

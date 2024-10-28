@@ -39,7 +39,7 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
 
     meta->page_id = page_id;
-    /* 0 means the page hasn't been reconciled. */
+    /* A new page hasn't been reconciled. Starts with 0. */
     meta->reconciliation_id = 0;
     /*
      * TODO: hard code the checkpoint id to 1. In the future, should assign to the current
