@@ -29,10 +29,10 @@ target_compile_options(
 set_property(
   SOURCE ../../../third_party/openldap_liblmdb/mdb.c
   APPEND
-  PROPERTY COMPILE_OPTIONS "-Wno-error"
+  PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement"
 )
 set_property(
   SOURCE ../../../third_party/openldap_liblmdb/midl.c
   APPEND
-  PROPERTY COMPILE_OPTIONS "-Wno-error"
+  PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement"
   )
