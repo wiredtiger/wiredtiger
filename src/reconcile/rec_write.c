@@ -2371,9 +2371,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint = compressed_image;
             r->wrapup_checkpoint_compressed = true;
         }
-        r->wrapup_checkpoint_block_meta = r->ref->page->block_meta;
-        if (r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
-            __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+        /*
+         * We need to assign a new page id for the root everytime. We don't support delta for
+         * internal page yet.
+         */
+        __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
         ++r->wrapup_checkpoint_block_meta.reconciliation_id;
         return (0);
     }
