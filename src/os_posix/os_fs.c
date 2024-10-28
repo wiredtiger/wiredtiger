@@ -844,7 +844,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     WT_DECL_RET;
     WT_FILE_HANDLE *file_handle;
     WT_FILE_HANDLE_POSIX *pfh;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     WT_SESSION_IMPL *session;
     mode_t mode;
     int advise_flag, f;

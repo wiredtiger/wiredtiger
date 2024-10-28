@@ -452,7 +452,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
     WT_DECL_RET;
     WT_FILE_HANDLE *file_handle;
     WT_FILE_HANDLE_WIN *win_fh;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     WT_SESSION_IMPL *session;
     DWORD dwCreationDisposition, windows_error;
     int f;

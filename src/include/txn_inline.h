@@ -44,7 +44,7 @@ static WT_INLINE bool
 __wt_txn_log_op_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
 
     conn = S2C(session);
     log_mgr = &conn->log_mgr;

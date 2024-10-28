@@ -19,7 +19,7 @@ __log_slot_dump(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LOG *log;
     WT_LOGSLOT *slot;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     int earliest, i;
 
     log_mgr = &S2C(session)->log_mgr;
@@ -57,7 +57,7 @@ void
 __wti_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
 
     log_mgr = &S2C(session)->log_mgr;
     log = log_mgr->log;
@@ -436,7 +436,7 @@ __wti_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
     WT_DECL_RET;
     WT_LOG *log;
     WT_LOGSLOT *slot;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     int32_t i;
 
     log_mgr = &S2C(session)->log_mgr;

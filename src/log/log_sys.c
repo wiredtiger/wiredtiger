@@ -162,7 +162,7 @@ int
 __wt_verbose_dump_log(WT_SESSION_IMPL *session)
 {
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
 
     log_mgr = &S2C(session)->log_mgr;
     log = log_mgr->log;

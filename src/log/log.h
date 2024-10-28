@@ -125,7 +125,7 @@ struct __wt_txn_printlog_args {
     uint32_t flags;
 };
 
-struct __wt_log_mgr {
+struct __wt_log_manager {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */

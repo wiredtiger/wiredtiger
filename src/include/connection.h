@@ -664,7 +664,7 @@ struct __wt_connection_impl {
     bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
-    WT_LOG_MGR log_mgr;
+    WT_LOG_MANAGER log_mgr;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */

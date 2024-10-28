@@ -17,7 +17,7 @@ static int
 __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     uint32_t txn_logsync;
 
     log_mgr = &S2C(session)->log_mgr;
@@ -197,7 +197,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     bool enabled;
 
     /*
@@ -454,7 +454,7 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 {
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     uint32_t min_lognum;
     u_int logcount;
     char **logfiles;
@@ -515,7 +515,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     u_int i, reccount;
     char **recfiles;
 
@@ -845,7 +845,7 @@ __log_wrlsn_server(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     WT_LSN prev;
     WT_SESSION_IMPL *session;
     int yield;
@@ -902,7 +902,7 @@ __log_server(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     WT_SESSION_IMPL *session;
     uint64_t force_write_time_start, force_write_timediff;
     uint64_t time_start, time_stop, timediff;
@@ -999,7 +999,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     uint64_t now;
 
     conn = S2C(session);
@@ -1061,7 +1061,7 @@ int
 __wt_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     uint64_t now;
     uint32_t session_flags;
 
@@ -1140,7 +1140,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
 
     conn = S2C(session);
     log_mgr = &conn->log_mgr;

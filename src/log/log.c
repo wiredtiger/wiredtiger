@@ -66,7 +66,7 @@ __log_checksum_match(WT_ITEM *buf, uint32_t reclen)
 static int
 __log_get_files(WT_SESSION_IMPL *session, const char *file_prefix, char ***filesp, u_int *countp)
 {
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     const char *log_path;
 
     *countp = 0;
@@ -87,7 +87,7 @@ static int
 __log_get_files_single(
   WT_SESSION_IMPL *session, const char *file_prefix, char ***filesp, u_int *countp)
 {
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     const char *log_path;
 
     *countp = 0;
@@ -146,7 +146,7 @@ static void
 __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     int yield_count;
 
     log_mgr = &S2C(session)->log_mgr;
@@ -628,7 +628,7 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
 {
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
 
     log_mgr = &S2C(session)->log_mgr;
     log = log_mgr->log;
@@ -663,7 +663,7 @@ static int
 __log_size_fit(WT_SESSION_IMPL *session, WT_LSN *lsn, uint64_t recsize)
 {
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     uint32_t offset;
 
     log_mgr = &S2C(session)->log_mgr;
@@ -892,7 +892,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     WT_FH *fh;
     WT_LOG *log;
     WT_LOG_DESC *desc;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     WT_LOG_RECORD *logrec;
     uint32_t allocsize, rectype;
     const uint8_t *end, *p;
@@ -1141,7 +1141,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
     WT_DECL_RET;
     WT_FH *log_fh;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     WT_LSN end_lsn, logrec_lsn;
     u_int yield_cnt;
     bool create_log, skipp;
@@ -1404,7 +1404,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     bool skipp;
 
     conn = S2C(session);
@@ -1639,7 +1639,7 @@ __wti_log_open(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
-    WT_LOG_MGR *log_mgr;
+    WT_LOG_MANAGER *log_mgr;
     uint32_t firstlog, lastlog, lognum;
     uint16_t version;
     u_int i, logcount;
