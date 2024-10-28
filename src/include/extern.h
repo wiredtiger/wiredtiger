@@ -479,12 +479,6 @@ extern int __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_action_err(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_ERR *data, WT_CONFIG_ITEM *item)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_config_action_ret(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_RET *data, WT_CONFIG_ITEM *item)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_action_sleep(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_SLEEP *data, WT_CONFIG_ITEM *item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -505,14 +499,6 @@ extern int __wt_control_point_config_pred_skip(
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_pred_times(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_pred_err(WT_SESSION_IMPL *session,
-  const char *cp_config_name, bool control_point_for_connection,
-  wt_control_point_init_pred_t __F(init_pred), const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_control_point_pair_init_pred_ret(WT_SESSION_IMPL *session,
-  const char *cp_config_name, bool control_point_for_connection,
-  wt_control_point_init_pred_t __F(init_pred), const char **cfg, WT_CONTROL_POINT_DATA **cp_datap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_pred_sleep(WT_SESSION_IMPL *session,
   const char *cp_config_name, bool control_point_for_connection,
