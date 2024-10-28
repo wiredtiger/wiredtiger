@@ -67,7 +67,7 @@ __wt_conn_control_point_test_and_trigger(
     }
     cp_registry = &(conn->control_points[id]);
 
-    data = __wti_control_point_get_data(session, cp_registry, false);
+    data = __wti_control_point_get_data(session, cp_registry, true);
     if (data == NULL) {
         /* Disabled. */
         __wt_verbose_debug5(
@@ -87,10 +87,15 @@ __wt_conn_control_point_test_and_trigger(
         __wt_verbose_debug3(session, WT_VERB_CONTROL_POINT,
           "%s: Not Triggered: id=%" PRId32 ", crossing_count=%" PRIu64 ", trigger_count=%" PRIu64,
           __func__, id, (uint64_t)new_crossing_count, (uint64_t)cp_registry->trigger_count);
-        __wt_control_point_release_data(session, cp_registry, data, false);
+        __wt_control_point_release_data(session, cp_registry, data, true);
         /* Not triggered. */
         data = NULL;
     }
+
+    if (data != NULL)
+        WT_ASSERT(session, __wt_spin_owned(session, &cp_registry->lock));
+    else
+        WT_ASSERT(session, !__wt_spin_owned(session, &cp_registry->lock));
     return (data);
 }
 

@@ -247,6 +247,13 @@ __wt_control_point_pred_param_64_match(
 {
     WT_UNUSED(session);
     WT_UNUSED(cp_registry);
+    if (data->param1.pointer == data->param2.pointer)
+        __wt_verbose_debug1(session, WT_VERB_CONTROL_POINT,
+          "%s: Matched: match_value = test_value = %" PRIu64, __func__, data->param1.value64);
+    else
+        __wt_verbose_debug3(session, WT_VERB_CONTROL_POINT,
+          "%s: Mismatched: match_value = %" PRIu64 " != test_value %" PRIu64, __func__,
+          data->param1.value64, data->param2.value64);
     /* The match value from the call site is assigned to WT_CONTROL_PARAM.param1.value64 or .pointer
      */
     /* The test value from the trigger site is assigned to WT_CONTROL_PARAM.param2.value64 or

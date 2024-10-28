@@ -91,7 +91,7 @@ main(int argc, char *argv[])
     int ret;
     const char *wiredtiger_open_config =
       "create,cache_size=2G,eviction=(threads_min=1,threads_max=1),"
-#if 1 /* Include if needed */
+#if 0 /* Include if needed */
       "verbose=["
       "control_point=5,"
       "],"
@@ -192,7 +192,12 @@ main(int argc, char *argv[])
     testutil_check(conn->set_timestamp(conn, "stable_timestamp=4,oldest_timestamp=4"));
 
     conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, NULL);
+    /* Prevent a match until __wt_btcur_next() is ready. */
+    WT_IGNORE_RET(CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_FOR_PARAM_64_MATCH(
+      conn, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, ~(uint64_t)0 - 1U));
+
     conn->enable_control_point(conn, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST, NULL);
+
     opts->conn = conn;
 
     /*
@@ -202,8 +207,14 @@ main(int argc, char *argv[])
      */
     testutil_check(pthread_create(&next_thread_id, NULL, thread_do_next, opts));
     /* Wait for our next thread. */
+    printf("%s: Test: Waiting for control point %" PRId32 "\n", __func__,
+      WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+    fflush(stdout);
     CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(
       (WT_SESSION_IMPL *)wt_session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+    printf("%s: Test: Past control point %" PRId32 "\n", __func__,
+      WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+    fflush(stdout);
 
     /* Open a session to run checkpoint. */
     testutil_check(conn->open_session(conn, NULL, session_open_config, &checkpoint_session));

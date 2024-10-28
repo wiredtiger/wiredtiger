@@ -18,6 +18,8 @@
  * __wti_control_point_get_data --
  *     Get cp_registry->cp_data safe from frees.
  *
+ * Return unlocked if !locked or data == NULL. Otherwise, locked and data != NULL, return locked.
+ *
  * @param session The session. @param cp_registry The control point registry. @param locked True if
  *     cp_registry->lock is left locked for additional processing along with incrementing the
  *     ref_count.
@@ -28,19 +30,16 @@ __wti_control_point_get_data(
 {
     WT_CONTROL_POINT_DATA *saved_cp_data;
 
-#if 1                           /* XXX TEMPORARY */
-    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Locking", __func__);
-#endif
+    WT_ASSERT(session, !__wt_spin_owned(session, &cp_registry->lock));
     __wt_spin_lock(session, &cp_registry->lock);
+
     saved_cp_data = cp_registry->cp_data;
     if (saved_cp_data != NULL)
         __wt_atomic_add32(&saved_cp_data->ref_count, 1);
-    if (!locked) {
-#if 1                           /* XXX TEMPORARY */
-        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Unlocking", __func__);
-#endif
+
+    if (!locked || (saved_cp_data == NULL))
         __wt_spin_unlock(session, &cp_registry->lock);
-    }
+
     return (saved_cp_data);
 }
 
@@ -56,9 +55,7 @@ __wti_control_point_get_data(
 void
 __wt_control_point_unlock(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry)
 {
-#if 0                           /* XXX TEMPORARY */
-    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Unlocking", __func__);
-#endif
+    WT_ASSERT(session, __wt_spin_owned(session, &cp_registry->lock));
     __wt_spin_unlock(session, &cp_registry->lock);
 }
 
@@ -75,9 +72,7 @@ void
 __wti_control_point_relock(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *cp_data)
 {
-#if 0                           /* XXX TEMPORARY */
-    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Locking", __func__);
-#endif
+    WT_ASSERT(session, !__wt_spin_owned(session, &cp_registry->lock));
     __wt_spin_lock(session, &cp_registry->lock);
     WT_ASSERT(session, cp_registry->cp_data == cp_data);
 }
@@ -98,27 +93,25 @@ __wt_control_point_release_data(WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGIS
 {
     uint32_t new_ref;
 
+    if (locked) {
+        WT_ASSERT(session, __wt_spin_owned(session, &cp_registry->lock));
+    } else {
+        WT_ASSERT(session, !__wt_spin_owned(session, &cp_registry->lock));
+    }
+
     if (WT_UNLIKELY(cp_data == NULL)) {
-        if (locked) {
-#if 1                           /* XXX TEMPORARY */
-            __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Unlocking", __func__);
-#endif
+        if (locked)
             __wt_spin_unlock(session, &cp_registry->lock);
-        }
         return;
     }
-    if (!locked) {
-#if 1                           /* XXX TEMPORARY */
-        __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Locking", __func__);
-#endif
+
+    if (!locked)
         __wt_spin_lock(session, &cp_registry->lock);
-    }
+
     new_ref = __wt_atomic_sub32(&cp_registry->cp_data->ref_count, 1);
     if ((new_ref == 0) && (cp_registry->cp_data != cp_data))
         __wt_free(session, cp_data);
-#if 1                           /* XXX TEMPORARY */
-    __wt_verbose_notice(session, WT_VERB_CONTROL_POINT, "%s: Unlocking", __func__);
-#endif
+
     __wt_spin_unlock(session, &cp_registry->lock);
 }
 

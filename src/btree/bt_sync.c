@@ -140,6 +140,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
+#ifdef HAVE_CONTROL_POINT
+    int ret_get_trigger;
+    size_t trigger_count;
+#endif
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -245,8 +249,20 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Notify the waiting thread that we are syncing a btree. */
         /* The id of the btree we are syncing. */
-        CONNECTION_CONTROL_POINT_SET_TEST_VALUE_AND_DEFINE_THREAD_BARRIER(
-          session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, btree->id);
+#ifdef HAVE_CONTROL_POINT
+        /* Only wait the first time btree->id matches. */
+        ret_get_trigger = __wt_conn_control_point_get_trigger_count(
+          &(conn->iface), WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, &trigger_count);
+        __wt_verbose_debug4(session, WT_VERB_CONTROL_POINT,
+          "%s: Get trigger count: id=%" PRId32 ", ret=%d, trigger_count=%" PRIu64, __func__,
+          WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, ret_get_trigger, (uint64_t)trigger_count);
+        if ((ret_get_trigger == 0) && (trigger_count == 0)) {
+            printf("%s: WT: Signal control point %" PRId32 ", btree %" PRIu32 "\n", __func__,
+              WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, btree->id);
+            CONNECTION_CONTROL_POINT_SET_TEST_VALUE_AND_DEFINE_THREAD_BARRIER(
+              session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, btree->id);
+        }
+#endif
 
         /*
          * Reset the number of obsolete time window pages to let the eviction threads and checkpoint
