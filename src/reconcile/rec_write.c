@@ -2584,6 +2584,11 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (btree->type == BTREE_ROW)
             __wt_free(session, multi->key);
 
+        /*
+         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
+         * now.
+         */
+        multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
 
@@ -2838,7 +2843,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * again.
          */
         mod->rec_result = WT_PM_REC_EMPTY;
-        /* Mark the block meta invalid. */
+        /*
+         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
+         * now.
+         */
         ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         __rec_set_updates_durable(r);
         break;
@@ -2897,8 +2905,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             WT_RET(__rec_split_dump_keys(session, r));
 
         /*
-         * TODO: Mark the page id as invalid if we split to prevent we write a delta for this page.
-         * Build deltas for split pages is a future thing.
+         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
+         * now. We may reconcile this page again. Force it to write a new page instead of reusing
+         * the existing page id. Building deltas on the split page is a future thing.
          */
         r->ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
