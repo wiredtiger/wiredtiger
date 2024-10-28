@@ -276,6 +276,7 @@ kv_workload_runner_wt::do_operation(const operation::breakpoint &op)
     int ret = _connection->open_session(_connection, nullptr, nullptr, &session);
     if (ret != 0)
         return ret;
+    wiredtiger_session_guard session_guard(session);
 
     return session->breakpoint(session);
 }
