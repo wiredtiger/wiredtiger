@@ -32,7 +32,6 @@ typedef uint32_t wt_control_point_action_id_t;
  * If per-connection session = NULL.
  */
 typedef int wt_control_point_init_t(WT_SESSION_IMPL *session, const char *cp_config_name,
-  bool control_point_for_connection,
   int (*pred_func)(WT_SESSION_IMPL *, WT_CONTROL_POINT_DATA *, WT_CONFIG_ITEM *), const char **cfg,
   WT_CONTROL_POINT_DATA **cp_datap);
 
@@ -68,7 +67,7 @@ struct __wt_control_point_registry {
 
 /*!
  * A reference count for a WT_CONTROL_POINT_DATA.
- * This is needed by only per connection control points, not per session control points.
+ * This is needed by only per connection control points.
  */
 typedef uint32_t wt_control_point_ref_count_t;
 

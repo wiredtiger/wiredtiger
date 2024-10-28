@@ -70,13 +70,12 @@ class ControlPoint(Config):
     def convert_to_config_name(cp_short_name):
         return (cp_short_name.translate(ControlPoint.translation_to_lower))
 
-    def __init__(self, cp_short_name, per_connection, action_short_name,
+    def __init__(self, cp_short_name, action_short_name,
         pred_short_name, default, desc, enable_in_open=False, subconfig=None,
         **flags):
         config_name = ControlPoint.convert_to_config_name(cp_short_name)
         super().__init__(config_name, default, desc, subconfig, **flags)
         self.cp_short_name = cp_short_name
-        self.per_connection = per_connection
         self.action_short_name = action_short_name
         self.pred_short_name = pred_short_name
         self.enable_in_open = enable_in_open
@@ -109,16 +108,12 @@ class ControlPoint(Config):
                 return ''
         return ('CONNECTION_CONTROL_POINT_WAIT')
 
-    def get_control_point_define_macro_name(self, for_connection = None):
-        if for_connection == None:
-            for_connection = self.per_connection
-        return (('CONNECTION_CONTROL_POINT_DEFINE_' if for_connection
-                 else 'SESSION_CONTROL_POINT_DEFINE_') +
+    def get_control_point_define_macro_name(self):
+        return ('CONNECTION_CONTROL_POINT_DEFINE_' +
                 self.name.translate(ControlPoint.translation_to_upper))
 
     def get_control_point_id_name(self):
-        return (('WT_CONN_CONTROL_POINT_ID_' if self.per_connection
-                 else 'WT_SESSION_CONTROL_POINT_ID_') +
+        return ('WT_CONN_CONTROL_POINT_ID_' +
                 self.name.translate(ControlPoint.translation_to_upper))
 
     def get_pair_data_struct_tag_name(self):
@@ -149,10 +144,10 @@ class ControlPoint(Config):
                     ControlPoint.translation_to_lower))
 
     def __str__(self):
-        return "ControlPoint(cp_short_name={}, name={}, per_connection={}," \
+        return "ControlPoint(cp_short_name={}, name={}," \
             " action_short_name={}, pred_short_name={}, default={}, desc={}," \
             " enable_in_open={}, subconfig={}, flags={})".format(
-                self.cp_short_name, self.name, self.per_connection,
+                self.cp_short_name, self.name,
                 self.action_short_name, self.pred_short_name, self.default,
                 self.enable_in_open, self.desc, self.subconfig, self.flags);
 
@@ -160,24 +155,10 @@ class ControlPoint(Config):
 class ConnectionControlPoint(ControlPoint):
     def __init__(self, cp_short_name, action_short_name, pred_short_name,
             default, desc, enable_in_open=False, subconfig=None, **flags):
-        super().__init__(cp_short_name, True, action_short_name,
+        super().__init__(cp_short_name, action_short_name,
             pred_short_name, default, desc, enable_in_open, subconfig, **flags)
     def __str__(self):
         return "ConnectionControlPoint(cp_short_name={}, name={}," \
-            " action_short_name={}, pred_short_name={}, default={}, desc={}," \
-            " enable_in_open={}, subconfig={}, flags={})".format(
-                self.cp_short_name, self.name, self.action_short_name,
-                self.pred_short_name, self.default, self.desc,
-                self.enable_in_open, self.subconfig, self.flags);
-
-#Configuration for a per session control point.
-class SessionControlPoint(ControlPoint):
-    def __init__(self, cp_short_name, action_short_name, pred_short_name,
-        default, desc, enable_in_open=False, subconfig=None, **flags):
-        super().__init__(cp_short_name, False, action_short_name,
-            pred_short_name, default, desc, enable_in_open, subconfig, **flags)
-    def __str__(self):
-        return "SessionControlPoint(cp_short_name={}, name={}," \
             " action_short_name={}, pred_short_name={}, default={}, desc={}," \
             " enable_in_open={}, subconfig={}, flags={})".format(
                 self.cp_short_name, self.name, self.action_short_name,
@@ -274,29 +255,6 @@ all_per_connection_control_points_config = [
                     Config('wait_count', '1', r'''
                             the number of triggers for which to wait''',
                             min='1', max=Config.int64_max),
-                ]),
-        ])
-    ]
-
-all_per_session_control_points_config = [
-    Config('per_session_control_points', '', r'''
-        Configure concurrent determinism through per-session control points''',
-        type='category', subconfig= [
-            SessionControlPoint('Thread 0', 'Sleep', 'Always',
-                '', r'''
-                Thread 0 performs a sleep on the session.''',
-                type='category', subconfig= [
-                    # Action configuration parameters
-                    Config('seconds', '3', r'''
-                            the number of seconds for which to wait''',
-                            min='1', max=Config.int64_max),
-                    Config('microseconds', '0', r'''
-                        the number of microseconds for which to wait''',
-                        min='1', max=Config.int64_max),
-                    # Predicate configuration paramters
-                    Config('skip_count', '1', r'''
-                        the number of skips until we sleep''',
-                        min='1', max=Config.int64_max),
                 ]),
         ])
     ]
@@ -1396,7 +1354,7 @@ wiredtiger_open_chunk_cache_configuration = [
     ]),
 ]
 
-session_config =  all_per_session_control_points_config + [
+session_config = [
     Config('cache_cursors', 'true', r'''
         enable caching of cursors for reuse. Any calls to WT_CURSOR::close for a cursor created
         in this session will mark the cursor as cached and keep it available to be reused for
@@ -2408,28 +2366,6 @@ def test_control_point():
                     min='1', max=Config.int64_max),
             ])
     test_one_control_point(conn_cp)
-
-    print('')
-    print('----')
-    print('')
-
-    session_cp = SessionControlPoint('Session CP', 'Sleep', 'Times',
-                  '', r'''
-                    Example per session control point''',
-                    type='category', subconfig= [
-                        # Action configuration parameters
-                        Config('seconds', '1', r'''
-                               the number of seconds to sleep''',
-                               min='1', max=Config.int64_max),
-                        Config('microseconds', '100', r'''
-                               the number of microseconds to sleep''',
-                               min='1', max=Config.int64_max),
-                        # Predicate configuration parameters
-                        Config('enable_count', '10', r'''
-                               the number of triggers to enable''',
-                               min='1', max=Config.int64_max),
-            ])
-    test_one_control_point(session_cp)
 
 if __name__ == '__main__':
     test_control_point()
