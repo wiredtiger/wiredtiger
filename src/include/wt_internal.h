@@ -281,6 +281,8 @@ struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
 typedef struct __wt_log_desc WT_LOG_DESC;
+struct __wt_log_mgr;
+typedef struct __wt_log_mgr WT_LOG_MGR;
 struct __wt_log_record;
 typedef struct __wt_log_record WT_LOG_RECORD;
 struct __wt_logslot;

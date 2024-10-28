@@ -125,6 +125,50 @@ struct __wt_txn_printlog_args {
     uint32_t flags;
 };
 
+struct __wt_log_mgr {
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
+#define WT_LOG_DOWNGRADED 0x002u      /* Running older version */
+#define WT_LOG_ENABLED 0x004u         /* Logging is enabled */
+#define WT_LOG_EXISTED 0x008u         /* Log files found */
+#define WT_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
+#define WT_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
+#define WT_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
+#define WT_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
+#define WT_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
+#define WT_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
+#define WT_LOG_REMOVE 0x400u          /* Removal is enabled */
+#define WT_LOG_ZERO_FILL 0x800u       /* Manually zero files */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;                   /* Global logging configuration */
+    WT_CONDVAR *cond;                 /* Log server wait mutex */
+    WT_SESSION_IMPL *session;         /* Log server session */
+    wt_thread_t tid;                  /* Log server thread */
+    bool tid_set;                     /* Log server thread set */
+    WT_CONDVAR *file_cond;            /* Log file thread wait mutex */
+    WT_SESSION_IMPL *file_session;    /* Log file thread session */
+    wt_thread_t file_tid;             /* Log file thread */
+    bool file_tid_set;                /* Log file thread set */
+    WT_CONDVAR *wrlsn_cond;           /* Log write lsn thread wait mutex */
+    WT_SESSION_IMPL *wrlsn_session;   /* Log write lsn thread session */
+    wt_thread_t wrlsn_tid;            /* Log write lsn thread */
+    bool wrlsn_tid_set;               /* Log write lsn thread set */
+    WT_LOG *log;                      /* Logging structure */
+    WT_COMPRESSOR *compressor;        /* Logging compressor */
+    wt_shared uint32_t cursors;       /* Log cursor count */
+    wt_off_t dirty_max;               /* Log dirty system cache max size */
+    wt_off_t file_max;                /* Log file max size */
+    wt_off_t extend_len;              /* file_extend log length */
+    uint32_t force_write_wait;        /* Log force write wait configuration */
+    const char *log_path;             /* Logging path format */
+    uint32_t prealloc;                /* Log file pre-allocation */
+    uint32_t prealloc_init_count;     /* initial number of pre-allocated log files */
+    uint16_t req_max;                 /* Max required log version */
+    uint16_t req_min;                 /* Min required log version */
+    wt_shared uint32_t txn_logsync;   /* Log sync configuration */
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
