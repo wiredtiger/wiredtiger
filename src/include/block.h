@@ -522,35 +522,65 @@ struct __wt_block_disagg {
  *	The disaggregated block manager custom header
  */
 struct __wt_block_disagg_header {
-    /*
-     * The disagg identifier for a particular page.
-     */
-    uint64_t disagg_id; /* 00-07: disaggregated identifier */
+#define WT_BLOCK_DISAGG_MAGIC_BASE 0xdb
+#define WT_BLOCK_DISAGG_MAGIC_DELTA 0xdd
+    uint8_t magic; /* 00: magic byte, one of the values above */
 
     /*
-     * Page checksums are stored in two places. Similarly to the default block header.
+     * As we create new versions, we bump the version number here, and consider what previous
+     * versions are compatible with it.
      */
-    uint32_t checksum; /* 08-11: checksum */
+#define WT_BLOCK_DISAGG_VERSION 0x1u
+    uint8_t version; /* 01: version of writer */
+
+#define WT_BLOCK_DISAGG_COMPATIBLE_VERSION 0x1u
+    uint8_t compatible_version; /* 02: minimum version of reader */
+
+    uint8_t header_size; /* 03: size of unencrypted, uncompressed header */
+
+    /*
+     * Page checksums are stored in two places. Similarly to the default block header, except that
+     * for pages that have deltas, the checksum of the most recent delta is stored in the internal
+     * page, which must match the checksum found in this header. The checksum of the previous delta
+     * or base page is stored in this block header, that must in turn match the checksum found in
+     * the block header for the previous one. This is how we can verify that we have every expected
+     * delta and that each delta is uncorrupted.
+     */
+    uint32_t checksum;          /* 04-07: checksum */
+    uint32_t previous_checksum; /* 08-11: checksum for previous delta or page */
+
+    /*
+     * The reconciliation id tracks the "version" of a page or delta within a checkpoint. The first
+     * write of a page at a checkpoint has id 0, the second has id 1. We use this number as a
+     * diagnostic to detect the kind of discrepency that occured when there is a checksum error.
+     * Thus, overflowing a byte is not a cause for concern. Besides, overflows should be exceedingly
+     * rare. It means checkpointing is much less frequent than the number of times a page needed to
+     * be reconciled.
+     */
+#define WT_BLOCK_OVERFLOW_RECONCILIATION_ID 0xff
+    uint8_t reconciliation_id; /* 12: disaggregated identifier */
 
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
 #define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
-#define WT_BLOCK_DISAGG_DATA_DELTA 0x2u /* Block object is a delta */
-    uint8_t flags;                      /* 12: flags */
+#define WT_BLOCK_DISAGG_ENCRYPTED 0x2u  /* Data following header is encrypted */
+#define WT_BLOCK_DISAGG_COMPRESSED 0x4u /* Data following header is compressed */
+    uint8_t flags;                      /* 13: flags */
 
     /*
-     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
-     * 32-bit aligned and having a few bytes to play with in the future can't hurt.
+     * End the structure with 2 bytes of padding: it wastes space, but it leaves the structure
+     * 32-bit aligned and having an extra couple bytes to play with in the future can't hurt.
      */
-    uint8_t unused[3]; /* 13-15: unused padding */
+    uint8_t unused[2]; /* 14-15: unused padding */
 };
 
 /*
- * WT_BLOCK_DISAGG_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
- * inserts padding it will break the world.
+ * WT_BLOCK_DISAGG_BASE_HEADER_SIZE is the number of bytes we allocate for a base page structure,
+ * and WT_BLOCK_DISAGG_DELTA_HEADER_SIZE is the number of bytes we allocated for a delta: if the
+ * compiler inserts padding it will break the world.
  */
 #define WT_BLOCK_DISAGG_HEADER_SIZE 16
-#define WT_BLOCK_DISAGG_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
-#define WT_BLOCK_DISAGG_ID_INVALID UINT64_MAX
+#define WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
+#define WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE (WT_DELTA_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)
