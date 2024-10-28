@@ -165,6 +165,13 @@ struct __wt_delta_header {
 #define WT_DELTA_HEADER_SIZE 12
 
 /*
+ * The number of deltas for a base page must be strictly less than WT_DELTA_LIMIT. Changes past that
+ * point are reflected by making a new base page. Thus WT_DELTA_LIMIT can be used to size arrays
+ * that contain the base page plus all associated deltas.
+ */
+#define WT_DELTA_LIMIT 32
+
+/*
  * WT_DELTA_HEADER_BYTE --
  * WT_DELTA_HEADER_BYTE_SIZE --
  *	The first usable data byte on the block (past the combined headers).
@@ -172,6 +179,12 @@ struct __wt_delta_header {
 #define WT_DELTA_HEADER_BYTE_SIZE(btree) ((u_int)(WT_DELTA_HEADER_SIZE + (btree)->block_header))
 #define WT_DELTA_HEADER_BYTE(btree, dsk) \
     ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_BYTE_SIZE(btree)))
+
+/*
+ * A variant of WT_BLOCK_HEADER_REF that must be used with deltas. XXX It's a hack, needed because
+ * the block manager's header is not first.
+ */
+#define WT_BLOCK_HEADER_REF_FOR_DELTAS(dsk) ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_SIZE))
 
 /*
  * __wt_delta_header_byteswap --
@@ -314,6 +327,8 @@ struct __wt_page_block_meta {
     uint64_t base_checkpoint_id;
     uint32_t delta_count;
     uint64_t disagg_lsn;
+
+    uint32_t checksum;
 };
 
 /*
