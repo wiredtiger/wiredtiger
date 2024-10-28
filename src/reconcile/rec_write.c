@@ -2420,8 +2420,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1) {
-            multi->block_meta = block_meta;
-            multi->delta_count = 0;
+            multi->block_meta = *block_meta;
+            multi->block_meta.delta_count = 0;
         } else
             __wt_page_block_meta_assign(session, &multi->block_meta);
         ++multi->block_meta.reconciliation_id;
