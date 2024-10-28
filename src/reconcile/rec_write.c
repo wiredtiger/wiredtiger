@@ -2371,6 +2371,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint_compressed = true;
         }
         r->wrapup_checkpoint_block_meta = r->ref->page->block_meta;
+        if (r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
+            __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+        ++r->wrapup_checkpoint_block_meta.reconciliation_id;
         return (0);
     }
 
@@ -2840,8 +2843,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __rec_set_updates_durable(r);
         break;
     case 1: /* 1-for-1 page swap */
-        r->ref->page->block_meta = r->multi->block_meta;
-
         /*
          * Because WiredTiger's pages grow without splitting, we're replacing a single page with
          * another single page most of the time.
@@ -2853,6 +2854,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
+            r->ref->page->block_meta = r->multi->block_meta;
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -2870,12 +2872,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->addr.block_cookie = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
+            r->ref->page->block_meta = r->multi->block_meta;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(
               __rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta, NULL,
                 NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
+            r->ref->page->block_meta = r->wrapup_checkpoint_block_meta;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
             __rec_set_updates_durable(r);
         }
