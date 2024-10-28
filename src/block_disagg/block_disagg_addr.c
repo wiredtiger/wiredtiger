@@ -26,7 +26,7 @@ __wt_block_disagg_addr_pack(uint8_t **pp, uint64_t page_id, uint64_t checkpoint_
     /* TODO: write extensible byte */
     /* See the comment above: this is the reverse operation. */
     if (size == 0) {
-        p = WT_BLOCK_DISAGG_PAGE_ID_INVALID;
+        p = WT_BLOCK_INVALID_PAGE_ID;
         s = c = 0;
         cp = r = 0;
     } else {
@@ -77,7 +77,7 @@ __wt_block_disagg_addr_unpack(const uint8_t **buf, size_t buf_size, uint64_t *pa
      * Any disagg ID is valid, so use a size of 0 to define an out-of-band value.
      */
     if (s == 0) {
-        *page_idp = WT_BLOCK_DISAGG_PAGE_ID_INVALID;
+        *page_idp = WT_BLOCK_INVALID_PAGE_ID;
         *checkpoint_idp = *reconciliation_idp = 0;
         *sizep = *checksump = 0;
     } else {

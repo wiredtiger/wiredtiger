@@ -524,10 +524,19 @@ struct __wt_block_disagg {
 struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_MAGIC_BASE 0xdb
 #define WT_BLOCK_DISAGG_MAGIC_DELTA 0xdd
-    uint8_t magic;              /* 00: magic byte, one of the values above */
-    uint8_t version;            /* 01: version of writer */
+    uint8_t magic; /* 00: magic byte, one of the values above */
+
+    /*
+     * As we create new versions, we bump the version number here, and consider what previous
+     * versions are compatible with it.
+     */
+#define WT_BLOCK_DISAGG_VERSION 0x1u
+    uint8_t version; /* 01: version of writer */
+
+#define WT_BLOCK_DISAGG_COMPATIBLE_VERSION 0x1u
     uint8_t compatible_version; /* 02: minimum version of reader */
-    uint8_t header_size;        /* 03: size of unencrypted, uncompressed header */
+
+    uint8_t header_size; /* 03: size of unencrypted, uncompressed header */
 
     /*
      * Page checksums are stored in two places. Similarly to the default block header, except that
@@ -535,14 +544,14 @@ struct __wt_block_disagg_header {
      * page, which must match the checksum found in this header. The checksum of the previous delta
      * or base page is stored in this block header, that must in turn match the checksum found in
      * the block header for the previous one. This is how we can verify that we have every expected
-     * delta and that each delta is
+     * delta and that each delta is uncorrupted.
      */
     uint32_t checksum;          /* 04-07: checksum */
     uint32_t previous_checksum; /* 08-11: checksum for previous delta or page */
 
     /*
      * The reconciliation id tracks the "version" of a page or delta within a checkpoint. The first
-     * write of a page at a checkpoint has id 0, the second has id 0. We use this number as a
+     * write of a page at a checkpoint has id 0, the second has id 1. We use this number as a
      * diagnostic to detect the kind of discrepency that occured when there is a checksum error.
      * Thus, overflowing a byte is not a cause for concern. Besides, overflows should be exceedingly
      * rare. It means checkpointing is much less frequent than the number of times a page needed to
@@ -574,5 +583,4 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_HEADER_SIZE 16
 #define WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
 #define WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE (WT_DELTA_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
-#define WT_BLOCK_DISAGG_PAGE_ID_INVALID UINT64_MAX
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)

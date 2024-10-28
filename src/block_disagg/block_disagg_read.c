@@ -48,7 +48,7 @@ __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uin
     __wt_errx(session,
       "%s: read checksum error for %" PRIu32
       "B block at "
-      "page %" PRIuMAX ", checkpoint %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu64
+      "page %" PRIuMAX ", ckpt %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu64
       ") doesn't match expected checksum of %" PRIu32 " (%" PRIu64 ")",
       name, size, page_id, checkpoint_id, context_msg, checksum, rec_id, expected_checksum,
       expected_rec_id);
@@ -71,6 +71,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t retry;
     int32_t result, last;
+    uint8_t expected_magic;
     bool is_delta;
 
     retry = 0;
@@ -159,6 +160,30 @@ reread:
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP, checksum) &&
               swap.reconciliation_id == reconciliation_id) {
+
+                expected_magic =
+                  (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
+                if (swap.magic != expected_magic) {
+                    __wt_errx(session,
+                      "%s: magic error for %" PRIu32
+                      "B block at "
+                      "page %" PRIuMAX " ckpt %" PRIu64 ", magic %" PRIu8
+                      ": doesn't match expected magic of %" PRIu8,
+                      block_disagg->name, size, page_id, checkpoint_id, swap.magic, expected_magic);
+                    goto corrupt;
+                }
+
+                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
+                    __wt_errx(session,
+                      "%s: compatible version error for %" PRIu32
+                      "B block at "
+                      "page %" PRIuMAX " ckpt %" PRIu64 ", version %" PRIu8
+                      ": is greater than compatible version of %" PRIu8,
+                      block_disagg->name, size, page_id, checkpoint_id, swap.compatible_version,
+                      WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
+                    goto corrupt;
+                }
+
                 /*
                  * Swap the page-header as needed; this doesn't belong here, but it's the best place
                  * to catch all callers.
@@ -192,6 +217,7 @@ reread:
               checkpoint_id, swap.checksum, checksum, swap.reconciliation_id, reconciliation_id,
               "block header checksum");
 
+corrupt:
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             WT_IGNORE_RET(
               __wt_bm_corrupt_dump(session, current, 0, (wt_off_t)page_id, size, checksum));
