@@ -3032,6 +3032,14 @@ struct __wt_connection {
         const char *cfg);
 
     /*!
+     * Wait for a barrier type control point.
+     *
+     * @param connection the connection handle
+     * @param id the per-connection control point ID of the control point
+     */
+    int __F(control_point_thread_barrier)(WT_CONNECTION *connection, wt_control_point_id_t id);
+
+    /*!
      * Disable a per-connection control point.
      *
      * @param connection the connection handle
@@ -3507,12 +3515,21 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;thread_count, the number of threads
  * waiting at the barrier., an integer between \c 0 and \c 9223372036854775807; default \c 2.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_wait_for_upd_abort =
- * (, Thread waits for transaction to get aborted., a set of related configuration options defined
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_wait_for_reconstruct
+ * = (, Thread waits for modify to be reconstructed., a set of related configuration options defined
  * as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enable_count, the number of
  * control point crossings to enable.  Later crossings do not trigger., an integer between \c 0 and
  * \c 9223372036854775807; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ * thread_count, the number of threads waiting at the barrier., an integer between \c 0 and \c
+ * 9223372036854775807; default \c 2.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_wait_for_upd_abort = (, Thread waits for transaction to
+ * get aborted., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;enable_count, the number of control point
+ * crossings to enable.  Later crossings do not trigger., an integer between \c 0 and \c
+ * 9223372036854775807; default \c 2.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
  * thread_count, the number of threads waiting at the barrier., an integer between \c 0 and \c
  * 9223372036854775807; default \c 2.}

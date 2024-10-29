@@ -50,11 +50,12 @@
 #define WT_CONF_ID_Thread_2 317ULL
 #define WT_CONF_ID_Thread_3 318ULL
 #define WT_CONF_ID_Thread_4 319ULL
+#define WT_CONF_ID_Thread_wait_for_reconstruct 322ULL
 #define WT_CONF_ID_Thread_wait_for_upd_abort 320ULL
 #define WT_CONF_ID_Tiered_storage 47ULL
-#define WT_CONF_ID_Transaction_sync 332ULL
-#define WT_CONF_ID_Wt_13450_ckpt 322ULL
-#define WT_CONF_ID_Wt_13450_test 324ULL
+#define WT_CONF_ID_Transaction_sync 333ULL
+#define WT_CONF_ID_Wt_13450_ckpt 323ULL
+#define WT_CONF_ID_Wt_13450_test 325ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 93ULL
 #define WT_CONF_ID_allocation_size 13ULL
@@ -63,7 +64,7 @@
 #define WT_CONF_ID_archive 248ULL
 #define WT_CONF_ID_auth_token 48ULL
 #define WT_CONF_ID_auto_throttle 69ULL
-#define WT_CONF_ID_available 325ULL
+#define WT_CONF_ID_available 326ULL
 #define WT_CONF_ID_background 97ULL
 #define WT_CONF_ID_background_compact 203ULL
 #define WT_CONF_ID_backup 171ULL
@@ -135,7 +136,7 @@
 #define WT_CONF_ID_cursor_copy 207ULL
 #define WT_CONF_ID_cursor_reposition 208ULL
 #define WT_CONF_ID_cursors 173ULL
-#define WT_CONF_ID_default 326ULL
+#define WT_CONF_ID_default 327ULL
 #define WT_CONF_ID_dhandle_buckets 304ULL
 #define WT_CONF_ID_dictionary 18ULL
 #define WT_CONF_ID_direct_io 298ULL
@@ -209,7 +210,7 @@
 #define WT_CONF_ID_internal_key_max 27ULL
 #define WT_CONF_ID_internal_key_truncate 28ULL
 #define WT_CONF_ID_internal_page_max 29ULL
-#define WT_CONF_ID_interval 331ULL
+#define WT_CONF_ID_interval 332ULL
 #define WT_CONF_ID_isolation 157ULL
 #define WT_CONF_ID_json 264ULL
 #define WT_CONF_ID_json_output 247ULL
@@ -227,7 +228,7 @@
 #define WT_CONF_ID_log 175ULL
 #define WT_CONF_ID_log_retention 210ULL
 #define WT_CONF_ID_log_size 194ULL
-#define WT_CONF_ID_match_value 323ULL
+#define WT_CONF_ID_match_value 324ULL
 #define WT_CONF_ID_max_percent_overhead 185ULL
 #define WT_CONF_ID_memory_page_image_max 38ULL
 #define WT_CONF_ID_memory_page_max 39ULL
@@ -293,12 +294,12 @@
 #define WT_CONF_ID_reserve 262ULL
 #define WT_CONF_ID_rollback_error 213ULL
 #define WT_CONF_ID_run_once 101ULL
-#define WT_CONF_ID_salvage 327ULL
+#define WT_CONF_ID_salvage 328ULL
 #define WT_CONF_ID_seconds 279ULL
 #define WT_CONF_ID_secretkey 299ULL
-#define WT_CONF_ID_session_max 328ULL
-#define WT_CONF_ID_session_scratch_max 329ULL
-#define WT_CONF_ID_session_table_cache 330ULL
+#define WT_CONF_ID_session_max 329ULL
+#define WT_CONF_ID_session_scratch_max 330ULL
+#define WT_CONF_ID_session_table_cache 331ULL
 #define WT_CONF_ID_sessions 176ULL
 #define WT_CONF_ID_shared 54ULL
 #define WT_CONF_ID_size 183ULL
@@ -339,21 +340,21 @@
 #define WT_CONF_ID_txn 177ULL
 #define WT_CONF_ID_type 9ULL
 #define WT_CONF_ID_update_restore_evict 218ULL
-#define WT_CONF_ID_use_environment 333ULL
-#define WT_CONF_ID_use_environment_priv 334ULL
+#define WT_CONF_ID_use_environment 334ULL
+#define WT_CONF_ID_use_environment_priv 335ULL
 #define WT_CONF_ID_use_timestamp 168ULL
 #define WT_CONF_ID_value_format 55ULL
 #define WT_CONF_ID_verbose 10ULL
-#define WT_CONF_ID_verify_metadata 335ULL
+#define WT_CONF_ID_verify_metadata 336ULL
 #define WT_CONF_ID_version 62ULL
 #define WT_CONF_ID_wait 195ULL
 #define WT_CONF_ID_worker_thread_max 255ULL
-#define WT_CONF_ID_write_through 336ULL
+#define WT_CONF_ID_write_through 337ULL
 #define WT_CONF_ID_write_timestamp 5ULL
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 253ULL
 
-#define WT_CONF_ID_COUNT 337
+#define WT_CONF_ID_COUNT 338
 /*
  * API configuration keys: END
  */
@@ -546,6 +547,10 @@ static const struct {
         struct {
             uint64_t thread_count;
         } Thread_4;
+        struct {
+            uint64_t enable_count;
+            uint64_t thread_count;
+        } Thread_wait_for_reconstruct;
         struct {
             uint64_t enable_count;
             uint64_t thread_count;
@@ -966,6 +971,12 @@ static const struct {
     },
     {
       WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_4 << 16) |
+        (WT_CONF_ID_thread_count << 32),
+    },
+    {
+      WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_wait_for_reconstruct << 16) |
+        (WT_CONF_ID_enable_count << 32),
+      WT_CONF_ID_Per_connection_control_points | (WT_CONF_ID_Thread_wait_for_reconstruct << 16) |
         (WT_CONF_ID_thread_count << 32),
     },
     {

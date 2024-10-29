@@ -251,7 +251,7 @@ all_per_connection_control_points_config = [
                         the number of threads waiting at the barrier''',
                         min='0', max=ControlPoint.int64_max),
                     # Predicate configuration paramters
-                    Config('enable_count', '1', r'''
+                    Config('enable_count', '2', r'''
                         the number of control point crossings to enable. Later crossings do not 
                         trigger.''',
                         min='0', max=ControlPoint.int64_max),

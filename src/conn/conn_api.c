@@ -2829,7 +2829,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_storage_source, __conn_get_extension_api,
 #ifdef HAVE_CONTROL_POINT
-      __wt_conn_control_point_enable, __wt_conn_control_point_disable
+      __wt_conn_control_point_enable, __wt_conn_control_point_thread_barrier,
+      __wt_conn_control_point_disable
 #else
         NULL,
         NULL,

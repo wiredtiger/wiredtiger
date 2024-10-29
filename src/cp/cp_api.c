@@ -555,6 +555,26 @@ err:
 }
 
 /*
+ * __wt_conn_control_point_thread_barrier --
+ *     Disable a per connection control point.
+ *
+ * @param wt_conn The connection. @param id The ID of the per connection control point to disable.
+ */
+int
+__wt_conn_control_point_thread_barrier(WT_CONNECTION *wt_conn, wt_control_point_id_t id)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CONTROL_POINT_REGISTRY *cp_registry;
+    WT_DECL_RET;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    WT_ERR(__wti_conn_control_point_get_registry(conn, id, &cp_registry));
+    CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(conn->default_session, id);
+err:
+    return (ret);
+}
+
+/*
  * API: Disable a per session control point.
  */
 /*
