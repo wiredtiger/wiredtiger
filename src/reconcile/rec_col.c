@@ -1171,8 +1171,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     if (dictionary && !deleted && ovfl_usedp == NULL)
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta_after_split_boundary, tw);
+    WT_REC_CHUNK_AGGEGRATES_UPDATE(session, r->cur_ptr, tw);
 
     /* Update the starting record number in case we split. */
     r->recno += rle;
