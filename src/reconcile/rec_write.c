@@ -1037,8 +1037,10 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->min_key.size = 0;
     chunk->min_entries = 0;
-    WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta_min);
     chunk->min_offset = 0;
+    /* Initialize our two special split time aggregates. */
+    WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta_min);
+    WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta_next);
 
     /*
      * Allocate and clear the disk image buffer.
@@ -1605,7 +1607,8 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t n
         if (S2BT(session)->type == BTREE_ROW)
             WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->min_key, r->page->type));
         WT_TIME_AGGREGATE_COPY(&r->cur_ptr->ta_min, &r->cur_ptr->ta);
-
+        /* Reset the "next" time aggregate which may be used in certain split scenarios. */
+        WT_TIME_AGGREGATE_INIT_MERGE(&r->cur_ptr->ta_next);
         WT_ASSERT_ALWAYS(
           session, r->cur_ptr->min_offset == 0, "Trying to re-enter __wti_rec_split_crossing_bnd");
         r->cur_ptr->min_offset = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
@@ -1704,7 +1707,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         cur_ptr->recno = prev_ptr->min_recno;
         WT_RET(
           __wt_buf_set(session, &cur_ptr->key, prev_ptr->min_key.data, prev_ptr->min_key.size));
-        WT_TIME_AGGREGATE_MERGE(session, &cur_ptr->ta, &prev_ptr->ta);
+        WT_TIME_AGGREGATE_MERGE(session, &cur_ptr->ta, &prev_ptr->ta_next);
         cur_ptr->image.size += len_to_move;
 
         prev_ptr->entries = prev_ptr->min_entries;

@@ -57,6 +57,9 @@ struct __wt_rec_chunk {
     WT_ITEM min_key;
     WT_TIME_AGGREGATE ta_min;
 
+    /* Every time we cross the boundary we reset this time aggregate and build it from scratch. */
+    WT_TIME_AGGREGATE ta_next;
+
     size_t min_offset; /* byte offset */
 
     WT_ITEM image; /* disk-image */
