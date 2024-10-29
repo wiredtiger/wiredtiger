@@ -2608,7 +2608,6 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
       "timing_stress_for_test=,"
       "use_environment_priv=,"
       "verbose=,"
-      "per_session_control_points=,"
       "per_connection_control_points=,"
       "verify_metadata=,",
       &base_config));
@@ -2832,6 +2831,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __wt_conn_control_point_enable, __wt_conn_control_point_thread_barrier,
       __wt_conn_control_point_disable
 #else
+        NULL,
         NULL,
         NULL,
 #endif

@@ -65,55 +65,6 @@ __wt_control_point_config_action_sleep(
 }
 
 /*
- * Action: ERR: Change the control flow to trigger an error condition via WT_ERR.
- */
-/* Action config parsing function. */
-/*
- * __wt_control_point_config_action_err --
- *     Configuration parsing for control point action "ERR: Change the control flow to trigger an
- *     error condition".
- *
- * @param session The session. @param data Return the parsed data in here. @param cfg The
- *     configuration strings.
- */
-int
-__wt_control_point_config_action_err(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_ERR *data, WT_CONFIG_ITEM *item)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONTROL_POINT_ACTION_ERR *action_data;
-
-    action_data = &data->action_data;
-    WT_RET(__wt_config_subgets(session, item, "err", &cval));
-    action_data->err = (int)cval.val;
-    return (0);
-}
-
-/*
- * Action: RET: Return an error via WT_RET.
- */
-/* Action config parsing function. */
-/*
- * __wt_control_point_config_action_ret --
- *     Configuration parsing for control point action "RET: Return an error".
- *
- * @param session The session. @param data Return the parsed data in here. @param cfg The
- *     configuration strings.
- */
-int
-__wt_control_point_config_action_ret(
-  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_RET *data, WT_CONFIG_ITEM *item)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONTROL_POINT_ACTION_RET *action_data;
-
-    action_data = &data->action_data;
-    WT_RET(__wt_config_subgets(session, item, "ret_value", &cval));
-    action_data->ret_value = (int)cval.val;
-    return (0);
-}
-
-/*
  * Action: Trigger: Block the testing thread until a control point is triggered.
  */
 #define WT_DELAY_UNTIL_TRIGGERED_USEC (10 * WT_THOUSAND) /* 10 milliseconds */

@@ -439,8 +439,10 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
         /* Between these two control points another thread is working to set up an invalid state. */
         CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER(
           session, WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT);
-        // WT_RET_MSG(session, WT_ROLLBACK,
-        //   "Read-uncommitted readers do not support reconstructing a record with modifies.");
+#if 0                           /* Omit fix for WT 12349 and WT 10905 */
+        WT_RET_MSG(session, WT_ROLLBACK,
+          "Read-uncommitted readers do not support reconstructing a record with modifies.");
+#endif
     }
 retry:
     /* Construct full update */
