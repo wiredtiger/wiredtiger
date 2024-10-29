@@ -1703,6 +1703,16 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         memcpy(
           cur_dsk_start, (uint8_t *)r->prev_ptr->image.mem + prev_ptr->min_offset, len_to_move);
 
+#ifdef HAVE_DIAGNOSTIC
+        /* This cheeky indentation lets us define temp_ta here. */
+        {
+            WT_TIME_AGGREGATE temp_ta;
+            WT_TIME_AGGREGATE_COPY(&temp_ta, &prev_ptr->ta_before_split_boundary);
+            WT_TIME_AGGREGATE_MERGE(session, &temp_ta, &prev_ptr->ta_after_split_boundary);
+            WT_ASSERT(session, memcmp(&prev_ptr->ta, &temp_ta, sizeof(WT_TIME_AGGREGATE)) == 0);
+        }
+#endif
+
         /* Update boundary information */
         cur_ptr->entries += prev_ptr->entries - prev_ptr->entries_before_split_boundary;
         cur_ptr->recno = prev_ptr->recno_at_split_boundary;
