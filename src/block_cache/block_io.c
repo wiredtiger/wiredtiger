@@ -447,7 +447,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      *
      * TODO: ignore block cache for deltas now.
      */
-    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED || block_meta->delta_count > 0)
+    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED ||
+      (block_meta != NULL && block_meta->delta_count > 0))
         ;
     else if (!blkcache->cache_on_checkpoint && checkpoint_io)
         WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
