@@ -14,7 +14,7 @@ jobs:
         with:
           script: |
             const comment = `
-            Please answer the questions below by editing this comment.
+            Thanks for creating a pull request! Please answer the questions below by editing this comment.
 
             ## Type of change made in this PR
             - [ ] Functional change
