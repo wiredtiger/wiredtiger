@@ -312,7 +312,7 @@ take_incr_backup(WT_SESSION *session, int i)
     WT_CURSOR *backup_cur, *incr_cur;
     uint64_t offset, size, type;
     size_t alloc, count, rdsize, tmp_sz;
-    int j, range, ret, rfd, wfd;
+    int j, nranges, ret, rfd, wfd;
     char buf[1024], h[256], *tmp;
     const char *filename, *idstr;
     bool first;
@@ -337,7 +337,7 @@ take_incr_backup(WT_SESSION *session, int i)
     alloc = FLIST_INIT;
     flist = calloc(alloc, sizeof(FILELIST));
     testutil_assert(flist != NULL);
-    range = 0;
+    nranges = 0;
     /* For each file listed, open a duplicate backup cursor and copy the blocks. */
     while ((ret = backup_cur->next(backup_cur)) == 0) {
         error_check(backup_cur->get_key(backup_cur, &filename));
@@ -369,7 +369,7 @@ take_incr_backup(WT_SESSION *session, int i)
                  * We should never get a range key after a whole file so the read file descriptor
                  * should be valid. If the read descriptor is valid, so is the write one.
                  */
-                ++range;
+                ++nranges;
                 if (tmp_sz < size) {
                     tmp = realloc(tmp, size);
                     testutil_assert(tmp != NULL);
@@ -438,7 +438,7 @@ take_incr_backup(WT_SESSION *session, int i)
     /* Done processing all files. Close backup cursor. */
     error_check(backup_cur->close(backup_cur));
     error_check(finalize_files(flist, count));
-    total_ranges += range;
+    total_ranges += nranges;
     free(tmp);
 }
 
