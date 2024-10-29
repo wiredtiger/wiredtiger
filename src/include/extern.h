@@ -120,6 +120,9 @@ extern int __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const c
 extern int __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)

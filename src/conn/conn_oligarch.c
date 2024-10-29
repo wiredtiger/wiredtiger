@@ -956,8 +956,8 @@ __wt_disagg_get_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
-    WT_PAGE_LOG_GET_ARGS get_args;
     WT_ITEM result;
+    WT_PAGE_LOG_GET_ARGS get_args;
     u_int count;
 
     conn = S2C(session);

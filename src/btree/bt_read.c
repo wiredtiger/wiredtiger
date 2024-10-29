@@ -211,7 +211,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_ITEM *deltas;
-    WT_ITEM tmp;
+    WT_ITEM *tmp;
     WT_PAGE *notused;
     WT_PAGE_BLOCK_META block_meta;
     size_t delta_size, i;
@@ -221,12 +221,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     WT_CLEAR(block_meta);
     delta_size = 0;
-
-    /*
-     * Don't pass an allocated buffer to the underlying block read function, force allocation of new
-     * memory of the appropriate size.
-     */
-    WT_CLEAR(tmp);
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -303,10 +297,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
-    WT_ERR(
-      __wt_blkcache_read(session, &tmp, &block_meta, addr.block_cookie, addr.block_cookie_size));
+    WT_ERR(__wt_blkcache_read_multi(
+      session, &tmp, &delta_size, &block_meta, addr.block_cookie, addr.block_cookie_size));
 
-    deltas = NULL;
+    deltas = &tmp[1];
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -317,13 +311,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * workloads repeatedly reading a page with eviction disabled (e.g., a metadata page), then
      * evicting that page and deciding that is a sign that eviction is unstuck.
      */
-    page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
+    page_flags = WT_DATA_IN_ITEM(&tmp[0]) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &instantiate_upd));
-    tmp.mem = NULL;
+    WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
+    tmp[0].mem = NULL;
     ref->page->block_meta = block_meta;
     if (instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
@@ -354,9 +348,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* Reconstruct deltas*/
-    if (delta_size > 0) {
-        ret = __bt_reconstruct_deltas(session, ref, deltas, delta_size);
-        for (i = 0; i < delta_size; ++i)
+    if (delta_size > 1) {
+        ret = __bt_reconstruct_deltas(session, ref, deltas, delta_size - 1);
+        for (i = 1; i < delta_size; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
     }
@@ -379,7 +373,7 @@ err:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 
-    __wt_buf_free(session, &tmp);
+    __wt_buf_free(session, &tmp[0]);
 
     return (ret);
 }
