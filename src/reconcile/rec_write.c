@@ -1704,11 +1704,15 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
           cur_dsk_start, (uint8_t *)r->prev_ptr->image.mem + prev_ptr->min_offset, len_to_move);
 
 #ifdef HAVE_DIAGNOSTIC
-        /* This cheeky indentation lets us define temp_ta here. */
+        /* This indentation lets us define temp_ta here. */
         {
             WT_TIME_AGGREGATE temp_ta;
             WT_TIME_AGGREGATE_COPY(&temp_ta, &prev_ptr->ta_before_split_boundary);
             WT_TIME_AGGREGATE_MERGE(session, &temp_ta, &prev_ptr->ta_after_split_boundary);
+            /*
+             * We track a bit more information than we need to because ta should always be a
+             * combination of the before split ta and after split ta. We can assert that here.
+             */
             WT_ASSERT(session, memcmp(&prev_ptr->ta, &temp_ta, sizeof(WT_TIME_AGGREGATE)) == 0);
         }
 #endif
