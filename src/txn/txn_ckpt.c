@@ -1936,6 +1936,27 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
 }
 
 /*
+ * __checkpoint_space_recoverable --
+ *     Returns true if the checkpoint can recover space from the available extent list.
+ */
+static bool
+__checkpoint_space_recoverable(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    uint64_t avail_size;
+
+    btree = S2BT(session);
+
+    WT_RET(btree->bm->avail_size(btree->bm, session, &avail_size));
+
+    if (avail_size > 0) {
+        return true;
+    }
+
+    return (false);
+}
+
+/*
  * __checkpoint_lock_dirty_tree --
  *     Decide whether the tree needs to be included in the checkpoint and if so, acquire the
  *     necessary locks.
@@ -2021,8 +2042,13 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
+        // __wt_verbose_info(session, WT_VERB_CHECKPOINT,
+        //   "Checkpoint checking file: %s, avail bytes: %" PRIu64, btree->bm->block->name,
+        //   avail_size);
+
         /* Skip the clean btree until the btree has obsolete pages. */
-        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
+        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES) &&
+          !__checkpoint_space_recoverable(session)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
@@ -2210,7 +2236,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
              * checkpoint cleanup.
              */
-            if (__checkpoint_apply_obsolete(session, btree, ckpt))
+            if (__checkpoint_apply_obsolete(session, btree, ckpt) ||
+              __checkpoint_space_recoverable(session))
                 return (0);
 
             if (F_ISSET(ckpt, WT_CKPT_DELETE))

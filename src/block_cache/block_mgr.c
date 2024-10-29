@@ -890,6 +890,20 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 }
 
 /*
+ * __bm_avail_size --
+ *     Get the size of the available list.
+ */
+static int
+__bm_avail_size(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t *bytesp)
+{
+    WT_UNUSED(session);
+
+    *bytesp = bm->block->live.avail.bytes;
+
+    return (0);
+}
+
+/*
  * __wti_bm_method_set --
  *     Set up the legal methods.
  */
@@ -898,6 +912,7 @@ __wti_bm_method_set(WT_BM *bm, bool readonly)
 {
     bm->addr_invalid = __bm_addr_invalid;
     bm->addr_string = __bm_addr_string;
+    bm->avail_size = __bm_avail_size;
     bm->block_header = __bm_block_header;
     bm->checkpoint = __bm_checkpoint;
     bm->checkpoint_last = __bm_checkpoint_last;

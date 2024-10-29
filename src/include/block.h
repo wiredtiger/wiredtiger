@@ -193,6 +193,7 @@ struct __wt_bm {
     /* Methods */
     int (*addr_invalid)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
+    int (*avail_size)(WT_BM *, WT_SESSION_IMPL *, uint64_t *bytesp);
     u_int (*block_header)(WT_BM *);
     int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
     int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
