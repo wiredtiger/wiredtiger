@@ -451,10 +451,7 @@ __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
 
 /*
  * __wt_conn_control_point_thread_barrier --
- *
- * Define a per-connection control point with action "Thread Barrier: Block the testing thread(s)
- *     and define thread until a control point is triggered". When triggered signal any waiting
- *     threads.
+ *     Wait for a control point with action "Thread Barrier".
  *
  * This function is equivalent to macro CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER. Making the
  *     macro into a function allows it to be called from python.

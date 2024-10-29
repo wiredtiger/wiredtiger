@@ -2974,7 +2974,7 @@ struct __wt_connection {
         const char *cfg);
 
     /*!
-     * Wait for a barrier type control point.
+     * Wait for a control point with action "Thread Barrier".
      *
      * @param connection the connection handle
      * @param id the per-connection control point ID of the control point
