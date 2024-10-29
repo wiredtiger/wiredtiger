@@ -72,13 +72,16 @@ struct __wt_rec_chunk {
     uint32_t auxentries;
 };
 
-#define WT_REC_CHUNK_AGGEGRATES_UPDATE(session, chunk, tw)   \
-    WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta, (tw)); \
-    WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta_after_split_boundary, (tw))
-
-#define WT_REC_CHUNK_AGGEGRATES_MERGE(session, chunk, tw)   \
-    WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (tw)); \
-    WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (tw))
+#define WT_REC_CHUNK_AGGEGRATES_UPDATE(session, chunk, tw)                            \
+    do {                                                                              \
+        WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta, (tw));                      \
+        WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta_after_split_boundary, (tw)); \
+    } while (0)
+#define WT_REC_CHUNK_AGGEGRATES_MERGE(session, chunk, tw)                            \
+    do {                                                                             \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (tw));                      \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (tw)); \
+    } while (0)
 
 /*
  * WT_DELETE_HS_UPD --
