@@ -2420,7 +2420,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* TODO: reset reconciliation id to 0 if we start a new checkpoint id. */
         ++multi->block_meta.reconciliation_id;
         WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, &addr_size,
-          &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
+          &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
     } else {
