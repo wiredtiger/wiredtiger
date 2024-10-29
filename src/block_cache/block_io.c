@@ -283,15 +283,14 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (bm->read_multiple == NULL) {
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
-        WT_RET(__wt_blkcache_read(session, &tmp[0], block_meta, addr, addr_size));
+        WT_ERR(__wt_blkcache_read(session, &tmp[0], block_meta, addr, addr_size));
         *buf_count = 1;
         *buf = tmp;
         return (0);
     }
 
-    WT_RET(__wt_calloc_def(session, count, &results));
     WT_CLEAR(results);
-    WT_ERR(bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
+    WT_RET(bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
     WT_ASSERT(session, count > 0);
 
     /*
@@ -327,8 +326,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      * | data                 |
      * ------------------------
      *
-     * Again, the block header is what contains the encryption/compression
-     * flags but now we need to skip over the delta header.
+     * In this case, the block header is what contains the encryption/compression
+     * flags so we need to skip over the delta header.
      */
     for (i = 1; i < count; i++) {
         delta_header = (WT_DELTA_HEADER *)results[i].data;
@@ -336,7 +335,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     }
 
     /* Finalize our return list. */
-    WT_ERR(__wt_calloc_def(session, count, &tmp));
+    WT_RET(__wt_calloc_def(session, count, &tmp));
     for (i = 0; i < count; i++)
         memcpy(&tmp[i], &results[i], sizeof(WT_ITEM));
     *buf = tmp;
@@ -345,8 +344,10 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (block_meta != NULL)
         *block_meta = block_meta_tmp;
 
+    if (0) {
 err:
-    __wt_free(session, results);
+        __wt_free(session, tmp);
+    }
     return (ret);
 }
 
