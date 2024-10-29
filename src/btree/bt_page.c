@@ -45,9 +45,9 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
      * TODO: hard code the checkpoint id to 1. In the future, should assign to the current
      * checkpoint id.
      */
-    meta->checkpoint_id = WT_DISAGG_METADATA_TABLE_ID;
-    meta->backlink_checkpoint_id = WT_DISAGG_METADATA_TABLE_ID;
-    meta->base_checkpoint_id = WT_DISAGG_METADATA_TABLE_ID;
+    meta->checkpoint_id = 1;
+    meta->backlink_checkpoint_id = 1;
+    meta->base_checkpoint_id = 1;
     meta->disagg_lsn = 0;
     /*
      * 0 means there is no delta written for this page yet. We always write a full page for a new
