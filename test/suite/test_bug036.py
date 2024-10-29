@@ -30,33 +30,34 @@ import wiredtiger, wttest, threading, time
 from wiredtiger import stat
 # test_bug36.py
 # This python test uses control points to reproduce WT-10905.
-# 1. Populate data in the table
-# 2. Create tombstones on all the data in the table
-# 3. Enable control point to control the execution of the concurrency between two threads.
-# 4. Create two threads. One thread T1 will perform reads under isolation read-uncommitted and
-# another thread T2 will generate an update and a modify.
-# 5. Pause T1 when the thread starts to reconstruct the modify in the update list.
-# 6. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
-# 7. T1 is now in an invalid state and should assert.
-class test_bug36(wttest.WiredTigerTestCase):
+# 1. Created a record in the table
+# 2. Remove the record, creating a tombstone.
+# 3. Enable control points.
+# 4. Create another thread T2 which will perform a read under isolation read-uncommitted.
+# 5. The main thread will generate an update followed by a modify for the key.
+# 6. The main thread then waits till T2 reaches a control point in modify.c indicating it has
+# reconstructed a modify.
+# 7. The main thread wakes and T2 waits while the main thread rolls back it's transaction.
+# 7. T2 wakes and asserts.
 
+class test_bug36(wttest.WiredTigerTestCase):
     uri = 'table:test_bug036'
     conn_config = 'cache_size=500MB,statistics=(all)'
-    nrows = 100
+    wt_conn_control_point_id_thread_wait_for_upd_abort = 6
 
     def construct_modify_upd_list(self):
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
         session.begin_transaction("isolation=read-uncommitted")
-        self.pr("1")
-        # 5. Pause thread when it starts to reconstruct the modify in the update list.
-        cursor.set_key(str(1))
+        cursor.set_key(str(0))
+
+        # Search for the record, this will trigger two control points in succession.
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: cursor.search(), '/conflict between concurrent operations/')
+
+        # If the WT_RET_MSG on modify.c:442 is commented out the test will abort, and the below code
+        # will be unreachable.
         session.commit_transaction()
-        cursor.close()
-        session.close()
-        self.pr("2")
         self.ignoreStderrPatternIfExists("Read-uncommitted readers")
 
     def test_bug36(self):
@@ -65,46 +66,38 @@ class test_bug36(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # 1. Populate data in the data store table.
+        # Add a record.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value1
+        cursor[str(0)] = value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-        # 2. Create tombstones on all the data in the table.
+        # Create a tombstone.
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor.set_key(str(i))
-            self.assertEqual(cursor.remove(), 0)
+        cursor.set_key(str(0))
+        self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
 
-        # 3. Enable control point to control the execution of the concurrency between two threads.
+        # Enable control point to control the execution of the concurrency between two threads.
         self.conn.enable_control_point(6, "")
 
-        # 4. Create another thread which will perform reads under isolation read-uncommitted.
+        # Create another thread which will perform reads under isolation read-uncommitted.
         read_uncommitted_thread = threading.Thread(target=self.construct_modify_upd_list)
 
-        # Add in a update and a modify.
+        # Add an update and a modify.
         self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[str(i)] = value2
+        cursor[str(0)] = value2
+        cursor.set_key(str(0))
+        mods = [wiredtiger.Modify("b", 0, 1)]
+        self.assertEquals(cursor.modify(mods), 0)
 
-            cursor.set_key(str(i))
-            mods = [wiredtiger.Modify("b", 0, 1)]
-            self.assertEquals(cursor.modify(mods), 0)
-
+        # Start thread T2.
         read_uncommitted_thread.start()
-        # Wait for read-uncommited thread to reconstruct the modify before calling rollback.
-        modify_reconstruct = False
-        while not modify_reconstruct:
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            modify_reconstruct = stat_cursor[stat.conn.txn_modify_reconstruct_uncommited][2] != 0
-            stat_cursor.close()
-            time.sleep(0.1)
+        self.conn.control_point_thread_barrier(self.wt_conn_control_point_id_thread_wait_for_upd_abort)
 
-        # 7. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
+        # Rollback the transaction and then wake T2.
         self.session.rollback_transaction()
-        # 8. T1 is now in an invalid state and should assert at this point.
+        self.conn.control_point_thread_barrier(self.wt_conn_control_point_id_thread_wait_for_upd_abort)
+
         read_uncommitted_thread.join()

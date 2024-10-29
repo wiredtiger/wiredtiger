@@ -102,11 +102,14 @@ class ControlPoint(Config):
                     ControlPoint.translation_to_upper))
 
     def get_control_point_call_site_macro_name(self):
-        # So far only "Trigger" has a call site macro.
-        if self.action_short_name.translate(
-                ControlPoint.translation_to_lower) != 'trigger':
-                return ''
-        return ('CONNECTION_CONTROL_POINT_WAIT')
+        action_short_name = self.action_short_name.translate(
+            ControlPoint.translation_to_lower)
+        if action_short_name == 'trigger':
+            return ('CONNECTION_CONTROL_POINT_WAIT')
+        elif action_short_name == 'thread_barrier':
+            return ('CONNECTION_CONTROL_POINT_WAIT_THREAD_BARRIER')
+        else:
+            return ('')
 
     def get_control_point_define_macro_name(self):
         return ('CONNECTION_CONTROL_POINT_DEFINE_' +
@@ -171,70 +174,84 @@ all_per_connection_control_points_config = [
         Configure concurrent determinism through per-connection control points''',
         type='category', subconfig= [
             # For examples/c/ex_control_points.c
-            ConnectionControlPoint('Main Start Printing', 'Trigger', 'Always',
+            ConnectionControlPoint('Main Start Printing', 'Thread Barrier', 'Always',
                 '', r'''
                 Thread 0 waits for main to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
-            ConnectionControlPoint('Thread 0', 'Trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 0', 'Thread Barrier', 'Always', '', r'''
                 Thread 1 waits for thread 0 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
-            ConnectionControlPoint('Thread 1', 'Trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 1', 'Thread Barrier', 'Always', '', r'''
                 Thread 2 waits for thread 1 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
-            ConnectionControlPoint('Thread 2', 'Trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 2', 'Thread Barrier', 'Always', '', r'''
                 Thread 3 waits for thread 2 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
-            ConnectionControlPoint('Thread 3', 'Trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 3', 'Thread Barrier', 'Always', '', r'''
                 Thread 4 waits for thread 3 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
-            ConnectionControlPoint('Thread 4', 'Trigger', 'Always', '', r'''
+            ConnectionControlPoint('Thread 4', 'Thread Barrier', 'Always', '', r'''
                 Thread 5 waits for thread 4 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
             # For test/suite/test_bug035.py and test/suite/bug036.py
-            ConnectionControlPoint('thread_wait_for_upd_abort', 'Trigger', 'Always', '', 
+            ConnectionControlPoint('thread_wait_for_upd_abort', 'Thread Barrier', 'Times', '', 
                 r'''Thread waits for transaction to get aborted.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max='4294967295'),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
+                    # Predicate configuration paramters
+                    Config('enable_count', '2', r'''
+                        the number of control point crossings to enable. Later crossings do not 
+                        trigger.''',
+                        min='0', max=ControlPoint.int64_max),
+                ]),
+            ConnectionControlPoint('thread_wait_for_reconstruct', 'Thread Barrier', 'Times', '', 
+                r'''Thread waits for modify to be reconstructed.''',
+                type='category', subconfig= [
+                    # Action configuration parameters
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
+                    # Predicate configuration paramters
                     Config('enable_count', '1', r'''
                         the number of control point crossings to enable. Later crossings do not 
                         trigger.''',
                         min='0', max=ControlPoint.int64_max),
                 ]),
             # To reproduce WT 13450
-            ConnectionControlPoint('WT 13450 CKPT', 'Wait for trigger', 'Param match',
+            ConnectionControlPoint('WT 13450 CKPT', 'Thread Barrier', 'Param match',
                 '', r'''
                 Next cursor waits for checkpoint to get here.''',
                 type='category', subconfig= [
@@ -243,18 +260,18 @@ all_per_connection_control_points_config = [
                             the btree id for which to wait''',
                             min='0', max=Config.int64_max),
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
-            ConnectionControlPoint('WT 13450 TEST', 'Wait for trigger', 'Always',
+            ConnectionControlPoint('WT 13450 TEST', 'Thread Barrier', 'Always',
                 '', r'''
                 Test waits for cursor next to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('wait_count', '1', r'''
-                            the number of triggers for which to wait''',
-                            min='1', max=Config.int64_max),
+                    Config('thread_count', '2', r'''
+                        the number of threads waiting at the barrier''',
+                        min='0', max=ControlPoint.int64_max),
                 ]),
         ])
     ]
@@ -2352,14 +2369,14 @@ def test_one_control_point(cp):
     print('get_predicate_function_name=' + cp.get_predicate_function_name())
 
 def test_control_point():
-    conn_cp = ConnectionControlPoint('Connection CP', 'Trigger',
+    conn_cp = ConnectionControlPoint('Connection CP', 'Thread Barrier',
         'Skip', '', r'''
             Example per connection control point''',
             type='category', subconfig= [
                 # Action configuration parameters
-                Config('wait_count', '1', r'''
-                    the number of triggers for which to wait''',
-                    min='1', max=Config.int64_max),
+                Config('thread_count', '2', r'''
+                    the number of threads waiting at the barrier''',
+                    min='0', max=ControlPoint.int64_max),
                 # Predicate configuration parameters
                 Config('skip_count', '1', r'''
                     the number of control point crossings to skip''',

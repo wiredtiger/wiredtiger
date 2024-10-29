@@ -463,6 +463,8 @@ extern int __wt_conn_control_point_set_param2(WT_CONNECTION *wt_conn, wt_control
   uint64_t value64) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_control_point_shutdown(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_control_point_thread_barrier(WT_CONNECTION *wt_conn, wt_control_point_id_t id)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri,
   const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead,
@@ -479,6 +481,9 @@ extern int __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_action_sleep(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_SLEEP *data, WT_CONFIG_ITEM *item)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_config_action_thread_barrier(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *data, WT_CONFIG_ITEM *item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_config_action_trigger(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_PAIR_DATA_TRIGGER *data, WT_CONFIG_ITEM *item)
@@ -499,6 +504,9 @@ extern int __wt_control_point_config_pred_times(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_DATA *data, WT_CONFIG_ITEM *item)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_pred_sleep(WT_SESSION_IMPL *session,
+  const char *cp_config_name, wt_control_point_init_pred_t __F(init_pred), const char **cfg,
+  WT_CONTROL_POINT_DATA **cp_datap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_control_point_pair_init_pred_thread_barrier(WT_SESSION_IMPL *session,
   const char *cp_config_name, wt_control_point_init_pred_t __F(init_pred), const char **cfg,
   WT_CONTROL_POINT_DATA **cp_datap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_control_point_pair_init_pred_trigger(WT_SESSION_IMPL *session,
@@ -1747,6 +1755,8 @@ extern void __wt_config_subinit(WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CO
 extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
+extern void __wt_control_point_action_init_thread_barrier(WT_SESSION_IMPL *session,
+  const char *control_point_name, WT_CONTROL_POINT_PAIR_DATA_THREAD_BARRIER *data);
 extern void __wt_control_point_action_init_trigger(WT_SESSION_IMPL *session,
   const char *control_point_name, WT_CONTROL_POINT_PAIR_DATA_TRIGGER *data);
 extern void __wt_control_point_release_data(WT_SESSION_IMPL *session,
@@ -1755,6 +1765,8 @@ extern void __wt_control_point_unlock(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry);
 extern void __wt_control_point_wait(
   WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id);
+extern void __wt_control_point_wait_thread_barrier(WT_SESSION_IMPL *session,
+  WT_CONTROL_POINT_REGISTRY *cp_registry, wt_control_point_id_t id, bool define);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
 extern void __wt_cursor_get_hash(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup, uint64_t *hash_value);
@@ -1901,6 +1913,8 @@ extern void __wti_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
   const char *ckpt_name, const uint8_t *ckpt_string, size_t ckpt_size);
 extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);
+extern void __wti_control_point_relock(
+  WT_SESSION_IMPL *session, WT_CONTROL_POINT_REGISTRY *cp_registry, WT_CONTROL_POINT_DATA *cp_data);
 extern void __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
 extern void __wti_cursor_set_key_notsup(WT_CURSOR *cursor, ...);
 extern void __wti_cursor_set_value_notsup(WT_CURSOR *cursor, ...);

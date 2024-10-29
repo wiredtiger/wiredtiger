@@ -351,6 +351,7 @@ Realloc
 RedHat
 Redistributions
 Reify
+Ret
 Rogerio
 Runtime
 SDK
@@ -1027,6 +1028,7 @@ metaconf
 metadata's
 metafile
 mfence
+microsec
 minSnapshotHistoryWindowInSeconds
 minorp
 misalignments
@@ -1216,7 +1218,9 @@ reentrant
 refp
 regionp
 reinstantiated
+relock
 relocked
+relocks
 repl
 repositioned
 repositions

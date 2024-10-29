@@ -227,6 +227,9 @@ __eventv_append_error(const char *err, char *start, char *p, size_t *remainp)
 /*
  * __eventv --
  *     Report a message to an event handler.
+ *
+ * Format if not json: [seconds:microsec][process id:thread id], URL, type.method:
+ *     [category][level]: message.
  */
 static int
 __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, int line,

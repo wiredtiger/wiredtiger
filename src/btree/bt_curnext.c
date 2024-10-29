@@ -762,7 +762,7 @@ int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
 #ifdef HAVE_CONTROL_POINT
-    static bool wait = true;
+    static bool first_time = true;
 #endif
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -908,17 +908,29 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
 #ifdef HAVE_CONTROL_POINT /* The #ifdef is for just the printf()s. */
-            /* Signal the test thread. */
-            CONNECTION_CONTROL_POINT_DEFINE_TRIGGER(
-              session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
-            printf("Arriving at control point\n");
-            /* Wait here only once for the checkpoint thread. */
-            if (wait) {
-                CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT(
+            /* Only signal and wait the first time. */
+            if (first_time) {
+                /* Signal the test thread. */
+                printf("%s: WT: Signal control point %" PRId32 "\n", __func__,
+                  WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+                fflush(stdout);
+                CONNECTION_CONTROL_POINT_DEFINE_THREAD_BARRIER(
+                  session, WT_CONN_CONTROL_POINT_ID_WT_13450_TEST);
+                /* Wait for the checkpoint thread. */
+                printf("%s: WT: Waiting for control point %" PRId32 ", btree %" PRIu32 "\n",
+                  __func__, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
+                fflush(stdout);
+                CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_AND_WAIT_THREAD_BARRIER(
                   session, WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
-                wait = false;
+                /* Prevent further matches: Force a mismatch. */
+                WT_IGNORE_RET(CONNECTION_CONTROL_POINT_SET_MATCH_VALUE_FOR_PARAM_64_MATCH(
+                  (WT_CONNECTION *)S2C(session), WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT,
+                  (~(uint32_t)0 - 1U)));
+                printf("%s: WT: Past control point %" PRId32 ", btree %" PRIu32 "\n", __func__,
+                  WT_CONN_CONTROL_POINT_ID_WT_13450_CKPT, CUR2BT(cbt)->id);
+                fflush(stdout);
+                first_time = false;
             }
-            printf("Past control point\n");
 #endif
             /* If checkpoint is happening on the btree, we can only evict clean content. */
             if (__wt_btree_syncing_by_other_session(session)) {
@@ -928,7 +940,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                     WT_ASSERT(session, false);
 #endif
                     __wt_evict_page_soon(session, cbt->ref);
-                    WT_STAT_CONN_INCR(session, eviction_force_delete_in_checkpoint);
                     WT_STAT_CONN_INCR(session, eviction_force_delete);
                 }
             } else {

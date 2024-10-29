@@ -152,6 +152,9 @@ struct __wt_verbose_multi_category {
 /*
  * __wt_verbose_level --
  *     Display a verbose message considering a category and a verbosity level.
+ *
+ * Format if not json: [seconds:microsec][process id:thread id], URL, type.method:
+ *     [category][level]: message.
  */
 #define __wt_verbose_level(session, category, level, fmt, ...)               \
     do {                                                                     \
