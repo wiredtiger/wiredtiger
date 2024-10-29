@@ -264,10 +264,10 @@ int
 __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
 {
+    WT_BLOCK_DISAGG_HEADER *blk;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_DELTA_HEADER *delta_header;
     WT_ITEM results[WT_DELTA_LIMIT];
     WT_ITEM *tmp;
     WT_PAGE_BLOCK_META block_meta_tmp;
@@ -330,8 +330,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      * flags so we need to skip over the delta header.
      */
     for (i = 1; i < count; i++) {
-        delta_header = (WT_DELTA_HEADER *)results[i].data;
-        WT_UNUSED(delta_header); /* TODO figure this out with the header rearranged */
+        /* TODO in principle we should end up not caring about which block mananger. */
+        blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
+
+        if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED))
+            WT_ASSERT(session, session == NULL);
+        if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
+            WT_ASSERT(session, session == NULL);
     }
 
     /* Finalize our return list. */
