@@ -44,7 +44,6 @@ class test_bug35(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=500MB,statistics=(all)'
     nrows = 100
     wt_conn_control_point_id_thread_wait_for_upd_abort = 6
-    #wt_conn_control_point_id_thread_wait_for_reconstruct = 7
 
     def evict_cursor(self, uri, nrows):
         s = self.conn.open_session()
@@ -78,7 +77,7 @@ class test_bug35(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # 1. Populate data in the data store table.
+        # Populate data in the data store table.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
@@ -86,7 +85,7 @@ class test_bug35(wttest.WiredTigerTestCase):
             cursor[i] = value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-        # 2. Create tombstones on second half of the data in the table.
+        # Create tombstones on second half of the data in the table.
         self.session.begin_transaction()
         for i in range(1, self.nrows // 2):
             cursor.set_key(i)
@@ -94,18 +93,18 @@ class test_bug35(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(7))
 
-        # 3. Force evict everything from in-memory to on disk.
+        # Force evict everything from in-memory to on disk.
         self.evict_cursor(self.uri, self.nrows)
         self.session.checkpoint()
 
-        # 4. Enable control point to control the execution of the concurrency between two threads.
+        # Enable control point to control the execution of the concurrency between two threads.
         self.conn.enable_control_point(self.wt_conn_control_point_id_thread_wait_for_upd_abort, "")
         #self.conn.enable_control_point(self.wt_conn_control_point_id_thread_wait_for_reconstruct, "")
 
-        # 5. Create another thread T2 which will perform reads under isolation read-uncommitted.
+        # Create another thread T2 which will perform reads under isolation read-uncommitted.
         read_uncommitted_thread = threading.Thread(target=self.construct_modify_upd_list)
 
-        # 6. This thread T1 generates an update and a modify.
+        # This thread T1 generates an update and a modify.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor[i] = value2
@@ -115,9 +114,13 @@ class test_bug35(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.modify(mods), 0)
 
         read_uncommitted_thread.start()
-        # 7. T1 waits for the read-uncommited thread T2 to reconstruct the modify before calling rollback.
-        # 8. Once T2 generates an update, modify and finishes rollback, signal T1 to continue.
+        # T1 waits for the read-uncommited thread T2 to reconstruct the modify before calling rollback.
+        self.conn.control_point_thread_barrier(self.wt_conn_control_point_id_thread_wait_for_upd_abort)
+
+        # Call rollback.
         self.session.rollback_transaction()
-        # 9. T1 is now in an invalid state and should assert at this point.
+        self.conn.control_point_thread_barrier(self.wt_conn_control_point_id_thread_wait_for_upd_abort)
+
+        # T2 is now in an invalid state and should assert at this point.
         read_uncommitted_thread.join()
         self.captureerr.check(self)
