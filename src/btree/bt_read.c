@@ -350,7 +350,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /* Reconstruct deltas*/
     if (count > 1) {
         ret = __bt_reconstruct_deltas(session, ref, deltas, count - 1);
-        for (i = 1; i < count; ++i)
+        for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
     }
