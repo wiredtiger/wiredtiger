@@ -1250,8 +1250,6 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
     unpack->flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
-    WT_TIME_WINDOW_INIT(&unpack->tw);
-
     if (F_ISSET(unpack, WT_DELTA_IS_DELETE)) {
         WT_ASSERT(session, false);
         ret = __wt_vunpack_uint(&p, 0, &v);
@@ -1260,6 +1258,8 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
         unpack->key = p;
         unpack->__len = (uint32_t)WT_PTRDIFF(p + unpack->key_size, &cell->__chunk[0]);
     } else {
+        WT_TIME_WINDOW_INIT(&unpack->tw);
+
         if (F_ISSET(unpack, WT_DELTA_HAS_START_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_ts);
             WT_ASSERT(session, ret == 0);
