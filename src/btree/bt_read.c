@@ -102,7 +102,7 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
     size_t size, tmp_size, total_size;
 
     header = (WT_DELTA_HEADER *)delta->data;
-    total_size = 0;
+    tmp_size = total_size = 0;
     page = ref->page;
 
     WT_CLEAR(unpack);
