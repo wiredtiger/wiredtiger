@@ -105,7 +105,7 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
     total_size = 0;
     page = ref->page;
 
-    memset(0, &unpack, sizeof(WT_CELL_UNPACK_DELTA));
+    WT_CLEAR(unpack);
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
