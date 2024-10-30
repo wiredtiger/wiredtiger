@@ -220,6 +220,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     bool instantiate_upd;
 
     WT_CLEAR(block_meta);
+    tmp = NULL;
     count = 0;
 
     /* Lock the WT_REF. */
@@ -299,8 +300,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
     WT_ERR(__wt_blkcache_read_multi(
       session, &tmp, &count, &block_meta, addr.block_cookie, addr.block_cookie_size));
+    
+    WT_ASSERT(session, count > 0);
 
-    deltas = &tmp[1];
+    if (count > 1)
+        deltas = &tmp[1];
+    else
+        deltas = NULL;
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -373,7 +379,10 @@ err:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 
-    __wt_buf_free(session, &tmp[0]);
+    if (tmp != NULL) {
+        for (i = 0; i < count; ++i)
+            __wt_buf_free(session, &tmp[i]);
+    }
 
     return (ret);
 }
