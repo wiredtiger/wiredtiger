@@ -403,23 +403,26 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 }
 
 /*
- * __ckpt_add_blkmod_entry --
- *     Add an offset/length entry to the bitstring based on granularity.
+ * __ckpt_mod_blkmod_entry --
+ *     Modify an offset/length entry to the bitstring based on granularity. We may either set or
+ *     clear the bits represented by the offset/length.
  */
 static int
-__ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
+__ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset,
+  wt_off_t len, bool set, const char *msg)
 {
-    uint64_t end_bit, start_bit;
+    wt_off_t clr_len, clr_off;
+    uint64_t adj, end_bit, gran, start_bit;
     uint32_t end_buf_bytes, end_rdup_bits, end_rdup_bytes;
 
-    WT_ASSERT(session, blk_mod->granularity != 0);
+    gran = blk_mod->granularity;
+    WT_ASSERT(session, gran != 0);
     /*
      * Figure out the starting and ending locations in the bitmap based on its granularity and our
      * offset and length. The bit locations are zero-based; be careful translating to sizes.
      */
-    start_bit = (uint64_t)offset / blk_mod->granularity;
-    end_bit = (uint64_t)(offset + len - 1) / blk_mod->granularity;
+    start_bit = (uint64_t)offset / gran;
+    end_bit = (uint64_t)(offset + len - 1) / gran;
     WT_ASSERT(session, end_bit < UINT32_MAX);
     /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
     end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit + 1, 64), WT_BLOCK_MODS_LIST_MIN);
@@ -447,18 +450,43 @@ __ckpt_add_blkmod_entry(
     /* Make sure we're not going to run past the end of the bitmap */
     WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
     WT_ASSERT(session, end_bit < blk_mod->nbits);
-    /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    /* Change all the bits needed to record this offset/length pair. */
+    if (set)
+        __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    else {
+        /*
+         * We can only clear full ranges represented by bits. Ignore any partial ranges at the
+         * beginning and end of the offset/length range but clear any full bit ranges in between.
+         */
+        adj = (uint64_t)offset % gran;
+        if (adj != 0)
+            adj = gran - adj;
+        clr_off = offset + (wt_off_t)adj;
+        /* Adjust partial ranges at the beginning and the end of the offset/length range. */
+        clr_len = ((len - (wt_off_t)adj) / (wt_off_t)gran) * (wt_off_t)gran;
+        WT_ASSERT(session, clr_off % (wt_off_t)gran == 0);
+        WT_ASSERT(session, clr_len % (wt_off_t)gran == 0);
+        if (clr_len > 0) {
+            /* Calculate the new full bits we can clear. */
+            start_bit = (uint64_t)clr_off / gran;
+            end_bit = (uint64_t)(clr_off + clr_len - 1) / gran;
+            WT_ASSERT(session, end_bit >= start_bit);
+            __wt_verbose(session, WT_VERB_TEMPORARY,
+              "MOD_BLKMOD: %s: %s: gran %d offset %d len %d, adj off %d len %d, %s bits %d-%d",
+              blk_mod->id_str, msg, (int)gran, (int)offset, (int)len, (int)clr_off, (int)clr_len,
+              set ? "SET" : "CLEAR", (int)start_bit, (int)end_bit);
+            __bit_nclr(blk_mod->bitstring.mem, start_bit, end_bit);
+        }
+    }
     return (0);
 }
 
 /*
- * __ckpt_add_blk_mods_alloc --
+ * __ckpt_live_blkmods --
  *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods_alloc(
-  WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block)
+__ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block)
 {
     WT_BLOCK_MODS *blk_mod;
     WT_CKPT *ckpt;
@@ -481,10 +509,22 @@ __ckpt_add_blk_mods_alloc(
         if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
             continue;
 
+        /* Recreate the bitmap. This is the first function to record them so do it now. */
         if (block->created_during_backup)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, 0, block->allocsize));
+            WT_RET(
+              __ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true, "new file"));
+        else
+            /* Always set the bit for the header. */
+            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, 4096, true, "header"));
+        /* First clear any bits from the discard list. Then add in anything in the allocation list.
+         */
+        WT_EXT_FOREACH (ext, ci->discard.off) {
+            WT_RET(__ckpt_mod_blkmod_entry(
+              session, blk_mod, ext->off, ext->size, false, "live discard"));
+        }
         WT_EXT_FOREACH (ext, ci->alloc.off) {
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
+            WT_RET(
+              __ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true, "live alloc"));
         }
     }
     block->created_during_backup = false;
@@ -516,11 +556,14 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
             continue;
 
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
+            WT_RET(__ckpt_mod_blkmod_entry(
+              session, blk_mod, ci->alloc.offset, ci->alloc.size, true, "alloc"));
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
+            WT_RET(__ckpt_mod_blkmod_entry(
+              session, blk_mod, ci->avail.offset, ci->avail.size, true, "avail"));
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_mod_blkmod_entry(
+              session, blk_mod, ci->discard.offset, ci->discard.size, true, "discard"));
     }
     return (0);
 }
@@ -671,7 +714,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
      * possibly merging in blocks from any previous checkpoint.
      */
-    WT_ERR(__ckpt_add_blk_mods_alloc(session, ckptbase, ci, block));
+    WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block));
 
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
