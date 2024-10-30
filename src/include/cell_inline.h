@@ -1261,41 +1261,34 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
         if (F_ISSET(unpack, WT_DELTA_HAS_START_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_ts);
             WT_ASSERT(session, ret == 0);
-            fprintf(stderr, "start ts %" PRIu64 "\n", unpack->tw.start_ts);
         }
 
         if (F_ISSET(unpack, WT_DELTA_HAS_START_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_start_ts);
             WT_ASSERT(session, ret == 0);
-            fprintf(stderr, "durable start ts %" PRIu64 "\n", unpack->tw.durable_start_ts);
         }
 
         if (F_ISSET(unpack, WT_DELTA_HAS_STOP_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.stop_ts);
             WT_ASSERT(session, ret == 0);
-            fprintf(stderr, "stop ts %" PRIu64 "\n", unpack->tw.stop_ts);
         }
 
         if (F_ISSET(unpack, WT_DELTA_HAS_STOP_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_stop_ts);
             WT_ASSERT(session, ret == 0);
-            fprintf(stderr, "durable stop ts %" PRIu64 "\n", unpack->tw.durable_stop_ts);
         }
 
         ret = __wt_vunpack_uint(&p, 0, &v);
         WT_ASSERT(session, ret == 0);
-        fprintf(stderr, "key size %d\n", v);
         unpack->key_size = (uint32_t)v;
         ret = __wt_vunpack_uint(&p, 0, &v);
         WT_ASSERT(session, ret == 0);
-        fprintf(stderr, "value size %d\n", v);
         unpack->value_size = (uint32_t)v;
 
         unpack->key = p;
         p += unpack->key_size;
         unpack->value = p;
         unpack->__len = (uint32_t)WT_PTRDIFF(p + unpack->value_size, &cell->__chunk[0]);
-        fprintf(stderr, "len %d\n", unpack->__len);
     }
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
@@ -1411,12 +1404,12 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_DELTA(session, dsk, unpack)                                             \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
+#define WT_CELL_FOREACH_DELTA(session, dsk, unpack)                                              \
+    do {                                                                                         \
+        uint32_t __i;                                                                            \
+        uint8_t *__cell;                                                                         \
         for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                 \
+             __cell += (unpack).__len, --__i) {                                                  \
             __wt_cell_unpack_delta(session, (WT_DELTA_CELL *)__cell, &(unpack));
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \

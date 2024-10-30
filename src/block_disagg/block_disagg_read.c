@@ -70,7 +70,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t retry;
-    int32_t result, last;
+    int32_t result;
     uint8_t expected_magic;
     bool is_delta;
 
@@ -124,110 +124,16 @@ reread:
         return (WT_NOTFOUND);
     }
 
-    last = (int32_t)(*results_count - 1);
+    /* Set the other metadata returned by the Page Service. */
+    block_meta->page_id = page_id;
+    block_meta->checkpoint_id = checkpoint_id;
+    block_meta->reconciliation_id = reconciliation_id;
+    block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
+    block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
+    block_meta->disagg_lsn = get_args.lsn;
+    block_meta->delta_count = get_args.delta_count;
+    block_meta->checksum = checksum;
 
-    /*
-     * Walk through all the results from most recent delta backwards to the base page. This makes it
-     * easier to do checks.
-     */
-    for (result = last; result >= 0; result--) {
-        current = &results_array[result];
-        WT_ASSERT(session, current->size < UINT32_MAX);
-        size = (uint32_t)current->size;
-        is_delta = (result != 0);
-
-        /*
-         * Do little- to big-endian handling early on.
-         */
-        if (is_delta)
-            blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(current->data);
-        else
-            blk = WT_BLOCK_HEADER_REF(current->data);
-        __wt_block_disagg_header_byteswap_copy(blk, &swap);
-
-        /*
-         * Make a quick check of the checksum on the final delta, it should match the cookie. If it
-         * doesn't and the reconciliation id does not match what is expected, retry with a delay.
-         *
-         * This code may go away once we establish a way to ask for a particular delta.
-         */
-        if (result == last && swap.checksum != checksum &&
-          swap.reconciliation_id < reconciliation_id && retry < 100)
-            goto reread;
-
-        if (swap.checksum == checksum) {
-            blk->checksum = 0;
-            if (__wt_checksum_match(current->data,
-                  F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP, checksum) &&
-              swap.reconciliation_id == reconciliation_id) {
-
-                expected_magic =
-                  (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
-                if (swap.magic != expected_magic) {
-                    __wt_errx(session,
-                      "%s: magic error for %" PRIu32
-                      "B block at "
-                      "page %" PRIuMAX " ckpt %" PRIu64 ", magic %" PRIu8
-                      ": doesn't match expected magic of %" PRIu8,
-                      block_disagg->name, size, page_id, checkpoint_id, swap.magic, expected_magic);
-                    goto corrupt;
-                }
-
-                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
-                    __wt_errx(session,
-                      "%s: compatible version error for %" PRIu32
-                      "B block at "
-                      "page %" PRIuMAX " ckpt %" PRIu64 ", version %" PRIu8
-                      ": is greater than compatible version of %" PRIu8,
-                      block_disagg->name, size, page_id, checkpoint_id, swap.compatible_version,
-                      WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
-                    goto corrupt;
-                }
-
-                /*
-                 * Swap the page-header as needed; this doesn't belong here, but it's the best place
-                 * to catch all callers.
-                 */
-                if (is_delta)
-                    __wt_delta_header_byteswap((void *)current->data);
-                else
-                    __wt_page_header_byteswap((void *)current->data);
-                checksum = swap.previous_checksum;
-
-                if (result == last && block_meta != NULL) {
-                    /* Set the other metadata returned by the Page Service. */
-                    block_meta->page_id = page_id;
-                    block_meta->checkpoint_id = checkpoint_id;
-                    block_meta->reconciliation_id = reconciliation_id;
-                    block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
-                    block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
-                    block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = get_args.delta_count;
-                    block_meta->checksum = checksum;
-                }
-                return (0);
-            }
-
-            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __block_disagg_read_checksum_err(session, block_disagg->name, size, page_id,
-                  checkpoint_id, swap.checksum, checksum, swap.reconciliation_id, reconciliation_id,
-                  "calculated block checksum");
-        } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            __block_disagg_read_checksum_err(session, block_disagg->name, size, page_id,
-              checkpoint_id, swap.checksum, checksum, swap.reconciliation_id, reconciliation_id,
-              "block header checksum");
-
-corrupt:
-        if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            WT_IGNORE_RET(
-              __wt_bm_corrupt_dump(session, current, 0, (wt_off_t)page_id, size, checksum));
-
-        /* Panic if a checksum fails during an ordinary read. */
-        F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            WT_ERR(WT_ERROR);
-        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
-    }
 err:
     return (ret);
 }
