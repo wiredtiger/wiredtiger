@@ -348,7 +348,7 @@ palm_init_context(PALM *palm, PALM_KV_CONTEXT *context)
      * So when setting PAGE_KEY.timestamp_materialized_us, we'd need to make each value set was
      * monotonically increasing.
      */
-    context->materialization_delay_us = palm->materialization_delay_ms;
+    context->materialization_delay_us = palm->materialization_delay_ms * WT_THOUSAND;
 }
 
 /*

@@ -28,13 +28,13 @@
 
 import os, time, wiredtiger, wttest
 
-# test_oligarch10.py
+# test_oligarch11.py
 #    Create an artificial delay in materializing pages from the page service.
-class test_oligarch10(wttest.WiredTigerTestCase):
-    nitems = 50000
-    uri_base = "test_oligarch10"
+class test_oligarch11(wttest.WiredTigerTestCase):
+    nitems = 5000
+    uri_base = "test_oligarch11"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'oligarch=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
@@ -44,11 +44,11 @@ class test_oligarch10(wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        config='materialization_delay_ms=1000000'
+        config='materialization_delay_ms=3000'  # 3 seconds
         extlist.extension('page_log', 'palm', f'(config="({config})")')
 
     # Test inserting a record into an oligarch tree
-    def test_oligarch10(self):
+    def test_oligarch11(self):
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")

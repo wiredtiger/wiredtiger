@@ -98,7 +98,7 @@ class DisaggConfigMixin:
     #
     # Some possible values to return: 'verbose=1'
     # or for palm: 'verbose=1,delay_ms=13,force_delay=30'
-    # or 'materialization_delay_ms=1000000'
+    # or 'materialization_delay_ms=1000'
     def disaggregated_extension_config(self):
         return 'verbose=1'
 
