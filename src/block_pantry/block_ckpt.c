@@ -103,14 +103,19 @@ __wt_bmp_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 
     block_pantry = (WT_BLOCK_PANTRY *)bm->block;
 
+    buf = NULL;
+    entry = NULL;
+    md_cursor = NULL;
+    tablename = NULL;
+
     if (failed)
         return (0);
 
     /* Get a metadata cursor pointing to this table */
-    WT_RET(__wt_metadata_cursor(session, &md_cursor));
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
     /* TODO less hacky way to get URI */
     len = strlen("file:") + strlen(block_pantry->name) + 1;
-    WT_RET(__wt_calloc_def(session, len, &tablename));
+    WT_ERR(__wt_calloc_def(session, len, &tablename));
     WT_ERR(__wt_snprintf(tablename, len, "file:%s", block_pantry->name));
     md_cursor->set_key(md_cursor, tablename);
     WT_ERR(md_cursor->search(md_cursor));
@@ -134,6 +139,8 @@ err:
     __wt_scr_free(session, &buf);
     __wt_free(session, tablename);
     __wt_free(session, entry); /* TODO may not have been allocated */
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 
     return (ret);
 }
