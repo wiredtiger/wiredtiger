@@ -2153,27 +2153,33 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         if (supd->onpage_upd->start_ts != WT_TS_NONE) {
             LF_SET(WT_DELTA_HAS_START_TS);
             WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+            fprintf(stderr, "build start ts %d\n", supd->onpage_upd->start_ts);
         }
 
         if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
             LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
-            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
+            fprintf(stderr, "build durable ts %d\n", supd->onpage_upd->durable_ts);
         }
 
         if (supd->onpage_tombstone != NULL) {
             if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_HAS_STOP_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
+                fprintf(stderr, "build stop ts %d\n", supd->onpage_tombstone->start_ts);
             }
 
             if (supd->onpage_tombstone->durable_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_HAS_STOP_DURABLE_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->durable_ts));
+                fprintf(stderr, "build durable stop ts %d\n", supd->onpage_tombstone->durable_ts);
             }
         }
 
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
-        WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->size));
+        fprintf(stderr, "build key size %d\n", key->size);
+        WT_ERR(__wt_vpack_uint(&p, 0, value.size));
+        fprintf(stderr, "build value size %d\n", value.size);
 
         memcpy(p, key->data, key->size);
         p += key->size;
@@ -2184,6 +2190,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
 
     r->delta.size += WT_PTRDIFF(p, head);
     *head = flags;
+    fprintf(stderr, "flags %d\n", *head);
 
     WT_ASSERT(session, p < head + max_packed_size);
 err:
@@ -2233,6 +2240,8 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
     header->u.entries = count;
+
+    fprintf(stderr, "delta entries %d\n", count);
 
     stop = __wt_clock(session);
 

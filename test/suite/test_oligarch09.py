@@ -66,7 +66,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             if i % 10 == 0:
-                cursor[str(i)] = "bbbb"
+                cursor[str(i)] = value2
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the

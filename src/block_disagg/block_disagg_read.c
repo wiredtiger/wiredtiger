@@ -205,7 +205,7 @@ reread:
                     block_meta->delta_count = get_args.delta_count;
                     block_meta->checksum = checksum;
                 }
-                continue;
+                return (0);
             }
 
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))

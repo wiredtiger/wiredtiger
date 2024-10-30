@@ -214,13 +214,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ITEM *tmp;
     WT_PAGE *notused;
     WT_PAGE_BLOCK_META block_meta;
-    size_t delta_size, i;
+    size_t count, i;
     uint32_t page_flags;
     uint8_t previous_state;
     bool instantiate_upd;
 
     WT_CLEAR(block_meta);
-    delta_size = 0;
+    count = 0;
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -298,7 +298,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
     WT_ERR(__wt_blkcache_read_multi(
-      session, &tmp, &delta_size, &block_meta, addr.block_cookie, addr.block_cookie_size));
+      session, &tmp, &count, &block_meta, addr.block_cookie, addr.block_cookie_size));
 
     deltas = &tmp[1];
 
@@ -348,9 +348,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* Reconstruct deltas*/
-    if (delta_size > 1) {
-        ret = __bt_reconstruct_deltas(session, ref, deltas, delta_size - 1);
-        for (i = 1; i < delta_size; ++i)
+    if (count > 1) {
+        ret = __bt_reconstruct_deltas(session, ref, deltas, count - 1);
+        for (i = 1; i < count; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
     }
