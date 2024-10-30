@@ -72,15 +72,20 @@ struct __wt_rec_chunk {
     uint32_t auxentries;
 };
 
+/*
+ * Reconciliation tracks two time aggregates per chunk, one for the full chunk and one for the part
+ * of the chunk past the split boundary. In every situation that we write to the main aggregate we
+ * need to write to the "after" aggregate. These helper macros were added with that in mind.
+ */
 #define WT_REC_CHUNK_TA_UPDATE(session, chunk, tw)                                    \
     do {                                                                              \
         WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta, (tw));                      \
         WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta_after_split_boundary, (tw)); \
     } while (0)
-#define WT_REC_CHUNK_TA_MERGE(session, chunk, tw)                                    \
+#define WT_REC_CHUNK_TA_MERGE(session, chunk, ta)                                    \
     do {                                                                             \
-        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (tw));                      \
-        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (tw)); \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (ta));                      \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (ta)); \
     } while (0)
 
 /*
