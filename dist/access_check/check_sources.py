@@ -28,6 +28,8 @@ def main():
     for macro in wt_defs.extraMacros:
         _globals.addMacro(**macro)
 
+    _globals.scanFiles(files)
+
     lcp.AccessCheck(_globals).checkAccess()
 
     return not lcp.workspace.errors
