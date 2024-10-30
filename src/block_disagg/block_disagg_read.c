@@ -37,24 +37,6 @@ err:
 }
 
 /*
- * __block_disagg_read_checksum_err --
- *     Print a checksum or reconciliation id mismatch in a standard way.
- */
-static void
-__block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uint32_t size,
-  uint64_t page_id, uint64_t checkpoint_id, uint32_t checksum, uint32_t expected_checksum,
-  uint64_t rec_id, uint64_t expected_rec_id, const char *context_msg)
-{
-    __wt_errx(session,
-      "%s: read checksum error for %" PRIu32
-      "B block at "
-      "page %" PRIuMAX ", ckpt %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu64
-      ") doesn't match expected checksum of %" PRIu32 " (%" PRIu64 ")",
-      name, size, page_id, checkpoint_id, context_msg, checksum, rec_id, expected_checksum,
-      expected_rec_id);
-}
-
-/*
  * __block_disagg_read_multiple --
  *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
  *     page id, checkpoint id pair.
@@ -65,14 +47,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
   uint64_t reconciliation_id, uint32_t size, uint32_t checksum, WT_ITEM *results_array,
   uint32_t *results_count)
 {
-    WT_BLOCK_DISAGG_HEADER *blk, swap;
-    WT_DECL_RET;
-    WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t retry;
-    int32_t result;
-    uint8_t expected_magic;
-    bool is_delta;
 
     retry = 0;
 
@@ -105,7 +81,7 @@ reread:
     /*
      * Output buffers do not need to be preallocated, the PALI interface does that.
      */
-    WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
+    WT_RET(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
       checkpoint_id, &get_args, results_array, results_count));
 
     WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT);
@@ -134,8 +110,7 @@ reread:
     block_meta->delta_count = get_args.delta_count;
     block_meta->checksum = checksum;
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
