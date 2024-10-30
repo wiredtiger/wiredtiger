@@ -82,10 +82,10 @@ struct __wt_rec_chunk {
         WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta, (tw));                      \
         WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta_after_split_boundary, (tw)); \
     } while (0)
-#define WT_REC_CHUNK_TA_MERGE(session, chunk, ta)                                    \
-    do {                                                                             \
-        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (ta));                      \
-        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (ta)); \
+#define WT_REC_CHUNK_TA_MERGE(session, chunk, agg)                                    \
+    do {                                                                              \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (agg));                      \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (agg)); \
     } while (0)
 
 /*
