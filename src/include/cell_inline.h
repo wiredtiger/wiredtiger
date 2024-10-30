@@ -1245,6 +1245,8 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
     uint64_t v;
     const uint8_t *p;
 
+    v = 0;
+
     unpack->flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
