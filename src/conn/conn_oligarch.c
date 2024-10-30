@@ -650,6 +650,9 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
     WT_UNUSED(cookie);
     WT_UNUSED(firstrecord);
 
+    if (!manager->leader)
+        return (0);
+
     /* First, peek at the log record type. */
     WT_RET(__wt_oligarch_logrec_read(session, &p, end, &rectype));
 
