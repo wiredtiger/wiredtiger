@@ -86,9 +86,9 @@ class test_backup29(backup_base):
         new_bits = bin(int('1'+new, 16))[3:]
         self.pr("Original bitmap in binary: " + orig_bits)
         self.pr("Reopened bitmap in binary: " + new_bits)
-        #for o_bit, n_bit in zip(orig_bits, new_bits):
-        #    if o_bit != '0':
-        #        self.assertTrue(n_bit != '0')
+        for o_bit, n_bit in zip(orig_bits, new_bits):
+            if o_bit != '0':
+                self.assertTrue(n_bit != '0')
 
     def setup_test(self):
         # Create and populate the tables.
@@ -158,8 +158,11 @@ class test_backup29(backup_base):
         c1.close()
         c2.close()
 
-        self.compare_bitmap(self.orig1_bitmap, new1_bitmap)
-        self.compare_bitmap(self.orig2_bitmap, new2_bitmap)
+        # We now clear parts of the bitmaps from discarded blocks in checkpoint. So
+        # comparing the bitmaps is no longer valid. Retain the function for now. Once
+        # this is hardened these lines and the function can be removed.
+        #self.compare_bitmap(self.orig1_bitmap, new1_bitmap)
+        #self.compare_bitmap(self.orig2_bitmap, new2_bitmap)
 
     def test_backup29_reopen(self):
         self.setup_test()

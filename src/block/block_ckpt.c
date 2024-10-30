@@ -1081,6 +1081,6 @@ int
 __ut_ckpt_mod_blkmod_entry(
   WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len, const char *msg)
 {
-    return (__ckpt_mod_blkmod_entry(session, blk_mod, offset, len, msg));
+    return (__ckpt_mod_blkmod_entry(session, blk_mod, offset, len, true, msg));
 }
 #endif
