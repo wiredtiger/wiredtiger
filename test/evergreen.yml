@@ -3660,7 +3660,7 @@ tasks:
           times: 1        # Number of times to run the loop
 
   - name: skiplist-stress-test
-    tags: ["stress-test-1", "stress-test-zseries-1"]
+    tags: ["stress-test-1", "stress-test-zseries"]
     exec_timeout_secs: 3600 # 1 hour
     commands:
       - func: "get project"
@@ -3693,7 +3693,7 @@ tasks:
             ${python_binary|python3} chunkcache_simple.py
 
   - name: split-stress-test
-    tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
+    tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries"]
     # Set 5 hours timeout (60 * 60 * 5)
     exec_timeout_secs: 18000
     commands:
@@ -3786,7 +3786,7 @@ tasks:
       - func: "code coverage publish report"
 
   - name: format-stress-zseries-test
-    tags: ["stress-test-zseries-1"]
+    tags: ["stress-test-zseries"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
     commands:
@@ -3798,6 +3798,62 @@ tasks:
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
+
+  - name: format-stress-zseries-test-repro
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script" 
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
+  - name: format-stress-zseries-test-repro-2
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
+  - name: format-stress-zseries-test-repro-3
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
+  - name: format-stress-zseries-test-repro-4
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
 
   - name: format-stress-ppc-test
     tags: ["stress-test-ppc-1"]
@@ -3859,13 +3915,13 @@ tasks:
     tags: ["stress-test-sanitizer"]
   - <<: *recovery-stress-test
     name: recovery-stress-test-1
-    tags: ["stress-test-1", "stress-test-zseries-1"]
+    tags: ["stress-test-1", "stress-test-zseries"]
   - <<: *recovery-stress-test
     name: recovery-stress-test-2
-    tags: ["stress-test-2", "stress-test-zseries-2"]
+    tags: ["stress-test-2", "stress-test-zseries"]
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
-    tags: ["stress-test-3", "stress-test-zseries-3"]
+    tags: ["stress-test-3", "stress-test-zseries"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -5725,7 +5781,7 @@ buildvariants:
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
   run_on:
-  - rhel80-zseries-build
+  - rhel8-zseries-small
   batchtime: 4320 # 3 days
   expansions:
     ENABLE_TCMALLOC: 0
@@ -5762,7 +5818,7 @@ buildvariants:
 - name: rhel8-zseries
   display_name: "~ RHEL8 zSeries"
   run_on:
-  - rhel80-zseries-test
+  - rhel8-zseries-small
   batchtime: 120 # 2 hours
   expansions:
     ENABLE_TCMALLOC: 0
@@ -5772,9 +5828,7 @@ buildvariants:
     - name: compile
     - name: unit-test
     - name: format-smoke-test
-    - name: ".stress-test-zseries-1"
-    - name: ".stress-test-zseries-2"
-    - name: ".stress-test-zseries-3"
+    - name: ".stress-test-zseries"
 
 - name: ubuntu2004-arm64
   display_name: "~ Ubuntu 20.04 ARM64"
