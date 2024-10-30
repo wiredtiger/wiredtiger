@@ -111,6 +111,7 @@ palm_kv_timestamp_us(void)
 
     ret = gettimeofday(&v, NULL);
     assert(ret == 0);
+    (void)ret; /* Assure that ret is "used" when assertions are not in effect. */
 
     return (uint64_t)(v.tv_sec * WT_MILLION + v.tv_usec);
 }
