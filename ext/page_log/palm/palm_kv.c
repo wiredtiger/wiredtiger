@@ -33,6 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 
 #include <wiredtiger.h>
@@ -44,7 +45,6 @@
  * Set the size of the LMDB cache. Ideally, this should be a parameter of some kind.
  */
 static const size_t PALM_LMDB_CACHE_SIZE = 100 * 1024 * 1024;
-
 /*
  * LMDB requires the number of tables to be known at startup. If we add any more tables, we need to
  * increment this.
@@ -69,7 +69,17 @@ typedef struct PAGE_KEY {
     uint64_t backlink;
     uint64_t base;
     uint32_t flags;
+
+    /* To simulate materialization delays, this is the timestamp this record becomes available. */
+    uint64_t timestamp_materialized_us;
 } PAGE_KEY;
+
+/*
+ * True if and only if the result matches the table and page and is materialized.
+ */
+#define RESULT_MATCH(result_key, _table_id, _page_id, _now)                          \
+    ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) && \
+      _now > (result_key)->timestamp_materialized_us)
 
 #ifdef PALM_KV_DEBUG
 /* Show the contents of the PAGE_KEY to stderr.  This can be useful for debugging. */
@@ -92,6 +102,19 @@ ret_match_string(PALM_KV_PAGE_MATCHES *matches)
     return (return_string);
 }
 #endif
+
+static uint64_t
+palm_kv_timestamp_us(void)
+{
+    struct timeval v;
+    int ret;
+
+    ret = gettimeofday(&v, NULL);
+    assert(ret == 0);
+    (void)ret; /* Assure that ret is "used" when assertions are not in effect. */
+
+    return (uint64_t)(v.tv_sec * WT_MILLION + v.tv_usec);
+}
 
 int
 palm_kv_env_create(PALM_KV_ENV **envp)
@@ -252,6 +275,7 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
     page_key.backlink = backlink;
     page_key.base = base;
     page_key.flags = flags;
+    page_key.timestamp_materialized_us = palm_kv_timestamp_us() + context->materialization_delay_us;
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
     vval.mv_size = buf->size;
@@ -268,6 +292,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     MDB_val vval;
     PAGE_KEY page_key;
     PAGE_KEY *result_key;
+    uint64_t now;
     int ret;
 
     memset(&kval, 0, sizeof(kval));
@@ -275,6 +300,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     memset(matches, 0, sizeof(*matches));
     memset(&page_key, 0, sizeof(page_key));
     result_key = NULL;
+    now = palm_kv_timestamp_us();
 
     matches->table_id = table_id;
     matches->page_id = page_id;
@@ -302,14 +328,14 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we get a match. This will be the last valid record that matches the
      * table/page.
      */
-    while (ret == 0 && (result_key->table_id != table_id || result_key->page_id != page_id)) {
+    while (ret == 0 && !RESULT_MATCH(result_key, table_id, page_id, now)) {
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
         result_key = (PAGE_KEY *)kval.mv_data;
     }
     /*
      * Now back up until we match table/page/checkpoint.
      */
-    while (ret == 0 && result_key->table_id == table_id && result_key->page_id == page_id &&
+    while (ret == 0 && RESULT_MATCH(result_key, table_id, page_id, now) &&
       result_key->checkpoint_id >= checkpoint_id) {
 
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
@@ -339,10 +365,13 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     MDB_val kval;
     MDB_val vval;
     PAGE_KEY *page_key;
+    uint64_t now;
     int ret;
 
     if (matches->lmdb_cursor == NULL)
         return (false);
+
+    now = palm_kv_timestamp_us();
 
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(vval));
@@ -363,8 +392,8 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     } else
         page_key = NULL;
 
-    if (ret == 0 && page_key->table_id == matches->table_id &&
-      page_key->page_id == matches->page_id && page_key->checkpoint_id == matches->checkpoint_id) {
+    if (ret == 0 && RESULT_MATCH(page_key, matches->table_id, matches->page_id, now) &&
+      page_key->checkpoint_id == matches->checkpoint_id) {
         matches->size = vval.mv_size;
         matches->data = vval.mv_data;
         matches->revision = page_key->revision;
