@@ -35,7 +35,7 @@ modules = [
     Module("checkpoint", sourceAliases=["ckpt"]),
     Module("column", sourceAliases=["col"]),
     Module("compact"),
-    Module("generation"),
+    Module("generation", sourceAliases=["gen"]),
     Module("pack", fileAliases=["intpack"]),
     Module("stat"),
 ]
