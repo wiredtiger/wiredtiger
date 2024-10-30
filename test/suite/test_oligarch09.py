@@ -79,7 +79,6 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = self.session.open_cursor(uri, None, None)
 
         for i in range(self.nitems):
-            print(str(i) + "\n")
             if i % 10 == 0:
                 self.assertEquals(cursor[str(i)], value2)
             else:
