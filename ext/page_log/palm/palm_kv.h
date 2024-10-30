@@ -29,6 +29,14 @@
 #include "../../../third_party/openldap_liblmdb/lmdb.h"
 
 /*
+ * Both PALM and PALM_KV need these, there's no other convenient place for them.
+ */
+#ifndef WT_THOUSAND
+#define WT_THOUSAND 1000
+#define WT_MILLION 1000000
+#endif
+
+/*
  * This include file creates a tiny bit of abstraction for the KV database used, in case we want to
  * ever change to a different implementation.
  *
@@ -44,6 +52,7 @@ typedef struct PALM_KV_ENV {
 typedef struct PALM_KV_CONTEXT {
     PALM_KV_ENV *env;
     MDB_txn *lmdb_txn;
+    uint32_t materialization_delay_us;
 } PALM_KV_CONTEXT;
 
 typedef struct PALM_KV_PAGE_MATCHES {

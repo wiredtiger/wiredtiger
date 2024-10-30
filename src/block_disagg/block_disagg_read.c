@@ -48,7 +48,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
   uint32_t *results_count)
 {
     WT_PAGE_LOG_GET_ARGS get_args;
-    uint32_t retry;
+    uint32_t orig_count, retry;
+    int32_t result, last;
+    uint8_t expected_magic;
+    bool is_delta;
 
     retry = 0;
 
@@ -61,12 +64,16 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     if (block_meta != NULL)
         WT_CLEAR(*block_meta);
 
-    __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %" PRIu32,
-      (uintmax_t)page_id, size, checksum);
+    __wt_verbose(session, WT_VERB_READ,
+      "page_id %" PRIu64 ", checkpoint_id %" PRIu64 ", reconciliation_id %" PRIu64 ", size %" PRIu32
+      ", checksum %" PRIu32,
+      page_id, checkpoint_id, reconciliation_id, size, checksum);
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
+
+    orig_count = *results_count;
 
     if (0) {
 reread:
@@ -74,8 +81,13 @@ reread:
          * Retry a read again. This code may go away once we establish a way to ask for a particular
          * delta.
          */
-        __wt_sleep(0, 100 + retry * 100);
+        __wt_verbose_notice(session, WT_VERB_READ,
+          "retry #%" PRIu32 " for page_id %" PRIu64 ", checkpoint_id %" PRIu64
+          ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIu32,
+          retry, page_id, checkpoint_id, reconciliation_id, size, checksum);
+        __wt_sleep(0, 10000 + retry * 5000);
         memset(results_array, 0, *results_count * sizeof(results_array[0]));
+        *results_count = orig_count;
         ++retry;
     }
     /*
