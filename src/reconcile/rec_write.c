@@ -2234,8 +2234,6 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->type = r->ref->page->type;
     header->u.entries = count;
 
-    fprintf(stderr, "delta entries %d\n", count);
-
     stop = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_PAGE_DELTA,
