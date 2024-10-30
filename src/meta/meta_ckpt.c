@@ -963,7 +963,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
         ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
         if (ckpt->ta.newest_start_durable_ts != WT_TS_NONE)
             __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
-              "__ckpt_load newest_start_durable_ts set to %" PRIu64, ckpt->ta.newest_start_durable_ts);
+              "__ckpt_load newest_start_durable_ts set to %" PRIu64,
+              ckpt->ta.newest_start_durable_ts);
     } else {
         /*
          * Backward compatibility changes, as the parameter name is different in older versions of
@@ -974,7 +975,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
         if (ret != WT_NOTFOUND && a.len != 0) {
             ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
             __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
-              "__ckpt_load backward compat newest_start_durable_ts set to %" PRIu64, ckpt->ta.newest_start_durable_ts);
+              "__ckpt_load backward compat newest_start_durable_ts set to %" PRIu64,
+              ckpt->ta.newest_start_durable_ts);
         }
     }
     // Not here.

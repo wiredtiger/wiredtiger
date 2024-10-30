@@ -51,11 +51,17 @@ struct __wt_rec_chunk {
     WT_ITEM key;
     WT_TIME_AGGREGATE ta;
 
-    /* Saved minimum split-size boundary information. */
-    uint32_t min_entries;
-    uint64_t min_recno;
-    WT_ITEM min_key;
-    WT_TIME_AGGREGATE ta_min;
+    /* Saved split-size boundary information. */
+    uint32_t entries_before_split_boundary;
+    uint64_t recno_at_split_boundary;
+    WT_ITEM key_at_split_boundary;
+
+    /*
+     * These two time aggregates track the timestamp information before and after the split
+     * boundary. Merged they will equal the full time aggregate for the chunk.
+     */
+    WT_TIME_AGGREGATE ta_before_split_boundary;
+    WT_TIME_AGGREGATE ta_after_split_boundary;
 
     size_t min_offset; /* byte offset */
 
@@ -65,6 +71,17 @@ struct __wt_rec_chunk {
     uint32_t aux_start_offset;
     uint32_t auxentries;
 };
+
+#define WT_REC_CHUNK_TA_UPDATE(session, chunk, tw)                                    \
+    do {                                                                              \
+        WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta, (tw));                      \
+        WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta_after_split_boundary, (tw)); \
+    } while (0)
+#define WT_REC_CHUNK_TA_MERGE(session, chunk, tw)                                    \
+    do {                                                                             \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (tw));                      \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (tw)); \
+    } while (0)
 
 /*
  * WT_DELETE_HS_UPD --
