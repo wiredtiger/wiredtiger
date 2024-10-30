@@ -459,10 +459,17 @@ __ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off
          * beginning and end of the offset/length range but clear any full bit ranges in between.
          */
         adj = (uint64_t)offset % gran;
+        /*
+         * Adjust partial ranges at the beginning and the end of the offset/length range. Round up
+         * the offset to the next granularity boundary.
+         */
         if (adj != 0)
             adj = gran - adj;
         clr_off = offset + (wt_off_t)adj;
-        /* Adjust partial ranges at the beginning and the end of the offset/length range. */
+        /*
+         * Deduct any initial partial length from the overall length. Then round it down with
+         * integer division to a granularity multiple.
+         */
         clr_len = ((len - (wt_off_t)adj) / (wt_off_t)gran) * (wt_off_t)gran;
         WT_ASSERT(session, clr_off % (wt_off_t)gran == 0);
         WT_ASSERT(session, clr_len % (wt_off_t)gran == 0);
