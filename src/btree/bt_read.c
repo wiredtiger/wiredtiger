@@ -302,7 +302,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /* There's an address, read the backing disk page and build an in-memory version of the page. */
     WT_ERR(__wt_blkcache_read_multi(
       session, &tmp, &count, &block_meta, addr.block_cookie, addr.block_cookie_size));
-    
+
     WT_ASSERT(session, tmp != NULL && count > 0);
 
     if (count > 1)
@@ -347,20 +347,20 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ASSERT(
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
-    if (previous_state == WT_REF_DELETED) {
-        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
-            WT_ERR(__wt_page_modify_init(session, ref->page));
-            ref->page->modify->instantiated = true;
-        } else
-            WT_ERR(__wti_delete_page_instantiate(session, ref));
-    }
-
     /* Reconstruct deltas*/
     if (count > 1) {
         ret = __bt_reconstruct_deltas(session, ref, deltas, count - 1);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
+    }
+
+    if (previous_state == WT_REF_DELETED) {
+        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+            WT_ERR(__wt_page_modify_init(session, ref->page));
+            ref->page->modify->instantiated = true;
+        } else
+            WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
 
     __wt_free(session, tmp);

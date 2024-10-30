@@ -11,7 +11,7 @@
 static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, bool);
 static int __btree_get_last_recno(WT_SESSION_IMPL *);
 static int __btree_page_sizes(WT_SESSION_IMPL *);
-//static int __btree_preload(WT_SESSION_IMPL *);
+// static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*

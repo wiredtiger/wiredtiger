@@ -2893,7 +2893,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
             r->ref->page->block_meta = r->wrapup_checkpoint_block_meta;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
-            __rec_set_updates_durable(r);
         }
 
         mod->rec_result = WT_PM_REC_REPLACE;

@@ -73,7 +73,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        self.reopen_conn()
+        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
         cursor = self.session.open_cursor(uri, None, None)
