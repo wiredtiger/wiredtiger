@@ -42,11 +42,6 @@
 #include "palm_kv.h"
 #include "palm_verbose.h"
 
-#ifndef WT_THOUSAND
-#define WT_THOUSAND 1000
-#define WT_MILLION 1000000
-#endif
-
 /*
  * This page log implementation is used for demonstration and testing. All objects are stored as
  * local files in a designated directory.
@@ -103,11 +98,12 @@ typedef struct {
      */
     uint32_t reference_count;
 
-    uint32_t delay_ms;    /* Average length of delay when simulated */
-    uint32_t error_ms;    /* Average length of sleep when simulated */
-    uint32_t force_delay; /* Force a simulated network delay every N operations */
-    uint32_t force_error; /* Force a simulated network error every N operations */
-    uint32_t verbose;     /* Verbose level */
+    uint32_t delay_ms;                 /* Average length of delay when simulated */
+    uint32_t error_ms;                 /* Average length of sleep when simulated */
+    uint32_t force_delay;              /* Force a simulated network delay every N operations */
+    uint32_t force_error;              /* Force a simulated network error every N operations */
+    uint32_t materialization_delay_ms; /* Average length of materialization delay */
+    uint32_t verbose;                  /* Verbose level */
 
     /*
      * Statistics are collected but not yet exposed.
@@ -136,6 +132,7 @@ static int palm_configure(PALM *, WT_CONFIG_ARG *);
 static int palm_configure_int(PALM *, WT_CONFIG_ARG *, const char *, uint32_t *);
 static int palm_err(PALM *, WT_SESSION *, int, const char *, ...);
 static int palm_kv_err(PALM *, WT_SESSION *, int, const char *, ...);
+static void palm_init_context(PALM *, PALM_KV_CONTEXT *);
 
 /*
  * Forward function declarations for page log API implementation
@@ -159,6 +156,9 @@ palm_configure(PALM *palm, WT_CONFIG_ARG *config)
     if ((ret = palm_configure_int(palm, config, "force_delay", &palm->force_delay)) != 0)
         return (ret);
     if ((ret = palm_configure_int(palm, config, "force_error", &palm->force_error)) != 0)
+        return (ret);
+    if ((ret = palm_configure_int(
+           palm, config, "materialization_delay_ms", &palm->materialization_delay_ms)) != 0)
         return (ret);
     if ((ret = palm_configure_int(palm, config, "verbose", &palm->verbose)) != 0)
         return (ret);
@@ -334,6 +334,24 @@ palm_resize_item(WT_ITEM *item, size_t new_size)
 }
 
 /*
+ * palm_init_context --
+ *     Initialize a context in a standard way.
+ */
+static void
+palm_init_context(PALM *palm, PALM_KV_CONTEXT *context)
+{
+    memset(context, 0, sizeof(*context));
+
+    /*
+     * To get more testing variation, We could call palm_compute_delay_us to randomize this number.
+     * If we do so, we need to make sure items are materialized in the same order they are written.
+     * So when setting PAGE_KEY.timestamp_materialized_us, we'd need to make each value set was
+     * monotonically increasing.
+     */
+    context->materialization_delay_us = palm->materialization_delay_ms;
+}
+
+/*
  * palm_add_reference --
  *     Add a reference to the page log so we can reference count to know when to really terminate.
  */
@@ -440,6 +458,8 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm = palm_handle->palm;
     palm_delay(palm);
 
+    palm_init_context(palm, &context);
+
     /*
      * XXX Use args, for inputs and outputs.
      */
@@ -494,6 +514,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
     palm_delay(palm);
+
+    palm_init_context(palm, &context);
 
     /*
      * XXX Use lsn if set, and return lsn. Return other output arguments.
