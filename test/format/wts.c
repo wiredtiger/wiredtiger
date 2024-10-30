@@ -366,7 +366,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     max = sizeof(config);
 
     CONFIG_APPEND(p,
-      "verbose=[rts:4],create=true"
+      "verbose=[rts:1],create=true"
       ",cache_size=%" PRIu32
       "MB"
       ",checkpoint_sync=false"
@@ -658,7 +658,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     CONFIG_APPEND(p,
       ",error_prefix=\"%s\",statistics=(fast),statistics_log=(json,on_close,wait=5),verbose=[rts:"
-      "4]",
+      "1]",
       progname);
 
     /* Optional timing stress. */

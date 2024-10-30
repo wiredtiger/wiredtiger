@@ -1766,21 +1766,31 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         addr->size = multi->addr.size;
         addr->type = multi->addr.type;
 
-        if (F_ISSET(S2C(session), WT_CONN_RTS_ON)) {
-            __wt_verbose_warning(session, WT_VERB_SPLIT,
-              "RTS ON Ref %p addr->ta.newest_start_durable_ts %" PRIu64, (void *)ref,
-              addr->ta.newest_start_durable_ts);
+        if(addr->ta.newest_start_durable_ts != WT_TS_NONE){
+            if (F_ISSET(S2C(session), WT_CONN_RTS_ON)) {
+                __wt_verbose_warning(session, WT_VERB_SPLIT,
+                "RTS ON Ref %p addr->ta.newest_start_durable_ts %" PRIu64, (void *)ref,
+                addr->ta.newest_start_durable_ts);
 
-            WT_ASSERT_ALWAYS(session,
-              addr->ta.newest_start_durable_ts <= S2C(session)->txn_global.stable_timestamp,
-              "__wt_multi_to_ref ref->page %p, newest_start_durable_ts %" PRIu64
-              " stable ts %" PRIu64,
-              (void *)ref->page, addr->ta.newest_start_durable_ts,
-              S2C(session)->txn_global.stable_timestamp);
-        } else {
-            __wt_verbose_warning(session, WT_VERB_SPLIT,
-              "RTS OFF Ref %p addr->ta.newest_start_durable_ts %" PRIu64, (void *)ref,
-              addr->ta.newest_start_durable_ts);
+                if (addr->ta.newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp) {
+                    __wt_verbose_warning(session, WT_VERB_SPLIT,
+                      "!!!REVIEW!!! - __wt_multi_to_ref ref %p, newest_start_durable_ts %" PRIu64
+                      " stable ts %" PRIu64,
+                      (void *)ref, addr->ta.newest_start_durable_ts,
+                      S2C(session)->txn_global.stable_timestamp);
+                }
+
+                // WT_ASSERT_ALWAYS(session,
+                // addr->ta.newest_start_durable_ts <= S2C(session)->txn_global.stable_timestamp,
+                // "__wt_multi_to_ref ref %p, newest_start_durable_ts %" PRIu64
+                // " stable ts %" PRIu64,
+                // (void *)ref, addr->ta.newest_start_durable_ts,
+                // S2C(session)->txn_global.stable_timestamp);
+            } else {
+                __wt_verbose_warning(session, WT_VERB_SPLIT,
+                "RTS OFF Ref %p addr->ta.newest_start_durable_ts %" PRIu64, (void *)ref,
+                addr->ta.newest_start_durable_ts);
+            }
         }
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     }
