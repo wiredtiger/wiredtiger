@@ -173,8 +173,15 @@ __wt_block_pantry_open(WT_SESSION_IMPL *session, const char *filename, const cha
 
     WT_ERR(__wt_strdup(session, filename, &block_pantry->name));
 
-    WT_ERR(__wt_open_fs(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, bstorage->file_system,
-      &block_pantry->fh));
+    /*
+     * Open failures can happen "normally" in disaggregated storage with the pantry block manager.
+     * Suppress the error messages.
+     */
+    F_SET(session, WT_SESSION_QUIET_OPEN_FILE);
+    ret = __wt_open_fs(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, bstorage->file_system,
+      &block_pantry->fh);
+    F_CLR(session, WT_SESSION_QUIET_OPEN_FILE);
+    WT_ERR(ret);
 
     WT_ASSERT_ALWAYS(session, block_pantry->fh->handle->fh_obj_put != NULL,
       "pantry tables need a file interface that supports object storage");
