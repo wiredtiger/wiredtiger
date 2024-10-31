@@ -525,7 +525,6 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
         if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
             continue;
 
-        /* Recreate the bitmap. This is the first function to record them so do it now. */
         if (block->created_during_backup)
             WT_RET(
               __ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true, "new file"));
@@ -830,6 +829,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          *
          * Free the blocks used to hold the "to" checkpoint's extent lists; don't include the avail
          * list, it's not changing.
+         *
+         * For incremental backups we can clear the blocks where these were located. It isn't as
+         * straightforward though since we would want to store the original offset and size, then
+         * free the blocks, then clear the bits only after the free succeeds. Clearing the bits
+         * requires checking if a named checkpoint exists. See __ckpt_live_blkmods for details.
          */
         WT_ERR(__ckpt_extlist_fblocks(session, block, &b->alloc));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &b->discard));
