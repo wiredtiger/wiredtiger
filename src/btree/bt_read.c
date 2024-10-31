@@ -355,6 +355,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ERR(ret);
     }
 
+    __wt_free(session, tmp);
+
     if (previous_state == WT_REF_DELETED) {
         if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
             WT_ERR(__wt_page_modify_init(session, ref->page));
@@ -362,8 +364,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         } else
             WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
-
-    __wt_free(session, tmp);
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
