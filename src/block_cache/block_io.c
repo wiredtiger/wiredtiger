@@ -177,7 +177,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
              */
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
             /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
-            if ((ret = __wt_decrypt(session, encryptor, WT_BLOCK_ENCRYPT_SKIP, ip, etmp)) != 0)
+            if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip, ip, etmp)) != 0)
                 WT_ERR(__blkcache_read_corrupt(
                   session, ret, addr, addr_size, "block decryption failed"));
 
@@ -260,6 +260,81 @@ err:
     return (ret);
 }
 
+static int
+__read_decrypt(
+  WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_ENCRYPTOR *encryptor;
+
+    btree = S2BT(session);
+    bm = btree->bm;
+    encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
+
+    if (encryptor == NULL || encryptor->decrypt == NULL)
+        WT_ERR(__blkcache_read_corrupt(
+          session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
+
+    /*
+     * If checksums were turned off because we're depending on decryption to fail on any corrupted
+     * data, we'll end up here on corrupted data.
+     */
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+
+    /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
+    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip, in, tmp)) != 0)
+        WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
+    WT_ITEM_SET(*out, *tmp);
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (0);
+}
+
+static int
+__read_decompress(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_ITEM *out,
+  const uint8_t *addr, size_t addr_size)
+{
+    WT_BTREE *btree;
+    WT_COMPRESSOR *compressor;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    size_t compression_ratio, result_len;
+
+    btree = S2BT(session);
+    compressor = btree->compressor;
+    WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
+
+    if (compressor == NULL || compressor->decompress == NULL)
+        WT_RET(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+          "compressed block for which no compression configured"));
+
+    WT_RET(__wt_buf_initsize(session, out, dsk->mem_size));
+
+    memcpy(out->mem, (void *)dsk, WT_BLOCK_COMPRESS_SKIP);
+
+    ret =
+      compressor->decompress(compressor, &session->iface, (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP,
+        tmp->size - WT_BLOCK_COMPRESS_SKIP, (uint8_t *)out->mem + WT_BLOCK_COMPRESS_SKIP,
+        dsk->mem_size - WT_BLOCK_COMPRESS_SKIP, &result_len);
+    if (result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
+        WT_TRET(WT_ERROR);
+
+    if (ret != 0)
+        WT_ERR(
+          __blkcache_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
+
+    compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
+    __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
 int
 __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
@@ -268,8 +343,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_ITEM ctmp, etmp, *tmp;
     WT_ITEM results[WT_DELTA_LIMIT];
-    WT_ITEM *tmp;
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
@@ -308,11 +383,19 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     dsk = results[0].data;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
-        WT_ASSERT(session, session == NULL);
+        WT_CLEAR(etmp);
+        WT_RET(__read_decrypt(session, &results[0], &etmp, addr, addr_size));
+        WT_ITEM_SET(results[0], etmp);
+    } else if (btree->kencryptor != NULL) {
+        WT_ERR(__blkcache_read_corrupt(
+          session, WT_ERROR, addr, addr_size, "unencrypted block for which encryption configured"));
     }
 
+    dsk = results[0].data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
-        WT_ASSERT(session, session == NULL);
+        WT_CLEAR(ctmp);
+        WT_RET(__read_decompress(session, dsk, &ctmp, addr, addr_size));
+        WT_ITEM_SET(results[0], ctmp);
     }
 
     /*
@@ -335,8 +418,15 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED))
             WT_ASSERT(session, session == NULL);
-        if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
-            WT_ASSERT(session, session == NULL);
+        if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
+            /*
+             * TODO this is probably broken. I think decompress needs to skip a different number of
+             * bytes for deltas and full pages.
+             */
+            WT_CLEAR(ctmp);
+            WT_RET(__read_decompress(session, blk, &ctmp, addr, addr_size));
+            WT_ITEM_SET(results[i], ctmp);
+        }
     }
 
     /* Finalize our return list. */
@@ -374,7 +464,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_ITEM *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
-    size_t compression_ratio, dst_len, len, result_len, size, src_len;
+    size_t compression_ratio, dst_len, len, result_len, size, size_tmp, src_len;
     uint64_t time_diff, time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
@@ -470,9 +560,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
          */
         __wt_encrypt_size(session, kencryptor, ip->size, &size);
 
+        size_tmp = size;
+
         WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &etmp));
-        WT_ERR(__wt_encrypt(session, kencryptor, WT_BLOCK_ENCRYPT_SKIP, ip, etmp));
+        WT_ERR(__wt_encrypt(session, kencryptor, bm->encrypt_skip, ip, etmp));
 
         encrypted = true;
         ip = etmp;

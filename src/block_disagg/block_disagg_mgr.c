@@ -147,6 +147,8 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->verify_start = __wt_bmp_verify_start;
     bm->write = __bmd_write;
     bm->write_size = __bmd_write_size;
+    bm->encrypt_skip =
+      WT_MAX(WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE, WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE);
 }
 
 /*

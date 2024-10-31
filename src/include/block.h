@@ -250,6 +250,8 @@ struct __wt_bm {
      * There's only a single block manager handle that can be written, all others are checkpoints.
      */
     bool is_live; /* The live system */
+
+    size_t encrypt_skip;
 };
 
 /*
@@ -431,7 +433,6 @@ struct __wt_block_header {
  * engine, and skipping 64B shouldn't make any difference in terms of compression efficiency.
  */
 #define WT_BLOCK_COMPRESS_SKIP 64
-#define WT_BLOCK_ENCRYPT_SKIP WT_BLOCK_HEADER_BYTE_SIZE
 
 /*
  * WT_BLOCK_PANTRY --

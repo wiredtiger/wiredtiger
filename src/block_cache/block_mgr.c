@@ -938,6 +938,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->verify_start = __bm_verify_start;
     bm->write = __bm_write;
     bm->write_size = __bm_write_size;
+    bm->encrypt_skip = WT_BLOCK_HEADER_BYTE_SIZE;
 
     if (readonly) {
         bm->checkpoint = __bm_checkpoint_readonly;
