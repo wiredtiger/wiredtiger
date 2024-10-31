@@ -99,6 +99,7 @@ get_and_print_config(
 
     printf("Config value: Control point %s, parameter %s is %" PRIu64 "\n", cp_name, parameter_name,
       (uint64_t)param_cval.val);
+    fflush(stdout);
 err:
     __wt_free(session, config_path);
     return (ret);
