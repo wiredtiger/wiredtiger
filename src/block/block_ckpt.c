@@ -490,7 +490,8 @@ __ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off
 
 /*
  * __ckpt_live_blkmods --
- *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
+ *     For all incremental backup identifiers, clear the checkpoint's discarded blocks from the
+ *     bitmap and add in the allocated blocks.
  */
 static int
 __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block)
@@ -499,14 +500,22 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
     WT_CKPT *ckpt;
     WT_EXT *ext;
     u_int i;
+    bool clear;
 
     if (&block->live == ci)
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
+    /* If any named checkpoints exist, then don't clear bitmap blocks. */
+    clear = true;
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (ckpt->name != NULL)
+            clear = false;
+    }
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD))
             break;
     }
+
     /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
     if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
         return (0);
@@ -523,11 +532,16 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
         else
             /* Always set the bit for the header. */
             WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, 4096, true, "header"));
-        /* First clear any bits from the discard list. Then add in anything in the allocation list.
-         */
-        WT_EXT_FOREACH (ext, ci->discard.off) {
-            WT_RET(__ckpt_mod_blkmod_entry(
-              session, blk_mod, ext->off, ext->size, false, "live discard"));
+
+        if (clear) {
+            /*
+             * First clear any bits from the discard list. Then add in anything in the allocation
+             * list.
+             */
+            WT_EXT_FOREACH (ext, ci->discard.off) {
+                WT_RET(__ckpt_mod_blkmod_entry(
+                  session, blk_mod, ext->off, ext->size, false, "live discard"));
+            }
         }
         WT_EXT_FOREACH (ext, ci->alloc.off) {
             WT_RET(
@@ -718,7 +732,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ckpt_size -= ci->discard.bytes;
 
     /*
-     * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
+     * Record the checkpoint's blocks for backup. Do so before skipping any processing and before
      * possibly merging in blocks from any previous checkpoint.
      */
     WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block));
