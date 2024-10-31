@@ -66,6 +66,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
+        self.skipTest('disaggregated storage no longer uses dir store')
         session_config = 'key_format=S,value_format=S'
 
         #
