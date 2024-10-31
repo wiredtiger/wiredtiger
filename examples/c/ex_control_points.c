@@ -45,66 +45,6 @@ struct thread_arguments {
     wt_control_point_id_t wait_for_id;
     wt_control_point_id_t my_id;
 };
-/*
- * __construct_configuration_control_point_string --
- *     Construct the configuration string for the control point.
- *
- * @param session The session. @param cp_config_name The control point's configuration name. @param
- *     cfg Configuration string.
- */
-static int
-__construct_configuration_control_point_string(
-  WT_SESSION_IMPL *session, const char *cp_config_name, char **buf)
-{
-    size_t len;
-
-    len = strlen("per_connection_control_points") + strlen(cp_config_name) + 10;
-
-    WT_RET(__wt_calloc_def(session, len, buf));
-    WT_RET(__wt_snprintf(*buf, len, "per_connection_control_points.%s", cp_config_name));
-    return (0);
-}
-
-/*!
- * get_and_print_config --
- *
- * Get and print a config value.
- */
-static int
-get_and_print_config(
-  WT_SESSION *wt_session, const char *cp_name, const char *parameter_name, const char *extra_config)
-{
-    WT_CONFIG_ITEM cp_cval;    /* Control point node */
-    WT_CONFIG_ITEM param_cval; /* Parameter node */
-    WT_DECL_RET;
-    char *config_path;
-    const char *cfg[3];
-    WT_SESSION_IMPL *session;
-    WT_CONNECTION_IMPL *conn;
-
-    /* Get the path of the control point config node */
-    config_path = NULL;
-    session = (WT_SESSION_IMPL *)wt_session;
-    WT_RET(__construct_configuration_control_point_string(session, cp_name, &config_path));
-
-    /* Get the control point config node */
-    conn = S2C(session);
-    cfg[0] = conn->cfg;
-    cfg[1] = extra_config;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_gets(session, cfg, config_path, &cp_cval));
-
-    /* Get the parameter value */
-    WT_ERR(__wt_config_subgets(session, &cp_cval, parameter_name, &param_cval));
-
-    printf("conn->cfg = %s\n", conn->cfg ? conn->cfg : "NULL");
-    printf("Config value: Control point %s, parameter %s is %" PRIu64 "\n", cp_name, parameter_name,
-      (uint64_t)param_cval.val);
-    fflush(stdout);
-err:
-    __wt_free(session, config_path);
-    return (ret);
-}
 
 /*! Thread that prints */
 static WT_THREAD_RET
@@ -197,13 +137,6 @@ main(int argc, char *argv[])
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(wt_conn->enable_control_point(wt_conn, thread_control_point_ids[idx], cfg));
-
-    /* Demonstrate reading control point parameters. */
-    /* With override when reading. */
-    testutil_check(get_and_print_config(wt_session, "thread_0", "thread_count",
-      "per_connection_control_points=(thread_0=(thread_count=4))"));
-    /* Without override when reading. */
-    testutil_check(get_and_print_config(wt_session, "thread_0", "thread_count", ""));
 
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {
