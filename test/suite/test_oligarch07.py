@@ -66,6 +66,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
 
     # Test inserting records into a follower that turned into a leader
     def test_oligarch07(self):
+        self.skipTest('disaggregated storage no longer uses dir store')
         #
         # Part 1: Create an oligarch table and insert some data to the leader.
         #
