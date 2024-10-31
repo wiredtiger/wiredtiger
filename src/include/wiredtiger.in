@@ -3430,12 +3430,12 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;main_start_printing = (, Thread 0 waits for main to get here., a
  * set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;thread_count, the number of threads
- * waiting at the barrier., an integer between \c 0 and \c 9223372036854775807; default \c 3.}
+ * waiting at the barrier., an integer between \c 0 and \c 9223372036854775807; default \c 2.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_0 = (, Thread 1
  * waits for thread 0 to get here., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;thread_count, the number of threads
- * waiting at the barrier., an integer between \c 0 and \c 9223372036854775807; default \c 2.}
+ * waiting at the barrier., an integer between \c 0 and \c 9223372036854775807; default \c 3.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;thread_1 = (, Thread 2
  * waits for thread 1 to get here., a set of related configuration options defined as follows.}

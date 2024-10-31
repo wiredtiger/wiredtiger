@@ -179,8 +179,7 @@ all_per_connection_control_points_config = [
                 Thread 0 waits for main to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    # This value is wrong to demonstate overriding it when calling wiredtiger_open().
-                    Config('thread_count', '3', r'''
+                    Config('thread_count', '2', r'''
                         the number of threads waiting at the barrier''',
                         min='0', max=ControlPoint.int64_max),
                 ]),
@@ -188,7 +187,8 @@ all_per_connection_control_points_config = [
                 Thread 1 waits for thread 0 to get here.''',
                 type='category', subconfig= [
                     # Action configuration parameters
-                    Config('thread_count', '2', r'''
+                    # This value is wrong to demonstate overriding it when calling wiredtiger_open().
+                    Config('thread_count', '3', r'''
                         the number of threads waiting at the barrier''',
                         min='0', max=ControlPoint.int64_max),
                 ]),

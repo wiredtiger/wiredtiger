@@ -97,6 +97,7 @@ get_and_print_config(
     /* Get the parameter value */
     WT_ERR(__wt_config_subgets(session, &cp_cval, parameter_name, &param_cval));
 
+    printf("conn->cfg = %s\n", conn->cfg ? conn->cfg : "NULL");
     printf("Config value: Control point %s, parameter %s is %" PRIu64 "\n", cp_name, parameter_name,
       (uint64_t)param_cval.val);
     fflush(stdout);
