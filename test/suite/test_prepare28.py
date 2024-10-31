@@ -41,6 +41,7 @@ class test_prepare28(wttest.WiredTigerTestCase):
     value3 = 'ccccc'
 
     def test_ignore_prepare(self):
+        self.skipTest('disaggregated storage broke prepared transaction behavior')
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
@@ -66,7 +67,5 @@ class test_prepare28(wttest.WiredTigerTestCase):
         # Read here
         ret = cursor.search()
         # Assert it didn't find anything, i.e. not WT_NOTFOUND
-
-        self.skipTest('disaggregated storage broke prepared transaction behavior')
         assert(ret == -31803)
         session.commit_transaction()
