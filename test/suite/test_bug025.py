@@ -58,6 +58,10 @@ class test_bug025(wttest.WiredTigerTestCase):
         # in particular the open connection doesn't always report the missing file, as
         # index files are usually lazily loaded. As long as the missing file is reported
         # at least once in the following code, it's good.
+
+        # See https://github.com/wiredtiger/wiredtiger/commit/65ad740d4e13024425629cc88c7f0deafac8fda8
+        self.skipTest('disaggregated storage disabled some error messages')
+
         with self.expectedStderrPattern('.*No such file or directory.*'):
             self.open_conn()
 
