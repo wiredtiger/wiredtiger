@@ -1196,8 +1196,11 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
                    WT_FS_OPEN_FILE_TYPE_DATA, false)) != 0)
                 goto err;
         }
-        if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh)) != 0)
+        if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh)) !=
+          0) {
+            ret = dir_store_err(dir_store, session, ret, "ss_open_object: open: %s", name);
             goto err;
+        }
     } else {
         if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
             goto err;
@@ -1208,8 +1211,11 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
             goto err;
         }
         */
-        if ((ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh)) != 0)
+        if ((ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh)) !=
+          0) {
+            ret = dir_store_err(dir_store, session, ret, "ss_open_object: open: %s", name);
             goto err;
+        }
     }
 
     dir_store->object_reads++;
