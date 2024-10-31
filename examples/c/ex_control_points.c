@@ -169,12 +169,11 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_4,
     };
     const char *cfg;
-    const char *wiredtiger_open_config = "create,"
-#if 0 /* Include to test over riding wiredtiger_open() */
-      "per_connection_control_points=["
-      "thread_0=["
-      "enable_count=3]],"
-#endif
+    const char *wiredtiger_open_config =
+      "create,"
+      /* Override the wrong value in api_data.py. */
+      "per_connection_control_points=("
+      "thread_0=(thread_count=2)),"
 #if 0 /* Include if needed */
       "verbose=["
       "control_point=5,"
@@ -198,11 +197,11 @@ main(int argc, char *argv[])
         error_check(wt_conn->enable_control_point(wt_conn, thread_control_point_ids[idx], cfg));
 
     /* Demonstrate reading control point parameters. */
-    /* With over-ride when reading. */
-    testutil_check(get_and_print_config(
-      wt_session, "thread_0", "wait_count", "per_connection_control_points.thread_0.wait_count=3"));
-    /* Without over-ride when reading. */
-    testutil_check(get_and_print_config(wt_session, "thread_0", "wait_count", ""));
+    /* With override when reading. */
+    testutil_check(get_and_print_config(wt_session, "thread_0", "thread_count",
+      "per_connection_control_points=(thread_0=(thread_count=4))"));
+    /* Without override when reading. */
+    testutil_check(get_and_print_config(wt_session, "thread_0", "thread_count", ""));
 
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {
