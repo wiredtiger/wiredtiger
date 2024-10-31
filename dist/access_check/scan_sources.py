@@ -24,7 +24,7 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
+        print("\nInterrupted")
         sys.exit(1)
     except OSError as e:
         print(f"\n{e.strerror}: {e.filename}")
