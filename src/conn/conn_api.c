@@ -2916,8 +2916,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_VERIFY_OPAQUE_POINTER(WT_CONNECTION_IMPL);
 
-    fprintf(stderr, "wt open\n");
-
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
