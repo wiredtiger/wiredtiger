@@ -46,6 +46,59 @@ struct thread_arguments {
     wt_control_point_id_t my_id;
 };
 
+/*
+ * __construct_control_point_option_string --
+ *     Construct the configuration string for a control point's option.
+ */
+static int
+__construct_control_point_option_string(
+  WT_SESSION_IMPL *session, const char *control_point_name, const char *option_name, char **buf)
+{
+    size_t len;
+    const char *prefix;
+
+    prefix = "per_connection_control_points";
+    len = strlen(prefix) + strlen(control_point_name) + strlen(option_name) + 10;
+
+    WT_RET(__wt_calloc_def(session, len, buf));
+    WT_RET(__wt_snprintf(*buf, len, "%s.%s.%s", prefix, control_point_name, option_name));
+    return (0);
+}
+
+/*!
+ * get_and_print_config --
+ *
+ * Get and print a config value.
+ */
+static int
+get_and_print_config(WT_SESSION *wt_session, const char *control_point_name,
+  const char *option_name, const char *extra_config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    char *config_path;
+    const char *cfg[3];
+    WT_SESSION_IMPL *session;
+    WT_CONNECTION_IMPL *conn;
+
+    config_path = NULL;
+    session = (WT_SESSION_IMPL *)wt_session;
+    WT_RET(__construct_control_point_option_string(
+      session, control_point_name, option_name, &config_path));
+    conn = S2C(session);
+    cfg[0] = conn->cfg;
+    cfg[1] = extra_config;
+    cfg[2] = NULL;
+
+    WT_ERR(__wt_config_gets(session, cfg, config_path, &cval));
+
+    printf("Config value: Control point %s, parameter %s is %" PRIu64 "\n", control_point_name,
+      option_name, (uint64_t)cval.val);
+err:
+    __wt_free(session, config_path);
+    return (ret);
+}
+
 /*! Thread that prints */
 static WT_THREAD_RET
 print_thread(void *thread_arg)
@@ -111,7 +164,11 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_4,
     };
     const char *cfg;
-    const char *wiredtiger_open_config = "create,"
+    const char *wiredtiger_open_config =
+      "create,"
+      "per_connection_control_points."
+      "thread_wait_for_upd_abort=["
+      "enable_count=3],"
 #if 0 /* Include if needed */
       "verbose=["
       "control_point=5,"
@@ -157,6 +214,15 @@ main(int argc, char *argv[])
     /* Join all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(__wt_thread_join(NULL, &threads[idx]));
+
+    /* Demonstrate reading control point parameters. */
+    testutil_check_error_ok(wt_conn->enable_control_point(
+                              wt_conn, WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT, cfg),
+      EEXIST);
+    testutil_check(
+      get_and_print_config(wt_session, "thread_wait_for_upd_abort", "enable_count", ""));
+    error_check(
+      wt_conn->disable_control_point(wt_conn, WT_CONN_CONTROL_POINT_ID_THREAD_WAIT_FOR_UPD_ABORT));
 
     /*
      * Cleanup
