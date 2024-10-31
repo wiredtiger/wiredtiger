@@ -285,6 +285,8 @@ struct __wt_log_manager;
 typedef struct __wt_log_manager WT_LOG_MANAGER;
 struct __wt_log_record;
 typedef struct __wt_log_record WT_LOG_RECORD;
+struct __wt_log_thread;
+typedef struct __wt_log_thread WT_LOG_THREAD;
 struct __wt_logslot;
 typedef struct __wt_logslot WT_LOGSLOT;
 struct __wt_lsm_chunk;

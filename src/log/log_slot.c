@@ -285,7 +285,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
          * threads waiting for it can acquire and possibly move things forward.
          */
         WT_STAT_CONN_INCR(session, log_slot_no_free_slots);
-        __wt_cond_signal(session, conn->log_mgr.wrlsn_cond);
+        __wt_cond_signal(session, conn->log_mgr.wrlsn.cond);
         __wt_spin_unlock(session, &log->log_slot_lock);
         __wt_yield();
         __wt_spin_lock(session, &log->log_slot_lock);

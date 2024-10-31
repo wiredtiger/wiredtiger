@@ -125,7 +125,35 @@ struct __wt_txn_printlog_args {
     uint32_t flags;
 };
 
+struct __wt_log_thread {
+    WT_CONDVAR *cond;         /* wait mutex */
+    WT_SESSION_IMPL *session; /* session associated with thread */
+    wt_thread_t tid;          /* thread id*/
+    bool tid_set;             /* thread set */
+};
+
 struct __wt_log_manager {
+
+    WT_LOG *log; /* Logging structure */
+
+    WT_COMPRESSOR *compressor; /* configuration : Logging compressor */
+
+    wt_off_t dirty_max;             /* configuration : Log dirty system cache max size */
+    wt_off_t extend_len;            /* configuration : file_extend log length */
+    wt_off_t file_max;              /* configuration : Log file max size */
+    uint32_t force_write_wait;      /* configuration : Log force write wait */
+    const char *log_path;           /* configuration : Logging path format */
+    wt_shared uint32_t txn_logsync; /* configuration : Log sync */
+
+    wt_shared uint32_t cursors;   /* Private : Log cursor count */
+    uint32_t prealloc;            /* Private : Log file pre-allocation */
+    uint32_t prealloc_init_count; /* Private : initial number of pre-allocated log files */
+    uint16_t req_max;             /* Private : Max required log version */
+    uint16_t req_min;             /* Private : Min required log version */
+
+    WT_LOG_THREAD file;   /* Private : file thread */
+    WT_LOG_THREAD server; /* Private : server thread */
+    WT_LOG_THREAD wrlsn;  /* Private : write lsn thread */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
@@ -141,32 +169,8 @@ struct __wt_log_manager {
 #define WT_LOG_REMOVE 0x400u          /* Removal is enabled */
 #define WT_LOG_ZERO_FILL 0x800u       /* Manually zero files */
                                       /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t flags;                   /* Global logging configuration */
-    WT_CONDVAR *cond;                 /* Log server wait mutex */
-    WT_SESSION_IMPL *session;         /* Log server session */
-    wt_thread_t tid;                  /* Log server thread */
-    bool tid_set;                     /* Log server thread set */
-    WT_CONDVAR *file_cond;            /* Log file thread wait mutex */
-    WT_SESSION_IMPL *file_session;    /* Log file thread session */
-    wt_thread_t file_tid;             /* Log file thread */
-    bool file_tid_set;                /* Log file thread set */
-    WT_CONDVAR *wrlsn_cond;           /* Log write lsn thread wait mutex */
-    WT_SESSION_IMPL *wrlsn_session;   /* Log write lsn thread session */
-    wt_thread_t wrlsn_tid;            /* Log write lsn thread */
-    bool wrlsn_tid_set;               /* Log write lsn thread set */
-    WT_LOG *log;                      /* Logging structure */
-    WT_COMPRESSOR *compressor;        /* Logging compressor */
-    wt_shared uint32_t cursors;       /* Log cursor count */
-    wt_off_t dirty_max;               /* Log dirty system cache max size */
-    wt_off_t file_max;                /* Log file max size */
-    wt_off_t extend_len;              /* file_extend log length */
-    uint32_t force_write_wait;        /* Log force write wait configuration */
-    const char *log_path;             /* Logging path format */
-    uint32_t prealloc;                /* Log file pre-allocation */
-    uint32_t prealloc_init_count;     /* initial number of pre-allocated log files */
-    uint16_t req_max;                 /* Max required log version */
-    uint16_t req_min;                 /* Min required log version */
-    wt_shared uint32_t txn_logsync;   /* Log sync configuration */
+
+    uint32_t flags; /* Global logging configuration */
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */

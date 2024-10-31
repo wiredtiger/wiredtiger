@@ -164,8 +164,8 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
          * This may not be initialized if we are starting at an older log file version. So only
          * signal if valid.
          */
-        if (log_mgr->wrlsn_cond != NULL)
-            __wt_cond_signal(session, log_mgr->wrlsn_cond);
+        if (log_mgr->wrlsn.cond != NULL)
+            __wt_cond_signal(session, log_mgr->wrlsn.cond);
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
         else
@@ -303,13 +303,15 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
+    WT_LOG_MANAGER *log_mgr;
     int i;
 
     conn = S2C(session);
-    log = conn->log_mgr.log;
+    log_mgr = &conn->log_mgr;
+    log = log_mgr->log;
     WT_ASSIGN_LSN(&log->ckpt_lsn, ckpt_lsn);
-    if (conn->log_mgr.cond != NULL)
-        __wt_cond_signal(session, conn->log_mgr.cond);
+    if (log_mgr->server.cond != NULL)
+        __wt_cond_signal(session, log_mgr->server.cond);
     /*
      * If we are storing debugging LSNs to retain additional log files from removal, then rotate the
      * newest LSN into the array.
@@ -363,7 +365,7 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
      * into a later log file and there should be a log file ready to close.
      */
     while (log->sync_lsn.l.file < min_lsn->l.file) {
-        __wt_cond_signal(session, S2C(session)->log_mgr.file_cond);
+        __wt_cond_signal(session, S2C(session)->log_mgr.file.cond);
         __wt_cond_wait(session, log->log_sync_cond, 10 * WT_THOUSAND, NULL);
     }
     __wt_spin_lock(session, &log->log_sync_lock);
@@ -1165,7 +1167,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         __wti_log_wrlsn(session, NULL);
         if (++yield_cnt % WT_THOUSAND == 0) {
             __wt_spin_unlock(session, &log->log_slot_lock);
-            __wt_cond_signal(session, log_mgr->file_cond);
+            __wt_cond_signal(session, log_mgr->file.cond);
             __wt_spin_lock(session, &log->log_slot_lock);
         }
         if (++yield_cnt > WT_THOUSAND * 10)
@@ -1206,8 +1208,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
                 create_log = false;
             else {
                 WT_STAT_CONN_INCR(session, log_prealloc_missed);
-                if (log_mgr->cond != NULL)
-                    __wt_cond_signal(session, log_mgr->cond);
+                if (log_mgr->server.cond != NULL)
+                    __wt_cond_signal(session, log_mgr->server.cond);
             }
         }
     }
@@ -1956,7 +1958,7 @@ __wti_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
          * After this point the worker thread owns the slot. There is nothing more to do but return.
          */
         /*
-         * !!! Signaling the wrlsn_cond condition here results in
+         * !!! Signaling the wrlsn cond condition here results in
          * worse performance because it causes more scheduling churn
          * and more walking of the slot pool for a very small number
          * of slots to process.  Don't signal here.
@@ -1981,7 +1983,7 @@ __wti_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
      * Signal the close thread if needed.
      */
     if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH))
-        __wt_cond_signal(session, conn->log_mgr.file_cond);
+        __wt_cond_signal(session, conn->log_mgr.file.cond);
 
     if (F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WT_SLOT_SYNC) &&
       (ret = __wt_fsync(session, log->log_fh, false)) != 0) {
@@ -2620,6 +2622,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
+    WT_LOG_MANAGER *log_mgr;
     WT_LOG_RECORD *logrec;
     WT_LSN lsn;
     WT_MYSLOT myslot;
@@ -2628,7 +2631,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     bool free_slot;
 
     conn = S2C(session);
-    log = conn->log_mgr.log;
+    log_mgr = &conn->log_mgr;
+    log = log_mgr->log;
     if (record->size > UINT32_MAX)
         WT_RET_MSG(session, EFBIG,
           "Log record size of %" WT_SIZET_FMT " exceeds the maximum supported size of %" PRIu32,
@@ -2728,8 +2732,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
          *
          * XXX I've seen times when conditions are NULL.
          */
-        if (conn->log_mgr.cond != NULL) {
-            __wt_cond_signal(session, conn->log_mgr.cond);
+        if (log_mgr->server.cond != NULL) {
+            __wt_cond_signal(session, log_mgr->server.cond);
             __wt_yield();
         } else
             WT_ERR(__wti_log_force_write(session, true, NULL));

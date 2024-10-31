@@ -344,8 +344,8 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     }
 
     WT_RET(__logmgr_sync_cfg(session, cfg));
-    if (log_mgr->cond != NULL)
-        __wt_cond_signal(session, log_mgr->cond);
+    if (log_mgr->server.cond != NULL)
+        __wt_cond_signal(session, log_mgr->server.cond);
     return (0);
 }
 
@@ -685,7 +685,7 @@ __log_file_server(void *arg)
         }
 
         /* Wait until the next event. */
-        __wt_cond_wait(session, conn->log_mgr.file_cond, 100 * WT_THOUSAND, NULL);
+        __wt_cond_wait(session, conn->log_mgr.file.cond, 100 * WT_THOUSAND, NULL);
     }
 
     if (0) {
@@ -827,7 +827,7 @@ restart:
                  * Signal the close thread if needed.
                  */
                 if (F_ISSET_ATOMIC_16(slot, WT_SLOT_CLOSEFH))
-                    __wt_cond_signal(session, conn->log_mgr.file_cond);
+                    __wt_cond_signal(session, conn->log_mgr.file.cond);
             }
             __wti_log_slot_free(session, slot);
         }
@@ -877,7 +877,7 @@ __log_wrlsn_server(void *arg)
         if (yield++ < WT_THOUSAND)
             __wt_yield();
         else
-            __wt_cond_auto_wait(session, log_mgr->wrlsn_cond, did_work, NULL);
+            __wt_cond_auto_wait(session, log_mgr->wrlsn.cond, did_work, NULL);
     }
     /*
      * On close we need to do this one more time because there could be straggling log writes that
@@ -977,7 +977,7 @@ __log_server(void *arg)
         }
 
         /* Wait until the next event. */
-        __wt_cond_auto_wait_signal(session, log_mgr->cond, did_work, NULL, &signalled);
+        __wt_cond_auto_wait_signal(session, log_mgr->server.cond, did_work, NULL, &signalled);
         time_stop = __wt_clock(session);
         timediff = WT_CLOCKDIFF_MS(time_stop, time_start);
         force_write_timediff = WT_CLOCKDIFF_MS(time_stop, force_write_time_start);
@@ -1079,49 +1079,50 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      */
     session_flags = WT_SESSION_NO_DATA_HANDLES;
     WT_RET(__wt_open_internal_session(
-      conn, "log-close-server", false, session_flags, 0, &log_mgr->file_session));
-    WT_RET(__wt_cond_alloc(log_mgr->file_session, "log close server", &log_mgr->file_cond));
+      conn, "log-close-server", false, session_flags, 0, &log_mgr->file.session));
+    WT_RET(__wt_cond_alloc(log_mgr->file.session, "log close server", &log_mgr->file.cond));
 
     /*
      * Start the log file close thread.
      */
     WT_RET(__wt_thread_create(
-      log_mgr->file_session, &log_mgr->file_tid, __log_file_server, log_mgr->file_session));
-    log_mgr->file_tid_set = true;
+      log_mgr->file.session, &log_mgr->file.tid, __log_file_server, log_mgr->file.session));
+    log_mgr->file.tid_set = true;
 
     /*
      * Start the log write LSN thread. It is not configurable. If logging is enabled, this thread
      * runs.
      */
     WT_RET(__wt_open_internal_session(
-      conn, "log-wrlsn-server", false, session_flags, 0, &log_mgr->wrlsn_session));
-    WT_RET(__wt_cond_auto_alloc(log_mgr->wrlsn_session, "log write lsn server", 10 * WT_THOUSAND,
-      WT_MILLION, &log_mgr->wrlsn_cond));
+      conn, "log-wrlsn-server", false, session_flags, 0, &log_mgr->wrlsn.session));
+    WT_RET(__wt_cond_auto_alloc(log_mgr->wrlsn.session, "log write lsn server", 10 * WT_THOUSAND,
+      WT_MILLION, &log_mgr->wrlsn.cond));
     WT_RET(__wt_thread_create(
-      log_mgr->wrlsn_session, &log_mgr->wrlsn_tid, __log_wrlsn_server, log_mgr->wrlsn_session));
-    log_mgr->wrlsn_tid_set = true;
+      log_mgr->wrlsn.session, &log_mgr->wrlsn.tid, __log_wrlsn_server, log_mgr->wrlsn.session));
+    log_mgr->wrlsn.tid_set = true;
 
     /*
      * If a log server thread exists, the user may have reconfigured removal or pre-allocation.
      * Signal the thread. Otherwise the user wants removal and/or allocation and we need to start up
      * the thread.
      */
-    if (log_mgr->session != NULL) {
-        WT_ASSERT(session, log_mgr->cond != NULL);
-        WT_ASSERT(session, log_mgr->tid_set == true);
-        __wt_cond_signal(session, log_mgr->cond);
+    if (log_mgr->server.session != NULL) {
+        WT_ASSERT(session, log_mgr->server.cond != NULL);
+        WT_ASSERT(session, log_mgr->server.tid_set == true);
+        __wt_cond_signal(session, log_mgr->server.cond);
     } else {
         /* The log server gets its own session. */
         WT_RET(__wt_open_internal_session(
-          conn, "log-server", false, session_flags, 0, &log_mgr->session));
-        WT_RET(__wt_cond_auto_alloc(
-          log_mgr->session, "log server", 50 * WT_THOUSAND, WT_MILLION, &log_mgr->cond));
+          conn, "log-server", false, session_flags, 0, &log_mgr->server.session));
+        WT_RET(__wt_cond_auto_alloc(log_mgr->server.session, "log server", 50 * WT_THOUSAND,
+          WT_MILLION, &log_mgr->server.cond));
 
         /*
          * Start the thread.
          */
-        WT_RET(__wt_thread_create(log_mgr->session, &log_mgr->tid, __log_server, log_mgr->session));
-        log_mgr->tid_set = true;
+        WT_RET(__wt_thread_create(
+          log_mgr->server.session, &log_mgr->server.tid, __log_server, log_mgr->server.session));
+        log_mgr->server.tid_set = true;
     }
 
     /* Write another startup log record with timestamp after recovery completes. */
@@ -1155,43 +1156,43 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
         __wt_free(session, log_mgr->log_path);
         return (0);
     }
-    if (log_mgr->tid_set) {
-        __wt_cond_signal(session, log_mgr->cond);
-        WT_TRET(__wt_thread_join(session, &log_mgr->tid));
-        log_mgr->tid_set = false;
+    if (log_mgr->server.tid_set) {
+        __wt_cond_signal(session, log_mgr->server.cond);
+        WT_TRET(__wt_thread_join(session, &log_mgr->server.tid));
+        log_mgr->server.tid_set = false;
     }
-    if (log_mgr->file_tid_set) {
-        __wt_cond_signal(session, log_mgr->file_cond);
-        WT_TRET(__wt_thread_join(session, &log_mgr->file_tid));
-        log_mgr->file_tid_set = false;
+    if (log_mgr->file.tid_set) {
+        __wt_cond_signal(session, log_mgr->file.cond);
+        WT_TRET(__wt_thread_join(session, &log_mgr->file.tid));
+        log_mgr->file.tid_set = false;
     }
-    if (log_mgr->file_session != NULL) {
-        WT_TRET(__wt_session_close_internal(log_mgr->file_session));
-        log_mgr->file_session = NULL;
+    if (log_mgr->file.session != NULL) {
+        WT_TRET(__wt_session_close_internal(log_mgr->file.session));
+        log_mgr->file.session = NULL;
     }
-    if (log_mgr->wrlsn_tid_set) {
-        __wt_cond_signal(session, log_mgr->wrlsn_cond);
-        WT_TRET(__wt_thread_join(session, &log_mgr->wrlsn_tid));
-        log_mgr->wrlsn_tid_set = false;
+    if (log_mgr->wrlsn.tid_set) {
+        __wt_cond_signal(session, log_mgr->wrlsn.cond);
+        WT_TRET(__wt_thread_join(session, &log_mgr->wrlsn.tid));
+        log_mgr->wrlsn.tid_set = false;
     }
-    if (log_mgr->wrlsn_session != NULL) {
-        WT_TRET(__wt_session_close_internal(log_mgr->wrlsn_session));
-        log_mgr->wrlsn_session = NULL;
+    if (log_mgr->wrlsn.session != NULL) {
+        WT_TRET(__wt_session_close_internal(log_mgr->wrlsn.session));
+        log_mgr->wrlsn.session = NULL;
     }
 
     WT_TRET(__wti_log_slot_destroy(session));
     WT_TRET(__wti_log_close(session));
 
     /* Close the server thread's session. */
-    if (log_mgr->session != NULL) {
-        WT_TRET(__wt_session_close_internal(log_mgr->session));
-        log_mgr->session = NULL;
+    if (log_mgr->server.session != NULL) {
+        WT_TRET(__wt_session_close_internal(log_mgr->server.session));
+        log_mgr->server.session = NULL;
     }
 
     /* Destroy the condition variables now that all threads are stopped */
-    __wt_cond_destroy(session, &log_mgr->cond);
-    __wt_cond_destroy(session, &log_mgr->file_cond);
-    __wt_cond_destroy(session, &log_mgr->wrlsn_cond);
+    __wt_cond_destroy(session, &log_mgr->server.cond);
+    __wt_cond_destroy(session, &log_mgr->file.cond);
+    __wt_cond_destroy(session, &log_mgr->wrlsn.cond);
 
     __wt_cond_destroy(session, &log_mgr->log->log_sync_cond);
     __wt_cond_destroy(session, &log_mgr->log->log_write_cond);
