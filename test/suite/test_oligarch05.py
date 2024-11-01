@@ -35,10 +35,9 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_oligarch05"
-    # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),oligarch=(role="leader"),' \
+    base_conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
-    # conn_config = 'log=(enabled)'
+    conn_config = base_conn_config + 'oligarch=(role="leader"),'
 
     uri = "oligarch:" + uri_base
 
@@ -56,6 +55,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch05(self):
+        self.skipTest('disaggregated storage no longer uses dir store')
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")
@@ -77,7 +77,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
 
-        self.reopen_conn()
+        self.reopen_conn(config=self.base_conn_config + 'oligarch=(role="follower")')
 
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0

@@ -650,6 +650,9 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
     WT_UNUSED(cookie);
     WT_UNUSED(firstrecord);
 
+    if (!manager->leader)
+        return (0);
+
     /* First, peek at the log record type. */
     WT_RET(__wt_oligarch_logrec_read(session, &p, end, &rectype));
 
@@ -956,8 +959,8 @@ __wt_disagg_get_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
-    WT_PAGE_LOG_GET_ARGS get_args;
     WT_ITEM result;
+    WT_PAGE_LOG_GET_ARGS get_args;
     u_int count;
 
     conn = S2C(session);

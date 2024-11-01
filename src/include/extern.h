@@ -120,6 +120,9 @@ extern int __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const c
 extern int __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_sweep_handles(WT_SESSION_IMPL *session, WT_BM *bm)
@@ -2347,7 +2350,7 @@ extern void __wt_optrack_record_funcid(
 extern void __wt_os_stdio(WT_SESSION_IMPL *session);
 extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
-extern void __wt_page_block_meta_init(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta);
+extern void __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));

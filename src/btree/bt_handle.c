@@ -11,7 +11,7 @@
 static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, bool);
 static int __btree_get_last_recno(WT_SESSION_IMPL *);
 static int __btree_page_sizes(WT_SESSION_IMPL *);
-static int __btree_preload(WT_SESSION_IMPL *);
+// static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*
@@ -115,11 +115,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
-    // if (bm->is_remote) /* TODO: LABS-1117 Temporarily enable delta for every tree for testing. */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
-      btree->type == BTREE_ROW)
-        F_SET(btree, WT_BTREE_PAGE_DELTA);
-
     /*
      * !!!
      * As part of block-manager configuration, we need to return the maximum
@@ -151,8 +146,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
             /* Warm the cache, if possible. */
-            WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-            WT_ERR(ret);
+            // WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
+            // WT_ERR(ret);
 
             /* Get the last record number in a column-store file. */
             if (btree->type != BTREE_ROW)
@@ -949,40 +944,40 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     return (0);
 }
 
-/*
- * __btree_preload --
- *     Pre-load internal pages.
- */
-static int
-__btree_preload(WT_SESSION_IMPL *session)
-{
-    WT_ADDR_COPY addr;
-    WT_BTREE *btree;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_REF *ref;
-    uint64_t block_preload;
+// /*
+//  * __btree_preload --
+//  *     Pre-load internal pages.
+//  */
+// static int
+// __btree_preload(WT_SESSION_IMPL *session)
+// {
+//     WT_ADDR_COPY addr;
+//     WT_BTREE *btree;
+//     WT_DECL_ITEM(tmp);
+//     WT_DECL_RET;
+//     WT_REF *ref;
+//     uint64_t block_preload;
 
-    btree = S2BT(session);
-    block_preload = 0;
+//     btree = S2BT(session);
+//     block_preload = 0;
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+//     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    /* Pre-load the second-level internal pages. */
-    WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
-        if (__wt_ref_addr_copy(session, ref, &addr)) {
-            WT_ERR(
-              __wt_blkcache_read(session, tmp, NULL, addr.block_cookie, addr.block_cookie_size));
-            ++block_preload;
-        }
-    WT_INTL_FOREACH_END;
+//     /* Pre-load the second-level internal pages. */
+//     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
+//         if (__wt_ref_addr_copy(session, ref, &addr)) {
+//             WT_ERR(
+//               __wt_blkcache_read(session, tmp, NULL, addr.block_cookie, addr.block_cookie_size));
+//             ++block_preload;
+//         }
+//     WT_INTL_FOREACH_END;
 
-err:
-    __wt_scr_free(session, &tmp);
+// err:
+//     __wt_scr_free(session, &tmp);
 
-    WT_STAT_CONN_INCRV(session, block_preload, block_preload);
-    return (ret);
-}
+//     WT_STAT_CONN_INCRV(session, block_preload, block_preload);
+//     return (ret);
+// }
 
 /*
  * __btree_get_last_recno --

@@ -73,7 +73,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     bool is_delta;
 
     WT_ASSERT(session, block_meta != NULL);
-    WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
+    WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
     WT_ASSERT(session, new_block_meta != NULL);
 
     *sizep = 0;     /* -Werror=maybe-uninitialized */

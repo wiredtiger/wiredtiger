@@ -167,9 +167,7 @@ reread:
         if (swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
-                  F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP, checksum) &&
-              swap.reconciliation_id == reconciliation_id) {
-
+                  F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP, checksum)) {
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
@@ -193,16 +191,6 @@ reread:
                     goto corrupt;
                 }
 
-                /*
-                 * Swap the page-header as needed; this doesn't belong here, but it's the best place
-                 * to catch all callers.
-                 */
-                if (is_delta)
-                    __wt_delta_header_byteswap((void *)current->data);
-                else
-                    __wt_page_header_byteswap((void *)current->data);
-                checksum = swap.previous_checksum;
-
                 if (result == last && block_meta != NULL) {
                     /* Set the other metadata returned by the Page Service. */
                     block_meta->page_id = page_id;
@@ -214,6 +202,16 @@ reread:
                     block_meta->delta_count = get_args.delta_count;
                     block_meta->checksum = checksum;
                 }
+
+                /*
+                 * Swap the page-header as needed; this doesn't belong here, but it's the best place
+                 * to catch all callers.
+                 */
+                if (is_delta)
+                    __wt_delta_header_byteswap((void *)current->data);
+                else
+                    __wt_page_header_byteswap((void *)current->data);
+                checksum = swap.previous_checksum;
                 continue;
             }
 

@@ -1406,6 +1406,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
       session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
+    ref->page->block_meta = multi->block_meta;
+
     /*
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
      * underlying page functions to do it. No need to instantiate the tombstones because we should

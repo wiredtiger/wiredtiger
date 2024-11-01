@@ -315,6 +315,23 @@ struct __wt_save_upd {
 };
 
 /*
+ * WT_PAGE_BLOCK_META --
+ *  Block management metadata associated with a page.
+ */
+struct __wt_page_block_meta {
+    uint64_t page_id;
+    uint64_t checkpoint_id;
+    uint64_t reconciliation_id;
+
+    uint64_t backlink_checkpoint_id;
+    uint64_t base_checkpoint_id;
+    uint32_t delta_count;
+    uint64_t disagg_lsn;
+
+    uint32_t checksum;
+};
+
+/*
  * WT_MULTI --
  *	Replacement block information used during reconciliation.
  */
@@ -332,6 +349,7 @@ struct __wt_multi {
      * memory.
      */
     void *disk_image;
+    WT_PAGE_BLOCK_META block_meta; /* the metadata for the disk image */
 
     /*
      * List of unresolved updates. Updates are either a row-store insert or update list, or
@@ -639,23 +657,6 @@ struct __wt_split_page_hist {
     uint16_t line;
 };
 #endif
-
-/*
- * WT_PAGE_BLOCK_META --
- *  Block management metadata associated with a page.
- */
-struct __wt_page_block_meta {
-    uint64_t page_id;
-    uint64_t checkpoint_id;
-    uint64_t reconciliation_id;
-
-    uint64_t backlink_checkpoint_id;
-    uint64_t base_checkpoint_id;
-    uint32_t delta_count;
-    uint64_t disagg_lsn;
-
-    uint32_t checksum;
-};
 
 /*
  * WT_PAGE --

@@ -27,24 +27,99 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wtdataset import SimpleDataSet
+import wiredtiger
+from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from wtscenario import make_scenarios
 
 # test_oligarch09.py
-#    Transactions: test page delta calculation
-class test_oligarch09(wttest.WiredTigerTestCase):
-    def test(self):
-        nrows = 1000000
+# Simple read write testing for leaf page delta
 
-        # Create a table.
-        uri = "table:test_oligarch09"
-        ds = SimpleDataSet(self, uri, nrows, key_format='i', value_format='S')
-        ds.populate()
+class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
+
+    conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+    conn_config = conn_base_config + 'oligarch=(role="leader")'
+    disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
+
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(disagg_storages)
+
+    nitems = 1000
+
+    # Load the storage store extension.
+    def conn_extensions(self, extlist):
+        DisaggConfigMixin.conn_extensions(self, extlist)
+
+    def test_oligarch_read_write(self):
+        uri = "oligarch:test_oligarch08"
+        create_session_config = 'key_format=S,value_format=S'
+        self.pr('CREATING')
+        self.session.create(uri, create_session_config)
+
+        cursor = self.session.open_cursor(uri, None, None)
+        value1 = "aaaa"
+        value2 = "bbbb"
+
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
 
         self.session.checkpoint()
 
-        self.reopen_conn()
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor[str(i)] = value2
 
-        ds = SimpleDataSet(self, uri, nrows, key_format='i', value_format='S')
-        ds.populate()
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
+        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(uri, None, None)
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.assertEquals(cursor[str(i)], value2)
+            else:
+                self.assertEquals(cursor[str(i)], value1)
+
+    def test_oligarch_read_modify(self):
+        uri = "oligarch:test_oligarch08"
+        create_session_config = 'key_format=S,value_format=S'
+        self.pr('CREATING')
+        self.session.create(uri, create_session_config)
+
+        cursor = self.session.open_cursor(uri, None, None)
+        value1 = "aaaa"
+        value2 = "abaa"
+
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
 
         self.session.checkpoint()
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor.set_key(str(i))
+                mods = [wiredtiger.Modify('b', 1, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
+        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(uri, None, None)
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.assertEquals(cursor[str(i)], value2)
+            else:
+                self.assertEquals(cursor[str(i)], value1)

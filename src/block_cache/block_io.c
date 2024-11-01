@@ -260,6 +260,102 @@ err:
     return (ret);
 }
 
+int
+__wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+{
+    WT_BLOCK_DISAGG_HEADER *blk;
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT];
+    WT_ITEM *tmp;
+    WT_PAGE_BLOCK_META block_meta_tmp;
+    const WT_PAGE_HEADER *dsk;
+    uint32_t count, i;
+
+    btree = S2BT(session);
+    bm = btree->bm;
+
+    /* Skip block cache for M2, just read the base + delta pack. */
+    count = WT_ELEMENTS(results);
+
+    if (bm->read_multiple == NULL) {
+        WT_RET(__wt_calloc_def(session, 1, &tmp));
+        WT_CLEAR(tmp[0]);
+        WT_ERR(__wt_blkcache_read(session, &tmp[0], block_meta, addr, addr_size));
+        *buf_count = 1;
+        *buf = tmp;
+        return (0);
+    }
+
+    WT_CLEAR(results);
+    WT_RET(bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
+    WT_ASSERT(session, count > 0);
+
+    /*
+     * For the base image, we have a structure like this:
+     *
+     * ------------------------
+     * | page header          |
+     * ------------------------
+     * | block header         |
+     * ------------------------
+     * | data                 |
+     * ------------------------
+     *
+     * In this case, the encryption/compression flags live in the page header.
+     */
+    dsk = results[0].data;
+    if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
+        WT_ASSERT(session, session == NULL);
+    }
+
+    if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
+        WT_ASSERT(session, session == NULL);
+    }
+
+    /*
+     * Now do deltas. Here, the structure looks like:
+     *
+     * ------------------------
+     * | delta header         |
+     * ------------------------
+     * | block header         |
+     * ------------------------
+     * | data                 |
+     * ------------------------
+     *
+     * In this case, the block header is what contains the encryption/compression
+     * flags so we need to skip over the delta header.
+     */
+    for (i = 1; i < count; i++) {
+        /* TODO in principle we should end up not caring about which block mananger. */
+        blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
+
+        if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED))
+            WT_ASSERT(session, session == NULL);
+        if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
+            WT_ASSERT(session, session == NULL);
+    }
+
+    /* Finalize our return list. */
+    WT_RET(__wt_calloc_def(session, count, &tmp));
+    for (i = 0; i < count; i++)
+        memcpy(&tmp[i], &results[i], sizeof(WT_ITEM));
+    *buf = tmp;
+    *buf_count = count;
+
+    if (block_meta != NULL)
+        *block_meta = block_meta_tmp;
+
+    if (0) {
+err:
+        __wt_free(session, tmp);
+    }
+    return (ret);
+}
+
 /*
  * __wt_blkcache_write --
  *     Write a buffer into a block, returning the block's address cookie.
@@ -444,8 +540,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      * Optional on normal writes (vs. reads) if the no-write-allocate setting is on.
      *
      * Ignore the final checkpoint writes.
+     *
+     * TODO: ignore block cache for deltas now.
      */
-    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED)
+    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED ||
+      (block_meta != NULL && block_meta->delta_count > 0))
         ;
     else if (!blkcache->cache_on_checkpoint && checkpoint_io)
         WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);

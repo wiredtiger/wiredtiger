@@ -1245,10 +1245,13 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
     uint64_t v;
     const uint8_t *p;
 
+    v = 0;
+
     unpack->flags = cell->__chunk[0];
-    p = (uint8_t *)&cell[1];
+    p = (uint8_t *)&cell->__chunk[1];
 
     if (F_ISSET(unpack, WT_DELTA_IS_DELETE)) {
+        WT_ASSERT(session, false);
         ret = __wt_vunpack_uint(&p, 0, &v);
         WT_ASSERT(session, ret == 0);
         unpack->key_size = (uint32_t)v;
@@ -1403,12 +1406,12 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_DELTA(session, dsk, unpack)                                             \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                 \
+#define WT_CELL_FOREACH_DELTA(session, dsk, unpack)                                              \
+    do {                                                                                         \
+        uint32_t __i;                                                                            \
+        uint8_t *__cell;                                                                         \
+        for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
+             __cell += (unpack).__len, --__i) {                                                  \
             __wt_cell_unpack_delta(session, (WT_DELTA_CELL *)__cell, &(unpack));
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \
