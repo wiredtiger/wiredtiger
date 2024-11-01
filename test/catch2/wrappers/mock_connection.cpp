@@ -24,6 +24,8 @@ mock_connection::~mock_connection()
     if (_connection_impl->block_lock.initialized == 1)
         __wt_spin_destroy(nullptr, &_connection_impl->block_lock);
     __wt_free(nullptr, _connection_impl->chunkcache.free_bitmap);
+    /* setup_stats() used nullptr to allocate so use nullptr to free. */
+    __wt_stat_connection_discard(nullptr, _connection_impl);
     __wt_free(nullptr, _connection_impl);
 }
 
