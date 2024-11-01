@@ -72,7 +72,7 @@ typedef struct PALM_KV_PAGE_MATCHES {
     uint32_t flags;
 } PALM_KV_PAGE_MATCHES;
 
-int palm_kv_env_create(PALM_KV_ENV **env);
+int palm_kv_env_create(PALM_KV_ENV **env, uint32_t cache_size_mb);
 int palm_kv_env_open(PALM_KV_ENV *env, const char *homedir);
 void palm_kv_env_close(PALM_KV_ENV *env);
 
