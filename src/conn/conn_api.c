@@ -3387,11 +3387,3 @@ err:
 
     return (ret);
 }
-
-#ifdef HAVE_UNITTEST
-void
-__ut_wiredtiger_dummy_session_init(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler)
-{
-    wiredtiger_dummy_session_init(conn, event_handler);
-}
-#endif

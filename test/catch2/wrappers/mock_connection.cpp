@@ -97,10 +97,7 @@ int
 mock_connection::setup_stats(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    /* Required to call __wt_calloc() inside __wt_stat_connection_init(). */
-    __ut_wiredtiger_dummy_session_init(_connection_impl, NULL);
-    _connection_impl->default_session = &_connection_impl->dummy_session;
-    WT_RET(__wt_stat_connection_init(&_connection_impl->dummy_session, _connection_impl));
+    WT_RET(__wt_stat_connection_init(nullptr, _connection_impl));
     _connection_impl->default_session = session;
     return (ret);
 }
