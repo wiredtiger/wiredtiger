@@ -28,12 +28,18 @@ mock_connection::~mock_connection()
 }
 
 std::shared_ptr<mock_connection>
-mock_connection::build_test_mock_connection()
+mock_connection::build_test_mock_connection(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *connection_impl = nullptr;
+    mock_connection *mock_conn;
     utils::throw_if_non_zero(__wt_calloc(nullptr, 1, sizeof(WT_CONNECTION_IMPL), &connection_impl));
-    // Construct a Session object that will now own session.
-    return std::shared_ptr<mock_connection>(new mock_connection(connection_impl));
+
+    // Construct a mock_connection object that will now own connection_impl.
+    mock_conn = new mock_connection(connection_impl);
+
+    mock_conn->setup_stats(session);
+
+    return std::shared_ptr<mock_connection>(mock_conn);
 }
 
 int
@@ -85,4 +91,16 @@ mock_connection::setup_block_manager(WT_SESSION_IMPL *session)
     WT_RET(__wt_os_posix(session));
 #endif
     return 0;
+}
+
+int
+mock_connection::setup_stats(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    /* Required to call __wt_calloc() inside __wt_stat_connection_init(). */
+    __ut_wiredtiger_dummy_session_init(_connection_impl, NULL);
+    _connection_impl->default_session = &_connection_impl->dummy_session;
+    WT_RET(__wt_stat_connection_init(&_connection_impl->dummy_session, _connection_impl));
+    _connection_impl->default_session = session;
+    return (ret);
 }
