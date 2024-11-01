@@ -36,18 +36,18 @@ class test_oligarch07(wttest.WiredTigerTestCase):
     nitems = 500
 
     conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
 
     uri = "oligarch:test_oligarch07"
 
-    # Load the directory store extension, which has object storage support
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
+        extlist.extension('page_log', 'palm')
         self.pr(f"{extlist=}")
 
     # Custom test case setup

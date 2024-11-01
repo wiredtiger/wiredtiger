@@ -40,7 +40,7 @@ class test_oligarch11(wttest.WiredTigerTestCase):
 
     uri = "oligarch:" + uri_base
 
-    # Load the directory store extension, which has object storage support
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
