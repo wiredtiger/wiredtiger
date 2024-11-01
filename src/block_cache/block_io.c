@@ -55,6 +55,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     WT_COMPRESSOR *compressor;
     WT_DECL_ITEM(etmp);
     WT_DECL_ITEM(tmp);
+    WT_ITEM buf2_base;
+    WT_ITEM *buf2; // Create a second buffer to decompress into. We'll compare it against the contents of buf
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
@@ -186,6 +188,48 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
           (uint8_t *)ip->data + WT_BLOCK_COMPRESS_SKIP, tmp->size - WT_BLOCK_COMPRESS_SKIP,
           (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
           &result_len);
+
+        // Replicates the creation of buf up in __page_read
+        buf2 = &buf2_base;
+        WT_CLEAR(buf2_base);
+        WT_ERR(__wt_buf_initsize(session, buf2, dsk->mem_size));
+        memcpy(buf2->mem, ip->data, WT_BLOCK_COMPRESS_SKIP);
+
+        // Run the exact same decompression, but save it into buf2
+        ret = compressor->decompress(btree->compressor, &session->iface,
+          (uint8_t *)ip->data + WT_BLOCK_COMPRESS_SKIP, tmp->size - WT_BLOCK_COMPRESS_SKIP,
+          (uint8_t *)buf2->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
+          &result_len);
+
+        WT_ASSERT_ALWAYS(session, buf->size == buf2->size, 
+            "WT-13690 - Differing decompressed buf sizes!, %lu %lu", buf->size, buf2->size);
+
+        for (size_t i = 0; i < buf->size; i++) {
+            if ( ((char*)buf->data)[i] != ((char*)(buf2->data))[i] ) {
+                // Byte mismatch!!
+                // We decompressed the exact same source twice so we should expect the exact same output.
+                // This points to an issue in the decompression logic
+                __wt_errx(session, "WT-13690 - Mismatch at index %lu!!!", i);
+
+                // I've been having issues printing the buffer content as a string.
+                // Print byte by byte to be safe.
+                // i + 1 because the corruption is always two bytes long. We found the first mismatched 
+                // byte to reach this branch. Print one extra char to output the second corrupted byte
+                for (size_t j = 0; j <= i + 1; j++) {
+                    if(j >= buf->size) {
+                        __wt_errx(session, "end of string");
+                        break;
+                    }
+
+                    __wt_errx(session, "%c %c", ((char*)(buf->data))[j], ((char*)(buf2->data))[j]);
+                }
+                // Consider this a WT_ASSERT(false). This is just doesn't like asserting false
+                WT_ASSERT_ALWAYS(session, i == 1235123123412312, " ");
+            }
+        }
+
+        __wt_buf_free(session, buf2);
+
         if (result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
             WT_TRET(WT_ERROR);
 
