@@ -52,17 +52,11 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Custom test case setup
     def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
-        os.mkdir('follower/foo')
-        os.mkdir('follower/bar')
-
-        # TODO shouldn't need these - work around code in __wt_open_fs that handles
-        # non fixed-location files
-        os.mkdir('follower/foo/follower')
-        os.mkdir('follower/bar/follower')
+        # Create the home directory for the PALM k/v store, and share it with the follower.
+        os.mkdir('kv_home')
+        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
+        os.system('echo setup; ls -l . ./follower')
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):

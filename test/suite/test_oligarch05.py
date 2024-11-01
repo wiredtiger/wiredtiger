@@ -47,12 +47,6 @@ class test_oligarch05(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm')
 
-    # Custom test case setup
-    def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
-
     # Test records into an oligarch tree and restarting
     def test_oligarch05(self):
         self.skipTest('disaggregated storage no longer uses dir store')
