@@ -144,13 +144,13 @@
 #define WT_TIME_AGGREGATE_COPY(dest, source) (*(dest) = *(source))
 
 /* Update the aggregated window to reflect for a new time window. */
-// Too verbose here.
 #define WT_TIME_AGGREGATE_UPDATE(session, ta, tw)                                                \
     do {                                                                                         \
         WT_ASSERT(session, (ta)->init_merge == 1);                                               \
         (ta)->newest_start_durable_ts =                                                          \
           WT_MAX((tw)->durable_start_ts, (ta)->newest_start_durable_ts);                         \
         if (F_ISSET((session), WT_SESSION_ROLLBACK_TO_STABLE) &&                                 \
+          !F_ISSET(S2C(session), WT_CONN_RECOVERING) &&                                          \
           (ta)->newest_start_durable_ts > S2C(session)->txn_global.stable_timestamp)             \
             WT_ASSERT_ALWAYS(session, false,                                                     \
               "WT_TIME_AGGREGATE_UPDATE newest_start_durable_ts %" PRIu64 " stable ts %" PRIu64, \
