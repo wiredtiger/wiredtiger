@@ -114,8 +114,7 @@ main(int argc, char *argv[])
     const char *wiredtiger_open_config =
       "create,"
       /* Override the wrong value in api_data.py. */
-      "per_connection_control_points=("
-      "thread_0=(thread_count=2)),"
+      "per_connection_control_points=(thread_0=(thread_count=2)),"
 #if 0 /* Include if needed */
       "verbose=["
       "control_point=5,"
