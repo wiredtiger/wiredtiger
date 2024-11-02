@@ -776,7 +776,6 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 {
     WT_CONNECTION_IMPL *conn;
     WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
     uint32_t i;
 
     conn = S2C(session);
@@ -815,9 +814,8 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_oligarch_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL) {
+        if (manager->entries[i] != NULL)
             __oligarch_manager_remove_table_inlock(session, i, from_shutdown);
-        }
     }
     __wt_free(session, manager->entries);
     manager->open_oligarch_table_count = 0;

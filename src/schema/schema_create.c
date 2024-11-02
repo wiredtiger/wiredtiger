@@ -1108,10 +1108,12 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
 
     conn = S2C(session);
     tablecfg = NULL;
+    meta_value = NULL;
+
     WT_RET(__wt_scr_alloc(session, 0, &disagg_config));
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     /* Check if the oligarch table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {

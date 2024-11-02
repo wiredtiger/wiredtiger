@@ -721,7 +721,6 @@ __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
     WT_OLIGARCH *oligarch;
     uint32_t ingest_id, stable_id;
 
-    ingest_id = stable_id = 0;
     /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
     WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_oligarch(session));
     WT_RET(ret);
