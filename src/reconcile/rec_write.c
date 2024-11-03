@@ -2831,18 +2831,21 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
 
         /*
+         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
+         * now.
+         */
+        ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+
+        /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has
          * to contain nothing at all, which means it has no records of any kind and is durable.
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
-            /*
-             * TODO: for disaggregated storage, we may need to write the page even in the case that
-             * it is empty. For now, just pass in the wrapup checkpoint block meta.
-             */
             WT_RET(bm->checkpoint(
               bm, session, NULL, &r->wrapup_checkpoint_block_meta, btree->ckpt, false));
+            r->ref->page->block_meta = r->wrapup_checkpoint_block_meta;
         }
 
         /*
@@ -2852,11 +2855,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * again.
          */
         mod->rec_result = WT_PM_REC_EMPTY;
-        /*
-         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
-         * now.
-         */
-        ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         __rec_set_updates_durable(r);
         break;
     case 1: /* 1-for-1 page swap */
