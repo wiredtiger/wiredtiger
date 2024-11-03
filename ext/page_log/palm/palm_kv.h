@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#pragma once
+
 #include "../../../third_party/openldap_liblmdb/lmdb.h"
 
 /*
