@@ -2837,7 +2837,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
-            WT_RET(bm->checkpoint(bm, session, NULL, NULL, btree->ckpt, false));
+            /*
+             * TODO: for disaggregated storage, we may need to write the page even in the case that
+             * it is empty. For now, just pass in the wrapup checkpoint block meta.
+             */
+            WT_RET(bm->checkpoint(
+              bm, session, NULL, &r->wrapup_checkpoint_block_meta, btree->ckpt, false));
         }
 
         /*
