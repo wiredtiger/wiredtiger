@@ -135,21 +135,21 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
         }
 
         if (F_ISSET(&unpack, WT_DELTA_IS_DELETE)) {
-            WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
             F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             size += tmp_size;
             upd = tombstone;
         } else {
             value.data = unpack.value;
             value.size = unpack.value_size;
-            WT_RET(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
+            WT_ERR(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
             standard_value->start_ts = unpack.tw.start_ts;
             standard_value->durable_ts = unpack.tw.durable_start_ts;
             F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             size += tmp_size;
 
             if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
-                WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
+                WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
                 tombstone->start_ts = unpack.tw.stop_ts;
                 tombstone->durable_ts = unpack.tw.durable_stop_ts;
                 F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);

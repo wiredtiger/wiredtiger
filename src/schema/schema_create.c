@@ -1155,15 +1155,15 @@ __create_oligarch(WT_SESSION_IMPL *session, const char *uri, bool exclusive, con
 
     WT_ERR(__wt_config_collapse(session, oligarch_cfg, &tablecfg));
 
-    WT_RET_NOTFOUND_OK(
-      __wt_config_gets(session, oligarch_cfg, "disaggregated.stable_prefix", &cval));
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, oligarch_cfg, "disaggregated.stable_prefix", &cval), true);
     if (ret == WT_NOTFOUND) {
         if (conn->disaggregated_storage.stable_prefix == NULL)
             WT_ERR(EINVAL);
         WT_ERR(__wt_strdup(
-          session, conn->disaggregated_storage.stable_prefix, &S2C(session)->iface.stable_prefix));
+          session, conn->disaggregated_storage.stable_prefix, conn->iface.stable_prefix));
     } else
-        WT_ERR(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
+        WT_ERR(__wt_strndup(session, cval.str, cval.len, conn->iface.stable_prefix));
 
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 

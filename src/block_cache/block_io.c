@@ -290,7 +290,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     }
 
     WT_CLEAR(results);
-    WT_RET(bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
+    WT_ERR(bm->read_multiple(bm, session, &block_meta_tmp, addr, addr_size, &results[0], &count));
     WT_ASSERT(session, count > 0);
 
     /*
@@ -340,7 +340,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     }
 
     /* Finalize our return list. */
-    WT_RET(__wt_calloc_def(session, count, &tmp));
+    WT_ERR(__wt_calloc_def(session, count, &tmp));
     for (i = 0; i < count; i++)
         memcpy(&tmp[i], &results[i], sizeof(WT_ITEM));
     *buf = tmp;

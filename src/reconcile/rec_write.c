@@ -885,7 +885,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
 
         /* In-memory databases shouldn't write pages. */
         WT_ASSERT_ALWAYS(session,
-          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY),
+          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_IN_MEMORY),
           "Attempted to write page to disk when WiredTiger is configured to be in-memory");
 
         /*

@@ -104,7 +104,7 @@ no-op the removal if this is set.
 
 These offer the same API as any other cursor, including some of the "usual"
 restrictions around not supporting bulk-loading, random positioning,
-in-memory databases, or being opened as part of a checkpoint. 
+in-memory databases, or being opened as part of a checkpoint.
 
 The unique part is the notion of "constituent cursors". An oligarch table is
 backed by two "real" tables (the ingest and stable tables), so we maintain
