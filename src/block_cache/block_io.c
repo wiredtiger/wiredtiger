@@ -260,6 +260,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_blkcache_read_multi --
+ *     Read an address-cookie referenced block with its deltas into a set of buffers.
+ */
 int
 __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_count,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)

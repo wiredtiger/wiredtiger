@@ -911,6 +911,10 @@ err:
     API_END_RET(session, ret);
 }
 
+/*
+ * __coligarch_modify_check --
+ *     Check that a modify operation is allowed in the current state.
+ */
 static int
 __coligarch_modify_check(WT_SESSION_IMPL *session)
 {

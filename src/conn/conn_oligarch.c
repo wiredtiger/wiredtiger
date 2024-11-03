@@ -101,6 +101,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_oligarch_setup --
+ *     Process configuration for oligarch behavior on the connection.
+ */
 int
 __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
