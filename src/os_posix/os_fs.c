@@ -958,10 +958,8 @@ __posix_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 int
 __wt_os_posix(WT_SESSION_IMPL *session, WT_FILE_SYSTEM **fsp)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_FILE_SYSTEM *file_system;
 
-    conn = S2C(session);
 
     WT_RET(__wt_calloc_one(session, &file_system));
 

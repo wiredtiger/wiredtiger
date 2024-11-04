@@ -344,6 +344,7 @@ __union_fs_reconcile(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_FILE_HANDLE_UN
     char *buf;
 
     WT_UNUSED(u);
+    WT_UNUSED(len);
 
     buf = NULL;
     len = 0;
@@ -688,7 +689,7 @@ __union_fs_file_read(
 
     // XXX We really want to read this faster than one chunk at a time... this is embarrassing.
 
-     fprintf(stderr, "READ %s : %ld %zu\n", file_handle->name, offset, len);
+    //  fprintf(stderr, "READ %s : %ld %zu\n", file_handle->name, offset, len);
 
     dest = (char *)buf;
 
@@ -711,8 +712,8 @@ __union_fs_file_read(
                     read_len = (size_t)offset + len - read_offset;
                 WT_ASSERT(session, read_len > 0);
                 found = true;
-                 fprintf(stderr, "READ %s :   << [%zu] %zu %ld %zu\n", file_handle->name,
-                   chunk_index, i, (wt_off_t)read_offset, read_len);
+                //  fprintf(stderr, "READ %s :   << [%zu] %zu %ld %zu\n", file_handle->name,
+                //    chunk_index, i, (wt_off_t)read_offset, read_len);
                 WT_ERR(l->fh->fh_read(l->fh, wt_session, (wt_off_t)read_offset, read_len, dest));
                 dest += read_len;
                 break;
@@ -824,6 +825,8 @@ __union_fs_file_write(
 
     wt_off_t x;
 
+
+    WT_UNUSED(found);
     fh = (WT_FILE_HANDLE_UNION_FS *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
     u = (WT_UNION_FS *)fh->iface.file_system;
@@ -855,7 +858,7 @@ __union_fs_file_write(
     // XXX We really want to write faster than one chunk at a time... this is embarrassing.
 
     src = (char *)buf;
-     fprintf(stderr, "WRITE %s : %ld %zu\n", file_handle->name, offset, len);
+    //  fprintf(stderr, "WRITE %s : %ld %zu\n", file_handle->name, offset, len);
 
     for (chunk_index = chunk_from; chunk_index < chunk_to; chunk_index++) {
         found = false;
@@ -870,15 +873,15 @@ __union_fs_file_write(
 
             w = 0;
             if (fh->num_layers > 1) {
-                 fprintf(stderr, "WRITE %s :   in [%zu] %zu-%zu\n", file_handle->name,
-                 chunk_index, chunk_from, chunk_to);
+                //  fprintf(stderr, "WRITE %s :   in [%zu] %zu-%zu\n", file_handle->name,
+                //  chunk_index, chunk_from, chunk_to);
                 WT_ERR(__union_fs_file_read_chunk(fh, session, 1, chunk_index, tmp, &tmp_len));
                 if (tmp_len < u->chunk_size) {
                     memset(tmp + tmp_len, 0, u->chunk_size - tmp_len);
                     write_len = tmp_len;
                 }
-                 fprintf(stderr, "WRITE %s :   ^^ [%zu] %zu-%zu %zu\n", file_handle->name,
-                   chunk_index, chunk_from, chunk_to, tmp_len);
+                //  fprintf(stderr, "WRITE %s :   ^^ [%zu] %zu-%zu %zu\n", file_handle->name,
+                //    chunk_index, chunk_from, chunk_to, tmp_len);
             } else {
                 write_len = 0;
                 if (chunk_index == chunk_from) {
@@ -911,8 +914,8 @@ __union_fs_file_write(
             src += write_len;
 
         l = fh->layers[0];
-         fprintf(stderr, "WRITE %s :   >> [%zu] %zu %ld %zu\n", file_handle->name, chunk_index,
-           (size_t)0, (wt_off_t)write_offset, write_len);
+        //  fprintf(stderr, "WRITE %s :   >> [%zu] %zu %ld %zu\n", file_handle->name, chunk_index,
+        //    (size_t)0, (wt_off_t)write_offset, write_len);
         WT_ERR(l->fh->fh_write(l->fh, wt_session, (wt_off_t)write_offset, write_len, write_buf));
 
         if (l->chunks != NULL) {
