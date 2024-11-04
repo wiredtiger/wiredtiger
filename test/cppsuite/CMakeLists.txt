@@ -52,6 +52,14 @@ create_test_executable(run
 
 # If you prefer to not use the run binary you can add a test via this mechanism but it is generally
 # frowned upon.
+create_test_executable(union_fs
+    SOURCES tests/union_fs.cpp
+    LIBS cppsuite_test_harness
+    CXX
+)
+
+# If you prefer to not use the run binary you can add a test via this mechanism but it is generally
+# frowned upon.
 create_test_executable(csuite_style_example_test
     SOURCES tests/csuite_style_example_test.cpp
     LIBS cppsuite_test_harness
