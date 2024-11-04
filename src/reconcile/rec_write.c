@@ -2139,6 +2139,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
+        WT_ASSERT(session, false);
         LF_SET(WT_DELTA_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
