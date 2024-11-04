@@ -81,7 +81,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 300;
+static const int crud_ops = 10;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
@@ -182,23 +182,25 @@ create_collection(scoped_session &session) {
 void
 do_random_crud(scoped_session &session, bool fresh_start)
 {
-    logger::log_msg(LOG_INFO, "called insert_op");
     bool file_created = fresh_start == false;
 
     /* Insert random data. */
     std::string key, value;
     for (int i = 0; i < crud_ops; i++) {
         auto ran = random_generator::instance().generate_integer(0, 100);
-        if (ran <= 1 || !file_created) {
+        // if (ran <= 1 || !file_created) {
+        if (!file_created) {
             // Create a new file, if none exist force this path.s
             create_collection(session);
             file_created = true;
             continue;
         }
 
+        if (i == warmup_insertions)
+            fresh_start = false;
+
         if (fresh_start || (ran > 1 && ran < 50)) {
-            if (i == warmup_insertions - 1)
-                fresh_start = false;
+
             // Write.
             write(session, fresh_start);
             continue;
