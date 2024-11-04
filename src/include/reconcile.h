@@ -41,18 +41,18 @@ struct __wt_rec_dictionary {
  */
 struct __wt_rec_chunk {
     /*
-     * These fields track the amount of entries and their associated timestamps prior to the split
+     * These fields tracks the amount of entries and their associated timestamps prior to the split
      * boundary.
      */
     uint32_t entries_before_split_boundary;
     WT_TIME_AGGREGATE ta_before_split_boundary;
 
-    /* These fields track the key or recno of the very first entry past the split boundary. */
+    /* These fields tracks the key or recno of the very first entry past the split boundary. */
     uint64_t recno_at_split_boundary;
     WT_ITEM key_at_split_boundary;
 
     /*
-     * This time aggregate track the aggregated timestamps of all the entries past the split
+     * This time aggregate tracks the aggregated timestamps of all the entries past the split
      * boundary. Merged with the "before" entry it will equal the full time aggregate for the chunk.
      */
     WT_TIME_AGGREGATE ta_after_split_boundary;
