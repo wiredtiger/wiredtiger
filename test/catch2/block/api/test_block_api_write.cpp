@@ -61,6 +61,7 @@ validate_block_contents(WT_BM *bm, const std::shared_ptr<mock_session> &session,
     after_read_io =
       WT_STAT_CONN_READ(session->get_mock_connection()->get_wt_connection_impl()->stats, read_io);
 
+    /* Check that statistics are working. Check that the read_io statistic has been incremented correctly. */
     CHECK((after_read_io - before_read_io) == 1);
 
     /*
