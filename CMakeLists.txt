@@ -24,7 +24,7 @@ if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
     # in that case map the architecture to x86.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64|)$")
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
         set(WT_ARCH "x86")
     elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
         set(WT_ARCH "aarch64")
@@ -141,6 +141,11 @@ add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
+
+if("${CMAKE_BUILD_TYPE}" MATCHES "^MSan$")
+    list(APPEND wt_sources ${CMAKE_SOURCE_DIR}/src/support/msan_fstat_suppression_wrappers.c)
+endif()
+
 if(WT_WIN)
     list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)
     set_source_files_properties(${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)

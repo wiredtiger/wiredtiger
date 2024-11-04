@@ -9,12 +9,13 @@
 #include "wt_internal.h"
 
 /*
- * __wt_connection_init --
+ * __wti_connection_init --
  *     Structure initialization for a just-created WT_CONNECTION_IMPL handle.
  */
 int
-__wt_connection_init(WT_CONNECTION_IMPL *conn)
+__wti_connection_init(WT_CONNECTION_IMPL *conn)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = conn->default_session;
@@ -90,15 +91,16 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     conn->ckpt_time_min = UINT64_MAX;
     conn->ckpt_scrub_min = UINT64_MAX;
 
-    return (0);
+err:
+    return (ret);
 }
 
 /*
- * __wt_connection_destroy --
+ * __wti_connection_destroy --
  *     Destroy the connection's underlying WT_CONNECTION_IMPL structure.
  */
 void
-__wt_connection_destroy(WT_CONNECTION_IMPL *conn)
+__wti_connection_destroy(WT_CONNECTION_IMPL *conn)
 {
     WT_SESSION_IMPL *session;
 

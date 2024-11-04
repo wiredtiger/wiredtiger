@@ -31,6 +31,7 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
+    bool fast_truncate_2022; /* fast-truncate fix run-time configuration */
     bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
@@ -46,8 +47,9 @@ struct __wt_process {
 extern WT_PROCESS __wt_process;
 
 typedef enum __wt_background_compact_cleanup_stat_type {
-    BACKGROUND_CLEANUP_ALL_STAT,
-    BACKGROUND_CLEANUP_STALE_STAT
+    BACKGROUND_COMPACT_CLEANUP_EXIT,      /* Cleanup when the thread exits */
+    BACKGROUND_COMPACT_CLEANUP_OFF,       /* Cleanup when the thread is disabled */
+    BACKGROUND_COMPACT_CLEANUP_STALE_STAT /* Cleanup stale stats only */
 } WT_BACKGROUND_COMPACT_CLEANUP_STAT_TYPE;
 
 /*
@@ -85,7 +87,7 @@ struct __wt_background_compact_exclude {
  *	Structure dedicated to the background compaction server
  */
 struct __wt_background_compact {
-    bool running;             /* Compaction supposed to run */
+    wt_shared bool running;   /* Compaction supposed to run */
     bool run_once;            /* Background compaction is executed once */
     bool signalled;           /* Compact signalled */
     bool tid_set;             /* Thread set */
@@ -143,6 +145,36 @@ struct __wt_bucket_storage {
         e;                                                                  \
         (s)->bucket_storage = __saved_bstorage;                             \
     } while (0)
+
+/*
+ * WT_HEURISTIC_CONTROLS --
+ *  Heuristic controls configuration.
+ */
+struct __wt_heuristic_controls {
+    /* Number of btrees processed in the current checkpoint. */
+    wt_shared uint32_t obsolete_tw_btree_count;
+
+    /*
+     * The controls below deal with the cleanup of obsolete time window information. This process
+     * can be configured based on two configuration items, one that is shared among the subsystems
+     * which is the number of btrees and another one which is unique to each subsystem that is
+     * the number of pages.
+     *   - The maximum number of pages per btree to process in a single checkpoint by checkpoint
+     * cleanup.
+     *   - The maximum number of pages per btree to process in a single checkpoint by eviction
+     * threads.
+     *   - The maximum number of btrees to process in a single checkpoint.
+     */
+
+    /* Maximum number of pages that can be processed per btree by checkpoint cleanup. */
+    uint32_t checkpoint_cleanup_obsolete_tw_pages_dirty_max;
+
+    /* Maximum number of pages that can be processed per btree by eviction. */
+    uint32_t eviction_obsolete_tw_pages_dirty_max;
+
+    /* Maximum number of btrees that can be processed per checkpoint. */
+    uint32_t obsolete_tw_btree_max;
+};
 
 /*
  * WT_KEYED_ENCRYPTOR --
@@ -254,6 +286,10 @@ struct __wt_name_flag {
         TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);                              \
         ++(conn)->dh_bucket_count[bucket];                                                       \
         ++(conn)->dhandle_count;                                                                 \
+        if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
+            ++(conn)->dhandle_checkpoint_count;                                                  \
+        WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
+        ++(conn)->dhandle_types_count[(dhandle)->type];                                          \
     } while (0)
 
 #define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
@@ -263,6 +299,10 @@ struct __wt_name_flag {
         TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \
         --(conn)->dh_bucket_count[bucket];                                                       \
         --(conn)->dhandle_count;                                                                 \
+        if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
+            --(conn)->dhandle_checkpoint_count;                                                  \
+        WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
+        --(conn)->dhandle_types_count[(dhandle)->type];                                          \
     } while (0)
 
 /*
@@ -283,22 +323,25 @@ struct __wt_name_flag {
 /*
  * WT_CONN_HOTBACKUP_START --
  *	Macro to set connection data appropriately for when we commence hot backup.
+ *	This macro must be called with the hot backup lock held for writing.
  */
-#define WT_CONN_HOTBACKUP_START(conn)                        \
-    do {                                                     \
-        (conn)->hot_backup_start = (conn)->ckpt_most_recent; \
-        (conn)->hot_backup_list = NULL;                      \
+#define WT_CONN_HOTBACKUP_START(conn)                                                          \
+    do {                                                                                       \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE)); \
+        (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;                 \
+        __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt_most_recent);              \
+        (conn)->hot_backup_list = NULL;                                                        \
     } while (0)
 
 /*
  * Set all flags related to incremental backup in one macro. The flags do get individually cleared
  * at different times so there is no corresponding macro for clearing.
  */
-#define WT_CONN_SET_INCR_BACKUP(conn)                        \
-    do {                                                     \
-        F_SET((conn), WT_CONN_INCR_BACKUP);                  \
-        FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
-        WT_STAT_CONN_SET(session, backup_incremental, 1);    \
+#define WT_CONN_SET_INCR_BACKUP(conn)                     \
+    do {                                                  \
+        F_SET((conn), WT_CONN_INCR_BACKUP);               \
+        F_SET(&(conn)->log_mgr, WT_LOG_INCR_BACKUP);      \
+        WT_STAT_CONN_SET(session, backup_incremental, 1); \
     } while (0)
 
 /*
@@ -317,8 +360,8 @@ extern const WT_NAME_FLAG __wt_stress_types[];
 
 /*
  * Access the array of all sessions. This field uses the Slotted Array pattern to managed shared
- * accesses, if you are looking to walk all sessions please consider using the existing session walk
- * logic. FIXME-WT-10946 - Add link to Slotted Array docs.
+ * accesses, if you need to walk all sessions please call __wt_session_array_walk. For more details
+ * on this usage pattern see the architecture guide.
  */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
@@ -377,6 +420,8 @@ struct __wt_connection_impl {
 
     WT_BACKGROUND_COMPACT background_compact; /* Background compaction server */
 
+    WT_HEURISTIC_CONTROLS heuristic_controls; /* Heuristic controls configuration */
+
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
 
     const char *optrack_path;         /* Directory for operation logs */
@@ -427,10 +472,12 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
     WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
-    /* Locked: handles in each bucket */
-    uint64_t *dh_bucket_count;
-    uint64_t dhandle_count;                  /* Locked: handles in the queue */
-    u_int open_btree_count;                  /* Locked: open writable btree count */
+    uint64_t *dh_bucket_count;         /* Locked: handles in each bucket */
+    uint64_t dhandle_count;            /* Locked: handles in the queue */
+    uint64_t dhandle_checkpoint_count; /* Locked: checkpoint handles in the queue */
+    /* Locked: handles by type in the queue */
+    uint64_t dhandle_types_count[WT_DHANDLE_TYPE_NUM];
+    wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
     wt_shared uint32_t open_cursor_count;    /* Atomic: open cursor handle count */
@@ -457,6 +504,7 @@ struct __wt_connection_impl {
     wt_shared volatile uint64_t cache_size; /* Cache size (either statically
                                      configured or the current size
                                      within a cache pool). */
+    WT_EVICT *evict;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
@@ -466,8 +514,10 @@ struct __wt_connection_impl {
     uint32_t recovery_ckpt_snapshot_count;
 
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
-    uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
-    char **hot_backup_list;    /* Hot backup file list */
+    wt_shared uint64_t
+      hot_backup_start;            /* Clock value of most recent checkpoint needed by hot backup */
+    uint64_t hot_backup_timestamp; /* Stable timestamp of checkpoint for the open backup */
+    char **hot_backup_list;        /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
 
     WT_SESSION_IMPL *ckpt_session;       /* Checkpoint thread session */
@@ -614,45 +664,7 @@ struct __wt_connection_impl {
     bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
-#define WT_CONN_LOG_DOWNGRADED 0x002u      /* Running older version */
-#define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
-#define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
-#define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
-#define WT_CONN_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
-#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
-#define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t log_flags;                    /* Global logging configuration */
-    WT_CONDVAR *log_cond;                  /* Log server wait mutex */
-    WT_SESSION_IMPL *log_session;          /* Log server session */
-    wt_thread_t log_tid;                   /* Log server thread */
-    bool log_tid_set;                      /* Log server thread set */
-    WT_CONDVAR *log_file_cond;             /* Log file thread wait mutex */
-    WT_SESSION_IMPL *log_file_session;     /* Log file thread session */
-    wt_thread_t log_file_tid;              /* Log file thread */
-    bool log_file_tid_set;                 /* Log file thread set */
-    WT_CONDVAR *log_wrlsn_cond;            /* Log write lsn thread wait mutex */
-    WT_SESSION_IMPL *log_wrlsn_session;    /* Log write lsn thread session */
-    wt_thread_t log_wrlsn_tid;             /* Log write lsn thread */
-    bool log_wrlsn_tid_set;                /* Log write lsn thread set */
-    WT_LOG *log;                           /* Logging structure */
-    WT_COMPRESSOR *log_compressor;         /* Logging compressor */
-    wt_shared uint32_t log_cursors;        /* Log cursor count */
-    wt_off_t log_dirty_max;                /* Log dirty system cache max size */
-    wt_off_t log_file_max;                 /* Log file max size */
-    uint32_t log_force_write_wait;         /* Log force write wait configuration */
-    const char *log_path;                  /* Logging path format */
-    uint32_t log_prealloc;                 /* Log file pre-allocation */
-    uint32_t log_prealloc_init_count;      /* initial number of pre-allocated log files */
-    uint16_t log_req_max;                  /* Max required log version */
-    uint16_t log_req_min;                  /* Min required log version */
-    wt_shared uint32_t txn_logsync;        /* Log sync configuration */
+    WT_LOG_MANAGER log_mgr;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
@@ -711,7 +723,6 @@ struct __wt_connection_impl {
                                       mode before timing out */
 
     wt_off_t data_extend_len; /* file_extend data length */
-    wt_off_t log_extend_len;  /* file_extend log length */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIRECT_IO_CHECKPOINT 0x1ull /* Checkpoints */
@@ -732,18 +743,20 @@ struct __wt_connection_impl {
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x001u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x002u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x004u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x008u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x010u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x020u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x040u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x080u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x100u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x200u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x400u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x800u
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x0002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0008u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0010u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0020u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0040u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0080u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0100u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0200u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0400u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x0800u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x1000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x2000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 
@@ -791,20 +804,23 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00001000ull
 #define WT_TIMING_STRESS_HS_SEARCH 0x00002000ull
 #define WT_TIMING_STRESS_HS_SWEEP 0x00004000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00008000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00010000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00020000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00040000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00080000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x00100000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x00200000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x00400000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x00800000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x01000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x02000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x04000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x08000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x10000000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x00008000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x00010000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x00020000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00040000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00080000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00100000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00200000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00400000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x00800000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x01000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x02000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x04000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x08000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x10000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x20000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x40000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x80000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -839,7 +855,7 @@ struct __wt_connection_impl {
 #define WT_CONN_CACHE_CURSORS 0x00000002u
 #define WT_CONN_CACHE_POOL 0x00000004u
 #define WT_CONN_CALL_LOG_ENABLED 0x00000008u
-#define WT_CONN_CKPT_CLEANUP_SKIP_INT 0x00000010u
+#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x00000010u
 #define WT_CONN_CKPT_GATHER 0x00000020u
 #define WT_CONN_CKPT_SYNC 0x00000040u
 #define WT_CONN_CLOSING 0x00000080u

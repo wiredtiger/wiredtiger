@@ -105,7 +105,7 @@ class test_sweep04(wttest.WiredTigerTestCase):
     def examine(self, session, uri_maker, start, count):
         for i in range(0, count):
             c = session.open_cursor(uri_maker(start + i))
-            self.assertEquals(c[1], 1)
+            self.assertEqual(c[1], 1)
             c.close()
 
     def test_big_run(self):
@@ -180,7 +180,7 @@ class test_sweep04(wttest.WiredTigerTestCase):
 
                 # Enable for detailed output.
                 if False:
-                    close = stat_cursor[stat.conn.dh_sweep_close][2]
+                    close = stat_cursor[stat.conn.dh_sweep_dead_close][2]
                     remove = stat_cursor[stat.conn.dh_sweep_remove][2]
                     sweep = stat_cursor[stat.conn.dh_sweeps][2]
                     sclose = stat_cursor[stat.conn.dh_session_handles][2]

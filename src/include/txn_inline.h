@@ -37,6 +37,41 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 }
 
 /*
+ * __wt_txn_log_op_check --
+ *     Return if an operation should be logged.
+ */
+static WT_INLINE bool
+__wt_txn_log_op_check(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_LOG_MANAGER *log_mgr;
+
+    conn = S2C(session);
+    log_mgr = &conn->log_mgr;
+
+    /*
+     * Objects with checkpoint durability don't need logging unless we're in debug mode. That rules
+     * out almost all log records, check it first.
+     */
+    if (!F_ISSET(S2BT(session), WT_BTREE_LOGGED) &&
+      !FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+        return (false);
+
+    /*
+     * Correct the above check for logging being configured. Files are configured for logging to
+     * turn off timestamps, so stop here if there aren't actually any log files.
+     */
+    if (!FLD_ISSET(log_mgr->flags, WT_LOG_ENABLED))
+        return (false);
+
+    /* No logging during recovery. */
+    if (F_ISSET(conn, WT_CONN_RECOVERING))
+        return (false);
+
+    return (true);
+}
+
+/*
  * __wt_txn_err_set --
  *     Set an error in the current transaction.
  */
@@ -322,8 +357,8 @@ static WT_INLINE void
 __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_PAGE_DELETED *page_del;
+    WT_REF_STATE previous_state;
     WT_UPDATE **updp;
-    uint8_t previous_state;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -364,34 +399,41 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
  *     Apply the correct start and durable timestamps to the page delete structure.
  */
 static WT_INLINE void
-__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_REF *ref)
+__txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_PAGE_DELETED *page_del;
     WT_TXN *txn;
 
     txn = session->txn;
-    page_del = ref->page_del;
-
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+    page_del = op->u.ref->page_del;
 
     if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
         page_del->timestamp = txn->commit_timestamp;
         page_del->durable_timestamp = txn->durable_timestamp;
     }
+
+    return;
 }
 
 /*
  * __wt_txn_op_delete_commit_apply_timestamps --
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
-static WT_INLINE void
-__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
+static WT_INLINE int
+__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
 {
+    WT_ADDR_COPY addr;
+    WT_DECL_RET;
+    WT_PAGE_DELETED *page_del;
+    WT_REF *ref;
+    WT_REF_STATE previous_state;
     WT_TXN *txn;
     WT_UPDATE **updp;
-    uint8_t previous_state;
+    bool addr_found;
 
+    ref = op->u.ref;
     txn = session->txn;
+    page_del = ref->page_del;
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -422,19 +464,44 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
              * either set the timestamp on all the updates, or we have set the timestamp on none of
              * the updates.
              */
-            if (*updp != NULL && (*updp)->start_ts == WT_TS_NONE) {
+            if (*updp != NULL) {
                 do {
-                    (*updp)->start_ts = txn->commit_timestamp;
-                    (*updp)->durable_ts = txn->durable_timestamp;
+                    if (validate)
+                        WT_ERR(__wt_txn_timestamp_usage_check(session, op,
+                          (*updp)->start_ts != WT_TS_NONE ? (*updp)->start_ts :
+                                                            txn->commit_timestamp,
+                          (*updp)->prev_durable_ts));
+
+                    if ((*updp)->start_ts == WT_TS_NONE) {
+                        (*updp)->start_ts = txn->commit_timestamp;
+                        (*updp)->durable_ts = txn->durable_timestamp;
+                    }
                     ++updp;
                 } while (*updp != NULL);
             }
         }
+    } else if (validate) {
+        /*
+         * Validate the commit timestamp against the page's maximum durable timestamp. While the ref
+         * state is WT_REF_DELETED and locked, there are no concurrent threads that can free
+         * ref->addr. However, we still need to be within the WT_GEN_SPLIT generation while
+         * accessing ref->addr, as required by the calling function.
+         */
+        WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+        WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
+        if (addr_found)
+            ret = __wt_txn_timestamp_usage_check(session, op,
+              page_del->timestamp != WT_TS_NONE ? page_del->timestamp : txn->commit_timestamp,
+              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+        WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
+        WT_ERR(ret);
     }
 
-    __txn_op_delete_commit_apply_page_del_timestamp(session, ref);
+    __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
+err:
     WT_REF_UNLOCK(ref, previous_state);
+    return (ret);
 }
 
 /*
@@ -457,21 +524,108 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
+ * __wt_txn_timestamp_usage_check --
+ *     Check if a commit will violate timestamp rules.
+ */
+static WT_INLINE int
+__wt_txn_timestamp_usage_check(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)
+{
+    WT_BTREE *btree;
+    WT_TXN *txn;
+    uint16_t flags;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    const char *name;
+    bool no_ts_ok, txn_has_ts;
+
+    btree = op->btree;
+    txn = session->txn;
+    flags = btree->dhandle->ts_flags;
+    name = btree->dhandle->name;
+    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
+
+    /* Timestamps are ignored on logged files. */
+    if (F_ISSET(btree, WT_BTREE_LOGGED))
+        return (0);
+
+    /*
+     * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
+     * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        return (0);
+
+    /* Check for disallowed timestamps. */
+    if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
+        if (!txn_has_ts)
+            return (0);
+
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
+          name, __wt_timestamp_to_string(op_ts, ts_string[0]));
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
+        return (EINVAL);
+    }
+
+    /*
+     * Ordered consistency requires all updates use timestamps, once they are first used, but this
+     * test can be turned off on a per-transaction basis.
+     */
+    no_ts_ok = F_ISSET(txn, WT_TXN_TS_NOT_SET);
+    if (!txn_has_ts && prev_op_durable_ts != WT_TS_NONE && !no_ts_ok) {
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX
+          "no timestamp provided for an update to a table configured to always use timestamps "
+          "once they are first used",
+          name);
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
+        return (EINVAL);
+    }
+
+    /* Ordered consistency requires all updates be in timestamp order. */
+    if (txn_has_ts && prev_op_durable_ts > op_ts) {
+        __wt_err(session, EINVAL,
+          "%s: " WT_TS_VERBOSE_PREFIX
+          "updating a value with a timestamp %s before the previous update %s",
+          name, __wt_timestamp_to_string(op_ts, ts_string[0]),
+          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
+#ifdef HAVE_DIAGNOSTIC
+        __wt_abort(session);
+#endif
+        return (EINVAL);
+    }
+
+    return (0);
+}
+
+/*
  * __wt_txn_op_set_timestamp --
  *     Decide whether to copy a commit timestamp into an update. If the op structure doesn't have a
  *     populated update or ref field or is in prepared state there won't be any check for an
  *     existing timestamp.
  */
-static WT_INLINE void
-__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+static WT_INLINE int
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
 {
     WT_TXN *txn;
     WT_UPDATE *upd;
 
     txn = session->txn;
 
-    if (!__txn_should_assign_timestamp(session, op))
-        return;
+    if (!__txn_should_assign_timestamp(session, op)) {
+        if (validate) {
+            if (op->type == WT_TXN_OP_REF_DELETE)
+                WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate));
+            else
+                WT_RET(__wt_txn_timestamp_usage_check(
+                  session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
+        }
+        return (0);
+    }
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
         /*
@@ -488,19 +642,25 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref);
+            WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate));
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
              * durable timestamps need to be updated.
              */
             upd = op->u.op_upd;
+            if (validate)
+                WT_RET(__wt_txn_timestamp_usage_check(session, op,
+                  upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp,
+                  upd->prev_durable_ts));
             if (upd->start_ts == WT_TS_NONE) {
                 upd->start_ts = txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;
             }
         }
     }
+
+    return (0);
 }
 
 /*
@@ -510,6 +670,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 static WT_INLINE int
 __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_OP *op;
 
@@ -540,9 +701,11 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
-    __wt_txn_op_set_timestamp(session, op);
+    ret = __wt_txn_op_set_timestamp(session, op, false);
+    if (ret != 0)
+        __wt_txn_unmodify(session);
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -569,9 +732,9 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     ref->page_del->txnid = txn->id;
 
     if (__txn_should_assign_timestamp(session, op))
-        __txn_op_delete_commit_apply_page_del_timestamp(session, op->u.ref);
+        __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
-    if (__wt_log_op(session))
+    if (__wt_txn_log_op_check(session))
         WT_ERR(__wt_txn_log_op(session, NULL));
     return (0);
 
@@ -720,6 +883,21 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 }
 
 /*
+ * __wt_txn_timestamp_visible_all --
+ *     Check whether a given timestamp is either globally visible or obsolete.
+ */
+static WT_INLINE bool
+__wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session, wt_timestamp_t timestamp)
+{
+    wt_timestamp_t pinned_ts;
+
+    /* Compare the given timestamp to the pinned timestamp, if it exists. */
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
+
+    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
+}
+
+/*
  * __wt_txn_visible_all --
  *     Check whether a given time window is either globally visible or obsolete. For global
  *     visibility checks, the commit times are checked against the oldest possible readers in the
@@ -734,8 +912,6 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 static WT_INLINE bool
 __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
-    wt_timestamp_t pinned_ts;
-
     /*
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
@@ -760,10 +936,25 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
         return (session->txn->checkpoint_oldest_timestamp != WT_TS_NONE &&
           timestamp <= session->txn->checkpoint_oldest_timestamp);
 
-    /* If no oldest timestamp has been supplied, updates have to stay in cache. */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    return (__wt_txn_timestamp_visible_all(session, timestamp));
+}
 
-    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
+/*
+ * __wt_txn_has_newest_and_visible_all --
+ *     Check whether a given time window is either globally visible or obsolete. Note that both the
+ *     id and the timestamp have to be greater than 0 to be considered.
+ */
+static WT_INLINE bool
+__wt_txn_has_newest_and_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
+{
+    /* If there is no transaction or timestamp information available, there is nothing to do. */
+    if (id == WT_TXN_NONE && timestamp == WT_TS_NONE)
+        return (false);
+
+    if (__wt_txn_visible_all(session, id, timestamp))
+        return (true);
+
+    return (false);
 }
 
 /*
@@ -1239,7 +1430,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
     if (upd->type != WT_UPDATE_MODIFY || cbt->upd_value->skip_buf)
         __wt_upd_value_assign(cbt->upd_value, upd);
     else
-        WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+        WT_RET(__wt_modify_reconstruct_from_upd_list(
+          session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
     return (0);
 }
 
@@ -1356,7 +1548,14 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
-        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+        /*
+         * Stressing this code path may slow down the system too much. To minimize the impact, sleep
+         * on every random 100th iteration when this is enabled.
+         */
+        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_HS_SEARCH) &&
+          __wt_random(&session->rnd) % 100 == 0)
+            __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
+
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }
@@ -1406,7 +1605,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     txn = session->txn;
     txn->isolation = session->isolation;
-    txn->txn_logsync = S2C(session)->txn_logsync;
+    txn->txn_logsync = S2C(session)->log_mgr.txn_logsync;
     txn->commit_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
 
@@ -1427,7 +1626,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
          * Stall here if the cache is completely full. Eviction check can return rollback, but the
          * WT_SESSION.begin_transaction API can't, continue on.
          */
-        WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
+        WT_RET_ERROR_OK(
+          __wt_evict_app_assist_worker_check(session, false, true, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1482,7 +1682,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       __wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
+        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, NULL));
 
     return (0);
 }
@@ -1514,8 +1714,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      *
      * We want the global value to lead the allocated values, so that any allocated transaction ID
      * eventually becomes globally visible. When there are no transactions running, the oldest_id
-     * will reach the global current ID, so we want post-increment semantics. Our atomic add
-     * primitive does pre-increment, so adjust the result here.
+     * will reach the global current ID, so we want post-increment (fetch_add) semantics.
      *
      * We rely on atomic reads of the current ID to create snapshots, so for unlocked reads to be
      * well defined, we must use an atomic increment here.
@@ -1523,12 +1722,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
     if (publish) {
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, txn_global->current);
-        id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        id = __wt_atomic_fetch_addv64(&txn_global->current, 1);
         session->txn->id = id;
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, false);
     } else
-        id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        id = __wt_atomic_fetch_addv64(&txn_global->current, 1);
 
     return (id);
 }

@@ -212,6 +212,7 @@ def run():
     tfile.write('''/* DO NOT EDIT: automatically built by dist/log.py. */
 
 #include "wt_internal.h"
+#include "log_private.h"
 
 #define WT_SIZE_CHECK_PACK_PTR(p, end)     WT_RET_TEST(!(p) || !(end) || (p) >= (end), ENOMEM)
 #define WT_SIZE_CHECK_UNPACK_PTR(p, end)   WT_RET_TEST(!(p) || !(end) || (p) >= (end), EINVAL)
@@ -340,7 +341,7 @@ __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
     WT_LOG *log;
     size_t allocsize;
 
-    log = S2C(session)->log;
+    log = S2C(session)->log_mgr.log;
     allocsize = log == NULL ? WT_LOG_ALIGN : log->allocsize;
     WT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, allocsize), &logrec));
     WT_CLEAR(*(WT_LOG_RECORD *)logrec->data);

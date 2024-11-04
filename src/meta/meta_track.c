@@ -281,7 +281,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
         goto err;
 
     /* If we're logging, make sure the metadata update was flushed. */
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
+    if (F_ISSET(&S2C(session)->log_mgr, WT_LOG_ENABLED))
         WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
           ret = __wt_txn_checkpoint_log(session, false, WT_TXN_LOG_CKPT_SYNC, NULL));
     else {
@@ -399,11 +399,11 @@ __wt_meta_track_checkpoint(WT_SESSION_IMPL *session)
     return (0);
 }
 /*
- * __wt_meta_track_insert --
+ * __wti_meta_track_insert --
  *     Track an insert operation.
  */
 int
-__wt_meta_track_insert(WT_SESSION_IMPL *session, const char *key)
+__wti_meta_track_insert(WT_SESSION_IMPL *session, const char *key)
 {
     WT_DECL_RET;
     WT_META_TRACK *trk;
@@ -420,11 +420,11 @@ err:
 }
 
 /*
- * __wt_meta_track_update --
+ * __wti_meta_track_update --
  *     Track a metadata update operation.
  */
 int
-__wt_meta_track_update(WT_SESSION_IMPL *session, const char *key)
+__wti_meta_track_update(WT_SESSION_IMPL *session, const char *key)
 {
     WT_DECL_RET;
     WT_META_TRACK *trk;
@@ -545,7 +545,7 @@ __wt_meta_track_init(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (!F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) {
         WT_RET(__wt_open_internal_session(
           conn, "metadata-ckpt", false, WT_SESSION_NO_DATA_HANDLES, 0, &conn->meta_ckpt_session));
 

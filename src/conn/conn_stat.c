@@ -73,13 +73,24 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     stats = conn->stats;
 
-    __wt_cache_stats_update(session);
+    __wti_cache_stats_update(session);
+    __wt_evict_stats_update(session);
     __wt_txn_stats_update(session);
 
     WT_STATP_CONN_SET(session, stats, file_open, conn->open_file_count);
     WT_STATP_CONN_SET(
       session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
     WT_STATP_CONN_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_btree_count, conn->dhandle_types_count[WT_DHANDLE_TYPE_BTREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_table_count, conn->dhandle_types_count[WT_DHANDLE_TYPE_TABLE]);
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_count,
+      conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED]);
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_tree_count,
+      conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED_TREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_checkpoint_count, conn->dhandle_checkpoint_count);
     WT_STATP_CONN_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
     WT_STATP_CONN_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
@@ -641,11 +652,11 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 }
 
 /*
- * __wt_statlog_create --
+ * __wti_statlog_create --
  *     Start the statistics server thread.
  */
 int
-__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     bool start;
@@ -670,7 +681,7 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (conn->stat_session == NULL)
         WT_RET(__stat_config_discard(session));
     else
-        WT_RET(__wt_statlog_destroy(session, false));
+        WT_RET(__wti_statlog_destroy(session, false));
 
     WT_RET(__statlog_config(session, cfg, &start));
     if (start)
@@ -680,11 +691,11 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_statlog_destroy --
+ * __wti_statlog_destroy --
  *     Destroy the statistics server thread.
  */
 int
-__wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
+__wti_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

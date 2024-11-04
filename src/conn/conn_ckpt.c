@@ -36,14 +36,13 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
      * The checkpoint configuration requires a wait time and/or a log size, if neither is set, we're
      * not running at all. Checkpoints based on log size also require logging be enabled.
      */
-    if (conn->ckpt_usecs != 0 ||
-      (ckpt_logsize != 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))) {
+    if (conn->ckpt_usecs != 0 || (ckpt_logsize != 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))) {
         /*
          * If checkpointing based on log data, use a minimum of the log file size. The logging
          * subsystem has already been initialized.
          */
-        if (ckpt_logsize != 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-            __wt_atomic_storei64(&conn->ckpt_logsize, WT_MAX(ckpt_logsize, conn->log_file_max));
+        if (ckpt_logsize != 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
+            __wt_atomic_storei64(&conn->ckpt_logsize, WT_MAX(ckpt_logsize, conn->log_mgr.file_max));
         /* Checkpoints are incompatible with in-memory configuration */
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
@@ -162,11 +161,11 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 }
 
 /*
- * __wt_checkpoint_server_create --
+ * __wti_checkpoint_server_create --
  *     Configure and start the checkpoint server.
  */
 int
-__wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     bool start;
@@ -183,7 +182,7 @@ __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * we're updating, and it's not expected that reconfiguration will happen a lot.
      */
     if (conn->ckpt_session != NULL)
-        WT_RET(__wt_checkpoint_server_destroy(session));
+        WT_RET(__wti_checkpoint_server_destroy(session));
 
     WT_RET(__ckpt_server_config(session, cfg, &start));
     if (start)
@@ -193,11 +192,11 @@ __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_checkpoint_server_destroy --
+ * __wti_checkpoint_server_destroy --
  *     Destroy the checkpoint server thread.
  */
 int
-__wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
+__wti_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

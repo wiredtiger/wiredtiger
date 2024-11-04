@@ -41,7 +41,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * the disk image size takes into account large values that have
      * already been written and should not trigger forced eviction.
      */
-    footprint = page->memory_footprint;
+    footprint = __wt_atomic_loadsize(&page->memory_footprint);
     if (page->dsk != NULL)
         footprint -= page->dsk->mem_size;
 
@@ -78,10 +78,59 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /* Trigger eviction on the next page release. */
-    __wt_page_evict_soon(session, ref);
+    __wt_evict_page_soon(session, ref);
 
     /* If eviction cannot succeed, don't try. */
     return (__wt_page_can_evict(session, ref, NULL));
+}
+
+/*
+ * __wt_page_release_evict --
+ *     Release a reference to a page, and attempt to immediately evict it.
+ */
+int
+__wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_REF_STATE previous_state;
+    uint32_t evict_flags;
+    bool locked;
+
+    btree = S2BT(session);
+
+    /*
+     * This function always releases the hazard pointer - ensure that's done regardless of whether
+     * we can get exclusive access. Take some care with order of operations: if we release the
+     * hazard pointer without first locking the page, it could be evicted in between.
+     */
+    previous_state = WT_REF_GET_STATE(ref);
+    locked =
+      previous_state == WT_REF_MEM && WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED);
+    if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
+        if (locked)
+            WT_REF_SET_STATE(ref, previous_state);
+        return (ret == 0 ? EBUSY : ret);
+    }
+
+    evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
+    FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
+
+    /*
+     * There is no need to cache a history store cursor if evicting a readonly page. That includes
+     * pages from a checkpoint. Note that opening a history store cursor on a checkpoint page from
+     * here will explode because the identity of the matching history store checkpoint isn't
+     * available.
+     */
+    if (ref->page != NULL && !__wt_page_evict_clean(ref->page)) {
+        WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
+        WT_RET(__wt_curhs_cache(session));
+    }
+    (void)__wt_atomic_addv32(&btree->evict_busy, 1);
+    ret = __wt_evict(session, ref, previous_state, evict_flags);
+    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+
+    return (ret);
 }
 
 /*
@@ -95,8 +144,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
+    WT_REF_STATE previous_state;
     uint32_t page_flags;
-    uint8_t previous_state;
     bool prepare;
 
     /*
@@ -138,7 +187,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
         WT_ASSERT(session, ref->page_del == NULL);
-        WT_ERR(__wt_btree_new_leaf_page(session, ref));
+        WT_ERR(__wti_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
 
@@ -158,7 +207,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * special cases, use the same test as for skipping instantiation below.
      */
     if (previous_state == WT_REF_DELETED &&
-      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
@@ -172,7 +221,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_overwrite_and_free(session, ref->page_del);
 
         if (ref->page_del == NULL) {
-            WT_ERR(__wt_btree_new_leaf_page(session, ref));
+            WT_ERR(__wti_btree_new_leaf_page(session, ref));
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
             goto skip_read;
@@ -196,10 +245,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
+    WT_ERR(__wti_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
     if (prepare)
-        WT_ERR(__wt_page_inmem_prepare(session, ref));
+        WT_ERR(__wti_page_inmem_prepare(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
@@ -219,11 +268,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
     if (previous_state == WT_REF_DELETED) {
-        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
+        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
         } else
-            WT_ERR(__wt_delete_page_instantiate(session, ref));
+            WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
 
 skip_read:
@@ -265,11 +314,11 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_REF_STATE current_state;
     WT_TXN *txn;
     uint64_t sleep_usecs, yield_cnt;
-    uint8_t current_state;
     int force_attempts;
-    bool busy, cache_work, evict_skip, stalled, wont_need;
+    bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
@@ -294,7 +343,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE))
         __wt_stash_discard(session);
 
-    for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
+    for (evict_skip = read_from_disk = stalled = wont_need = false, force_attempts = 0,
+        sleep_usecs = yield_cnt = 0;
          ;) {
         switch (current_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DELETED:
@@ -302,7 +352,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
-              __wt_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
+              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
@@ -315,9 +365,10 @@ read:
              * space in the cache.
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-                WT_RET(__wt_cache_eviction_check(session, true, txn->mod_count == 0, NULL));
+                WT_RET(
+                  __wt_evict_app_assist_worker_check(session, true, txn->mod_count == 0, NULL));
             WT_RET(__page_read(session, ref, flags));
-
+            read_from_disk = true;
             /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
             FLD_CLR(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
@@ -331,7 +382,7 @@ read:
              */
             wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
-              (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP));
+              (!LF_ISSET(WT_READ_PREFETCH) && F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_NOKEEP));
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
@@ -421,7 +472,7 @@ read:
                      */
 
                     if (F_ISSET(session, WT_SESSION_NO_RECONCILE)) {
-                        WT_STAT_CONN_INCR(session, cache_eviction_force_no_retry);
+                        WT_STAT_CONN_INCR(session, eviction_force_no_retry);
                         evict_skip = true;
                     } else {
                         WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
@@ -453,27 +504,13 @@ skip_evict:
                  * If the page was read by this retrieval or was pulled into the cache via the
                  * pre-fetch mechanism, count that as a page read directly from disk.
                  */
-                if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH) ||
-                  __wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
+                if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH) || read_from_disk)
                     ++session->pf.prefetch_disk_read_count;
                 else
                     session->pf.prefetch_disk_read_count = 0;
             }
-            /*
-             * If we read the page and are configured to not trash the cache, and no other thread
-             * has already used the page, set the read generation so the page is evicted soon.
-             *
-             * Otherwise, if we read the page, or, if configured to update the page's read
-             * generation and the page isn't already flagged for forced eviction, update the page
-             * read generation.
-             */
-            if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
-                if (wont_need)
-                    __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
-                else
-                    __wt_cache_read_gen_new(session, page);
-            } else if (!LF_ISSET(WT_READ_NO_GEN))
-                __wt_cache_read_gen_bump(session, page);
+
+            __wt_evict_touch_page(session, page, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
@@ -512,7 +549,7 @@ skip_evict:
          * cache, substitute that for a sleep.
          */
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-            WT_RET(__wt_cache_eviction_check(session, true, true, &cache_work));
+            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, &cache_work));
             if (cache_work)
                 continue;
         }

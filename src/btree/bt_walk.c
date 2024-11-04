@@ -9,141 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __ref_index_slot --
- *     Return the page's index and slot for a reference.
- */
-static WT_INLINE void
-__ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
-{
-    WT_PAGE_INDEX *pindex;
-    WT_REF **p, **start, **stop, **t;
-    uint64_t sleep_usecs, yield_count;
-    uint32_t entries, slot;
-
-    /*
-     * If we don't find our reference, the page split and our home pointer references the wrong
-     * page. When internal pages split, their WT_REF structure home values are updated; yield and
-     * wait for that to happen.
-     */
-    for (sleep_usecs = yield_count = 0;;) {
-        /*
-         * Copy the parent page's index value: the page can split at any time, but the index's value
-         * is always valid, even if it's not up-to-date.
-         */
-        WT_INTL_INDEX_GET(session, ref->home, pindex);
-        entries = pindex->entries;
-
-        /*
-         * Use the page's reference hint: it should be correct unless there was a split or delete in
-         * the parent before our slot. If the hint is wrong, it can be either too big or too small,
-         * but often only by a small amount. Search up and down the index starting from the hint.
-         *
-         * It's not an error for the reference hint to be wrong, it just means the first retrieval
-         * (which sets the hint for subsequent retrievals), is slower.
-         */
-        slot = ref->pindex_hint;
-        if (slot >= entries)
-            slot = entries - 1;
-        if (pindex->index[slot] == ref)
-            goto found;
-        for (start = &pindex->index[0], stop = &pindex->index[entries - 1],
-            p = t = &pindex->index[slot];
-             p > start || t < stop;) {
-            if (p > start && *--p == ref) {
-                slot = (uint32_t)(p - start);
-                goto found;
-            }
-            if (t < stop && *++t == ref) {
-                slot = (uint32_t)(t - start);
-                goto found;
-            }
-        }
-        /*
-         * We failed to get the page index and slot reference, yield before retrying, and if we've
-         * yielded enough times, start sleeping so we don't burn CPU to no purpose.
-         */
-        __wt_spin_backoff(&yield_count, &sleep_usecs);
-        WT_STAT_CONN_INCRV(session, page_index_slot_ref_blocked, sleep_usecs);
-    }
-
-found:
-    WT_ASSERT(session, pindex->index[slot] == ref);
-    *pindexp = pindex;
-    *slotp = slot;
-}
-
-/*
- * __ref_ascend --
- *     Ascend the tree one level.
- */
-static WT_INLINE void
-__ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
-{
-    WT_REF *parent_ref, *ref;
-
-    /*
-     * Ref points to the first/last slot on an internal page from which we are ascending the tree,
-     * moving to the parent page. This is tricky because the internal page we're on may be splitting
-     * into its parent. Find a stable configuration where the page we start from and the page we're
-     * moving to are connected. The tree eventually stabilizes into that configuration, keep trying
-     * until we succeed.
-     */
-    for (ref = *refp;;) {
-        /*
-         * Find our parent slot on the next higher internal page, the slot from which we move to a
-         * next/prev slot, checking that we haven't reached the root.
-         */
-        parent_ref = ref->home->pg_intl_parent_ref;
-        if (__wt_ref_is_root(parent_ref))
-            break;
-        __ref_index_slot(session, parent_ref, pindexp, slotp);
-
-        /*
-         * There's a split race when a cursor moving forwards through
-         * the tree ascends the tree. If we're splitting an internal
-         * page into its parent, we move the WT_REF structures and
-         * then update the parent's page index before updating the split
-         * page's page index, and it's not an atomic update. A thread
-         * can read the split page's original page index and then read
-         * the parent page's replacement index.
-         *
-         * This can create a race for next-cursor movements.
-         *
-         * For example, imagine an internal page with 3 child pages,
-         * with the namespaces a-f, g-h and i-j; the first child page
-         * splits. The parent starts out with the following page-index:
-         *
-         *	| ... | a | g | i | ... |
-         *
-         * which changes to this:
-         *
-         *	| ... | a | c | e | g | i | ... |
-         *
-         * The split page starts out with the following page-index:
-         *
-         *	| a | b | c | d | e | f |
-         *
-         * Imagine a cursor finishing the 'f' part of the namespace that
-         * starts its ascent to the parent's 'a' slot. Then the page
-         * splits and the parent page's page index is replaced. If the
-         * cursor then searches the parent's replacement page index for
-         * the 'a' slot, it finds it and then increments to the slot
-         * after the 'a' slot, the 'c' slot, and then it incorrectly
-         * repeats its traversal of part of the namespace.
-         *
-         * This function takes a WT_REF argument which is the page from
-         * which we start our ascent. If the parent's slot we find in
-         * our search doesn't point to the same page as that initial
-         * WT_REF, there's a race and we start over again.
-         */
-        if (ref->home == parent_ref->page)
-            break;
-    }
-
-    *refp = parent_ref;
-}
-
-/*
  * __split_prev_race --
  *     Check for races when descending the tree during a previous-cursor walk.
  */
@@ -247,9 +112,9 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_DECL_RET;
     WT_PAGE_INDEX *pindex;
     WT_REF *couple, *ref, *ref_orig;
+    WT_REF_STATE current_state;
     uint64_t restart_sleep, restart_yield;
     uint32_t slot;
-    uint8_t current_state;
     bool empty_internal, prev, skip;
 
     btree = S2BT(session);
@@ -352,7 +217,7 @@ restart:
         goto done;
 
     /* Figure out the current slot in the WT_REF array. */
-    __ref_index_slot(session, ref, &pindex, &slot);
+    __wt_ref_index_slot(session, ref, &pindex, &slot);
 
     for (;;) {
         /*
@@ -361,7 +226,7 @@ restart:
          */
         while ((prev && slot == 0) || (!prev && slot == pindex->entries - 1)) {
             /* Ascend to the parent. */
-            __ref_ascend(session, &ref, &pindex, &slot);
+            __wt_ref_ascend(session, &ref, &pindex, &slot);
 
             /*
              * If at the root and returning internal pages, return the root page, otherwise we're
@@ -380,7 +245,7 @@ restart:
              * deleted, mark it for eviction.
              */
             if (empty_internal) {
-                __wt_page_evict_soon(session, ref);
+                __wt_evict_page_soon(session, ref);
                 empty_internal = false;
             }
 
@@ -403,7 +268,7 @@ restart:
                 WT_ASSERT(session, ref != ref_orig);
 
                 if (__wt_session_prefetch_check(session, ref))
-                    WT_ERR(__wt_btree_prefetch(session, ref));
+                    WT_ERR(__wti_btree_prefetch(session, ref));
 
                 goto done;
             }
@@ -448,7 +313,7 @@ descend:
                  * If deleting a range, try to delete the page without instantiating it. (Note this
                  * test follows the check to skip the page entirely if it's already deleted.)
                  */
-                WT_ERR(__wt_delete_page(session, ref, &skip));
+                WT_ERR(__wti_delete_page(session, ref, &skip));
                 if (skip)
                     break;
                 empty_internal = false;
@@ -456,7 +321,7 @@ descend:
                 /*
                  * Try to skip deleted pages visible to us.
                  */
-                if (__wt_delete_page_skip(session, ref, LF_ISSET(WT_READ_VISIBLE_ALL)))
+                if (__wti_delete_page_skip(session, ref, LF_ISSET(WT_READ_VISIBLE_ALL)))
                     break;
             }
 
@@ -474,7 +339,7 @@ descend:
                 couple = NULL;
 
                 if (__wt_session_prefetch_check(session, ref))
-                    WT_ERR(__wt_btree_prefetch(session, ref));
+                    WT_ERR(__wti_btree_prefetch(session, ref));
 
                 /* Return leaf pages to our caller. */
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
@@ -506,7 +371,7 @@ descend:
              * An expected error, so "couple" is unchanged.
              */
             if (ret == WT_NOTFOUND) {
-                WT_STAT_CONN_INCR(session, cache_eviction_walk_leaf_notfound);
+                WT_STAT_CONN_INCR(session, eviction_walk_leaf_notfound);
                 WT_NOT_READ(ret, 0);
                 break;
             }
@@ -585,7 +450,8 @@ __tree_walk_skip_count_callback(
     /*
      * Skip deleted pages visible to us.
      */
-    if (WT_REF_GET_STATE(ref) == WT_REF_DELETED && __wt_delete_page_skip(session, ref, visible_all))
+    if (WT_REF_GET_STATE(ref) == WT_REF_DELETED &&
+      __wti_delete_page_skip(session, ref, visible_all))
         *skipp = true;
     else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         --*skipleafcntp;
@@ -596,12 +462,12 @@ __tree_walk_skip_count_callback(
 }
 
 /*
- * __wt_tree_walk_skip --
+ * __wti_tree_walk_skip --
  *     Move to the next/previous page in the tree, skipping a certain number of leaf pages before
  *     returning.
  */
 int
-__wt_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
+__wti_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
 {
     /*
      * Optionally skip leaf pages, the second half. The tree-walk function didn't have an on-page
@@ -612,7 +478,7 @@ __wt_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafc
      */
     do {
         WT_RET(__tree_walk_internal(session, refp, NULL, __tree_walk_skip_count_callback,
-          skipleafcntp, WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
+          skipleafcntp, WT_READ_INTERNAL_OP | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
 
         /*
          * The walk skipped internal pages, any page returned must be a leaf page.

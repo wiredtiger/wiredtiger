@@ -15,6 +15,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_normalized_pos
+    SOURCES normalized_pos/main.c
+    DIR_NAME normalized_pos
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/normalized_pos/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_normalized_pos>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_config
     SOURCES config/main.c
     DIR_NAME config
@@ -132,6 +141,8 @@ define_c_test(
     DIR_NAME wt2403_lsm_workload
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over 15 minutes under TSan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -139,6 +150,8 @@ define_c_test(
     SOURCES wt2246_col_append/main.c
     DIR_NAME wt2246_col_append
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2246_col_append>/WT_HOME>
+    # This test takes over 15 minutes under TSan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -147,6 +160,8 @@ define_c_test(
     DIR_NAME wt2323_join_visibility
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME>
     DEPENDS "WT_POSIX"
+    # This test takes over 15 minutes under TSan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -156,6 +171,8 @@ define_c_test(
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2535_insert_race/smoke.sh
     ARGUMENTS $<TARGET_FILE:test_wt2535_insert_race>
     DEPENDS "WT_POSIX"
+    # This test takes over 15 minutes under TSan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -194,6 +211,8 @@ define_c_test(
     SOURCES wt2834_join_bloom_fix/main.c
     DIR_NAME wt2834_join_bloom_fix
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME>
+    # This test takes over 15 minutes under TSan testing
+    LABEL "long_running"
 )
 
 define_c_test(
@@ -304,14 +323,6 @@ define_c_test(
     SOURCES wt4699_json/main.c
     DIR_NAME wt4699_json
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4699_json>/WT_HOME>
-)
-
-define_c_test(
-    TARGET test_wt4803_history_store_abort
-    SOURCES wt4803_history_store_abort/main.c
-    DIR_NAME wt4803_history_store_abort
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4803_history_store_abort>/WT_HOME>
-    DEPENDS "WT_POSIX"
 )
 
 define_c_test(
@@ -433,4 +444,6 @@ define_c_test(
     DIR_NAME wt12015_backup_corruption
     ARGUMENTS
     DEPENDS "WT_POSIX"
+    # This test takes over 15 minutes under TSan testing
+    LABEL "long_running"
 )

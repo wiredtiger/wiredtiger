@@ -28,7 +28,11 @@
 
 #pragma once
 
+#include <chrono>
 #include <string>
+#include <vector>
+
+#include "src/main/test.h"
 
 namespace test_harness {
 
@@ -38,22 +42,32 @@ namespace test_harness {
  */
 class execution_timer {
 public:
-    execution_timer(const std::string id, const std::string &test_name);
+    execution_timer(const std::string &id, const std::string &test_name);
     virtual ~execution_timer();
 
     /* Calculates the average time and appends the stat to the perf file. */
     void append_stats();
 
     /*
-     * Does timing for a given operation and keeps track of how many operations have been executed
-     * as well as total time taken.
+     * Counts hardware instructions used for a given operation and keeps track of how many
+     * operations have been executed.
      */
-    template <typename T> auto track(T lambda);
+    template <typename T>
+    int
+    track(T lambda)
+    {
+        auto start_time = std::chrono::steady_clock::now();
+
+        int ret = lambda();
+        _time_recordings.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
+          (std::chrono::steady_clock::now() - start_time))
+                                     .count());
+        return ret;
+    }
 
 private:
     std::string _id;
     std::string _test_name;
-    int _it_count;
-    uint64_t _total_time_taken;
+    std::vector<uint64_t> _time_recordings;
 };
 } // namespace test_harness

@@ -191,8 +191,7 @@ restart_read:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_deleted_count;
             ++*skippedp;
             continue;
@@ -279,8 +278,7 @@ restart_read:
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
                 ++*skippedp;
                 continue;
@@ -464,8 +462,7 @@ restart_read_insert:
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
                 ++*skippedp;
                 continue;
@@ -521,8 +518,7 @@ restart_read_page:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_deleted_count;
             ++*skippedp;
             continue;
@@ -624,11 +620,11 @@ err:
 }
 
 /*
- * __wt_cursor_key_order_check --
+ * __wti_cursor_key_order_check --
  *     Check key ordering for cursor movements.
  */
 int
-__wt_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
+__wti_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
     switch (cbt->ref->page->type) {
     case WT_PAGE_COL_FIX:
@@ -695,11 +691,11 @@ __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
 #endif
 
 /*
- * __wt_btcur_iterate_setup --
+ * __wti_btcur_iterate_setup --
  *     Initialize a cursor for iteration, usually based on a search.
  */
 void
-__wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
+__wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 {
     WT_PAGE *page;
 
@@ -807,7 +803,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER) && !WT_CURSOR_IS_POSITIONED(cbt)) {
         repositioned = true;
         time_start = __wt_clock(session);
-        WT_ERR(__wt_btcur_bounds_position(session, cbt, true, &need_walk));
+        WT_ERR(__wti_btcur_bounds_position(session, cbt, true, &need_walk));
         if (!need_walk) {
             __wt_value_return(cbt, cbt->upd_value);
             goto done;
@@ -818,7 +814,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
      * If we aren't already iterating in the right direction, there's some setup to do.
      */
     if (!F_ISSET(cbt, WT_CBT_ITERATE_NEXT))
-        __wt_btcur_iterate_setup(cbt);
+        __wti_btcur_iterate_setup(cbt);
 
     /*
      * Walk any page we're holding until the underlying call returns not-found. Then, move to the
@@ -909,7 +905,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
             WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
-            WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+            WT_STAT_CONN_INCR(session, eviction_force_delete);
         }
         cbt->page_deleted_count = 0;
 
@@ -981,7 +977,7 @@ err:
             if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED && newpage) {
                 __wt_cursor_key_order_reset(cbt);
             }
-            ret = __wt_cursor_key_order_check(session, cbt, true);
+            ret = __wti_cursor_key_order_check(session, cbt, true);
         }
 
         if (need_walk) {
@@ -1023,7 +1019,7 @@ err:
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
 
     if (ret == 0)
-        WT_RET(__wt_btcur_evict_reposition(cbt));
+        WT_RET(__wti_btcur_evict_reposition(cbt));
 
     return (ret);
 }

@@ -73,6 +73,7 @@ Castagnoli
 Cclmpv
 Ceil
 CentOS
+Charset
 Checkpointing
 Checksums
 CityHash
@@ -108,6 +109,7 @@ EB
 EBUSY
 EDC
 EEXIST
+EFAULT
 EINTR
 EINVAL
 EMail
@@ -122,8 +124,8 @@ EOF
 ERANGE
 ETIME
 ETIMEDOUT
-EVICTSERVER
 EXTLIST
+EXTLIST's
 EXTSUBPATH
 Encryptor
 Encryptors
@@ -156,6 +158,7 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
+Futex
 GBR
 GC
 GCP
@@ -206,10 +209,12 @@ Keyedness
 Kounavis
 LANGID
 LF
+LLVM
 LLVMFuzzerTestOneInput
 LOGOP
 LOGREC
 LOGSCAN
+LOGSLOT
 LRU
 LSB
 LSM
@@ -273,6 +278,7 @@ NetBSD
 NoAddr
 Noll
 Nul
+OBJECTID
 ONDISK
 OOB
 OPLOG
@@ -288,6 +294,7 @@ POS
 POSIX
 PPC
 PREFETCH
+PREV
 PRId
 PRIu
 PRNG
@@ -301,7 +308,9 @@ Podir
 Posix
 PostgreSQL
 Pre
+Prealloc
 Precompiled
+Prefetch
 Preload
 Prepend
 Prepending
@@ -315,6 +324,7 @@ RCPC
 RCS
 RCpc
 RDNOLOCK
+READGEN
 READONLY
 REALLOC
 RECNO
@@ -338,6 +348,7 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reify
 Rogerio
 Runtime
 SDK
@@ -393,6 +404,7 @@ UDF
 UID
 UIDs
 UINT
+ULF
 ULINE
 UNC
 UNCOND
@@ -424,12 +436,14 @@ Vixie
 VloaY
 Vo
 VxWorks
+WCHAR
 WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
 WTPERF
 WaitForSingleObject
+WaitOn
 Wconditional
 Wduplicated
 WeakHashLen
@@ -449,6 +463,7 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerTmplog
 WithSeeds
+Wl
 Wmissing
 WriteFile
 Wuninitialized
@@ -467,7 +482,6 @@ abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
 acqrel
-addl
 addr
 addrs
 addtw
@@ -508,6 +522,7 @@ bbuilddir
 bcr
 bd
 beginthreadex
+benchmarking
 binutils
 bitcnt
 bitfield
@@ -522,6 +537,7 @@ blkincr
 blkmod
 blkmods
 bm
+bms
 bnd
 bool
 boolean
@@ -564,6 +580,7 @@ cerr
 cfg
 cfko
 chacha
+charset
 chdir
 checkfmt
 checkkey
@@ -605,6 +622,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -613,6 +631,7 @@ countp
 cp
 cpp
 cppsuite
+cpu
 cpuid
 crc
 crypto
@@ -649,8 +668,10 @@ cval
 cx
 cxa
 dT
+darwin
 data's
 datalen
+dataset
 datasource
 datastore
 dbar
@@ -682,6 +703,7 @@ dev
 dh
 dhandle
 dhandles
+didworkp
 difftime
 dir
 directio
@@ -731,7 +753,6 @@ ev
 evd
 eventv
 evictable
-evictserver
 exactp
 exe
 existp
@@ -794,6 +815,7 @@ fsyncs
 ftruncate
 func
 funcid
+futex
 fuzzer
 fuzzutil
 fvisibility
@@ -810,6 +832,7 @@ getone
 getones
 getopt
 getraw
+getter
 getters
 gettime
 gettimeofday
@@ -823,10 +846,12 @@ gostring
 gostruct
 goto
 goutf
+groupd
 gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
@@ -933,6 +958,7 @@ lexicographically
 lf
 libdatasource
 libmemkind
+libpthread
 libs
 libsodium
 libwiredtiger
@@ -1007,6 +1033,7 @@ mn
 mnt
 mongod
 mrs
+msan
 msecs
 msg
 msvc
@@ -1033,6 +1060,7 @@ nentries
 nentriesp
 newbar
 newfile
+newuri
 newv
 nextprev
 nf
@@ -1044,9 +1072,11 @@ nocase
 noclear
 nocrypto
 noexcept
+noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
@@ -1057,6 +1087,7 @@ notsup
 novalue
 nowait
 np
+npos
 nrecs
 nsec
 nset
@@ -1065,7 +1096,9 @@ nullptr
 num
 numbare
 nvram
+objectid
 offpage
+offsetp
 ok
 oldv
 ondisk
@@ -1084,6 +1117,7 @@ optype
 ori
 origstartrecno
 os
+ostream
 oversized
 ovfl
 ownp
@@ -1102,6 +1136,7 @@ pathnames
 perf
 pfx
 pid
+pindexp
 pmem
 poptable
 popthreads
@@ -1119,6 +1154,7 @@ precompilation
 precompiled
 precompiling
 prefetch
+prefetching
 preload
 prepend
 prepended
@@ -1175,6 +1211,7 @@ recurse
 reentrant
 refp
 regionp
+reinstantiated
 relocked
 repl
 repositioned
@@ -1231,6 +1268,7 @@ skiplist
 skiplists
 skipp
 skippable
+slotp
 slvg
 sn
 snaplen
@@ -1291,6 +1329,7 @@ sunused
 supd
 superset
 sw
+syncop
 sys
 syscall
 syscrypto
@@ -1307,6 +1346,7 @@ testext
 testutil
 th
 tid
+timespec
 tinfo
 tlb
 tmp
@@ -1343,10 +1383,12 @@ uS
 ui
 uint
 uintAny
+ulock
 umount
 unallocated
 unbare
 unbuffered
+uncached
 unconfigured
 uncustomized
 undef
@@ -1384,6 +1426,7 @@ userbad
 usercfg
 usleep
 usr
+ut
 utf
 util
 utils

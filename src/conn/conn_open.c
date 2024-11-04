@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_connection_open --
+ * __wti_connection_open --
  *     Open a connection.
  */
 int
-__wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
+__wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 {
     WT_SESSION_IMPL *session;
 
@@ -47,7 +47,13 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     WT_RELEASE_BARRIER();
 
     /* Create the cache. */
-    WT_RET(__wt_cache_create(session, cfg));
+    WT_RET(__wti_cache_create(session, cfg));
+
+    /* Initialize eviction. */
+    WT_RET(__wt_evict_create(session, cfg));
+
+    /* Create shared cache.*/
+    WT_RET(__wti_conn_cache_pool_create(session, cfg));
 
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
@@ -58,11 +64,11 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 }
 
 /*
- * __wt_connection_close --
+ * __wti_connection_close --
  *     Close a connection handle.
  */
 int
-__wt_connection_close(WT_CONNECTION_IMPL *conn)
+__wti_connection_close(WT_CONNECTION_IMPL *conn)
 {
     WT_CONNECTION *wt_conn;
     WT_DECL_RET;
@@ -90,26 +96,26 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
-    WT_TRET(__wt_background_compact_server_destroy(session));
-    WT_TRET(__wt_checkpoint_server_destroy(session));
-    WT_TRET(__wt_statlog_destroy(session, true));
-    WT_TRET(__wt_tiered_storage_destroy(session, false));
-    WT_TRET(__wt_sweep_destroy(session));
+    WT_TRET(__wti_background_compact_server_destroy(session));
+    WT_TRET(__wti_checkpoint_server_destroy(session));
+    WT_TRET(__wti_statlog_destroy(session, true));
+    WT_TRET(__wti_tiered_storage_destroy(session, false));
+    WT_TRET(__wti_sweep_destroy(session));
     WT_TRET(__wt_chunkcache_teardown(session));
-    WT_TRET(__wt_chunkcache_metadata_destroy(session));
-    WT_TRET(__wt_prefetch_destroy(session));
+    WT_TRET(__wti_chunkcache_metadata_destroy(session));
+    WT_TRET(__wti_prefetch_destroy(session));
 
     /* The eviction server is shut down last. */
-    WT_TRET(__wt_evict_destroy(session));
+    WT_TRET(__wt_evict_threads_destroy(session));
     /* The capacity server can only be shut down after all I/O is complete. */
-    WT_TRET(__wt_capacity_server_destroy(session));
+    WT_TRET(__wti_capacity_server_destroy(session));
 
     /* There should be no more file opens after this point. */
     F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
     WT_FULL_BARRIER();
 
     /* Close open data handles. */
-    WT_TRET(__wt_conn_dhandle_discard(session));
+    WT_TRET(__wti_conn_dhandle_discard(session));
 
     /* Shut down metadata tracking. */
     WT_TRET(__wt_meta_track_destroy(session));
@@ -123,24 +129,27 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      * is outside the conditional because we allocate the log path so that printlog can run without
      * running logging or recovery.
      */
-    if (ret == 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
+    if (ret == 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) &&
+      F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
         WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
-    WT_TRET(__wt_conn_remove_collator(session));
-    WT_TRET(__wt_conn_remove_compressor(session));
-    WT_TRET(__wt_conn_remove_data_source(session));
-    WT_TRET(__wt_conn_remove_encryptor(session));
-    WT_TRET(__wt_conn_remove_extractor(session));
-    WT_TRET(__wt_conn_remove_storage_source(session));
+    WT_TRET(__wti_conn_remove_collator(session));
+    WT_TRET(__wti_conn_remove_compressor(session));
+    WT_TRET(__wti_conn_remove_data_source(session));
+    WT_TRET(__wti_conn_remove_encryptor(session));
+    WT_TRET(__wti_conn_remove_extractor(session));
+    WT_TRET(__wti_conn_remove_storage_source(session));
 
     /* Disconnect from shared cache - must be before cache destroy. */
-    WT_TRET(__wt_conn_cache_pool_destroy(session));
+    WT_TRET(__wti_conn_cache_pool_destroy(session));
+
+    /* Destroy Eviction. */
+    WT_TRET(__wt_evict_destroy(session));
 
     /* Discard the cache. */
-    WT_TRET(__wt_cache_destroy(session));
+    WT_TRET(__wti_cache_destroy(session));
 
     /* Discard transaction state. */
     __wt_txn_global_destroy(session);
@@ -154,7 +163,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
         WT_TRET(__wt_close(session, &session->optrack_fh));
 
     /* Close operation tracking */
-    WT_TRET(__wt_conn_optrack_teardown(session, false));
+    WT_TRET(__wti_conn_optrack_teardown(session, false));
 
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_conn_call_log_teardown(session));
@@ -204,24 +213,26 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     __wt_conf_compile_discard(session);
 
     /* Destroy the handle. */
-    __wt_connection_destroy(conn);
+    __wti_connection_destroy(conn);
 
     return (ret);
 }
 
 /*
- * __wt_connection_workers --
+ * __wti_connection_workers --
  *     Start the worker threads.
  */
 int
-__wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "starting WiredTiger utility threads");
+
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
      */
-    WT_RET(__wt_statlog_create(session, cfg));
-    WT_RET(__wt_tiered_storage_create(session));
+    WT_RET(__wti_statlog_create(session, cfg));
+    WT_RET(__wti_tiered_storage_create(session));
     WT_RET(__wt_logmgr_create(session));
 
     /*
@@ -236,7 +247,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Can create a table, so must be done after metadata tracking. */
     WT_RET(__wt_chunkcache_setup(session, cfg));
-    WT_RET(__wt_chunkcache_metadata_create(session));
+    WT_RET(__wti_chunkcache_metadata_create(session));
 
     /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
@@ -255,25 +266,28 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * Start eviction threads. NOTE: Eviction must be started after the history store table is
      * created.
      */
-    WT_RET(__wt_evict_create(session));
+    WT_RET(__wt_evict_threads_create(session));
 
     /* Start the handle sweep thread. */
-    WT_RET(__wt_sweep_create(session));
+    WT_RET(__wti_sweep_create(session));
 
     /* Start the compact thread. */
-    WT_RET(__wt_background_compact_server_create(session));
+    WT_RET(__wti_background_compact_server_create(session));
 
     /* Start the optional capacity thread. */
-    WT_RET(__wt_capacity_server_create(session, cfg));
+    WT_RET(__wti_capacity_server_create(session, cfg));
 
     /* Start the optional checkpoint thread. */
-    WT_RET(__wt_checkpoint_server_create(session, cfg));
+    WT_RET(__wti_checkpoint_server_create(session, cfg));
 
     /* Start pre-fetch utilities. */
-    WT_RET(__wt_prefetch_create(session, cfg));
+    WT_RET(__wti_prefetch_create(session, cfg));
 
     /* Start the checkpoint cleanup thread. */
     WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
+
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads started successfully");
 
     return (0);
 }

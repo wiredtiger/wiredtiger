@@ -316,11 +316,11 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_blkcache_get --
+ * __wti_blkcache_get --
  *     Get a block from the cache.
  */
 void
-__wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
+__wti_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
   WT_BLKCACHE_ITEM **blkcache_retp, bool *foundp, bool *skip_cache_putp)
 {
     WT_BLKCACHE *blkcache;
@@ -385,11 +385,11 @@ __wt_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 }
 
 /*
- * __wt_blkcache_put --
+ * __wti_blkcache_put --
  *     Put a block into the cache.
  */
 int
-__wt_blkcache_put(
+__wti_blkcache_put(
   WT_SESSION_IMPL *session, WT_ITEM *data, const uint8_t *addr, size_t addr_size, bool write)
 {
     WT_BLKCACHE *blkcache;
@@ -503,11 +503,11 @@ err:
 }
 
 /*
- * __wt_blkcache_remove --
+ * __wti_blkcache_remove --
  *     Remove a block from the cache.
  */
 void
-__wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
@@ -716,6 +716,51 @@ __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, 
         return (WT_ERROR);
     }
     return (0);
+}
+
+/*
+ * __wt_blkcache_open --
+ *     Open a file.
+ */
+int
+__wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
+  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
+{
+    WT_BM *bm;
+    WT_DECL_RET;
+
+    *bmp = NULL;
+
+    __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
+
+    WT_RET(__wt_calloc_one(session, &bm));
+    __wti_bm_method_set(bm, false);
+    bm->is_multi_handle = false;
+
+    if (WT_PREFIX_MATCH(uri, "file:")) {
+        uri += strlen("file:");
+        WT_ERR(__wt_block_open(session, uri, WT_TIERED_OBJECTID_NONE, cfg, forced_salvage, readonly,
+          false, allocsize, &bm->block));
+    } else {
+        bm->is_multi_handle = true;
+        WT_ERR(__wt_rwlock_init(session, &bm->handle_array_lock));
+
+        /* Allocate space to store the handle (do first for simpler cleanup). */
+        WT_ERR(__wt_realloc_def(
+          session, &bm->handle_array_allocated, bm->handle_array_next + 1, &bm->handle_array));
+
+        /* Open the active file, and save in array */
+        WT_ERR(__wti_blkcache_tiered_open(session, uri, 0, &bm->block));
+        bm->handle_array[bm->handle_array_next++] = bm->block;
+    }
+
+    *bmp = bm;
+    return (0);
+
+err:
+    __wt_rwlock_destroy(session, &bm->handle_array_lock);
+    __wt_free(session, bm);
+    return (ret);
 }
 
 /*

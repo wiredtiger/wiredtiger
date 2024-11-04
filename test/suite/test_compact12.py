@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time, wttest
+from compact_util import compact_util
+from test_cc01 import test_cc_base
 from wiredtiger import stat
 
 kilobyte = 1024
@@ -40,7 +42,7 @@ kilobyte = 1024
 # It checks that:
 #
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
-class test_compact12(wttest.WiredTigerTestCase):
+class test_compact12(compact_util, test_cc_base):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
     uri_prefix = 'table:test_compact12'
@@ -48,26 +50,11 @@ class test_compact12(wttest.WiredTigerTestCase):
     table_numkv = 10 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.
 
-    def get_size(self, uri):
-        stat_cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
-        size = stat_cursor[stat.dsrc.block_size][2]
-        stat_cursor.close()
-        return size
-
     def get_fast_truncated_pages(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         stat_cursor.close()
         return pages
-
-    def truncate(self, uri, key1, key2):
-        lo_cursor = self.session.open_cursor(uri)
-        hi_cursor = self.session.open_cursor(uri)
-        lo_cursor.set_key(key1)
-        hi_cursor.set_key(key2)
-        self.session.truncate(None, lo_cursor, hi_cursor, None)
-        lo_cursor.close()
-        hi_cursor.close()
 
     def populate(self, uri, num_keys):
         c = self.session.open_cursor(uri, None)
@@ -82,20 +69,9 @@ class test_compact12(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(2)}')
         c.close()
 
-    def wait_for_cc_to_run(self):
-        c = self.session.open_cursor( 'statistics:')
-        cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
-        c.close()
-        while cc_success - prev_cc_success == 0:
-            time.sleep(0.1)
-            c = self.session.open_cursor( 'statistics:')
-            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
-            c.close()
-
     def test_compact12_truncate(self):
-        # FIXME-WT-11399
         if self.runningHook('tiered'):
-            self.skipTest("this test does not yet work with tiered storage")
+            self.skipTest("Tiered tables do not support compaction")
 
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
@@ -128,11 +104,8 @@ class test_compact12(wttest.WiredTigerTestCase):
         self.truncate(uri, self.table_numkv // 10 * 9, self.table_numkv)
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
 
-        # Perform two checkpoints and also trigger checkpoint cleanup to remove
-        # the obsolete content.
-        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+        # Trigger checkpoint cleanup twice to remove the obsolete content.
         self.wait_for_cc_to_run()
-        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.wait_for_cc_to_run()
 
         self.assertGreater(self.get_fast_truncated_pages(), 0)

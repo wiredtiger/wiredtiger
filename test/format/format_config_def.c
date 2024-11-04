@@ -96,6 +96,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024, V_GLOBAL_CACHE_MINIMUM},
 
+  {"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, UINT_MAX, V_GLOBAL_CACHE_MAXIMUM},
+
   {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_CHECKPOINT},
 
@@ -121,6 +123,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX,
     V_GLOBAL_COMPACT_FREE_SPACE_TARGET},
+
+  {"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0,
+    V_GLOBAL_DEBUG_BACKGROUND_COMPACT},
 
   {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024,
     V_GLOBAL_DEBUG_CHECKPOINT_RETENTION},
@@ -285,6 +290,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"ops.verify", "configure verify", C_BOOL, 100, 1, 0, V_GLOBAL_OPS_VERIFY},
 
+  {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0, V_GLOBAL_PREFETCH},
+
   {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_QUIET},
 
   {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX,
@@ -356,6 +363,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SEARCH},
 
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_HS_SWEEP},
+
+  {"stress.prefetch_delay", "stress prefetch delay", C_BOOL, 2, 0, 0,
+    V_GLOBAL_STRESS_PREFETCH_DELAY},
 
   {"stress.prepare_resolution_1", "stress prepare resolution (#1)", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_PREPARE_RESOLUTION_1},

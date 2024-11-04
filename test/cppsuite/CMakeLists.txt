@@ -31,6 +31,7 @@ add_library(cppsuite_test_harness STATIC
     src/storage/scoped_session.cpp
     src/util/barrier.cpp
     src/util/execution_timer.cpp
+    src/util/instruction_counter.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

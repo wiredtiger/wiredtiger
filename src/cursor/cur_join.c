@@ -564,8 +564,8 @@ __curjoin_entry_member(
       __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
-      __wt_cursor_compare_notsup,                     /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
+      __wti_cursor_compare_notsup,                    /* compare */
+      __wti_cursor_equals_notsup,                     /* equals */
       __wt_cursor_notsup,                             /* next */
       __wt_cursor_notsup,                             /* prev */
       __wt_cursor_notsup,                             /* reset */
@@ -694,7 +694,7 @@ __curjoin_get_key(WT_CURSOR *cursor, ...)
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
     va_start(ap, cursor);
-    ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
+    ret = __wti_cursor_get_keyv(cursor, cursor->flags, ap);
     va_end(ap);
 
 err:
@@ -1211,11 +1211,11 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 {
     WT_CURSOR_STATIC_INIT(iface, __curjoin_get_key, /* get-key */
       __curjoin_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,         /* get-raw-key-value */
-      __wt_cursor_set_key_notsup,                   /* set-key */
-      __wt_cursor_set_value_notsup,                 /* set-value */
-      __wt_cursor_compare_notsup,                   /* compare */
-      __wt_cursor_equals_notsup,                    /* equals */
+      __wti_cursor_get_raw_key_value_notsup,        /* get-raw-key-value */
+      __wti_cursor_set_key_notsup,                  /* set-key */
+      __wti_cursor_set_value_notsup,                /* set-value */
+      __wti_cursor_compare_notsup,                  /* compare */
+      __wti_cursor_equals_notsup,                   /* equals */
       __curjoin_next,                               /* next */
       __wt_cursor_notsup,                           /* prev */
       __curjoin_reset,                              /* reset */

@@ -136,6 +136,10 @@ parse(const char *str)
         CHECK_NUM_ARGS(1);
         return begin_transaction(parse_uint64(args[0]));
     }
+    if (name == "breakpoint") {
+        CHECK_NUM_ARGS(0);
+        return breakpoint();
+    }
     if (name == "checkpoint") {
         CHECK_NUM_ARGS_RANGE(0, 1);
         return checkpoint(args.size() == 0 ? nullptr : args[0].c_str());
@@ -155,10 +159,18 @@ parse(const char *str)
         return create_table(
           parse_uint64(args[0]), args[1].c_str(), args[2].c_str(), args[3].c_str());
     }
+    if (name == "evict") {
+        CHECK_NUM_ARGS(2);
+        return evict(parse_uint64(args[0]), data_value(parse_uint64(args[1])));
+    }
     if (name == "insert") {
         CHECK_NUM_ARGS(4);
         return insert(parse_uint64(args[0]), parse_uint64(args[1]),
           data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
+    }
+    if (name == "nop") {
+        CHECK_NUM_ARGS(0);
+        return nop();
     }
     if (name == "prepare_transaction") {
         CHECK_NUM_ARGS(2);
@@ -197,6 +209,10 @@ parse(const char *str)
         CHECK_NUM_ARGS(4);
         return truncate(parse_uint64(args[0]), parse_uint64(args[1]),
           data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
+    }
+    if (name == "wt_config") {
+        CHECK_NUM_ARGS(2);
+        return wt_config(args[0].c_str(), args[1].c_str());
     }
 
 #undef CHECK_NUM_ARGS

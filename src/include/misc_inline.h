@@ -250,7 +250,7 @@ __wt_timing_stress_sleep_random(WT_SESSION_IMPL *session)
      * totally full, return.
      */
     pct = 0.0;
-    if (__wt_eviction_needed(session, false, false, &pct))
+    if (__wt_evict_needed(session, false, false, &pct))
         max = 5;
     else
         max = 9;
@@ -303,6 +303,16 @@ static WT_INLINE void
 __wt_set_shared_double(double *to_set, double value)
 {
     *to_set = value;
+}
+
+/*
+ * __wt_read_shared_double --
+ *     This function enables suppressing TSan warnings about reading doubles in a shared context.
+ */
+static WT_INLINE double
+__wt_read_shared_double(double *to_read)
+{
+    return (*to_read);
 }
 
 /*
