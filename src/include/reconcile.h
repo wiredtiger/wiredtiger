@@ -36,12 +36,30 @@ struct __wt_rec_dictionary {
 
 /*
  * WT_REC_CHUNK --
- *	Reconciliation split chunk.
+ *	Reconciliation split chunk. If the total chunk size crosses the split size additional
+ *  information is stored about where that is.
  */
 struct __wt_rec_chunk {
     /*
-     * The recno and entries fields are the starting record number of the split chunk (for
-     * column-store splits), and the number of entries in the split chunk.
+     * These fields track the amount of entries and their associated timestamps prior to the split
+     * boundary.
+     */
+    uint32_t entries_before_split_boundary;
+    WT_TIME_AGGREGATE ta_before_split_boundary;
+
+    /* These fields track the key or recno of the very first entry past the split boundary. */
+    uint64_t recno_at_split_boundary;
+    WT_ITEM key_at_split_boundary;
+
+    /*
+     * This time aggregate track the aggregated timestamps of all the entries past the split
+     * boundary. Merged with the "before" entry it will equal the full time aggregate for the chunk.
+     */
+    WT_TIME_AGGREGATE ta_after_split_boundary;
+
+    /*
+     * The recno and entries fields are the starting record number of the chunk (for column-store
+     * splits), and the number of entries in the chunk.
      *
      * The key for a row-store page; no column-store key is needed because the page's recno, stored
      * in the recno field, is the column-store key.
@@ -50,18 +68,6 @@ struct __wt_rec_chunk {
     uint64_t recno;
     WT_ITEM key;
     WT_TIME_AGGREGATE ta;
-
-    /* Saved split-size boundary information. */
-    uint32_t entries_before_split_boundary;
-    uint64_t recno_at_split_boundary;
-    WT_ITEM key_at_split_boundary;
-
-    /*
-     * These two time aggregates track the timestamp information before and after the split
-     * boundary. Merged they will equal the full time aggregate for the chunk.
-     */
-    WT_TIME_AGGREGATE ta_before_split_boundary;
-    WT_TIME_AGGREGATE ta_after_split_boundary;
 
     size_t min_offset; /* byte offset */
 
@@ -82,10 +88,10 @@ struct __wt_rec_chunk {
         WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta, (tw));                      \
         WT_TIME_AGGREGATE_UPDATE((session), &(chunk)->ta_after_split_boundary, (tw)); \
     } while (0)
-#define WT_REC_CHUNK_TA_MERGE(session, chunk, agg)                                    \
-    do {                                                                              \
-        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (agg));                      \
-        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (agg)); \
+#define WT_REC_CHUNK_TA_MERGE(session, chunk, ta_agg)                                    \
+    do {                                                                                 \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta, (ta_agg));                      \
+        WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (ta_agg)); \
     } while (0)
 
 /*
