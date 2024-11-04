@@ -60,7 +60,12 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
-        self.skipTest('disaggregated storage no longer uses dir store')
+        # TODO: debug this test.
+        # Sometimes there are data corruption bugs - apparently we act for an evicted
+        # page back, and get one with the wrong checksum.  When that doesn't happen,
+        # sometimes all items written to the leader have not gotten to the follower.
+        self.skipTest('fails due to data corruption')
+
         session_config = 'key_format=S,value_format=S'
 
         #

@@ -60,7 +60,6 @@ class test_oligarch07(wttest.WiredTigerTestCase):
 
     # Test inserting records into a follower that turned into a leader
     def test_oligarch07(self):
-        self.skipTest('disaggregated storage no longer uses dir store')
         #
         # Part 1: Create an oligarch table and insert some data to the leader.
         #
@@ -89,6 +88,11 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         time.sleep(1)
         conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+
+        # TODO: debug this test.
+        # When the skip is enabled, the test runs to the end, but fails in an assertion when one
+        # of the connections closes, during the cleanup for the test.
+        self.skipTest('running past this point causes the test to fail in connection close')
 
         #
         # Part 2: The big switcheroo
