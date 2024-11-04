@@ -787,9 +787,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         /* Stable version according to the timestamp. */
         if (is_ondisk_stable != NULL)
             *is_ondisk_stable = true;
-        __wt_verbose_warning(session, WT_VERB_RTS,
-          "Early exit __rts_btree_abort_ondisk_kv ref %p, tw %s", (void *)ref,
-          __wt_time_window_to_string(tw, time_string));
+        // __wt_verbose_warning(session, WT_VERB_RTS,
+        //   "Early exit __rts_btree_abort_ondisk_kv ref %p, tw %s", (void *)ref,
+        //   __wt_time_window_to_string(tw, time_string));
         return (0);
     }
 
