@@ -105,7 +105,7 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
     uint32_t session_flags;
 
     conn = S2C(session);
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "starting eviction threads");
+
 
     /*
      * In case recovery has allocated some transaction IDs, bump to the current state. This will

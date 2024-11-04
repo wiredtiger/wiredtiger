@@ -9,42 +9,21 @@
 #pragma once
 
 /*
- * Tuning constants: I hesitate to call this tuning, but we want to review some number of pages from
- * each file's in-memory tree for each page we evict.
+ * The range of read generations represented by the bucket presents a tradeoff.
+ * A higher number means there is more lock contention as we add/remove things
+ * to/from buckets, because the higher the range the more pages there are in
+ * the bucket. A smaller range number means that we have to move pages between
+ * buckets more often as their read generations increase.
  */
-#define WT_EVICT_WALK_BASE 300 /* Pages tracked across file visits */
-#define WT_EVICT_WALK_INCR 100 /* Pages added each walk */
+#define WT_EVICT_BUCKET_RANGE 300
+#define WT_EVICT_NUM_BUCKETS 100
 
-/*
- * WT_EVICT_ENTRY --
- *	Encapsulation of an eviction candidate.
- */
-struct __wt_evict_entry {
-    WT_BTREE *btree; /* Enclosing btree object */
-    WT_REF *ref;     /* Page to flush/evict */
-    uint64_t score;  /* Relative eviction priority */
+struct __wt_evict_bucket {
+	WT_SPINLOCK evict_queue_lock;
+	TAILQ_HEAD(__wt_evictbucket_queue, __wt_page) evict_queue;
 };
 
-#define WT_EVICT_QUEUE_MAX 3    /* Two ordinary queues plus urgent */
-#define WT_EVICT_URGENT_QUEUE 2 /* Urgent queue index */
 
-/*
- * WT_EVICT_QUEUE --
- *	Encapsulation of an eviction candidate queue.
- */
-struct __wt_evict_queue {
-    WT_SPINLOCK evict_lock;                /* Eviction LRU queue */
-    WT_EVICT_ENTRY *evict_queue;           /* LRU pages being tracked */
-    WT_EVICT_ENTRY *evict_current;         /* LRU current page to be evicted */
-    uint32_t evict_candidates;             /* LRU list pages to evict */
-    uint32_t evict_entries;                /* LRU entries in the queue */
-    wt_shared volatile uint32_t evict_max; /* LRU maximum eviction slot used */
-};
-
-#define WT_WITH_PASS_LOCK(session, op)                                                   \
-    do {                                                                                 \
-        WT_WITH_LOCK_WAIT(session, &evict->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
-    } while (0)
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 

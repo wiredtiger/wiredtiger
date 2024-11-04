@@ -36,6 +36,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     dhandle = session->dhandle;
     btree = dhandle->handle;
 
+	btree->evict_disabled = 1;
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
