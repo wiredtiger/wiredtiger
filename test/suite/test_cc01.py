@@ -77,31 +77,19 @@ class test_cc_base(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    def populate(self, uri, start_key, num_keys, value):
-        c = self.session.open_cursor(uri, None)
-        for k in range(start_key, num_keys):
-            self.session.begin_transaction()
-            c[k] = value
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k + 1))
-        c.close()
-
-    # Trigger checkpoint cleanup. The function waits for checkpoint cleanup to make progress before
-    # exiting.
     def wait_for_cc_to_run(self):
-        c = self.session.open_cursor('statistics:')
+        c = self.session.open_cursor( 'statistics:')
         cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
         c.close()
-        ckpt_config = "debug=(checkpoint_cleanup=true)"
-        self.session.checkpoint(ckpt_config)
         while cc_success - prev_cc_success == 0:
             time.sleep(0.1)
-            c = self.session.open_cursor('statistics:')
+            c = self.session.open_cursor( 'statistics:')
             cc_success = c[stat.conn.checkpoint_cleanup_success][2]
             c.close()
 
     def check_cc_stats(self):
         self.wait_for_cc_to_run()
-        c = self.session.open_cursor('statistics:')
+        c = self.session.open_cursor( 'statistics:')
         self.assertGreaterEqual(c[stat.conn.checkpoint_cleanup_pages_visited][2], 0)
         self.assertGreaterEqual(c[stat.conn.checkpoint_cleanup_pages_removed][2], 0)
         c.close()
