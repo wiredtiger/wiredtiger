@@ -56,7 +56,6 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         # Create the home directory for the PALM k/v store, and share it with the follower.
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
-        os.system('echo setup; ls -l . ./follower')
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):

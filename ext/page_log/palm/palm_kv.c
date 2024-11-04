@@ -41,13 +41,13 @@
 
 #include "palm_kv.h"
 
-static const size_t MEGABYTE = 1024 * 1024;
+#define MEGABYTE (1024 * 1024)
 
 /*
  * LMDB requires the number of tables to be known at startup. If we add any more tables, we need to
  * increment this.
  */
-static const u_int PALM_MAX_DBI = 3;
+#define PALM_MAX_DBI 3
 
 /*
  * The PAGE_KEY is the on disk format for the key of the pages table. The value is a set of bytes,
