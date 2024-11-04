@@ -111,7 +111,10 @@ main(int argc, char *argv[])
       WT_CONN_CONTROL_POINT_ID_THREAD_4,
     };
     const char *cfg;
-    const char *wiredtiger_open_config = "create,"
+    const char *wiredtiger_open_config =
+      "create,"
+      /* Override the wrong value in api_data.py. */
+      "per_connection_control_points=(thread_0=(thread_count=2)),"
 #if 0 /* Include if needed */
       "verbose=["
       "control_point=5,"
@@ -133,6 +136,7 @@ main(int argc, char *argv[])
       EEXIST);
     for (idx = 0; idx < NUM_THREADS; ++idx)
         error_check(wt_conn->enable_control_point(wt_conn, thread_control_point_ids[idx], cfg));
+
     /* Start all threads */
     for (idx = 0; idx < NUM_THREADS; ++idx) {
         struct thread_arguments *my_args = &(thread_args[idx]);
