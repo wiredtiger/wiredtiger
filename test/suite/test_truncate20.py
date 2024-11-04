@@ -25,8 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import os, wttest
-from test_cc01 import test_cc_base
+import os, time, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -35,7 +34,7 @@ from wtscenario import make_scenarios
 #
 # Test to mimic oplog workload in MongoDB. Ensure the deleted pages are
 # cleaned up on disk and we are not using excessive disk space.
-class test_truncate20(test_cc_base):
+class test_truncate20(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),log=(enabled=true)'
 
     format_values = [
@@ -75,6 +74,16 @@ class test_truncate20(test_cc_base):
         evict_cursor.close()
         self.session.rollback_transaction()
 
+    def wait_for_cc_to_run(self):
+        c = self.session.open_cursor( 'statistics:')
+        cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+        c.close()
+        while cc_success - prev_cc_success == 0:
+            time.sleep(0.1)
+            c = self.session.open_cursor( 'statistics:')
+            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+            c.close()
+
     @wttest.longtest('large number of rows to truncate and checkpoint')
     def test_truncate(self):
         uri = 'table:oplog'
@@ -94,6 +103,8 @@ class test_truncate20(test_cc_base):
         start_num = 1
         end_num = nrows
         for i in range(1, 50):
+            # Session for checkpoint
+            session2 = self.conn.open_session()
             # Session for long running transaction, to make truncate not globally visible
             session3 = self.conn.open_session()
             # Start a long running transaction
@@ -115,7 +126,8 @@ class test_truncate20(test_cc_base):
 
             self.evict_cursor(uri, ds, start_num, nrows)
 
-            # Trigger checkpoint cleanup and wait for it to make progress.
+            # Take a checkpoint.
+            session2.checkpoint("debug=(checkpoint_cleanup=true)")
             self.wait_for_cc_to_run()
 
             # Ensure the datasize is smaller than 600M
