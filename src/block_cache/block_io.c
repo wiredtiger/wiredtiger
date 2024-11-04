@@ -280,6 +280,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
     btree = S2BT(session);
     bm = btree->bm;
+    tmp = NULL;
 
     /* Skip block cache for M2, just read the base + delta pack. */
     count = WT_ELEMENTS(results);
