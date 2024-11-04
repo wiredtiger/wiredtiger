@@ -27,18 +27,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_shared_conn_config
+from helper_disagg import DisaggConfigMixin
 from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_oligarch1.py
 #    Basic oligarch tree creation test
-class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
+class test_oligarch1(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri_base = "test_oligarch1"
     conn_config = 'oligarch_log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
-                + 'disaggregated=(stable_prefix=.,storage_source=dir_store)'
+                + 'disaggregated=(stable_prefix=.,page_log=palm)'
 
     uri = "oligarch:" + uri_base
 
@@ -48,17 +48,11 @@ class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
             ("file:" + uri_base + ".wt_stable", '')
             ]
 
-    # Load the directory store extension, which has object storage support
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
-
-    # Custom test case setup
-    def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
+        extlist.extension('page_log', 'palm')
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str):
@@ -69,7 +63,7 @@ class test_oligarch1(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Test calling the create API for an oligarch table.
     def test_oligarch1(self):
-        base_create = 'key_format=S,value_format=S,disaggregated=(storage_source=dir_store)'
+        base_create = 'key_format=S,value_format=S,disaggregated=(page_log=palm)'
 
         self.pr("create oligarch tree")
         #conf = ',oligarch=true'

@@ -877,13 +877,12 @@ __oligarch_log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, W
         FLD_SET(wtopen_flags, WT_FS_OPEN_DIRECTIO);
 
     /*
-     * XXX
-     * Open failures of log files may occur in disaggregated storage.  Suppress the errors for now.
-     * Eventually we expect the oligarch log to not use files anyway.
-     * Once we do that, remove the new session flag to quiet open file failures.
+     * XXX Open failures of log files may occur in disaggregated storage. Suppress the errors for
+     * now. Eventually we expect the oligarch log to not use files anyway. Once we do that, remove
+     * the new session flag to quiet open file failures.
      */
     F_SET(session, WT_SESSION_QUIET_OPEN_FILE);
-    ret =__wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, wtopen_flags, fhp);
+    ret = __wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, wtopen_flags, fhp);
     F_CLR(session, WT_SESSION_QUIET_OPEN_FILE);
     WT_ERR(ret);
 err:

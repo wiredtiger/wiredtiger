@@ -36,37 +36,29 @@ class test_oligarch07(wttest.WiredTigerTestCase):
     nitems = 500
 
     conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
 
     uri = "oligarch:test_oligarch07"
 
-    # Load the directory store extension, which has object storage support
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
+        extlist.extension('page_log', 'palm')
         self.pr(f"{extlist=}")
 
     # Custom test case setup
     def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
-        os.mkdir('follower/foo')
-        os.mkdir('follower/bar')
-
-        # TODO shouldn't need these - work around code in __wt_open_fs that handles
-        # non fixed-location files
-        os.mkdir('follower/foo/follower')
-        os.mkdir('follower/bar/follower')
+        # Create the home directory for the PALM k/v store, and share it with the follower.
+        os.mkdir('kv_home')
+        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     # Test inserting records into a follower that turned into a leader
     def test_oligarch07(self):
-        self.skipTest('disaggregated storage no longer uses dir store')
         #
         # Part 1: Create an oligarch table and insert some data to the leader.
         #
@@ -95,6 +87,11 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         time.sleep(1)
         conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+
+        # TODO: debug this test.
+        # When the skip is enabled, the test runs to the end, but fails in an assertion when one
+        # of the connections closes, during the cleanup for the test.
+        self.skipTest('running past this point causes the test to fail in connection close')
 
         #
         # Part 2: The big switcheroo
