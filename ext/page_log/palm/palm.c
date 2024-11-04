@@ -76,6 +76,12 @@
         }                                                                                        \
     }
 
+/*
+ * The default cache size for LMDB. Instead of changing this here, consider setting
+ * cache_size_mb=.... when loading the extension library.
+ */
+#define DEFAULT_PALM_CACHE_SIZE_MB 500
+
 /* Directory page log structure. */
 typedef struct {
     WT_PAGE_LOG page_log; /* Must come first */
@@ -98,6 +104,7 @@ typedef struct {
      */
     uint32_t reference_count;
 
+    uint32_t cache_size_mb;            /* Size of cache in megabytes */
     uint32_t delay_ms;                 /* Average length of delay when simulated */
     uint32_t error_ms;                 /* Average length of sleep when simulated */
     uint32_t force_delay;              /* Force a simulated network delay every N operations */
@@ -149,6 +156,9 @@ palm_configure(PALM *palm, WT_CONFIG_ARG *config)
 {
     int ret;
 
+    palm->cache_size_mb = DEFAULT_PALM_CACHE_SIZE_MB;
+    if ((ret = palm_configure_int(palm, config, "cache_size_mb", &palm->cache_size_mb)) != 0)
+        return (ret);
     if ((ret = palm_configure_int(palm, config, "delay_ms", &palm->delay_ms)) != 0)
         return (ret);
     if ((ret = palm_configure_int(palm, config, "error_ms", &palm->error_ms)) != 0)
@@ -695,7 +705,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
     /* Load the storage */
     PALM_KV_ERR(palm, NULL, connection->add_page_log(connection, "palm", &palm->page_log, NULL));
-    PALM_KV_ERR(palm, NULL, palm_kv_env_create(&palm->kv_env));
+    PALM_KV_ERR(palm, NULL, palm_kv_env_create(&palm->kv_env, palm->cache_size_mb));
 
     /* Build the lmdb home string. */
     home = connection->get_home(connection);

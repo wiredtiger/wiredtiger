@@ -36,21 +36,15 @@ class test_oligarch03(wttest.WiredTigerTestCase):
 
     uri_base = "test_oligarch03"
     conn_config = 'oligarch_log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
-                + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
+                + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "oligarch:" + uri_base
 
-    # Load the directory store extension, which has object storage support
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
-
-    # Custom test case setup
-    def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
+        extlist.extension('page_log', 'palm')
 
     # Test inserting a record into an oligarch tree
     def test_oligarch03(self):

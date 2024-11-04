@@ -36,26 +36,24 @@ class test_oligarch05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_oligarch05"
     base_conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
+                + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = base_conn_config + 'oligarch=(role="leader"),'
 
     uri = "oligarch:" + uri_base
 
-    # Load the directory store extension, which has object storage support
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
-
-    # Custom test case setup
-    def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
+        extlist.extension('page_log', 'palm')
 
     # Test records into an oligarch tree and restarting
     def test_oligarch05(self):
-        self.skipTest('disaggregated storage no longer uses dir store')
+        # TODO: debug this test.
+        # There are data corruption bugs - apparently we act for an evicted
+        # page back, and get one with the wrong checksum.
+        self.skipTest('fails due to data corruption')
+
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")
