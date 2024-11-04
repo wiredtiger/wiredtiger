@@ -37,8 +37,11 @@ static void
 check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
 {
     WT_DSRC_STATS stats;
+    uint32_t stat_flags;
 
-    // Enable statistics on the connection to allow the statistic macros to update correctly.
+    // Save and Enable statistics on the connection to allow the statistic macros to update
+    // correctly.
+    stat_flags = S2C(session)->stat_flags;
     S2C(session)->stat_flags = 1;
     REQUIRE(bm->stat(bm, session, &stats) == 0);
     CHECK(stats.allocation_size == bm->block->allocsize);
@@ -49,9 +52,8 @@ check_bm_stats(WT_SESSION_IMPL *session, WT_BM *bm)
     CHECK(stats.block_reuse_bytes == (int64_t)bm->block->live.avail.bytes);
     CHECK(stats.block_size == bm->block->size);
 
-    // Disable statistics on the connection when finished so that the mock session destructor
-    // doesn't try to dereference invalid memory.
-    S2C(session)->stat_flags = 0;
+    // Restore stat_flags on the connection when finished.
+    S2C(session)->stat_flags = stat_flags;
 }
 
 static int

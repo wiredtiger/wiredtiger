@@ -100,6 +100,8 @@ mock_connection::setup_stats(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_RET(__wt_stat_connection_init(nullptr, _connection_impl));
+    _connection_impl->stat_flags =
+      (WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK | WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK);
     _connection_impl->default_session = session;
     return (ret);
 }
