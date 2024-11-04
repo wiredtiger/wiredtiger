@@ -77,9 +77,14 @@ class test_cc05(test_cc_base):
         # Move stable to 35 so there's something to checkpoint.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(35))
 
-        # Trigger checkpoint cleanup and wait until it is done.
-        ckpt_name = "checkpoint_one" if self.named else ""
-        self.check_cc_stats(ckpt_name=ckpt_name)
+        # Perform a checkpoint.
+        if self.named:
+            self.session.checkpoint("name=checkpoint_one,debug=(checkpoint_cleanup=true)")
+        else:
+            self.session.checkpoint("debug=(checkpoint_cleanup=true)")
+
+        # Check statistics.
+        self.check_cc_stats()
 
         # Open a cursor to the checkpoint just performed.
         if self.named:
@@ -100,7 +105,8 @@ class test_cc05(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(70) +
             ',stable_timestamp=' + self.timestamp_str(70))
 
-        # Trigger checkpoint cleanup and wait until it is done.
+        # Perform a checkpoint.
+        self.session.checkpoint("debug=(checkpoint_cleanup=true)")
         self.check_cc_stats()
 
         # Verify the open checkpoint still exists and contains the expected values.
