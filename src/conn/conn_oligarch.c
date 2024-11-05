@@ -61,7 +61,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
         WT_ERR(EINVAL);
 
     /* We need an internal session when modifying metadata. */
-    WT_RET(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
+    WT_ERR(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
 
     /* Open up a metadata cursor pointing at our table */
     WT_ERR(__wt_metadata_cursor(internal_session, &md_cursor));
@@ -101,6 +101,10 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_oligarch_setup --
+ *     Process configuration for oligarch behavior on the connection.
+ */
 int
 __wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
@@ -776,7 +780,6 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 {
     WT_CONNECTION_IMPL *conn;
     WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
     uint32_t i;
 
     conn = S2C(session);
@@ -815,9 +818,8 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_oligarch_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL) {
+        if (manager->entries[i] != NULL)
             __oligarch_manager_remove_table_inlock(session, i, from_shutdown);
-        }
     }
     __wt_free(session, manager->entries);
     manager->open_oligarch_table_count = 0;
@@ -866,13 +868,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.storage_source));
 
     /* Setup any configured page log. */
-    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
-    WT_RET(__wt_schema_open_page_log(session, &cval, &npage_log));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_ERR(__wt_schema_open_page_log(session, &cval, &npage_log));
     conn->disaggregated_storage.npage_log = npage_log;
 
     /* Setup any configured storage source on the data handle */
-    WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
-    WT_RET(__wt_schema_open_storage_source(session, &cval, &nstorage));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
+    WT_ERR(__wt_schema_open_storage_source(session, &cval, &nstorage));
 
     /* TODO: Deduplicate this with __btree_setup_storage_source */
     if (nstorage != NULL) {

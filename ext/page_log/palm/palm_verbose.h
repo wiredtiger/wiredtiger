@@ -26,6 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#pragma once
+
 #define PALM_VERBOSE_PRINT(palm, ...)     \
     do {                                  \
         if ((palm)->verbose > 0)          \

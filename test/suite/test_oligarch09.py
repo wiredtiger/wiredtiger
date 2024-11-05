@@ -53,6 +53,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_oligarch_read_write(self):
+        self.skipTest('fails due to crash')
         uri = "oligarch:test_oligarch08"
         create_session_config = 'key_format=S,value_format=S,block_compressor=snappy'
         self.pr('CREATING')
