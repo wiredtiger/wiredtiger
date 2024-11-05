@@ -779,7 +779,7 @@ __coligarch_search_near(WT_CURSOR *cursor, int *exactp)
     closest = NULL;
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
     ingest_cmp = stable_cmp = 0;
-    ingest_found = stable_found = false;
+    stable_found = false;
 
     CURSOR_API_CALL(cursor, session, ret, search_near, coligarch->dhandle);
     WT_ERR(__cursor_needkey(cursor));
@@ -911,6 +911,10 @@ err:
     API_END_RET(session, ret);
 }
 
+/*
+ * __coligarch_modify_check --
+ *     Check that a modify operation is allowed in the current state.
+ */
 static int
 __coligarch_modify_check(WT_SESSION_IMPL *session)
 {
@@ -972,7 +976,7 @@ __coligarch_insert(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(session));
+    WT_ERR(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -1022,7 +1026,7 @@ __coligarch_update(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(session));
+    WT_ERR(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
     WT_ERR(__coligarch_enter(coligarch, false, true));
@@ -1077,7 +1081,7 @@ __coligarch_remove(WT_CURSOR *cursor)
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_REMOVE_API_CALL(cursor, session, ret, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(session));
+    WT_ERR(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
@@ -1131,7 +1135,7 @@ __coligarch_reserve(WT_CURSOR *cursor)
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, coligarch->dhandle);
-    WT_RET(__coligarch_modify_check(session));
+    WT_ERR(__coligarch_modify_check(session));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
@@ -1298,13 +1302,11 @@ __wt_coligarch_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
     WT_CURSOR_OLIGARCH *coligarch;
     WT_DECL_RET;
     WT_OLIGARCH *oligarch;
-    bool got_dhandle;
 
     WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_OLIGARCH);
 
     coligarch = NULL;
     cursor = NULL;
-    got_dhandle = false;
 
     if (!WT_PREFIX_MATCH(uri, "oligarch:"))
         return (__wt_unexpected_object_type(session, uri, "oligarch:"));
@@ -1325,7 +1327,6 @@ __wt_coligarch_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
 
     /* Get the oligarch tree, and hold a reference to it until the cursor is closed. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, cfg, 0));
-    got_dhandle = true;
 
     oligarch = (WT_OLIGARCH *)session->dhandle;
     WT_ASSERT_ALWAYS(session, oligarch->ingest_uri != NULL && oligarch->key_format != NULL,
@@ -1346,8 +1347,7 @@ __wt_coligarch_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
 err:
         if (coligarch != NULL)
             WT_TRET(__wt_coligarch_close(cursor));
-        else if (got_dhandle)
-            WT_TRET(__wt_session_release_dhandle(session));
+        WT_TRET(__wt_session_release_dhandle(session));
 
         *cursorp = NULL;
     }

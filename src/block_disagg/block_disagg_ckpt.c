@@ -138,7 +138,7 @@ err:
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 
-    return (0);
+    return (ret);
 }
 
 /*
