@@ -875,7 +875,16 @@ __oligarch_log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, W
     __wt_verbose(session, WT_VERB_LOG, "opening log %s", (const char *)buf->data);
     if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
         FLD_SET(wtopen_flags, WT_FS_OPEN_DIRECTIO);
-    WT_ERR(__wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, wtopen_flags, fhp));
+
+    /*
+     * XXX Open failures of log files may occur in disaggregated storage. Suppress the errors for
+     * now. Eventually we expect the oligarch log to not use files anyway. Once we do that, remove
+     * the new session flag to quiet open file failures.
+     */
+    F_SET(session, WT_SESSION_QUIET_OPEN_FILE);
+    ret = __wt_open(session, buf->data, WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, wtopen_flags, fhp);
+    F_CLR(session, WT_SESSION_QUIET_OPEN_FILE);
+    WT_ERR(ret);
 err:
     __wt_scr_free(session, &buf);
     return (ret);

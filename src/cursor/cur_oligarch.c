@@ -19,7 +19,7 @@ static int __coligarch_search_near(WT_CURSOR *cursor, int *exactp);
  * application-chosen encoding byte, if the application uses two leading DC4 byte for some reason,
  * we'll do a wasted data copy each time a new value is inserted into the object.
  */
-static const WT_ITEM __tombstone = {"\x14\x14", 2, NULL, 0, 0};
+static const WT_ITEM __tombstone = {"\x14\x14", 3, NULL, 0, 0};
 
 /*
  * __coligarch_deleted --
@@ -692,7 +692,7 @@ __coligarch_lookup(WT_CURSOR_OLIGARCH *coligarch, WT_ITEM *value)
          */
         found = true;
     }
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (!found)
         F_CLR(c, WT_CURSTD_KEY_SET);
 
@@ -710,7 +710,7 @@ __coligarch_lookup(WT_CURSOR_OLIGARCH *coligarch, WT_ITEM *value)
                 ret = WT_NOTFOUND;
             found = true;
         }
-        WT_ERR_NOTFOUND_OK(ret, false);
+        WT_ERR_NOTFOUND_OK(ret, true);
         if (!found)
             F_CLR(c, WT_CURSTD_KEY_SET);
     }

@@ -41,10 +41,8 @@
 
 #include "palm_kv.h"
 
-/*
- * Set the size of the LMDB cache. Ideally, this should be a parameter of some kind.
- */
-static const size_t PALM_LMDB_CACHE_SIZE = 100 * 1024 * 1024;
+#define MEGABYTE (1024 * 1024)
+
 /*
  * LMDB requires the number of tables to be known at startup. If we add any more tables, we need to
  * increment this.
@@ -117,7 +115,7 @@ palm_kv_timestamp_us(void)
 }
 
 int
-palm_kv_env_create(PALM_KV_ENV **envp)
+palm_kv_env_create(PALM_KV_ENV **envp, uint32_t cache_size_mb)
 {
     PALM_KV_ENV *env;
     int ret;
@@ -133,7 +131,7 @@ palm_kv_env_create(PALM_KV_ENV **envp)
         free(env);
         return (ret);
     }
-    if ((ret = mdb_env_set_mapsize(env->lmdb_env, PALM_LMDB_CACHE_SIZE)) != 0) {
+    if ((ret = mdb_env_set_mapsize(env->lmdb_env, cache_size_mb * MEGABYTE)) != 0) {
         free(env);
         return (ret);
     }
