@@ -1944,6 +1944,7 @@ static int
 __checkpoint_lock_dirty_tree(
   WT_SESSION_IMPL *session, bool is_checkpoint, bool force, bool need_tracking, const char *cfg[])
 {
+    WT_BM *bm;
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG dropconf;
@@ -1959,6 +1960,7 @@ __checkpoint_lock_dirty_tree(
     bool is_drop, is_wt_ckpt, seen_ckpt_add, skip_ckpt;
 
     btree = S2BT(session);
+    bm = btree->bm;
     ckpt = ckptbase = NULL;
     ckpt_bytes_allocated = 0;
     dhandle = session->dhandle;
@@ -2021,10 +2023,15 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
-        /* Skip the clean btree until the btree has obsolete pages. */
         if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
-            F_SET(btree, WT_BTREE_SKIP_CKPT);
-            goto skip;
+            if (bm->can_truncate(btree->bm, session)) {
+                __wt_verbose_info(session, WT_VERB_CHECKPOINT,
+                  "Checkpoint proceeding file: %s, avail bytes: %" PRIu64, bm->block->name,
+                  bm->block->live.avail.bytes);
+            } else {
+                F_SET(btree, WT_BTREE_SKIP_CKPT);
+                goto skip;
+            }
         }
     }
 
@@ -2174,6 +2181,7 @@ __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *
 static int
 __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
 {
+    WT_BM *bm;
     WT_BTREE *btree;
     WT_CKPT *ckpt;
     uint64_t timer;
@@ -2181,6 +2189,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
     const char *name;
 
     btree = S2BT(session);
+    bm = btree->bm;
 
     /*
      * Check for clean objects not requiring a checkpoint.
@@ -2212,6 +2221,17 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              */
             if (__checkpoint_apply_obsolete(session, btree, ckpt))
                 return (0);
+
+            /*
+             * Don't skip if there is available space at the end of the file and it can be truncated
+             * at the end of the checkpoint.
+             */
+            if (bm->can_truncate(bm, session)) {
+                __wt_verbose_info(session, WT_VERB_CHECKPOINT,
+                  "Checkpoint proceeding with file: %s, avail bytes: %" PRIu64, bm->block->name,
+                  bm->block->live.avail.bytes);
+                return (0);
+            }
 
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;
