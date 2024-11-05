@@ -36,7 +36,7 @@ from wtdataset import SimpleDataSet
 #
 class test_checkpoint33(test_cc_base, suite_subprocess):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
-    conn_config = 'cache_size=100MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),verbose=[checkpoint:2,compact:2]'
+    conn_config = 'cache_size=100MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
     uri = 'table:test_checkpoint33'
 
     table_numkv = 10000
@@ -74,7 +74,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         self.session.create(self.uri, self.create_params)
         self.session.checkpoint()
         self.populate()
-        
+
         # Make everything stable at timestamp 3.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(3)}')
 
@@ -107,7 +107,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
 
         self.session.checkpoint()
         self.session.checkpoint()
-        
+
         self.prout(f'File size: {self.get_size()}')
         # It seems as though the minimum file size is 12KB with 4KB available for some reason.
         self.assertLessEqual(self.get_size(), 12 * 1024)
