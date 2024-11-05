@@ -270,7 +270,7 @@ functions:
           $SYSPY -mvenv venv
           source venv/bin/activate
           pip3 install find_libpython==0.4.0
-          # Fix-Me: installing swig to accommodate for macos14 not having swig by default, will be removed once swig
+          # FIXME-WT-13704: installing swig to accommodate for macos14 not having swig by default, will be removed once swig
           # is installed on this distro. See DEVPROD-12418.
           pip3 install swig
           SYSPYLIB=`find_libpython`
@@ -364,7 +364,7 @@ functions:
         else
           # Compiling with CMake generated Ninja file.
           cd cmake_build
-          # Fix-Me: using virtual env to accommodate for macos14 not having swig by default, will be removed once swig
+          # FIXME-WT-13704: using virtual env to accommodate for macos14 not having swig by default, will be removed once swig
           # is installed on this distro. See DEVPROD-12418.
           if [[ "${build_variant|}" =~ "macos-14-arm64" ]]; then
             source ../venv/bin/activate
