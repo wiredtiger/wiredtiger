@@ -5735,7 +5735,7 @@ buildvariants:
   - rhel8-zseries-small
   batchtime: 120 # 2 hours
   expansions:
-    ENABLE_TCMALLOC: 0'
+    ENABLE_TCMALLOC: 0
     # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
     posix_configure_flags: -DENABLE_ZSTD=0
     # Use half number of vCPU to avoid OOM kill failure
