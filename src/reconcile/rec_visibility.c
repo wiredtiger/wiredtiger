@@ -110,8 +110,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) ||
-              F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) &&
+        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) &&
           unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);

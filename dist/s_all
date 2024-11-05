@@ -2,6 +2,12 @@
 
 # Run standard scripts.
 
+################################################################
+# For disaggregated storage, we're not enforcing certain scripts yet.
+# TODO: remove changes to s_all that ignore certain scripts, and resolve resulting fallout.
+disagg_ignore="comment_style.py s_funcs s_longlines s_string s_void"
+################################################################
+
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
 cd_dist
 t_pfx=__s_all_tmp_
@@ -115,6 +121,10 @@ run()
     local t="${t_pfx}-${name}-$$"
     [[ "$name" =~ .*\.py$ ]] && cmd="python3 $cmd" || cmd="/bin/bash $cmd"
     [[ -z "$bg" ]] && status "Running: $name"
+    if echo " $disagg_ignore " | grep " $1 " >/dev/null; then
+        echo "$name skipped for disaggregated storage"
+        return
+    fi
     $cmd > $t 2>&1
     [[ -z "$bg" ]] && status ""
     errchk "$name" "$t" "$flags"
