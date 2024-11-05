@@ -478,10 +478,6 @@ __ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off
             start_bit = (uint64_t)clr_off / gran;
             end_bit = (uint64_t)(clr_off + clr_len - 1) / gran;
             WT_ASSERT(session, end_bit >= start_bit);
-            __wt_verbose(session, WT_VERB_TEMPORARY,
-              "MOD_BLKMOD: %s: %s: gran %d offset %d len %d, adj off %d len %d, %s bits %d-%d",
-              blk_mod->id_str, msg, (int)gran, (int)offset, (int)len, (int)clr_off, (int)clr_len,
-              set ? "SET" : "CLEAR", (int)start_bit, (int)end_bit);
             __bit_nclr(blk_mod->bitstring.mem, start_bit, end_bit);
         }
     }
