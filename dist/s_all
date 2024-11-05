@@ -93,12 +93,9 @@ done
 
 errchk()
 {
-    local skip_disagg=
-    [[ "$1" == "--skip-disagg" ]] && { skip_disagg=1; shift; }
     local name="$1" file="$2" flags="$3"
 
     if [[ ! -s "$file" ]]; then
-        [[ ! -z "$skip_disagg" ]] && echo "$name skipped for disaggregated storage"
         rm -f "$file"
         return
     fi
@@ -120,15 +117,17 @@ run()
     local bg=
     [[ "$1" == "--bg" ]] && { bg=1; shift; }
     local cmd="$1" flags="$2"
-    local skip_disagg=
-    if echo " $disagg_ignore " | grep " $1 " > /dev/null; then skip_disagg='--skip-disagg '; fi
     local name="${cmd%% *}"
     local t="${t_pfx}-${name}-$$"
     [[ "$name" =~ .*\.py$ ]] && cmd="python3 $cmd" || cmd="/bin/bash $cmd"
     [[ -z "$bg" ]] && status "Running: $name"
-    [[ -z "$skip_disagg" ]] && $cmd > $t 2>&1
+    if echo " $disagg_ignore " | grep " $1 " >/dev/null; then
+        echo "$name skipped for disaggregated storage"
+        return
+    fi
+    $cmd > $t 2>&1
     [[ -z "$bg" ]] && status ""
-    errchk $skip_disagg "$name" "$t" "$flags"
+    errchk "$name" "$t" "$flags"
 }
 
 # The s_version script doesn't produce output to the temporary file,
