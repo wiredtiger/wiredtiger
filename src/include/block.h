@@ -474,8 +474,6 @@ struct __wt_block_pantry_header {
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
-#define WT_BLOCK_PANTRY_DATA_CKSUM 0x1u /* Block data is part of the checksum */
-#define WT_BLOCK_PANTRY_DATA_DELTA 0x2u /* Block object is a delta */
     uint8_t flags;                      /* 12: flags */
 
     /*
