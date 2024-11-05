@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+from test_cc01 import test_cc_base
+from suite_subprocess import suite_subprocess
+import time
+from wiredtiger import stat
+from wtdataset import SimpleDataSet
+
+# test_checkpoint33.py
+#
+class test_checkpoint33(test_cc_base, suite_subprocess):
+    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
+    conn_config = 'cache_size=100MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),verbose=[checkpoint:2,compact:2]'
+    uri = 'table:test_checkpoint33'
+
+    table_numkv = 10000
+    value_size = 1024
+    value = 'a' * value_size
+
+    def delete(self):
+        c = self.session.open_cursor(self.uri, None)
+        for k in range(self.table_numkv):
+            c.set_key(k)
+            self.session.begin_transaction()
+            c.remove()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(4))
+        c.close()
+
+    def populate(self):
+        c = self.session.open_cursor(self.uri, None)
+        for k in range(self.table_numkv):
+            self.session.begin_transaction()
+            c[k] = self.value
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(2))
+        c.close()
+
+    def get_size(self):
+        c = self.session.open_cursor('statistics:' + self.uri, None, None)
+        file_size = c[stat.dsrc.block_size][2]
+        c.close()
+        return(file_size)
+
+    def test_checkpoint33(self):
+        # Pin oldest timestamp 1.
+        self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Create and populate a table at timestamp 2.
+        self.session.create(self.uri, self.create_params)
+        self.session.checkpoint()
+        self.populate()
+        
+        # Make everything stable at timestamp 3.
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(3)}')
+
+        # Write to disk.
+        self.session.checkpoint()
+
+        # Delete everything at timestamp 4.
+        self.delete()
+
+        # Make the deletions stable at timestamp 5.
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(5)}')
+
+        # Write to disk.
+        self.session.checkpoint()
+
+        # Make everything globally visible.
+        self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(5)}')
+        self.prout(f'File size: {self.get_size()}')
+
+        # Give checkpoint cleanup enough opportunity to clean up all the deleted pages.
+        cc_success = 0
+        while (cc_success < 10):
+            self.session.checkpoint('debug=(checkpoint_cleanup=true)')
+            c = self.session.open_cursor( 'statistics:')
+            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+            c.close()
+            self.prout(f'cc_success={cc_success}')
+            self.prout(f'File size: {self.get_size()}')
+            time.sleep(0.1)
+
+        self.session.checkpoint()
+        self.session.checkpoint()
+        
+        self.prout(f'File size: {self.get_size()}')
+        # It seems as though the minimum file size is 12KB with 4KB available for some reason.
+        self.assertLessEqual(self.get_size(), 12 * 1024)
