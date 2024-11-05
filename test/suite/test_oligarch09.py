@@ -124,7 +124,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value2)
             else:
                 self.assertEquals(cursor[str(i)], value1)
-    
+
     def test_oligarch_read_delete(self):
         uri = "oligarch:test_oligarch08"
         create_session_config = 'key_format=S,value_format=S'
@@ -161,7 +161,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
                 self.assertEquals(cursor[str(i)], value1)
-    
+
     def test_oligarch_read_multiple_delta(self):
         uri = "oligarch:test_oligarch08"
         create_session_config = 'key_format=S,value_format=S'
@@ -181,7 +181,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             if i % 10 == 0:
                 cursor[str(i)] = value2
-        
+
         self.session.checkpoint()
 
         for i in range(self.nitems):
