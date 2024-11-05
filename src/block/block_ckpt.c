@@ -408,8 +408,8 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
  *     clear the bits represented by the offset/length.
  */
 static int
-__ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset,
-  wt_off_t len, bool set, const char *msg)
+__ckpt_mod_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len, bool set)
 {
     wt_off_t clr_len, clr_off;
     uint64_t adj, end_bit, gran, start_bit;
@@ -522,11 +522,10 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
             continue;
 
         if (block->created_during_backup)
-            WT_RET(
-              __ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true, "new file"));
+            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true));
         else
             /* Always set the bit for the header. */
-            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, 4096, true, "header"));
+            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, 4096, true));
 
         if (clear) {
             /*
@@ -534,13 +533,11 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
              * list.
              */
             WT_EXT_FOREACH (ext, ci->discard.off) {
-                WT_RET(__ckpt_mod_blkmod_entry(
-                  session, blk_mod, ext->off, ext->size, false, "live discard"));
+                WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, false));
             }
         }
         WT_EXT_FOREACH (ext, ci->alloc.off) {
-            WT_RET(
-              __ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true, "live alloc"));
+            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true));
         }
     }
     block->created_during_backup = false;
@@ -572,14 +569,14 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
             continue;
 
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_mod_blkmod_entry(
-              session, blk_mod, ci->alloc.offset, ci->alloc.size, true, "alloc"));
+            WT_RET(
+              __ckpt_mod_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size, true));
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_mod_blkmod_entry(
-              session, blk_mod, ci->avail.offset, ci->avail.size, true, "avail"));
+            WT_RET(
+              __ckpt_mod_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size, true));
         if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
             WT_RET(__ckpt_mod_blkmod_entry(
-              session, blk_mod, ci->discard.offset, ci->discard.size, true, "discard"));
+              session, blk_mod, ci->discard.offset, ci->discard.size, true));
     }
     return (0);
 }
@@ -1100,8 +1097,8 @@ err:
 #ifdef HAVE_UNITTEST
 int
 __ut_ckpt_mod_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len, const char *msg)
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
 {
-    return (__ckpt_mod_blkmod_entry(session, blk_mod, offset, len, true, msg));
+    return (__ckpt_mod_blkmod_entry(session, blk_mod, offset, len, true));
 }
 #endif
