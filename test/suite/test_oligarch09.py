@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),,'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),encryption=(name=rotn,keyid=13),'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
 
@@ -49,7 +49,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         extlist.extension('compressors', 'snappy')
-        # extlist.extension('encryptors', 'rotn')
+        extlist.extension('encryptors', 'rotn')
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_oligarch_read_write(self):
