@@ -37,22 +37,24 @@ from wtscenario import make_scenarios
 class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),,'
     conn_config = conn_base_config + 'oligarch=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 1000
+    nitems = 950
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
+        extlist.extension('compressors', 'snappy')
+        # extlist.extension('encryptors', 'rotn')
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_oligarch_read_write(self):
         uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        create_session_config = 'key_format=S,value_format=S,block_compressor=snappy'
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 

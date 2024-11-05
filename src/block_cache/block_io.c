@@ -416,9 +416,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         /* TODO in principle we should end up not caring about which block mananger. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
-        if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED))
-            WT_ASSERT(session, session == NULL);
+        if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
+            WT_CLEAR(etmp);
+            WT_RET(__read_decrypt(session, &results[i], &etmp, addr, addr_size));
+            WT_ITEM_SET(results[i], etmp); /* TODO I think these leak the old item->data */
+        }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
+            WT_ASSERT(session, session == NULL);
             /*
              * TODO this is probably broken. I think decompress needs to skip a different number of
              * bytes for deltas and full pages.
@@ -461,10 +465,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_DECL_ITEM(ctmp);
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
+    WT_DELTA_HEADER *delta;
     WT_ITEM *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
-    size_t compression_ratio, dst_len, len, result_len, size, size_tmp, src_len;
+    size_t compression_ratio, dst_len, len, result_len, size, size_tmp, size_tmp2, src_len;
     uint64_t time_diff, time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
@@ -541,8 +546,13 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
             ip = ctmp;
 
             /* Set the disk header flags. */
-            dsk = ip->mem;
-            F_SET(dsk, WT_PAGE_COMPRESSED);
+            if (block_meta->delta_count != 0) {
+                delta = ip->mem;
+                F_SET(delta, WT_PAGE_COMPRESSED);
+            } else {
+                dsk = ip->mem;
+                F_SET(dsk, WT_PAGE_COMPRESSED);
+            }
 
             /* Optionally return the compressed size. */
             if (compressed_sizep != NULL)
@@ -558,22 +568,35 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         /*
          * Get size needed for encrypted buffer.
          */
-        __wt_encrypt_size(session, kencryptor, ip->size, &size);
-
+        WT_ASSERT(session, ip->size > 0);
         size_tmp = size;
+        __wt_encrypt_size(session, kencryptor, ip->size, &size);
+        size_tmp2 = size;
+
+        fprintf(stderr, "size_tmp=%lu size_tmp2=%lu\n", size_tmp, size_tmp2);
 
         WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &etmp));
+        __wt_sleep(0, 100000);
+        WT_ASSERT(session, ip->size > 0);
+        __wt_sleep(0, 100000);
         WT_ERR(__wt_encrypt(session, kencryptor, bm->encrypt_skip, ip, etmp));
 
         encrypted = true;
         ip = etmp;
 
         /* Set the disk header flags. */
-        dsk = ip->mem;
-        if (compressed)
-            F_SET(dsk, WT_PAGE_COMPRESSED);
-        F_SET(dsk, WT_PAGE_ENCRYPTED);
+        if (block_meta->delta_count != 0) {
+            delta = ip->mem;
+            if (compressed)
+                F_SET(delta, WT_PAGE_COMPRESSED);
+            F_SET(delta, WT_PAGE_ENCRYPTED);
+        } else {
+            dsk = ip->mem;
+            if (compressed)
+                F_SET(dsk, WT_PAGE_COMPRESSED);
+            F_SET(dsk, WT_PAGE_ENCRYPTED);
+        }
     }
 
     /* Determine if the data requires a checksum. */
@@ -612,13 +635,14 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      * images that are created during recovery may have the write generation number less than the
      * btree base write generation number, so don't verify it.
      */
-    dsk = ip->mem;
-    WT_ASSERT(session, dsk->write_gen != 0);
+    /* TODO fix these stats since dsk now unused in the delta case */
+    /* dsk = ip->mem; */
+    /* WT_ASSERT(session, dsk->write_gen != 0); */
 
-    WT_STAT_CONN_DSRC_INCR(session, cache_write);
-    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, dsk->mem_size);
-    WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size);
-    (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size);
+    /* WT_STAT_CONN_DSRC_INCR(session, cache_write); */
+    /* WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, dsk->mem_size); */
+    /* WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size); */
+    /* (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size); */
 
     /*
      * Store a copy of the compressed buffer in the block cache.
