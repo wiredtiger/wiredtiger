@@ -891,7 +891,7 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 
 /*
  * __bm_can_truncate --
- *     Determine if a file has available space at the end of the file.
+ *     Check if a file has available space at the end of the file.
  */
 static bool
 __bm_can_truncate(WT_BM *bm, WT_SESSION_IMPL *session)

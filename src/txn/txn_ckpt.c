@@ -2023,15 +2023,9 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
-        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
-            if (bm->can_truncate(btree->bm, session)) {
-                __wt_verbose_info(session, WT_VERB_CHECKPOINT,
-                  "Checkpoint proceeding file: %s, avail bytes: %" PRIu64, bm->block->name,
-                  bm->block->live.avail.bytes);
-            } else {
-                F_SET(btree, WT_BTREE_SKIP_CKPT);
-                goto skip;
-            }
+        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES && !bm->can_truncate(btree->bm, session))) {
+            F_SET(btree, WT_BTREE_SKIP_CKPT);
+            goto skip;
         }
     }
 
@@ -2217,21 +2211,11 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
-             * checkpoint cleanup.
+             * checkpoint cleanup or objects that have recoverable available space at the end of the 
+             * file.
              */
-            if (__checkpoint_apply_obsolete(session, btree, ckpt))
+            if (__checkpoint_apply_obsolete(session, btree, ckpt) || bm->can_truncate(bm, session))
                 return (0);
-
-            /*
-             * Don't skip if there is available space at the end of the file and it can be truncated
-             * at the end of the checkpoint.
-             */
-            if (bm->can_truncate(bm, session)) {
-                __wt_verbose_info(session, WT_VERB_CHECKPOINT,
-                  "Checkpoint proceeding with file: %s, avail bytes: %" PRIu64, bm->block->name,
-                  bm->block->live.avail.bytes);
-                return (0);
-            }
 
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;

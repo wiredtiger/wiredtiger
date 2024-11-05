@@ -1341,10 +1341,6 @@ __wti_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_E
 {
     WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
 
-    /*
-     * Check if the last available extent is at the end of the file, and if so, truncate the file
-     * and discard the extent.
-     */
     if ((ext = __block_off_srch_last(el->off, astack)) == NULL)
         return (false);
     WT_ASSERT(session, ext->off + ext->size <= block->size);
