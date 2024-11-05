@@ -47,7 +47,7 @@ test_ckpt_mod_blkmod_entry(wt_off_t offset, wt_off_t len, uint64_t expected_bits
     REQUIRE(block_mods.get_wt_block_mods()->bitstring.data == nullptr);
 
     int result = __ut_ckpt_mod_blkmod_entry(
-      session->get_wt_session_impl(), block_mods.get_wt_block_mods(), offset, len, "ut");
+      session->get_wt_session_impl(), block_mods.get_wt_block_mods(), offset, len);
     REQUIRE(result == 0);
 
     REQUIRE(block_mods.get_wt_block_mods()->nbits == expected_bits);
