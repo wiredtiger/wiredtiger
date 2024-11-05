@@ -3763,6 +3763,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+          # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
+          HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=0
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -5698,7 +5700,6 @@ buildvariants:
   batchtime: 4320 # 3 days
   expansions:
     ENABLE_TCMALLOC: 0
-    # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -5736,8 +5737,6 @@ buildvariants:
   batchtime: 120 # 2 hours
   expansions:
     ENABLE_TCMALLOC: 0
-    # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
-    posix_configure_flags: -DENABLE_ZSTD=0
     # Use half number of vCPU to avoid OOM kill failure
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
   tasks:
