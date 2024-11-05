@@ -105,9 +105,4 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
             self.prout(f'File size: {self.get_size()}')
             time.sleep(0.1)
 
-        self.session.checkpoint()
-        self.session.checkpoint()
-
-        self.prout(f'File size: {self.get_size()}')
-        # It seems as though the minimum file size is 12KB with 4KB available for some reason.
         self.assertLessEqual(self.get_size(), 12 * 1024)
