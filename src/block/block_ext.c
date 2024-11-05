@@ -1334,7 +1334,7 @@ err:
 
 /*
  * __wti_block_extlist_can_truncate --
- *     Truncate the file based on the last available extent in the list.
+ *     Check if there is an available extent at the end of the file that can be truncated.
  */
 bool
 __wti_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
