@@ -471,10 +471,10 @@ struct __wt_block_pantry_header {
      */
     uint32_t checksum; /* 08-11: checksum */
 
-/*
- * No automatic generation: flag values cannot change, they're written to disk.
- */
-    uint8_t flags;                      /* 12: flags */
+    /*
+     * No automatic generation: flag values cannot change, they're written to disk.
+     */
+    uint8_t flags; /* 12: flags */
 
     /*
      * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
