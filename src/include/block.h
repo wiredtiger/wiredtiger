@@ -223,6 +223,7 @@ struct __wt_bm {
     int (*write)(
       WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
+    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, bool);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
     WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
@@ -250,8 +251,6 @@ struct __wt_bm {
      * There's only a single block manager handle that can be written, all others are checkpoints.
      */
     bool is_live; /* The live system */
-
-    size_t encrypt_skip;
 };
 
 /*

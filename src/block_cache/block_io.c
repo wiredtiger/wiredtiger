@@ -177,7 +177,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
              */
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
             /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
-            if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip, ip, etmp)) != 0)
+            if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, false), ip, etmp)) != 0)
                 WT_ERR(__blkcache_read_corrupt(
                   session, ret, addr, addr_size, "block decryption failed"));
 
@@ -262,7 +262,7 @@ err:
 
 static int
 __read_decrypt(
-  WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size)
+  WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size, bool is_delta)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -285,7 +285,7 @@ __read_decrypt(
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
-    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip, in, tmp)) != 0)
+    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, is_delta), in, tmp)) != 0)
         WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
     WT_ITEM_SET(*out, *tmp);
 
@@ -389,7 +389,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     dsk = results[0].data;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_CLEAR(etmp);
-        WT_RET(__read_decrypt(session, &results[0], &etmp, addr, addr_size));
+        WT_RET(__read_decrypt(session, &results[0], &etmp, addr, addr_size, false));
         WT_ITEM_SET(results[0], etmp);
     } else if (btree->kencryptor != NULL) {
         WT_ERR(__blkcache_read_corrupt(
@@ -423,7 +423,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
             WT_CLEAR(etmp);
-            WT_RET(__read_decrypt(session, &results[i], &etmp, addr, addr_size));
+            WT_RET(__read_decrypt(session, &results[i], &etmp, addr, addr_size, true));
             WT_ITEM_SET(results[i], etmp); /* TODO I think these leak the old item->data */
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
@@ -585,7 +585,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         __wt_sleep(0, 100000);
         WT_ASSERT(session, ip->size > 0);
         __wt_sleep(0, 100000);
-        WT_ERR(__wt_encrypt(session, kencryptor, bm->encrypt_skip, ip, etmp));
+        WT_ERR(__wt_encrypt(session, kencryptor, bm->encrypt_skip(bm, session, block_meta->delta_count > 0), ip, etmp));
 
         encrypted = true;
         ip = etmp;
