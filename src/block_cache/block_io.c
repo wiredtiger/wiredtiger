@@ -291,44 +291,42 @@ err:
 
 static int
 __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t mem_sz, WT_ITEM *out,
-  size_t skip, const uint8_t *addr, size_t addr_size)
+  const uint8_t *addr, size_t addr_size)
 {
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     size_t compression_ratio, result_len;
 
     btree = S2BT(session);
     compressor = btree->compressor;
-    WT_RET(__wt_scr_alloc(session, mem_sz, &tmp));
 
     if (compressor == NULL || compressor->decompress == NULL)
         WT_RET(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
           "compressed block for which no compression configured"));
 
-    /* WT_RET(__wt_buf_initsize(session, out, mem_sz)); */
+    WT_RET(__wt_buf_initsize(session, out, mem_sz));
 
-    memcpy(tmp->mem, in, skip);
+    memcpy(out->mem, in, WT_BLOCK_COMPRESS_SKIP);
 
     ret =
-      compressor->decompress(compressor, &session->iface, in + skip,
-        mem_sz - skip, (uint8_t *)tmp->mem + skip,
-        tmp->memsize - skip, &result_len);
-    if (result_len != mem_sz - skip)
+      compressor->decompress(compressor, &session->iface, in + WT_BLOCK_COMPRESS_SKIP,
+        mem_sz - WT_BLOCK_COMPRESS_SKIP, (uint8_t *)out->mem + WT_BLOCK_COMPRESS_SKIP,
+        out->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len);
+    if (result_len != mem_sz - WT_BLOCK_COMPRESS_SKIP)
         WT_TRET(WT_ERROR);
 
     if (ret != 0)
         WT_ERR(
           __blkcache_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
-    compression_ratio = result_len / (tmp->size - skip);
+    compression_ratio = result_len / (out->size - WT_BLOCK_COMPRESS_SKIP);
     __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
 
-    WT_ERR(__wt_buf_set(session, out, tmp->data, tmp->memsize)); /* TODO don't need tmp? */
-
+    if (0) {
 err:
-    __wt_scr_free(session, &tmp);
+        __wt_buf_free(session, out);
+    }
     return (ret);
 }
 
@@ -397,7 +395,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     dsk = results[0].data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         WT_CLEAR(ctmp);
-        WT_RET(__read_decompress(session, dsk, dsk->mem_size, &ctmp, WT_BLOCK_COMPRESS_SKIP, addr, addr_size));
+        WT_RET(__read_decompress(session, dsk, dsk->mem_size, &ctmp, addr, addr_size));
         WT_ITEM_MOVE(results[0], ctmp);
     }
 
@@ -416,7 +414,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      * flags so we need to skip over the delta header.
      */
     for (i = 1; i < count; i++) {
-        /* TODO in principle we should end up not caring about which block mananger. */
+        /* TODO in principle we should end up not caring about which block mananger is backing the file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
@@ -427,7 +425,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
             WT_CLEAR(ctmp);
             delta_hdr = results[i].mem;
-            WT_RET(__read_decompress(session, results[i].data, delta_hdr->mem_size, &ctmp, WT_BLOCK_COMPRESS_SKIP, addr, addr_size));
+            WT_RET(__read_decompress(session, results[i].data, delta_hdr->mem_size, &ctmp, addr, addr_size));
             WT_ITEM_MOVE(results[i], ctmp); /* TODO leak */
         }
     }

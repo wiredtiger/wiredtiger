@@ -50,13 +50,7 @@ __wt_block_disagg_write_size(size_t *sizep)
      */
     *sizep = (size_t)(*sizep +
       WT_MAX(WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE, WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE));
-    if (*sizep > UINT32_MAX - 1024) {
-        while (1 == 1)
-            fprintf(stderr, "foo\n");
-        return (EINVAL);
-    } else
-        return (0);
-    /* return (*sizep > UINT32_MAX - 1024 ? EINVAL : 0); */
+    return (*sizep > UINT32_MAX - 1024 ? EINVAL : 0);
 }
 
 /*
