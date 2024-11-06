@@ -278,13 +278,8 @@ __read_decrypt(
         WT_ERR(__blkcache_read_corrupt(
           session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
 
-    /*
-     * If checksums were turned off because we're depending on decryption to fail on any corrupted
-     * data, we'll end up here on corrupted data.
-     */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
     if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, is_delta), in, tmp)) != 0)
         WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
     WT_ERR(__wt_buf_set(session, out, tmp->data, tmp->size));
@@ -473,7 +468,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_ITEM *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
-    size_t compression_ratio, dst_len, len, result_len, size, size_tmp, size_tmp2, src_len;
+    size_t compression_ratio, dst_len, len, result_len, size, src_len;
     uint64_t time_diff, time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
@@ -491,15 +486,12 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      * Optionally stream-compress the data, but don't compress blocks that are already as small as
      * they're going to get.
      */
-    if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed) {
+    if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
         ip = buf;
-        fprintf(stderr, "no compressor\n");
-    } else if (buf->size < 2 * WT_BLOCK_COMPRESS_SKIP /*buf->size <= btree->allocsize*/) {
+    else if (buf->size < 2 * WT_BLOCK_COMPRESS_SKIP /*buf->size <= btree->allocsize*/) {
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
-        fprintf(stderr, "not compressing, too small\n");
     } else {
-        fprintf(stderr, "attempt compressing\n");
         /* Skip the header bytes of the source data. */
         src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
         src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
@@ -514,11 +506,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         if (btree->compressor->pre_size == NULL)
             len = src_len;
         else
-            WT_ERR2(
+            WT_ERR(
               btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
 
         size = len + WT_BLOCK_COMPRESS_SKIP;
-        WT_ERR2(bm->write_size(bm, session, &size));
+        WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &ctmp));
 
         /* Skip the header bytes of the destination data. */
@@ -538,11 +530,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
          * that's what we use.
          */
         if (compression_failed || buf->size < 2 * WT_BLOCK_COMPRESS_SKIP/* || buf->size / btree->allocsize <= result_len / btree->allocsize */) {
-            fprintf(stderr, "compress failed\n");
             ip = buf;
             WT_STAT_DSRC_INCR(session, compress_write_fail);
         } else {
-            fprintf(stderr, "compressing for real\n");
             compressed = true;
             WT_STAT_DSRC_INCR(session, compress_write);
 
@@ -577,12 +567,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         /*
          * Get size needed for encrypted buffer.
          */
-        WT_ASSERT(session, ip->size > 0);
-        size_tmp = ip->size;
         __wt_encrypt_size(session, kencryptor, ip->size, &size);
-        size_tmp2 = size;
-
-        fprintf(stderr, "size_tmp=%lu size_tmp2=%lu\n", size_tmp, size_tmp2);
 
         WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &etmp));
@@ -678,10 +663,6 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_ERR(__wti_blkcache_put(
           session, compressed ? ctmp : buf, block_meta, addr, *addr_sizep, true));
 
-    if (0) {
-err2:
-        fprintf(stderr, "__wt_blkcache_write err2\n");
-    }
 err:
     __wt_scr_free(session, &ctmp);
     __wt_scr_free(session, &etmp);

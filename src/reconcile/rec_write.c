@@ -326,7 +326,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
 
     /* Wrap up the page reconciliation. Panic on failure. */
-    WT_ERR2(__rec_write_wrapup(session, r, page));
+    WT_ERR(__rec_write_wrapup(session, r, page));
     __rec_write_page_status(session, r);
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
@@ -378,10 +378,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->cache->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
-    if (0) {
-err2:
-        fprintf(stderr, "__reconcile err2\n");
-    }
 err:
     if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
@@ -832,7 +828,6 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->chunk_B.key);
     __wt_buf_free(session, &r->chunk_B.min_key);
     __wt_buf_free(session, &r->chunk_B.image);
-    fprintf(stderr, "freeing delta at %p\n", (void *)&r->delta);
     __wt_buf_free(session, &r->delta);
 
     __wt_free(session, r->supd);
@@ -927,7 +922,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
              */
             ret = __wt_verify_dsk(session, "[write-check]", buf);
         }
-        WT_RET2(ret);
+        WT_RET(ret);
     }
 
     return (__wt_blkcache_write(session, buf, block_meta, addr, addr_sizep, compressed_sizep,
@@ -2047,7 +2042,6 @@ static int
 __rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
-    fprintf(stderr, "allocated buf at %p\n", (void *)&r->delta);
     memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
     r->delta.size = WT_DELTA_HEADER_BYTE_SIZE(S2BT(session));
 
@@ -2760,7 +2754,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
         ret = __rec_hs_wrapup(session, r);
         session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
-        WT_RET2(ret);
+        WT_RET(ret);
     }
 
     /*
@@ -2769,7 +2763,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * some action to resolve the list of allocated/free/whatever blocks that are associated with
      * the checkpoint).
      */
-    WT_RET2(__wti_ovfl_track_wrapup(session, page));
+    WT_RET(__wti_ovfl_track_wrapup(session, page));
 
     /*
      * This page may have previously been reconciled, and that information is now about to be
@@ -2789,7 +2783,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (__wt_ref_is_root(ref))
             break;
 
-        WT_RET2(__wt_ref_block_free(session, ref));
+        WT_RET(__wt_ref_block_free(session, ref));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2797,7 +2791,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                                /*
                                 * Discard the multiple replacement blocks.
                                 */
-        WT_RET2(__rec_split_discard(session, page));
+        WT_RET(__rec_split_discard(session, page));
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
                             /*
@@ -2807,7 +2801,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * checkpoints, and must be explicitly dropped.
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET2(__wt_btree_block_free(
+            WT_RET(__wt_btree_block_free(
               session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
 
         /* Discard the replacement page's address and disk image. */
@@ -2816,7 +2810,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_free(session, mod->mod_disk_image);
         break;
     default:
-        fprintf(stderr, "__rec_write_wrapup here 1\n");
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
@@ -2853,7 +2846,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_checkpoint_tree_reconcile_update(session, &ta);
             if (r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
                 __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
-            WT_RET2(bm->checkpoint(
+            WT_RET(bm->checkpoint(
               bm, session, NULL, &r->wrapup_checkpoint_block_meta, btree->ckpt, false));
             r->ref->page->block_meta = r->wrapup_checkpoint_block_meta;
         }
