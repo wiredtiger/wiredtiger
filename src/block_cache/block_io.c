@@ -266,7 +266,6 @@ __read_decrypt(
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
 
@@ -275,18 +274,13 @@ __read_decrypt(
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
 
     if (encryptor == NULL || encryptor->decrypt == NULL)
-        WT_ERR(__blkcache_read_corrupt(
+        WT_RET(__blkcache_read_corrupt(
           session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, is_delta), in, out)) != 0)
+        WT_RET(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
 
-    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, is_delta), in, tmp)) != 0)
-        WT_ERR(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
-    WT_ERR(__wt_buf_set(session, out, tmp->data, tmp->size));
-
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
+    return (0);
 }
 
 static int
@@ -341,9 +335,11 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_BM *bm;
     WT_BTREE *btree;
+    WT_DECL_ITEM(ctmp);
+    WT_DECL_ITEM(etmp);
     WT_DECL_RET;
-    WT_DELTA_HEADER *delta_hdr;
-    WT_ITEM ctmp, etmp, *tmp;
+    const WT_DELTA_HEADER *delta_hdr;
+    WT_ITEM *tmp, *ip;
     WT_ITEM results[WT_DELTA_LIMIT];
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
@@ -356,6 +352,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     /* Skip block cache for M2, just read the base + delta pack. */
     count = WT_ELEMENTS(results);
 
+    /* TODO clean up tmp usage? */
     if (bm->read_multiple == NULL) {
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
@@ -382,22 +379,30 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      *
      * In this case, the encryption/compression flags live in the page header.
      */
-    dsk = results[0].data;
+    ip = &results[0];
+    dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
-        WT_CLEAR(etmp);
-        WT_RET(__read_decrypt(session, &results[0], &etmp, addr, addr_size, false));
-        WT_ITEM_MOVE(results[0], etmp);
+        WT_ERR(__wt_scr_alloc(session, 0, &etmp));
+        WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size, false));
+        ip = etmp;
     } else if (btree->kencryptor != NULL) {
         WT_ERR(__blkcache_read_corrupt(
           session, WT_ERROR, addr, addr_size, "unencrypted block for which encryption configured"));
     }
 
-    dsk = results[0].data;
+    /*
+     * TODO I think it's possible to get a cleaner handover between the decryption and decompression sections, possibly without a second item for the decompression. But that's a problem for later.
+     */
+    dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
-        WT_CLEAR(ctmp);
-        WT_RET(__read_decompress(session, dsk, dsk->mem_size, &ctmp, addr, addr_size));
-        WT_ITEM_MOVE(results[0], ctmp);
+        WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
+        WT_ERR(__read_decompress(session, dsk, dsk->mem_size, ctmp, addr, addr_size));
+        ip = ctmp;
     }
+    if (ip != &results[0])
+        WT_ITEM_MOVE(results[0], *ip);
+    if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
+        __wt_scr_free(session, &etmp);
 
     /*
      * Now do deltas. Here, the structure looks like:
@@ -414,20 +419,25 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      * flags so we need to skip over the delta header.
      */
     for (i = 1; i < count; i++) {
+        ip = &results[i];
         /* TODO in principle we should end up not caring about which block mananger is backing the file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
-            WT_CLEAR(etmp);
-            WT_RET(__read_decrypt(session, &results[i], &etmp, addr, addr_size, true));
-            WT_ITEM_MOVE(results[i], etmp);
+            WT_ERR(__wt_scr_alloc(session, 0, &etmp));
+            WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size, true));
+            ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
-            WT_CLEAR(ctmp);
-            delta_hdr = results[i].mem;
-            WT_RET(__read_decompress(session, results[i].data, delta_hdr->mem_size, &ctmp, addr, addr_size));
-            WT_ITEM_MOVE(results[i], ctmp); /* TODO leak */
+            delta_hdr = ip->data;
+            WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
+            WT_ERR(__read_decompress(session, ip->data, delta_hdr->mem_size, ctmp, addr, addr_size));
+            ip = ctmp;
         }
+        if (ip != &results[i])
+            WT_ITEM_MOVE(results[i], *ip);
+        if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
+            __wt_scr_free(session, &etmp);
     }
 
     /* Finalize our return list. */
@@ -443,6 +453,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (0) {
 err:
         __wt_free(session, tmp);
+        __wt_scr_free(session, &etmp);
+        __wt_scr_free(session, &ctmp);
     }
     return (ret);
 }
