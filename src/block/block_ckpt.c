@@ -504,7 +504,7 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
     /* If any named checkpoints exist, then don't clear bitmap blocks. */
     clear = true;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (ckpt->name != NULL)
+        if (ckpt->name != NULL && !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
             clear = false;
     }
     WT_CKPT_FOREACH (ckptbase, ckpt) {
