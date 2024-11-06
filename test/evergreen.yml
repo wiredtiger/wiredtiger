@@ -272,7 +272,7 @@ functions:
           pip3 install find_libpython==0.4.0
           # FIXME-WT-13704: installing swig to accommodate for macos14 not having swig by default, will be removed once swig
           # is installed on this distro.
-          pip3 install swig
+          pip3 install swig==4.2.1
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
