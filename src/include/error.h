@@ -47,6 +47,11 @@
         if ((ret = (a)) != 0) \
             goto err;         \
     } while (0)
+#define WT_ERR2(a)             \
+    do {                      \
+        if ((ret = (a)) != 0) \
+            goto err2;         \
+    } while (0)
 #define WT_ERR_MSG(session, v, ...)          \
     do {                                     \
         ret = (v);                           \
@@ -73,6 +78,14 @@
         int __ret;              \
         if ((__ret = (a)) != 0) \
             return (__ret);     \
+    } while (0)
+#define WT_RET2(a)                \
+    do {                          \
+        int __ret;                \
+        if ((__ret = (a)) != 0) { \
+            fprintf (stderr, "ret2\n");       \
+            return (__ret);       \
+        } \
     } while (0)
 #define WT_RET_TRACK(a)               \
     do {                              \

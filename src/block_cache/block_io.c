@@ -295,8 +295,8 @@ err:
 }
 
 static int
-__read_decompress(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_ITEM *out,
-  const uint8_t *addr, size_t addr_size)
+__read_decompress(WT_SESSION_IMPL *session, const void *in, size_t mem_sz, WT_ITEM *out,
+  size_t skip, const uint8_t *addr, size_t addr_size)
 {
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
@@ -306,29 +306,31 @@ __read_decompress(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_ITEM *
 
     btree = S2BT(session);
     compressor = btree->compressor;
-    WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
+    WT_RET(__wt_scr_alloc(session, mem_sz, &tmp));
 
     if (compressor == NULL || compressor->decompress == NULL)
         WT_RET(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
           "compressed block for which no compression configured"));
 
-    WT_RET(__wt_buf_initsize(session, out, dsk->mem_size));
+    /* WT_RET(__wt_buf_initsize(session, out, mem_sz)); */
 
-    memcpy(out->mem, (void *)dsk, WT_BLOCK_COMPRESS_SKIP);
+    memcpy(tmp->mem, in, skip);
 
     ret =
-      compressor->decompress(compressor, &session->iface, (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP,
-        tmp->size - WT_BLOCK_COMPRESS_SKIP, (uint8_t *)out->mem + WT_BLOCK_COMPRESS_SKIP,
-        dsk->mem_size - WT_BLOCK_COMPRESS_SKIP, &result_len);
-    if (result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
+      compressor->decompress(compressor, &session->iface, in + skip,
+        mem_sz - skip, (uint8_t *)tmp->mem + skip,
+        tmp->memsize - skip, &result_len);
+    if (result_len != mem_sz - skip)
         WT_TRET(WT_ERROR);
 
     if (ret != 0)
         WT_ERR(
           __blkcache_read_corrupt(session, ret, addr, addr_size, "block decompression failed"));
 
-    compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
+    compression_ratio = result_len / (tmp->size - skip);
     __wt_stat_compr_ratio_read_hist_incr(session, compression_ratio);
+
+    WT_ERR(__wt_buf_set(session, out, tmp->data, tmp->memsize)); /* TODO don't need tmp? */
 
 err:
     __wt_scr_free(session, &tmp);
@@ -347,6 +349,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_DELTA_HEADER *delta_hdr;
     WT_ITEM ctmp, etmp, *tmp;
     WT_ITEM results[WT_DELTA_LIMIT];
     WT_PAGE_BLOCK_META block_meta_tmp;
@@ -399,8 +402,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     dsk = results[0].data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         WT_CLEAR(ctmp);
-        WT_RET(__read_decompress(session, dsk, &ctmp, addr, addr_size));
-        WT_ITEM_SET(results[0], ctmp);
+        WT_RET(__read_decompress(session, dsk, dsk->mem_size, &ctmp, WT_BLOCK_COMPRESS_SKIP, addr, addr_size));
+        WT_ITEM_MOVE(results[0], ctmp);
     }
 
     /*
@@ -427,14 +430,10 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_ITEM_MOVE(results[i], etmp);
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
-            WT_ASSERT(session, session == NULL);
-            /*
-             * TODO this is probably broken. I think decompress needs to skip a different number of
-             * bytes for deltas and full pages.
-             */
             WT_CLEAR(ctmp);
-            WT_RET(__read_decompress(session, blk, &ctmp, addr, addr_size));
-            WT_ITEM_SET(results[i], ctmp);
+            delta_hdr = results[i].mem;
+            WT_RET(__read_decompress(session, results[i].data, delta_hdr->mem_size, &ctmp, WT_BLOCK_COMPRESS_SKIP, addr, addr_size));
+            WT_ITEM_MOVE(results[i], ctmp); /* TODO leak */
         }
     }
 
@@ -492,12 +491,15 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      * Optionally stream-compress the data, but don't compress blocks that are already as small as
      * they're going to get.
      */
-    if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
+    if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed) {
         ip = buf;
-    else if (buf->size <= btree->allocsize) {
+        fprintf(stderr, "no compressor\n");
+    } else if (buf->size < 2 * WT_BLOCK_COMPRESS_SKIP /*buf->size <= btree->allocsize*/) {
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
+        fprintf(stderr, "not compressing, too small\n");
     } else {
+        fprintf(stderr, "attempt compressing\n");
         /* Skip the header bytes of the source data. */
         src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
         src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
@@ -512,11 +514,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         if (btree->compressor->pre_size == NULL)
             len = src_len;
         else
-            WT_ERR(
+            WT_ERR2(
               btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
 
         size = len + WT_BLOCK_COMPRESS_SKIP;
-        WT_ERR(bm->write_size(bm, session, &size));
+        WT_ERR2(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &ctmp));
 
         /* Skip the header bytes of the destination data. */
@@ -535,10 +537,12 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
          * output requires), it just means the uncompressed version is as good as it gets, and
          * that's what we use.
          */
-        if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
+        if (compression_failed || buf->size < 2 * WT_BLOCK_COMPRESS_SKIP/* || buf->size / btree->allocsize <= result_len / btree->allocsize */) {
+            fprintf(stderr, "compress failed\n");
             ip = buf;
             WT_STAT_DSRC_INCR(session, compress_write_fail);
         } else {
+            fprintf(stderr, "compressing for real\n");
             compressed = true;
             WT_STAT_DSRC_INCR(session, compress_write);
 
@@ -582,9 +586,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
 
         WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &etmp));
-        __wt_sleep(0, 100000);
         WT_ASSERT(session, ip->size > 0);
-        __wt_sleep(0, 100000);
         WT_ERR(__wt_encrypt(session, kencryptor, bm->encrypt_skip(bm, session, block_meta->delta_count > 0), ip, etmp));
 
         encrypted = true;
@@ -593,8 +595,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         /* Set the disk header flags. */
         if (block_meta->delta_count != 0) {
             delta = ip->mem;
-            if (compressed)
+            if (compressed) {
                 F_SET(delta, WT_PAGE_COMPRESSED);
+            }
             F_SET(delta, WT_PAGE_ENCRYPTED);
         } else {
             dsk = ip->mem;
@@ -675,6 +678,10 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_ERR(__wti_blkcache_put(
           session, compressed ? ctmp : buf, block_meta, addr, *addr_sizep, true));
 
+    if (0) {
+err2:
+        fprintf(stderr, "__wt_blkcache_write err2\n");
+    }
 err:
     __wt_scr_free(session, &ctmp);
     __wt_scr_free(session, &etmp);
