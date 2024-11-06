@@ -900,15 +900,15 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
  * __bm_encrypt_skip_size --
  *     Return the skip size for encryption
  */
- static size_t
- __bm_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, bool is_delta)
- {
+static size_t
+__bm_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, bool is_delta)
+{
     WT_UNUSED(bm);
     WT_UNUSED(session);
     WT_UNUSED(is_delta);
 
     return WT_BLOCK_HEADER_BYTE_SIZE;
- }
+}
 
 /*
  * __bm_method_set --

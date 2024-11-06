@@ -177,7 +177,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
              */
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
             /* TODO: ENCRYPT_SKIP needs to skip the right size for an object header if it has one */
-            if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, false), ip, etmp)) != 0)
+            if ((ret = __wt_decrypt(
+                   session, encryptor, bm->encrypt_skip(bm, session, false), ip, etmp)) != 0)
                 WT_ERR(__blkcache_read_corrupt(
                   session, ret, addr, addr_size, "block decryption failed"));
 
@@ -261,8 +262,8 @@ err:
 }
 
 static int
-__read_decrypt(
-  WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size, bool is_delta)
+__read_decrypt(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr,
+  size_t addr_size, bool is_delta)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -277,7 +278,8 @@ __read_decrypt(
         WT_RET(__blkcache_read_corrupt(
           session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
 
-    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session, is_delta), in, out)) != 0)
+    if ((ret = __wt_decrypt(
+           session, encryptor, bm->encrypt_skip(bm, session, is_delta), in, out)) != 0)
         WT_RET(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
 
     return (0);
@@ -303,8 +305,12 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t mem_sz, WT_IT
 
     memcpy(out->mem, in, WT_BLOCK_COMPRESS_SKIP);
 
+    /*
+     * TODO I'm not a big fan of casting away the const-ness of in, but the compressor interface
+     * marks it as non-const.
+     */
     ret =
-      compressor->decompress(compressor, &session->iface, in + WT_BLOCK_COMPRESS_SKIP,
+      compressor->decompress(compressor, &session->iface, (uint8_t *)in + WT_BLOCK_COMPRESS_SKIP,
         mem_sz - WT_BLOCK_COMPRESS_SKIP, (uint8_t *)out->mem + WT_BLOCK_COMPRESS_SKIP,
         out->memsize - WT_BLOCK_COMPRESS_SKIP, &result_len);
     if (result_len != mem_sz - WT_BLOCK_COMPRESS_SKIP)
@@ -339,8 +345,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
     const WT_DELTA_HEADER *delta_hdr;
-    WT_ITEM *tmp, *ip;
     WT_ITEM results[WT_DELTA_LIMIT];
+    WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
@@ -391,7 +397,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     }
 
     /*
-     * TODO I think it's possible to get a cleaner handover between the decryption and decompression sections, possibly without a second item for the decompression. But that's a problem for later.
+     * TODO I think it's possible to get a cleaner handover between the decryption and decompression
+     * sections, possibly without a second item for the decompression. But that's a problem for
+     * later.
      */
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
@@ -420,7 +428,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     for (i = 1; i < count; i++) {
         ip = &results[i];
-        /* TODO in principle we should end up not caring about which block mananger is backing the file. */
+        /* TODO in principle we should end up not caring about which block mananger is backing the
+         * file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
@@ -431,7 +440,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
             delta_hdr = ip->data;
             WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
-            WT_ERR(__read_decompress(session, ip->data, delta_hdr->mem_size, ctmp, addr, addr_size));
+            WT_ERR(
+              __read_decompress(session, ip->data, delta_hdr->mem_size, ctmp, addr, addr_size));
             ip = ctmp;
         }
         if (ip != &results[i])
@@ -582,7 +592,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &etmp));
         WT_ASSERT(session, ip->size > 0);
-        WT_ERR(__wt_encrypt(session, kencryptor, bm->encrypt_skip(bm, session, block_meta->delta_count > 0), ip, etmp));
+        WT_ERR(__wt_encrypt(session, kencryptor,
+          bm->encrypt_skip(bm, session, block_meta->delta_count > 0), ip, etmp));
 
         encrypted = true;
         ip = etmp;

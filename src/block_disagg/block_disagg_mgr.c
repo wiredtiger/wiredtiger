@@ -111,14 +111,15 @@ __bmd_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
  * __bmd_encrypt_skip_size --
  *     Return the skip size for encryption
  */
- static size_t
- __bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, bool is_delta)
- {
+static size_t
+__bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, bool is_delta)
+{
     WT_UNUSED(bm);
     WT_UNUSED(session);
 
-    return (is_delta ? WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE : WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE);
- }
+    return (
+      is_delta ? WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE : WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE);
+}
 
 /*
  * __bmd_method_set --
