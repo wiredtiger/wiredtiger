@@ -907,7 +907,7 @@ __bm_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, bool is_delta)
     WT_UNUSED(session);
     WT_UNUSED(is_delta);
 
-    return WT_BLOCK_HEADER_BYTE_SIZE;
+    return (WT_BLOCK_HEADER_BYTE_SIZE);
 }
 
 /*

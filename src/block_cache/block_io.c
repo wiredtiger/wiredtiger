@@ -261,6 +261,13 @@ err:
     return (ret);
 }
 
+/*
+ * __read_decrypt --
+ *     Decrypt the content of one item into another.
+ *
+ * This uses the decryptor on the btree, and requires that the output item is already backed by a
+ *     scratch buffer that can be grown as needed.
+ */
 static int
 __read_decrypt(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr,
   size_t addr_size, bool is_delta)
@@ -285,6 +292,13 @@ __read_decrypt(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_
     return (0);
 }
 
+/*
+ * __read_decompress --
+ *     Decompress data into a WT_ITEM.
+ *
+ * This uses the decompressor on the btree, and does not require that the output item is already
+ *     allocated. The caller is responsible for freeing the output buffer.
+ */
 static int
 __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t mem_sz, WT_ITEM *out,
   const uint8_t *addr, size_t addr_size)
