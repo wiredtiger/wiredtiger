@@ -405,10 +405,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
         WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size, false));
         ip = etmp;
-    } else if (btree->kencryptor != NULL) {
+    } else if (btree->kencryptor != NULL)
         WT_ERR(__blkcache_read_corrupt(
           session, WT_ERROR, addr, addr_size, "unencrypted block for which encryption configured"));
-    }
 
     /*
      * TODO I think it's possible to get a cleaner handover between the decryption and decompression
