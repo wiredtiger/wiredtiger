@@ -12,6 +12,7 @@ else()
         tests/test_fnv.cpp
         tests/test_pow.cpp
         tests/test_reconciliation_tracking.cpp
+        tests/test_session_config.cpp
         tests/test_tailq.cpp
         tests/block/test_bitstring.cpp
         tests/block/test_block_ckpt.cpp
