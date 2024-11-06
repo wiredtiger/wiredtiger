@@ -438,7 +438,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      * ------------------------
      *
      * In this case, the block header is what contains the encryption/compression
-     * flags so we need to skip over the delta header.
+     * flags so we need to skip over the delta header. TODO if the block header can
+     * be moved in front of the delta header, then we can get rid of the block
+     * manager's encrypt_skip function.
      */
     for (i = 1; i < count; i++) {
         ip = &results[i];
@@ -504,6 +506,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_PAGE_HEADER *dsk;
     size_t compression_ratio, dst_len, len, result_len, size, src_len;
     uint64_t time_diff, time_start, time_stop;
+    uint32_t delta_count;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
     bool data_checksum, encrypted, timer;
@@ -514,6 +517,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     blkcache = &S2C(session)->blkcache;
     btree = S2BT(session);
     bm = btree->bm;
+    delta_count = block_meta->delta_count;
     encrypted = false;
 
     /*
@@ -522,7 +526,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      */
     if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
         ip = buf;
-    else if (buf->size < 2 * WT_BLOCK_COMPRESS_SKIP /*buf->size <= btree->allocsize*/) {
+    else if (buf->size < 2 * WT_BLOCK_COMPRESS_SKIP) {
+        /* TODO the heuristic in the condition above was added for deltas and is likely to need
+         * tweaking. */
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
     } else {
@@ -563,7 +569,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
          * output requires), it just means the uncompressed version is as good as it gets, and
          * that's what we use.
          */
-        if (compression_failed || buf->size < 2 * WT_BLOCK_COMPRESS_SKIP/* || buf->size / btree->allocsize <= result_len / btree->allocsize */) {
+        if (compression_failed || buf->size < 2 * WT_BLOCK_COMPRESS_SKIP) {
+            /* TODO the heuristic in the condition above was added for deltas and is likely to need
+             * tweaking. */
             ip = buf;
             WT_STAT_DSRC_INCR(session, compress_write_fail);
         } else {
@@ -579,7 +587,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
             ip = ctmp;
 
             /* Set the disk header flags. */
-            if (block_meta->delta_count != 0) {
+            if (delta_count != 0) {
                 delta = ip->mem;
                 F_SET(delta, WT_PAGE_COMPRESSED);
             } else {
@@ -606,14 +614,14 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_ERR(bm->write_size(bm, session, &size));
         WT_ERR(__wt_scr_alloc(session, size, &etmp));
         WT_ASSERT(session, ip->size > 0);
-        WT_ERR(__wt_encrypt(session, kencryptor,
-          bm->encrypt_skip(bm, session, block_meta->delta_count > 0), ip, etmp));
+        WT_ERR(__wt_encrypt(
+          session, kencryptor, bm->encrypt_skip(bm, session, delta_count > 0), ip, etmp));
 
         encrypted = true;
         ip = etmp;
 
         /* Set the disk header flags. */
-        if (block_meta->delta_count != 0) {
+        if (delta_count != 0) {
             delta = ip->mem;
             if (compressed) {
                 F_SET(delta, WT_PAGE_COMPRESSED);
@@ -687,8 +695,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      *
      * TODO: ignore block cache for deltas now.
      */
-    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED ||
-      (block_meta != NULL && block_meta->delta_count > 0))
+    if (blkcache->type == WT_BLKCACHE_UNCONFIGURED || (block_meta != NULL && delta_count > 0))
         ;
     else if (!blkcache->cache_on_checkpoint && checkpoint_io)
         WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
