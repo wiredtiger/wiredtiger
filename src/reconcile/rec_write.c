@@ -828,7 +828,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->chunk_B.key);
     __wt_buf_free(session, &r->chunk_B.min_key);
     __wt_buf_free(session, &r->chunk_B.image);
-    fprintf(stderr, "freeing delta at %p\n", &r->delta);
+    fprintf(stderr, "freeing delta at %p\n", (void *)&r->delta);
     __wt_buf_free(session, &r->delta);
 
     __wt_free(session, r->supd);
@@ -2043,7 +2043,7 @@ static int
 __rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
-    fprintf(stderr, "allocated buf at %p\n", &r->delta);
+    fprintf(stderr, "allocated buf at %p\n", (void *)&r->delta);
     memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
     r->delta.size = WT_DELTA_HEADER_BYTE_SIZE(S2BT(session));
 

@@ -574,7 +574,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
          * Get size needed for encrypted buffer.
          */
         WT_ASSERT(session, ip->size > 0);
-        size_tmp = size;
+        size_tmp = ip->size;
         __wt_encrypt_size(session, kencryptor, ip->size, &size);
         size_tmp2 = size;
 
