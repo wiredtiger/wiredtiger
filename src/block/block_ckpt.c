@@ -511,7 +511,6 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
         if (F_ISSET(ckpt, WT_CKPT_ADD))
             break;
     }
-
     /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
     if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
         return (0);
@@ -523,9 +522,6 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
 
         if (block->created_during_backup)
             WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true));
-        else
-            /* Always set the bit for the header. */
-            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, 4096, true));
 
         if (clear) {
             /*
