@@ -2024,7 +2024,7 @@ __checkpoint_lock_dirty_tree(
         }
 
         if (skip_ckpt &&
-          !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES && !bm->can_truncate(btree->bm, session))) {
+          !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES) && !bm->can_truncate(btree->bm, session)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
