@@ -37,15 +37,21 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
     endp = ckpt->raw.mem;
 
-    /* Write the root page out, and get back the address information for that page
-     * which will be written into the block manager checkpoint cookie.
+    /*
+     * Write the root page out, and get back the address information for that page which will be
+     * written into the block manager checkpoint cookie.
+     *
+     * TODO: we need to check with the page service team if we need to write an empty root page.
      */
-    WT_RET(__wt_block_disagg_write_internal(
-      session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
-
-    WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
-      block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
-    ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+    if (root_image == NULL)
+        ckpt->raw.size = 0;
+    else {
+        WT_RET(__wt_block_disagg_write_internal(
+          session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
+        WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
+          block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
+        ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+    }
 
     return (0);
 }
