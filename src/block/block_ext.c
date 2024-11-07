@@ -1341,9 +1341,14 @@ __wti_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_E
 {
     WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
 
+    /* Retrieve the last available extent. */
     if ((ext = __block_off_srch_last(el->off, astack)) == NULL)
         return (false);
+
+    /* The extent should not go beyond the boundaries of the file. */
     WT_ASSERT(session, ext->off + ext->size <= block->size);
+
+    /* The extent retrieved does not cover the end of the file. */
     if (ext->off + ext->size < block->size)
         return (false);
 
