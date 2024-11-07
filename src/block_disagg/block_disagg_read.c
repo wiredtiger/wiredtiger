@@ -180,7 +180,7 @@ reread:
                     goto corrupt;
                 }
                 /* TODO: workaround MACOS build failure when passing macro to a string format. */
-                compatibile_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
+                compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
                 if (swap.compatible_version > compatible_version) {
                     __wt_errx(session,
                       "%s: compatible version error for %" PRIu32
