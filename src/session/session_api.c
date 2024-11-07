@@ -2599,7 +2599,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_ERR(__wt_spin_init(session, &session_ret->thread_check.lock, "thread check lock"));
 #endif
 
-    WT_RET(__wt_spin_init(session, &session_ret->session_scratch_lock, "scratch buffer lock"));
+    WT_ERR(__wt_spin_init(session, &session_ret->session_scratch_lock, "scratch buffer lock"));
 
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions
