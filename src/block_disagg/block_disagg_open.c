@@ -125,7 +125,6 @@ __wt_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const cha
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
-    uint32_t flags;
 
     WT_UNUSED(cfg);
     WT_UNUSED(forced_salvage);
@@ -133,10 +132,6 @@ __wt_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const cha
 
     *blockp = NULL;
     block_disagg = NULL;
-    flags = WT_FS_OPEN_CREATE; /* Eventually the create would ideally be done earlier */
-
-    if (S2C(session)->iface.stable_prefix != NULL)
-        flags |= WT_FS_OPEN_FIXED;
 
     __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
 

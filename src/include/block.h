@@ -223,6 +223,7 @@ struct __wt_bm {
     int (*write)(
       WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
+    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, bool);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
     WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
@@ -431,7 +432,6 @@ struct __wt_block_header {
  * engine, and skipping 64B shouldn't make any difference in terms of compression efficiency.
  */
 #define WT_BLOCK_COMPRESS_SKIP 64
-#define WT_BLOCK_ENCRYPT_SKIP WT_BLOCK_HEADER_BYTE_SIZE
 
 /*
  * WT_BLOCK_PANTRY --
@@ -471,12 +471,10 @@ struct __wt_block_pantry_header {
      */
     uint32_t checksum; /* 08-11: checksum */
 
-/*
- * No automatic generation: flag values cannot change, they're written to disk.
- */
-#define WT_BLOCK_PANTRY_DATA_CKSUM 0x1u /* Block data is part of the checksum */
-#define WT_BLOCK_PANTRY_DATA_DELTA 0x2u /* Block object is a delta */
-    uint8_t flags;                      /* 12: flags */
+    /*
+     * No automatic generation: flag values cannot change, they're written to disk.
+     */
+    uint8_t flags; /* 12: flags */
 
     /*
      * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure

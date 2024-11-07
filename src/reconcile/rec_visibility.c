@@ -110,8 +110,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if ((F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
-              F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) &&
+        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) &&
           unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
@@ -189,7 +188,7 @@ __rec_append_orig_value(
             WT_ASSERT(session,
               (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
                 (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE ||
-                  (oldest_upd->txnid == WT_TXN_NONE && F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+                  (oldest_upd->txnid == WT_TXN_NONE && F_ISSET(conn, WT_CONN_RECOVERING) &&
                     F_ISSET(oldest_upd, WT_UPDATE_RESTORED_FROM_DS))));
 
             if (tombstone_globally_visible)

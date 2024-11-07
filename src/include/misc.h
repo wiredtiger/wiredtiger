@@ -398,6 +398,13 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
         (dst).size = (src).size; \
     } while (0)
 
+/* Transfer ownership of an item. */
+#define WT_ITEM_MOVE(dst, src) \
+    do {                       \
+        (dst) = (src);         \
+        WT_CLEAR(src);         \
+    } while (0)
+
 /*
  * In diagnostic mode we track the locations from which hazard pointers and scratch buffers were
  * acquired.
