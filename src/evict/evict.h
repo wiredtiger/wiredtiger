@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "evict_private.h"
-
 struct __wt_evict {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */

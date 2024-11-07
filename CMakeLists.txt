@@ -181,6 +181,54 @@ configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
 # Generate our wiredtiger_config.h include file.
 configure_file(cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
 
+
+# # Run preprocessor on each source file in wt_sources
+# set(orig_sources ${wt_sources})
+# set(preprocessed_sources)
+# foreach(source ${orig_sources})
+#     # variable_watch(source)
+#     # get_filename_component(source_name ${source} NAME)
+#     # set(gen ${CMAKE_CURRENT_BINARY_DIR}/${source})
+#     # variable_watch(source_name)
+#     set(src ${CMAKE_SOURCE_DIR}/${source})
+#     set(dst ${CMAKE_CURRENT_BINARY_DIR}/${source})
+#     add_custom_command(
+#         OUTPUT ${dst}
+#         # COMMAND ${CMAKE_C_COMPILER} -E -P -I${CMAKE_CURRENT_BINARY_DIR}/include -I${CMAKE_CURRENT_BINARY_DIR}/config -I${CMAKE_CURRENT_LIST_DIR}/src/include ${source} -o ${dst}
+#         # COMMAND echo "#line 1" > ${dst} && cat ${src} >> ${dst}
+#         COMMAND echo "/* #line 1 ${dst} */" > ${dst} && cat ${src} >> ${dst}
+#         DEPENDS ${src}
+#     )
+#     list(APPEND preprocessed_sources ${dst})
+# endforeach()
+# # save original sources and replace the list with generated ones
+# set(wt_sources ${preprocessed_sources})
+
+
+# Run preprocessor on each source file in wt_sources
+set(orig_sources ${wt_sources})
+set(preprocessed_sources)
+set(src_sources)
+foreach(source ${orig_sources})
+    # variable_watch(source)
+    # get_filename_component(source_name ${source} NAME)
+    # set(gen ${CMAKE_CURRENT_BINARY_DIR}/${source})
+    # variable_watch(source_name)
+    set(src ${CMAKE_SOURCE_DIR}/${source})
+    set(dst ${CMAKE_CURRENT_BINARY_DIR}/${source})
+    list(APPEND preprocessed_sources ${dst})
+    list(APPEND src_sources ${src})
+endforeach()
+# save original sources and replace the list with generated ones
+set(wt_sources ${preprocessed_sources})
+
+add_custom_command(
+    OUTPUT ${preprocessed_sources}
+    COMMAND ${CMAKE_SOURCE_DIR}/qqq.sh ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${orig_sources}
+    DEPENDS ${src_sources}
+)
+
+
 # If compiling with fPIC, we can create a intermediate library of
 # position independent objects, that both the static and shared builds
 # can use. This saving on the cost of recompiling the WiredTiger sources
@@ -242,7 +290,7 @@ if(ENABLE_SHARED)
 
     setup_gdb_autoloader()
 
-    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
+    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the
     # WiredTiger library.
     if (WT_DARWIN)
         add_custom_command(

@@ -7,7 +7,6 @@
  */
 
 #pragma once
-#include "log_private.h"
 
 /*
  * __wti_log_desc_byteswap --
