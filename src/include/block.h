@@ -223,6 +223,7 @@ struct __wt_bm {
     int (*write)(
       WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
+    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, bool);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
     WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
@@ -431,7 +432,6 @@ struct __wt_block_header {
  * engine, and skipping 64B shouldn't make any difference in terms of compression efficiency.
  */
 #define WT_BLOCK_COMPRESS_SKIP 64
-#define WT_BLOCK_ENCRYPT_SKIP WT_BLOCK_HEADER_BYTE_SIZE
 
 /*
  * WT_BLOCK_PANTRY --

@@ -65,6 +65,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
   uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
+    WT_DELTA_HEADER *delta_header;
     WT_PAGE_HEADER *page_header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
@@ -142,6 +143,12 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
         if (F_ISSET(page_header, WT_PAGE_COMPRESSED))
             F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
         if (F_ISSET(page_header, WT_PAGE_ENCRYPTED))
+            F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
+    } else {
+        delta_header = (WT_DELTA_HEADER *)buf->mem;
+        if (F_ISSET(delta_header, WT_PAGE_COMPRESSED))
+            F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
+        if (F_ISSET(delta_header, WT_PAGE_ENCRYPTED))
             F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
     }
 

@@ -35,24 +35,39 @@ from wtscenario import make_scenarios
 # Simple read write testing for leaf page delta
 
 class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    encrypt = [
+        ('none', dict(encryptor='none', encrypt_args='')),
+        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+    ]
+
+    compress = [
+        ('none', dict(block_compress='none')),
+        ('snappy', dict(block_compress='snappy')),
+    ]
 
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = conn_base_config + 'oligarch=(role="leader")'
-    disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
+    # conn_config = conn_base_config + 'oligarch=(role="leader")'
+    disagg_storages = gen_disagg_storages('test_oligarch09', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages)
 
     nitems = 1000
 
+    def conn_config(self):
+        enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
+        return self.conn_base_config + 'oligarch=(role="leader"),' + enc_conf
+
     # Load the storage store extension.
     def conn_extensions(self, extlist):
+        extlist.extension('compressors', self.block_compress)
+        extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_oligarch_read_write(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        uri = "oligarch:test_oligarch09"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
@@ -87,8 +102,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_modify(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        uri = "oligarch:test_oligarch09"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
@@ -125,8 +140,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_delete(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        uri = "oligarch:test_oligarch09"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
@@ -193,8 +208,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_multiple_delta(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        uri = "oligarch:test_oligarch09"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
