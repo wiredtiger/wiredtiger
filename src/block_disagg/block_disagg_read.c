@@ -48,7 +48,7 @@ __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uin
     __wt_errx(session,
       "%s: read checksum error for %" PRIu32
       "B block at "
-      "page %" PRIuMAX ", ckpt %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu64
+      "page %" PRIu64 ", ckpt %" PRIu64 ": %s of %" PRIu32 " (%" PRIu64
       ") doesn't match expected checksum of %" PRIu32 " (%" PRIu64 ")",
       name, size, page_id, checkpoint_id, context_msg, checksum, rec_id, expected_checksum,
       expected_rec_id);
@@ -174,7 +174,7 @@ reread:
                     __wt_errx(session,
                       "%s: magic error for %" PRIu32
                       "B block at "
-                      "page %" PRIuMAX " ckpt %" PRIu64 ", magic %" PRIu8
+                      "page %" PRIu64 " ckpt %" PRIu64 ", magic %" PRIu8
                       ": doesn't match expected magic of %" PRIu8,
                       block_disagg->name, size, page_id, checkpoint_id, swap.magic, expected_magic);
                     goto corrupt;
@@ -184,10 +184,10 @@ reread:
                     __wt_errx(session,
                       "%s: compatible version error for %" PRIu32
                       "B block at "
-                      "page %" PRIuMAX " ckpt %" PRIu64 ", version %" PRIu8
+                      "page %" PRIu64 " ckpt %" PRIu64 ", version %" PRIu8
                       ": is greater than compatible version of %" PRIu8,
                       block_disagg->name, size, page_id, checkpoint_id, swap.compatible_version,
-                      WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
+                      (uint8_t)WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
                     goto corrupt;
                 }
 
