@@ -34,37 +34,38 @@ from wtdataset import SimpleDataSet
 
 # test_checkpoint33.py
 #
+# Test that checkpoint will not skip tables that have available space at the end that can be
+# reclaimed through truncation.
 class test_checkpoint33(test_cc_base, suite_subprocess):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
-    conn_config = 'cache_size=100MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
     uri = 'table:test_checkpoint33'
 
     table_numkv = 10000
     value_size = 1024
     value = 'a' * value_size
 
-    def delete(self):
+    def delete(self, timestamp):
         c = self.session.open_cursor(self.uri, None)
         for k in range(self.table_numkv):
             c.set_key(k)
             self.session.begin_transaction()
             c.remove()
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(4))
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(timestamp))
         c.close()
 
-    def populate(self):
+    def populate(self, timestamp):
         c = self.session.open_cursor(self.uri, None)
         for k in range(self.table_numkv):
             self.session.begin_transaction()
             c[k] = self.value
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(2))
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(timestamp))
         c.close()
 
     def get_size(self):
         c = self.session.open_cursor('statistics:' + self.uri, None, None)
         file_size = c[stat.dsrc.block_size][2]
         c.close()
-        return(file_size)
+        return file_size
 
     def test_checkpoint33(self):
         # Pin oldest timestamp 1.
@@ -73,7 +74,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         # Create and populate a table at timestamp 2.
         self.session.create(self.uri, self.create_params)
         self.session.checkpoint()
-        self.populate()
+        self.populate(timestamp=2)
 
         # Make everything stable at timestamp 3.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(3)}')
@@ -82,7 +83,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         self.session.checkpoint()
 
         # Delete everything at timestamp 4.
-        self.delete()
+        self.delete(timestamp=4)
 
         # Make the deletions stable at timestamp 5.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(5)}')
