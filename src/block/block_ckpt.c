@@ -490,23 +490,18 @@ __ckpt_mod_blkmod_entry(
  *     bitmap and add in the allocated blocks.
  */
 static int
-__ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block)
+__ckpt_live_blkmods(
+  WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block, bool set)
 {
     WT_BLOCK_MODS *blk_mod;
     WT_CKPT *ckpt;
     WT_EXT *ext;
     u_int i;
-    bool clear;
 
     if (&block->live == ci)
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
-    /* If any named checkpoints exist, then don't clear bitmap blocks. */
-    clear = true;
-    WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (ckpt->name != NULL && !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
-            clear = false;
-    }
+    /* Find the live checkpoints. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD))
             break;
@@ -520,20 +515,17 @@ __ckpt_live_blkmods(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *
         if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
             continue;
 
-        if (block->created_during_backup)
-            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true));
-
-        if (clear) {
-            /*
-             * First clear any bits from the discard list. Then add in anything in the allocation
-             * list.
-             */
-            WT_EXT_FOREACH (ext, ci->discard.off) {
+        if (set) {
+            if (block->created_during_backup)
+                WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true));
+            WT_EXT_FOREACH (ext, ci->alloc.off) {
+                WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true));
+            }
+        } else {
+            /* Clear any bits from the merged avail list. */
+            WT_EXT_FOREACH (ext, ci->avail.off) {
                 WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, false));
             }
-        }
-        WT_EXT_FOREACH (ext, ci->alloc.off) {
-            WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true));
         }
     }
     block->created_during_backup = false;
@@ -723,7 +715,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * Record the checkpoint's blocks for backup. Do so before skipping any processing and before
      * possibly merging in blocks from any previous checkpoint.
      */
-    WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block));
+    WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, true));
 
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
@@ -809,8 +801,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         /*
          * If we're updating the live system's information, we're done.
          */
-        if (F_ISSET(next_ckpt, WT_CKPT_ADD))
+        if (F_ISSET(next_ckpt, WT_CKPT_ADD)) {
+            /* Clear any possible blocks that are now available after merging. */
+            WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, false));
             continue;
+        }
 
         /*
          * We have to write the "to" checkpoint's extent lists out in new blocks, and update its
@@ -818,11 +813,6 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          *
          * Free the blocks used to hold the "to" checkpoint's extent lists; don't include the avail
          * list, it's not changing.
-         *
-         * For incremental backups we can clear the blocks where these were located. It isn't as
-         * straightforward though since we would want to store the original offset and size, then
-         * free the blocks, then clear the bits only after the free succeeds. Clearing the bits
-         * requires checking if a named checkpoint exists. See __ckpt_live_blkmods for details.
          */
         WT_ERR(__ckpt_extlist_fblocks(session, block, &b->alloc));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &b->discard));
