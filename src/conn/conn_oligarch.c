@@ -819,8 +819,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_NAMED_PAGE_LOG *npage_log;
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_STORAGE_SOURCE *storage;
-    bool was_leader;
     uint64_t checkpoint_id, next_checkpoint_id;
+    bool was_leader;
 
     conn = S2C(session);
     npage_log = NULL;
@@ -847,7 +847,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         next_checkpoint_id = 0;
 
     /* Set the role. */
-    WT_RET(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
     if (cval.len == 0)
         conn->oligarch_manager.leader = false;
     else {
@@ -856,7 +856,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         else if (WT_CONFIG_LIT_MATCH("leader", cval))
             conn->oligarch_manager.leader = true;
         else
-            WT_RET_MSG(session, EINVAL, "Invalid node role");
+            WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
         /* Follower step-up. */
         if (reconfig && !was_leader && conn->oligarch_manager.leader) {

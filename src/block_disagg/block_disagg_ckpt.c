@@ -100,9 +100,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t len;
+    uint64_t checkpoint_id;
     char *entry, *tablename;
     const char *md_value;
-    uint64_t checkpoint_id;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
