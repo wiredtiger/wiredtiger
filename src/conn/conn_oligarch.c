@@ -944,7 +944,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             if (next_checkpoint_id == 0)
                 next_checkpoint_id = checkpoint_id;
             WT_WITH_CHECKPOINT_LOCK(
-              session, ret = __wt_disagg_begin_checkpoint(session, checkpoint_id));
+              session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
         }
     }
