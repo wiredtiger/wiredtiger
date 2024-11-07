@@ -8,6 +8,10 @@
 
 #include "wt_internal.h"
 
+__thread int wt_call_nest_level = 0;
+__thread char __wt_indent_str[4096];
+__thread char __wt_session_info_str[4096];
+
 static int __session_rollback_transaction(WT_SESSION *, const char *);
 
 /*

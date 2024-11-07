@@ -21,6 +21,8 @@ list(APPEND gcc_flags "-Wnested-externs")
 list(APPEND gcc_flags "-Wold-style-definition")
 list(APPEND gcc_flags "-Wpointer-sign")
 list(APPEND gcc_flags "-Wstrict-prototypes")
+list(APPEND gcc_flags "-Wno-declaration-after-statement")
+list(APPEND gcc_flags "-Wno-unused-function")
 
 # We only turn on the unsafe-loop-optimizations warning before gcc7,
 # it's too noisy to tolerate otherwise.

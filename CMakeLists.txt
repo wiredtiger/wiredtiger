@@ -239,6 +239,7 @@ if(WITH_PIC OR ENABLE_SHARED)
         PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}/config
+        ${CMAKE_CURRENT_BINARY_DIR}/src/include
         ${CMAKE_CURRENT_LIST_DIR}/src/include
     )
     # Append any provided C flags.
@@ -268,13 +269,13 @@ if(ENABLE_STATIC)
         define_wiredtiger_library(wiredtiger_static STATIC
             SOURCES $<TARGET_OBJECTS:wt_objs> ${builtin_objs}
             PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
-            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_BINARY_DIR}/src/include ${CMAKE_CURRENT_LIST_DIR}/src/include
         )
     else()
         define_wiredtiger_library(wiredtiger_static STATIC
             SOURCES ${wt_sources} ${builtin_objs}
             PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
-            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+            PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_BINARY_DIR}/src/include ${CMAKE_CURRENT_LIST_DIR}/src/include
         )
     endif()
 endif()
@@ -283,7 +284,7 @@ if(ENABLE_SHARED)
     define_wiredtiger_library(wiredtiger_shared SHARED
         SOURCES $<TARGET_OBJECTS:wt_objs> ${builtin_objs}
         PUBLIC_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/include
-        PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+        PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_BINARY_DIR}/src/include ${CMAKE_CURRENT_LIST_DIR}/src/include
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
