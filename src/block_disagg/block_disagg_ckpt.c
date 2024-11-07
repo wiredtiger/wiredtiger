@@ -43,9 +43,10 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      *
      * TODO: we need to check with the page service team if we need to write an empty root page.
      */
-    if (root_image == NULL)
+    if (root_image == NULL) {
+        ckpt->raw.data = NULL;
         ckpt->raw.size = 0;
-    else {
+    } else {
         WT_RET(__wt_block_disagg_write_internal(
           session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
         WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
