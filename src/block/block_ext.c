@@ -1333,11 +1333,11 @@ err:
 }
 
 /*
- * __wti_block_extlist_can_truncate --
+ * __wt_block_extlist_can_truncate --
  *     Check if there is an available extent at the end of the file that can be truncated.
  */
 bool
-__wti_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
+__wt_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
 {
     WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
 

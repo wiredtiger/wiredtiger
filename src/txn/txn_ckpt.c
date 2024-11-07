@@ -2014,7 +2014,8 @@ __checkpoint_lock_dirty_tree(
      * we want to periodically check if we need to delete old checkpoints that may have been in use
      * by an open cursor.
      */
-    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop) {
+    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop &&
+      !bm->can_truncate(btree->bm, session)) {
         /* In the common case of the timer set forever, don't even check the time. */
         skip_ckpt = true;
         if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
@@ -2023,8 +2024,7 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
-        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES) &&
-          !bm->can_truncate(btree->bm, session)) {
+        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
@@ -2196,18 +2196,18 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      *
      * If the application repeatedly checkpoints an object (imagine hourly checkpoints using the
      * same explicit or internal name), there's no reason to repeat the checkpoint for clean
-     * objects. The test is if the only checkpoint we're deleting is the last one in the list and it
-     * has the same name as the checkpoint we're about to take, skip the work. (We can't skip
-     * checkpoints that delete more than the last checkpoint because deleting those checkpoints
-     * might free up space in the file.) This means an application toggling between two (or more)
-     * checkpoint names will repeatedly take empty checkpoints, but that's not likely enough to make
-     * detection worthwhile.
+     * objects, unless there is available space to be recovered at the end of the file. The test is
+     * if the only checkpoint we're deleting is the last one in the list and it has the same name as
+     * the checkpoint we're about to take, skip the work. (We can't skip checkpoints that delete
+     * more than the last checkpoint because deleting those checkpoints might free up space in the
+     * file.) This means an application toggling between two (or more) checkpoint names will
+     * repeatedly take empty checkpoints, but that's not likely enough to make detection worthwhile.
      *
      * Checkpoint read-only objects otherwise: the application must be able to open the checkpoint
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
-    if (!btree->modified && !force) {
+    if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
         deleted = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
@@ -2215,7 +2215,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * checkpoint cleanup or objects that have recoverable available space at the end of the
              * file.
              */
-            if (__checkpoint_apply_obsolete(session, btree, ckpt) || bm->can_truncate(bm, session))
+            if (__checkpoint_apply_obsolete(session, btree, ckpt))
                 return (0);
 
             if (F_ISSET(ckpt, WT_CKPT_DELETE))

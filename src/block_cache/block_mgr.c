@@ -896,7 +896,7 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 static bool
 __bm_can_truncate(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    return (__wt_block_checkpoint_can_truncate(bm, session));
+    return (__wt_block_extlist_can_truncate(session, bm->block, &bm->block->live.avail));
 }
 
 /*

@@ -56,18 +56,6 @@ __wti_block_ckpt_init(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *n
 }
 
 /*
- * __wt_block_checkpoint_can_truncate --
- *     Return whether there is an available extent at the end of the file, indicating that the file
- *     can be truncated at the end of the next checkpoint.
- */
-bool
-__wt_block_checkpoint_can_truncate(WT_BM *bm, WT_SESSION_IMPL *session)
-{
-
-    return (__wti_block_extlist_can_truncate(session, bm->block, &bm->block->live.avail));
-}
-
-/*
  * __wt_block_checkpoint_load --
  *     Return the address cookie for the root page of a checkpoint. Also initialize its extent lists
  *     if loading the live checkpoint from a writeable file.
