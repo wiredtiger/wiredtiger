@@ -877,14 +877,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (reconfig)
         return (0);
 
-    /* Set the global checkpoint ID to one plus the one we are opening. */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
-    if (cval.len > 0 && cval.val >= 0)
-        checkpoint_id = (uint64_t)cval.val + 1;
-    else
-        /* TODO: If we are starting with existing local files, get the checkpoint ID from them. */
-        checkpoint_id = 1;
-
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.page_log));
@@ -934,13 +926,27 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         });
     }
 
-    /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
-    if (conn->oligarch_manager.leader) {
-        if (next_checkpoint_id == 0)
-            next_checkpoint_id = checkpoint_id;
-        WT_WITH_CHECKPOINT_LOCK(
-          session, ret = __wt_disagg_begin_checkpoint(session, checkpoint_id));
-        WT_ERR(ret);
+    if (__wt_conn_is_disagg(session)) {
+
+        /* Set the global checkpoint ID to one plus the one we are opening. */
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            checkpoint_id = (uint64_t)cval.val + 1;
+        else
+            /*
+             * TODO: If we are starting with local files, get the checkpoint ID from them?
+             * Alternatively, maybe we should just fail if the checkpoint ID is not specified?
+             */
+            checkpoint_id = 1;
+
+        /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
+        if (conn->oligarch_manager.leader) {
+            if (next_checkpoint_id == 0)
+                next_checkpoint_id = checkpoint_id;
+            WT_WITH_CHECKPOINT_LOCK(
+              session, ret = __wt_disagg_begin_checkpoint(session, checkpoint_id));
+            WT_ERR(ret);
+        }
     }
 
     if (0) {

@@ -89,7 +89,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -127,7 +128,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -163,7 +165,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -198,7 +201,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -238,7 +242,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -281,7 +286,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -326,7 +332,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
