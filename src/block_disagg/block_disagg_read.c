@@ -48,7 +48,7 @@ __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uin
     __wt_errx(session,
       "%s: read checksum error for %" PRIu32
       "B block at "
-      "page %" PRIuMAX ", ckpt %" PRIuMAX ": %s of %" PRIu32 " (%" PRIu64
+      "page %" PRIu64 ", ckpt %" PRIu64 ": %s of %" PRIu32 " (%" PRIu64
       ") doesn't match expected checksum of %" PRIu32 " (%" PRIu64 ")",
       name, size, page_id, checkpoint_id, context_msg, checksum, rec_id, expected_checksum,
       expected_rec_id);
@@ -71,7 +71,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t orig_count, retry;
     int32_t result, last;
-    uint8_t expected_magic;
+    uint8_t compatible_version, expected_magic;
     bool is_delta;
 
     retry = 0;
@@ -174,20 +174,21 @@ reread:
                     __wt_errx(session,
                       "%s: magic error for %" PRIu32
                       "B block at "
-                      "page %" PRIuMAX " ckpt %" PRIu64 ", magic %" PRIu8
+                      "page %" PRIu64 " ckpt %" PRIu64 ", magic %" PRIu8
                       ": doesn't match expected magic of %" PRIu8,
                       block_disagg->name, size, page_id, checkpoint_id, swap.magic, expected_magic);
                     goto corrupt;
                 }
-
-                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
+                /* TODO: workaround MACOS build failure when passing macro to a string format. */
+                compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
+                if (swap.compatible_version > compatible_version) {
                     __wt_errx(session,
                       "%s: compatible version error for %" PRIu32
                       "B block at "
-                      "page %" PRIuMAX " ckpt %" PRIu64 ", version %" PRIu8
+                      "page %" PRIu64 " ckpt %" PRIu64 ", version %" PRIu8
                       ": is greater than compatible version of %" PRIu8,
                       block_disagg->name, size, page_id, checkpoint_id, swap.compatible_version,
-                      WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
+                      compatible_version);
                     goto corrupt;
                 }
 

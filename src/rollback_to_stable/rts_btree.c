@@ -54,10 +54,10 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
         if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
-              WT_RTS_VERB_TAG_UPDATE_ABORT
-              "rollback to stable aborting update with txnid=%" PRIu64
-              ", txnid_not_visible=%s"
-              ", stable_timestamp=%s < durable_timestamp=%s: %s, prepare_state=%s, flags 0x%" PRIx8,
+              WT_RTS_VERB_TAG_UPDATE_ABORT "rollback to stable aborting update with txnid=%" PRIu64
+                                           ", txnid_not_visible=%s"
+                                           ", stable_timestamp=%s < durable_timestamp=%s: %s, "
+                                           "prepare_state=%s, flags 0x%" PRIx16,
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
@@ -75,7 +75,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_STABLE_UPDATE_FOUND
               "stable update found with txnid=%" PRIu64
-              ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx8,
+              ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx16,
               upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]), upd->flags);
             break;
