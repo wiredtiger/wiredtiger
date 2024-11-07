@@ -178,7 +178,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_oligarch_read_insert(self):
         uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
@@ -254,7 +254,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_oligarch_multiple_updates_delta(self):
         uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
@@ -297,7 +297,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_oligarch_read_delete_insert(self):
         uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S'
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
 
