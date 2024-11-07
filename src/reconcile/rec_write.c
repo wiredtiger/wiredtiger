@@ -2840,6 +2840,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has
          * to contain nothing at all, which means it has no records of any kind and is durable.
+         *
+         * TODO: we need to check with the page service team if we need to write an empty root page.
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {

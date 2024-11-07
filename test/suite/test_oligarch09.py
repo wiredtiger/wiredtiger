@@ -176,6 +176,37 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEquals(cursor[str(i)], value1)
 
+    def test_oligarch_read_insert(self):
+        uri = "oligarch:test_oligarch08"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        self.pr('CREATING')
+        self.session.create(uri, create_session_config)
+
+        cursor = self.session.open_cursor(uri, None, None)
+        value1 = "aaaa"
+
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
+
+        self.session.checkpoint()
+
+        for i in range(self.nitems + 1, 5):
+                cursor[str(i)] = value1
+
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
+        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(uri, None, None)
+
+        for i in range(self.nitems):
+            self.assertEquals(cursor[str(i)], value1)
+
     def test_oligarch_read_multiple_delta(self):
         uri = "oligarch:test_oligarch09"
         create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
@@ -218,5 +249,94 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value3)
             elif i % 10 == 0:
                 self.assertEquals(cursor[str(i)], value2)
+            else:
+                self.assertEquals(cursor[str(i)], value1)
+
+    def test_oligarch_multiple_updates_delta(self):
+        uri = "oligarch:test_oligarch08"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        self.pr('CREATING')
+        self.session.create(uri, create_session_config)
+
+        cursor = self.session.open_cursor(uri, None, None)
+        value1 = "aaaa"
+        value2 = "bbbb"
+        value3 = "cccc"
+
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
+
+        self.session.checkpoint()
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor[str(i)] = value2
+
+        for i in range(self.nitems):
+            if i % 20 == 0:
+                cursor[str(i)] = value3
+
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
+        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(uri, None, None)
+
+        for i in range(self.nitems):
+            if i % 20 == 0:
+                self.assertEquals(cursor[str(i)], value3)
+            elif i % 10 == 0:
+                self.assertEquals(cursor[str(i)], value2)
+            else:
+                self.assertEquals(cursor[str(i)], value1)
+
+    def test_oligarch_read_delete_insert(self):
+        uri = "oligarch:test_oligarch08"
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        self.pr('CREATING')
+        self.session.create(uri, create_session_config)
+
+        cursor = self.session.open_cursor(uri, None, None)
+        value1 = "aaaa"
+        value2 = "bbbb"
+
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
+
+        self.session.checkpoint()
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor.set_key(str(i))
+                self.assertEqual(cursor.remove(), 0)
+
+        self.session.checkpoint()
+
+        for i in range(self.nitems):
+            if i % 20 == 0:
+                cursor[str(i)] = value2
+
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
+        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(uri, None, None)
+
+        for i in range(self.nitems):
+            if i % 20 == 0:
+                self.assertEquals(cursor[str(i)], value2)
+            elif i % 10 == 0:
+                cursor.set_key(str(i))
+                self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
                 self.assertEquals(cursor[str(i)], value1)
