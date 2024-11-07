@@ -65,6 +65,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
   uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
+    WT_CONNECTION_IMPL *conn;
     WT_DELTA_HEADER *delta_header;
     WT_PAGE_HEADER *page_header;
     WT_PAGE_LOG_HANDLE *plhandle;
@@ -76,6 +77,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
     WT_ASSERT(session, new_block_meta != NULL);
+
+    conn = S2C(session);
 
     *sizep = 0;     /* -Werror=maybe-uninitialized */
     *checksump = 0; /* -Werror=maybe-uninitialized */
@@ -110,7 +113,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     page_id = block_meta->page_id;
 
     /* Get the checkpoint ID. */
-    checkpoint_id = S2C(session)->disaggregated_storage.global_checkpoint_id;
+    WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
     /* Check that the checkpoint ID matches the current checkpoint in the page log. */
     if (block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {

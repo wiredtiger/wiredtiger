@@ -96,6 +96,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -105,6 +106,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    conn = S2C(session);
 
     buf = NULL;
     entry = NULL;
@@ -115,7 +117,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         return (0);
 
     /* Get the checkpoint ID. */
-    checkpoint_id = S2C(session)->disaggregated_storage.global_checkpoint_id;
+    WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
     /* Get a metadata cursor pointing to this table */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
@@ -133,7 +135,6 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     len += cval.len + 2; /* +2 for the separator and the newline */
     WT_ERR(__wt_calloc_def(session, len, &entry));
     WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
-    /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
     WT_ERR(__wt_scr_alloc(session, len, &buf));
     memcpy(buf->mem, entry, len);

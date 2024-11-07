@@ -24,6 +24,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
       *metadata_value_cfg; /* TODO the 4096 puts an upper bound on metadata entry length */
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
     size_t len, sep;
+    uint64_t global_checkpoint_id;
 
     conn = S2C(session);
 
@@ -39,10 +40,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     if (conn->oligarch_manager.leader)
         WT_ERR(EINVAL);
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    WT_ACQUIRE_READ(global_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+
     /* Check the checkpoint ID to ensure that we are not going backwards. */
-    if (checkpoint_id + 1 < conn->disaggregated_storage.global_checkpoint_id)
+    if (checkpoint_id + 1 < global_checkpoint_id)
         WT_ERR_MSG(session, EINVAL, "Global checkpoint ID went backwards: %" PRIu64 " -> %" PRIu64,
-          conn->disaggregated_storage.global_checkpoint_id - 1, checkpoint_id);
+          global_checkpoint_id - 1, checkpoint_id);
 
     /* Read the checkpoint metadata from the special metadata page. */
     WT_ERR(__wt_disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, item));
@@ -96,8 +101,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      */
     WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints_refreshed);
 
-    /* Update the checkpoint ID. */
-    conn->disaggregated_storage.global_checkpoint_id = checkpoint_id + 1;
+    /*
+     * Update the checkpoint ID. This doesn't require further synchronization, because the updates
+     * are protected by the checkpoint lock.
+     */
+    WT_RELEASE_WRITE(conn->disaggregated_storage.global_checkpoint_id, checkpoint_id + 1);
 
 err:
     if (md_cursor != NULL)
@@ -833,8 +841,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Pick up a new checkpoint. */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
-        if (cval.len > 0 && cval.val >= 0)
-            WT_ERR(__disagg_pick_up_checkpoint(session, (uint64_t)cval.val));
+        if (cval.len > 0 && cval.val >= 0) {
+            WT_WITH_CHECKPOINT_LOCK(
+              session, ret = __disagg_pick_up_checkpoint(session, (uint64_t)cval.val));
+            WT_ERR(ret);
+        }
     }
 
     /* Common settings between initial connection config and reconfig. */
@@ -865,7 +876,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              * leader, we need to begin the next checkpoint.
              */
             if (next_checkpoint_id == 0)
-                next_checkpoint_id = conn->disaggregated_storage.global_checkpoint_id;
+                WT_ACQUIRE_READ(
+                  next_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
@@ -1103,14 +1115,15 @@ __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_
     if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
         return (0);
 
-    cur_checkpoint_id = conn->disaggregated_storage.global_checkpoint_id;
+    WT_ACQUIRE_READ(cur_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     if (next_checkpoint_id < cur_checkpoint_id)
         WT_RET_MSG(session, EINVAL, "The checkpoint ID did not advance");
 
     WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
       disagg->npage_log->page_log, &session->iface, next_checkpoint_id));
 
-    disagg->global_checkpoint_id = next_checkpoint_id;
+    /* Store is sufficient because updates are protected by the checkpoint lock. */
+    WT_RELEASE_WRITE(disagg->global_checkpoint_id, next_checkpoint_id);
     disagg->num_meta_put_at_ckpt_begin = disagg->num_meta_put;
     return (0);
 }
@@ -1135,7 +1148,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
         return (0);
 
-    checkpoint_id = conn->disaggregated_storage.global_checkpoint_id;
+    WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     WT_ASSERT(session, checkpoint_id > 0);
 
     WT_RET(disagg->npage_log->page_log->pl_complete_checkpoint(
