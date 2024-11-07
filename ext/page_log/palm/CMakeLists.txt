@@ -26,13 +26,26 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
 
-set_property(
-  SOURCE ../../../third_party/openldap_liblmdb/mdb.c
-  APPEND
-  PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement;-Wmissing-noreturn;-Wshorten-64-to-32;-Wunreachable-code-break;-Wunreachable-code;-Wconditional-uninitialized;-Wimplicit-int-conversion"
-)
-set_property(
-  SOURCE ../../../third_party/openldap_liblmdb/midl.c
-  APPEND
-  PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement;-Wmissing-noreturn;-Wshorten-64-to-32;-Wunreachable-code-break;-Wunreachable-code;-Wconditional-uninitialized;-Wimplicit-int-conversion"
+if(WT_DARWIN)
+  set_property(
+    SOURCE ../../../third_party/openldap_liblmdb/mdb.c
+    APPEND
+    PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-missing-noreturn;-Wno-shorten-64-to-32;-Wno-unreachable-code-break;-Wno-unreachable-code;-Wno-conditional-uninitialized;-Wno-implicit-int-conversion;-Wno-documentation;-Wno-shadow;-Wno-covered-switch-default;-Wno-unused-parameter;-Wno-unused-macros"
   )
+  set_property(
+    SOURCE ../../../third_party/openldap_liblmdb/midl.c
+    APPEND
+    PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-missing-noreturn;-Wno-shorten-64-to-32;-Wno-unreachable-code-break;-Wno-unreachable-code;-Wno-conditional-uninitialized;-Wno-implicit-int-conversion;-Wno-documentation;-Wno-shadow;-Wno-covered-switch-default;-Wno-unused-parameter;-Wno-unused-macros"
+  )
+else()
+  set_property(
+    SOURCE ../../../third_party/openldap_liblmdb/mdb.c
+    APPEND
+    PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement"
+  )
+  set_property(
+    SOURCE ../../../third_party/openldap_liblmdb/midl.c
+    APPEND
+    PROPERTY COMPILE_OPTIONS "-Wno-error;-Wno-sign-conversion;-Wno-discarded-qualifiers;-Wno-undef;-Wno-unused-macros;-Wno-shadow;-Wno-unused-parameter;-Wno-jump-misses-init;-Wno-declaration-after-statement"
+  )
+endif()
