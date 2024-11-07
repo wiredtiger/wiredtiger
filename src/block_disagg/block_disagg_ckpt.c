@@ -33,10 +33,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     /* ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id); */
     ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
 
-    /* Copy the checkpoint information into the checkpoint. */
-    WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
-    endp = ckpt->raw.mem;
-
     /*
      * Write the root page out, and get back the address information for that page which will be
      * written into the block manager checkpoint cookie.
@@ -47,6 +43,9 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
         ckpt->raw.data = NULL;
         ckpt->raw.size = 0;
     } else {
+        /* Copy the checkpoint information into the checkpoint. */
+        WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
+        endp = ckpt->raw.mem;
         WT_RET(__wt_block_disagg_write_internal(
           session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
         WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
