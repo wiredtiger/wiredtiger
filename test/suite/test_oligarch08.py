@@ -37,7 +37,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = conn_base_config + 'oligarch=(role="leader")'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -67,7 +67,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config=follower_config)
         time.sleep(1.0)
 

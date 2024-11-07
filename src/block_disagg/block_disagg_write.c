@@ -68,7 +68,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_PAGE_HEADER *page_header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
-    uint64_t checkpoint_id, page_id;
+    uint64_t checkpoint_id, page_id, page_log_checkpoint_id;
     uint32_t checksum;
     bool is_delta;
 
@@ -109,7 +109,14 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     page_id = block_meta->page_id;
 
     /* Get the checkpoint ID. */
-    checkpoint_id = 1; /* XXX Use the current checkpoint order instead of hardcoding this. */
+    checkpoint_id = S2C(session)->disaggregated_storage.global_checkpoint_id;
+
+    /* Check that the checkpoint ID matches the current checkpoint in the page log. */
+    if (block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
+        WT_RET(block_disagg->plhandle->page_log->pl_get_open_checkpoint(
+          block_disagg->plhandle->page_log, &session->iface, &page_log_checkpoint_id));
+        WT_ASSERT(session, checkpoint_id == page_log_checkpoint_id);
+    }
 
     /*
      * Update the block's checksum: if our caller specifies, checksum the complete data, otherwise

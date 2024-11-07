@@ -37,7 +37,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
     uri_base = "test_oligarch05"
     base_conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = base_conn_config + 'oligarch=(role="leader"),'
+    conn_config = base_conn_config + 'disaggregated=(role="leader"),'
 
     uri = "oligarch:" + uri_base
 
@@ -75,7 +75,7 @@ class test_oligarch05(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
 
-        self.reopen_conn(config=self.base_conn_config + 'oligarch=(role="follower")')
+        self.reopen_conn(config=self.base_conn_config + 'disaggregated=(role="follower")')
 
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0

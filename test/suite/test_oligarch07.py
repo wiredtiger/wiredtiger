@@ -27,17 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-
-StorageSource = wiredtiger.StorageSource  # easy access to constants
+from helper_disagg import DisaggConfigMixin
 
 # test_oligarch07.py
 #    Start a second WT that becomes leader and checke that content appears in the first.
-class test_oligarch07(wttest.WiredTigerTestCase):
+class test_oligarch07(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
     conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = conn_base_config + 'oligarch=(role="leader")'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
 
@@ -66,8 +65,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.create_session_config)
 
         self.pr("create second WT")
-        # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'oligarch=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.create_session_config)
 
@@ -86,7 +84,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+        self.disagg_advance_checkpoint(conn_follow)
 
         # TODO: debug this test.
         # When the skip is enabled, the test runs to the end, but fails in an assertion when one
@@ -97,12 +95,11 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         # Part 2: The big switcheroo
         #
         self.pr('switch the leader and the follower')
-        self.conn.reconfigure("oligarch=(role=\"follower\")")
-        conn_follow.reconfigure("oligarch=(role=\"leader\")")
+        self.disagg_switch_follower_and_leader(conn_follow, self.conn)
         time.sleep(2)
 
         #
-        # Part 3: insert content to old follower
+        # Part 3: Insert content to old follower
         #
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
@@ -115,7 +112,7 @@ class test_oligarch07(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
         session_follow.checkpoint()
-        self.conn.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+        self.disagg_advance_checkpoint(self.conn, conn_follow)
 
         #
         # Part 4: Ensure that all data is in both leader and follower.

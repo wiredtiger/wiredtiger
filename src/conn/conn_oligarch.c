@@ -39,6 +39,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     if (conn->oligarch_manager.leader)
         WT_ERR(EINVAL);
 
+    /* Check the checkpoint ID to ensure that we are not going backwards. */
+    if (checkpoint_id + 1 < conn->disaggregated_storage.global_checkpoint_id)
+        WT_ERR_MSG(session, EINVAL, "Global checkpoint ID went backwards: %" PRIu64 " -> %" PRIu64,
+          conn->disaggregated_storage.global_checkpoint_id - 1, checkpoint_id);
+
     /* Read the checkpoint metadata from the special metadata page. */
     WT_ERR(__wt_disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, item));
 
@@ -91,6 +96,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      */
     WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints_refreshed);
 
+    /* Update the checkpoint ID. */
+    conn->disaggregated_storage.global_checkpoint_id = checkpoint_id + 1;
+
 err:
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
@@ -99,36 +107,6 @@ err:
     __wt_free(session, metadata_value_cfg);
     __wt_scr_free(session, &item);
     return (ret);
-}
-
-int
-__wt_oligarch_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-
-    conn = S2C(session);
-
-    if (reconfig) {
-        if ((ret = __wt_config_gets(session, cfg + 1, "oligarch", &cval)) == WT_NOTFOUND)
-            return (0);
-        WT_RET(ret);
-    }
-
-    WT_RET(__wt_config_gets(session, cfg, "oligarch.role", &cval));
-    if (cval.len == 0)
-        return (0);
-
-    if (WT_CONFIG_LIT_MATCH("follower", cval))
-        conn->oligarch_manager.leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
-        conn->oligarch_manager.leader = true;
-    else
-        /* TODO better error message. */
-        WT_RET(EINVAL);
-
-    return (0);
 }
 
 /*
@@ -843,19 +821,71 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_NAMED_PAGE_LOG *npage_log;
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_STORAGE_SOURCE *storage;
+    bool was_leader;
+    uint64_t checkpoint_id, next_checkpoint_id;
 
     conn = S2C(session);
     npage_log = NULL;
     bstorage = NULL;
     nstorage = NULL;
+    was_leader = conn->oligarch_manager.leader;
 
-    /* Reconfiguration can be used only to advance to the next checkpoint. */
+    /* Reconfig-only settings. */
     if (reconfig) {
+
+        /* Pick up a new checkpoint. */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
         if (cval.len > 0 && cval.val >= 0)
             WT_ERR(__disagg_pick_up_checkpoint(session, (uint64_t)cval.val));
-        return (0);
     }
+
+    /* Common settings between initial connection config and reconfig. */
+
+    /* Get the next checkpoint ID. */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.next_checkpoint_id", &cval));
+    if (cval.len > 0 && cval.val >= 0)
+        next_checkpoint_id = (uint64_t)cval.val;
+    else
+        next_checkpoint_id = 0;
+
+    /* Set the role. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
+    if (cval.len == 0)
+        conn->oligarch_manager.leader = false;
+    else {
+        if (WT_CONFIG_LIT_MATCH("follower", cval))
+            conn->oligarch_manager.leader = false;
+        else if (WT_CONFIG_LIT_MATCH("leader", cval))
+            conn->oligarch_manager.leader = true;
+        else
+            WT_RET_MSG(session, EINVAL, "Invalid node role");
+
+        /* Follower step-up. */
+        if (reconfig && !was_leader && conn->oligarch_manager.leader) {
+            /*
+             * Note that we should have picked up a new checkpoint ID above. Now that we are the new
+             * leader, we need to begin the next checkpoint.
+             */
+            if (next_checkpoint_id == 0)
+                next_checkpoint_id = conn->disaggregated_storage.global_checkpoint_id;
+            WT_WITH_CHECKPOINT_LOCK(
+              session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
+            WT_ERR(ret);
+        }
+    }
+
+    /* Connection init settings only. */
+
+    if (reconfig)
+        return (0);
+
+    /* Set the global checkpoint ID to one plus the one we are opening. */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
+    if (cval.len > 0 && cval.val >= 0)
+        checkpoint_id = (uint64_t)cval.val + 1;
+    else
+        /* TODO: If we are starting with existing local files, get the checkpoint ID from them. */
+        checkpoint_id = 1;
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -906,6 +936,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         });
     }
 
+    /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
+    if (conn->oligarch_manager.leader) {
+        if (next_checkpoint_id == 0)
+            next_checkpoint_id = checkpoint_id;
+        WT_WITH_CHECKPOINT_LOCK(
+          session, ret = __wt_disagg_begin_checkpoint(session, checkpoint_id));
+        WT_ERR(ret);
+    }
+
     if (0) {
 err:
         if (bstorage != NULL && conn->disaggregated_storage.bstorage == NULL) {
@@ -916,6 +955,22 @@ err:
     }
 
     return (ret);
+}
+
+/*
+ * __wt_conn_is_disagg --
+ *     Check whether the connection uses disaggregated storage.
+ */
+bool
+__wt_conn_is_disagg(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    return (disagg->page_log_meta != NULL || disagg->bstorage_meta != NULL);
 }
 
 /*
@@ -973,6 +1028,7 @@ __wt_disagg_get_meta(
         count = 1;
         WT_RET(disagg->page_log_meta->plh_get(disagg->page_log_meta, &session->iface, page_id,
           checkpoint_id, &get_args, &result, &count));
+        /* TODO: Add retries if the metadata is not found - maybe it was not yet materialized. */
         WT_ASSERT(session, count == 1 && get_args.delta_count == 0); /* TODO: corrupt data */
         *item = result;
         return (0);
@@ -1006,15 +1062,81 @@ __wt_disagg_put_meta(
     WT_CLEAR(put_args);
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
-        return (disagg->page_log_meta->plh_put(
+        WT_RET(disagg->page_log_meta->plh_put(
           disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &put_args, item));
+        __wt_atomic_addv64(&disagg->num_meta_put, 1);
+        return (0);
     }
 
     if (disagg->bstorage_meta != NULL) {
         WT_RET(
           disagg->bstorage_meta->fh_obj_put(disagg->bstorage_meta, &session->iface, page_id, item));
-        return (disagg->bstorage_meta->fh_obj_checkpoint(disagg->bstorage_meta, &session->iface));
+        WT_RET(disagg->bstorage_meta->fh_obj_checkpoint(disagg->bstorage_meta, &session->iface));
+        __wt_atomic_addv64(&disagg->num_meta_put, 1);
+        return (0);
     }
 
     return (ENOTSUP);
+}
+
+/*
+ * __wt_disagg_begin_checkpoint --
+ *     Begin the next checkpoint.
+ */
+int
+__wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_id)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t cur_checkpoint_id;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    /* Only the leader can begin a global checkpoint. */
+    if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
+        return (0);
+
+    cur_checkpoint_id = conn->disaggregated_storage.global_checkpoint_id;
+    if (next_checkpoint_id < cur_checkpoint_id)
+        WT_RET_MSG(session, EINVAL, "The checkpoint ID did not advance");
+
+    WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
+      disagg->npage_log->page_log, &session->iface, next_checkpoint_id));
+
+    disagg->global_checkpoint_id = next_checkpoint_id;
+    disagg->num_meta_put_at_ckpt_begin = disagg->num_meta_put;
+    return (0);
+}
+
+/*
+ * __wt_disagg_advance_checkpoint --
+ *     Advance to the next checkpoint. If the current checkpoint is 0, just start the next one.
+ */
+int
+__wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t checkpoint_id;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    /* Only the leader can advance the global checkpoint ID. */
+    if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
+        return (0);
+
+    checkpoint_id = conn->disaggregated_storage.global_checkpoint_id;
+    WT_ASSERT(session, checkpoint_id > 0);
+
+    WT_RET(disagg->npage_log->page_log->pl_complete_checkpoint(
+      disagg->npage_log->page_log, &session->iface, checkpoint_id));
+    WT_RET(__wt_disagg_begin_checkpoint(session, checkpoint_id + 1));
+
+    return (0);
 }

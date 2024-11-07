@@ -96,6 +96,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     size_t len;
     char *entry, *tablename;
     const char *md_value;
+    uint64_t checkpoint_id;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
@@ -106,6 +107,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
     if (failed)
         return (0);
+
+    /* Get the checkpoint ID. */
+    checkpoint_id = S2C(session)->disaggregated_storage.global_checkpoint_id;
 
     /* Get a metadata cursor pointing to this table */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
@@ -125,11 +129,10 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
     /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
-    /* TODO: Add checkpoint ID. */
     WT_ERR(__wt_scr_alloc(session, len, &buf));
     memcpy(buf->mem, entry, len);
     buf->size = len - 1;
-    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, 1, buf));
+    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
 
 err:
     __wt_scr_free(session, &buf);

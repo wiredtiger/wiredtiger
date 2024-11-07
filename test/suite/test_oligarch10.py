@@ -35,7 +35,7 @@ class test_oligarch10(wttest.WiredTigerTestCase):
 
     conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
-    conn_config = conn_base_config + 'oligarch=(role="leader")'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     uri = "oligarch:test_oligarch10"
 
@@ -67,7 +67,7 @@ class test_oligarch10(wttest.WiredTigerTestCase):
         self.session.create(self.uri, session_config)
 
         # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "oligarch=(role=\"follower\")")
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, session_config)
 

@@ -1487,6 +1487,15 @@ err:
     if (tracking)
         WT_TRET(__wt_meta_track_off(session, false, failed));
 
+    /*
+     * Update the global checkpoint ID in disaggregated storage. This has to be done after
+     * checkpoint resolve, which happens when we turn off metadata tracking above.
+     */
+    if (!failed && ret == 0 /* ensure that turning off meta tracking worked */)
+        if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
+          conn->disaggregated_storage.num_meta_put)
+            WT_TRET(__wt_disagg_advance_checkpoint(session));
+
     __checkpoint_set_scrub_target(session, 0.0);
 
     if (F_ISSET(txn, WT_TXN_RUNNING)) {

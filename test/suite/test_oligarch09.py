@@ -38,7 +38,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = conn_base_config + 'oligarch=(role="leader")'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -74,7 +74,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -112,7 +112,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -123,7 +123,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value2)
             else:
                 self.assertEquals(cursor[str(i)], value1)
-    
+
     def test_oligarch_read_delete(self):
         uri = "oligarch:test_oligarch08"
         create_session_config = 'key_format=S,value_format=S'
@@ -148,7 +148,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -160,7 +160,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
                 self.assertEquals(cursor[str(i)], value1)
-    
+
     def test_oligarch_read_multiple_delta(self):
         uri = "oligarch:test_oligarch08"
         create_session_config = 'key_format=S,value_format=S'
@@ -180,7 +180,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             if i % 10 == 0:
                 cursor[str(i)] = value2
-        
+
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -192,7 +192,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
