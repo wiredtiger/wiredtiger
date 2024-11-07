@@ -71,7 +71,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_PAGE_LOG_GET_ARGS get_args;
     uint32_t orig_count, retry;
     int32_t result, last;
-    uint8_t compatibile_version, expected_magic;
+    uint8_t compatible_version, expected_magic;
     bool is_delta;
 
     retry = 0;
@@ -181,14 +181,14 @@ reread:
                 }
                 /* TODO: workaround MACOS build failure when passing macro to a string format. */
                 compatibile_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
-                if (swap.compatible_version > compatibile_version) {
+                if (swap.compatible_version > compatible_version) {
                     __wt_errx(session,
                       "%s: compatible version error for %" PRIu32
                       "B block at "
                       "page %" PRIu64 " ckpt %" PRIu64 ", version %" PRIu8
                       ": is greater than compatible version of %" PRIu8,
                       block_disagg->name, size, page_id, checkpoint_id, swap.compatible_version,
-                      compatibile_version);
+                      compatible_version);
                     goto corrupt;
                 }
 
