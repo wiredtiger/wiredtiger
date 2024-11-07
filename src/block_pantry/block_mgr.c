@@ -109,6 +109,20 @@ __bmp_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 }
 
 /*
+ * __bm_encrypt_skip_size --
+ *     Return the skip size for encryption
+ */
+static size_t
+__bm_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session, bool is_delta)
+{
+    WT_UNUSED(bm);
+    WT_UNUSED(session);
+    WT_UNUSED(is_delta);
+
+    return (WT_BLOCK_PANTRY_HEADER_BYTE_SIZE);
+}
+
+/*
  * __bmp_method_set --
  *     Set up the legal methods.
  */
@@ -147,6 +161,7 @@ __bmp_method_set(WT_BM *bm, bool readonly)
     bm->verify_start = __wt_bmp_verify_start;
     bm->write = __bmp_write;
     bm->write_size = __bmp_write_size;
+    bm->encrypt_skip = __bm_encrypt_skip_size;
 }
 
 /*
