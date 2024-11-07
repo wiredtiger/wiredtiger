@@ -531,7 +531,7 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_VERSION 0x1u
     uint8_t version; /* 01: version of writer */
 
-#define WT_BLOCK_DISAGG_COMPATIBLE_VERSION 0x1u
+#define WT_BLOCK_DISAGG_COMPATIBLE_VERSION ((uint8_t)0x1u)
     uint8_t compatible_version; /* 02: minimum version of reader */
 
     uint8_t header_size; /* 03: size of unencrypted, uncompressed header */
