@@ -333,12 +333,11 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     /*
      * Now back up until we match table/page/checkpoint.
      */
-    while (ret == 0 && RESULT_MATCH(result_key, table_id, page_id, now) &&
-      result_key->checkpoint_id >= checkpoint_id) {
+    while (ret == 0 && RESULT_MATCH(result_key, table_id, page_id, now)) {
 
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         /* TODO: maybe can't happen, with SET_RANGE. */
-        if (result_key->checkpoint_id == checkpoint_id && result_key->is_delta == false) {
+        if (result_key->is_delta == false) {
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
             matches->first = true;
@@ -390,8 +389,7 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     } else
         page_key = NULL;
 
-    if (ret == 0 && RESULT_MATCH(page_key, matches->table_id, matches->page_id, now) &&
-      page_key->checkpoint_id == matches->checkpoint_id) {
+    if (ret == 0 && RESULT_MATCH(page_key, matches->table_id, matches->page_id, now)) {
         matches->size = vval.mv_size;
         matches->data = vval.mv_data;
         matches->revision = page_key->revision;
