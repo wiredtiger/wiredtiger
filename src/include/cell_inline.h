@@ -1158,11 +1158,11 @@ __cell_redo_page_del_cleanup(
 }
 
 /*
- * __cell_unpack_window_cleanup_common --
+ * __cell_unpack_window_need_cleanup --
  *     Clean up cells loaded from a previous run.
  */
-static WT_INLINE void
-__cell_unpack_window_cleanup_common(WT_SESSION_IMPL *session, uint64_t dsk_write_gen)
+static WT_INLINE bool
+__cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_gen)
 {
     uint64_t write_gen;
 
@@ -1202,10 +1202,12 @@ __cell_unpack_window_cleanup_common(WT_SESSION_IMPL *session, uint64_t dsk_write
 
     WT_ASSERT(session, dsk_write_gen != 0);
     if (dsk_write_gen > write_gen)
-        return;
+        return (false);
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
-        return;
+        return (false);
+
+    return (true);
 }
 
 /*
@@ -1216,8 +1218,8 @@ static WT_INLINE void
 __cell_unpack_window_cleanup_addr(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
 {
-    __cell_unpack_window_cleanup_common(session, dsk->write_gen);
-    __cell_addr_window_cleanup(session, dsk, unpack_addr);
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_addr_window_cleanup(session, dsk, unpack_addr);
 }
 
 /*
@@ -1228,8 +1230,8 @@ static WT_INLINE void
 __cell_unpack_window_cleanup_kv(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_KV *unpack_kv)
 {
-    __cell_unpack_window_cleanup_common(session, dsk->write_gen);
-    __cell_kv_window_cleanup(session, unpack_kv);
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_kv_window_cleanup(session, unpack_kv);
 }
 
 /*
@@ -1240,8 +1242,8 @@ static WT_INLINE void
 __cell_unpack_window_cleanup_delta(
   WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk, WT_CELL_UNPACK_DELTA *unpack_delta)
 {
-    __cell_unpack_window_cleanup_common(session, dsk->write_gen);
-    __cell_delta_window_cleanup(session, unpack_delta);
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_delta_window_cleanup(session, unpack_delta);
 }
 
 /*
