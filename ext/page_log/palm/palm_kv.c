@@ -39,8 +39,16 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include "palm_kv.h"
+/*
+ * In theory, extensions should not call into WT functions willy-nilly, but the swap functions are
+ * inlined. We could call the system's swap functions directly, and/or write our own, but we'd
+ * duplicate some existing logic.
+ *
+ * Possibly some functions like swap should live in a more general library than WT.
+ */
+#include <swap.h>
 
+#include "palm_kv.h"
 #define MEGABYTE (1024 * 1024)
 
 /*
@@ -71,6 +79,33 @@ typedef struct PAGE_KEY {
     /* To simulate materialization delays, this is the timestamp this record becomes available. */
     uint64_t timestamp_materialized_us;
 } PAGE_KEY;
+
+static bool need_swap = true; /* TODO: derive this */
+
+/*
+ * Byte swap a page key so that it sorts in the expected order.
+ */
+static void
+swap_page_key(const PAGE_KEY *src, PAGE_KEY *dest)
+{
+    if (!need_swap)
+        return;
+
+    if (dest != src)
+        /* Copy all values by default. */
+        *dest = *src;
+
+    /*
+     * We don't need to swap all the fields in the key, only the ones that we use in comparisons.
+     * Other fields in the key that we don't swap are more like data fields, but they are more
+     * convenient to keep in the key.
+     */
+    dest->table_id = __wt_bswap64(src->table_id);
+    dest->page_id = __wt_bswap64(src->page_id);
+    dest->checkpoint_id = __wt_bswap64(src->checkpoint_id);
+    dest->revision = __wt_bswap64(src->revision);
+    dest->is_delta = __wt_bswap32(src->is_delta);
+}
 
 /*
  * True if and only if the result matches the table and page and is materialized.
@@ -142,11 +177,18 @@ palm_kv_env_create(PALM_KV_ENV **envp, uint32_t cache_size_mb)
 int
 palm_kv_env_open(PALM_KV_ENV *env, const char *homedir)
 {
-    int ret;
+    int dead_count, ret;
     MDB_txn *txn;
 
     if ((ret = mdb_env_open(env->lmdb_env, homedir, 0, 0666)) != 0)
         return (ret);
+
+    /* For good multi-process hygiene, this should be called periodically. */
+    /* TODO: add this call at checkpoints, or every 10000 calls, etc. */
+    if ((ret = mdb_reader_check(env->lmdb_env, &dead_count)) != 0)
+        return (ret);
+    (void)dead_count;
+
     if ((ret = mdb_txn_begin(env->lmdb_env, NULL, 0, &txn)) != 0)
         return (ret);
 
@@ -274,6 +316,7 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
     page_key.base = base;
     page_key.flags = flags;
     page_key.timestamp_materialized_us = palm_kv_timestamp_us() + context->materialization_delay_us;
+    swap_page_key(&page_key, &page_key);
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
     vval.mv_size = buf->size;
@@ -289,7 +332,8 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     MDB_val kval;
     MDB_val vval;
     PAGE_KEY page_key;
-    PAGE_KEY *result_key;
+    PAGE_KEY result_key;
+    PAGE_KEY *readonly_result_key;
     uint64_t now;
     int ret;
 
@@ -297,7 +341,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     memset(&vval, 0, sizeof(vval));
     memset(matches, 0, sizeof(*matches));
     memset(&page_key, 0, sizeof(page_key));
-    result_key = NULL;
+    readonly_result_key = NULL;
     now = palm_kv_timestamp_us();
 
     matches->table_id = table_id;
@@ -306,7 +350,9 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
 
     page_key.table_id = table_id;
     page_key.page_id = page_id;
-    page_key.checkpoint_id = checkpoint_id + 1;
+    page_key.checkpoint_id = checkpoint_id;
+    page_key.revision = UINT64_MAX;
+    swap_page_key(&page_key, &page_key);
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
     if ((ret = mdb_cursor_open(
@@ -314,38 +360,41 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
         return (ret);
     ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_SET_RANGE);
     if (ret == MDB_NOTFOUND) {
-        /* If we went off the end, backup to the last record. */
-        ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
+        /* If we went off the end, go to the last record. */
+        ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_LAST);
     }
     if (ret == 0) {
         if (kval.mv_size != sizeof(PAGE_KEY))
             return (EIO); /* not expected, data damaged, could be assert */
-        result_key = (PAGE_KEY *)kval.mv_data;
+        readonly_result_key = (PAGE_KEY *)kval.mv_data;
+        swap_page_key(readonly_result_key, &result_key);
     }
     /*
      * Now back up until we get a match. This will be the last valid record that matches the
      * table/page.
      */
-    while (ret == 0 && !RESULT_MATCH(result_key, table_id, page_id, now)) {
+    while (ret == 0 && !RESULT_MATCH(&result_key, table_id, page_id, now)) {
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
-        result_key = (PAGE_KEY *)kval.mv_data;
+        readonly_result_key = (PAGE_KEY *)kval.mv_data;
+        swap_page_key(readonly_result_key, &result_key);
     }
     /*
      * Now back up until we match table/page/checkpoint.
      */
-    while (ret == 0 && RESULT_MATCH(result_key, table_id, page_id, now) &&
-      result_key->checkpoint_id >= checkpoint_id) {
+    while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, now) &&
+      result_key.checkpoint_id >= checkpoint_id) {
 
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         /* TODO: maybe can't happen, with SET_RANGE. */
-        if (result_key->checkpoint_id == checkpoint_id && result_key->is_delta == false) {
+        if (result_key.checkpoint_id == checkpoint_id && result_key.is_delta == false) {
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
             matches->first = true;
             return (0);
         }
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
-        result_key = (PAGE_KEY *)kval.mv_data;
+        readonly_result_key = (PAGE_KEY *)kval.mv_data;
+        swap_page_key(readonly_result_key, &result_key);
     }
     if (ret == MDB_NOTFOUND) {
         /* We're done, there are no matches. */
@@ -362,7 +411,8 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
 {
     MDB_val kval;
     MDB_val vval;
-    PAGE_KEY *page_key;
+    PAGE_KEY *readonly_page_key;
+    PAGE_KEY page_key;
     uint64_t now;
     int ret;
 
@@ -371,6 +421,7 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
 
     now = palm_kv_timestamp_us();
 
+    memset(&page_key, 0, sizeof(page_key));
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(vval));
     if (matches->first) {
@@ -386,19 +437,19 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     if (ret == 0) {
         if (kval.mv_size != sizeof(PAGE_KEY))
             return (EIO); /* not expected, data damaged, could be assert */
-        page_key = (PAGE_KEY *)kval.mv_data;
-    } else
-        page_key = NULL;
+        readonly_page_key = (PAGE_KEY *)kval.mv_data;
+        swap_page_key(readonly_page_key, &page_key);
 
-    if (ret == 0 && RESULT_MATCH(page_key, matches->table_id, matches->page_id, now) &&
-      page_key->checkpoint_id == matches->checkpoint_id) {
-        matches->size = vval.mv_size;
-        matches->data = vval.mv_data;
-        matches->revision = page_key->revision;
-        matches->backlink = page_key->backlink;
-        matches->base = page_key->base;
-        matches->flags = page_key->flags;
-        return (true);
+        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, now) &&
+          page_key.checkpoint_id == matches->checkpoint_id) {
+            matches->size = vval.mv_size;
+            matches->data = vval.mv_data;
+            matches->revision = page_key.revision;
+            matches->backlink = page_key.backlink;
+            matches->base = page_key.base;
+            matches->flags = page_key.flags;
+            return (true);
+        }
     }
 
     /* There are no more matches, or there was an error, so close the cursor. */

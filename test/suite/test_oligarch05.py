@@ -49,11 +49,6 @@ class test_oligarch05(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch05(self):
-        # TODO: debug this test.
-        # There are data corruption bugs - apparently we act for an evicted
-        # page back, and get one with the wrong checksum.
-        self.skipTest('fails due to data corruption')
-
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")

@@ -59,12 +59,6 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
     # Test records into an oligarch tree and restarting
     def test_oligarch06(self):
-        # TODO: debug this test.
-        # Sometimes there are data corruption bugs - apparently we act for an evicted
-        # page back, and get one with the wrong checksum.  When that doesn't happen,
-        # sometimes all items written to the leader have not gotten to the follower.
-        self.skipTest('fails due to data corruption')
-
         session_config = 'key_format=S,value_format=S'
 
         #
@@ -174,7 +168,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
         conn_follow.close()
         self.pr("reopen the follower")
         # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', 'extensions=["../../ext/page_log/palm/libwiredtiger_palm.so"],create,' + self.conn_config)
+        conn_follow = self.wiredtiger_open('follower', 'extensions=["../../ext/page_log/palm/libwiredtiger_page_log.so"],create,' + self.conn_config)
         session_follow = conn_follow.open_session('')
 
         cursor_follow = session_follow.open_cursor(self.uri, None, None)
