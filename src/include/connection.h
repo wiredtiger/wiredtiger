@@ -169,13 +169,16 @@ struct __wt_oligarch_manager {
 
 /*
  * WT_DISAGGREGATED_STORAGE --
- *      Configuration for disaggregated storage, which tells the Block Manager how to find remote
- *      object storage. This is a separate configuration from Oligarch tables.
+ *      Configuration and the current state for disaggregated storage, which tells the Block Manager
+ *      how to find remote object storage. This is a separate configuration from Oligarch tables.
  */
 struct __wt_disaggregated_storage {
     char *page_log;
     char *stable_prefix;
     char *storage_source;
+
+    wt_shared uint64_t global_checkpoint_id; /* The ID of the currenty opened checkpoint. */
+                                             /* Updates are protected by the checkpoint lock. */
 
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;
@@ -183,6 +186,11 @@ struct __wt_disaggregated_storage {
     WT_BUCKET_STORAGE *bstorage;
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_FILE_HANDLE *bstorage_meta;
+
+    wt_shared uint64_t num_meta_put; /* The number metadata puts since connection open. */
+
+    uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
+                                         /* Updates are protected by the checkpoint lock. */
 };
 
 /*

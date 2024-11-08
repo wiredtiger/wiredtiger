@@ -35,7 +35,7 @@ class test_oligarch11(wttest.WiredTigerTestCase):
     uri_base = "test_oligarch11"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                + 'oligarch=(role="leader"),' \
+                + 'disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "oligarch:" + uri_base

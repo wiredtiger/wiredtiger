@@ -27,18 +27,21 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-
-StorageSource = wiredtiger.StorageSource  # easy access to constants
+from helper_disagg import DisaggConfigMixin
+from wtscenario import make_scenarios
 
 # test_oligarch06.py
 #    Start a second WT that shares the stable content with the first.
-class test_oligarch06(wttest.WiredTigerTestCase):
-    nitems = 100000
+class test_oligarch06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = conn_base_config + 'oligarch=(role="leader")'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+
+    scenarios = make_scenarios([
+        ('1k', dict(nitems=1000)),
+        ('100k', dict(nitems=100000)),
+    ])
 
     # TODO do Python tests expect a field named uri?
     uri = "oligarch:test_oligarch06"
@@ -70,7 +73,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         self.pr("create second WT")
         # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "oligarch=(role=\"follower\")")
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, session_config)
 
@@ -100,7 +103,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+        self.disagg_advance_checkpoint(conn_follow)
 
         cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -128,7 +131,7 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+        self.disagg_advance_checkpoint(conn_follow)
 
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
@@ -161,14 +164,13 @@ class test_oligarch06(wttest.WiredTigerTestCase):
 
         # Checkpoint to ensure that we don't miss any items after we reopen the connection below.
         self.session.checkpoint()
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Reopen the follower connection.
         session_follow.close()
         conn_follow.close()
         self.pr("reopen the follower")
-        # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', 'extensions=["../../ext/page_log/palm/libwiredtiger_page_log.so"],create,' + self.conn_config)
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',' + self.conn_base_config + "disaggregated=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
 
         cursor_follow = session_follow.open_cursor(self.uri, None, None)

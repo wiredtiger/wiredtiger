@@ -112,6 +112,12 @@ connection_disaggregated_config_common = [
     Config('checkpoint_id', '-1', r'''
         The checkpoint ID from which to start (or restart) the node''',
         min='-1', type='int', undoc=True),
+    Config('next_checkpoint_id', '-1', r'''
+        The next checkpoint ID to open when starting (or restarting) the node''',
+        min='-1', type='int', undoc=True),
+    Config('role', '', r'''
+        whether the oligarch stable table should lead or follow''',
+        choices=['leader', 'follower'], undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
@@ -837,13 +843,6 @@ connection_runtime_config = [
             merge LSM chunks where possible''',
             type='boolean')
         ]),
-    Config('oligarch', '', r'''
-        WT-wide oligarch config''',
-        type='category', subconfig=[
-        Config('role', '', r'''
-            whether the oligarch stable table should lead or follow''',
-            choices=['leader', 'follower'], undoc=True)
-        ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -1555,9 +1554,6 @@ methods = {
         information or creating a checkpoint. The update will also only be applied to table
         URI entries in the metadata, not their sub-entries.''',
         type='boolean', undoc=True),
-    Config('role', '', r'''
-        whether the oligarch stable table should lead or follow''',
-        choices=['leader', 'follower'], undoc=True),
 ]),
 
 'WT_SESSION.close' : Method([]),
