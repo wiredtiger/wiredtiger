@@ -541,9 +541,15 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
 
     /* Detect if the btree is disaggregated (for now, just use the file extension). */
-    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_stable")) {
+    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_stable"))
         F_SET(btree, WT_BTREE_DISAGGREGATED);
 
+    /*
+     * Now detect if we should use a page and log service. This is true for all disaggregated trees,
+     * and if the user requests it on other trees.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
         WT_RET(__btree_setup_page_log(session, btree));
         WT_RET(__btree_setup_storage_source(session, btree));
 
