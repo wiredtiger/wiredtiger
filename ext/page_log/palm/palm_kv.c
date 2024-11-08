@@ -91,6 +91,15 @@ swap_page_key(const PAGE_KEY *src, PAGE_KEY *dest)
     if (!need_swap)
         return;
 
+    if (dest != src)
+        /* Copy all values by default. */
+        *dest = *src;
+
+    /*
+     * We don't need to swap all the fields in the key, only the ones that we use in comparisons.
+     * Other fields in the key that we don't swap are more like data fields, but they are more
+     * convenient to keep in the key.
+     */
     dest->table_id = __wt_bswap64(src->table_id);
     dest->page_id = __wt_bswap64(src->page_id);
     dest->checkpoint_id = __wt_bswap64(src->checkpoint_id);
