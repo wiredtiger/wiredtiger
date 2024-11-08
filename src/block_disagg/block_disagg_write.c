@@ -119,7 +119,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     if (block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
         WT_RET(block_disagg->plhandle->page_log->pl_get_open_checkpoint(
           block_disagg->plhandle->page_log, &session->iface, &page_log_checkpoint_id));
-        WT_ASSERT(session, checkpoint_id == page_log_checkpoint_id);
+        WT_ASSERT_ALWAYS(session, checkpoint_id == page_log_checkpoint_id,
+          "The global checkpoint ID does not match the opened checkpoint in the page log");
     }
 
     /*
