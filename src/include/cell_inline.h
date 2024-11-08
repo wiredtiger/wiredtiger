@@ -1098,6 +1098,40 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
 }
 
 /*
+ * __cell_delta_window_cleanup --
+ *     Clean up delta cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_delta_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA *unpack_delta)
+{
+    WT_TIME_WINDOW *tw;
+
+    if (unpack_delta != NULL) {
+        tw = &unpack_delta->tw;
+        if (tw->start_txn != WT_TXN_NONE) {
+            tw->start_txn = WT_TXN_NONE;
+            F_SET(unpack_delta, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+        }
+        if (tw->stop_txn != WT_TXN_MAX) {
+            tw->stop_txn = WT_TXN_NONE;
+            F_SET(unpack_delta, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
+
+            /*
+             * The combination of stop timestamp being WT_TS_MAX while the stop transaction not
+             * being WT_TXN_MAX is possible only for the non-timestamped tables. In this scenario
+             * there shouldn't be any timestamp value as part of durable stop timestamp other than
+             * the default value WT_TS_NONE.
+             */
+            if (tw->stop_ts == WT_TS_MAX) {
+                tw->stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
+            }
+        } else
+            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
+    }
+}
+
+/*
  * __cell_redo_page_del_cleanup --
  *     Redo the window cleanup logic on a page_del structure after the write generations have been
  *     bumped. Note: the name of this function is abusive (there are no cells involved) but as the
@@ -1124,12 +1158,11 @@ __cell_redo_page_del_cleanup(
 }
 
 /*
- * __cell_unpack_window_cleanup --
+ * __cell_unpack_window_cleanup_common --
  *     Clean up cells loaded from a previous run.
  */
 static WT_INLINE void
-__cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
-  WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_kv)
+__cell_unpack_window_cleanup_common(WT_SESSION_IMPL *session, uint64_t dsk_write_gen)
 {
     uint64_t write_gen;
 
@@ -1167,15 +1200,48 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
     } else
         write_gen = S2BT(session)->base_write_gen;
 
-    WT_ASSERT(session, dsk->write_gen != 0);
-    if (dsk->write_gen > write_gen)
+    WT_ASSERT(session, dsk_write_gen != 0);
+    if (dsk_write_gen > write_gen)
         return;
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
         return;
+}
 
+/*
+ * __cell_unpack_window_cleanup_addr --
+ *     Clean up addr cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_addr(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
+{
+    __cell_unpack_window_cleanup_common(session, dsk->write_gen);
     __cell_addr_window_cleanup(session, dsk, unpack_addr);
+}
+
+/*
+ * __cell_unpack_window_cleanup_kv --
+ *     Clean up kv cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_kv(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_KV *unpack_kv)
+{
+    __cell_unpack_window_cleanup_common(session, dsk->write_gen);
     __cell_kv_window_cleanup(session, unpack_kv);
+}
+
+/*
+ * __cell_unpack_window_cleanup_delta --
+ *     Clean up delta cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_delta(
+  WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk, WT_CELL_UNPACK_DELTA *unpack_delta)
+{
+    __cell_unpack_window_cleanup_common(session, dsk->write_gen);
+    __cell_delta_window_cleanup(session, unpack_delta);
 }
 
 /*
@@ -1192,7 +1258,7 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    __cell_unpack_window_cleanup(session, dsk, unpack_addr, NULL);
+    __cell_unpack_window_cleanup_addr(session, dsk, unpack_addr);
 }
 
 /*
@@ -1231,7 +1297,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
+    __cell_unpack_window_cleanup_kv(session, dsk, unpack_value);
 }
 
 /*
@@ -1239,7 +1305,8 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
  *     Unpack a delta cell into a structure.
  */
 static WT_INLINE void
-__wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA *unpack)
+__wt_cell_unpack_delta(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk, WT_DELTA_CELL *cell,
+  WT_CELL_UNPACK_DELTA *unpack)
 {
     WT_DECL_RET;
     uint64_t v;
@@ -1260,6 +1327,11 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
     } else {
         WT_TIME_WINDOW_INIT(&unpack->tw);
 
+        if (F_ISSET(unpack, WT_DELTA_HAS_START_TXN_ID)) {
+            ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_txn);
+            WT_ASSERT(session, ret == 0);
+        }
+
         if (F_ISSET(unpack, WT_DELTA_HAS_START_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_ts);
             WT_ASSERT(session, ret == 0);
@@ -1267,6 +1339,11 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
 
         if (F_ISSET(unpack, WT_DELTA_HAS_START_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_start_ts);
+            WT_ASSERT(session, ret == 0);
+        }
+
+        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_TXN_ID)) {
+            ret = __wt_vunpack_uint(&p, 0, &unpack->tw.stop_txn);
             WT_ASSERT(session, ret == 0);
         }
 
@@ -1291,6 +1368,8 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UN
         p += unpack->key_size;
         unpack->value = p;
         unpack->__len = (uint32_t)WT_PTRDIFF(p + unpack->value_size, &cell->__chunk[0]);
+
+        __cell_unpack_window_cleanup_delta(session, dsk, unpack);
     }
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
@@ -1412,7 +1491,7 @@ __wt_page_cell_data_ref_kv(
         uint8_t *__cell;                                                                         \
         for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
              __cell += (unpack).__len, --__i) {                                                  \
-            __wt_cell_unpack_delta(session, (WT_DELTA_CELL *)__cell, &(unpack));
+            __wt_cell_unpack_delta(session, dsk, (WT_DELTA_CELL *)__cell, &(unpack));
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \
         uint32_t __i;                                                                           \

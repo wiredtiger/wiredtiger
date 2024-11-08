@@ -1894,6 +1894,31 @@ err:
 }
 
 /*
+ * __rec_set_delta_write_gen --
+ *     Initialize the delta write generation number.
+ */
+static void
+__rec_set_delta_write_gen(WT_BTREE *btree, WT_DELTA_HEADER *dsk)
+{
+    /*
+     * We increment the block's write generation so it's easy to identify newer versions of blocks
+     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
+     * multiple blocks to be internally consistent with identical first and last keys, so we need a
+     * way to know the most recent state of the block. We could check which leaf is referenced by a
+     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
+     * it's not as good anyway, because the internal page may not have been written after the leaf
+     * page was updated. So, write generations it is.
+     *
+     * The write generation number should be increased atomically to prevent it from moving backward
+     * when it is updated simultaneously.
+     *
+     * Other than salvage, the write generation number is used to reset the stale transaction id's
+     * present on the page upon server restart.
+     */
+    dsk->write_gen = __wt_atomic_add64(&btree->write_gen, 1);
+}
+
+/*
  * __rec_set_page_write_gen --
  *     Initialize the page write generation number.
  */
@@ -2151,17 +2176,29 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
          * include the full value in the delta? We can omit it but it will make the rest of the
          * system more complicated. Include it for now to simplify the prototype.
          */
-        if (supd->onpage_upd->start_ts != WT_TS_NONE) {
-            LF_SET(WT_DELTA_HAS_START_TS);
-            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
-        }
+        if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
+            if (supd->onpage_upd->txnid != WT_TXN_NONE) {
+                LF_SET(WT_DELTA_HAS_START_TXN_ID);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
+            }
 
-        if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
-            LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
-            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
+            if (supd->onpage_upd->start_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_HAS_START_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+            }
+
+            if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
+            }
         }
 
         if (supd->onpage_tombstone != NULL) {
+            if (supd->onpage_tombstone->txnid != WT_TXN_NONE) {
+                LF_SET(WT_DELTA_HAS_STOP_TXN_ID);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
+            }
+
             if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_HAS_STOP_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
@@ -2234,6 +2271,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
     header->u.entries = count;
+    __rec_set_delta_write_gen(S2BT(session), header);
 
     stop = __wt_clock(session);
 
