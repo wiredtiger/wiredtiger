@@ -1894,31 +1894,6 @@ err:
 }
 
 /*
- * __rec_set_delta_write_gen --
- *     Initialize the delta write generation number.
- */
-static void
-__rec_set_delta_write_gen(WT_BTREE *btree, WT_DELTA_HEADER *dsk)
-{
-    /*
-     * We increment the block's write generation so it's easy to identify newer versions of blocks
-     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
-     * multiple blocks to be internally consistent with identical first and last keys, so we need a
-     * way to know the most recent state of the block. We could check which leaf is referenced by a
-     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
-     * it's not as good anyway, because the internal page may not have been written after the leaf
-     * page was updated. So, write generations it is.
-     *
-     * The write generation number should be increased atomically to prevent it from moving backward
-     * when it is updated simultaneously.
-     *
-     * Other than salvage, the write generation number is used to reset the stale transaction id's
-     * present on the page upon server restart.
-     */
-    dsk->write_gen = __wt_atomic_add64(&btree->write_gen, 1);
-}
-
-/*
  * __rec_set_page_write_gen --
  *     Initialize the page write generation number.
  */
@@ -2234,7 +2209,7 @@ err:
  *     Build delta for leaf pages.
  */
 static int
-__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_build_delta_leaf(WT_SESSION_IMPL *session, uint64_t write_gen, WT_RECONCILE *r)
 {
     WT_DELTA_HEADER *header;
     WT_MULTI *multi;
@@ -2271,7 +2246,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
     header->u.entries = count;
-    __rec_set_delta_write_gen(S2BT(session), header);
+    header->write_gen = write_gen;
 
     stop = __wt_clock(session);
 
@@ -2288,12 +2263,12 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Build delta.
  */
 static int
-__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *build_deltap)
+__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t write_gen, bool *build_deltap)
 {
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
-            WT_RET(__rec_build_delta_leaf(session, r));
+            WT_RET(__rec_build_delta_leaf(session, write_gen, r));
             *build_deltap = true;
         }
     }
@@ -2444,7 +2419,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
       block_meta->delta_count < WT_DELTA_LIMIT) {
-        WT_RET(__rec_build_delta(session, r, &build_delta));
+        WT_RET(__rec_build_delta(
+          session, r, ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && r->delta.size > chunk->image.size / 10)
             build_delta = false;
