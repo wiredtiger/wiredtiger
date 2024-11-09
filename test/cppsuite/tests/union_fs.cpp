@@ -58,25 +58,36 @@ using namespace test_harness;
 class database_model {
 public:
     /* Collection names start from zero. */
-    void add_new_collection(scoped_session &session){
+    void
+    add_new_collection(scoped_session &session)
+    {
         auto uri = database::build_collection_name(collection_count());
-        testutil_check(session->create(session.get(), uri.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str()));
+        testutil_check(
+          session->create(session.get(), uri.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str()));
         _collections.emplace_back(uri);
     }
 
-    void add_and_open_existing_collection(scoped_session &session, const std::string& uri) {
+    void
+    add_and_open_existing_collection(scoped_session &session, const std::string &uri)
+    {
         _collections.emplace_back(uri);
         // TODO: Think about how we know whether we're opening the correct thing?
         session->create(session.get(), uri.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str());
     }
 
-    std::string& get_random_collection() {
-        return _collections.at(random_generator::instance().generate_integer(0ul, collection_count() - 1));
+    std::string &
+    get_random_collection()
+    {
+        return _collections.at(
+          random_generator::instance().generate_integer(0ul, collection_count() - 1));
     }
 
-    size_t collection_count() {
+    size_t
+    collection_count()
+    {
         return _collections.size();
     }
+
 private:
     std::vector<std::string> _collections;
 };
@@ -95,13 +106,14 @@ void write(scoped_session &session, bool fresh_start);
 std::string key_to_str(uint64_t);
 std::string generate_key();
 std::string generate_value();
-void insert(scoped_cursor& cursor, std::string  &coll);
-void update(scoped_cursor& cursor, std::string  &coll);
-void remove(scoped_session &session, scoped_cursor& cursor, std::string  &coll);
+void insert(scoped_cursor &cursor, std::string &coll);
+void update(scoped_cursor &cursor, std::string &coll);
+void remove(scoped_session &session, scoped_cursor &cursor, std::string &coll);
 void configure_database(scoped_session &session);
 
 void
-read(scoped_session &session) {
+read(scoped_session &session)
+{
     auto cursor = session.open_scoped_cursor(db.get_random_collection(), "next_random=true");
     auto ret = cursor->next(cursor.get());
     if (ret == WT_NOTFOUND) {
@@ -111,27 +123,37 @@ read(scoped_session &session) {
     }
 }
 
-std::string generate_key() {
+std::string
+generate_key()
+{
     return random_generator::instance().generate_random_string(key_size);
 }
 
-std::string generate_value() {
+std::string
+generate_value()
+{
     return random_generator::instance().generate_random_string(value_size);
 }
 
-void insert(scoped_cursor& cursor, std::string &coll) {
+void
+insert(scoped_cursor &cursor, std::string &coll)
+{
     cursor->set_key(cursor.get(), generate_key());
     cursor->set_value(cursor.get(), generate_value());
     testutil_check(cursor->insert(cursor.get()));
 }
 
-void update(scoped_cursor& cursor, std::string &coll) {
+void
+update(scoped_cursor &cursor, std::string &coll)
+{
     cursor->set_key(cursor.get(), generate_key());
     cursor->set_value(cursor.get(), generate_value());
     testutil_check(cursor->update(cursor.get()));
 }
 
-void remove(scoped_session& session, scoped_cursor &cursor, std::string &coll) {
+void
+remove(scoped_session &session, scoped_cursor &cursor, std::string &coll)
+{
     auto ran_cursor = session.open_scoped_cursor(coll, "next_random=true");
     auto ret = cursor->next(ran_cursor.get());
     if (ret == WT_NOTFOUND) {
@@ -147,7 +169,8 @@ void remove(scoped_session& session, scoped_cursor &cursor, std::string &coll) {
 }
 
 void
-write(scoped_session &session, bool fresh_start) {
+write(scoped_session &session, bool fresh_start)
+{
     /* Force insertions for a duration on a fresh start. */
     auto ran = fresh_start ? 1 : random_generator::instance().generate_integer(0, 2);
     auto &coll = db.get_random_collection();
@@ -164,9 +187,9 @@ write(scoped_session &session, bool fresh_start) {
     }
     if (ran == 2) {
         update(cursor, coll);
-        //TODO:
+        // TODO:
         // Remove.
-        //remove(cursor, coll);
+        // remove(cursor, coll);
         return;
     }
 
@@ -175,7 +198,8 @@ write(scoped_session &session, bool fresh_start) {
 }
 
 void
-create_collection(scoped_session &session) {
+create_collection(scoped_session &session)
+{
     db.add_new_collection(session);
 }
 
@@ -221,7 +245,8 @@ do_random_crud(scoped_session &session, bool fresh_start)
 
 /* Setup the initial set of collections in the source path. */
 void
-configure_database(scoped_session &session) {
+configure_database(scoped_session &session)
+{
     scoped_cursor cursor = session.open_scoped_cursor("metadata:", "");
     while (cursor->next(cursor.get()) != WT_NOTFOUND) {
         const char *key_str = nullptr;
@@ -231,7 +256,7 @@ configure_database(scoped_session &session) {
         if (pos != std::string::npos) {
             testutil_assert(pos == 0);
             db.add_and_open_existing_collection(session, metadata_str);
-            logger::log_msg(LOG_TRACE, "Adding collection: " +  metadata_str);
+            logger::log_msg(LOG_TRACE, "Adding collection: " + metadata_str);
         }
     }
 }
@@ -274,7 +299,6 @@ main(int argc, char *argv[])
 
     do_random_crud(crud_session, fresh_start);
 
-
     /* Create a thread manager and spawn some threads that will work. */
     // thread_manager t;
     // int key_size = 1, value_size = 2;
@@ -302,13 +326,13 @@ main(int argc, char *argv[])
     crud_session.close_session();
     connection_manager::instance().close();
     time_t now = time(0);
-    tm* local_time = localtime(&now);
+    tm *local_time = localtime(&now);
 
     // WT_TEST -> WT_TEST_H:M
     // TOP -> WT_TEST
-    std::filesystem::rename("WT_TEST", "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
+    std::filesystem::rename("WT_TEST",
+      "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
     std::filesystem::rename("TOP", "WT_TEST");
-
 
     return (0);
 }

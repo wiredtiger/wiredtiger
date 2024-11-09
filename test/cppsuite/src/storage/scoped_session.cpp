@@ -53,7 +53,8 @@ scoped_session::scoped_session(scoped_session &&other)
 }
 
 void
-scoped_session::close_session() {
+scoped_session::close_session()
+{
     testutil_check(_session->close(_session, nullptr));
     _session = nullptr;
 }

@@ -2944,7 +2944,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #if defined(_MSC_VER)
             WT_ERR(__wt_os_win(session));
 #else
-            //WT_ERR(__wt_os_posix(session, &conn->file_system));
+            // WT_ERR(__wt_os_posix(session, &conn->file_system));
 
             // XXX Move the connection directory into the layer itself... this is bad.
             WT_ERR(__wt_os_union_fs(session));
