@@ -150,7 +150,11 @@ __wt_set_session_info(WT_SESSION_IMPL *session, const struct timespec ts)
     } while (0)
 
 #define __WT_CALL_WRAP(FUNCNAME, CALL, SESSION) \
-    __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, int __ret__ =, "%d", __ret__, return __ret__)
+    __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, int __ret__ =, "= %d", __ret__, return __ret__)
 
 #define __WT_CALL_WRAP_NORET(FUNCNAME, CALL, SESSION) \
-    __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, , "%s", "", )
+    __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION,              ,   "%s",   "   ",   /* no ret */)
+
+#define __WT_CALL_WRAP_RET(FUNCNAME, CALL, SESSION, RETTYPE, FMT, FMTARG) \
+    __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, RETTYPE __ret__ =,    FMT,  FMTARG, return __ret__)
+
