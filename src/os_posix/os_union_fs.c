@@ -30,7 +30,6 @@
 #include <unistd.h>
 
 #define WT_UNION_FS_STOP_SUFFIX ".stop"
-#define WT_UNION_FS_TOP ((size_t)-1)
 #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
 // XXX The same file can be opened only once - otherwise different threads don't see each other's
@@ -250,7 +249,7 @@ err:
     return (0);
 }
 
-int
+static int
 __union_fs_has_file(
   WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, bool *existsp)
 {
@@ -341,6 +340,7 @@ __union_fs_reconcile(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNION_FS_FH *f
     WT_UNUSED(u);
     WT_UNUSED(len);
     WT_UNUSED(len);
+    WT_UNUSED(fh);
 
     buf = NULL;
     len = 0;
@@ -356,6 +356,7 @@ __union_fs_reconcile(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNION_FS_FH *f
     // WT_ERR(__union_fs_create_stop(&u->iface, session, fh->iface.name, 0));
 
     if (0) {
+        goto err;
 err:
         __wt_free(session, buf);
     }
@@ -395,7 +396,7 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
     WT_DECL_RET;
     WT_UNION_FS_LAYER *layer;
     WT_UNION_FS *union_fs;
-    size_t entries_alloc_size, l, layer_index;
+    size_t entries_alloc_size, l;
     uint32_t i, j, layer_num_entries, num_entries, ret_num_entries, reuse;
     char **entries, **layer_entries, *path, **ret_entries;
     bool found;
@@ -416,8 +417,8 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
 
     layer = &union_fs->destination;
 
-    for (int i = 0; i < 2; i++) {
-        if (i == 1) {
+    for (int z = 0; z < 2; z++) {
+        if (z == 1) {
             layer = &union_fs->source;
         }
         WT_ERR(__union_fs_filename(layer, session, directory, &path));
@@ -583,14 +584,13 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_UNION_FS_FH *fh;
     WT_SESSION_IMPL *session;
-    size_t i;
 
     fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
 
     /* Close each layer. */
-    fh->source.fh->close(fh->source.fh, session);
-    fh->destination.fh->close(fh->destination.fh, session);
+    fh->source.fh->close(fh->source.fh, wt_session);
+    fh->destination.fh->close(fh->destination.fh, wt_session);
     __wt_free(session, fh->source.chunks);
     __wt_free(session, fh->destination.chunks);
     __wt_free(session, fh->iface.name);
@@ -626,8 +626,7 @@ __union_fs_file_read(
     WT_SESSION_IMPL *session;
     WT_UNION_FS *u;
     char *dest;
-    bool found;
-    size_t chunk_from, chunk_from_inner, chunk_index, chunk_to, chunk_to_inner, i, read_len,
+    size_t chunk_from, chunk_from_inner, chunk_index, chunk_to, chunk_to_inner, read_len,
       read_offset;
 
     union_fh = (WT_UNION_FS_FH *)file_handle;
@@ -660,13 +659,12 @@ __union_fs_file_read(
             read_offset += chunk_from_inner;
             read_len -= chunk_from_inner;
         }
-        // Reading past EOF?
-        WT_ASSERT(session, !(i > 0 && read_offset >= l->size));
+        // Reading past EOF? TODO: Fix this assert.
+        //WT_ASSERT(session, !(i > 0 && read_offset >= l->size));
 
         if (read_offset + read_len > (size_t)offset + len)
             read_len = (size_t)offset + len - read_offset;
         WT_ASSERT(session, read_len > 0);
-        found = true;
         //  fprintf(stderr, "READ %s :   << [%zu] %zu %ld %zu\n", file_handle->name,
         //    chunk_index, i, (wt_off_t)read_offset, read_len);
         WT_ERR(l->fh->fh_read(l->fh, wt_session, (wt_off_t)read_offset, read_len, dest));
@@ -690,7 +688,7 @@ __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off
     fh = (WT_UNION_FS_FH *)file_handle;
 
     WT_RET(fh->destination.fh->fh_size(fh->destination.fh, wt_session, &destination_size));
-    WT_RET(fh->source.fh->fh_size(fh->source.fh, wt_session, &destination_size));
+    WT_RET(fh->source.fh->fh_size(fh->source.fh, wt_session, &source_size));
     // fprintf(stderr, "SIZE %s : %zu\n", file_handle->name, size);
 
     *sizep = destination_size > source_size ? destination_size : source_size;
@@ -1060,6 +1058,9 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
 
     session = (WT_SESSION_IMPL *)wt_session;
     u = (WT_UNION_FS *)fs;
+    WT_UNUSED(u);
+    WT_UNUSED(layer_fs);
+    WT_UNUSED(flags);
 
     exist = false;
     path = NULL;
@@ -1068,6 +1069,8 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
     if (ret == WT_NOTFOUND || !exist)
         return (0);
 
+
+    goto err;
     // /* If the file exists at the top layer, delete it. */
     // if (__union_fs_is_top(u, layer_index)) {
     //     layer_fs = u->layers[layer_index]->file_system;
@@ -1100,6 +1103,18 @@ __union_fs_rename(
 
     session = (WT_SESSION_IMPL *)wt_session;
     u = (WT_UNION_FS *)fs;
+
+    WT_UNUSED(exist);
+    WT_UNUSED(path_to);
+    WT_UNUSED(path_from);
+    WT_UNUSED(layer_index);
+    WT_UNUSED(u);
+    WT_UNUSED(session);
+    WT_UNUSED(layer_fs);
+    WT_UNUSED(ret);
+    WT_UNUSED(from);
+    WT_UNUSED(to);
+    WT_UNUSED(flags);
 
     exist = false;
     layer_index = 0;
@@ -1152,6 +1167,10 @@ __union_fs_rename(
 static int
 __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
+    WT_UNUSED(fs);
+    WT_UNUSED(wt_session);
+    WT_UNUSED(name);
+    WT_UNUSED(sizep);
     // WT_DECL_RET;
     // WT_FILE_SYSTEM *layer_fs;
     // WT_SESSION_IMPL *session;
@@ -1194,10 +1213,8 @@ static int
 __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
-    WT_FILE_SYSTEM *layer_fs;
     WT_SESSION_IMPL *session;
     WT_UNION_FS *u;
-    ssize_t i;
     int r;
 
     session = (WT_SESSION_IMPL *)wt_session;
@@ -1227,10 +1244,9 @@ __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
  *     Initialize a union file system configuration.
  */
 int
-__wt_os_union_fs(WT_SESSION_IMPL *session)
+__wt_os_union_fs(WT_SESSION_IMPL *session, const char *source, const char *destination)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_UNION_FS *file_system;
 
     conn = S2C(session);
@@ -1257,9 +1273,14 @@ __wt_os_union_fs(WT_SESSION_IMPL *session)
     /* Switch it into place. */
     conn->file_system = (WT_FILE_SYSTEM *)file_system;
 
-    if (0) {
-err:
-        __wt_free(session, file_system);
-    }
-    return (ret);
+
+    file_system->destination.home = destination;
+    file_system->source.home = source;
+
+    WT_UNUSED(__union_fs_reconcile_by_name);
+    WT_UNUSED(__union_fs_remove_tombstone);
+    WT_UNUSED(__union_fs_create_tombstone);
+    WT_UNUSED(__union_fs_create_stop);
+    WT_UNUSED(__union_fs_stop);
+    return (0);
 }

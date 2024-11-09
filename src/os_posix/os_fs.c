@@ -1018,7 +1018,7 @@ directory_open:
     else
         file_handle->fh_read = __posix_file_read;
 
-    file_handle-> = __posix_file_size;
+    file_handle->fh_size = __posix_file_size;
     file_handle->fh_sync = __posix_file_sync;
 #ifdef HAVE_SYNC_FILE_RANGE
     file_handle->fh_sync_nowait = __posix_file_sync_nowait;

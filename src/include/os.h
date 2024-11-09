@@ -227,7 +227,7 @@ struct __wt_union_fs_fh {
 struct __wt_union_fs_layer {
     WT_FILE_SYSTEM *file_system;
 
-    char *home;
+    const char *home;
     LAYER which;
 };
 
@@ -242,5 +242,5 @@ struct __wt_union_fs {
     size_t chunk_size;
 };
 
-extern int __wt_os_union_fs(WT_SESSION_IMPL *session)
+extern int __wt_os_union_fs(WT_SESSION_IMPL *session, const char *source, const char *destination)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
