@@ -215,6 +215,7 @@ src/rollback_to_stable/rts_btree_walk.c
 src/rollback_to_stable/rts.c
 src/rollback_to_stable/rts_history.c
 src/rollback_to_stable/rts_visibility.c
+src/support/calltrack.c
 src/support/cond_auto.c
 src/support/crypto.c
 src/support/err.c

@@ -74,7 +74,7 @@ class Patcher:
     __WT_SET_NOSESSION_INFO({ts});
 """)
 
-        session_info = '__wt_session_info_str' if session else '__wt_session_info_str'
+        session_info = 'wt_calltrack._session_info_buf' if session else 'wt_calltrack._session_info_buf'
 
         printf_preambula = "__wt_errx(__session__, " if session else "printf("
         escape = ((lambda s: s.replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t"))
@@ -98,13 +98,13 @@ class Patcher:
         # Create a new function with the original name
 
         report_enter = f"""    printf("%3d%s%s ...                       \\t\\t%s: %s:%d: %s\\n",
-        wt_call_nest_level, __wt_indent_str, "{func.name.value}{is_api_str}",
+        wt_calltrack.nest_level, wt_calltrack._indent_buf, "{func.name.value}{is_api_str}",
         {session_info}, __FILE__, __LINE__, __PRETTY_FUNCTION__);"""
         if func.typename[-1].value != "int":
             ret_set = "    "
             # report_ret = ""
             report_ret = f"""    printf("%3d%s%s  (" PRtimespec " / " PRtimespec ")\\t\\t%s: %s:%d: %s\\n",
-        wt_call_nest_level, __wt_indent_str, "{func.name.value}{is_api_str}",
+        wt_calltrack.nest_level, wt_calltrack._indent_buf, "{func.name.value}{is_api_str}",
         PRtimespec_arg(__tt_diff__), PRtimespec_arg(__ts_diff__),
         {session_info}, __FILE__, __LINE__, __PRETTY_FUNCTION__);"""
             ret_ret = ""
@@ -112,7 +112,7 @@ class Patcher:
             ret_set = f"    {func.typename.short_repr()} __ret__ = "
             # report_ret = ""
             report_ret = f"""    printf("%3d%s%s = %d  (" PRtimespec " / " PRtimespec ")\\t\\t%s: %s:%d: %s\\n",
-        wt_call_nest_level, __wt_indent_str, "{func.name.value}{is_api_str}", __ret__,
+        wt_calltrack.nest_level, wt_calltrack._indent_buf, "{func.name.value}{is_api_str}", __ret__,
         PRtimespec_arg(__tt_diff__), PRtimespec_arg(__ts_diff__),
         {session_info}, __FILE__, __LINE__, __PRETTY_FUNCTION__);"""
             ret_ret = "    return __ret__;"
@@ -123,7 +123,7 @@ class Patcher:
         self.replace((st.range()[1], st.range()[1]), f"""
 {static}{func.typename.short_repr()}
 {func.name.value}({func.args.value}) {{
-    ++wt_call_nest_level;
+    ++wt_calltrack.nest_level;
     struct timespec __ts_start__, __ts_end__, __ts_diff__;
     struct timespec __tt_start__, __tt_end__, __tt_diff__;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &__tt_start__);
@@ -135,7 +135,7 @@ class Patcher:
     __wt_timespec_diff(&__ts_start__, &__ts_end__, &__ts_diff__);
     __wt_timespec_diff(&__tt_start__, &__tt_end__, &__tt_diff__);
 {set_indent("__ts_end__")}{report_ret}
-    --wt_call_nest_level;
+    --wt_calltrack.nest_level;
 {ret_ret}
 }}
 """)
