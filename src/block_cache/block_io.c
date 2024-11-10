@@ -505,7 +505,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_PAGE_HEADER *dsk;
     size_t compression_ratio, dst_len, len, result_len, size, src_len;
     uint64_t time_diff, time_start, time_stop;
-    uint32_t delta_count;
+    uint32_t delta_count, mem_size;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
     bool data_checksum, encrypted, timer;
@@ -670,14 +670,20 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      * images that are created during recovery may have the write generation number less than the
      * btree base write generation number, so don't verify it.
      */
-    /* TODO fix these stats since dsk now unused in the delta case */
-    /* dsk = ip->mem; */
-    /* WT_ASSERT(session, dsk->write_gen != 0); */
+    if (delta_count > 0) {
+        delta = ip->mem;
+        /* TODO assert on delta->write_gen once it exists. */
+        mem_size = delta->mem_size;
+    } else {
+        dsk = ip->mem;
+        WT_ASSERT(session, dsk->write_gen != 0);
+        mem_size = dsk->mem_size;
+    }
 
-    /* WT_STAT_CONN_DSRC_INCR(session, cache_write); */
-    /* WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, dsk->mem_size); */
-    /* WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size); */
-    /* (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size); */
+    WT_STAT_CONN_DSRC_INCR(session, cache_write);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, mem_size);
+    WT_STAT_SESSION_INCRV(session, bytes_write, mem_size);
+    (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, mem_size);
 
     /*
      * Store a copy of the compressed buffer in the block cache.
