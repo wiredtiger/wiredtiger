@@ -15,6 +15,68 @@ import wt_defs
 # chrome://tracing/
 # https://github.com/jlfwong/speedscope
 
+_session_from_type = {
+    "WT_SESSION_IMPL":    lambda arg: f"""{arg}""",
+    "WT_SESSION":         lambda arg: f"""(WT_SESSION_IMPL*){arg}""",
+    "WT_CURSOR":          lambda arg: f"""CUR2S({arg})""",
+    "WT_CONNECTION_IMPL": lambda arg: f"""{arg}->default_session""",
+    "WT_CONNECTION":      lambda arg: f"""((WT_CONNECTION_IMPL*){arg})->default_session""",
+}
+
+_int_kind_fmt = {
+    "int":      ('%d',           '%x'),
+    "bool":     ('%s',           '%s'),
+    "float":    ('%f',           '%f'),
+    "double":   ('%lf',          '%lf'),
+    "int8_t":   ('%" PRIi8 "',   '0x%" PRIX8 "'),
+    "int16_t":  ('%" PRIi16 "',  '0x%" PRIX16 "'),
+    "int32_t":  ('%" PRIi32 "',  '0x%" PRIX32 "'),
+    "int64_t":  ('%" PRIi64 "',  '0x%" PRIX64 "'),
+    "uint8_t":  ('%" PRIu8 "',   '0x%" PRIX8 "'),
+    "uint16_t": ('%" PRIu16 "',  '0x%" PRIX16 "'),
+    "uint32_t": ('%" PRIu32 "',  '0x%" PRIX32 "'),
+    "uint64_t": ('%" PRIu64 "',  '0x%" PRIX64 "'),
+    "size_t":   ('%" PRIuMAX "', '0x%" PRIXMAX "'),
+}
+
+def _has_session(func: FunctionParts, func_args: list[Variable]) -> str:
+    if (not func_args or
+            func_args[0].typename[-1].value not in _session_from_type or
+            func.name.value in ["__session_close", "__wt_session_close"] or
+            "config_parser_open" in func.name.value):
+        return False
+    return True
+
+def _get_session(func: FunctionParts, func_args: list[Variable]) -> str:
+    return (_session_from_type[func_args[0].typename[-1].value](func_args[0].name.value)
+            if _has_session(func, func_args)
+            else "")
+
+def _get_exact_type(st: Statement, maxidx: int) -> TokenList:
+    ret = TokenList()
+    for token in st.tokens:
+        if token.idx >= maxidx:
+            break
+        if token.value != "static":
+            ret.append(token)
+    return clean_tokens_decl(ret.filterCode(), clean_static_const=False)
+
+def _want_hex(varname: str) -> bool:
+    return int(bool("flag" in varname or "hash" in varname))
+
+def _get_int_kind_fmt(typename: str, varname: str = "__ret__") -> str:
+    return (_int_kind_fmt[typename][_want_hex(varname)] if typename in _int_kind_fmt else
+            '%s')
+
+def _get_int_kind_fmt_arg(typename: str, varname: str = "__ret__") -> str:
+    return (f'{varname} ? "true" : "false"' if typename == "bool" else
+            varname if typename in _int_kind_fmt else
+            '""')
+
+# Count nunmber of ";" and "{" in the body
+def _function_complexity(body: str) -> int:
+    return body.count(";") + body.count("{")
+
 class Patcher:
     txt = ""
     patch_list: list[tuple[tuple[int, int], int, str]]
@@ -39,66 +101,6 @@ class Patcher:
         self.idx += 1
         self.patch_list.append((range_, self.idx, txt))
 
-    _session_from_type = {
-        "WT_SESSION_IMPL":    lambda arg: f"""{arg}""",
-        "WT_SESSION":         lambda arg: f"""(WT_SESSION_IMPL*){arg}""",
-        "WT_CURSOR":          lambda arg: f"""CUR2S({arg})""",
-        "WT_CONNECTION_IMPL": lambda arg: f"""{arg}->default_session""",
-        "WT_CONNECTION":      lambda arg: f"""((WT_CONNECTION_IMPL*){arg})->default_session""",
-    }
-
-    @staticmethod
-    def _has_session(func: FunctionParts, func_args: list[Variable]) -> str:
-        if (not func_args or
-                func_args[0].typename[-1].value not in Patcher._session_from_type or
-                func.name.value in ["__session_close", "__wt_session_close"] or
-                "config_parser_open" in func.name.value):
-            return False
-        return True
-
-    @staticmethod
-    def _get_session(func: FunctionParts, func_args: list[Variable]) -> str:
-        return (Patcher._session_from_type[func_args[0].typename[-1].value](func_args[0].name.value)
-                if Patcher._has_session(func, func_args)
-                else "")
-
-    @staticmethod
-    def _get_exact_type(st: Statement, maxidx: int) -> TokenList:
-        ret = TokenList()
-        for token in st.tokens:
-            if token.idx >= maxidx:
-                break
-            if token.value != "static":
-                ret.append(token)
-        return clean_tokens_decl(ret.filterCode(), clean_static_const=False)
-
-    _int_kind_fmt = {
-        "int":      ('%d',           '%x'),
-        "bool":     ('%s',           '%s'),
-        "float":    ('%f',           '%f'),
-        "double":   ('%lf',          '%lf'),
-        "int8_t":   ('%" PRIi8 "',   '0x%" PRIX8 "'),
-        "int16_t":  ('%" PRIi16 "',  '0x%" PRIX16 "'),
-        "int32_t":  ('%" PRIi32 "',  '0x%" PRIX32 "'),
-        "int64_t":  ('%" PRIi64 "',  '0x%" PRIX64 "'),
-        "uint8_t":  ('%" PRIu8 "',   '0x%" PRIX8 "'),
-        "uint16_t": ('%" PRIu16 "',  '0x%" PRIX16 "'),
-        "uint32_t": ('%" PRIu32 "',  '0x%" PRIX32 "'),
-        "uint64_t": ('%" PRIu64 "',  '0x%" PRIX64 "'),
-        "size_t":   ('%" PRIuMAX "', '0x%" PRIXMAX "'),
-    }
-    @staticmethod
-    def _want_hex(varname: str) -> bool:
-        return int(bool("flag" in varname or "hash" in varname))
-    @staticmethod
-    def _get_int_kind_fmt(typename: str, varname: str = "__ret__") -> str:
-        return (Patcher._int_kind_fmt[typename][Patcher._want_hex(varname)] if typename in Patcher._int_kind_fmt else
-                '%s')
-    def _get_int_kind_fmt_arg(typename: str, varname: str = "__ret__") -> str:
-        return (f'{varname} ? "true" : "false"' if typename == "bool" else
-                varname if typename in Patcher._int_kind_fmt else
-                '""')
-
     def patch(self, st: Statement, func: FunctionParts) -> None:
         # if func.typename[-1].value not in ["int", "void"] or "..." in func.args.value:
         #     # We will not patch functions that return something other than int
@@ -111,7 +113,7 @@ class Patcher:
         func_args = func.getArgs()
         is_api = func.name.value.startswith("wiredtiger_") or "API_" in func.body.value
         # if (is_api or
-        #     (func_args and func_args[0].typename[-1].value in Patcher._session_from_type.keys())):
+        #     (func_args and func_args[0].typename[-1].value in _session_from_type.keys())):
         #     pass # instrument this function
         # else:
         #     return
@@ -131,27 +133,32 @@ class Patcher:
                 ]):
             return
 
+        complexity = _function_complexity(func.body.value)
+        if complexity <= 5:
+            # Ignore too "simple" functions
+            return
+
         self.count += 1
 
-        session = Patcher._get_session(func, func_args)
+        session = _get_session(func, func_args)
 
         is_api_str = ":API" if is_api else ""
         static = "static " if func.is_type_static else ""
         has_ret = func.typename[-1].value != "void"
         int_ret = func.typename[-1].value == "int"
         nonint_ret = func.typename[-1].value not in ["void", "int"]
-        rettype = Patcher._get_exact_type(st, func.name.idx).short_repr()
-        int_like_fmt = Patcher._get_int_kind_fmt(rettype)
-        int_like_fmt_arg = Patcher._get_int_kind_fmt_arg(rettype)
+        rettype = _get_exact_type(st, func.name.idx).short_repr()
+        int_like_fmt = _get_int_kind_fmt(rettype)
+        int_like_fmt_arg = _get_int_kind_fmt_arg(rettype)
         printable_args = []
         for stt in StatementList.xFromText(func.args.value, base_offset=0):
             var = Variable.fromFuncArg(stt.tokens)
             if var:
-                var_type = Patcher._get_exact_type(stt, var.name.idx).short_repr()
-                if var_type in Patcher._int_kind_fmt:
+                var_type = _get_exact_type(stt, var.name.idx).short_repr()
+                if var_type in _int_kind_fmt:
                     printable_args.append([var.name.value,
-                                           Patcher._get_int_kind_fmt(var_type, var.name.value),
-                                           Patcher._get_int_kind_fmt_arg(var_type, var.name.value)])
+                                           _get_int_kind_fmt(var_type, var.name.value),
+                                           _get_int_kind_fmt_arg(var_type, var.name.value)])
         printable_args_str = """    memcpy(wt_calltrack._args_buf, "()\\0", 4);\n""" if not printable_args else f"""
     WT_UNUSED(__wt_snprintf(wt_calltrack._args_buf, sizeof(wt_calltrack._args_buf),
       "({
