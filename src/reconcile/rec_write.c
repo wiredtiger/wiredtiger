@@ -2272,16 +2272,19 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
   WT_ITEM *compressed_image, bool last_block)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
     size_t addr_size, compressed_size;
+    uint64_t checkpoint_id;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
     bool build_delta;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
+    conn = S2C(session);
     btree = S2BT(session);
     page = r->page;
     build_delta = false;
@@ -2417,9 +2420,17 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
         multi->block_meta = *block_meta;
+        WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+        if (checkpoint_id != multi->block_meta.checkpoint_id) {
+            WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
+            multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+            multi->block_meta.checkpoint_id = checkpoint_id;
+            multi->block_meta.reconciliation_id = 0;
+        } else
+            ++multi->block_meta.reconciliation_id;
         ++multi->block_meta.delta_count;
-        /* TODO: reset reconciliation id to 0 if we start a new checkpoint id. */
-        ++multi->block_meta.reconciliation_id;
+
+        /* Get the checkpoint ID. */
         WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, &addr_size,
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
         /* Turn off compression adjustment for delta. */
@@ -2429,8 +2440,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
             multi->block_meta.delta_count = 0;
-            /* TODO: reset reconciliation id to 0 if we start a new checkpoint id. */
-            ++multi->block_meta.reconciliation_id;
+            WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+            if (checkpoint_id != multi->block_meta.checkpoint_id) {
+                WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+                multi->block_meta.checkpoint_id = checkpoint_id;
+                multi->block_meta.base_checkpoint_id = checkpoint_id;
+                multi->block_meta.reconciliation_id = 0;
+            } else
+                ++multi->block_meta.reconciliation_id;
         } else
             __wt_page_block_meta_assign(session, &multi->block_meta);
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,

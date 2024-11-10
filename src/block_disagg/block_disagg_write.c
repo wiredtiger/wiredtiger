@@ -61,8 +61,8 @@ __wt_block_disagg_write_size(size_t *sizep)
  */
 int
 __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  WT_ITEM *buf, const WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *new_block_meta,
-  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io)
+  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint32_t *sizep, uint32_t *checksump,
+  bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_CONNECTION_IMPL *conn;
@@ -76,7 +76,6 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
-    WT_ASSERT(session, new_block_meta != NULL);
 
     conn = S2C(session);
 
@@ -111,9 +110,6 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 
     /* Get the page ID. */
     page_id = block_meta->page_id;
-
-    /* Get the checkpoint ID. */
-    WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
     /* Check that the checkpoint ID matches the current checkpoint in the page log. */
     if (block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
@@ -207,15 +203,9 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
       (uintmax_t)page_id, (uintmax_t)buf->size, checksum);
 
-    /* Set the new metadata. */
-    if (new_block_meta != block_meta)
-        memcpy(new_block_meta, block_meta, sizeof(*new_block_meta));
-    new_block_meta->checkpoint_id = checkpoint_id;
-
     /* Some extra data is set by the put interface, and must be returned up the chain. */
-    new_block_meta->disagg_lsn = put_args.lsn;
-    new_block_meta->checksum = checksum;
-    ++new_block_meta->delta_count;
+    block_meta->disagg_lsn = put_args.lsn;
+    block_meta->checksum = checksum;
 
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
@@ -249,8 +239,8 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    WT_RET(__wt_block_disagg_write_internal(session, block_disagg, buf, block_meta, block_meta,
-      &size, &checksum, data_checksum, checkpoint_io));
+    WT_RET(__wt_block_disagg_write_internal(
+      session, block_disagg, buf, block_meta, &size, &checksum, data_checksum, checkpoint_io));
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
