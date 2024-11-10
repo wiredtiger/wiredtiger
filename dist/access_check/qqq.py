@@ -10,6 +10,11 @@ import wt_defs
 # perl -MIO::File -nE '$t = /\[\d++\.\d++\]\[\d++:0x([0-9a-f]++)]/i ? $1 : "-"; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s",++$idx,$t), "w"); } $h{$t}->print($_); sub end() { for (values(%h)) { $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 # cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE '$t = /\[\d++\.\d++\]\[\d++:0x([0-9a-f]++)]/i ? $1 : "-"; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s",++$idx,$t), "w"); } $h{$t}->print($_); sub end() { for (values(%h)) { $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 
+# View:
+# https://ui.perfetto.dev/
+# chrome://tracing/
+# https://github.com/jlfwong/speedscope
+
 class Patcher:
     txt = ""
     patch_list: list[tuple[tuple[int, int], int, str]]
@@ -116,7 +121,14 @@ class Patcher:
                 "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
                 "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
                 "__block_extlist_dump",
-                "__wt_compare"]):
+                "__wt_compare",
+                "__config_next", "__config_merge_cmp", "__config_process_value", "__wt_config_initn",
+                "__wt_config_init", "__wt_config_next", "__config_getraw", "__config_merge_scan",
+                "__strip_comma", "__config_merge_format_next", "__wti_config_get", "__wt_config_gets",
+                "__wt_config_getones",
+                "__wt_direct_io_size_check",
+                "__wt_ref_is_root", "__ref_get_state",
+                ]):
             return
 
         self.count += 1

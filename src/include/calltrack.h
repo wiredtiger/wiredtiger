@@ -13,26 +13,36 @@
 #endif
 
 typedef struct __wt_calltrack {
+    /* Temporary buffers for call wrapper */
     struct {
         char _indent_buf[4096];
         char _session_info_buf[4096];
         char _args_buf[4096];
-        char _tid[128];
+        // char _tid[128];
     };
+    /* Permanent thread data */
+    struct {
+        char tid_str[128];
+        uintmax_t pid;
+        uint64_t tid;
+    };
+    /* Live data */
     int nest_level;
 } WT_CALLTRACK;
 extern __thread WT_CALLTRACK wt_calltrack;
 
 typedef struct __wt_calltrack_global {
     struct timespec start;
+    uint64_t tid;
 } WT_CALLTRACK_GLOBAL;
 extern WT_CALLTRACK_GLOBAL wt_calltrack_global;
 
-extern void __attribute__((constructor)) __wt_calltrack_init_once(void);
-
 #define PRtimespec "%" PRIuMAX ".%06" PRIuMAX
 #define PRtimespecFmt "%4" PRIuMAX ".%06" PRIuMAX
+#define PRtimespecNSFmt "%" PRIuMAX "%06" PRIuMAX
+#define PRtimespecTime "%" PRIuMAX
 #define PRtimespec_arg(ts) (uintmax_t)(ts).tv_sec, (uintmax_t)(ts).tv_nsec / WT_THOUSAND
+#define PRtimespec_argUS(ts) (uintmax_t)(ts).tv_sec * 1000000 + (uintmax_t)(ts).tv_nsec / 1000
 
 static WT_INLINE void
 __wt_timespec_diff(const struct timespec *start, const struct timespec *end, struct timespec *diff)
@@ -88,8 +98,9 @@ __wt_set_session_info(WT_SESSION_IMPL *session, const struct timespec ts)
     size_t remain = sizeof(wt_calltrack._session_info_buf);
 
     /* Timestamp and thread id. */
-    WT_UNUSED(__wt_thread_str(wt_calltrack._tid, sizeof(wt_calltrack._tid)));
-    WT_NOERROR_APPEND(p, remain, "[" PRtimespec "][%s]", PRtimespec_arg(ts), wt_calltrack._tid);
+    if (!wt_calltrack.tid_str[0])
+        WT_UNUSED(__wt_thread_str(wt_calltrack.tid_str, sizeof(wt_calltrack.tid_str)));
+    WT_NOERROR_APPEND(p, remain, "[" PRtimespec "][%s]", PRtimespec_arg(ts), wt_calltrack.tid_str);
 
     if (session) {
         /* Session info */
@@ -107,7 +118,7 @@ __wt_set_session_info(WT_SESSION_IMPL *session, const struct timespec ts)
     }
 }
 
-#define __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)       \
+#define __WT_CALL_WRAP1_(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)       \
     do {                                                                                    \
         WT_SESSION_IMPL *__session__ = SESSION;                                             \
                                                                                             \
@@ -149,6 +160,65 @@ __wt_set_session_info(WT_SESSION_IMPL *session, const struct timespec ts)
         --wt_calltrack.nest_level;                                                          \
         RET_RET;                                                                            \
     } while (0)
+
+#define __WT_CALL_WRAP2_(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
+    do {                                                                                    \
+        WT_SESSION_IMPL *__session__ = SESSION;                                             \
+                                                                                            \
+        if (!wt_calltrack.pid) {                                                            \
+            wt_calltrack.pid = (uintmax_t)getpid();                                         \
+            wt_calltrack.tid = __wt_atomic_fetch_add64(&wt_calltrack_global.tid, 1);                                  \
+            /* __wt_thread_id(&wt_calltrack.tid); */                                              \
+        }                                                                                   \
+                                                                                            \
+        struct timespec __ts_elapsed__;                                                     \
+        struct timespec __ts_start__, __ts_end__, __ts_diff__;                              \
+        struct timespec __tt_start__, __tt_end__, __tt_diff__;                              \
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &__tt_start__);                              \
+        clock_gettime(CLOCK_REALTIME, &__ts_start__);                                       \
+        __wt_timespec_diff(&wt_calltrack_global.start, &__ts_start__, &__ts_elapsed__);     \
+                                                                                            \
+        ++wt_calltrack.nest_level;                                                          \
+                                                                                            \
+        __wt_set_indent(wt_calltrack.nest_level * 2);                                       \
+        /* const char * session_intext = NULL;                                                 \
+        const char * session_dhandle = NULL;                                                 \
+        const char * session_name = NULL;                                                 \
+        if (__session__) { \
+            session_intext = F_ISSET(__session__, WT_SESSION_INTERNAL) ? "INTERNAL" : "APP"; \
+            session_dhandle = __session__->dhandle == NULL ? NULL : __session__->dhandle->name; \
+            session_name = __session__->name; \
+        }*/ \
+        printf("%s{\"ts\": " PRtimespecTime ", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"name\": \"%s\", \"ph\": \"B\" },\n", \
+          wt_calltrack._indent_buf,                                \
+          PRtimespec_argUS(__ts_elapsed__),  \
+          wt_calltrack.pid, wt_calltrack.tid, \
+          FUNCNAME \
+          );         \
+                                                                                            \
+        RET_INIT CALL;                                                                      \
+                                                                                            \
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &__tt_end__);                                \
+        clock_gettime(CLOCK_REALTIME, &__ts_end__);                                         \
+        /* __wt_epoch_raw(NULL, &__ts_end__); */                                            \
+        __wt_timespec_diff(&__ts_start__, &__ts_end__, &__ts_diff__);                       \
+        __wt_timespec_diff(&__tt_start__, &__tt_end__, &__tt_diff__);                       \
+        __wt_timespec_diff(&wt_calltrack_global.start, &__ts_end__, &__ts_elapsed__);       \
+                                                                                            \
+        __wt_set_indent(wt_calltrack.nest_level * 2);                                       \
+        __wt_set_session_info(__session__, __ts_end__);                                     \
+        printf("%s{\"ts\": " PRtimespecTime ", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"name\": \"%s\", \"ph\": \"E\" },\n", \
+          wt_calltrack._indent_buf,                                \
+          PRtimespec_argUS(__ts_elapsed__),  \
+          wt_calltrack.pid, wt_calltrack.tid, \
+          FUNCNAME \
+          );         \
+                                                                                            \
+        --wt_calltrack.nest_level;                                                          \
+        RET_RET;                                                                            \
+    } while (0)
+
+#define __WT_CALL_WRAP_ __WT_CALL_WRAP2_
 
 #define __WT_CALL_WRAP(FUNCNAME, CALL, SESSION) \
     __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, int __ret__ =, "= %d", __ret__, return __ret__)
