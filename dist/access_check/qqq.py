@@ -12,7 +12,9 @@ import wt_defs
 # Graphical view:
 # cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | head -5000000| pv > q.json ; echo "{}]}" >> q.json
 # By threads:
-# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->print(q/{"displayTimeUnit": "us", "traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->print(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
+# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->say(q/{"displayTimeUnit": "us", "traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->say(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
+# Arrange by servers:
+# SERVERS=$(for f in q-[0-9]*; do head -6 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)"'; done | tr -d '"' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -6 $f | fgrep -q '"'$SERVER'"' && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"displayTimeUnit": "us", "traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
 
 # View:
 # https://ui.perfetto.dev/
