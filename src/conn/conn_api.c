@@ -3120,7 +3120,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wti_conn_optrack_setup(session, cfg, false));
     WT_ERR(__conn_session_size(session, cfg, &conn->session_array.size));
-    WT_ERR(__wt_oligarch_setup(session, cfg, false));
     WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
     conn->session_scratch_max = (size_t)cval.val;
 
@@ -3347,7 +3346,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Initialize connection values from stored metadata. */
     WT_ERR(__wt_meta_load_prior_state(session));
 
+    /* Open the metadata table. */
     WT_ERR(__wt_metadata_cursor(session, NULL));
+
     /*
      * Load any incremental backup information. This reads the metadata so must be done after the
      * turtle file is initialized.

@@ -33,7 +33,7 @@ import os, wiredtiger, wttest
 class test_oligarch02(wttest.WiredTigerTestCase):
 
     uri_base = "test_oligarch02"
-    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
+    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "oligarch:" + uri_base

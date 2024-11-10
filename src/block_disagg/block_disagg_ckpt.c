@@ -33,19 +33,25 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     /* ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id); */
     ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
 
-    /* Copy the checkpoint information into the checkpoint. */
-    WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
-    endp = ckpt->raw.mem;
-
-    /* Write the root page out, and get back the address information for that page
-     * which will be written into the block manager checkpoint cookie.
+    /*
+     * Write the root page out, and get back the address information for that page which will be
+     * written into the block manager checkpoint cookie.
+     *
+     * TODO: we need to check with the page service team if we need to write an empty root page.
      */
-    WT_RET(__wt_block_disagg_write_internal(
-      session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
-
-    WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
-      block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
-    ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+    if (root_image == NULL) {
+        ckpt->raw.data = NULL;
+        ckpt->raw.size = 0;
+    } else {
+        /* Copy the checkpoint information into the checkpoint. */
+        WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
+        endp = ckpt->raw.mem;
+        WT_RET(__wt_block_disagg_write_internal(
+          session, block_disagg, root_image, block_meta, block_meta, &size, &checksum, true, true));
+        WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
+          block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
+        ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+    }
 
     return (0);
 }
@@ -90,14 +96,17 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t len;
+    uint64_t checkpoint_id;
     char *entry, *tablename;
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    conn = S2C(session);
 
     buf = NULL;
     entry = NULL;
@@ -106,6 +115,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
     if (failed)
         return (0);
+
+    /* Get the checkpoint ID. */
+    WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
     /* Get a metadata cursor pointing to this table */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
@@ -123,13 +135,11 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     len += cval.len + 2; /* +2 for the separator and the newline */
     WT_ERR(__wt_calloc_def(session, len, &entry));
     WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
-    /* fprintf(stderr, "[%s] writing metadata %s\n", S2C(session)->home, entry); */
 
-    /* TODO: Add checkpoint ID. */
     WT_ERR(__wt_scr_alloc(session, len, &buf));
     memcpy(buf->mem, entry, len);
     buf->size = len - 1;
-    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, 1, buf));
+    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
 
 err:
     __wt_scr_free(session, &buf);

@@ -64,7 +64,7 @@ from packing import pack, unpack
     typedef unsigned int uint32_t;
 %}
 
-/* Set the input argument to point to a temporary variable */ 
+/* Set the input argument to point to a temporary variable */
 %typemap(in, numinputs=0) WT_CONNECTION ** (WT_CONNECTION *temp = NULL) {
 	$1 = &temp;
 }
@@ -386,7 +386,7 @@ from packing import pack, unpack
 %feature("shadow") class::method %{
 	def method(self, *args):
 		'''method(self, config) -> int
-		
+
 		@copydoc class::method'''
 		try:
 			self._freecb()
@@ -428,7 +428,7 @@ DESTRUCTOR(__wt_file_system, fs_terminate)
 %typemap(default) const char *config { $1 = NULL; }
 %typemap(default) WT_CURSOR *to_dup { $1 = NULL; }
 
-/* 
+/*
  * Error returns other than WT_NOTFOUND generate an exception.
  * Use our own exception type, in future tailored to the kind
  * of error.
@@ -696,6 +696,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
 %ignore __wt_page_log::get_complete_checkpoint(WT_PAGE_LOG *, int *);
+%ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
 
 /* TODO: workaround for issues with getting a Python version of structs working. */
 %ignore __wt_page_log_put_args::backlink_checkpoint_id;
@@ -713,6 +714,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 OVERRIDE_METHOD(__wt_page_log, WT_PAGE_LOG, get_complete_checkpoint, (self))
+OVERRIDE_METHOD(__wt_page_log, WT_PAGE_LOG, get_open_checkpoint, (self))
 
 /* SWIG magic to turn Python byte strings into data / size. */
 %apply (char *STRING, int LENGTH) { (char *data, int size) };
@@ -983,7 +985,7 @@ typedef int int_void;
 %pythoncode %{
 	def get_key(self):
 		'''get_key(self) -> object
-		
+
 		@copydoc WT_CURSOR::get_key
 		Returns only the first column.'''
 		k = self.get_keys()
@@ -993,7 +995,7 @@ typedef int int_void;
 
 	def get_keys(self):
 		'''get_keys(self) -> (object, ...)
-		
+
 		@copydoc WT_CURSOR::get_key'''
 		if self.is_json:
 			return [self._get_json_key()]
@@ -1004,7 +1006,7 @@ typedef int int_void;
 
 	def get_value(self):
 		'''get_value(self) -> object
-		
+
 		@copydoc WT_CURSOR::get_value
 		Returns only the first column.'''
 		v = self.get_values()
@@ -1014,7 +1016,7 @@ typedef int int_void;
 
 	def get_values(self):
 		'''get_values(self) -> (object, ...)
-		
+
 		@copydoc WT_CURSOR::get_value'''
 		if self.is_json:
 			return [self._get_json_value()]
@@ -1039,7 +1041,7 @@ typedef int int_void;
 
 	def set_key(self, *args):
 		'''set_key(self) -> None
-		
+
 		@copydoc WT_CURSOR::set_key'''
 		if len(args) == 1 and type(args[0]) == tuple:
 			args = args[0]
@@ -1054,7 +1056,7 @@ typedef int int_void;
 
 	def set_value(self, *args):
 		'''set_value(self) -> None
-		
+
 		@copydoc WT_CURSOR::set_value'''
 		if self.is_json:
 			self._set_value_str(args[0])
@@ -1138,6 +1140,14 @@ typedef int int_void;
         return (ret == 0 ? checkpoint_id : ret);
     }
 
+    /* get_open_checkpoint: special handling to return the int. */
+    int _get_open_checkpoint(WT_SESSION *session) {
+        int ret = 0;
+        uint64_t checkpoint_id;
+
+        ret = $self->pl_get_open_checkpoint($self, session, &checkpoint_id);
+        return (ret == 0 ? checkpoint_id : ret);
+    }
 }
 
 %define CONCAT(a,b)   a##b
@@ -1172,6 +1182,10 @@ SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (self, session, checkpoint_id))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
+  (WT_SESSION *session, int *checkpoint_id),
+  (self, session, checkpoint_id))
+
+SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),
   (self, session, checkpoint_id))
 
@@ -1488,7 +1502,7 @@ writeToPythonStream(const char *streamname, const char *message)
 	strcpy(&msg[msglen], "\n");
 
 	/* Acquire python Global Interpreter Lock. Otherwise can segfault. */
-	SWIG_PYTHON_THREAD_BEGIN_BLOCK; 
+	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
 
 	ret = 1;
 	if ((sys = PyImport_ImportModule("sys")) == NULL)

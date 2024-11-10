@@ -2151,17 +2151,29 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
          * include the full value in the delta? We can omit it but it will make the rest of the
          * system more complicated. Include it for now to simplify the prototype.
          */
-        if (supd->onpage_upd->start_ts != WT_TS_NONE) {
-            LF_SET(WT_DELTA_HAS_START_TS);
-            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
-        }
+        if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
+            if (supd->onpage_upd->txnid != WT_TXN_NONE) {
+                LF_SET(WT_DELTA_HAS_START_TXN_ID);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
+            }
 
-        if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
-            LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
-            WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
+            if (supd->onpage_upd->start_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_HAS_START_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+            }
+
+            if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
+            }
         }
 
         if (supd->onpage_tombstone != NULL) {
+            if (supd->onpage_tombstone->txnid != WT_TXN_NONE) {
+                LF_SET(WT_DELTA_HAS_STOP_TXN_ID);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
+            }
+
             if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_HAS_STOP_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
@@ -2197,7 +2209,7 @@ err:
  *     Build delta for leaf pages.
  */
 static int
-__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_build_delta_leaf(WT_SESSION_IMPL *session, uint64_t write_gen, WT_RECONCILE *r)
 {
     WT_DELTA_HEADER *header;
     WT_MULTI *multi;
@@ -2234,6 +2246,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
     header->u.entries = count;
+    header->write_gen = write_gen;
 
     stop = __wt_clock(session);
 
@@ -2250,12 +2263,12 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Build delta.
  */
 static int
-__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *build_deltap)
+__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t write_gen, bool *build_deltap)
 {
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
-            WT_RET(__rec_build_delta_leaf(session, r));
+            WT_RET(__rec_build_delta_leaf(session, write_gen, r));
             *build_deltap = true;
         }
     }
@@ -2406,7 +2419,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
       block_meta->delta_count < WT_DELTA_LIMIT) {
-        WT_RET(__rec_build_delta(session, r, &build_delta));
+        WT_RET(__rec_build_delta(
+          session, r, ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && r->delta.size > chunk->image.size / 10)
             build_delta = false;
@@ -2840,6 +2854,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has
          * to contain nothing at all, which means it has no records of any kind and is durable.
+         *
+         * TODO: we need to check with the page service team if we need to write an empty root page.
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
