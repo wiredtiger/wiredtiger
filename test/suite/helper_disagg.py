@@ -121,3 +121,56 @@ class DisaggConfigMixin:
         if os.name == 'nt':
             extlist.skip_if_missing = True
         extlist.extension('page_log', self.ds_name + config)
+
+    # Get the last completed checkpoint
+    def disagg_get_complete_checkpoint(self, conn=None):
+        if conn is None:
+            conn = self.conn
+        page_log = conn.get_page_log('palm')
+
+        session = conn.open_session('')
+        (ret, n) = page_log.pl_get_complete_checkpoint(session)
+        session.close()
+
+        self.assertEquals(ret, 0)
+        return n
+
+    # Get the currently open checkpoint
+    def disagg_get_open_checkpoint(self, conn=None):
+        if conn is None:
+            conn = self.conn
+        page_log = conn.get_page_log('palm')
+
+        session = conn.open_session('')
+        (ret, n) = page_log.pl_get_open_checkpoint(session)
+        session.close()
+
+        self.assertEquals(ret, 0)
+        return n
+
+    # Let the follower pick up the latest checkpoint
+    def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
+        n = self.disagg_get_complete_checkpoint(conn_leader)
+        self.assertGreater(n, 0)
+        conn_follower.reconfigure(f'disaggregated=(checkpoint_id={n})')
+
+    # Switch the leader and the follower
+    def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
+        if conn_leader is None:
+            conn_leader = self.conn
+
+        # Leader step down
+        conn_leader.reconfigure(f'disaggregated=(role="follower")')
+
+        complete_id = self.disagg_get_complete_checkpoint(conn_leader)
+        self.assertGreater(complete_id, 0)
+        open_id = self.disagg_get_open_checkpoint(conn_leader)
+        if open_id == 0:
+            next_id = complete_id + 1
+        else:
+            self.assertGreaterEqual(open_id, complete_id)
+            next_id = open_id + 1
+
+        # Follower step up, including picking up the last complete checkpoint
+        conn_follower.reconfigure(f'disaggregated=(checkpoint_id={complete_id},' +\
+                                  f'next_checkpoint_id={next_id},role="leader")')

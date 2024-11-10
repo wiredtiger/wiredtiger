@@ -395,11 +395,10 @@ palm_begin_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t check
 
     palm = (PALM *)page_log;
 
+    (void)palm;
     (void)session;
 
     /* TODO, use lmdb */
-    if (began_checkpoint + 1 != checkpoint_id)
-        return (palm_err(palm, session, EINVAL, "non-sequential checkpoint id"));
 
     began_checkpoint = checkpoint_id;
 
@@ -421,12 +420,11 @@ palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t ch
     (void)session;
 
     /* TODO, use lmdb */
-    if (completed_checkpoint + 1 != checkpoint_id)
-        return (palm_err(palm, session, EINVAL, "non-sequential checkpoint id"));
 
     if (completed_checkpoint >= began_checkpoint)
         return (palm_err(palm, session, EINVAL, "complete checkpoint id that was never begun"));
 
+    began_checkpoint = 0;
     completed_checkpoint = checkpoint_id;
 
     return (0);
@@ -449,6 +447,27 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
 
     /* TODO, use lmdb */
     *checkpoint_id = completed_checkpoint;
+
+    return (0);
+}
+
+/*
+ * palm_get_open_checkpoint --
+ *     Get the currently open checkpoint id.
+ */
+static int
+palm_get_open_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id)
+{
+    PALM *palm;
+
+    palm = (PALM *)page_log;
+
+    /* TODO */
+    (void)session;
+    (void)palm;
+
+    /* TODO, use lmdb */
+    *checkpoint_id = began_checkpoint;
 
     return (0);
 }
@@ -692,6 +711,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_begin_checkpoint = palm_begin_checkpoint;
     palm->page_log.pl_complete_checkpoint = palm_complete_checkpoint;
     palm->page_log.pl_get_complete_checkpoint = palm_get_complete_checkpoint;
+    palm->page_log.pl_get_open_checkpoint = palm_get_open_checkpoint;
     palm->page_log.pl_open_handle = palm_open_handle;
     palm->page_log.terminate = palm_terminate;
 

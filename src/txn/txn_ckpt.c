@@ -1112,8 +1112,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
-    uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
-      time_stop_fsync, time_stop_hs;
+    uint64_t num_meta_put, time_start_ckpt_tree, time_start_fsync, time_start_hs,
+      time_stop_ckpt_tree, time_stop_fsync, time_stop_hs;
     u_int i;
     const char *name;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
@@ -1486,6 +1486,16 @@ err:
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
     if (tracking)
         WT_TRET(__wt_meta_track_off(session, false, failed));
+
+    /*
+     * Update the global checkpoint ID in disaggregated storage. This has to be done after
+     * checkpoint resolve, which happens when we turn off metadata tracking above.
+     */
+    if (!failed && ret == 0 /* ensure that turning off meta tracking worked */) {
+        WT_ACQUIRE_READ(num_meta_put, conn->disaggregated_storage.num_meta_put);
+        if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put)
+            WT_TRET(__wt_disagg_advance_checkpoint(session));
+    }
 
     __checkpoint_set_scrub_target(session, 0.0);
 

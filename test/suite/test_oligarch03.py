@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_oligarch03(wttest.WiredTigerTestCase):
 
     uri_base = "test_oligarch03"
-    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],oligarch=(role="leader"),' \
+    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "oligarch:" + uri_base

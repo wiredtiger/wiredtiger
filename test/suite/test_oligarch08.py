@@ -54,7 +54,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + 'oligarch=(role="leader"),' + enc_conf
+        return self.conn_base_config + 'disaggregated=(role="leader"),' + enc_conf
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
@@ -80,7 +80,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
-        follower_config = self.conn_base_config + 'oligarch=(role="follower")'
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
         self.reopen_conn(config=follower_config)
         time.sleep(1.0)
 
