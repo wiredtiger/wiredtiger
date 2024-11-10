@@ -322,10 +322,6 @@ config_table(TABLE *table, void *arg)
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
     table->pali = TV(BTREE_PALI);
-    if (table->pali)
-        fprintf(stderr, "configured pali!\n");
-    else
-        fprintf(stderr, "didn't configur pali\n");
 
     /*
      * Keep the number of rows and keys/values small for in-memory and direct I/O runs (overflow
