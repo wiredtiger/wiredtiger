@@ -16,6 +16,7 @@ typedef struct __wt_calltrack {
     struct {
         char _indent_buf[4096];
         char _session_info_buf[4096];
+        char _args_buf[4096];
         char _tid[128];
     };
     int nest_level;
@@ -122,10 +123,10 @@ __wt_set_session_info(WT_SESSION_IMPL *session, const struct timespec ts)
                                                                                             \
         __wt_set_indent(wt_calltrack.nest_level * 2);                                       \
         __wt_set_session_info(__session__, __ts_start__);                                   \
-        printf(PRtimespecFmt " %3d%s%s ...                       \t\t%s: %s:%d: %s\n",      \
+        printf(PRtimespecFmt " %3d%s%s%-27s\t\t%s: %s:%d: %s\n",                            \
           PRtimespec_arg(__ts_elapsed__),                                                   \
           wt_calltrack.nest_level, wt_calltrack._indent_buf,                                \
-          FUNCNAME,                                                                         \
+          FUNCNAME, wt_calltrack._args_buf,                                                 \
           wt_calltrack._session_info_buf, __FILE__, __LINE__, __PRETTY_FUNCTION__);         \
                                                                                             \
         RET_INIT CALL;                                                                      \

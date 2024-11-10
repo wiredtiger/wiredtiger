@@ -14,6 +14,7 @@ class Patcher:
     txt = ""
     patch_list: list[tuple[tuple[int, int], int, str]]
     idx = 0  # this is used to order the patches for the same range
+    count = 0
 
     def __init__(self):
         self.patch_list = []
@@ -57,37 +58,40 @@ class Patcher:
                 else "")
 
     @staticmethod
-    def _get_exact_return_type(st: Statement, func: FunctionParts) -> TokenList:
+    def _get_exact_type(st: Statement, maxidx: int) -> TokenList:
         ret = TokenList()
         for token in st.tokens:
-            if token.idx >= func.name.idx:
+            if token.idx >= maxidx:
                 break
             if token.value != "static":
                 ret.append(token)
         return clean_tokens_decl(ret.filterCode(), clean_static_const=False)
 
     _int_kind_fmt = {
-        "int":      '"d"',
-        "bool":     '"s"',
-        "float":    '"f"',
-        "double":   '"lf"',
-        "int8_t":   "PRIi8",
-        "int16_t":  "PRIi16",
-        "int32_t":  "PRIi32",
-        "int64_t":  "PRIi64",
-        "uint8_t":  "PRIu8",
-        "uint16_t": "PRIu16",
-        "uint32_t": "PRIu32",
-        "uint64_t": "PRIu64",
-        "size_t":   "PRIuMAX",
+        "int":      ('%d',           '%x'),
+        "bool":     ('%s',           '%s'),
+        "float":    ('%f',           '%f'),
+        "double":   ('%lf',          '%lf'),
+        "int8_t":   ('%" PRIi8 "',   '0x%" PRIX8 "'),
+        "int16_t":  ('%" PRIi16 "',  '0x%" PRIX16 "'),
+        "int32_t":  ('%" PRIi32 "',  '0x%" PRIX32 "'),
+        "int64_t":  ('%" PRIi64 "',  '0x%" PRIX64 "'),
+        "uint8_t":  ('%" PRIu8 "',   '0x%" PRIX8 "'),
+        "uint16_t": ('%" PRIu16 "',  '0x%" PRIX16 "'),
+        "uint32_t": ('%" PRIu32 "',  '0x%" PRIX32 "'),
+        "uint64_t": ('%" PRIu64 "',  '0x%" PRIX64 "'),
+        "size_t":   ('%" PRIuMAX "', '0x%" PRIXMAX "'),
     }
     @staticmethod
-    def _get_int_kind_fmt(typename: str) -> str:
-        return (Patcher._int_kind_fmt[typename] if typename in Patcher._int_kind_fmt else
-                '"s"')
-    def _get_int_kind_fmt_arg(typename: str) -> str:
-        return ('__ret__ ? "true" : "false"' if typename == "bool" else
-                "__ret__" if typename in Patcher._int_kind_fmt else
+    def _want_hex(varname: str) -> bool:
+        return int(bool("flag" in varname or "hash" in varname))
+    @staticmethod
+    def _get_int_kind_fmt(typename: str, varname: str = "__ret__") -> str:
+        return (Patcher._int_kind_fmt[typename][Patcher._want_hex(varname)] if typename in Patcher._int_kind_fmt else
+                '%s')
+    def _get_int_kind_fmt_arg(typename: str, varname: str = "__ret__") -> str:
+        return (f'{varname} ? "true" : "false"' if typename == "bool" else
+                varname if typename in Patcher._int_kind_fmt else
                 '""')
 
     def patch(self, st: Statement, func: FunctionParts) -> None:
@@ -115,16 +119,36 @@ class Patcher:
                 "__wt_compare"]):
             return
 
+        self.count += 1
+
         session = Patcher._get_session(func, func_args)
 
-        is_api_str = " API" if is_api else ""
+        is_api_str = ":API" if is_api else ""
         static = "static " if func.is_type_static else ""
         has_ret = func.typename[-1].value != "void"
         int_ret = func.typename[-1].value == "int"
         nonint_ret = func.typename[-1].value not in ["void", "int"]
-        rettype = Patcher._get_exact_return_type(st, func).short_repr()
+        rettype = Patcher._get_exact_type(st, func.name.idx).short_repr()
         int_like_fmt = Patcher._get_int_kind_fmt(rettype)
         int_like_fmt_arg = Patcher._get_int_kind_fmt_arg(rettype)
+        printable_args = []
+        for stt in StatementList.xFromText(func.args.value, base_offset=0):
+            var = Variable.fromFuncArg(stt.tokens)
+            if var:
+                var_type = Patcher._get_exact_type(stt, var.name.idx).short_repr()
+                if var_type in Patcher._int_kind_fmt:
+                    printable_args.append([var.name.value,
+                                           Patcher._get_int_kind_fmt(var_type, var.name.value),
+                                           Patcher._get_int_kind_fmt_arg(var_type, var.name.value)])
+        printable_args_str = """    memcpy(wt_calltrack._args_buf, "()\\0", 4);\n""" if not printable_args else f"""
+    WT_UNUSED(__wt_snprintf(wt_calltrack._args_buf, sizeof(wt_calltrack._args_buf),
+      "({
+        ", ".join((f'{name}={fmt}' for name, fmt, _ in printable_args))
+    })",
+      {
+        ", ".join((arg for _, _, arg in printable_args))
+    }));
+"""
 
         # Insert a forward declaration of the wrapper function for the case of recursive calls
         self._replace((st.range()[0], st.range()[0]), f"""
@@ -145,12 +169,12 @@ class Patcher:
         self._replace((st.range()[1], st.range()[1]), f"""
 {static}{rettype}
 {func.name.value}({func.args.value}) {{
-    __WT_CALL_WRAP{"_NORET" if not has_ret else "" if int_ret else "_RET"}(
+{printable_args_str}    __WT_CALL_WRAP{"_NORET" if not has_ret else "" if int_ret else "_RET"}(
         "{func.name.value}{is_api_str}",
         {func.name.value}__orig_({", ".join((v.name.value for v in func_args))}),
         {session or "NULL"}
         {"" if not has_ret or int_ret else
-         f', {rettype}, "= %" {int_like_fmt}, {int_like_fmt_arg}'});
+         f', {rettype}, "= {int_like_fmt}", {int_like_fmt_arg}'});
 }}
 """)
 
@@ -180,10 +204,11 @@ def main():
 
     files = get_files()  # list of all source files
 
+    count = 0
     for file in files:
         if not (mod := fname_to_module(file)):
             continue
-        print(f" === [{mod}] {file}")
+        print(f" --- [{mod}] {file}")
 
         parcher = Patcher()
         parcher.parseDetailsFromFile(file)
@@ -191,6 +216,8 @@ def main():
         # write file back
         with open(file, "w") as f:
             f.write(parcher.get_patched())
+        count += parcher.count
+    print(f" === Total patched functions: {count}")
 
     return 0
 
