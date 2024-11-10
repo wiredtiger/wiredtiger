@@ -56,7 +56,7 @@ class test_bug34(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
     def test_non_ts(self):
-        uri = 'table:test_bug033'
+        uri = 'table:test_bug034'
         create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
         value1 = 'a' * 500
@@ -114,7 +114,7 @@ class test_bug34(wttest.WiredTigerTestCase):
         session2.commit_transaction()
 
     def test_ts(self):
-        uri = 'table:test_bug033'
+        uri = 'table:test_bug034'
         create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
         value1 = 'a' * 500
