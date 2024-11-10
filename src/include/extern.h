@@ -2972,8 +2972,8 @@ static WT_INLINE void __wt_cell_type_reset(
   WT_SESSION_IMPL *session, WT_CELL *cell, u_int old_type, u_int new_type);
 static WT_INLINE void __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL *cell, WT_CELL_UNPACK_ADDR *unpack_addr);
-static WT_INLINE void __wt_cell_unpack_delta(
-  WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA *unpack);
+static WT_INLINE void __wt_cell_unpack_delta(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk,
+  WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA *unpack);
 static WT_INLINE void __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL *cell, WT_CELL_UNPACK_KV *unpack_value);
 static WT_INLINE void __wt_cond_wait(

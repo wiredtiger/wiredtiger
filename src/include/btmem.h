@@ -139,30 +139,31 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *value bytes.
  */
 struct __wt_delta_header {
+    uint64_t write_gen; /* 0-7: write generation */
     /*
      * Memory size of the delta.
      */
-    uint32_t mem_size; /* 00-03: in-memory size */
+    uint32_t mem_size; /* 08-11: in-memory size */
 
     union {
-        uint32_t entries; /* 04-07: number of cells on page */
-        uint32_t datalen; /* 04-07: overflow data length */
+        uint32_t entries; /* 12-15: number of cells on page */
+        uint32_t datalen; /* 12-15: overflow data length */
     } u;
 
-    uint8_t version; /* 08: version */
+    uint8_t version; /* 16: version */
 
-    uint8_t type; /* 09: page type */
+    uint8_t type; /* 17: page type */
 
-    uint8_t flags; /* 10: flags */
+    uint8_t flags; /* 18: flags */
 
-    uint8_t unused; /* 11: unused padding */
+    uint8_t unused; /* 19: unused padding */
 };
 
 /*
  * WT_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
  * inserts padding it will break the world.
  */
-#define WT_DELTA_HEADER_SIZE 12
+#define WT_DELTA_HEADER_SIZE 20
 
 /*
  * The number of deltas for a base page must be strictly less than WT_DELTA_LIMIT. Changes past that
@@ -194,6 +195,7 @@ static WT_INLINE void
 __wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
 {
 #ifdef WORDS_BIGENDIAN
+    dsk->write_gen = __wt_bswap64(dsk->write_gen);
     dsk->mem_size = __wt_bswap64(dsk->mem_size);
     dsk->u.entries = __wt_bswap32(dsk->u.entries);
 #else
