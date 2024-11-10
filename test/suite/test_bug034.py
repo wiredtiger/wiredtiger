@@ -91,7 +91,7 @@ class test_bug34(wttest.WiredTigerTestCase):
 
             cursor.set_key(str(i))
             mods = [wiredtiger.Modify("b", 0, 1)]
-            self.assertEquals(cursor.modify(mods), 0)
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction()
 
         # Apply update again to make sure that the update, modify and tombstome all go
@@ -147,7 +147,7 @@ class test_bug34(wttest.WiredTigerTestCase):
 
             cursor.set_key(str(i))
             mods = [wiredtiger.Modify("b", 0, 1)]
-            self.assertEquals(cursor.modify(mods), 0)
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(8))
 
         # Apply update again to make sure that the update, modify and tombstome all go
