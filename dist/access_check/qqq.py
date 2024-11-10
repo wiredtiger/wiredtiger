@@ -7,8 +7,12 @@ from layercparse import *
 import wt_defs
 
 # Filter by threads:
-# perl -MIO::File -nE '$t = /\[\d++\.\d++\]\[\d++:0x([0-9a-f]++)]/i ? $1 : "-"; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s",++$idx,$t), "w"); } $h{$t}->print($_); sub end() { for (values(%h)) { $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
-# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE '$t = /\[\d++\.\d++\]\[\d++:0x([0-9a-f]++)]/i ? $1 : "-"; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s",++$idx,$t), "w"); } $h{$t}->print($_); sub end() { for (values(%h)) { $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
+# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE '$t = /\t\[\d++:0x([0-9a-f]++)]/i ? $1 : "-"; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s",++$idx,$t), "w"); } $h{$t}->print($_); sub end() { for (values(%h)) { $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
+
+# Graphical view:
+# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | head -5000000| pv > q.json ; echo "{}]}" >> q.json
+# By threads:
+# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->print(q/{"displayTimeUnit": "us", "traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->print(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 
 # View:
 # https://ui.perfetto.dev/
@@ -112,12 +116,10 @@ class Patcher:
 
         func_args = func.getArgs()
         is_api = func.name.value.startswith("wiredtiger_") or "API_" in func.body.value
-        # if (is_api or
-        #     (func_args and func_args[0].typename[-1].value in _session_from_type.keys())):
-        #     pass # instrument this function
-        # else:
-        #     return
-        if (func.name.value.endswith("_pack") or
+        complexity = _function_complexity(func.body.value)
+        if is_api:
+            pass # instrument this function
+        elif (func.name.value.endswith("_pack") or
             "byteswap" in func.name.value or
             func.name.value in [
                 "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
@@ -132,11 +134,9 @@ class Patcher:
                 "__wt_ref_is_root", "__ref_get_state",
                 ]):
             return
-
-        complexity = _function_complexity(func.body.value)
-        if complexity <= 5:
-            # Ignore too "simple" functions
-            return
+        # elif complexity <= 5:
+        #     # Ignore too "simple" functions
+        #     return
 
         self.count += 1
 

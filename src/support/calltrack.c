@@ -8,11 +8,14 @@ __thread WT_CALLTRACK wt_calltrack = {
 
 WT_CALLTRACK_GLOBAL wt_calltrack_global;
 
+void __global_calibrate_ticks(void);
+
 void __attribute__((constructor)) __wt_calltrack_init_once(void);
 void __attribute__((constructor))
 __wt_calltrack_init_once(void)
 {
-    __wt_epoch_raw(NULL, &wt_calltrack_global.start);
+    __global_calibrate_ticks();
+    wt_calltrack_global.tstart = __wt_clock(NULL);
 }
 
 

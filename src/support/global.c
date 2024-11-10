@@ -80,11 +80,12 @@ __endian_check(void)
     return (EINVAL);
 }
 
+void __global_calibrate_ticks(void);
 /*
  * __global_calibrate_ticks --
  *     Calibrate a ratio from rdtsc ticks to nanoseconds.
  */
-static void
+void
 __global_calibrate_ticks(void)
 {
     /*
