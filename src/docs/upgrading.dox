@@ -34,6 +34,7 @@ returns an error. The stable timestamp should always be greater than the oldest 
 neither can be set to a value older than the current one.
 </dd>
 
+</dl> <hr>
 @section version_1120 Upgrading to Version 11.2.0
 <dl>
 
