@@ -34,7 +34,7 @@ class test_oligarch10(wttest.WiredTigerTestCase):
     nitems = 100_000
 
     conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     uri = "oligarch:test_oligarch10"
@@ -43,26 +43,19 @@ class test_oligarch10(wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
+        extlist.extension('page_log', 'palm', configs=['cache_size_mb=2000'])
+        self.tty(f"{extlist=}")
         self.pr(f"{extlist=}")
 
     # Custom test case setup
     def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
         os.mkdir('follower')
-        os.mkdir('follower/foo')
-        os.mkdir('follower/bar')
-
-        # TODO shouldn't need these - work around code in __wt_open_fs that handles
-        # non fixed-location files
-        os.mkdir('follower/foo/follower')
-        os.mkdir('follower/bar/follower')
+        # Create the home directory for the PALM k/v store, and share it with the follower.
+        os.mkdir('kv_home')
+        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     # Test additional oligarch table / cursor operations
     def test_oligarch10(self):
-        self.skipTest('fails due to crash')
         session_config = 'key_format=i,value_format=S'
 
         self.session.create(self.uri, session_config)
@@ -85,7 +78,7 @@ class test_oligarch10(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), self.nitems)
 
         # Check the largest key again after a checkpoint and a bit of a wait
-        time.sleep(1)
+        time.sleep(5)
         self.session.checkpoint()
         time.sleep(1)
         self.assertEqual(cursor.largest_key(), 0)

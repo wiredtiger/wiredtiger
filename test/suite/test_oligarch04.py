@@ -28,8 +28,6 @@
 
 import os, time, wiredtiger, wttest
 
-StorageSource = wiredtiger.StorageSource  # easy access to constants
-
 # test_oligarch04.py
 #    Add enough content to trigger a checkpoint in the stable table.
 class test_oligarch04(wttest.WiredTigerTestCase):
@@ -37,7 +35,7 @@ class test_oligarch04(wttest.WiredTigerTestCase):
     uri_base = "test_oligarch04"
     # conn_config = 'log=(enabled),verbose=[oligarch:5]'
     conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
-                + 'disaggregated=(stable_prefix=.,storage_source=dir_store),'
+                + 'disaggregated=(stable_prefix=.,page_log=palm),'
     # conn_config = 'log=(enabled)'
 
     uri = "oligarch:" + uri_base
@@ -46,17 +44,10 @@ class test_oligarch04(wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('storage_sources', 'dir_store')
-
-    # Custom test case setup
-    def early_setup(self):
-        # FIXME: This shouldn't take an absolute path
-        os.mkdir('foo') # Hard coded to match library for now.
-        os.mkdir('bar') # Hard coded to match library for now.
+        extlist.extension('page_log', 'palm')
 
     # Test inserting a record into an oligarch tree
     def test_oligarch04(self):
-        self.skipTest('fails due to crash')
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create oligarch tree")
@@ -70,7 +61,7 @@ class test_oligarch04(wttest.WiredTigerTestCase):
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
             if i % 10000 == 0:
-                time.sleep(1)
+                time.sleep(5)
 
         cursor.reset()
 

@@ -90,9 +90,15 @@ class TestSuiteConnection(object):
 # Just like a list of strings, but with a convenience function
 class ExtensionList(list):
     skipIfMissing = False
-    def extension(self, dirname, name, extarg=None):
+    def extension(self, dirname, name, extarg=None, configs=[]):
         if name and name != 'none':
             ext = '' if extarg == None else '=' + extarg
+            if configs != []:
+                if ext != '':
+                    raise Exception(
+                        'Cannot set both extarg and configs when configuring an extension list')
+                configlist = ','.join(configs)
+                ext = f'=(config=\"({configlist})\")'
             self.append(dirname + '/' + name + ext)
 
 class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
