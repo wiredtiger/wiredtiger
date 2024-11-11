@@ -14,7 +14,7 @@ import wt_defs
 # By threads:
 # cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->say(q/{"displayTimeUnit": "us", "traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->say(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 # Arrange by servers:
-# SERVERS=$(for f in q-[0-9]*; do head -6 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)"'; done | tr -d '"' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -6 $f | fgrep -q '"'$SERVER'"' && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"displayTimeUnit": "us", "traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
+# SERVERS=$(for f in q-[0-9]*; do head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'; done | tr -d '"' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -10 $f | fgrep -q '"'$SERVER && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"displayTimeUnit": "us", "traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
 
 # View:
 # https://ui.perfetto.dev/
@@ -112,15 +112,24 @@ class Patcher:
         #     # We will not patch functions that return something other than int
         #     # or have variable arguments
         #     return
-        if "..." in func.args.value:
+        if not func.typename or "..." in func.args.value:
             # We will not patch functions that have variable arguments
             return
 
         func_args = func.getArgs()
-        is_api = func.name.value.startswith("wiredtiger_") or "API_" in func.body.value
         complexity = _function_complexity(func.body.value)
-        if is_api:
+        is_api = func.name.value.startswith("wiredtiger_") or "API_" in func.body.value
+        is_wait_fn = "__wt_yield" in func.body.value or func.name.value in [
+            "__wt_spin_lock",
+            "__wt_readlock", "__wt_writelock",
+            "__wt_cond_auto_wait_signal", "__wt_cond_wait_signal",
+            "__wt_futex_wait",
+            "__wt_sleep"]
+        is_io = "/include/os_fhandle_inline.h" in self.file
+        if is_api or is_wait_fn or is_io:
             pass # instrument this function
+        elif not self.mod:
+            return
         elif (func.name.value.endswith("_pack") or
             "byteswap" in func.name.value or
             func.name.value in [
@@ -145,6 +154,8 @@ class Patcher:
         session = _get_session(func, func_args)
 
         is_api_str = ":API" if is_api else ""
+        is_wait_str = ":WAIT" if is_wait_fn else ""
+        is_io_str = ":IO" if is_io else ""
         static = "static " if func.is_type_static else ""
         has_ret = func.typename[-1].value != "void"
         int_ret = func.typename[-1].value == "int"
@@ -191,7 +202,7 @@ class Patcher:
 {static}{rettype}
 {func.name.value}({func.args.value}) {{
 {printable_args_str}    __WT_CALL_WRAP{"_NORET" if not has_ret else "" if int_ret else "_RET"}(
-        "{func.name.value}{is_api_str}",
+        "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}",
         {func.name.value}__orig_({", ".join((v.name.value for v in func_args))}),
         {session or "NULL"}
         {"" if not has_ret or int_ret else
@@ -201,9 +212,14 @@ class Patcher:
 
     def parseDetailsFromText(self, txt: str, offset: int = 0) -> None:
         with ScopePush(offset=offset):
+            self.file = scope_file().name
+            self.mod = fname_to_module(self.file)
             self.txt = txt
-            if (scope_file().name.endswith("/include/stat.h") or
-                scope_file().name.endswith("/include/block.h")):
+            if "/checksum/" in self.file or "/utilities/" in self.file or "/support/" in self.file or "/packing/" in self.file:
+                return
+            print(f" --- [{self.mod}] {self.file}")
+            if (self.file.endswith("/include/stat.h") or
+                self.file.endswith("/include/block.h")):
                 return
             for st in StatementList.fromText(txt, 0):
                 st.getKind()
@@ -222,15 +238,12 @@ def main():
     rootPath = os.path.realpath(sys.argv[1])
     setRootPath(rootPath)
     setModules(wt_defs.modules)
+    ignore_type_keywords.append("WT_STAT_MSECS_HIST_INCR_FUNC")
 
     files = get_files()  # list of all source files
 
     count = 0
     for file in files:
-        if not (mod := fname_to_module(file)):
-            continue
-        print(f" --- [{mod}] {file}")
-
         parcher = Patcher()
         parcher.parseDetailsFromFile(file)
         # print(parcher.get_patched())

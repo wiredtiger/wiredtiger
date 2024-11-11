@@ -108,7 +108,7 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
     }
 }
 
-#define __WT_CALL_WRAP1_(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
+#define __WT_CALL_WRAP_IMPL_TXT(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
     do {                                                                                    \
         WT_SESSION_IMPL *__session__ = SESSION;                                             \
                                                                                             \
@@ -145,7 +145,7 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
         RET_RET;                                                                            \
     } while (0)
 
-#define __WT_CALL_WRAP2_(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
+#define __WT_CALL_WRAP_IMPL_GRAPH(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
     do {                                                                                    \
         WT_SESSION_IMPL *__session__ = SESSION;                                             \
                                                                                             \
@@ -190,7 +190,7 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
         RET_RET;                                                                            \
     } while (0)
 
-#define __WT_CALL_WRAP_ __WT_CALL_WRAP2_
+#define __WT_CALL_WRAP_ __WT_CALL_WRAP_IMPL_GRAPH
 
 #define __WT_CALL_WRAP(FUNCNAME, CALL, SESSION) \
     __WT_CALL_WRAP_(FUNCNAME, CALL, SESSION, int __ret__ =, "= %d", __ret__, return __ret__)
