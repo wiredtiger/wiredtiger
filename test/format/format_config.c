@@ -321,8 +321,6 @@ config_table(TABLE *table, void *arg)
     table->max_leaf_page = 1U << TV(BTREE_LEAF_PAGE_MAX);
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
-    table->pali = TV(BTREE_PALI);
-
     /*
      * Keep the number of rows and keys/values small for in-memory and direct I/O runs (overflow
      * items aren't an issue for in-memory configurations and it helps prevents cache overflow, and

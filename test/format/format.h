@@ -53,8 +53,6 @@
 
 #define ZSTD_PATH EXTPATH "compressors/zstd/" EXT_LIBPATH "libwiredtiger_zstd.so"
 
-#define PALM_PATH EXTPATH "page_log/palm/" EXT_LIBPATH "libwiredtiger_page_log.so"
-
 /* Encryptors. */
 #define ROTN_PATH EXTPATH "encryptors/rotn/" EXT_LIBPATH "libwiredtiger_rotn.so"
 
@@ -160,7 +158,6 @@ typedef struct {
     u_int id;              /* table ID */
     char uri[32];          /* table URI */
     table_type type;       /* table type */
-    bool pali;             /* table backed by the provided PALI implementation */
     char track_prefix[32]; /* table track message prefix */
 
     bool mirror; /* Table is in a mirrored group */

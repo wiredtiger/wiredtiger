@@ -465,7 +465,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Extensions. */
     CONFIG_APPEND(p,
       ",extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s],",
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s],",
       /* Collators. */
       REVERSE_PATH,
       /* Compressors. */
@@ -473,8 +473,6 @@ create_database(const char *home, WT_CONNECTION **connp)
       EXTENSION_PATH(ZSTD_PATH),
       /* Encryptors. */
       EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
-      /* PALM. */
-      EXTENSION_PATH(PALM_PATH),
       /* Storage source. */
       tiered_ext_cfg);
 
@@ -552,9 +550,6 @@ create_object(TABLE *table, void *arg)
             CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(&g.extra_rnd, 123, 517));
         break;
     }
-
-    if (TV(BTREE_PALI))
-        CONFIG_APPEND(p, ",block_manager=disagg");
 
     /* Configure checksums. */
     CONFIG_APPEND(p, ",checksum=\"%s\"", TVS(DISK_CHECKSUM));

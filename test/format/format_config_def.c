@@ -56,8 +56,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"btree.memory_page_max", "maximum cache page size", C_TABLE, 1, 10, 128,
     V_TABLE_BTREE_MEMORY_PAGE_MAX},
 
-  {"btree.pali", "use PALI implementation", C_BOOL | C_TABLE, 95, 0, 0, V_TABLE_BTREE_PALI},
-
   {"btree.prefix_len", "common key prefix", C_TABLE | C_TYPE_ROW | C_ZERO_NOTSET,
     PREFIX_LEN_CONFIG_MIN, PREFIX_LEN_CONFIG_MAX, PREFIX_LEN_CONFIG_MAX, V_TABLE_BTREE_PREFIX_LEN},
 
