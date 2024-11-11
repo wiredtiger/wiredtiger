@@ -23,7 +23,7 @@ void
 __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
 {
     WT_BTREE *btree;
-    uint64_t page_id;
+    uint64_t checkpoint_id, page_id;
 
     btree = S2BT(session);
 
@@ -36,18 +36,18 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
      * some IDs for now.
      */
     page_id = __wt_atomic_fetch_add64(&btree->next_page_id, 1);
+    /* TODO: we need to restrict evicting pages in the next checkpoint. */
     WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
 
     meta->page_id = page_id;
     /* A new page hasn't been reconciled. Starts with 0. */
     meta->reconciliation_id = 0;
-    /*
-     * TODO: hard code the checkpoint id to 1. In the future, should assign to the current
-     * checkpoint id.
-     */
-    meta->checkpoint_id = 1;
-    meta->backlink_checkpoint_id = 1;
-    meta->base_checkpoint_id = 1;
+
+    WT_ACQUIRE_READ(checkpoint_id, S2C(session)->disaggregated_storage.global_checkpoint_id);
+    /* For a new page, everything starts with the current checkpoint id. */
+    meta->checkpoint_id = checkpoint_id;
+    meta->backlink_checkpoint_id = checkpoint_id;
+    meta->base_checkpoint_id = checkpoint_id;
     meta->disagg_lsn = 0;
     /*
      * 0 means there is no delta written for this page yet. We always write a full page for a new
