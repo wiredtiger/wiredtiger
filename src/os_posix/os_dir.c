@@ -54,7 +54,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
     if (dirp == NULL || ret != 0) {
         if (ret == 0)
             ret = EINVAL;
-        WT_RET_MSG(session, ret, "%s: directory-list: opendir", directory);
+        WT_ERR_MSG(session, ret, "%s: directory-list: opendir", directory);
     }
     /*
      * There has been a very rare error where calling closedir returns an error indicating a bad
