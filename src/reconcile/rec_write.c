@@ -2326,6 +2326,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         return (__wt_illegal_value(session, page->type));
     }
     multi->supd_restore = false;
+    WT_CLEAR(multi->block_meta);
     multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /* Set the key. */
