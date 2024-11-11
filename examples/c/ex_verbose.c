@@ -65,13 +65,13 @@ config_verbose(void)
 
     /*! [Configure verbose_messaging] */
     error_check(wiredtiger_open(home, (WT_EVENT_HANDLER *)&event_handler,
-      "create,verbose=[api:1,all:0,version,write:2]", &conn));
+                                "create,verbose=[api:1,all:0,version,write:2],extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
     /*! [Configure verbose_messaging] */
 
     /* Make a series of API calls, to ensure verbose messages are produced. */
     printf("ex_verbose: expect verbose messages to follow:\n");
     error_check(conn->open_session(conn, NULL, NULL, &session));
-    error_check(session->create(session, "table:verbose", "key_format=S,value_format=S"));
+    error_check(session->create(session, "table:verbose", "key_format=S,value_format=S,block_manager=disagg"));
     error_check(session->open_cursor(session, "table:verbose", NULL, NULL, &cursor));
     cursor->set_key(cursor, "foo");
     cursor->set_value(cursor, "bar");

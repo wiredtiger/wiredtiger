@@ -54,7 +54,7 @@ static size_t filelist_count = 0;
 
 #define FLIST_INIT 16
 
-#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,path=logpath,file_max=100K)"
+#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,path=logpath,file_max=100K),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]"
 #define MAX_ITERATIONS 5
 #define MAX_KEYS 10000
 
@@ -455,8 +455,8 @@ main(int argc, char *argv[])
 
     setup_directories();
     error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
-    error_check(session->create(session, uri, "key_format=S,value_format=S"));
-    error_check(session->create(session, uri2, "key_format=S,value_format=S"));
+    error_check(session->create(session, uri, "key_format=S,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, uri2, "key_format=S,value_format=S,block_manager=disagg"));
     printf("Adding initial data\n");
     add_work(session, 0, 0);
 

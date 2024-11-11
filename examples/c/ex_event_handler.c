@@ -102,7 +102,7 @@ config_event_handler(void)
     event_handler.h.handle_general = NULL;
     event_handler.app_id = "example_event_handler";
 
-    error_check(wiredtiger_open(home, (WT_EVENT_HANDLER *)&event_handler, "create", &conn));
+    error_check(wiredtiger_open(home, (WT_EVENT_HANDLER *)&event_handler, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
     /*! [Configure event_handler] */
 
     /* Make an invalid API call, to ensure the event handler works. */

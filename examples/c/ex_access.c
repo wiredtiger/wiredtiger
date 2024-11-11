@@ -43,14 +43,14 @@ access_example(void)
     int ret;
 
     /* Open a connection to the database, creating it if necessary. */
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(all)", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(all),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
 
     /* Open a session handle for the database. */
     error_check(conn->open_session(conn, NULL, NULL, &session));
     /*! [access example connection] */
 
     /*! [access example table create] */
-    error_check(session->create(session, "table:access", "key_format=S,value_format=S"));
+    error_check(session->create(session, "table:access", "key_format=S,value_format=S,block_manager=disagg"));
     /*! [access example table create] */
 
     /*! [access example cursor open] */

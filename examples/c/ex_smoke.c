@@ -51,7 +51,7 @@ main(int argc, char *argv[])
     }
 
     /* Open a connection to the database, creating it if necessary. */
-    if ((ret = wiredtiger_open("WT_HOME", NULL, "create", &conn)) != 0) {
+    if ((ret = wiredtiger_open("WT_HOME", NULL, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn)) != 0) {
         fprintf(stderr, "%s: wiredtiger_open: %s\n", argv[0], wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }

@@ -39,7 +39,7 @@ static const char *const incr_out = "./backup_incr";
 
 static const char *const uri = "table:logtest";
 
-#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,file_max=100K,remove=false)"
+#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,file_max=100K,remove=false),,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]"
 #define MAX_ITERATIONS 5
 #define MAX_KEYS 10000
 
@@ -224,7 +224,7 @@ main(int argc, char *argv[])
 
     setup_directories();
     error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
-    error_check(session->create(session, uri, "key_format=S,value_format=S"));
+    error_check(session->create(session, uri, "key_format=S,value_format=S,block_manager=disagg"));
     printf("Adding initial data\n");
     add_work(session, 0);
 

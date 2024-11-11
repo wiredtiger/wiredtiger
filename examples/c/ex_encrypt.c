@@ -393,7 +393,7 @@ simple_walk_log(WT_SESSION *session)
 
 #define WT_OPEN_CONFIG_COMMON                             \
     "create,cache_size=100MB,extensions=[" EXTENSION_NAME \
-    "],"                                                  \
+    ",ext/page_log/palm/libwiredtiger_page_log.so],"                                                  \
     "log=(enabled=true,remove=false),"
 
 #define WT_OPEN_CONFIG_GOOD \
@@ -434,21 +434,21 @@ main(int argc, char *argv[])
      */
     error_check(session->create(session, "table:crypto1",
       "encryption=(name=rotn,keyid=" USER1_KEYID
-      "),columns=(key0,value0),key_format=S,value_format=S"));
+      "),columns=(key0,value0),key_format=S,value_format=S,block_manager=disagg"));
     error_check(session->create(session, "index:crypto1:byvalue",
-      "encryption=(name=rotn,keyid=" USER1_KEYID "),columns=(value0,key0)"));
+                                "encryption=(name=rotn,keyid=" USER1_KEYID "),columns=(value0,key0),block_manager=disagg"));
     error_check(session->create(session, "table:crypto2",
-      "encryption=(name=rotn,keyid=" USER2_KEYID "),key_format=S,value_format=S"));
+                                "encryption=(name=rotn,keyid=" USER2_KEYID "),key_format=S,value_format=S,block_manager=disagg"));
     error_check(session->create(
-      session, "table:nocrypto", "encryption=(name=none),key_format=S,value_format=S"));
-    error_check(session->create(session, "table:syscrypto", "key_format=S,value_format=S"));
+                                session, "table:nocrypto", "encryption=(name=none),key_format=S,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, "table:syscrypto", "key_format=S,value_format=S,block_manager=disagg"));
 
     /*
      * Send in an unknown keyid. WiredTiger will try to add in the new keyid, but the customize
      * function above will return an error since it is unrecognized.
      */
     ret = session->create(session, "table:cryptobad",
-      "encryption=(name=rotn,keyid=" USERBAD_KEYID "),key_format=S,value_format=S");
+                          "encryption=(name=rotn,keyid=" USERBAD_KEYID "),key_format=S,value_format=S,block_manager=disagg");
     if (ret == 0) {
         fprintf(stderr, "Did not detect bad/unknown keyid error\n");
         exit(EXIT_FAILURE);

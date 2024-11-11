@@ -76,10 +76,10 @@ main(int argc, char *argv[])
 
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
 
     error_check(conn->open_session(conn, NULL, NULL, &session));
-    error_check(session->create(session, "table:access", "key_format=S,value_format=S"));
+    error_check(session->create(session, "table:access", "key_format=S,value_format=S,block_manager=disagg"));
     error_check(session->open_cursor(session, "table:access", NULL, "overwrite", &cursor));
     cursor->set_key(cursor, "key1");
     cursor->set_value(cursor, "value1");

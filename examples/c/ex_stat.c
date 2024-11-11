@@ -89,7 +89,7 @@ print_join_cursor_stats(WT_SESSION *session)
 {
     WT_CURSOR *idx_cursor, *join_cursor, *stat_cursor;
 
-    error_check(session->create(session, "index:access:idx", "columns=(v)"));
+    error_check(session->create(session, "index:access:idx", "columns=(v),block_manager=disagg"));
     error_check(session->open_cursor(session, "index:access:idx", NULL, NULL, &idx_cursor));
     error_check(idx_cursor->next(idx_cursor));
     error_check(session->open_cursor(session, "join:table:access", NULL, NULL, &join_cursor));
@@ -201,10 +201,10 @@ main(int argc, char *argv[])
 
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(all)", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(all),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
     error_check(conn->open_session(conn, NULL, NULL, &session));
     error_check(
-      session->create(session, "table:access", "key_format=S,value_format=S,columns=(k,v)"));
+                session->create(session, "table:access", "key_format=S,value_format=S,columns=(k,v),block_manager=disagg"));
 
     error_check(session->open_cursor(session, "table:access", NULL, NULL, &cursor));
     cursor->set_key(cursor, "key");

@@ -858,7 +858,7 @@ main(void)
      */
     open_config =
       "create,log=(enabled=true),extensions=(local={entry=demo_file_system_create,early_load=true,"
-      "config={config_string=\"demo-file-system\",config_value=37}})";
+      "config={config_string=\"demo-file-system\",config_value=37}},ext/page_log/palm/libwiredtiger_page_log.so)";
     /* Open a connection to the database, creating it if necessary. */
     if ((ret = wiredtiger_open(home, NULL, open_config, &conn)) != 0) {
         fprintf(stderr, "Error connecting to %s: %s\n", home == NULL ? "." : home,
@@ -872,7 +872,7 @@ main(void)
         return (EXIT_FAILURE);
     }
     uri = "table:fs";
-    if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+    if ((ret = session->create(session, uri, "key_format=S,value_format=S,block_manager=disagg")) != 0) {
         fprintf(stderr, "WT_SESSION.create: %s: %s\n", uri, wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }

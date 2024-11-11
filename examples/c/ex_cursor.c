@@ -194,13 +194,13 @@ main(int argc, char *argv[])
     home = example_setup(argc, argv);
 
     /* Open a connection to the database, creating it if necessary. */
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(fast)", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(fast),,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
 
     /* Open a session for the current thread's work. */
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
     error_check(session->create(session, "table:world",
-      "key_format=r,value_format=5sii,columns=(id,country,population,area)"));
+                                "key_format=r,value_format=5sii,columns=(id,country,population,area),block_manager=disagg"));
 
     /*! [open cursor #1] */
     error_check(session->open_cursor(session, "table:world", NULL, NULL, &cursor));
@@ -216,7 +216,7 @@ main(int argc, char *argv[])
     /*! [open cursor #3] */
 
     /* Create a simple string table to illustrate basic operations. */
-    error_check(session->create(session, "table:map", "key_format=S,value_format=S"));
+    error_check(session->create(session, "table:map", "key_format=S,value_format=S,block_manager=disagg"));
     error_check(session->open_cursor(session, "table:map", NULL, NULL, &cursor));
     error_check(cursor_insert(cursor));
     error_check(cursor_reset(cursor));

@@ -62,7 +62,7 @@ main(int argc, char *argv[])
 
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(fast)", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(fast),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
 
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -73,7 +73,7 @@ main(int argc, char *argv[])
      */
     error_check(session->create(session, "table:poptable",
       "key_format=r,value_format=5sHQ,columns=(id,country,year,population),colgroups=(main,"
-      "population)"));
+      "population),block_manager=disagg"));
 
     /*
      * Create two column groups: a primary column group with the country code, year and population
@@ -81,25 +81,25 @@ main(int argc, char *argv[])
      * "population").
      */
     error_check(
-      session->create(session, "colgroup:poptable:main", "columns=(country,year,population)"));
-    error_check(session->create(session, "colgroup:poptable:population", "columns=(population)"));
+                session->create(session, "colgroup:poptable:main", "columns=(country,year,population),block_manager=disagg"));
+    error_check(session->create(session, "colgroup:poptable:population", "columns=(population),block_manager=disagg"));
     /*! [Create a table with column groups] */
 
     /*! [Create an index] */
     /* Create an index with a simple key. */
-    error_check(session->create(session, "index:poptable:country", "columns=(country)"));
+    error_check(session->create(session, "index:poptable:country", "columns=(country),block_manager=disagg"));
     /*! [Create an index] */
 
     /*! [Create an index with a composite key] */
     /* Create an index with a composite key (country,year). */
     error_check(
-      session->create(session, "index:poptable:country_plus_year", "columns=(country,year)"));
+                session->create(session, "index:poptable:country_plus_year", "columns=(country,year),block_manager=disagg"));
     /*! [Create an index with a composite key] */
 
     /*! [Create an immutable index] */
     /* Create an immutable index. */
     error_check(
-      session->create(session, "index:poptable:immutable_year", "columns=(year),immutable"));
+                session->create(session, "index:poptable:immutable_year", "columns=(year),immutable,block_manager=disagg"));
     /*! [Create an immutable index] */
 
     /* Insert the records into the table. */

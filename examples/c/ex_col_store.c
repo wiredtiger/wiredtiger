@@ -420,7 +420,7 @@ main(int argc, char *argv[])
     home = example_setup(argc, argv);
 
     /* Establishing a connection. */
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(fast)", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(fast),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
 
     /* Establishing a session. */
     error_check(conn->open_session(conn, NULL, NULL, &session));
@@ -433,19 +433,19 @@ main(int argc, char *argv[])
                       "loc_long,temp,humidity,"
                       "wind,feels_like_temp,day,country),colgroups=(day_time,temperature,"
                       "humidity_pressure,"
-                      "wind,feels_like_temp,location)"));
+                      "wind,feels_like_temp,location),block_manager=disagg"));
 
     /* Create the colgroups */
-    error_check(session->create(session, "colgroup:weather:day_time", "columns=(hour,day)"));
-    error_check(session->create(session, "colgroup:weather:temperature", "columns=(temp)"));
+    error_check(session->create(session, "colgroup:weather:day_time", "columns=(hour,day),block_manager=disagg"));
+    error_check(session->create(session, "colgroup:weather:temperature", "columns=(temp),block_manager=disagg"));
     /*! [col-store create columns] */
     error_check(session->create(
-      session, "colgroup:weather:humidity_pressure", "columns=(pressure,humidity)"));
-    error_check(session->create(session, "colgroup:weather:wind", "columns=(wind)"));
+                                session, "colgroup:weather:humidity_pressure", "columns=(pressure,humidity),block_manager=disagg"));
+    error_check(session->create(session, "colgroup:weather:wind", "columns=(wind),block_manager=disagg"));
     error_check(
-      session->create(session, "colgroup:weather:feels_like_temp", "columns=(feels_like_temp)"));
+                session->create(session, "colgroup:weather:feels_like_temp", "columns=(feels_like_temp),block_manager=disagg"));
     error_check(
-      session->create(session, "colgroup:weather:location", "columns=(loc_lat,loc_long,country)"));
+                session->create(session, "colgroup:weather:location", "columns=(loc_lat,loc_long,country),block_manager=disagg"));
 
     /* Generating random data to populate the weather table. */
     generate_data(weather_data);
@@ -466,8 +466,8 @@ main(int argc, char *argv[])
     print_all_columns(session);
 
     /* Create indexes for searching */
-    error_check(session->create(session, "index:weather:hour", "columns=(hour)"));
-    error_check(session->create(session, "index:weather:country", "columns=(country)"));
+    error_check(session->create(session, "index:weather:hour", "columns=(hour),block_manager=disagg"));
+    error_check(session->create(session, "index:weather:country", "columns=(country),block_manager=disagg"));
 
     /*
      * Start and end points for time range for finding min/max temperature, in 24 hour format.
