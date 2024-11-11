@@ -183,15 +183,6 @@ def function_declaration():
                         static_list[n].append(line)
                         continue
 
-                    # Disallow assignments in the declaration. Ignore braces
-                    # to allow automatic array initialization using constant
-                    # initializers (and we've already skipped statics, which
-                    # are also typically initialized in the declaration).
-                    if re.search(r"\s=\s[-\w]", line):
-                        print(name + ": assignment in string: " + line.strip(),\
-                              file=sys.stderr)
-                        sys.exit(1);
-
                     list[n].append(line)
                 else:
                     # Sort the resulting lines (we don't yet sort declarations
