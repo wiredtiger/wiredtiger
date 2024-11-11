@@ -32,10 +32,10 @@ from wiredtiger import stat
 
 # test_bug035.py
 # This test validates a fix for a bug related to selective backup and fast truncate.
-# The bug allowed fast-truncated history store pages to reappear in the backup
-# after a shutdown. This test ensures that when a selective backup is taken,
-# only the selected tables HS data and metadata are retained, and the unwanted tables
-# are removed from HS and metadata.
+# The bug allowed fast-truncated history store pages to reappear in the backup after
+# a shutdown. This test verifies that if a selective backup is taken, only the data from selected 
+# tables (as part of backup) are retained in the history store and metadata, and the unwanted
+# tables are removed from HS and metadata.
 class test_bug035(backup_base):
     conn_config = 'cache_size=1G'
     dir='backup.dir'
@@ -62,13 +62,18 @@ class test_bug035(backup_base):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(15))
         self.session.checkpoint()
 
-        # Take selective backup of the first 5 tables.
+        # Create a backup directory.
         os.mkdir(self.dir)
-        self.take_selective_backup(self.dir, [uri.replace("table:", "") + ".wt" for uri in self.uris[-5:]])
+
+        # Take a selective backup of the first 5 tables by specifying the last 5 tables to be
+        # removed in `take_selective_backup`.
+        last_5_tables = [uri.replace("table:", "") + ".wt" for uri in self.uris[-5:]]
+        self.take_selective_backup(self.dir, last_5_tables)
 
         # Open the backup directory. As part of opening, it will run RTS internally to truncate any HS pages
-        # that belong to the tables that are not part of the selective backup.
-        backup_conn = self.wiredtiger_open(self.dir, "backup_restore_target=[\"{0}\"]".format('","'.join(self.uris[:5])))
+        # that belong to the tables that are not part of the selective backup (i.e. `last_5_tables`).
+        first_5_tables = '","'.join(self.uris[:5])
+        backup_conn = self.wiredtiger_open(self.dir, "backup_restore_target=[\"{0}\"]".format(first_5_tables))
         backup_session = backup_conn.open_session()
         stat_cursor = backup_session.open_cursor('statistics:', None, None)
 
@@ -76,8 +81,8 @@ class test_bug035(backup_base):
         fast_truncate_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         self.assertGreater(fast_truncate_pages, 0)
 
-        # Reopen the connection with verify_metadata=true. This will ensure that the metadata is verified and
-        # the tables that are not part of the selective backup don't exist in HS and metadata.
+        # Reopen the connection with verify_metadata=true to ensure the excluded tables (`last_5_tables`)
+        # are absent in HS and metadata.
         backup_conn.close()
         backup_conn = self.wiredtiger_open(self.dir, "verify_metadata=true")
         backup_conn.close()
