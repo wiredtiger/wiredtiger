@@ -66,6 +66,16 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         file_size = c[stat.dsrc.block_size][2]
         c.close()
         return file_size
+    
+    def evict_all(self):
+        evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        self.session.begin_transaction()
+        for k in range(self.table_numkv):
+            evict_cursor.set_key(k)
+            evict_cursor.search()
+            evict_cursor.reset()
+        self.session.rollback_transaction()
+        evict_cursor.close()
 
     def test_checkpoint33(self):
         # Pin oldest timestamp 1.
@@ -90,6 +100,9 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
 
         # Write to disk.
         self.session.checkpoint()
+        
+        # Evict all pages
+        self.evict_all()
 
         # Make everything globally visible.
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(5)}')
@@ -97,7 +110,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
 
         # Give checkpoint cleanup enough opportunity to clean up all the deleted pages.
         cc_success = 0
-        while (cc_success < 10):
+        while (cc_success < 1):
             self.session.checkpoint('debug=(checkpoint_cleanup=true)')
             c = self.session.open_cursor( 'statistics:')
             cc_success = c[stat.conn.checkpoint_cleanup_success][2]
@@ -105,5 +118,9 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
             self.prout(f'cc_success={cc_success}')
             self.prout(f'File size: {self.get_size()}')
             time.sleep(0.1)
+            
+        # Final checkpoint to recover the available space.
+        self.session.checkpoint()
+        self.prout(f'File size: {self.get_size()}')
 
         self.assertLessEqual(self.get_size(), 12 * 1024)
