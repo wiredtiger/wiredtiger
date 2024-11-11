@@ -110,7 +110,8 @@ err:
     __wt_epoch(session, &ts);
     WT_TRET(
       __wt_buf_fmt(session, closemsg, "[%" PRIuMAX ":%" PRIuMAX "] closedir (%s) ret %d dir fd %d",
-        (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, directory, ret, dirfd(dirp)));
+        (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, directory, ret,
+	dirp != NULL ? dirfd(dirp) : -1));
     WT_SYSCALL(closedir(dirp), tret);
     if (tret != 0) {
         __wt_err(session, tret, "%s: directory-list: closedir", directory);
