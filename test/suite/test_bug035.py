@@ -33,7 +33,7 @@ from wiredtiger import stat
 # test_bug035.py
 # This test validates a fix for a bug related to selective backup and fast truncate.
 # The bug allowed fast-truncated history store pages to reappear in the backup after
-# a shutdown. This test verifies that if a selective backup is taken, only the data from selected 
+# a shutdown. This test verifies that if a selective backup is taken, only the data from selected
 # tables (as part of backup) are retained in the history store and metadata, and the unwanted
 # tables are removed from HS and metadata.
 class test_bug035(backup_base):
