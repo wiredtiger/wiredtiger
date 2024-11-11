@@ -379,7 +379,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
         swap_page_key(readonly_result_key, &result_key);
     }
     /*
-     * Now back up until we find the most recent full page that that does not have a checkpoint more
+     * Now back up until we find the most recent full page that does not have a checkpoint more
      * recent than asked for.
      */
     while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, now) &&
