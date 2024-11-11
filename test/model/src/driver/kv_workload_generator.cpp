@@ -70,7 +70,6 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     update_existing = 0.1;
 
     prepared_transaction = 0.25;
-    max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
     use_set_commit_timestamp = 0.25;
     nonprepared_transaction_rollback = 0.1;
     prepared_transaction_rollback_after_prepare = 0.1;

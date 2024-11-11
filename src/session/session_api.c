@@ -1595,6 +1595,16 @@ err:
 }
 
 /*
+ * __check_key_outside_truncate_range --
+ *     Checks if the key falls outside the truncate range, inclusive of the start and stop keys if provided.
+ */
+static bool
+__check_key_outside_truncate_range(WT_CURSOR *current, WT_TRUNCATE_INFO *trunc_info)
+{
+    return (current->key.data < trunc_info->orig_start_key->data || current->key.data > trunc_info->orig_stop_key->data);
+}
+
+/*
  * __wt_session_range_truncate --
  *     Session handling of a range truncate.
  */
@@ -1703,7 +1713,16 @@ __wt_session_range_truncate(
     if (!F_ISSET(start, WT_CURSTD_KEY_INT)) {
         needs_next_prev = true;
         if (orig_start_key != NULL) {
-            WT_ERR_NOTFOUND_OK(start->search_near(start, &cmp), true);
+            ret = start->search_near(start, &cmp);
+            if (ret == WT_PREPARE_CONFLICT) {
+                /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+                if (__check_key_outside_truncate_range(start, trunc_info)) {
+                    F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+                    WT_ERR_NOTFOUND_OK(start->search_near(start, &cmp), true);
+                    F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
+                }
+            }
+            WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 log_trunc = true;
@@ -1712,7 +1731,16 @@ __wt_session_range_truncate(
             needs_next_prev = (cmp < 0);
         }
         if (needs_next_prev) {
-            WT_ERR_NOTFOUND_OK(start->next(start), true);
+            ret = start->next(start);
+            if (ret == WT_PREPARE_CONFLICT) {
+                /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+                if (__check_key_outside_truncate_range(start, trunc_info)) {
+                    F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+                    WT_ERR_NOTFOUND_OK(start->next(start), true);
+                    F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
+                }
+            }
+            WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == WT_NOTFOUND) {
                 /* If there are no elements, there is nothing to do. */
                 ret = 0;
@@ -1722,7 +1750,16 @@ __wt_session_range_truncate(
         }
     }
     if (stop != NULL && !F_ISSET(stop, WT_CURSTD_KEY_INT)) {
-        WT_ERR_NOTFOUND_OK(stop->search_near(stop, &cmp), true);
+        ret = stop->search_near(stop, &cmp);
+        if (ret == WT_PREPARE_CONFLICT) {
+            /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+            if (__check_key_outside_truncate_range(stop, trunc_info)) {
+                F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+                WT_ERR_NOTFOUND_OK(stop->search_near(stop, &cmp), true);
+                F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
+            }
+        }
+        WT_ERR_NOTFOUND_OK(ret, true);
         if (ret == WT_NOTFOUND) {
             ret = 0;
             log_trunc = true;
@@ -1730,7 +1767,16 @@ __wt_session_range_truncate(
         }
         needs_next_prev = (cmp > 0);
         if (needs_next_prev) {
-            WT_ERR_NOTFOUND_OK(stop->prev(stop), true);
+            ret = stop->prev(stop);
+            if (ret == WT_PREPARE_CONFLICT) {
+                /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+                if (__check_key_outside_truncate_range(stop, trunc_info)) {
+                    F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+                    WT_ERR_NOTFOUND_OK(stop->prev(stop), true);
+                    F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
+                }
+            }
+            WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 log_trunc = true;
