@@ -2258,7 +2258,6 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
-    wt_timestamp_t max_start_stop_durable_ts;
 
     btree = S2BT(session);
 
@@ -2276,16 +2275,13 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
         }
 
     /*
-     * Ensure the maximum timestamp used for reconciliation tracks the greatest value between the
-     * start and stop durable timestamps. The value may be higher than these two if eviction occurs
-     * in parallel. However, during RTS and recovery, we should never have it set higher or the
-     * system might think there is newer content that needs to be checkpointed.
+     * During RTS and recovery, ensure the maximum timestamp used for reconciliation is set to a
+     * value that is not greater than the start and stop durable timestamps. In those specific
+     * scenarios, we should always reflect the state of the stable content.
      */
-    max_start_stop_durable_ts = WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
-      F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
-      btree->rec_max_timestamp < max_start_stop_durable_ts)
-        btree->rec_max_timestamp = max_start_stop_durable_ts;
+      F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+        btree->rec_max_timestamp = WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
 }
 
 /*
