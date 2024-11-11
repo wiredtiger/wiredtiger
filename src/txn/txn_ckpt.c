@@ -2024,6 +2024,7 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
+        /* Skip the clean btree until the btree has obsolete pages. */
         if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
@@ -2212,8 +2213,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
-             * checkpoint cleanup or objects that have recoverable available space at the end of the
-             * file.
+             * checkpoint cleanup.
              */
             if (__checkpoint_apply_obsolete(session, btree, ckpt))
                 return (0);

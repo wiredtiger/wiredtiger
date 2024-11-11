@@ -66,7 +66,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         file_size = c[stat.dsrc.block_size][2]
         c.close()
         return file_size
-    
+
     def evict_all(self):
         evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         self.session.begin_transaction()
@@ -100,7 +100,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
 
         # Write to disk.
         self.session.checkpoint()
-        
+
         # Evict all pages
         self.evict_all()
 
@@ -118,7 +118,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
             self.prout(f'cc_success={cc_success}')
             self.prout(f'File size: {self.get_size()}')
             time.sleep(0.1)
-            
+
         # Final checkpoint to recover the available space.
         self.session.checkpoint()
         self.prout(f'File size: {self.get_size()}')
