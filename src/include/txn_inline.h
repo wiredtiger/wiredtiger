@@ -416,11 +416,11 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
 }
 
 /*
- * __wt_txn_op_delete_commit_apply_timestamps --
+ * __wt_txn_op_delete_commit --
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
 static WT_INLINE int
-__wt_txn_op_delete_commit_apply_timestamps(
+__wt_txn_op_delete_commit(
   WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate, bool assign_timestamp)
 {
     WT_ADDR_COPY addr;
@@ -436,9 +436,14 @@ __wt_txn_op_delete_commit_apply_timestamps(
     txn = session->txn;
     page_del = ref->page_del;
 
+    /* Timestamps are ignored on logged files. */
     if (F_ISSET(op->btree, WT_BTREE_LOGGED))
         return (false);
 
+    /*
+     * Disable timestamp validation for transactions that are explicitly configured without a
+     * timestamp.
+     */
     if (F_ISSET(txn, WT_TXN_TS_NOT_SET))
         return (false);
 
@@ -627,7 +632,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
     if (!__txn_should_assign_timestamp(session, op)) {
         if (validate) {
             if (op->type == WT_TXN_OP_REF_DELETE)
-                WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate, false));
+                WT_RET(__wt_txn_op_delete_commit(session, op, validate, false));
             else
                 WT_RET(__wt_txn_timestamp_usage_check(
                   session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
@@ -650,7 +655,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate, true));
+            WT_RET(__wt_txn_op_delete_commit(session, op, validate, true));
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
