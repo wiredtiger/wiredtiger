@@ -379,12 +379,13 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
         swap_page_key(readonly_result_key, &result_key);
     }
     /*
-     * Now back up until we match table/page/checkpoint.
+     * Now back up until we find the most recent full page that does not have a checkpoint more
+     * recent than asked for.
      */
-    while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, now)) {
+    while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, now) &&
+      result_key.checkpoint_id <= checkpoint_id) {
 
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
-        /* TODO: maybe can't happen, with SET_RANGE. */
         if (result_key.is_delta == false) {
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
