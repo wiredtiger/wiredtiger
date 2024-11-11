@@ -3,7 +3,7 @@
 @section version_1130 Upgrading to Version 11.3.0
 <dl>
 
-<dt>Per-file configuration "huffman_key"</dt>
+<dt>Per-file configuration "huffman_value"</dt>
 <dd>
 Huffman encoding is no longer supported for values or keys (support for keys was removed
 in a previous release).
@@ -19,12 +19,13 @@ how aggressively obsolete content is removed when creating checkpoints:
 <dt>Connection configuration "verbose"</dt>
 <dd>
 Three eviction-related verbose config values ('evict', 'evict_stuck', and 'evictserver')
-are merged into the 'eviction' config.
+have been merged into the 'eviction' config.
 </dd>
 
 <dt>WT_SESSION.verify configuration "dump_app_data"</dt>
 <dd>
-The 'dump_app_data' configuration of the WT_SESSION.verify command is renamed to 'dump_all_data'.
+The 'dump_app_data' configuration of the WT_SESSION.verify command has been renamed to
+'dump_all_data'.
 </dd>
 
 <dt>WT_SESSION.set_timestamp configuration "oldest_timestamp" and "stable_timestamp"</dt>
