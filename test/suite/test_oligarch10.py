@@ -44,7 +44,6 @@ class test_oligarch10(wttest.WiredTigerTestCase):
         if os.name == 'nt':
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm', configs=['cache_size_mb=2000'])
-        self.tty(f"{extlist=}")
         self.pr(f"{extlist=}")
 
     # Custom test case setup
