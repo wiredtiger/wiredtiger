@@ -75,6 +75,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
+    __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */
@@ -390,7 +391,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * level durability and supported timestamps. In-memory configurations default to ignoring all
      * timestamps, and the application uses the logging configuration flag to turn on timestamps.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) {
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (cval.val)
             F_SET(btree, WT_BTREE_LOGGED);

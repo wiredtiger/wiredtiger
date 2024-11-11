@@ -407,6 +407,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
 
+    __wt_spin_unlock_if_owned(session, &session->scratch_lock);
+    __wt_spin_destroy(session, &session->scratch_lock);
+
 #ifdef HAVE_DIAGNOSTIC
     /*
      * Unlock the thread_check mutex if we own it, this a bit of a cheeky workaround as there's one
@@ -1105,7 +1108,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     /*
      * If logging is not enabled there is nothing to do.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+    if (!F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR_MSG(session, EINVAL, "logging not enabled");
 
     WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
@@ -2595,6 +2598,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 #ifdef HAVE_DIAGNOSTIC
     WT_ERR(__wt_spin_init(session, &session_ret->thread_check.lock, "thread check lock"));
 #endif
+
+    WT_ERR(__wt_spin_init(session, &session_ret->scratch_lock, "scratch buffer lock"));
 
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions

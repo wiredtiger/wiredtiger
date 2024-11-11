@@ -187,6 +187,10 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
 
         WT_STAT_CONN_INCR(session, txn_walk_sessions);
         WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
+    } else if (WT_CONFIG_LIT_MATCH("backup_checkpoint", cval)) {
+        /* This code will return set a timestamp only if a backup cursor is open. */
+        ts = WT_TS_NONE;
+        WT_WITH_HOTBACKUP_READ_LOCK_BACKUP(session, ts = conn->hot_backup_timestamp, NULL);
     } else if (WT_CONFIG_LIT_MATCH("last_checkpoint", cval)) {
         /* Read-only value forever. Make sure we don't used a cached version. */
         WT_COMPILER_BARRIER();
@@ -1016,7 +1020,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 
     /* Timestamps are only logged in debugging mode. */
     if (set_ts && FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
+      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
 
     return (0);
@@ -1075,7 +1079,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
 
     /* Timestamps are only logged in debugging mode. */
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
+      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
 
     return (0);
