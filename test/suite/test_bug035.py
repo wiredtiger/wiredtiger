@@ -30,7 +30,13 @@ import os
 from wtbackup import backup_base
 from wiredtiger import stat
 
-class test_backup31(backup_base):
+# test_backup31.py
+# This test validates a fix for a bug related to selective backup and fast truncate.
+# The bug allowed fast-truncated history store pages to reappear in the backup
+# after a shutdown. This test ensures that when a selective backup is taken,
+# only the selected tables HS data and metadata are retained, and the unwanted tables
+# are removed from HS and metadata.
+class test_bug035(backup_base):
     conn_config = 'cache_size=1G'
     dir='backup.dir'
     uris = [f"table:uri_{i}" for i in range(1, 11)]
@@ -45,7 +51,7 @@ class test_backup31(backup_base):
         c.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(timestamp))
 
-    def test_backup31(self):
+    def test_bug035(self):
         for uri in self.uris:
             # create 10 URIs and large amount of data in each.
             self.session.create(uri, "key_format=S,value_format=S")
