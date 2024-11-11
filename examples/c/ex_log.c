@@ -35,7 +35,7 @@ static const char *home2 = "WT_HOME_LOG_2";
 
 static const char *const uri = "table:logtest";
 
-#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,remove=false),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]"
+#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,remove=false)"
 #define MAX_KEYS 10
 
 static void
@@ -44,7 +44,7 @@ setup_copy(WT_CONNECTION **wt_connp, WT_SESSION **sessionp)
     error_check(wiredtiger_open(home2, NULL, CONN_CONFIG, wt_connp));
 
     error_check((*wt_connp)->open_session(*wt_connp, NULL, NULL, sessionp));
-    error_check((*sessionp)->create(*sessionp, uri, "key_format=S,value_format=S,block_manager=disagg"));
+    error_check((*sessionp)->create(*sessionp, uri, "key_format=S,value_format=S"));
 }
 
 static void
@@ -258,7 +258,7 @@ main(int argc, char *argv[])
     error_check(wiredtiger_open(home1, NULL, CONN_CONFIG, &wt_conn));
 
     error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
-    error_check(session->create(session, uri, "key_format=S,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, uri, "key_format=S,value_format=S"));
     count_min++;
 
     error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));

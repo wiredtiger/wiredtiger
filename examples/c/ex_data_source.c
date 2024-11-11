@@ -553,7 +553,7 @@ main(int argc, char *argv[])
 
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create", &conn));
     my_data_source_init(conn);
 
     {

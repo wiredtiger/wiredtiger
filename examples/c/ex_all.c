@@ -131,7 +131,7 @@ cursor_ops(WT_SESSION *session)
     }
 
     /* Switch to a recno table. */
-    error_check(session->create(session, "table:recno", "key_format=r,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, "table:recno", "key_format=r,value_format=S"));
     error_check(session->open_cursor(session, "table:recno", NULL, NULL, &cursor));
 
     {
@@ -149,7 +149,7 @@ cursor_ops(WT_SESSION *session)
     }
 
     /* Switch to a composite table. */
-    error_check(session->create(session, "table:composite", "key_format=SiH,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, "table:composite", "key_format=SiH,value_format=S"));
     error_check(session->open_cursor(session, "table:recno", NULL, NULL, &cursor));
 
     {
@@ -317,7 +317,7 @@ cursor_ops(WT_SESSION *session)
         /*! [Reserve a record] */
     }
 
-    error_check(session->create(session, "table:blob", "key_format=S,value_format=u,block_manager=disagg"));
+    error_check(session->create(session, "table:blob", "key_format=S,value_format=u"));
     error_check(session->open_cursor(session, "table:blob", NULL, NULL, &cursor));
     {
         WT_ITEM value;
@@ -481,8 +481,8 @@ cursor_search_near(WT_CURSOR *cursor)
 static void
 checkpoint_ops(WT_SESSION *session)
 {
-    error_check(session->create(session, "table:table1", "block_manager=disagg"));
-    error_check(session->create(session, "table:table2", "block_manager=disagg"));
+    error_check(session->create(session, "table:table1", NULL));
+    error_check(session->create(session, "table:table2", NULL));
 
     /*! [Checkpoint examples] */
     /* Checkpoint the database. */
@@ -585,12 +585,12 @@ static void
 session_ops_create(WT_SESSION *session)
 {
     /*! [Create a table] */
-    error_check(session->create(session, "table:mytable", "key_format=S,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, "table:mytable", "key_format=S,value_format=S"));
     /*! [Create a table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a column-store table] */
-    error_check(session->create(session, "table:mytable", "key_format=r,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, "table:mytable", "key_format=r,value_format=S"));
     /*! [Create a column-store table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
@@ -600,19 +600,19 @@ session_ops_create(WT_SESSION *session)
      * integer, unsigned 16-bit integer).
      */
     error_check(session->create(session, "table:mytable",
-                                "key_format=r,value_format=SiH,columns=(id,department,salary,year-started),block_manager=disagg"));
+      "key_format=r,value_format=SiH,columns=(id,department,salary,year-started)"));
     /*! [Create a table with columns] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a table and configure the page size] */
     error_check(session->create(session, "table:mytable",
-                                "key_format=S,value_format=S,internal_page_max=16KB,leaf_page_max=1MB,leaf_value_max=64KB,block_manager=disagg"));
+      "key_format=S,value_format=S,internal_page_max=16KB,leaf_page_max=1MB,leaf_value_max=64KB"));
     /*! [Create a table and configure the page size] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a table and configure a large leaf value max] */
     error_check(session->create(session, "table:mytable",
-                                "key_format=S,value_format=S,leaf_page_max=16KB,leaf_value_max=256KB,block_manager=disagg"));
+      "key_format=S,value_format=S,leaf_page_max=16KB,leaf_value_max=256KB"));
     /*! [Create a table and configure a large leaf value max] */
     error_check(session->drop(session, "table:mytable", NULL));
 
@@ -623,31 +623,31 @@ session_ops_create(WT_SESSION *session)
 #ifdef MIGHT_NOT_RUN
     /*! [Create a lz4 compressed table] */
     error_check(session->create(
-                                session, "table:mytable", "block_compressor=lz4,key_format=S,value_format=S,block_manager=disagg"));
+      session, "table:mytable", "block_compressor=lz4,key_format=S,value_format=S"));
     /*! [Create a lz4 compressed table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a snappy compressed table] */
     error_check(session->create(
-                                session, "table:mytable", "block_compressor=snappy,key_format=S,value_format=S,block_manager=disagg"));
+      session, "table:mytable", "block_compressor=snappy,key_format=S,value_format=S"));
     /*! [Create a snappy compressed table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a zlib compressed table] */
     error_check(session->create(
-                                session, "table:mytable", "block_compressor=zlib,key_format=S,value_format=S,block_manager=disagg"));
+      session, "table:mytable", "block_compressor=zlib,key_format=S,value_format=S"));
     /*! [Create a zlib compressed table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a zstd compressed table] */
     error_check(session->create(
-                                session, "table:mytable", "block_compressor=zstd,key_format=S,value_format=S,block_manager=disagg"));
+      session, "table:mytable", "block_compressor=zstd,key_format=S,value_format=S"));
     /*! [Create a zstd compressed table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a iaa compressed table] */
     error_check(session->create(
-                                session, "table:mytable", "block_compressor=iaa,key_format=S,value_format=S,block_manager=disagg"));
+      session, "table:mytable", "block_compressor=iaa,key_format=S,value_format=S"));
     /*! [Create a iaa compressed table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
@@ -655,44 +655,44 @@ session_ops_create(WT_SESSION *session)
 
     /*! [Configure checksums to uncompressed] */
     error_check(session->create(
-                                session, "table:mytable", "key_format=S,value_format=S,checksum=uncompressed,block_manager=disagg"));
+      session, "table:mytable", "key_format=S,value_format=S,checksum=uncompressed"));
     /*! [Configure checksums to uncompressed] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Configure dictionary compression on] */
     error_check(
-                session->create(session, "table:mytable", "key_format=S,value_format=S,dictionary=1000,block_manager=disagg"));
+      session->create(session, "table:mytable", "key_format=S,value_format=S,dictionary=1000"));
     /*! [Configure dictionary compression on] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Configure key prefix compression on] */
     error_check(session->create(
-                                session, "table:mytable", "key_format=S,value_format=S,prefix_compression=true,block_manager=disagg"));
+      session, "table:mytable", "key_format=S,value_format=S,prefix_compression=true"));
     /*! [Configure key prefix compression on] */
     error_check(session->drop(session, "table:mytable", NULL));
 
 #ifdef MIGHT_NOT_RUN
     /* Requires sync_file_range */
     /*! [os_cache_dirty_max configuration] */
-    error_check(session->create(session, "table:mytable", "os_cache_dirty_max=500MB,block_manager=disagg"));
+    error_check(session->create(session, "table:mytable", "os_cache_dirty_max=500MB"));
     /*! [os_cache_dirty_max configuration] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /* Requires posix_fadvise */
     /*! [os_cache_max configuration] */
-    error_check(session->create(session, "table:mytable", "os_cache_max=1GB,block_manager=disagg"));
+    error_check(session->create(session, "table:mytable", "os_cache_max=1GB"));
     /*! [os_cache_max configuration] */
     error_check(session->drop(session, "table:mytable", NULL));
 #endif
     /*! [Configure block_allocation] */
     error_check(session->create(
-                                session, "table:mytable", "key_format=S,value_format=S,block_allocation=first,block_manager=disagg"));
+      session, "table:mytable", "key_format=S,value_format=S,block_allocation=first"));
     /*! [Configure block_allocation] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a cache-resident object] */
     error_check(
-                session->create(session, "table:mytable", "key_format=r,value_format=S,cache_resident=true,block_manager=disagg"));
+      session->create(session, "table:mytable", "key_format=r,value_format=S,cache_resident=true"));
     /*! [Create a cache-resident object] */
     error_check(session->drop(session, "table:mytable", NULL));
 }
@@ -712,7 +712,7 @@ session_ops(WT_SESSION *session)
     /*! [Reconfigure a session] */
     {
         /* Create a table for the session operations. */
-        error_check(session->create(session, "table:mytable", "key_format=S,value_format=S,block_manager=disagg"));
+        error_check(session->create(session, "table:mytable", "key_format=S,value_format=S"));
 
         /*! [Alter a table] */
         error_check(session->alter(session, "table:mytable", "access_pattern_hint=random"));
@@ -723,7 +723,7 @@ session_ops(WT_SESSION *session)
         /*! [Compact a table] */
 
         error_check(
-                    session->create(session, "table:old", "key_format=r,value_format=S,cache_resident=true,block_manager=disagg"));
+          session->create(session, "table:old", "key_format=r,value_format=S,cache_resident=true"));
         /*! [Rename a table] */
         error_check(session->rename(session, "table:old", "table:new", NULL));
         /*! [Rename a table] */
@@ -1194,7 +1194,7 @@ main(int argc, char *argv[])
 
     /*! [Open a connection] */
     error_check(wiredtiger_open(
-      home, NULL, "create,cache_size=5GB,log=(enabled,recover=on),statistics=(all),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+      home, NULL, "create,cache_size=5GB,log=(enabled,recover=on),statistics=(all)", &conn));
     /*! [Open a connection] */
 
     connection_ops(conn);
@@ -1275,12 +1275,12 @@ main(int argc, char *argv[])
 #endif
 
     /*! [Configure file_extend] */
-    error_check(wiredtiger_open(home, NULL, "create,file_extend=(data=16MB),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,file_extend=(data=16MB)", &conn));
     /*! [Configure file_extend] */
     error_check(conn->close(conn, NULL));
 
     /*! [Configure capacity] */
-    error_check(wiredtiger_open(home, NULL, "create,io_capacity=(total=40MB),,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,io_capacity=(total=40MB)", &conn));
     /*! [Configure capacity] */
     error_check(conn->close(conn, NULL));
 
@@ -1289,24 +1289,24 @@ main(int argc, char *argv[])
      * Configure eviction to begin at 90% full, and run until the cache is only 75% dirty.
      */
     error_check(wiredtiger_open(home, NULL,
-      "create,eviction_trigger=90,eviction_dirty_target=75,eviction_dirty_trigger=90,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+      "create,eviction_trigger=90,eviction_dirty_target=75,eviction_dirty_trigger=90", &conn));
     /*! [Eviction configuration] */
     error_check(conn->close(conn, NULL));
 
     /*! [Eviction worker configuration] */
     /* Configure up to four eviction threads */
     error_check(
-      wiredtiger_open(home, NULL, "create,eviction_trigger=90,eviction=(threads_max=4),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+      wiredtiger_open(home, NULL, "create,eviction_trigger=90,eviction=(threads_max=4)", &conn));
     /*! [Eviction worker configuration] */
     error_check(conn->close(conn, NULL));
 
     /*! [Statistics configuration] */
-    error_check(wiredtiger_open(home, NULL, "create,statistics=(all),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics=(all)", &conn));
     /*! [Statistics configuration] */
     error_check(conn->close(conn, NULL));
 
     /*! [Statistics logging] */
-    error_check(wiredtiger_open(home, NULL, "create,statistics_log=(wait=30),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,statistics_log=(wait=30)", &conn));
     /*! [Statistics logging] */
     error_check(conn->close(conn, NULL));
 
@@ -1316,7 +1316,7 @@ main(int argc, char *argv[])
      */
     /*! [Statistics logging with a table] */
     error_check(wiredtiger_open(home, NULL,
-      "create, statistics_log=(sources=(\"table:table1\",\"table:table2\"), wait=5),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+      "create, statistics_log=(sources=(\"table:table1\",\"table:table2\"), wait=5)", &conn));
     /*! [Statistics logging with a table] */
     error_check(conn->close(conn, NULL));
 
@@ -1325,14 +1325,14 @@ main(int argc, char *argv[])
      */
     /*! [Statistics logging with a source type] */
     error_check(
-      wiredtiger_open(home, NULL, "create, statistics_log=(sources=(\"index:\"), wait=5),extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+      wiredtiger_open(home, NULL, "create, statistics_log=(sources=(\"index:\"), wait=5)", &conn));
     /*! [Statistics logging with a source type] */
     error_check(conn->close(conn, NULL));
 
     /*
      * Don't run this code, because memory checkers get very upset when we leak memory.
      */
-    error_check(wiredtiger_open(home, NULL, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create", &conn));
     /*! [Connection close leaking memory] */
     error_check(conn->close(conn, "leak_memory=true"));
 /*! [Connection close leaking memory] */

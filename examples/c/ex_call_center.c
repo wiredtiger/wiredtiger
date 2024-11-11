@@ -85,7 +85,7 @@ main(int argc, char *argv[])
         {0, 35, 1, 2, "reminder", "available"}, {0, 0, 0, 0, NULL, NULL}};
 
     home = example_setup(argc, argv);
-    error_check(wiredtiger_open(home, NULL, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create", &conn));
 
     /*! [call-center work] */
     error_check(conn->open_session(conn, NULL, NULL, &session));
@@ -95,16 +95,16 @@ main(int argc, char *argv[])
      * in two groups: "main" and "address", created below.
      */
     error_check(session->create(session, "table:customers",
-                                "key_format=r,value_format=SSS,columns=(id,name,address,phone),colgroups=(main,address),block_manager=disagg"));
+      "key_format=r,value_format=SSS,columns=(id,name,address,phone),colgroups=(main,address)"));
 
     /* Create the main column group with value columns except address. */
-    error_check(session->create(session, "colgroup:customers:main", "columns=(name,phone),block_manager=disagg"));
+    error_check(session->create(session, "colgroup:customers:main", "columns=(name,phone)"));
 
     /* Create the address column group with just the address. */
-    error_check(session->create(session, "colgroup:customers:address", "columns=(address),block_manager=disagg"));
+    error_check(session->create(session, "colgroup:customers:address", "columns=(address)"));
 
     /* Create an index on the customer table by phone number. */
-    error_check(session->create(session, "index:customers:phone", "columns=(phone),block_manager=disagg"));
+    error_check(session->create(session, "index:customers:phone", "columns=(phone)"));
 
     /* Populate the customers table with some data. */
     error_check(session->open_cursor(session, "table:customers", NULL, "append", &cursor));
@@ -119,12 +119,12 @@ main(int argc, char *argv[])
      * together, so no column groups are declared.
      */
     error_check(session->create(session, "table:calls",
-                                "key_format=r,value_format=qrrSS,columns=(id,call_date,cust_id,emp_id,call_type,notes),block_manager=disagg"));
+      "key_format=r,value_format=qrrSS,columns=(id,call_date,cust_id,emp_id,call_type,notes)"));
 
     /*
      * Create an index on the calls table with a composite key of cust_id and call_date.
      */
-    error_check(session->create(session, "index:calls:cust_date", "columns=(cust_id,call_date),block_manager=disagg"));
+    error_check(session->create(session, "index:calls:cust_date", "columns=(cust_id,call_date)"));
 
     /* Populate the calls table with some data. */
     error_check(session->open_cursor(session, "table:calls", NULL, "append", &cursor));

@@ -183,14 +183,14 @@ setup_table(WT_SESSION *session)
 
     /* Create the primary table. It has a key of the unique ID. */
     error_check(session->create(session, "table:presidents",
-                                "key_format=I,value_format=SSHH,columns=(ID,last_name,first_name,term_begin,term_end),block_manager=disagg"));
+      "key_format=I,value_format=SSHH,columns=(ID,last_name,first_name,term_begin,term_end)"));
 
     /*
      * Create the index that is generated with an extractor. The index will generate an entry in the
      * index for each year a president was in office.
      */
     error_check(session->create(
-                                session, "index:presidents:term", "key_format=H,columns=(term),extractor=my_extractor,block_manager=disagg"));
+      session, "index:presidents:term", "key_format=H,columns=(term),extractor=my_extractor"));
 
     error_check(session->open_cursor(session, "table:presidents", NULL, NULL, &cursor));
     for (i = 0; example_data[i].last_name != NULL; i++) {
@@ -211,7 +211,7 @@ main(int argc, char *argv[])
 
     home = example_setup(argc, argv);
 
-    error_check(wiredtiger_open(home, NULL, "create,cache_size=500M,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,cache_size=500M", &conn));
     add_extractor(conn);
     error_check(conn->open_session(conn, NULL, NULL, &session));
 

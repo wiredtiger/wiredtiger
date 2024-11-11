@@ -143,8 +143,8 @@ main(int argc, char *argv[])
     snprintf(config, sizeof(config),
       "create,"
       "tiered_storage=(bucket=%s,bucket_prefix=pfx-,local_retention=5,name=%s),"
-      "extensions=(%s/ext/storage_sources/%s/libwiredtiger_%s.so,%s/ext/page_log/palm/libwiredtiger_page_log.so)",
-             BUCKET_NAME, STORAGE_SOURCE, BUILD_DIR, STORAGE_SOURCE, STORAGE_SOURCE, BUILD_DIR);
+      "extensions=(%s/ext/storage_sources/%s/libwiredtiger_%s.so)",
+      BUCKET_NAME, STORAGE_SOURCE, BUILD_DIR, STORAGE_SOURCE, STORAGE_SOURCE);
 
     /* Create the home directory, and the bucket directory underneath it. */
     testutil_system("rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, BUCKET_NAME);
@@ -157,10 +157,10 @@ main(int argc, char *argv[])
 
     /* Create a table that lives locally. Tiered storage is disabled for this file. */
     error_check(session->create(
-                                session, LOCAL_URI, "key_format=i,value_format=S,tiered_storage=(name=none),block_manager=disagg"));
+      session, LOCAL_URI, "key_format=i,value_format=S,tiered_storage=(name=none)"));
 
     /* Create a table using tiered storage. */
-    error_check(session->create(session, TIERED_URI, "key_format=i,value_format=S,block_manager=disagg"));
+    error_check(session->create(session, TIERED_URI, "key_format=i,value_format=S"));
 
     /* Add entries to both tables. */
     add_data(session, LOCAL_URI, 0, N_ENTRIES);

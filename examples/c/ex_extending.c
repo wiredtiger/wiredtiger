@@ -88,7 +88,7 @@ main(int argc, char *argv[])
     home = example_setup(argc, argv);
 
     /* Open a connection to the database, creating it if necessary. */
-    error_check(wiredtiger_open(home, NULL, "create,extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create", &conn));
 
     /*! [add collator nocase] */
     error_check(conn->add_collator(conn, "nocase", &nocasecoll, NULL));

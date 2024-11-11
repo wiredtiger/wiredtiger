@@ -46,11 +46,11 @@ main(int argc, char *argv[])
      * an error.
      */
     testutil_assert(
-                    wiredtiger_open(home, NULL, "create,extra_diagnostics=[key_out_of_order],extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn) == EINVAL);
+      wiredtiger_open(home, NULL, "create,extra_diagnostics=[key_out_of_order]", &conn) == EINVAL);
 #else
     /*! [Configure extra_diagnostics] */
     /* Open a connection to the database, enabling key ordering checks. */
-    error_check(wiredtiger_open(home, NULL, "create,extra_diagnostics=[key_out_of_order],extensions=[ext/page_log/palm/libwiredtiger_page_log.so]", &conn));
+    error_check(wiredtiger_open(home, NULL, "create,extra_diagnostics=[key_out_of_order]", &conn));
 
     /*
      * Reconfigure the connection to turn on transaction visibility checks. As key_out_of_order is
