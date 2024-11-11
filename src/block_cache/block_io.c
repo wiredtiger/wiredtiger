@@ -376,6 +376,10 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (bm->read_multiple == NULL) {
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
+        /*
+         * TODO: we read garbage value for block meta from the block cache for non-disaggregated
+         * case. Pass a NULL for now.
+         */
         WT_ERR(__wt_blkcache_read(session, &tmp[0], NULL, addr, addr_size));
         *buf_count = 1;
         *buf = tmp;
