@@ -34,102 +34,102 @@
 static WT_INLINE int
 __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 {
-    WT_SESSION_IMPL *session = CUR2S(cbt);
+    WT_INSERT *current, *ins, *next_ins;
+    WT_ITEM key;
+    WT_SESSION_IMPL *session;
+    uint64_t recno;
+    int i;
+
+    session = CUR2S(cbt);
 
 restart:
-    {
-        WT_INSERT *current = NULL;
-        /*
-         * If the search stack does not point at the current item, fill it in with a search.
-         */
-        uint64_t recno = WT_INSERT_RECNO(cbt->ins);
-        while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
-            if (CUR2BT(cbt)->type == BTREE_ROW) {
-                WT_ITEM key;
-                key.data = WT_INSERT_KEY(current);
-                key.size = WT_INSERT_KEY_SIZE(current);
-                WT_RET(__wt_search_insert(session, cbt, cbt->ins_head, &key));
-            } else
-                cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
-        }
+    /*
+     * If the search stack does not point at the current item, fill it in with a search.
+     */
+    recno = WT_INSERT_RECNO(cbt->ins);
+    while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
+        if (CUR2BT(cbt)->type == BTREE_ROW) {
+            key.data = WT_INSERT_KEY(current);
+            key.size = WT_INSERT_KEY_SIZE(current);
+            WT_RET(__wt_search_insert(session, cbt, cbt->ins_head, &key));
+        } else
+            cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
+    }
 
-        /*
-         * Find the first node up the search stack that does not move.
-         *
-         * The depth of the current item must be at least this level, since we
-         * see it in that many levels of the stack.
-         *
-         * !!! Watch these loops carefully: they all rely on the value of i,
-         * and the exit conditions to end up with the right values are
-         * non-trivial.
-         */
-        WT_INSERT *ins = NULL; /* -Wconditional-uninitialized */
-        int i = 0;
-        for (i = 0; i < WT_SKIP_MAXDEPTH - 1; i++)
-            if ((ins = PREV_INS(cbt, i + 1)) != current)
-                break;
+    /*
+     * Find the first node up the search stack that does not move.
+     *
+     * The depth of the current item must be at least this level, since we
+     * see it in that many levels of the stack.
+     *
+     * !!! Watch these loops carefully: they all rely on the value of i,
+     * and the exit conditions to end up with the right values are
+     * non-trivial.
+     */
+    ins = NULL; /* -Wconditional-uninitialized */
+    for (i = 0; i < WT_SKIP_MAXDEPTH - 1; i++)
+        if ((ins = PREV_INS(cbt, i + 1)) != current)
+            break;
 
-        /*
-         * Find a starting point for the new search. That is either at the non-moving node if we found a
-         * valid node, or the beginning of the next list down that is not the current node.
-         *
-         * Since it is the beginning of a list, and we know the current node is has a skip depth at
-         * least this high, any node we find must sort before the current node.
-         */
-        if (ins == NULL || ins == current)
-            for (; i >= 0; i--) {
-                cbt->ins_stack[i] = NULL;
-                cbt->next_stack[i] = NULL;
-                /*
-                 * Compiler may replace the usage of the variable with another read in the following
-                 * code. Here we don't need to worry about CPU reordering as we are reading a thread
-                 * local value.
-                 *
-                 * Place an acquire barrier to avoid this issue.
-                 */
-                WT_ACQUIRE_READ_WITH_BARRIER(ins, cbt->ins_head->head[i]);
-                if (ins != NULL && ins != current)
-                    break;
-            }
-
-        /* Walk any remaining levels until just before the current node. */
-        while (i >= 0) {
+    /*
+     * Find a starting point for the new search. That is either at the non-moving node if we found a
+     * valid node, or the beginning of the next list down that is not the current node.
+     *
+     * Since it is the beginning of a list, and we know the current node is has a skip depth at
+     * least this high, any node we find must sort before the current node.
+     */
+    if (ins == NULL || ins == current)
+        for (; i >= 0; i--) {
+            cbt->ins_stack[i] = NULL;
+            cbt->next_stack[i] = NULL;
             /*
-             * If we get to the end of a list without finding the current item, we must have raced with
-             * an insert. Restart the search.
-             */
-            if (ins == NULL) {
-                cbt->ins_stack[0] = NULL;
-                cbt->next_stack[0] = NULL;
-                goto restart;
-            }
-            /*
-             * CPUs with weak memory ordering may reorder the read and return a stale value. This can
-             * lead us to wrongly skip a value in the lower levels of the skip list.
-             *
-             * For example, if we have A -> C initially for both level 0 and level 1 and we concurrently
-             * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
-             * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
+             * Compiler may replace the usage of the variable with another read in the following
+             * code. Here we don't need to worry about CPU reordering as we are reading a thread
+             * local value.
              *
              * Place an acquire barrier to avoid this issue.
              */
-            WT_INSERT *next_ins = NULL;
-            WT_ACQUIRE_READ_WITH_BARRIER(next_ins, ins->next[i]);
-            if (next_ins != current) /* Stay at this level */
-                ins = next_ins;
-            else { /* Drop down a level */
-                cbt->next_stack[i] = next_ins;
-                cbt->ins_stack[i] = &ins->next[i];
-                --i;
-            }
+            WT_ACQUIRE_READ_WITH_BARRIER(ins, cbt->ins_head->head[i]);
+            if (ins != NULL && ins != current)
+                break;
         }
 
-        /* If we found a previous node, the next one must be current. */
-        if (cbt->ins_stack[0] != NULL && *cbt->ins_stack[0] != current)
+    /* Walk any remaining levels until just before the current node. */
+    while (i >= 0) {
+        /*
+         * If we get to the end of a list without finding the current item, we must have raced with
+         * an insert. Restart the search.
+         */
+        if (ins == NULL) {
+            cbt->ins_stack[0] = NULL;
+            cbt->next_stack[0] = NULL;
             goto restart;
-
-        cbt->ins = PREV_INS(cbt, 0);
+        }
+        /*
+         * CPUs with weak memory ordering may reorder the read and return a stale value. This can
+         * lead us to wrongly skip a value in the lower levels of the skip list.
+         *
+         * For example, if we have A -> C initially for both level 0 and level 1 and we concurrently
+         * insert B into both level 0 and level 1. If B is visible on level 1 to this thread, it
+         * must also be visible on level 0. Otherwise, we would record an inconsistent stack.
+         *
+         * Place an acquire barrier to avoid this issue.
+         */
+        WT_ACQUIRE_READ_WITH_BARRIER(next_ins, ins->next[i]);
+        if (next_ins != current) /* Stay at this level */
+            ins = next_ins;
+        else { /* Drop down a level */
+            cbt->next_stack[i] = next_ins;
+            cbt->ins_stack[i] = &ins->next[i];
+            --i;
+        }
     }
+
+    /* If we found a previous node, the next one must be current. */
+    if (cbt->ins_stack[0] != NULL && *cbt->ins_stack[0] != current)
+        goto restart;
+
+    cbt->ins = PREV_INS(cbt, 0);
     return (0);
 }
 
