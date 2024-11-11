@@ -111,19 +111,21 @@ err:
     WT_TRET(__wt_buf_fmt(session, closemsg,
       "[%" PRIuMAX ":%" PRIuMAX "] closedir (%s) ret %d dir fd %d", (uintmax_t)ts.tv_sec,
       (uintmax_t)ts.tv_nsec / WT_THOUSAND, directory, ret, dirp != NULL ? dirfd(dirp) : -1));
-    WT_SYSCALL(closedir(dirp), tret);
-    if (tret != 0) {
-        __wt_err(session, tret, "%s: directory-list: closedir", directory);
-        if (ret == 0)
-            ret = tret;
-        /* If we have an error print information about the run. */
-        if (open_ready)
-            __wt_errx(session, "%s", (const char *)openmsg->data);
-        if (read_ready)
-            __wt_errx(session, "%s", (const char *)readmsg->data);
-        if (err_msg)
-            __wt_errx(session, "%s", (const char *)readerrmsg->data);
-        __wt_errx(session, "%s", (const char *)closemsg->data);
+    if (dirp != NULL) {
+        WT_SYSCALL(closedir(dirp), tret);
+        if (tret != 0) {
+            __wt_err(session, tret, "%s: directory-list: closedir", directory);
+            if (ret == 0)
+                ret = tret;
+            /* If we have an error print information about the run. */
+            if (open_ready)
+                __wt_errx(session, "%s", (const char *)openmsg->data);
+            if (read_ready)
+                __wt_errx(session, "%s", (const char *)readmsg->data);
+            if (err_msg)
+                __wt_errx(session, "%s", (const char *)readerrmsg->data);
+            __wt_errx(session, "%s", (const char *)closemsg->data);
+        }
     }
     __wt_scr_free(session, &closemsg);
     __wt_scr_free(session, &openmsg);
