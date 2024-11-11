@@ -108,16 +108,8 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(5)}')
         self.prout(f'File size: {self.get_size()}')
 
-        # Give checkpoint cleanup enough opportunity to clean up all the deleted pages.
-        cc_success = 0
-        while (cc_success < 1):
-            self.session.checkpoint('debug=(checkpoint_cleanup=true)')
-            c = self.session.open_cursor( 'statistics:')
-            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
-            c.close()
-            self.prout(f'cc_success={cc_success}')
-            self.prout(f'File size: {self.get_size()}')
-            time.sleep(0.1)
+        # Wait for checkpoint cleanup to clean up all the deleted pages.
+        self.wait_for_cc_to_run()
 
         # Final checkpoint to recover the available space.
         self.session.checkpoint()
