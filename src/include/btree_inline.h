@@ -1887,6 +1887,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
+    WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     bool modified;
@@ -1894,6 +1895,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
 
+    btree = S2BT(session);
     page = ref->page;
     mod = page->modify;
 
@@ -1902,11 +1904,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * The prefetch thread would crash if it sees a freed ref.
      */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
-        return (false);
-
-    /* Don't evict the disaggregated page that should belong to the next checkpoint. */
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      btree->checkpoint_gen < __wt_gen(session, WT_GEN_CHECKPOINT))
         return (false);
 
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
@@ -1967,6 +1964,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
         return (false);
     }
+
+    /* Don't evict the disaggregated page that should belong to the next checkpoint. */
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      btree->checkpoint_gen < __wt_gen(session, WT_GEN_CHECKPOINT))
+        return (false);
 
     /*
      * Check we are not evicting an accessible internal page with an active split generation.
