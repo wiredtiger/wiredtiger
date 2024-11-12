@@ -14,7 +14,7 @@ import wt_defs
 # By threads:
 # cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->say(q/{"displayTimeUnit": "us", "traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->say(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 # Arrange by servers:
-# SERVERS=$(for f in q-[0-9]*; do head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'; done | tr -d '"' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -10 $f | fgrep -q '"'$SERVER && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"displayTimeUnit": "us", "traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
+# SERVERS=$(for f in q-[0-9]*; do head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'; done | tr -d '":' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -10 $f | fgrep -q '"'$SERVER && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"displayTimeUnit": "us", "traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
 
 # View:
 # https://ui.perfetto.dev/
@@ -172,8 +172,8 @@ class Patcher:
                     printable_args.append([var.name.value,
                                            _get_int_kind_fmt(var_type, var.name.value),
                                            _get_int_kind_fmt_arg(var_type, var.name.value)])
-        printable_args_str = """    memcpy(wt_calltrack._args_buf, "()\\0", 4);\n""" if not printable_args else f"""
-    WT_UNUSED(__wt_snprintf(wt_calltrack._args_buf, sizeof(wt_calltrack._args_buf),
+        printable_args_str = """    memcpy(wt_calltrack_thread._args_buf, "()\\0", 4);\n""" if not printable_args else f"""
+    WT_UNUSED(__wt_snprintf(wt_calltrack_thread._args_buf, sizeof(wt_calltrack_thread._args_buf),
       "({
         ", ".join((f'{name}={fmt}' for name, fmt, _ in printable_args))
     })",
@@ -198,15 +198,28 @@ class Patcher:
         # /* {[arg.typename[0].value for arg in func_args]} */
         # /* {[arg.typename[-1].value for arg in func_args]} */
         # /* {[arg.name.value for arg in func_args]} */
+
+#         self._replace((st.range()[1], st.range()[1]), f"""
+# {static}{rettype}
+# {func.name.value}({func.args.value}) {{
+# {printable_args_str}    __WT_CALL_WRAP{"_NORET" if not has_ret else "" if int_ret else "_RET"}(
+#         "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}",
+#         {func.name.value}__orig_({", ".join((v.name.value for v in func_args))}),
+#         {session or "NULL"}
+#         {"" if not has_ret or int_ret else
+#          f', {rettype}, "= {int_like_fmt}", {int_like_fmt_arg}'});
+# }}
+# """)
+
         self._replace((st.range()[1], st.range()[1]), f"""
 {static}{rettype}
 {func.name.value}({func.args.value}) {{
-{printable_args_str}    __WT_CALL_WRAP{"_NORET" if not has_ret else "" if int_ret else "_RET"}(
+    __WT_CALL_WRAP_IMPL_BUF_GRAPH(
         "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}",
         {func.name.value}__orig_({", ".join((v.name.value for v in func_args))}),
-        {session or "NULL"}
-        {"" if not has_ret or int_ret else
-         f', {rettype}, "= {int_like_fmt}", {int_like_fmt_arg}'});
+        {session or "NULL"},
+        {'; , 0, ' if not has_ret else
+         f'{rettype} __ret__ = , (int64_t)__ret__, return __ret__'});
 }}
 """)
 
@@ -215,7 +228,7 @@ class Patcher:
             self.file = scope_file().name
             self.mod = fname_to_module(self.file)
             self.txt = txt
-            if "/checksum/" in self.file or "/utilities/" in self.file or "/support/" in self.file or "/packing/" in self.file:
+            if "/calltrack." in self.file or "/checksum/" in self.file or "/utilities/" in self.file or "/support/" in self.file or "/packing/" in self.file:
                 return
             print(f" --- [{self.mod}] {self.file}")
             if (self.file.endswith("/include/stat.h") or
