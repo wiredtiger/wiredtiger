@@ -101,7 +101,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         # Write to disk.
         self.session.checkpoint()
 
-        # Evict all pages
+        # Evict all pages to ensure they all have disk blocks associated with them.
         self.evict_all()
 
         # Make everything globally visible.
