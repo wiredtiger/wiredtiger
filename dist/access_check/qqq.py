@@ -21,6 +21,10 @@ import wt_defs
 # chrome://tracing/
 # https://github.com/jlfwong/speedscope
 
+# Putting wait states in separate tracks in Perfetto:
+# select * from slices where name like "%:WAIT%" or name like "%:IO%"
+# ... "show debug track" ... pivot on "name"
+
 _session_from_type = {
     "WT_SESSION_IMPL":    lambda arg: f"""{arg}""",
     "WT_SESSION":         lambda arg: f"""(WT_SESSION_IMPL*){arg}""",
@@ -130,20 +134,23 @@ class Patcher:
             pass # instrument this function
         elif not self.mod:
             return
-        elif (func.name.value.endswith("_pack") or
-            "byteswap" in func.name.value or
-            func.name.value in [
-                "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
-                "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
-                "__block_extlist_dump",
-                "__wt_compare",
-                "__config_next", "__config_merge_cmp", "__config_process_value", "__wt_config_initn",
-                "__wt_config_init", "__wt_config_next", "__config_getraw", "__config_merge_scan",
-                "__strip_comma", "__config_merge_format_next", "__wti_config_get", "__wt_config_gets",
-                "__wt_config_getones",
-                "__wt_direct_io_size_check",
-                "__wt_ref_is_root", "__ref_get_state",
-                ]):
+        elif ("pack_" in func.name.value or
+              "_destroy" in func.name.value or
+              "_free" in func.name.value or
+              "_atomic" in func.name.value or
+              "byteswap" in func.name.value or
+              func.name.value in [
+                  "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
+                  "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
+                  "__block_extlist_dump",
+                  "__wt_compare",
+                  "__config_next", "__config_merge_cmp", "__config_process_value", "__wt_config_initn",
+                  "__wt_config_init", "__wt_config_next", "__config_getraw", "__config_merge_scan",
+                  "__strip_comma", "__config_merge_format_next", "__wti_config_get", "__wt_config_gets",
+                  "__wt_config_getones",
+                  "__wt_direct_io_size_check",
+                  "__wt_ref_is_root", "__ref_get_state",
+              ]):
             return
         # elif complexity <= 5:
         #     # Ignore too "simple" functions
@@ -228,7 +235,7 @@ class Patcher:
             self.file = scope_file().name
             self.mod = fname_to_module(self.file)
             self.txt = txt
-            if "/calltrack." in self.file or "/checksum/" in self.file or "/utilities/" in self.file or "/support/" in self.file or "/packing/" in self.file:
+            if "/calltrack." in self.file or "/checksum/" in self.file or "/utilities/" in self.file or "/packing/" in self.file:
                 return
             print(f" --- [{self.mod}] {self.file}")
             if (self.file.endswith("/include/stat.h") or
