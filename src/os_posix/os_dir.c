@@ -99,8 +99,8 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
         __wt_epoch(session, &ts);
         WT_ERR(__wt_buf_fmt(session, readerrmsg,
           "[%" PRIuMAX ":%" PRIuMAX "] readdir failed errno %d (%s) dir fd %d",
-          (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, errno,
-          __wt_strerror(session, errno, NULL, 0), dirfd(dirp)));
+          (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, ret,
+          __wt_strerror(session, ret, NULL, 0), dirfd(dirp)));
         err_msg = true;
     }
     *dirlistp = entries;
