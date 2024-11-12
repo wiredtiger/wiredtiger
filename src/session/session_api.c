@@ -407,6 +407,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
 
+    __wt_spin_unlock_if_owned(session, &session->scratch_lock);
+    __wt_spin_destroy(session, &session->scratch_lock);
+
 #ifdef HAVE_DIAGNOSTIC
     /*
      * Unlock the thread_check mutex if we own it, this a bit of a cheeky workaround as there's one
@@ -454,13 +457,106 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_config_prefetch --
+ *     Configure pre-fetch flags on the session.
+ */
+static int
+__session_config_prefetch(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CONFIG_ITEM cval;
+
+    if (S2C(session)->prefetch_auto_on)
+        F_SET(session, WT_SESSION_PREFETCH_ENABLED);
+    else
+        F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
+
+    /*
+     * Override any connection-level pre-fetch settings if a specific session-level setting was
+     * provided.
+     */
+    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) == 0) {
+        if (cval.val) {
+            if (!S2C(session)->prefetch_available) {
+                F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
+                WT_RET_MSG(session, EINVAL,
+                  "pre-fetching cannot be enabled for the session if pre-fetching is configured as "
+                  "unavailable");
+            } else
+                F_SET(session, WT_SESSION_PREFETCH_ENABLED);
+        } else
+            F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
+    }
+
+    return (0);
+}
+
+/*
+ * __session_config_int --
+ *     Configure basic flags and values on the session. Tested via a unit test.
+ */
+static int
+__session_config_int(WT_SESSION_IMPL *session, const char *config)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    if ((ret = __wt_config_getones(session, config, "ignore_cache_size", &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+        else
+            F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    if ((ret = __wt_config_getones(session, config, "cache_cursors", &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_CACHE_CURSORS);
+        else {
+            F_CLR(session, WT_SESSION_CACHE_CURSORS);
+            WT_RET(__session_close_cached_cursors(session));
+        }
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    /*
+     * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
+     * is completed.
+     */
+    if ((ret = __wt_config_getones(
+           session, config, "debug.checkpoint_fail_before_turtle_update", &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    /*
+     * There is a session debug configuration which can be set to evict pages as they are released
+     * and no longer needed.
+     */
+    if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_RELEASE_EVICT);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_RELEASE_EVICT);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    if ((ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval)) == 0)
+        session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
+    WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
+}
+
+/*
  * __session_reconfigure --
  *     WT_SESSION->reconfigure method.
  */
 static int
 __session_reconfigure(WT_SESSION *wt_session, const char *config)
 {
-    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
@@ -478,80 +574,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
      */
     WT_ERR(__wt_txn_reconfigure(session, config));
 
-    ret = __wt_config_getones(session, config, "ignore_cache_size", &cval);
-    if (ret == 0) {
-        if (cval.val)
-            F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
-        else
-            F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR(__session_config_int(session, config));
 
-    ret = __wt_config_getones(session, config, "cache_cursors", &cval);
-    if (ret == 0) {
-        if (cval.val)
-            F_SET(session, WT_SESSION_CACHE_CURSORS);
-        else {
-            F_CLR(session, WT_SESSION_CACHE_CURSORS);
-            WT_ERR(__session_close_cached_cursors(session));
-        }
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    /*
-     * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
-     * is completed.
-     */
-    if ((ret = __wt_config_getones(
-           session, config, "debug.checkpoint_fail_before_turtle_update", &cval)) == 0) {
-        if (cval.val)
-            F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
-        else
-            F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    /*
-     * There is a session debug configuration which can be set to evict pages as they are released
-     * and no longer needed.
-     */
-    if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
-        if (cval.val)
-            F_SET(session, WT_SESSION_DEBUG_RELEASE_EVICT);
-        else
-            F_CLR(session, WT_SESSION_DEBUG_RELEASE_EVICT);
-    }
-
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval);
-    if (ret == 0 && cval.val)
-        session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    if (S2C(session)->prefetch_auto_on)
-        F_SET(session, WT_SESSION_PREFETCH_ENABLED);
-    else
-        F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
-
-    /*
-     * Override any connection-level pre-fetch settings if a specific session-level setting was
-     * provided.
-     */
-    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) == 0) {
-        if (cval.val) {
-            if (!S2C(session)->prefetch_available) {
-                F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
-                WT_ERR_MSG(session, EINVAL,
-                  "pre-fetching cannot be enabled for the session if pre-fetching is configured as "
-                  "unavailable");
-            } else
-                F_SET(session, WT_SESSION_PREFETCH_ENABLED);
-        } else
-            F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
-    }
-
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR(__session_config_prefetch(session, cfg));
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -1083,7 +1108,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     /*
      * If logging is not enabled there is nothing to do.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+    if (!F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR_MSG(session, EINVAL, "logging not enabled");
 
     WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
@@ -1748,7 +1773,7 @@ done:
         /* We have to have a dhandle from somewhere. */
         WT_ASSERT(session, dhandle != NULL);
         if (WT_DHANDLE_BTREE(dhandle)) {
-            WT_WITH_DHANDLE(session, dhandle, log_op = __wt_log_op(session));
+            WT_WITH_DHANDLE(session, dhandle, log_op = __wt_txn_log_op_check(session));
             if (log_op) {
                 WT_WITH_DHANDLE(session, dhandle, ret = __wt_txn_truncate_log(trunc_info));
                 WT_ERR(ret);
@@ -2402,7 +2427,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_STAT_CONN_INCR(session, checkpoints_api);
-    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RUNNING);
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ACTIVE);
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
@@ -2574,6 +2599,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_ERR(__wt_spin_init(session, &session_ret->thread_check.lock, "thread check lock"));
 #endif
 
+    WT_ERR(__wt_spin_init(session, &session_ret->scratch_lock, "scratch buffer lock"));
+
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions
      * initialize to the same value and proceed in lock step for the session's life. That's not a
@@ -2735,3 +2762,11 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
     *sessionp = session;
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
+{
+    return (__session_config_int(session, config));
+}
+#endif

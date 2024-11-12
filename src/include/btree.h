@@ -47,14 +47,6 @@
  */
 #define WT_BTREE_MAX_OBJECT_SIZE ((uint32_t)(UINT32_MAX - 1024))
 
-/*
- * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
- * create temporary space in which to store them. (Locations can't be much larger than this anyway,
- * they must fit onto the minimum size page because a reference to an overflow page is itself a
- * location.)
- */
-#define WT_BTREE_MAX_ADDR_COOKIE 255 /* Maximum address cookie */
-
 /* Evict pages if we see this many consecutive deleted records. */
 #define WT_BTREE_DELETE_THRESHOLD WT_THOUSAND
 
@@ -63,6 +55,20 @@
  * reconciliation.
  */
 #define WT_BTREE_MIN_SPLIT_PCT 50
+
+/*
+ * Normalized position constants for "start" when calculating the page's position.
+ */
+#define WT_NPOS_MID 0.5           /* Middle of the current page */
+#define WT_NPOS_LEFT -1e-8        /* Leftmost position in the current page or previous page */
+#define WT_NPOS_RIGHT (1. + 1e-8) /* Rightmost position in the current page or next page */
+/*
+ * Invalid position. This is used to indicate that there is no stored position. The constant -1
+ * employs the fact that __wt_page_npos returns a number in range 0...1, therefore storing anything
+ * outside of this range can be used as an invalid position.
+ */
+#define WT_NPOS_INVALID -1.0 /* Store this as an invalid position */
+#define WT_NPOS_IS_INVALID(pos) ((pos) < 0.0)
 
 typedef enum __wt_btree_type {
     BTREE_COL_FIX = 1, /* Fixed-length column store */
@@ -256,6 +262,8 @@ struct __wt_btree {
      * code.
      */
     WT_REF *evict_ref;                         /* Eviction thread's location */
+    uint64_t evict_saved_ref_check;            /* Eviction saved thread's location as an ID */
+    double evict_pos;                          /* Eviction thread's soft location */
     uint32_t linear_walk_restarts;             /* next/prev walk restarts */
     uint64_t evict_priority;                   /* Relative priority of cached pages */
     uint32_t evict_walk_progress;              /* Eviction walk progress */

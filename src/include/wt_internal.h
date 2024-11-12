@@ -201,8 +201,6 @@ struct __wt_cursor_join_entry;
 typedef struct __wt_cursor_join_entry WT_CURSOR_JOIN_ENTRY;
 struct __wt_cursor_join_iter;
 typedef struct __wt_cursor_join_iter WT_CURSOR_JOIN_ITER;
-struct __wt_cursor_json;
-typedef struct __wt_cursor_json WT_CURSOR_JSON;
 struct __wt_cursor_log;
 typedef struct __wt_cursor_log WT_CURSOR_LOG;
 struct __wt_cursor_lsm;
@@ -225,6 +223,8 @@ struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
 typedef struct __wt_dsrc_stats WT_DSRC_STATS;
+struct __wt_evict;
+typedef struct __wt_evict WT_EVICT;
 struct __wt_evict_entry;
 typedef struct __wt_evict_entry WT_EVICT_ENTRY;
 struct __wt_evict_queue;
@@ -273,18 +273,20 @@ struct __wt_join_stats;
 typedef struct __wt_join_stats WT_JOIN_STATS;
 struct __wt_join_stats_group;
 typedef struct __wt_join_stats_group WT_JOIN_STATS_GROUP;
+struct __wt_json;
+typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
 struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
 typedef struct __wt_log_desc WT_LOG_DESC;
-struct __wt_log_op_desc;
-typedef struct __wt_log_op_desc WT_LOG_OP_DESC;
-struct __wt_log_rec_desc;
-typedef struct __wt_log_rec_desc WT_LOG_REC_DESC;
+struct __wt_log_manager;
+typedef struct __wt_log_manager WT_LOG_MANAGER;
 struct __wt_log_record;
 typedef struct __wt_log_record WT_LOG_RECORD;
+struct __wt_log_thread;
+typedef struct __wt_log_thread WT_LOG_THREAD;
 struct __wt_logslot;
 typedef struct __wt_logslot WT_LOGSLOT;
 struct __wt_lsm_chunk;
@@ -520,6 +522,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
+#include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
 #include "checkpoint.h"
@@ -533,7 +536,8 @@ typedef uint64_t wt_timestamp_t;
 #include "futex.h"
 #include "generation.h"
 #include "hazard.h"
-#include "log.h"
+#include "json.h"
+#include "../log/log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
@@ -563,10 +567,11 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
-#include "cache_inline.h"   /* required by misc_inline.h */
-#include "ctype_inline.h"   /* required by packing_inline.h */
-#include "intpack_inline.h" /* required by cell_inline.h, packing_inline.h */
-#include "misc_inline.h"    /* required by mutex_inline.h */
+#include "cache_inline.h"
+#include "../evict/evict_inline.h" /* required by misc_inline.h */
+#include "ctype_inline.h"          /* required by packing_inline.h */
+#include "intpack_inline.h"        /* required by cell_inline.h, packing_inline.h */
+#include "misc_inline.h"           /* required by mutex_inline.h */
 
 #include "buf_inline.h"       /* required by cell_inline.h */
 #include "ref_inline.h"       /* required by btree_inline.h */
@@ -582,7 +587,8 @@ typedef uint64_t wt_timestamp_t;
 #include "column_inline.h"
 #include "conf_inline.h"
 #include "cursor_inline.h"
-#include "log_inline.h"
+#include "../log/log_inline.h"
+#include "modify_inline.h"
 #include "os_fhandle_inline.h"
 #include "os_fs_inline.h"
 #include "os_fstream_inline.h"

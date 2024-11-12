@@ -58,6 +58,14 @@ struct __wt_cursor_backup {
 #define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
     uint32_t maxid; /* Maximum log file ID seen */
 
+    /*
+     * Keep a list of configuration values for each file to be copied for an incremental backup. We
+     * use it to keep the bitmap at the time the backup starts. This list should be kept and managed
+     * in lock-step with the list of files.
+     */
+    char **cfg_list; /* List of metadata configs for files to be copied. */
+    size_t cfg_allocated;
+    char *cfg_current;
     char **list; /* List of files to be copied. */
     size_t list_allocated;
     size_t list_next;
@@ -484,33 +492,6 @@ struct __wt_cursor_join {
 #define WT_CURJOIN_ERROR 0x2u       /* Error in initialization */
 #define WT_CURJOIN_INITIALIZED 0x4u /* Successful initialization */
                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
-    uint8_t flags;
-};
-
-struct __wt_cursor_json {
-    char *key_buf;              /* JSON formatted string */
-    char *value_buf;            /* JSON formatted string */
-    WT_CONFIG_ITEM key_names;   /* Names of key columns */
-    WT_CONFIG_ITEM value_names; /* Names of value columns */
-};
-
-struct __wt_cursor_log {
-    WT_CURSOR iface;
-
-    WT_LSN *cur_lsn;                  /* LSN of current record */
-    WT_LSN *next_lsn;                 /* LSN of next record */
-    WT_ITEM *logrec;                  /* Copy of record for cursor */
-    WT_ITEM *opkey, *opvalue;         /* Op key/value copy */
-    const uint8_t *stepp, *stepp_end; /* Pointer within record */
-    uint8_t *packed_key;              /* Packed key for 'raw' interface */
-    uint8_t *packed_value;            /* Packed value for 'raw' interface */
-    uint32_t step_count;              /* Intra-record count */
-    uint32_t rectype;                 /* Record type */
-    uint64_t txnid;                   /* Record txnid */
-
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CURLOG_REMOVE_LOCK 0x1u /* Remove lock held */
-                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 

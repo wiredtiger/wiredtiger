@@ -36,7 +36,7 @@ import wttest
 # test_rollback_to_stable34.py
 # Test interaction between fast-delete and RTS.
 @wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_rollback_to_stable34(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=50MB,statistics=(all),log=(enabled=false),verbose=(rts:5)'
@@ -85,8 +85,8 @@ class test_rollback_to_stable34(test_rollback_to_stable_base):
         # each page once when we get a suitable interface for that.
         for i in range(lo, hi, 3):
             evict_cursor.set_key(ds.key(i))
-            self.assertEquals(evict_cursor.search(), 0)
-            self.assertEquals(evict_cursor.get_value(), self.mkdata(basevalue, i))
+            self.assertEqual(evict_cursor.search(), 0)
+            self.assertEqual(evict_cursor.get_value(), self.mkdata(basevalue, i))
             evict_cursor.reset()
         self.session.rollback_transaction()
         evict_cursor.close()

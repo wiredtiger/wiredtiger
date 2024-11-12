@@ -605,6 +605,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception __wt_connection::is_new;
 %exception __wt_connection::search_near;
 %exception __wt_session::get_rollback_reason;
+%exception __wt_session::strerror;
 %exception __wt_cursor::_set_key;
 %exception __wt_cursor::_set_key_str;
 %exception __wt_cursor::_set_value;
@@ -665,7 +666,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		metadata = PyBytes_FromStringAndSize(*$1, *$2);
 		$result = metadata;
 		data = PyBytes_FromStringAndSize(*$3, *$4);
-		$result = SWIG_Python_AppendOutput($result, data);
+		$result = SWIG_AppendOutput($result, data);
 	} else {
 		SWIG_exception_fail(SWIG_AttributeError, "invalid pointer argument");
 	}
@@ -677,7 +678,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		key_data = PyBytes_FromStringAndSize(*$1, *$2);
 		$result = key_data;
 		value_data = PyBytes_FromStringAndSize(*$3, *$4);
-		$result = SWIG_Python_AppendOutput($result, value_data);
+		$result = SWIG_AppendOutput($result, value_data);
 	} else {
 		SWIG_exception_fail(SWIG_AttributeError, "invalid pointer argument");
 	}

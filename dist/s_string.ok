@@ -124,8 +124,8 @@ EOF
 ERANGE
 ETIME
 ETIMEDOUT
-EVICTSERVER
 EXTLIST
+EXTLIST's
 EXTSUBPATH
 Encryptor
 Encryptors
@@ -214,6 +214,7 @@ LLVMFuzzerTestOneInput
 LOGOP
 LOGREC
 LOGSCAN
+LOGSLOT
 LRU
 LSB
 LSM
@@ -277,6 +278,7 @@ NetBSD
 NoAddr
 Noll
 Nul
+OBJECTID
 ONDISK
 OOB
 OPLOG
@@ -292,6 +294,7 @@ POS
 POSIX
 PPC
 PREFETCH
+PREV
 PRId
 PRIu
 PRNG
@@ -305,6 +308,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Prealloc
 Precompiled
 Prefetch
 Preload
@@ -320,6 +324,7 @@ RCPC
 RCS
 RCpc
 RDNOLOCK
+READGEN
 READONLY
 REALLOC
 RECNO
@@ -343,6 +348,7 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reify
 Rogerio
 Runtime
 SDK
@@ -531,6 +537,7 @@ blkincr
 blkmod
 blkmods
 bm
+bms
 bnd
 bool
 boolean
@@ -615,6 +622,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -663,6 +671,7 @@ dT
 darwin
 data's
 datalen
+dataset
 datasource
 datastore
 dbar
@@ -694,6 +703,7 @@ dev
 dh
 dhandle
 dhandles
+didworkp
 difftime
 dir
 directio
@@ -743,7 +753,6 @@ ev
 evd
 eventv
 evictable
-evictserver
 exactp
 exe
 existp
@@ -842,6 +851,7 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
@@ -1062,9 +1072,11 @@ nocase
 noclear
 nocrypto
 noexcept
+noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
@@ -1075,6 +1087,7 @@ notsup
 novalue
 nowait
 np
+npos
 nrecs
 nsec
 nset
@@ -1083,7 +1096,9 @@ nullptr
 num
 numbare
 nvram
+objectid
 offpage
+offsetp
 ok
 oldv
 ondisk
@@ -1102,6 +1117,7 @@ optype
 ori
 origstartrecno
 os
+ostream
 oversized
 ovfl
 ownp
@@ -1120,6 +1136,7 @@ pathnames
 perf
 pfx
 pid
+pindexp
 pmem
 poptable
 popthreads
@@ -1137,6 +1154,7 @@ precompilation
 precompiled
 precompiling
 prefetch
+prefetching
 preload
 prepend
 prepended
@@ -1250,6 +1268,7 @@ skiplist
 skiplists
 skipp
 skippable
+slotp
 slvg
 sn
 snaplen
@@ -1310,6 +1329,7 @@ sunused
 supd
 superset
 sw
+syncop
 sys
 syscall
 syscrypto
@@ -1406,6 +1426,7 @@ userbad
 usercfg
 usleep
 usr
+ut
 utf
 util
 utils

@@ -162,6 +162,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_TIME_WINDOW *twp;
     WT_UPDATE *first, *next_upd, *upd;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
+    size_t max_memsize;
     uint64_t hs_upd_type, raw, stop_txn;
     uint8_t *p, version_prepare_state;
     bool upd_found;
@@ -233,8 +234,8 @@ __curversion_next_int(WT_CURSOR *cursor)
                 if (upd->type != WT_UPDATE_MODIFY)
                     __wt_upd_value_assign(cbt->upd_value, upd);
                 else
-                    WT_ERR(
-                      __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+                    WT_ERR(__wt_modify_reconstruct_from_upd_list(
+                      session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
 
                 /*
                  * Set the version cursor's value, which also contains all the record metadata for
@@ -390,6 +391,10 @@ __curversion_next_int(WT_CURSOR *cursor)
          * value.
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
+            __wt_modify_max_memsize_format(
+              hs_value->data, file_cursor->value_format, cbt->upd_value->buf.size, &max_memsize);
+            WT_ERR(__wt_buf_set_and_grow(session, &cbt->upd_value->buf, cbt->upd_value->buf.data,
+              cbt->upd_value->buf.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
               session, file_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
         } else {
@@ -607,9 +612,9 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       __wt_cursor_notsup,                              /* prev */
       __curversion_reset,                              /* reset */
       __curversion_search,                             /* search */
-      __wti_cursor_search_near_notsup,                 /* search-near */
+      __wt_cursor_search_near_notsup,                  /* search-near */
       __wt_cursor_notsup,                              /* insert */
-      __wti_cursor_modify_notsup,                      /* modify */
+      __wt_cursor_modify_notsup,                       /* modify */
       __wt_cursor_notsup,                              /* update */
       __wt_cursor_notsup,                              /* remove */
       __wt_cursor_notsup,                              /* reserve */

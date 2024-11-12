@@ -49,6 +49,12 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Create the cache. */
     WT_RET(__wti_cache_create(session, cfg));
 
+    /* Initialize eviction. */
+    WT_RET(__wt_evict_create(session, cfg));
+
+    /* Create shared cache.*/
+    WT_RET(__wti_conn_cache_pool_create(session, cfg));
+
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
 
@@ -100,7 +106,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wti_prefetch_destroy(session));
 
     /* The eviction server is shut down last. */
-    WT_TRET(__wt_evict_destroy(session));
+    WT_TRET(__wt_evict_threads_destroy(session));
     /* The capacity server can only be shut down after all I/O is complete. */
     WT_TRET(__wti_capacity_server_destroy(session));
 
@@ -123,10 +129,10 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * is outside the conditional because we allocate the log path so that printlog can run without
      * running logging or recovery.
      */
-    if (ret == 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
+    if (ret == 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) &&
+      F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
         WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
-    WT_TRET(__wti_logmgr_destroy(session));
+    WT_TRET(__wt_logmgr_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
     WT_TRET(__wti_conn_remove_collator(session));
@@ -138,6 +144,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* Disconnect from shared cache - must be before cache destroy. */
     WT_TRET(__wti_conn_cache_pool_destroy(session));
+
+    /* Destroy Eviction. */
+    WT_TRET(__wt_evict_destroy(session));
 
     /* Discard the cache. */
     WT_TRET(__wti_cache_destroy(session));
@@ -216,13 +225,15 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
 int
 __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "starting WiredTiger utility threads");
+
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
      */
     WT_RET(__wti_statlog_create(session, cfg));
     WT_RET(__wti_tiered_storage_create(session));
-    WT_RET(__wti_logmgr_create(session));
+    WT_RET(__wt_logmgr_create(session));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
@@ -249,13 +260,13 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * checkpoints so that the checkpoint server knows if logging is enabled. It must also be
      * started before any operation that can commit, or the commit can block.
      */
-    WT_RET(__wti_logmgr_open(session));
+    WT_RET(__wt_logmgr_open(session));
 
     /*
      * Start eviction threads. NOTE: Eviction must be started after the history store table is
      * created.
      */
-    WT_RET(__wt_evict_create(session));
+    WT_RET(__wt_evict_threads_create(session));
 
     /* Start the handle sweep thread. */
     WT_RET(__wti_sweep_create(session));
@@ -274,6 +285,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the checkpoint cleanup thread. */
     WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
+
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads started successfully");
 
     return (0);
 }

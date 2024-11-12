@@ -735,7 +735,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     if (result_entries == 0) {
         empty_parent = true;
         if (!__wt_ref_is_root(parent->pg_intl_parent_ref))
-            __wt_page_evict_soon(session, parent->pg_intl_parent_ref);
+            __wt_evict_page_soon(session, parent->pg_intl_parent_ref);
         goto err;
     }
 
@@ -1405,7 +1405,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
     WT_UPDATE *prev_onpage, *tmp, *upd;
-    uint64_t orig_read_gen, recno;
+    uint64_t recno;
     uint32_t i, slot;
     bool prepare;
 
@@ -1432,14 +1432,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_RET(__wti_page_inmem_prepare(session, ref));
 
-    /*
-     * Put the re-instantiated page in the same LRU queue location as the original page, unless this
-     * was a forced eviction, in which case we leave the new page with the read generation unset.
-     * Eviction will set the read generation next time it visits this page.
-     */
-    WT_READ_ONCE(orig_read_gen, orig->read_gen);
-    if (!__wt_readgen_evict_soon(&orig_read_gen))
-        __wt_atomic_store64(&page->read_gen, orig_read_gen);
+    __wt_evict_inherit_page_state(orig, page);
 
     /*
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
@@ -2307,7 +2300,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
      * page doesn't have any skipped updates.
      */
     __wt_page_modify_clear(session, page);
-    if (!F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_SCRUB) || multi->supd_restore)
+    if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) || multi->supd_restore)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
     __wt_ref_out(session, ref);
 

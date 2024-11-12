@@ -21,7 +21,7 @@ add_subdirectory(csuite)
 add_subdirectory(packing)
 
 if(HAVE_UNITTEST)
-    add_subdirectory(unittest)
+    add_subdirectory(catch2)
 endif()
 
 # We currently don't support these tests on non-POSIX systems since they are designed around the

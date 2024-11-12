@@ -323,22 +323,25 @@ struct __wt_name_flag {
 /*
  * WT_CONN_HOTBACKUP_START --
  *	Macro to set connection data appropriately for when we commence hot backup.
+ *	This macro must be called with the hot backup lock held for writing.
  */
-#define WT_CONN_HOTBACKUP_START(conn)                                             \
-    do {                                                                          \
-        __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt_most_recent); \
-        (conn)->hot_backup_list = NULL;                                           \
+#define WT_CONN_HOTBACKUP_START(conn)                                                          \
+    do {                                                                                       \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE)); \
+        (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;                 \
+        __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt_most_recent);              \
+        (conn)->hot_backup_list = NULL;                                                        \
     } while (0)
 
 /*
  * Set all flags related to incremental backup in one macro. The flags do get individually cleared
  * at different times so there is no corresponding macro for clearing.
  */
-#define WT_CONN_SET_INCR_BACKUP(conn)                        \
-    do {                                                     \
-        F_SET((conn), WT_CONN_INCR_BACKUP);                  \
-        FLD_SET((conn)->log_flags, WT_CONN_LOG_INCR_BACKUP); \
-        WT_STAT_CONN_SET(session, backup_incremental, 1);    \
+#define WT_CONN_SET_INCR_BACKUP(conn)                     \
+    do {                                                  \
+        F_SET((conn), WT_CONN_INCR_BACKUP);               \
+        F_SET(&(conn)->log_mgr, WT_LOG_INCR_BACKUP);      \
+        WT_STAT_CONN_SET(session, backup_incremental, 1); \
     } while (0)
 
 /*
@@ -501,6 +504,7 @@ struct __wt_connection_impl {
     wt_shared volatile uint64_t cache_size; /* Cache size (either statically
                                      configured or the current size
                                      within a cache pool). */
+    WT_EVICT *evict;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
@@ -511,8 +515,9 @@ struct __wt_connection_impl {
 
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     wt_shared uint64_t
-      hot_backup_start;     /* Clock value of most recent checkpoint needed by hot backup */
-    char **hot_backup_list; /* Hot backup file list */
+      hot_backup_start;            /* Clock value of most recent checkpoint needed by hot backup */
+    uint64_t hot_backup_timestamp; /* Stable timestamp of checkpoint for the open backup */
+    char **hot_backup_list;        /* Hot backup file list */
     uint32_t *partial_backup_remove_ids; /* Remove btree id list for partial backup */
 
     WT_SESSION_IMPL *ckpt_session;       /* Checkpoint thread session */
@@ -659,45 +664,7 @@ struct __wt_connection_impl {
     bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
-#define WT_CONN_LOG_DOWNGRADED 0x002u      /* Running older version */
-#define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
-#define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
-#define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
-#define WT_CONN_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
-#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
-#define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t log_flags;                    /* Global logging configuration */
-    WT_CONDVAR *log_cond;                  /* Log server wait mutex */
-    WT_SESSION_IMPL *log_session;          /* Log server session */
-    wt_thread_t log_tid;                   /* Log server thread */
-    bool log_tid_set;                      /* Log server thread set */
-    WT_CONDVAR *log_file_cond;             /* Log file thread wait mutex */
-    WT_SESSION_IMPL *log_file_session;     /* Log file thread session */
-    wt_thread_t log_file_tid;              /* Log file thread */
-    bool log_file_tid_set;                 /* Log file thread set */
-    WT_CONDVAR *log_wrlsn_cond;            /* Log write lsn thread wait mutex */
-    WT_SESSION_IMPL *log_wrlsn_session;    /* Log write lsn thread session */
-    wt_thread_t log_wrlsn_tid;             /* Log write lsn thread */
-    bool log_wrlsn_tid_set;                /* Log write lsn thread set */
-    WT_LOG *log;                           /* Logging structure */
-    WT_COMPRESSOR *log_compressor;         /* Logging compressor */
-    wt_shared uint32_t log_cursors;        /* Log cursor count */
-    wt_off_t log_dirty_max;                /* Log dirty system cache max size */
-    wt_off_t log_file_max;                 /* Log file max size */
-    uint32_t log_force_write_wait;         /* Log force write wait configuration */
-    const char *log_path;                  /* Logging path format */
-    uint32_t log_prealloc;                 /* Log file pre-allocation */
-    uint32_t log_prealloc_init_count;      /* initial number of pre-allocated log files */
-    uint16_t log_req_max;                  /* Max required log version */
-    uint16_t log_req_min;                  /* Min required log version */
-    wt_shared uint32_t txn_logsync;        /* Log sync configuration */
+    WT_LOG_MANAGER log_mgr;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
@@ -756,7 +723,6 @@ struct __wt_connection_impl {
                                       mode before timing out */
 
     wt_off_t data_extend_len; /* file_extend data length */
-    wt_off_t log_extend_len;  /* file_extend log length */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIRECT_IO_CHECKPOINT 0x1ull /* Checkpoints */
@@ -778,18 +744,19 @@ struct __wt_connection_impl {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0002u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x0004u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0008u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0010u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0020u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x0040u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0080u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x0100u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0200u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x0400u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x0800u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x1000u
+#define WT_CONN_DEBUG_CONFIGURATION 0x0002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0008u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0010u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0020u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0040u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0080u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0100u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0200u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0400u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x0800u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x1000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x2000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 

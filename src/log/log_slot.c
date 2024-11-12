@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "log_private.h"
 
 /*
  * __log_slot_dump --
@@ -15,14 +16,14 @@
 static void
 __log_slot_dump(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
     WT_LOGSLOT *slot;
+    WT_LOG_MANAGER *log_mgr;
     int earliest, i;
 
-    conn = S2C(session);
-    log = conn->log;
+    log_mgr = &S2C(session)->log_mgr;
+    log = log_mgr->log;
     ret = __wt_verbose_dump_log(session);
     WT_ASSERT_ALWAYS(session, ret == 0, "Failed to dump log system information");
     earliest = 0;
@@ -55,11 +56,11 @@ __log_slot_dump(WT_SESSION_IMPL *session)
 void
 __wti_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
+    WT_LOG_MANAGER *log_mgr;
 
-    conn = S2C(session);
-    log = conn->log;
+    log_mgr = &S2C(session)->log_mgr;
+    log = log_mgr->log;
 
     /*
      * !!! slot_release_lsn must be set outside this function because
@@ -102,7 +103,7 @@ __log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, boo
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_mgr.log;
     if (slot == NULL)
         return (WT_NOTFOUND);
 retry:
@@ -200,11 +201,11 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     WT_LSN *current, *last_sync;
     uint32_t current_offset, last_sync_offset;
 
-    if (S2C(session)->log_dirty_max == 0)
+    if (S2C(session)->log_mgr.dirty_max == 0)
         return;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_mgr.log;
     current = &slot->slot_release_lsn;
 
     if (__wt_log_cmp(&log->dirty_lsn, &log->sync_lsn) < 0)
@@ -214,7 +215,7 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
     current_offset = __wt_lsn_offset(current);
     last_sync_offset = __wt_lsn_offset(last_sync);
     if (current->l.file == last_sync->l.file && current_offset > last_sync_offset &&
-      current_offset - last_sync_offset > conn->log_dirty_max) {
+      current_offset - last_sync_offset > conn->log_mgr.dirty_max) {
         /* Schedule the asynchronous sync */
         F_SET_ATOMIC_16(slot, WT_SLOT_SYNC_DIRTY);
         WT_ASSIGN_LSN(&log->dirty_lsn, &slot->slot_release_lsn);
@@ -239,7 +240,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_mgr.log;
 #ifdef HAVE_DIAGNOSTIC
     count = 0;
     time_start = __wt_clock(session);
@@ -284,7 +285,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
          * threads waiting for it can acquire and possibly move things forward.
          */
         WT_STAT_CONN_INCR(session, log_slot_no_free_slots);
-        __wt_cond_signal(session, conn->log_wrlsn_cond);
+        __wt_cond_signal(session, conn->log_mgr.wrlsn.cond);
         __wt_spin_unlock(session, &log->log_slot_lock);
         __wt_yield();
         __wt_spin_lock(session, &log->log_slot_lock);
@@ -317,7 +318,7 @@ __log_slot_switch_internal(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool for
     uint32_t joined;
     bool free_slot, release;
 
-    log = S2C(session)->log;
+    log = S2C(session)->log_mgr.log;
     release = false;
     slot = myslot->slot;
 
@@ -376,7 +377,7 @@ __log_slot_switch_internal(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool for
         WT_RET(__wti_log_release(session, slot, &free_slot));
         F_CLR(myslot, WT_MYSLOT_NEEDS_RELEASE);
         if (free_slot)
-            __wt_log_slot_free(session, slot);
+            __wti_log_slot_free(session, slot);
     }
     return (ret);
 }
@@ -392,7 +393,7 @@ __wti_log_slot_switch(
     WT_DECL_RET;
     WT_LOG *log;
 
-    log = S2C(session)->log;
+    log = S2C(session)->log_mgr.log;
 
     /*
      * !!! Since the WT_WITH_SLOT_LOCK macro is a do-while loop, the
@@ -426,20 +427,20 @@ __wti_log_slot_switch(
 }
 
 /*
- * __wt_log_slot_init --
+ * __wti_log_slot_init --
  *     Initialize the slot array.
  */
 int
-__wt_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
+__wti_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
     WT_LOGSLOT *slot;
+    WT_LOG_MANAGER *log_mgr;
     int32_t i;
 
-    conn = S2C(session);
-    log = conn->log;
+    log_mgr = &S2C(session)->log_mgr;
+    log = log_mgr->log;
     for (i = 0; i < WT_SLOT_POOL; i++)
         log->slot_pool[i].slot_state = WT_LOG_SLOT_FREE;
 
@@ -453,8 +454,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
      * small log file sizes.
      */
     if (alloc) {
-        log->slot_buf_size =
-          (uint32_t)WT_MIN((size_t)conn->log_file_max / 10, WT_LOG_SLOT_BUF_SIZE);
+        log->slot_buf_size = (uint32_t)WT_MIN((size_t)log_mgr->file_max / 10, WT_LOG_SLOT_BUF_SIZE);
         for (i = 0; i < WT_SLOT_POOL; i++) {
             F_SET(&log->slot_pool[i].slot_buf, WT_ITEM_ALIGNED);
             WT_ERR(__wt_buf_init(session, &log->slot_pool[i].slot_buf, log->slot_buf_size));
@@ -485,11 +485,11 @@ err:
 }
 
 /*
- * __wt_log_slot_destroy --
+ * __wti_log_slot_destroy --
  *     Clean up the slot array on shutdown.
  */
 int
-__wt_log_slot_destroy(WT_SESSION_IMPL *session)
+__wti_log_slot_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
@@ -498,7 +498,7 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
     int i;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_mgr.log;
 
     /*
      * Write out any remaining buffers. Free the buffer.
@@ -531,10 +531,10 @@ __wti_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, W
     uint64_t time_start, time_stop, usecs;
     int64_t flag_state, new_state, old_state, released;
     int32_t join_offset, new_join, wait_cnt;
-    bool closed, diag_yield, raced, slept, unbuffered, yielded;
+    bool closed, diag_yield, force_unbuffered, raced, slept, unbuffered, yielded;
 
     conn = S2C(session);
-    log = conn->log;
+    log = conn->log_mgr.log;
     time_start = 0;
 
     WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
@@ -548,11 +548,11 @@ __wti_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, W
     wait_cnt = 0;
 #ifdef HAVE_DIAGNOSTIC
     diag_yield = (++log->write_calls % 7) == 0;
-    if ((log->write_calls % WT_THOUSAND) == 0 || mysize > WT_LOG_SLOT_BUF_MAX) {
+    force_unbuffered = (log->write_calls % WT_THOUSAND) == 0;
 #else
-    diag_yield = false;
-    if (mysize > WT_LOG_SLOT_BUF_MAX) {
+    diag_yield = force_unbuffered = false;
 #endif
+    if (force_unbuffered || mysize > WT_LOG_SLOT_BUF_MAX) {
         unbuffered = true;
         F_SET(myslot, WT_MYSLOT_UNBUFFERED);
     }
@@ -679,11 +679,11 @@ __wti_log_slot_release(WT_MYSLOT *myslot, int64_t size)
 }
 
 /*
- * __wt_log_slot_free --
+ * __wti_log_slot_free --
  *     Free a slot back into the pool.
  */
 void
-__wt_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
+__wti_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
     /*
      * Make sure flags don't get retained between uses. We have to reset them here and not in

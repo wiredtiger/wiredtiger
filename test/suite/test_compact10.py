@@ -67,19 +67,13 @@ class test_compact10(backup_base, compact_util):
 
         return uris
 
-    def turn_on_bg_compact(self, config = ''):
-        self.session.compact(None, f'background=true,{config}')
-        while not self.get_bg_compaction_running():
-            time.sleep(0.1)
-
     # This test:
     # - Creates a full backup before background compaction is enabled.
     # - Waits for background compaction to compact all the files and create a new full backup.
     # - Compares the two backups.
     def test_compact10(self):
-        # FIXME-WT-11399
         if self.runningHook('tiered'):
-            self.skipTest("this test does not yet work with tiered storage")
+            self.skipTest("Tiered tables do not support compaction or backup")
 
         backup_1 = "BACKUP_1"
         backup_2 = "BACKUP_2"

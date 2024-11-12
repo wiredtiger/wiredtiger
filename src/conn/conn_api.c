@@ -1181,21 +1181,19 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
-
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing WiredTiger library.");
     __wt_timer_start(session, &timer);
 
-    /*
-     * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
-     * of cache.
-     */
-    __wt_set_shared_double(&conn->cache->eviction_dirty_trigger, 1.0);
-    __wt_set_shared_double(&conn->cache->eviction_dirty_target, 0.1);
+    __wt_evict_favor_clearing_dirty_cache(session);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
       F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE, NULL));
     F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY_PROGRESS, "%s", "rolling back all running transactions.");
 
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
@@ -1205,6 +1203,7 @@ err:
     WT_TRET(__wt_session_array_walk(
       conn->default_session, __conn_rollback_transaction_callback, true, NULL));
 
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing all running sessions.");
     /* Close open, external sessions. */
     WT_TRET(
       __wt_session_array_walk(conn->default_session, __conn_close_session_callback, true, NULL));
@@ -1221,6 +1220,8 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
     /* Shut down pre-fetching - it should not operate while closing the connection. */
     WT_TRET(__wti_prefetch_destroy(session));
 
@@ -1283,7 +1284,7 @@ err:
 
     /* Time since the shutdown has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.shutdown_ms);
-    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
       "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
       conn->shutdown_timeline.shutdown_ms, conn->shutdown_timeline.rts_ms,
@@ -2178,6 +2179,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__debug_mode_log_retention_config(session, cfg));
     WT_RET(__debug_mode_background_compact_config(session, cfg));
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.configuration", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CONFIGURATION);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
@@ -2333,8 +2340,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
       {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
       {"configuration", WT_VERB_CONFIGURATION}, {"error_returns", WT_VERB_ERROR_RETURNS},
-      {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
-      {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
+      {"eviction", WT_VERB_EVICTION}, {"fileops", WT_VERB_FILEOPS},
       {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
       {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
       {"lsm", WT_VERB_LSM}, {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
@@ -2782,7 +2788,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     conn->recovery_version = WT_NO_VERSION;
 
     /* Always set the compatibility versions. */
-    __wti_logmgr_compat_version(session);
+    __wt_logmgr_compat_version(session);
     /*
      * If we're salvaging, don't verify now.
      */
@@ -2799,7 +2805,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     if (exist)
         WT_RET(__wt_turtle_validate_version(session));
 
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+    if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED))
         WT_RET(__wt_log_compat_verify(session));
 
     return (0);
@@ -3095,7 +3101,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * If the log extend length is not set use the default of the configured maximum log file size.
      * That size is not known until it is initialized as part of the log server initialization.
      */
-    conn->log_extend_len = WT_CONFIG_UNSET;
+    conn->log_mgr.extend_len = WT_CONFIG_UNSET;
     for (ft = file_types; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
@@ -3109,10 +3115,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
                  * length in that case to use the default.
                  */
                 if (sval.val == 1)
-                    conn->log_extend_len = WT_CONFIG_UNSET;
+                    conn->log_mgr.extend_len = WT_CONFIG_UNSET;
                 else if (sval.val == 0 ||
                   (sval.val >= WT_LOG_FILE_MIN && sval.val <= WT_LOG_FILE_MAX))
-                    conn->log_extend_len = sval.val;
+                    conn->log_mgr.extend_len = sval.val;
                 else
                     WT_ERR_MSG(session, EINVAL, "invalid log extend length: %" PRId64, sval.val);
                 break;
@@ -3159,6 +3165,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->page_size = __wt_get_vm_pagesize();
 
     /* Now that we know if verbose is configured, output the version. */
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "opening the WiredTiger library");
     __wt_verbose(session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
 
     /*
@@ -3223,13 +3230,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * We need to parse the logging configuration here to verify the compatibility settings because
      * we may need the log path and encryption and compression settings.
      */
-    WT_ERR(__wti_logmgr_config(session, cfg, false));
+    WT_ERR(__wt_logmgr_config(session, cfg, false));
     WT_ERR(__conn_version_verify(session));
 
     /*
      * Configuration completed; optionally write a base configuration file.
      */
     WT_ERR(__conn_write_base_config(session, cfg));
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "connection configuration string parsing completed");
 
     /*
      * Check on the turtle and metadata files, creating them if necessary (which avoids application
@@ -3245,6 +3254,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Verify the metadata file. */
     if (verify_meta) {
+        __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata verify");
         wt_session = &session->iface;
         ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
         WT_ERR(ret);
@@ -3256,6 +3266,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * overwrite any salvage we did if done before that call.
      */
     if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+        __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata salvage");
         wt_session = &session->iface;
         WT_ERR(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
@@ -3314,6 +3325,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     F_SET(conn, WT_CONN_READY);
     F_CLR(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "the WiredTiger library has successfully opened");
 
 err:
     /* Discard the scratch buffers. */
@@ -3350,10 +3363,10 @@ err:
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
          * that we don't try to checkpoint data handles. We need an explicit flag instead of
-         * checking that WT_CONN_LOG_RECOVER_DONE is not set because other errors earlier than
-         * recovery will not have that flag set.
+         * checking that WT_LOG_RECOVER_DONE is not set because other errors earlier than recovery
+         * will not have that flag set.
          */
-        if (ret == WT_RUN_RECOVERY || FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_FAILED))
+        if (ret == WT_RUN_RECOVERY || F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_FAILED))
             F_SET(conn, WT_CONN_PANIC);
         /*
          * If we detected a data corruption issue, we really want to indicate the corruption instead
