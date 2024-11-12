@@ -1972,11 +1972,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * before we set the checkpoint running flag to false.
      */
     if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
-        WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, S2C(session)->txn_global.checkpoint_running);
-        if (ckpt_running)
-            return (false);
-    }
+      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT) &&
+      __wt_atomic_loadvbool(&S2C(session)->txn_global.checkpoint_running))
+        return (false);
 
     /*
      * Check we are not evicting an accessible internal page with an active split generation.
