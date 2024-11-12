@@ -540,9 +540,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
 
-    /* Detect if the btree is disaggregated. The file extension is a "for now" thing. */
+    /*
+     * Detect if the btree is disaggregated. TODO the file extension check should be replaced with
+     * something more robust.
+     */
     WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_stable") || WT_CONFIG_LIT_MATCH("disagg", cval)) {
+    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_stable") ||
+      WT_CONFIG_LIT_MATCH("disagg", cval)) {
         F_SET(btree, WT_BTREE_DISAGGREGATED);
 
         WT_RET(__btree_setup_page_log(session, btree));
