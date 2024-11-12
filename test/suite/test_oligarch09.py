@@ -45,15 +45,25 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('snappy', dict(block_compress='snappy')),
     ]
 
+    uris = [
+        ('oligarch', dict(uri='oligarch:test_oligarch09')),
+        ('btree', dict(uri='file:test_oligarch09')),
+    ]
+
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    # conn_config = conn_base_config + 'oligarch=(role="leader")'
     disagg_storages = gen_disagg_storages('test_oligarch09', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
 
     nitems = 1000
+
+    def session_create_config(self):
+        cfg = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        if self.uri.startswith('file'):
+            cfg += ',block_manager=disagg,oligarch_log=(enabled=false)'
+        return cfg
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
@@ -66,12 +76,10 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_oligarch_read_write(self):
-        uri = "oligarch:test_oligarch09"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
         value2 = "bbbb"
 
@@ -94,7 +102,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             if i % 10 == 0:
@@ -103,12 +111,10 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_modify(self):
-        uri = "oligarch:test_oligarch09"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
         value2 = "abaa"
 
@@ -119,9 +125,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             if i % 10 == 0:
+                self.session.begin_transaction()
                 cursor.set_key(str(i))
                 mods = [wiredtiger.Modify('b', 1, 1)]
                 self.assertEqual(cursor.modify(mods), 0)
+                self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
@@ -133,7 +141,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             if i % 10 == 0:
@@ -142,12 +150,10 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_delete(self):
-        uri = "oligarch:test_oligarch09"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
 
         for i in range(self.nitems):
@@ -170,7 +176,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             if i % 10 == 0:
@@ -180,12 +186,10 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_insert(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
 
         for i in range(self.nitems):
@@ -206,18 +210,16 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_multiple_delta(self):
-        uri = "oligarch:test_oligarch09"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
         value2 = "bbbb"
         value3 = "cccc"
@@ -247,7 +249,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             if i % 20 == 0:
@@ -258,12 +260,10 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_multiple_updates_delta(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
         value2 = "bbbb"
         value3 = "cccc"
@@ -291,7 +291,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             if i % 20 == 0:
@@ -302,12 +302,10 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_delete_insert(self):
-        uri = "oligarch:test_oligarch08"
-        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
-        self.session.create(uri, create_session_config)
+        self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
         value2 = "bbbb"
 
@@ -337,7 +335,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        cursor = self.session.open_cursor(uri, None, None)
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         for i in range(self.nitems):
             if i % 20 == 0:

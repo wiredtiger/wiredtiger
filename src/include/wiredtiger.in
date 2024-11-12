@@ -1193,6 +1193,9 @@ struct __wt_session {
      * WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c "zlib" or \c "zstd"
      * compression\, these names are also available.  See @ref compression for more information., a
      * string; default \c none.}
+     * @config{block_manager, configure a manager for file blocks.  Permitted values are \c
+     * "default" or the disaggregated storage block manager backed by \c PALI., a string\, chosen
+     * from the following options: \c "default"\, \c "disagg"; default \c default.}
      * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible with
      * LSM tables; see @ref tuning_cache_resident for more information., a boolean flag; default \c
      * false.}
