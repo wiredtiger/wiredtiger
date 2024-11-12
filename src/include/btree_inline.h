@@ -1965,14 +1965,15 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
     }
 
-    /* Don't evict the disaggregated page that should belong to the next checkpoint. */
+    /*
+     * Don't evict the disaggregated page that should belong to the next checkpoint.
+     *
+     * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
+     * before we set the checkpoint running flag to false.
+     */
     if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT))
-        /*
-         * TODO: we only know that the btree has been visited by the latest checkpoint. But we don't
-         * know if we have opened a new checkpoint or not. We need to know this information to be
-         * able to narrow the window here.
-         */
+      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT) &&
+      S2C(session)->txn_global.checkpoint_running)
         return (false);
 
     /*
