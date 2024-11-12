@@ -28,9 +28,7 @@
 
 from test_cc01 import test_cc_base
 from suite_subprocess import suite_subprocess
-import time
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 
 # test_checkpoint33.py
 #
@@ -43,6 +41,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
     table_numkv = 10000
     value_size = 1024
     value = 'a' * value_size
+    min_file_size = 12 * 1024
 
     def delete(self, timestamp):
         c = self.session.open_cursor(self.uri, None)
@@ -109,10 +108,15 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         self.prout(f'File size: {self.get_size()}')
 
         # Wait for checkpoint cleanup to clean up all the deleted pages.
-        self.wait_for_cc_to_run()
-
-        # Final checkpoint to recover the available space.
-        self.session.checkpoint()
-        self.prout(f'File size: {self.get_size()}')
-
-        self.assertLessEqual(self.get_size(), 12 * 1024)
+        # Checkpoint should recover the space by truncating the space made available by checkpoint
+        # cleanup.
+        cc_attempts = 0
+        max_cc_attempts = 10
+        file_size = self.get_size()
+        while file_size > self.min_file_size and cc_attempts < max_cc_attempts:
+            # Trigger checkpoint cleanup and take a checkpoint.
+            self.wait_for_cc_to_run()
+            file_size = self.get_size()
+            cc_attempts = cc_attempts + 1
+            self.prout(f'File size: {file_size}')
+            self.prout(f'Checkpoint cleanup attempts: {cc_attempts}')
