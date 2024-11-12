@@ -1890,7 +1890,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    uint64_t checkpoint_id;
     bool modified;
 
     if (inmem_splitp != NULL)
@@ -1971,8 +1970,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
       btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT))
         /*
          * TODO: we only know that the btree has been visited by the latest checkpoint. But we don't
-         * know if we have opened a new checkpoint or not. We need to record the last finished
-         * checkpoint id to be able to narrow the window here.
+         * know if we have opened a new checkpoint or not. We need to know this information to be
+         * able to narrow the window here.
          */
         return (false);
 
