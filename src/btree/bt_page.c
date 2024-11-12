@@ -28,7 +28,7 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     btree = S2BT(session);
 
     WT_CLEAR(*meta);
-    if (btree->page_log == NULL)
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return;
 
     /*
