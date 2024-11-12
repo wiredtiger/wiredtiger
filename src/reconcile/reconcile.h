@@ -1,12 +1,14 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
 #pragma once
+
+#include "reconcile_private.h"
 
 /*
  * WT_REC_KV--
@@ -349,16 +351,6 @@ struct __wt_reconcile {
     WT_CURSOR *hs_cursor;
 };
 
-typedef struct {
-    WT_UPDATE *upd;       /* Update to write (or NULL) */
-    WT_UPDATE *tombstone; /* The tombstone to write (or NULL) */
-
-    WT_TIME_WINDOW tw;
-
-    bool upd_saved;       /* An element on the row's update chain was saved */
-    bool no_ts_tombstone; /* Tombstone without a timestamp */
-} WT_UPDATE_SELECT;
-
 /*
  * WT_CHILD_RELEASE, WT_CHILD_RELEASE_ERR --
  *	Macros to clean up during internal-page reconciliation, releasing the hazard pointer we're
@@ -376,24 +368,6 @@ typedef struct {
         WT_CHILD_RELEASE(session, hazard, ref);    \
         WT_ERR(ret);                               \
     } while (0)
-
-/*
- * WT_CHILD_MODIFY_STATE --
- *	We review child pages (while holding the child page's WT_REF lock), during internal-page
- * reconciliation. This structure encapsulates the child page's returned information/state.
- */
-typedef struct {
-    enum {
-        WT_CHILD_IGNORE,   /* Ignored child */
-        WT_CHILD_MODIFIED, /* Modified child */
-        WT_CHILD_ORIGINAL, /* Original child */
-        WT_CHILD_PROXY     /* Deleted child: proxy */
-    } state;               /* Returned child state */
-
-    WT_PAGE_DELETED del; /* WT_CHILD_PROXY state fast-truncate information */
-
-    bool hazard; /* If currently holding a child hazard pointer */
-} WT_CHILD_MODIFY_STATE;
 
 /*
  * Macros from fixed-length entries to/from bytes.
@@ -415,3 +389,42 @@ typedef struct {
  * Enumeration used to track the context of reconstructing modifies within a update list.
  */
 typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
+
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+extern int __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ovfl_discard_add(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv,
+  uint8_t type, WT_TIME_WINDOW *tw, uint64_t rle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_dictionary_lookup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *val,
+  WT_REC_DICTIONARY **dpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage,
+  uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint32_t __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
+
+#ifdef HAVE_UNITTEST
+extern int __ut_ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell,
+  const char *tag) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_ovfl_track_init(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+
+#endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */
