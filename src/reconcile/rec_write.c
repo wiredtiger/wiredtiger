@@ -2209,7 +2209,7 @@ err:
  *     Build delta for leaf pages.
  */
 static int
-__rec_build_delta_leaf(WT_SESSION_IMPL *session, uint64_t write_gen, WT_RECONCILE *r)
+__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_RECONCILE *r)
 {
     WT_DELTA_HEADER *header;
     WT_MULTI *multi;
@@ -2246,14 +2246,14 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, uint64_t write_gen, WT_RECONCIL
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
     header->u.entries = count;
-    header->write_gen = write_gen;
+    header->write_gen = full_image->write_gen;
 
     stop = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_PAGE_DELTA,
-      "Generated leaf page delta, full page size %d, delta size %d, "
-      "total time %" PRIu64 "us",
-      (int)r->chunk->image.size, (int)r->delta.size, WT_CLOCKDIFF_US(stop, start));
+      "Generated leaf page delta, full page size %" PRIu32 ", delta size %" PRIu64
+      ", total time %" PRIu64 "us",
+      full_image->mem_size, r->delta.size, WT_CLOCKDIFF_US(stop, start));
 
     return (0);
 }
@@ -2263,12 +2263,13 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, uint64_t write_gen, WT_RECONCIL
  *     Build delta.
  */
 static int
-__rec_build_delta(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t write_gen, bool *build_deltap)
+__rec_build_delta(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE_HEADER *full_image, bool *build_deltap)
 {
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
-            WT_RET(__rec_build_delta_leaf(session, write_gen, r));
+            WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
         }
     }
@@ -2422,8 +2423,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
       block_meta->delta_count < WT_DELTA_LIMIT) {
-        WT_RET(__rec_build_delta(
-          session, r, ((WT_PAGE_HEADER *)chunk->image.mem)->write_gen, &build_delta));
+        WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && r->delta.size > chunk->image.size / 10)
             build_delta = false;
