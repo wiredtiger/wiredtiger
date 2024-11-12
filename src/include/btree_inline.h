@@ -1904,6 +1904,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
         return (false);
 
+    /* Don't evict the disaggregated page that should belong to the next checkpoint. */
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      btree->checkpoint_gen < __wt_gen(session, WT_GEN_CHECKPOINT))
+        return (false);
+
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
     if (mod == NULL)
         return (true);
