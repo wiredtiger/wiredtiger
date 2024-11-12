@@ -127,6 +127,7 @@ struct __wt_oligarch_manager_entry {
 
     uint64_t accumulated_write_bytes;
     uint64_t checkpoint_txn_id;
+    uint64_t global_checkpoint_id;
 };
 
 /*
@@ -140,8 +141,6 @@ struct __wt_oligarch_manager {
 #define WT_OLIGARCH_MANAGER_STARTING 2 /* The oligarch manager is being started */
 #define WT_OLIGARCH_MANAGER_STOPPING 3 /* The oligarch manager is being shut down */
     wt_shared uint32_t state; /* Atomic: Indicating whether the manager is already running */
-
-    bool update_dhandle;
 
     wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
 

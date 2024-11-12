@@ -93,8 +93,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     /* Put our new config in */
     WT_ERR(__wt_metadata_insert(internal_session, metadata_key, cfg_ret));
 
-    conn->oligarch_manager.update_dhandle = true; /* TODO concurrency hazard, needs better design */
-
     /*
      * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
      * cursor triggers __wt_btree_open (even if the file has been opened before).
@@ -199,11 +197,13 @@ __wt_oligarch_manager_thread_chk(WT_SESSION_IMPL *session)
 int
 __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, uint32_t stable_id)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_OLIGARCH *oligarch;
     WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
 
-    manager = &S2C(session)->oligarch_manager;
+    conn = S2C(session);
+    manager = &conn->oligarch_manager;
     fprintf(stderr, "adding %u to oligarch manager\n", ingest_id);
 
     WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
@@ -227,7 +227,8 @@ __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, ui
      * There is a bootstrapping problem. Use the global oldest ID as a starting point. Nothing can
      * have been written into the ingest table, so it will be a conservative choice.
      */
-    entry->checkpoint_txn_id = __wt_atomic_loadv64(&S2C(session)->txn_global.oldest_id);
+    entry->checkpoint_txn_id = __wt_atomic_loadv64(&conn->txn_global.oldest_id);
+    WT_ACQUIRE_READ(entry->global_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
     /*
      * It's safe to just reference the same string. The lifecycle of the oligarch tree is longer
@@ -309,19 +310,21 @@ __wt_oligarch_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
 static int
 __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *stable_cursor;
-    WT_OLIGARCH_MANAGER *manager;
     WT_OLIGARCH_MANAGER_ENTRY *entry;
+    uint64_t global_ckpt_id;
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
-    manager = &S2C(session)->oligarch_manager;
-    entry = manager->entries[ingest_id];
+    conn = S2C(session);
+    entry = conn->oligarch_manager.entries[ingest_id];
 
     *cursorp = NULL;
 
-    if (manager->update_dhandle) {
-        manager->update_dhandle = false;
+    WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
+    if (global_ckpt_id > entry->global_checkpoint_id) {
+        entry->global_checkpoint_id = global_ckpt_id;
         cfg[2] = "force=true";
     }
 
