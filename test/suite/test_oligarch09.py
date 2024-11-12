@@ -53,6 +53,8 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     disagg_storages = gen_disagg_storages('test_oligarch09', disagg_only = True)
+    DISAGG_BM_CONFIG = ',block_manager=disagg,oligarch_log=(enabled=false)'
+
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
@@ -70,10 +72,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_oligarch_read_write(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
@@ -109,10 +110,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_modify(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
@@ -152,10 +152,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_delete(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
@@ -192,10 +191,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_insert(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
@@ -226,10 +224,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_multiple_delta(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
@@ -274,10 +271,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_multiple_updates_delta(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
@@ -320,10 +316,9 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value1)
 
     def test_oligarch_read_delete_insert(self):
+        create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith("file"):
-            create_session_config = 'key_format=S,value_format=S,block_compressor={},block_manager=disagg,oligarch_log=(enabled=false)'.format(self.block_compress)
-        else:
-            create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+            create_session_config += self.DISAGG_BM_CONFIG
         self.pr('CREATING')
         self.session.create(self.uri, create_session_config)
 
