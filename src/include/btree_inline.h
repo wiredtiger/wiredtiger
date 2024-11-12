@@ -1967,7 +1967,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     /* Don't evict the disaggregated page that should belong to the next checkpoint. */
     if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      btree->checkpoint_gen < __wt_gen(session, WT_GEN_CHECKPOINT))
+      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT))
         return (false);
 
     /*
