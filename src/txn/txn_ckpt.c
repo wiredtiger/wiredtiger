@@ -2236,8 +2236,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * to forever. If the table gets dirtied or a checkpoint is forced that will clear the
              * timer.
              */
-            uint64_t timer = 0;
             if (ckpt - ckptbase > 2) {
+                uint64_t timer = 0;
                 __wt_seconds(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
                 WT_BTREE_CLEAN_CKPT(session, btree, timer);
