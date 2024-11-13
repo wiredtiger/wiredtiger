@@ -1971,7 +1971,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
      * before we set the checkpoint running flag to false.
      */
-    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session) &&
       btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT) &&
       __wt_atomic_loadvbool(&S2C(session)->txn_global.checkpoint_running))
         return (false);
