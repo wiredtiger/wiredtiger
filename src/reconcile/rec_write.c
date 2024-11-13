@@ -2405,17 +2405,20 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         goto copy_image;
 
     /* Check the eviction flag as checkpoint also saves updates. */
-    if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL && chunk->entries == 0) {
+    if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
          * or history store updates against empty row-store leaf pages, column-store modify attempts
          * to allocate a zero-length array.
          */
-        if (r->page->type != WT_PAGE_ROW_LEAF)
+        if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
             return (__wt_set_return(session, EBUSY));
 
-        /* If we need to restore the page to memory, copy the disk image if it is empty. */
-        if (multi->supd_restore)
+        /*
+         * If we need to restore the page to memory, copy the disk image if it is not disaggregated
+         * or it is empty.
+         */
+        if (multi->supd_restore && (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || chunk->entries == 0))
             goto copy_image;
 
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
