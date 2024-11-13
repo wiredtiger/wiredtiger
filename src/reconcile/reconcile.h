@@ -1,70 +1,14 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
 #pragma once
 
-/*
- * WT_REC_KV--
- *	An on-page key/value item we're building.
- */
-struct __wt_rec_kv {
-    WT_ITEM buf;  /* Data */
-    WT_CELL cell; /* Cell and cell's length */
-    size_t cell_len;
-    size_t len; /* Total length of cell + data */
-};
-
-/*
- * WT_REC_DICTIONARY --
- *  We optionally build a dictionary of values for leaf pages. Where
- * two value cells are identical, only write the value once, the second
- * and subsequent copies point to the original cell. The dictionary is
- * fixed size, but organized in a skip-list to make searches faster.
- */
-struct __wt_rec_dictionary {
-    uint64_t hash;   /* Hash value */
-    uint32_t offset; /* Matching cell */
-
-    u_int depth; /* Skiplist */
-    WT_REC_DICTIONARY *next[0];
-};
-
-/*
- * WT_REC_CHUNK --
- *	Reconciliation split chunk.
- */
-struct __wt_rec_chunk {
-    /*
-     * The recno and entries fields are the starting record number of the split chunk (for
-     * column-store splits), and the number of entries in the split chunk.
-     *
-     * The key for a row-store page; no column-store key is needed because the page's recno, stored
-     * in the recno field, is the column-store key.
-     */
-    uint32_t entries;
-    uint64_t recno;
-    WT_ITEM key;
-    WT_TIME_AGGREGATE ta;
-
-    /* Saved minimum split-size boundary information. */
-    uint32_t min_entries;
-    uint64_t min_recno;
-    WT_ITEM min_key;
-    WT_TIME_AGGREGATE ta_min;
-
-    size_t min_offset; /* byte offset */
-
-    WT_ITEM image; /* disk-image */
-
-    /* For fixed-length column store, track where the time windows start and how many we have. */
-    uint32_t aux_start_offset;
-    uint32_t auxentries;
-};
+#include "reconcile_private.h"
 
 /*
  * WT_DELETE_HS_UPD --
@@ -321,69 +265,46 @@ struct __wt_reconcile {
     WT_CURSOR *hs_cursor;
 };
 
-typedef struct {
-    WT_UPDATE *upd;       /* Update to write (or NULL) */
-    WT_UPDATE *tombstone; /* The tombstone to write (or NULL) */
-
-    WT_TIME_WINDOW tw;
-
-    bool upd_saved;       /* An element on the row's update chain was saved */
-    bool no_ts_tombstone; /* Tombstone without a timestamp */
-} WT_UPDATE_SELECT;
-
-/*
- * WT_CHILD_RELEASE, WT_CHILD_RELEASE_ERR --
- *	Macros to clean up during internal-page reconciliation, releasing the hazard pointer we're
- * holding on a child page.
- */
-#define WT_CHILD_RELEASE(session, hazard, ref)                          \
-    do {                                                                \
-        if (hazard) {                                                   \
-            (hazard) = false;                                           \
-            WT_TRET(__wt_page_release(session, ref, WT_READ_NO_EVICT)); \
-        }                                                               \
-    } while (0)
-#define WT_CHILD_RELEASE_ERR(session, hazard, ref) \
-    do {                                           \
-        WT_CHILD_RELEASE(session, hazard, ref);    \
-        WT_ERR(ret);                               \
-    } while (0)
-
-/*
- * WT_CHILD_MODIFY_STATE --
- *	We review child pages (while holding the child page's WT_REF lock), during internal-page
- * reconciliation. This structure encapsulates the child page's returned information/state.
- */
-typedef struct {
-    enum {
-        WT_CHILD_IGNORE,   /* Ignored child */
-        WT_CHILD_MODIFIED, /* Modified child */
-        WT_CHILD_ORIGINAL, /* Original child */
-        WT_CHILD_PROXY     /* Deleted child: proxy */
-    } state;               /* Returned child state */
-
-    WT_PAGE_DELETED del; /* WT_CHILD_PROXY state fast-truncate information */
-
-    bool hazard; /* If currently holding a child hazard pointer */
-} WT_CHILD_MODIFY_STATE;
-
-/*
- * Macros from fixed-length entries to/from bytes.
- */
-#define WT_COL_FIX_BYTES_TO_ENTRIES(btree, bytes) ((uint32_t)((((bytes)*8) / (btree)->bitcnt)))
-#define WT_COL_FIX_ENTRIES_TO_BYTES(btree, entries) \
-    ((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
-
-#define WT_UPDATE_SELECT_INIT(upd_select)       \
-    do {                                        \
-        (upd_select)->upd = NULL;               \
-        (upd_select)->tombstone = NULL;         \
-        (upd_select)->upd_saved = false;        \
-        (upd_select)->no_ts_tombstone = false;  \
-        WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
-    } while (0)
-
 /*
  * Enumeration used to track the context of reconstructing modifies within a update list.
  */
 typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
+
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+extern int __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ovfl_discard_add(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv,
+  uint8_t type, WT_TIME_WINDOW *tw, uint64_t rle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_dictionary_lookup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *val,
+  WT_REC_DICTIONARY **dpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage,
+  uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint32_t __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
+
+#ifdef HAVE_UNITTEST
+extern int __ut_ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell,
+  const char *tag) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_ovfl_track_init(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+
+#endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */
