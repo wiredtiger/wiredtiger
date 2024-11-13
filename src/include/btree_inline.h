@@ -1890,7 +1890,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    bool ckpt_running, modified;
+    bool modified;
 
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
