@@ -228,7 +228,7 @@ __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, ui
      * have been written into the ingest table, so it will be a conservative choice.
      */
     entry->checkpoint_txn_id = __wt_atomic_loadv64(&conn->txn_global.oldest_id);
-    WT_ACQUIRE_READ(entry->global_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+    WT_ACQUIRE_READ(entry->read_checkpoint, conn->disaggregated_storage.global_checkpoint_id);
 
     /*
      * It's safe to just reference the same string. The lifecycle of the oligarch tree is longer
@@ -331,13 +331,13 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
     }
 
     WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
-    if (global_ckpt_id > entry->global_checkpoint_id)
+    if (global_ckpt_id > entry->read_checkpoint)
         cfg[2] = "force=true";
 
     /* Open the cursor and keep a reference in the manager entry and our caller */
     WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));
     entry->stable_cursor = stable_cursor;
-    entry->global_checkpoint_id = global_ckpt_id;
+    entry->read_checkpoint = global_ckpt_id;
     *cursorp = stable_cursor;
 
     return (0);

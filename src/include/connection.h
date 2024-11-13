@@ -127,7 +127,7 @@ struct __wt_oligarch_manager_entry {
 
     uint64_t accumulated_write_bytes;
     uint64_t checkpoint_txn_id;
-    uint64_t global_checkpoint_id;
+    uint64_t read_checkpoint;
 };
 
 /*
