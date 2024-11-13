@@ -21,11 +21,18 @@ typedef struct __wt_calltrack_log_entry {
 //    char args[96]; /* 128 - 32 */
 } WT_CALLTRACK_LOG_ENTRY;
 
+#ifdef __linux__
+pid_t gettid(void);
+#endif
+
 typedef struct __wt_calltrack_thread_buf WT_CALLTRACK_THREAD_BUF;
 struct __wt_calltrack_thread_buf {
     int writer, reader;
     uintmax_t pid;
     uintmax_t ostid;
+#ifdef __linux__
+    pid_t linux_tid;
+#endif
     uint64_t tnid;
 #define WT_CALLTRACK_THREAD_BUF_ENTRIES (10*1024*1024 - 5*8)
     WT_CALLTRACK_LOG_ENTRY entries[WT_CALLTRACK_THREAD_BUF_ENTRIES];
@@ -44,6 +51,9 @@ typedef struct __wt_calltrack_thread {
         char tid_str[128];
         uintmax_t pid;
         uintmax_t ostid;
+#ifdef __linux__
+    pid_t linux_tid;
+#endif
         uint64_t tnid;
         bool is_service_thread;
         WT_CALLTRACK_THREAD_BUF *buf;
@@ -64,7 +74,8 @@ extern WT_CALLTRACK_GLOBAL wt_calltrack_global;
 static WT_INLINE void
 __wt_set_indent(int indent)
 {
-    memset(wt_calltrack_thread._indent_buf, ' ', indent);
+    if (indent < 0) indent = 0;
+    if (indent > 0) memset(wt_calltrack_thread._indent_buf, ' ', (size_t)indent);
     wt_calltrack_thread._indent_buf[indent] = 0;
 }
 
@@ -169,6 +180,12 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
         RET_RET;                                                                            \
     } while (0)
 
+#ifdef __linux__
+#define __WT_GET_LINUX_TID(DST) DST = gettid()
+#else
+#define __WT_GET_LINUX_TID(DST)
+#endif
+
 #define __WT_CALL_WRAP_IMPL_GRAPH(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
     do {                                                                                    \
         WT_SESSION_IMPL *__session__ = SESSION;                                             \
@@ -177,6 +194,7 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
             wt_calltrack_thread.pid = (uintmax_t)getpid();                                         \
             wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);        \
             __wt_thread_id(&wt_calltrack_thread.ostid);                                         \
+            __WT_GET_LINUX_TID(wt_calltrack_thread.linux_tid);                              \
         }                                                                                   \
                                                                                             \
         uint64_t __ts__;                                                                    \
@@ -235,6 +253,7 @@ __wt_calltrack_init_thread(void) {
     wt_calltrack_thread.pid = (uintmax_t)getpid();
     wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);
     __wt_thread_id(&wt_calltrack_thread.ostid);
+    __WT_GET_LINUX_TID(wt_calltrack_thread.linux_tid);
 }
 
 WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg);
@@ -249,6 +268,9 @@ __wt_calltrack_init_thread_and_buf(void) {
     wt_calltrack_thread.buf->tnid = wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);
     __wt_thread_id(&wt_calltrack_thread.ostid);
     wt_calltrack_thread.buf->ostid = wt_calltrack_thread.ostid;
+#ifdef __linux__
+    wt_calltrack_thread.linux_tid = wt_calltrack_thread.buf->linux_tid = gettid();
+#endif
     __atomic_fetch_add(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELAXED);
     pthread_t thread;
     WT_COMPILER_BARRIER();

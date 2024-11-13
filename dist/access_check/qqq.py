@@ -30,7 +30,12 @@ import wt_defs
 #  *
 # perl -MIO::File -E 'sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/ || $1 < 18.3e6; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && $l[0][0] <= $l[1][0])) { $txt=$l[0][1]; $sz += length($txt); if ($sz >= 950*1024*1024) { $sz=length($txt); say F q/{}]}/; close F; open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/; } print F $txt; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json
 #  Split by time
-# rm -f q-*.json; S="18.3 22.4 31 37.3 46.5" perl -MIO::File -E 'BEGIN {@S=map {$_*1e6} split /[;,:\s]/, $ENV{S}} sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && ($t=$l[0][0]) <= $l[1][0])) { if (@S && $fi < $#S && $t >= $S[$fi]) { say F q/{}]}/; close F; open F, ">", "q-@{[$fi+1]}-$S[$fi].json"; ++$fi; say F q/{"traceEvents": [/; } print F $l[0][1]; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-0.json"; $fi=0; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json
+# rm -f q-*.json; S="39.8 49 55.5 65.9" perl -MIO::File -E 'BEGIN {@S=map {$_*1e6} split /[;,:\s]/, $ENV{S}} sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && ($t=$l[0][0]) <= $l[1][0])) { if (@S && $fi <= $#S && $t >= $S[$fi]) { say F q/{}]}/; close F; open F, ">", "q-@{[$fi+1]}-$S[$fi].json"; ++$fi; say F q/{"traceEvents": [/; } print F $l[0][1]; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-0.json"; $fi=0; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..44}.json
+#  Split by time, carry over stack
+# rm -f q-*.json; S="39.8 49 55.5 65.9" perl -MIO::File -E 'BEGIN {@S=map {$_*1e6} split /[;,:\s]/, $ENV{S}} sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && ($t=$l[0][0]) <= $l[1][0])) { if (@S && $fi <= $#S && $t >= $S[$fi]) { say F q/{}]}/; close F; open F, ">", "q-@{[$fi+1]}-$S[$fi].json"; ++$fi; print F qq/{"traceEvents": [\n/, map {@$_} values %st; } if ($l[0][1] =~ /"tid": (\d++).*?"ph": "([EB])"/) { $2 eq "B" ? (push @{$st{$1}}, $l[0][1]) : pop @{$st{$1}} } print F $l[0][1]; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-0.json"; $fi=0; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..44}.json
+#  Interleave (1 ms snapshots)
+# rm -f q-i*.json; I=1000 perl -MIO::File -E 'sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && ($t=$l[0][0]) <= $l[1][0])) { if ($l[0][1] =~ /"tid": (\d++).*?"ph": "([EB])"/) { if ($2 eq "B") { push @{$st{$1}{L}}, $l[0][1]; } else { pop @{$st{$1}{L}}; if (@{$st{$1}{L}} < $st{$1}{Dlast}) {print($l[0][1]);--$st{$1}{Dlast};} } } if ($t >= 0+$tNext) { $tNext = $t+$ENV{I}; for (values %st) { print((@{$_->{L}})[$_->{Dlast} .. @{$_->{L}}-1]); $_->{Dlast} = @{$_->{L}}; } } $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { say q/{"traceEvents": [/ } END { say q/{}]}/; }' -- calltrack-0*.json | pv > q-interleave.json
+
 
 # View:
 # https://ui.perfetto.dev/
@@ -40,6 +45,10 @@ import wt_defs
 # Putting wait states in separate tracks in Perfetto:
 # select * from slices where name like "%:WAIT%"
 # ... "show debug track" ... pivot on "name"
+#
+# Who does eviction:
+# select * from slices where name = "__wt_evict"
+# Pivot on "track_id"
 
 # select distinct name, cat from slices where name like "%:WAIT%"
 

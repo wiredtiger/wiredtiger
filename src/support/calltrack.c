@@ -68,6 +68,26 @@ __wt_calltrack_open_tracefile(uintmax_t id)
     return fopen(filename, "w");
 }
 
+#ifdef __linux__
+int pthread_tryjoin_np(pthread_t thread, void **retval);
+int kill(pid_t pid, int sig);
+#else
+int pthread_kill(pthread_t, int);
+#endif
+
+bool __wt_is_thread_terminated(WT_CALLTRACK_THREAD_BUF *buf);
+bool
+__wt_is_thread_terminated(WT_CALLTRACK_THREAD_BUF *buf)
+{
+#ifdef __linux__
+    // return pthread_tryjoin_np(buf->ostid, NULL) != EBUSY;
+    return kill(buf->linux_tid, 0) != 0;
+#else
+    int thread_status = pthread_kill((pthread_t)buf->ostid, 0);
+    return thread_status == ESRCH || thread_status == EINVAL;
+#endif
+}
+
 WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     wt_calltrack_thread.is_service_thread = true;
     int cycles = 0;
@@ -82,8 +102,7 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
             } else {
                 if (wt_calltrack_thread.nest_level == 0 && !__atomic_load_n(&wt_calltrack_global.is_running, __ATOMIC_ACQUIRE))
                     break;
-                int thread_status = pthread_kill((pthread_t)buf->ostid, 0);
-                if (thread_status == ESRCH || thread_status == EINVAL) {
+                if (__wt_is_thread_terminated(buf)) {
                     // fprintf(tracefile, "%"SCNuMAX" %"PRIu64" = %d\n", buf->ostid, buf->tnid, thread_status);
                     // __wt_sleep(1, 0);
                     // continue;

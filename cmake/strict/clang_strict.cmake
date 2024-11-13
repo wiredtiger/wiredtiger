@@ -8,6 +8,9 @@ get_clang_base_flags(clang_flags C)
 list(APPEND clang_flags "-Weverything")
 list(APPEND clang_flags "-Wno-declaration-after-statement")
 list(APPEND clang_flags "-Wno-unused-function")
+list(APPEND clang_flags "-Wno-redundant-decls")
+list(APPEND clang_flags "-Wno-old-style-declaration")
+list(APPEND clang_flags "-Wno-maybe-uninitialized")
 
 # In code coverage builds inline functions may not be inlined, which can result in additional
 # unused copies of those functions, so the unused-function warning much be turned off.
