@@ -42,7 +42,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
         return (false);
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) | WT_CONN_CLOSING_CHECKPOINT)
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
         return (false);
     if (WT_IS_HS(session->dhandle))
         return (false);
