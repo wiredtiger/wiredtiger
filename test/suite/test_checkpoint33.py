@@ -123,6 +123,6 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
             file_size = self.get_size()
             checkpoints = checkpoints + 1
             self.prout(f'File size: {file_size}')
-            self.prout(f'Checkpoints: {max_checkpoints}')
+            self.prout(f'Checkpoints: {checkpoints}')
 
         self.assertLessEqual(self.get_size(), self.min_file_size)
