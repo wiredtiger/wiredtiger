@@ -112,6 +112,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     page_id = block_meta->page_id;
     /* Get the checkpoint ID. */
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+    /* TODO: we need to restrict evicting pages in the next checkpoint. */
     WT_ASSERT_ALWAYS(session, checkpoint_id == block_meta->checkpoint_id,
       "The page checkpoint id doesn't match the current checkpoint id");
     /* Check that the checkpoint ID matches the current checkpoint in the page log. */
