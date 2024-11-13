@@ -2198,8 +2198,9 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force) {
+        WT_CKPT *ckpt = NULL;
         int deleted = 0;
-        WT_CKPT *ckpt;
+
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
