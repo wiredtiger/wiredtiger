@@ -11,10 +11,26 @@ import wt_defs
 
 # Graphical view:
 # cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | head -5000000| pv > q.json ; echo "{}]}" >> q.json
+
 # By threads:
-# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->say(q/{"displayTimeUnit": "us", "traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->say(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
+# cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE 'next if !/"tid": (\d++)/i; $t=$1; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s.json",++$idx,$t), "w"); $h{$t}->say(q/{"traceEvents": [/) } $h{$t}->print($_); sub end() { for (values(%h)) { $_->say(q/{}]}/); $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 # Arrange by servers:
-# SERVERS=$(for f in q-[0-9]*; do head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'; done | tr -d '":' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -10 $f | fgrep -q '"'$SERVER && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"displayTimeUnit": "us", "traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
+# SERVERS=$(for f in q-[0-9]*; do head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'; done | tr -d '":' | sort -u); for SERVER in $SERVERS; do FILES=$(for f in q-[0-9]*; do head -10 $f | fgrep -q '"'$SERVER && echo $f; done); echo $SERVER " : " $FILES; perl -nE 'BEGIN { say q/{"traceEvents": [/ } END { say q/{}]}/ } print if /"tid":/' $FILES > q-$SERVER.json; done
+
+# Check what threads are doing:
+# for f in calltrack-[0-9]*; do echo "$f " $(head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'); done | tr -d '":'
+
+# Merge some threads:
+#  Plain
+# perl -MIO::File -E 'sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && $l[0][0] <= $l[1][0])) { print $l[0][1]; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { say q/{"traceEvents": [/ } END { say q/{}]}/ }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json | pv > q.json
+#  Split by 12M lines
+# perl -MIO::File -E 'sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && $l[0][0] <= $l[1][0])) { print F $l[0][1]; if (++$num > 12e6) { $num=0; say F q/{}]}/; close F; open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/; } $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json
+#  Split by 950MB
+# perl -MIO::File -E 'sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && $l[0][0] <= $l[1][0])) { $txt=$l[0][1]; $sz += length($txt); if ($sz >= 1024*1024*1024) { $sz=length($txt); say F q/{}]}/; close F; open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/; } print F $txt; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json
+#  *
+# perl -MIO::File -E 'sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/ || $1 < 18.3e6; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && $l[0][0] <= $l[1][0])) { $txt=$l[0][1]; $sz += length($txt); if ($sz >= 950*1024*1024) { $sz=length($txt); say F q/{}]}/; close F; open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/; } print F $txt; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-@{[++$fi]}.json"; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json
+#  Split by time
+# rm -f q-*.json; S="18.3 22.4 31 37.3 46.5" perl -MIO::File -E 'BEGIN {@S=map {$_*1e6} split /[;,:\s]/, $ENV{S}} sub nl($) { local $_; while (1) { if (!defined($_=$_[0]->getline())) { $_[0]->close(); return undef; } next if !/"ts": (\d++)/; $t=$1; return [$t, (s/, "cat": "[^"]++"//r), $_[0]]; } } @l = map {nl(IO::File->new($_, "r"))} @ARGV; while (@l) { while (@l == 1 || (@l && ($t=$l[0][0]) <= $l[1][0])) { if (@S && $fi < $#S && $t >= $S[$fi]) { say F q/{}]}/; close F; open F, ">", "q-@{[$fi+1]}-$S[$fi].json"; ++$fi; say F q/{"traceEvents": [/; } print F $l[0][1]; $l[0] = nl($l[0][2]); shift @l if !$l[0]; } @l = sort {$a->[0] <=> $b->[0]} @l; } BEGIN { open F, ">", "q-0.json"; $fi=0; say F q/{"traceEvents": [/ } END { say F q/{}]}/; close F; }' -- calltrack-00000.json calltrack-000{30..37}.json calltrack-000{40..45}.json
 
 # View:
 # https://ui.perfetto.dev/
@@ -22,8 +38,10 @@ import wt_defs
 # https://github.com/jlfwong/speedscope
 
 # Putting wait states in separate tracks in Perfetto:
-# select * from slices where name like "%:WAIT%" or name like "%:IO%"
+# select * from slices where name like "%:WAIT%"
 # ... "show debug track" ... pivot on "name"
+
+# select distinct name, cat from slices where name like "%:WAIT%"
 
 _session_from_type = {
     "WT_SESSION_IMPL":    lambda arg: f"""{arg}""",
@@ -123,22 +141,26 @@ class Patcher:
         func_args = func.getArgs()
         complexity = _function_complexity(func.body.value)
         is_api = func.name.value.startswith("wiredtiger_") or "API_" in func.body.value
-        is_wait_fn = "__wt_yield" in func.body.value or func.name.value in [
-            "__wt_spin_lock",
-            "__wt_readlock", "__wt_writelock",
-            "__wt_cond_auto_wait_signal", "__wt_cond_wait_signal",
-            "__wt_futex_wait",
-            "__wt_sleep"]
-        is_io = "/include/os_fhandle_inline.h" in self.file
-        if is_api or is_wait_fn or is_io:
-            pass # instrument this function
-        elif not self.mod:
-            return
-        elif ("pack_" in func.name.value or
+        is_wait = ("__wt_yield" in func.body.value or
+                      "__wt_sleep" in func.body.value or
+                      "WT_PAUSE" in func.body.value or
+                      "__wt_spin_backoff" in func.body.value or
+                      func.name.value in [
+                            "__wt_spin_lock",
+                            "__wt_readlock", "__wt_writelock",
+                            "__wt_cond_auto_wait_signal", "__wt_cond_wait_signal",
+                            "__wt_futex_wait",
+                            "__wt_sleep"])
+        is_syscall = ( #  "/src/os_" in self.file or
+                      "WT_SYSCALL" in func.body.value)
+        is_io = ("/include/os_fhandle_inline.h" in self.file or
+                 "/os_fs.c" in self.file)
+        if ("pack_" in func.name.value or
               "_destroy" in func.name.value or
               "_free" in func.name.value or
               "_atomic" in func.name.value or
               "byteswap" in func.name.value or
+              func.name.value in ("__wt_abort", "__wt_yield", "__wt_thread_create", "__wt_epoch_raw") or
               func.name.value in [
                   "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
                   "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
@@ -150,7 +172,13 @@ class Patcher:
                   "__wt_config_getones",
                   "__wt_direct_io_size_check",
                   "__wt_ref_is_root", "__ref_get_state",
+                  "__wt_lex_compare", "__wt_ref_key",
+                  "__cursor_pos_clear", "__wt_cursor_key_order_reset",
               ]):
+            return
+        elif is_api or is_wait or is_io:
+            pass # instrument this function
+        elif not self.mod:
             return
         # elif complexity <= 5:
         #     # Ignore too "simple" functions
@@ -161,8 +189,9 @@ class Patcher:
         session = _get_session(func, func_args)
 
         is_api_str = ":API" if is_api else ""
-        is_wait_str = ":WAIT" if is_wait_fn else ""
-        is_io_str = ":IO" if is_io else ""
+        is_wait_str = ":WAIT-LOCK" if is_wait else ""
+        is_io_str = ":WAIT-IO" if is_io else ""
+        is_syscall_str = ":WAIT-SYS" if is_syscall else ""
         static = "static " if func.is_type_static else ""
         has_ret = func.typename[-1].value != "void"
         int_ret = func.typename[-1].value == "int"
@@ -210,7 +239,7 @@ class Patcher:
 # {static}{rettype}
 # {func.name.value}({func.args.value}) {{
 # {printable_args_str}    __WT_CALL_WRAP{"_NORET" if not has_ret else "" if int_ret else "_RET"}(
-#         "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}",
+#         "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}{is_syscall_str}",
 #         {func.name.value}__orig_({", ".join((v.name.value for v in func_args))}),
 #         {session or "NULL"}
 #         {"" if not has_ret or int_ret else
@@ -222,7 +251,7 @@ class Patcher:
 {static}{rettype}
 {func.name.value}({func.args.value}) {{
     __WT_CALL_WRAP_IMPL_BUF_GRAPH(
-        "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}",
+        "{func.name.value}{is_api_str}{is_io_str}{is_wait_str}{is_syscall_str}",
         {func.name.value}__orig_({", ".join((v.name.value for v in func_args))}),
         {session or "NULL"},
         {'; , 0, ' if not has_ret else

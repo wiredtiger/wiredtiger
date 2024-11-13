@@ -29,7 +29,7 @@ __wt_calltrack_init_once(void)
 // void __attribute__((constructor))
 // __wt_calltrack_init_tracefile(void)
 // {
-//     printf("{\"displayTimeUnit\": \"us\", \"traceEvents\": [\n");
+//     printf("{\"traceEvents\": [\n");
 // }
 
 // void __attribute__((destructor)) __wt_calltrack_deinit_tracefile(void);
@@ -73,7 +73,7 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     int cycles = 0;
     WT_CALLTRACK_THREAD_BUF *buf = ((WT_CALLTRACK_THREAD *)arg)->buf;
     FILE *tracefile = __wt_calltrack_open_tracefile(((WT_CALLTRACK_THREAD *)arg)->tnid);
-    fprintf(tracefile, "{\"displayTimeUnit\": \"us\", \"traceEvents\": [\n");
+    fprintf(tracefile, "{\"traceEvents\": [\n");
     while (1) {
         if (!__wt_calltrack_can_read(buf)) {
             if (++cycles < 1000) {
