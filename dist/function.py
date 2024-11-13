@@ -133,6 +133,15 @@ def function_args(name, line):
     if re.search('^WT_RET', line):
         return False,0
 
+    # If one or more of the variables is being initialised, then dependencies
+    # may exist that prevent alphabetical ordering.
+    # For example, the following lines cannot be sorted alphabetically:
+    #    WT_BTREE *btree = S2BT(session);
+    #    WT_BM *bm = btree->bm;
+    # So, in the presence of initialisation, terminate the parse.
+    if re.search('=', line):
+        return False,0
+
     # Let lines not terminated with a semicolon terminate the parse, it means
     # there's some kind of interesting line split we probably can't handle.
     if not re.search(';$', line):
