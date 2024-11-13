@@ -2946,9 +2946,16 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #else
             // WT_ERR(__wt_os_posix(session, &conn->file_system));
 
-            // XXX Move the connection directory into the layer itself... this is bad.
-            WT_ERR(__wt_os_union_fs(session, conn->home, "TOP"));
+            WT_ERR(__wt_os_union_fs(session, "WT_TEST", "TOP", fs));
             WT_ERR(__wt_os_posix(session, &fs));
+            ((WT_UNION_FS *)conn->file_system)->destination.file_system = fs;
+            WT_ERR(__wt_os_posix(session, &fs));
+            ((WT_UNION_FS *)conn->file_system)->source.file_system = fs;
+
+            // XXX Move the connection directory into the layer itself... this is bad.
+            __wt_free(session, conn->home);
+            WT_ERR(__wt_strdup(session, ".", &conn->home));
+
 #endif
         }
     }

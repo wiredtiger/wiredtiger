@@ -435,6 +435,8 @@ struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_txn_snapshot;
 typedef struct __wt_txn_snapshot WT_TXN_SNAPSHOT;
+struct __wt_union_alloc_list;
+typedef struct __wt_union_alloc_list WT_UNION_ALLOC_LIST;
 struct __wt_union_fs;
 typedef struct __wt_union_fs WT_UNION_FS;
 struct __wt_union_fs_fh;

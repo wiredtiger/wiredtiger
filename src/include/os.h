@@ -191,6 +191,17 @@ struct __wt_fstream {
 };
 
 typedef enum { SOURCE, DESTINATION } LAYER;
+
+/*
+ * __wt_union_alloc_list
+ */
+struct __wt_union_alloc_list {
+    wt_off_t off;  /* Allocations's file offset */
+    wt_off_t size; /* Allocations's Size */
+
+    WT_UNION_ALLOC_LIST *next;
+};
+
 /*
  * __wt_file_handle_union_fs_layer --
  *     A file handle in a union file system - one layer.
@@ -200,12 +211,9 @@ struct __wt_union_fs_fh_single_layer {
 
     WT_UNION_FS_LAYER *layer;
     bool complete;
-    LAYER which;
 
-    bool *chunks;
-    size_t chunks_alloc; // XXX Not needed?
-    size_t num_chunks;
-    size_t size;
+    WT_UNION_ALLOC_LIST *allocation_list;
+    WT_UNION_ALLOC_LIST *end;
 };
 
 /*
@@ -214,7 +222,7 @@ struct __wt_union_fs_fh_single_layer {
  */
 struct __wt_union_fs_fh {
     WT_FILE_HANDLE iface;
-    WT_UNION_FS_FH_SINGLE_LAYER source;
+    WT_FILE_HANDLE *source;
     WT_UNION_FS_FH_SINGLE_LAYER destination; /* 0 is the most recent layer. */
 
     WT_FS_OPEN_FILE_TYPE file_type;
@@ -241,6 +249,3 @@ struct __wt_union_fs {
     WT_UNION_FS_LAYER destination;
     size_t chunk_size;
 };
-
-extern int __wt_os_union_fs(WT_SESSION_IMPL *session, const char *source, const char *destination)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

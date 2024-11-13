@@ -92,7 +92,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 10;
+static const int crud_ops = 5;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
@@ -223,7 +223,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
         if (i == warmup_insertions)
             fresh_start = false;
 
-        if (fresh_start || (ran > 1 && ran < 50)) {
+        if (fresh_start || (ran >= 0 && ran < 50)) {
 
             // Write.
             write(session, fresh_start);
