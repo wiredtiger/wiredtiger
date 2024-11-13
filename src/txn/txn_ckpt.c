@@ -449,6 +449,16 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) || WT_IS_HS(btree->dhandle))
         return (0);
 
+    if (__wt_conn_is_disagg(session)) {
+        /* Skip the shared metadata table for disaggregated storage; we'll checkpoint it later. */
+        if (strcmp(btree->dhandle->name, WT_DISAGG_METADATA_URI) == 0)
+            return (0);
+        /* Skip checkpointing shared tables if we are not a leader. */
+        /* TODO: Figure out how to avoid checkpointing clean objects in *all* cases. */
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->oligarch_manager.leader)
+            return (0);
+    }
+
     /*
      * We may have raced between starting the checkpoint transaction and some operation completing
      * on the handle that updated the metadata (e.g., closing a bulk load cursor). All such
@@ -1310,6 +1320,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+    }
+
+    /* Checkpoint the shared metadata table last, as it could have changed. */
+    if (__wt_conn_is_disagg(session) && conn->oligarch_manager.leader) {
+        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
+        if (S2BT(session)->modified)
+            WT_ERR(__wt_checkpoint(session, cfg));
     }
 
     /*

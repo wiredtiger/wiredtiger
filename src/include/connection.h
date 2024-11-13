@@ -187,8 +187,7 @@ struct __wt_disaggregated_storage {
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_FILE_HANDLE *bstorage_meta;
 
-    wt_shared uint64_t num_meta_put; /* The number metadata puts since connection open. */
-
+    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 };

@@ -97,19 +97,23 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *md_cursor;
+    WT_CURSOR *cursor, *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
     size_t len;
     uint64_t checkpoint_id;
     char *entry, *tablename;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     conn = S2C(session);
 
     buf = NULL;
+    cursor = NULL;
     entry = NULL;
+    internal_session = NULL;
     md_cursor = NULL;
     tablename = NULL;
 
@@ -121,32 +125,49 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
     /* Get a metadata cursor pointing to this table */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    /* TODO less hacky way to get URI */
-    len = strlen("file:") + strlen(block_disagg->name) + 1;
+    len = strlen("file:") + strlen(block_disagg->name) + 1; /* TODO less hacky way to get URI */
     WT_ERR(__wt_calloc_def(session, len, &tablename));
     WT_ERR(__wt_snprintf(tablename, len, "file:%s", block_disagg->name));
     md_cursor->set_key(md_cursor, tablename);
     WT_ERR(md_cursor->search(md_cursor));
-
-    /* Get the config we want to print to the metadata file */
     WT_ERR(md_cursor->get_value(md_cursor, &md_value));
-    WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
 
-    len += cval.len + 2; /* +2 for the separator and the newline */
-    WT_ERR(__wt_calloc_def(session, len, &entry));
-    WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
+    /*
+     * Store the metadata of regular shared tables in the shared metadata table. Store the metadata
+     * of the shared metadata table in the system-level metadata (similar to the turtle file).
+     */
+    if (strcmp(block_disagg->name, WT_DISAGG_METADATA_FILE) == 0) {
+        /* Get the config we want to print to the metadata file */
+        WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
 
-    WT_ERR(__wt_scr_alloc(session, len, &buf));
-    memcpy(buf->mem, entry, len);
-    buf->size = len - 1;
-    WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
+        len += cval.len + 2; /* +2 for the separator and the newline */
+        WT_ERR(__wt_calloc_def(session, len, &entry));
+        WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
+
+        WT_ERR(__wt_scr_alloc(session, len, &buf));
+        memcpy(buf->mem, entry, len);
+        buf->size = len - 1;
+        WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
+    } else {
+        /* Keep all metadata for regular tables. */
+        WT_ERR(
+          __wt_open_internal_session(conn, "checkpoint-resolve", false, 0, 0, &internal_session));
+        WT_ERR(__wt_open_cursor(internal_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+        cursor->set_key(cursor, tablename);
+        cursor->set_value(cursor, md_value);
+        WT_ERR(cursor->insert(cursor));
+    }
 
 err:
     __wt_scr_free(session, &buf);
     __wt_free(session, tablename);
     __wt_free(session, entry); /* TODO may not have been allocated */
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
 
     return (ret);
 }

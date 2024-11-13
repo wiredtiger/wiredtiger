@@ -78,6 +78,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             cursor[str(i)] = value1
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -89,6 +94,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
@@ -115,6 +121,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             cursor[str(i)] = value1
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -128,6 +139,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
@@ -153,6 +165,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             cursor[str(i)] = value1
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -165,6 +182,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
@@ -191,6 +209,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             cursor[str(i)] = value1
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems + 1, 5):
@@ -201,6 +224,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
@@ -231,6 +255,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             if i % 10 == 0:
                 cursor[str(i)] = value2
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -242,6 +271,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
@@ -271,6 +301,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             cursor[str(i)] = value1
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -286,6 +321,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)
@@ -321,6 +357,11 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 cursor.set_key(str(i))
                 self.assertEqual(cursor.remove(), 0)
 
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # oligarch watcher implementation
+        import time
+        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -332,6 +373,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # oligarch watcher implementation
         import time
         time.sleep(1.0)
+        self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
         self.reopen_conn(config = follower_config)

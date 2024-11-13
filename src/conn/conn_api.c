@@ -3276,12 +3276,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_tiered_conn_config(session, cfg, false));
 
     /*
-     * Do early initialization for disaggregated storage, as we'll need it later for some metadata
-     * operations.
-     */
-    WT_ERR(__wti_disagg_conn_config(session, cfg, false));
-
-    /*
      * The metadata/log encryptor is configured after extensions, since extensions may load
      * encryptors. We have to do this before creating the metadata file.
      *
@@ -3362,6 +3356,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wti_connection_workers(session, cfg));
+
+    /* Initialize disaggregated storage (the metadata table must be open at this point). */
+    WT_ERR(__wti_disagg_conn_config(session, cfg, false));
 
     /*
      * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
