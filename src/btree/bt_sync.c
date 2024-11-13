@@ -39,18 +39,14 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * never skipped.
      * - the checkpoint's snapshot includes the first dirty update on the page.
      * - Not every disk block involved has a disk address.
+     *
+     * Note that the conditions are ordered below depending on their likelihood to be satisfied.
      */
-    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-        return (false);
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
     if (WT_IS_HS(session->dhandle))
         return (false);
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        return (false);
     txn = session->txn;
-    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
-        return (false);
     mod = ref->page->modify;
     if (!WT_TXNID_LT(txn->snapshot_data.snap_max, mod->first_dirty_txn))
         return (false);
@@ -69,6 +65,13 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             if (multi->addr.addr == NULL)
                 return (false);
+
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+        return (false);
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
+        return (false);
+    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (false);
 
     return (true);
 }
