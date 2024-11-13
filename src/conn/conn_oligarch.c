@@ -322,12 +322,6 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
 
     *cursorp = NULL;
 
-    WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
-    if (global_ckpt_id > entry->global_checkpoint_id) {
-        entry->global_checkpoint_id = global_ckpt_id;
-        cfg[2] = "force=true";
-    }
-
     if (entry == NULL)
         return (0);
 
@@ -336,9 +330,14 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
         return (0);
     }
 
+    WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
+    if (global_ckpt_id > entry->global_checkpoint_id)
+        cfg[2] = "force=true";
+
     /* Open the cursor and keep a reference in the manager entry and our caller */
     WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));
     entry->stable_cursor = stable_cursor;
+    entry->global_checkpoint_id = global_ckpt_id;
     *cursorp = stable_cursor;
 
     return (0);
