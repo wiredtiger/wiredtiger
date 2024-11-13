@@ -478,6 +478,7 @@ __ckpt_mod_blkmod_entry(
             start_bit = (uint64_t)clr_off / gran;
             end_bit = (uint64_t)(clr_off + clr_len - 1) / gran;
             WT_ASSERT(session, end_bit >= start_bit);
+            WT_STAT_CONN_INCRV(session, backup_bits_clr, end_bit - start_bit + 1);
             __bit_nclr(blk_mod->bitstring.mem, start_bit, end_bit);
         }
     }
