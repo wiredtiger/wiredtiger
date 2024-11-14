@@ -2274,11 +2274,13 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 int
 __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 {
+    WT_ADDR *addr;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *new;
 
     page = ref->page;
+    addr = NULL;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
@@ -2318,6 +2320,19 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     __wt_page_modify_clear(session, page);
     if (!F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_SCRUB) || multi->supd_restore)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
+
+    /* If there's an address, copy it. */
+    if (multi->addr.block_cookie != NULL) {
+        WT_ERR(__wt_calloc_one(session, &addr));
+        WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
+        WT_ERR(__wt_memdup(
+          session, multi->addr.block_cookie, multi->addr.block_cookie_size, &addr->block_cookie));
+        addr->block_cookie_size = multi->addr.block_cookie_size;
+        addr->type = multi->addr.type;
+        __wt_ref_addr_free(session, ref);
+        ref->addr = addr;
+    }
+
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
@@ -2329,6 +2344,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     return (0);
 
 err:
+    __wt_free(session, addr);
     __split_multi_inmem_fail(session, page, multi, new);
     return (ret);
 }
