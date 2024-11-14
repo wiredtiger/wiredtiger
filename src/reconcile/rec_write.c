@@ -2425,7 +2425,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
       block_meta->delta_count < WT_DELTA_LIMIT) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
-        if (build_delta && r->delta.size > chunk->image.size / 10)
+        if (build_delta && r->delta.size > chunk->image.size / 5)
             build_delta = false;
     }
 
@@ -2434,7 +2434,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
         multi->block_meta = *block_meta;
-        /* TODO: we need to restrict evicting pages in the next checkpoint. */
         WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
@@ -2456,7 +2455,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
             multi->block_meta.delta_count = 0;
-            /* TODO: we need to restrict evicting pages in the next checkpoint. */
             WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
             if (checkpoint_id != multi->block_meta.checkpoint_id) {
                 WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);

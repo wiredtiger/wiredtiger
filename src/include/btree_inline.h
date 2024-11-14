@@ -1887,6 +1887,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
+    WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     bool modified;
@@ -1894,6 +1895,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
 
+    btree = S2BT(session);
     page = ref->page;
     mod = page->modify;
 
@@ -1964,6 +1966,17 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     /*
+     * Don't evict the disaggregated page that should belong to the next checkpoint.
+     *
+     * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
+     * before we set the checkpoint running flag to false.
+     */
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session) &&
+      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT) &&
+      __wt_atomic_loadvbool(&S2C(session)->txn_global.checkpoint_running))
+        return (false);
+
+    /*
      * Check we are not evicting an accessible internal page with an active split generation.
      *
      * If a split created new internal pages, those newly created internal pages cannot be evicted
@@ -1982,7 +1995,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     /* If the metadata page is clean but has modifications that appear too new to evict, skip it. */
-    if (WT_IS_METADATA(S2BT(session)->dhandle) && !modified &&
+    if (WT_IS_METADATA(btree->dhandle) && !modified &&
       !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_recently_modified);
         return (false);

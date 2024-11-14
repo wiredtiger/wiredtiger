@@ -328,6 +328,10 @@ file_config = format_meta + file_runtime_config + tiered_config + file_disaggreg
         compression engine name created with WT_CONNECTION::add_compressor. If WiredTiger
         has builtin support for \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression,
         these names are also available. See @ref compression for more information'''),
+    Config('block_manager', 'default', r'''
+        configure a manager for file blocks. Permitted values are \c "default" or the
+        disaggregated storage block manager backed by \c PALI.''',
+        choices=['default', 'disagg']),
     Config('checksum', 'on', r'''
         configure block checksums; the permitted values are \c on, \c off, \c uncompressed and
         \c unencrypted. The default is \c on, in which case all block writes include a checksum
