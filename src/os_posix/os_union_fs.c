@@ -571,7 +571,9 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
 
     /* Close each layer. */
+    printf("CLOSING %s\n", file_handle->name);
     fh->destination.fh->close(fh->destination.fh, wt_session);
+    //TODO: Reconcile the file?
     // TODO: Free the extent linked list.
 
     if (fh->source != NULL) /* It's possible that we never opened the file in the source. */
@@ -605,6 +607,8 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
  */
 typedef enum { NONE, FULL} RW_SERVICE_LEVEL;
 
+#define EXTENT_END(ext) (ext)->off + (wt_off_t)(ext)->len
+
 static RW_SERVICE_LEVEL
 __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len) {
     WT_UNION_FS_FH_SINGLE_LAYER *dest_fh;
@@ -624,9 +628,8 @@ __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off
 
     alloc = dest_fh->allocation_list;
     while (alloc != NULL) {
-        wt_off_t alloc_end = alloc->off + alloc->size;
         /* The read is in this allocation. */
-        if (offset >= alloc->off && rw_end <= alloc_end) {
+        if (offset >= alloc->off && rw_end <= EXTENT_END(alloc)) {
             printf("Full match on read\n");
             return (FULL);
         }
@@ -646,7 +649,6 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
 {
     WT_UNION_ALLOC_LIST *alloc, *prev, *new;
     RW_SERVICE_LEVEL sl;
-    
     prev = alloc = new = NULL;
 
     printf("UPDATE EXTENT %s, %ld, %lu, %p\n", union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
@@ -660,21 +662,57 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
         alloc = union_fh->destination.allocation_list;
         while (alloc != NULL) {
             /* Find the first extend that the write is before. */
+            if (alloc->off == offset) {
+                /* This is the exact extend we are concerned with. Assert that it fits inside it. */
+                WT_ASSERT(session, EXTENT_END(alloc) >= offset + (wt_off_t)len);
+                printf("EXTENT MATCH %s, no work done\n", union_fh->iface.name);
+                return (0);
+            }
             if (alloc->off > offset) {
                 break;
             }
             prev = alloc;
             alloc = alloc->next;
         }
+
+        if (prev == NULL) {
+            // New extent is at the start.
+            /* Allocate a new extent. */
+            WT_RET(__wt_calloc_one(session, &new));
+            new->off = offset;
+            new->len = len;
+            new->next = alloc;
+            union_fh->destination.allocation_list = new;
+            return (0);
+
+        } else if (alloc == NULL) {
+            // New extent is after.
+            if (EXTENT_END(prev) == offset) {
+                // Grow prev.
+                prev->len += len;
+                return (0);
+            }
+        } else {
+            // New extent is in between.
+            if (EXTENT_END(prev) == offset) {
+                // Grow prev.
+                prev->len += len;
+                //TODO: Merge with next extent.
+                if (prev->next->off == EXTENT_END(prev)) {
+                    printf("Could merge extent!!!\n");
+                }
+                return (0);
+            }
+        }
         /* Allocate a new extent. */
         WT_RET(__wt_calloc_one(session, &new));
         new->off = offset;
-        new->size = (wt_off_t)len;
+        new->len = len;
         new->next = alloc;
-        if (prev == NULL)
-            union_fh->destination.allocation_list = new;
-        else
-            prev->next = new;
+        prev->next = new;
+        if (EXTENT_END(prev) == new->off) {
+            printf("Could merge extent!!!\n");
+        }
     }
     return (0);
 }
@@ -692,6 +730,7 @@ __union_fs_file_write(
     union_fh = (WT_UNION_FS_FH *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
+    printf("WRITE %s: %ld, %zu\n", fh->name, offset, len);
     WT_RET(union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
 
     WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
@@ -725,24 +764,9 @@ __union_fs_file_write(
  *     TODO: Locking needed.
  */
 static int
-__read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, RW_SERVICE_LEVEL level, char *read) {
-    WT_UNION_FS_FH_SINGLE_LAYER *dest_fh;
-    WT_UNION_ALLOC_LIST *alloc;
-
-    dest_fh = &union_fh->destination;
-
-    alloc = dest_fh->allocation_list;
-    if (alloc == NULL) {
-        /* TODO: In the future this will be only NONE. Once Partial reads and promotions are implemented. */
-        WT_ASSERT(session, level == NONE);
-        WT_RET(__wt_calloc_one(session, &alloc));
-        alloc->off = offset;
-        alloc->size = (wt_off_t)len;
-        WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
-        return (0);
-    }
-    // TODO: Pass the start of the extent list that is relevant.
-    //while (alloc)
+__read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read) {
+    printf("PROMOTE READ %s : %ld, %zu\n", union_fh->iface.name, offset, len);
+    WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
     return (0);
 }
 
@@ -766,7 +790,7 @@ __union_fs_file_read(
 
     // XXX We really want to read this faster than one chunk at a time... this is embarrassing.
 
-    fprintf(stderr, "READ file %s : %ld %zu\n", file_handle->name, offset, len);
+    printf("READ %s : %ld. %zu\n", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -784,7 +808,7 @@ __union_fs_file_read(
         /* Read the full read from the source. */
         WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
-        WT_ERR(__read_promote(union_fh, session, offset, len, sl, read_data));
+        WT_ERR(__read_promote(union_fh, session, offset, len, read_data));
     }
 err:
     return (ret);
@@ -959,6 +983,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_ERR(__wt_strdup(session, name, &fh->iface.name));
     fh->iface.file_system = fs;
     fh->file_type = file_type;
+    printf("OPENING %s\n", name);
 
     // XXX Handle the exclusive flag and other flags
 

@@ -197,7 +197,7 @@ typedef enum { SOURCE, DESTINATION } LAYER;
  */
 struct __wt_union_alloc_list {
     wt_off_t off;  /* Allocations's file offset */
-    wt_off_t size; /* Allocations's Size */
+    size_t len; /* Allocations's Size */
 
     WT_UNION_ALLOC_LIST *next;
 };
