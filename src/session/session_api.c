@@ -1601,7 +1601,17 @@ err:
 static bool
 __check_key_outside_truncate_range(WT_CURSOR *current, WT_TRUNCATE_INFO *trunc_info)
 {
-    return (current->key.data < trunc_info->orig_start_key->data || current->key.data > trunc_info->orig_stop_key->data);
+    if (trunc_info->orig_start_key != NULL) {
+        if (current->key.data < trunc_info->orig_start_key->data)
+            return (true);
+    }
+
+    if (trunc_info->orig_stop_key != NULL) {
+        if (current->key.data > trunc_info->orig_stop_key->data)
+            return (true);
+    }
+
+    return (false);
 }
 
 /*
