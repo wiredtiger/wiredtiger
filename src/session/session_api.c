@@ -1596,7 +1596,8 @@ err:
 
 /*
  * __check_key_outside_truncate_range --
- *     Checks if the key falls outside the truncate range, inclusive of the start and stop keys if provided.
+ *     Checks if the key falls outside the truncate range, inclusive of the start and stop keys if
+ *     provided.
  */
 static bool
 __check_key_outside_truncate_range(WT_CURSOR *current, WT_TRUNCATE_INFO *trunc_info)
@@ -1725,7 +1726,8 @@ __wt_session_range_truncate(
         if (orig_start_key != NULL) {
             ret = start->search_near(start, &cmp);
             if (ret == WT_PREPARE_CONFLICT) {
-                /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+                /* Don't return a prepare conflict if the key we land on falls outside the truncate
+                 * range. */
                 if (__check_key_outside_truncate_range(start, trunc_info)) {
                     F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                     WT_ERR_NOTFOUND_OK(start->search_near(start, &cmp), true);
@@ -1743,7 +1745,8 @@ __wt_session_range_truncate(
         if (needs_next_prev) {
             ret = start->next(start);
             if (ret == WT_PREPARE_CONFLICT) {
-                /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+                /* Don't return a prepare conflict if the key we land on falls outside the truncate
+                 * range. */
                 if (__check_key_outside_truncate_range(start, trunc_info)) {
                     F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                     WT_ERR_NOTFOUND_OK(start->next(start), true);
@@ -1762,7 +1765,8 @@ __wt_session_range_truncate(
     if (stop != NULL && !F_ISSET(stop, WT_CURSTD_KEY_INT)) {
         ret = stop->search_near(stop, &cmp);
         if (ret == WT_PREPARE_CONFLICT) {
-            /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+            /* Don't return a prepare conflict if the key we land on falls outside the truncate
+             * range. */
             if (__check_key_outside_truncate_range(stop, trunc_info)) {
                 F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                 WT_ERR_NOTFOUND_OK(stop->search_near(stop, &cmp), true);
@@ -1779,7 +1783,8 @@ __wt_session_range_truncate(
         if (needs_next_prev) {
             ret = stop->prev(stop);
             if (ret == WT_PREPARE_CONFLICT) {
-                /* Don't return a prepare conflict if the key we land on falls outside the truncate range. */
+                /* Don't return a prepare conflict if the key we land on falls outside the truncate
+                 * range. */
                 if (__check_key_outside_truncate_range(stop, trunc_info)) {
                     F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                     WT_ERR_NOTFOUND_OK(stop->prev(stop), true);
