@@ -29,8 +29,8 @@
 #include "wt_internal.h"
 #include <unistd.h>
 
-#define WT_UNION_FS_STOP_SUFFIX ".stop"
-#define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
+// #define WT_UNION_FS_STOP_SUFFIX ".stop"
+// #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
 /*
  * __union_fs_filename --
@@ -378,7 +378,7 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
     WT_DECL_RET;
     WT_UNION_FS *union_fs;
     WT_UNION_FS_LAYER *layer;
-    size_t entries_alloc_size, l;
+    size_t entries_alloc_size;
     uint32_t i, j, layer_num_entries, num_entries, ret_num_entries, reuse;
     char **entries, **layer_entries, *path, **ret_entries;
     bool found;
@@ -411,20 +411,20 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
         /* Process the entries from the layer, properly handling tombstones. */
         for (i = 0; i < layer_num_entries; i++) {
 
-            /* Exclude all stop markers. */
-            if (__union_fs_is_stop(fs, session, layer_entries[i]))
-                continue;
+            // /* Exclude all stop markers. */
+            // if (__union_fs_is_stop(fs, session, layer_entries[i]))
+            //     continue;
 
-            if (__union_fs_is_tombstone(fs, session, layer_entries[i])) {
-                /* Find the tombstone in a list and mark it as removed. */
-                l = strlen(layer_entries[i]) - strlen(WT_UNION_FS_TOMBSTONE_SUFFIX);
-                for (j = 0; j < num_entries; j++) {
-                    if (strncmp(entries[j], layer_entries[i], l) == 0 && strlen(entries[j]) == l) {
-                        entries[j][0] = '\0';
-                        break;
-                    }
-                }
-            } else {
+            // if (__union_fs_is_tombstone(fs, session, layer_entries[i])) {
+            //     /* Find the tombstone in a list and mark it as removed. */
+            //     l = strlen(layer_entries[i]) - strlen(WT_UNION_FS_TOMBSTONE_SUFFIX);
+            //     for (j = 0; j < num_entries; j++) {
+            //         if (strncmp(entries[j], layer_entries[i], l) == 0 && strlen(entries[j]) == l) {
+            //             entries[j][0] = '\0';
+            //             break;
+            //         }
+            //     }
+            // } else {
                 /* See if the entry is in the list. Remember any slots that can be reused. */
                 found = false;
                 reuse = (uint32_t)-1;
@@ -448,7 +448,7 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
                         ++num_entries;
                     }
                 }
-            }
+            // }
         }
 
         /* Clean up the listing from the layer. */
@@ -572,12 +572,10 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     /* Close each layer. */
     fh->destination.fh->close(fh->destination.fh, wt_session);
-    __wt_free(session, fh->destination.chunks);
+    // TODO: Free the extent linked list.
 
-    if (fh->source.fh != NULL) {
-        fh->source.fh->close(fh->source.fh, wt_session);
-        __wt_free(session, fh->source.chunks);
-    }
+    if (fh->source != NULL) /* It's possible that we never opened the file in the source. */
+        fh->source->close(fh->source, wt_session);
     __wt_free(session, fh->iface.name);
     __wt_free(session, fh);
 
@@ -597,6 +595,172 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
     return (fh->destination.fh->fh_lock(fh->destination.fh, wt_session, lock));
 }
 
+// This may be easier with a partial_start, partial_end, partial macro.
+typedef enum { NONE, PARTIAL, FULL, GROW} RW_SERVICE_LEVEL;
+
+static RW_SERVICE_LEVEL
+__dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len) {
+    WT_UNION_FS_FH_SINGLE_LAYER *dest_fh;
+    WT_UNION_ALLOC_LIST *alloc;
+    wt_off_t rw_end;
+    bool found_start, found_end;
+
+    WT_UNUSED(session);
+
+    // Walk the extend list until extent offset + size > read offset + size.
+    dest_fh = &union_fh->destination;
+    found_start = found_end = false;
+    rw_end = offset + (wt_off_t)len;
+
+
+    /* Nothing has been written into the destination yet. */
+    if (dest_fh->allocation_list == NULL)
+        return (NONE);
+
+    // TODO: this will miss overlaps that don't have the start or the end in a given extent.
+
+    alloc = dest_fh->allocation_list;
+    while (alloc != NULL) {
+        wt_off_t alloc_end = alloc->off + alloc->size;
+        /* The start of the rw is in this allocation. */
+        if (offset >= alloc->off && offset < alloc_end) {
+            found_start = true;
+            /* The full rw is in this allocation. */
+            if (rw_end < alloc_end)
+                return (FULL);
+        }
+        /* The end of the rw is inside this alloc. */
+        if (rw_end < alloc_end && rw_end > alloc->off) {
+            found_end = true;
+        }
+
+        if (alloc->next == NULL && offset == alloc_end) {
+            return (GROW);
+        }
+        alloc = alloc->next;
+    }
+
+    if (found_start || found_end)
+        return (PARTIAL);
+    return (NONE);
+}
+
+/*
+ * __dest_update_alloc_list_write --
+ *     Track that we wrote something. This will require creating new extends, growing existing ones
+ *     and merging overlapping extents.
+ */
+static int
+__dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+{
+    WT_UNION_ALLOC_LIST *alloc, *prev, *new;
+    RW_SERVICE_LEVEL sl;
+    
+    prev = alloc = new = NULL;
+
+    printf("UPDATE EXTENT %s, %ld, %lu, %p\n", union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
+
+    sl = __dest_can_service_rw(union_fh, session, offset, len);
+    switch (sl) {
+        
+    }
+    if (sl == FULL) {
+        /* The full write was serviced from single extent. */
+        return (0);
+    } else if (sl == PARTIAL) {
+        /* We need to grow, merge, etc here. */
+    } else if ()
+    } else {
+        /* Allocate a new extent. */
+        alloc = union_fh->destination.allocation_list;
+        while (alloc != NULL) {
+            /* Find the first extend that the write is before. */
+            if (alloc->off > offset) {
+                break;
+            }
+            prev = alloc;
+            alloc = alloc->next;
+        }
+        /* Allocate a new extent. */
+        WT_RET(__wt_calloc_one(session, &new));
+        new->off = offset;
+        new->size = (wt_off_t)len;
+        new->next = alloc;
+        if (prev == NULL)
+            union_fh->destination.allocation_list = new;
+        else
+            prev->next = new;
+    }
+    return (0);
+}
+/*
+ * __union_fs_file_write --
+ *     File write.
+ */
+static int
+__union_fs_file_write(
+  WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
+{
+    WT_SESSION_IMPL *session;
+    WT_UNION_FS_FH *union_fh;
+
+    union_fh = (WT_UNION_FS_FH *)fh;
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    WT_RET(union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
+
+    WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
+
+    //  fprintf(stderr, "WRITE %s : %ld %zu\n", fh->name, offset, len);
+
+
+    // TODO: I think this is error checking?
+    // XXX
+    // WT_ERR(__wt_calloc_def(session, len, &b));
+    // WT_ERR(l->fh->fh_read(l->fh, wt_session, offset, len, b));
+    // WT_ASSERT(session, memcmp(buf, b, len) == 0);
+
+    // // XXX
+    // WT_ERR(__wt_calloc_def(session, (size_t)x + 1048576 * 10, &d));
+    // WT_ERR(union_fh->iface.fh_read(&union_fh->iface, wt_session, 0, (size_t)x, d));
+    // WT_ASSERT(session, memcmp(c, d, (size_t)x) == 0);
+
+    return (0);
+}
+
+/*
+ * __read_promote --
+ *     Write out the contents of a read into the destination. This will be overkill for cases where
+ *     a read is performed to service a write. Which is most cases however this is a PoC.
+ *
+ *     This is somewhat tricky as we need to compute what parts of the read require copying to the
+ *     destination, which requires parsing the existing extent lists in the destination and finding
+ *     the gaps to then be filled by N writes.
+ *
+ *     TODO: Locking needed.
+ */
+static int
+__read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, RW_SERVICE_LEVEL level, char *read) {
+    WT_UNION_FS_FH_SINGLE_LAYER *dest_fh;
+    WT_UNION_ALLOC_LIST *alloc;
+
+    dest_fh = &union_fh->destination;
+
+    alloc = dest_fh->allocation_list;
+    if (alloc == NULL) {
+        /* TODO: In the future this will be only NONE. Once Partial reads and promotions are implemented. */
+        WT_ASSERT(session, level == NONE || level == PARTIAL);
+        WT_RET(__wt_calloc_one(session, &alloc));
+        alloc->off = offset;
+        alloc->size = (wt_off_t)len;
+        WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
+        return (0);
+    }
+    // TODO: Pass the start of the extent list that is relevant.
+    //while (alloc)
+    return (0);
+}
+
 /*
  * __posix_file_read --
  *     File read.
@@ -607,53 +771,33 @@ __union_fs_file_read(
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UNION_FS *u;
     WT_UNION_FS_FH *union_fh;
-    WT_UNION_FS_FH_SINGLE_LAYER *l;
-    char *dest;
-    size_t chunk_from, chunk_from_inner, chunk_index, chunk_to, chunk_to_inner, read_len,
-      read_offset;
+    RW_SERVICE_LEVEL sl;
+    char *read_data;
 
     union_fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
-    u = (WT_UNION_FS *)union_fh->iface.file_system;
-
-    chunk_from = (size_t)offset / u->chunk_size;
-    chunk_from_inner = (size_t)offset % u->chunk_size;
-    chunk_to = ((size_t)offset + len) / u->chunk_size;
-    chunk_to_inner = ((size_t)offset + len) % u->chunk_size;
-    if (chunk_to_inner != 0)
-        ++chunk_to;
+    sl = NONE;
 
     // XXX We really want to read this faster than one chunk at a time... this is embarrassing.
 
     fprintf(stderr, "READ file %s : %ld %zu\n", file_handle->name, offset, len);
 
-    dest = (char *)buf;
+    read_data = (char *)buf;
 
-    for (chunk_index = chunk_from; chunk_index < chunk_to; chunk_index++) {
-        l = &union_fh->destination;
-        if (!__union_fs_chunk_in_layer(l, chunk_index)) {
-            l = &(union_fh->source);
-            WT_ASSERT(session, __union_fs_chunk_in_layer(l, chunk_index));
-        }
+    sl = __dest_can_service_rw(union_fh, session, offset, len);
 
-        read_offset = chunk_index * u->chunk_size;
-        read_len = u->chunk_size;
-        if (chunk_index == chunk_from) {
-            read_offset += chunk_from_inner;
-            read_len -= chunk_from_inner;
-        }
-        // Reading past EOF? TODO: Fix this assert.
-        // WT_ASSERT(session, !(i > 0 && read_offset >= l->size));
-
-        if (read_offset + read_len > (size_t)offset + len)
-            read_len = (size_t)offset + len - read_offset;
-        WT_ASSERT(session, read_len > 0);
-        fprintf(stderr, "READ %s, from %s:   << [%zu] %ld %zu\n", file_handle->name,
-          l->which == DESTINATION ? "dest" : "src", chunk_index, (wt_off_t)read_offset, read_len);
-        WT_ERR(l->fh->fh_read(l->fh, wt_session, (wt_off_t)read_offset, read_len, dest));
-        dest += read_len;
+    if (sl == NONE || sl == PARTIAL) {
+        /* Read the full read from the source. */
+        WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
+        /* Promote the read */
+        WT_ERR(__read_promote(union_fh, session, offset, len, sl, read_data));
+    } else if (sl == PARTIAL) { // TODO: Right now we service this using a NONE type read. We need to implement this.
+        /* A combined read from the destination and the source. */
+    } else {
+        /* Read the full read from the destination. */
+        WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
+        /* No more work to do. */
     }
 
 err:
@@ -673,9 +817,9 @@ __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off
     fh = (WT_UNION_FS_FH *)file_handle;
 
     WT_RET(fh->destination.fh->fh_size(fh->destination.fh, wt_session, &destination_size));
-    if (fh->source.fh != NULL)
-        WT_RET(fh->source.fh->fh_size(fh->source.fh, wt_session, &source_size));
-    // fprintf(stderr, "SIZE %s : %zu\n", file_handle->name, size);
+    if (fh->source != NULL)
+        WT_RET(fh->source->fh_size(fh->source, wt_session, &source_size));
+    // TODO: This needs fixing somehow.
 
     *sizep = destination_size > source_size ? destination_size : source_size;
     return (0);
@@ -698,262 +842,99 @@ __union_fs_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  * __union_fs_file_read_chunk --
  *     Read a chunk from a file.
  */
-static int
-__union_fs_file_read_chunk(
-  WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, size_t chunk_index, void *buf, size_t *lenp)
-{
-    WT_UNION_FS *u;
-    WT_UNION_FS_FH_SINGLE_LAYER *l;
-    size_t read_len, read_offset;
+// __union_fs_file_read_chunk(
+//   WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, size_t chunk_index, void *buf, size_t *lenp)
+// {
+//     WT_UNION_FS *u;
+//     WT_UNION_FS_FH_SINGLE_LAYER *l;
+//     size_t read_len, read_offset;
 
-    u = (WT_UNION_FS *)union_fh->iface.file_system;
-    // l = &union_fh->destination;
-    // if (!__union_fs_chunk_in_layer(l, chunk_index)) {
-    l = &(union_fh->source);
-    WT_ASSERT(session, __union_fs_chunk_in_layer(l, chunk_index));
-    // }
-    read_offset = chunk_index * u->chunk_size;
-    read_len = u->chunk_size;
-    if (read_offset >= l->size) {
-        if (lenp != NULL)
-            *lenp = read_len;
-        return (0);
-    }
-    if (read_offset + read_len > l->size)
-        read_len = l->size - read_offset;
-    WT_ASSERT(session, read_len > 0);
-    if (lenp != NULL)
-        *lenp = read_len;
-    return (l->fh->fh_read(l->fh, (WT_SESSION *)session, (wt_off_t)read_offset, read_len, buf));
-}
+//     u = (WT_UNION_FS *)union_fh->iface.file_system;
+//     // l = &union_fh->destination;
+//     // if (!__union_fs_chunk_in_layer(l, chunk_index)) {
+//     l = &(union_fh->source);
+//     WT_ASSERT(session, __union_fs_chunk_in_layer(l, chunk_index));
+//     // }
+//     read_offset = chunk_index * u->chunk_size;
+//     read_len = u->chunk_size;
+//     if (read_offset >= l->size) {
+//         if (lenp != NULL)
+//             *lenp = read_len;
+//         return (0);
+//     }
+//     if (read_offset + read_len > l->size)
+//         read_len = l->size - read_offset;
+//     WT_ASSERT(session, read_len > 0);
+//     if (lenp != NULL)
+//         *lenp = read_len;
+//     return (l->fh->fh_read(l->fh, (WT_SESSION *)session, (wt_off_t)read_offset, read_len, buf));
+// }
+
+
 
 /*
- * __union_fs_file_write --
- *     File write.
+ * __union_fs_open_in_source --
+ *     Open a file handle in the source.
  */
 static int
-__union_fs_file_write(
-  WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
-{
+__union_fs_open_in_source(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNION_FS_FH *union_fh, uint32_t flags) {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    WT_UNION_FS *u;
-    WT_UNION_FS_FH *union_fh;
-    WT_UNION_FS_FH_SINGLE_LAYER *l;
-    char *src, *tmp, *write_buf, *b, *c, *d;
-    bool found, *new_chunks;
-    size_t chunk_from, chunk_from_inner, chunk_index, chunk_to, chunk_to_inner, get_from_src,
-      index_within_tmp, tmp_len, w, write_len, write_offset;
+    WT_FILE_HANDLE *fh;
 
-    wt_off_t x;
+    char *path;
 
-    WT_UNUSED(found);
-    union_fh = (WT_UNION_FS_FH *)fh;
-    session = (WT_SESSION_IMPL *)wt_session;
-    u = (WT_UNION_FS *)union_fh->iface.file_system;
+    path = NULL;
 
-    b = NULL;
-    c = NULL;
-    d = NULL;
-    new_chunks = NULL;
-    tmp = NULL;
+    // Clear the create flag. TODO: Can we assert something here?
+    FLD_CLR(flags, WT_FS_OPEN_CREATE);
 
-    // XXX
-    WT_ERR(u->iface.fs_size(&u->iface, wt_session, union_fh->iface.name, &x));
-    // fprintf(stderr, "VRFY1 %s : %ld %zu x=%zu\n", fh->name, offset, len, x);
-    WT_ERR(__wt_calloc_def(session, (size_t)x + 1048576 * 100, &c));
-    WT_ERR(union_fh->iface.fh_read(&union_fh->iface, wt_session, 0, (size_t)x, c));
-    memcpy(c + offset, buf, len);
 
-    chunk_from = (size_t)offset / u->chunk_size;
-    chunk_from_inner = (size_t)offset % u->chunk_size;
-    chunk_to = ((size_t)offset + len) / u->chunk_size;
-    chunk_to_inner = ((size_t)offset + len) % u->chunk_size;
-    if (chunk_to_inner != 0)
-        ++chunk_to;
-    else
-        chunk_to_inner = u->chunk_size;
+    /* Open the file in the layer. */
+    WT_ERR(__union_fs_filename(&u->source, session, union_fh->iface.name, &path));
+    WT_ERR(u->source.file_system->fs_open_file(
+      u->source.file_system, (WT_SESSION *)session, path, union_fh->file_type, flags, &fh));
 
-    WT_ERR(__wt_calloc_def(session, u->chunk_size, &tmp));
-
-    // XXX We really want to write faster than one chunk at a time... this is embarrassing.
-    // TODO: Implement this.
-
-    src = (char *)buf;
-    //  fprintf(stderr, "WRITE %s : %ld %zu\n", fh->name, offset, len);
-    l = &union_fh->destination;
-    for (chunk_index = chunk_from; chunk_index < chunk_to; chunk_index++) {
-        found = false;
-
-        write_buf = src;
-        write_offset = chunk_index * u->chunk_size;
-        write_len = u->chunk_size;
-        // TODO: Should there be a chunk_in_layer check here? That way we write to the top layer if
-        // it's there?
-        /* Read in the chunk. If it is lower level it will need to be moved up. */
-        if ((chunk_index == chunk_from && chunk_from_inner != 0) ||
-          (chunk_index + 1 == chunk_to && chunk_to_inner != 0)) {
-            w = 0;
-
-            // TODO: This needs some kind of does the source layer exist macro.
-            if (union_fh->source.fh != NULL) {
-                fprintf(stderr, "READ for WRITE to %s: [%zu] %zu-%zu\n", fh->name, chunk_index,
-                  chunk_from, chunk_to);
-                WT_ERR(__union_fs_file_read_chunk(union_fh, session, chunk_index, tmp, &tmp_len));
-                if (tmp_len < u->chunk_size) {
-                    memset(tmp + tmp_len, 0, u->chunk_size - tmp_len);
-                    write_len = tmp_len;
-                }
-                fprintf(stderr, "READ for WRITE to %s:  ^^ [%zu] %zu-%zu %zu\n", fh->name,
-                  chunk_index, chunk_from, chunk_to, tmp_len);
-            } else {
-                write_len = 0;
-                if (chunk_index == chunk_from) {
-                    write_offset += chunk_from_inner;
-                    w = chunk_from_inner;
-                }
-            }
-
-            get_from_src = u->chunk_size;
-            if (chunk_index == chunk_from)
-                get_from_src = u->chunk_size - chunk_from_inner;
-            if (chunk_index + 1 == chunk_to) {
-                if (chunk_index == chunk_from)
-                    get_from_src = chunk_to_inner - chunk_from_inner;
-                else
-                    get_from_src = chunk_to_inner;
-            }
-
-            index_within_tmp = chunk_index == chunk_from ? chunk_from_inner : 0;
-            memcpy(tmp + index_within_tmp, src, get_from_src);
-            write_buf = tmp;
-
-            src += get_from_src;
-            if (index_within_tmp + get_from_src > write_len)
-                write_len = index_within_tmp + get_from_src - w;
-        } else
-            src += write_len;
-
-        fprintf(stderr, "WRITE to %s:   >> [%zu] %ld %zu\n", fh->name, chunk_index,
-          (wt_off_t)write_offset, write_len);
-        WT_ERR(l->fh->fh_write(l->fh, wt_session, (wt_off_t)write_offset, write_len, write_buf));
-
-        if (l->chunks != NULL) {
-            if (chunk_index >= l->num_chunks) {
-                WT_ERR(__wt_calloc_def(session, chunk_index + 1, &new_chunks));
-                memcpy(new_chunks, l->chunks, sizeof(*new_chunks) * l->num_chunks);
-                __wt_free(session, l->chunks);
-                l->chunks = new_chunks;
-                l->chunks_alloc = l->num_chunks = chunk_index + 1;
-                new_chunks = NULL;
-            }
-            l->chunks[chunk_index] = true;
-        }
-    }
-
-    // TODO: I think this is error checking?
-    // XXX
-    WT_ERR(__wt_calloc_def(session, len, &b));
-    WT_ERR(l->fh->fh_read(l->fh, wt_session, offset, len, b));
-    WT_ASSERT(session, memcmp(buf, b, len) == 0);
-
-    // XXX
-    WT_ERR(__wt_calloc_def(session, (size_t)x + 1048576 * 10, &d));
-    WT_ERR(union_fh->iface.fh_read(&union_fh->iface, wt_session, 0, (size_t)x, d));
-    // WT_ASSERT(session, memcmp(c, d, (size_t)x) == 0);
+    union_fh->source = fh;
 
 err:
-    __wt_free(session, b);
-    __wt_free(session, c);
-    __wt_free(session, d);
-    __wt_free(session, new_chunks);
-    __wt_free(session, tmp);
+    __wt_free(session, path);
     return (ret);
 }
 
 /*
- * __union_fs_open_file_layer --
+ * __union_fs_open_in_destination --
  *     Open a file handle.
  */
 static int
-__union_fs_open_file_layer(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNION_FS_FH *union_fh,
-  WT_UNION_FS_LAYER *union_layer, uint32_t flags, bool top, bool create)
+__union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNION_FS_FH *union_fh, uint32_t flags, bool create)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
     WT_UNION_FS_FH_SINGLE_LAYER *union_fh_single_layer;
-    wt_off_t offset, size;
-    size_t i, j, length, num_chunks;
-    uint32_t open_flags;
-    char *buf, *path;
-    bool zero;
+    wt_off_t size;
+    char *path;
 
-    buf = NULL;
-    union_fh_single_layer = NULL;
     path = NULL;
+    union_fh_single_layer = &union_fh->destination;
 
-    WT_ERR(__wt_calloc_def(session, u->chunk_size, &buf));
-
-    if (top) {
-        union_fh_single_layer = &union_fh->destination;
-        open_flags = flags;
-        if (create)
-            open_flags |= WT_FS_OPEN_CREATE;
-    } else {
-        union_fh_single_layer = &union_fh->source;
-        open_flags = flags | WT_FS_OPEN_READONLY;
-        FLD_CLR(open_flags, WT_FS_OPEN_CREATE);
-    }
+    if (create)
+        flags |= WT_FS_OPEN_CREATE;
 
     WT_CLEAR(*union_fh_single_layer);
 
     /* Open the file in the layer. */
-    WT_ERR(__union_fs_filename(union_layer, session, union_fh->iface.name, &path));
-    WT_ERR(union_layer->file_system->fs_open_file(
-      union_layer->file_system, (WT_SESSION *)session, path, union_fh->file_type, open_flags, &fh));
+    WT_ERR(__union_fs_filename(&u->destination, session, union_fh->iface.name, &path));
+    WT_ERR(u->destination.file_system->fs_open_file(
+      u->destination.file_system, (WT_SESSION *)session, path, union_fh->file_type, flags, &fh));
     union_fh_single_layer->fh = fh;
-    union_fh_single_layer->which = union_layer->which;
-    union_fh_single_layer->layer = union_layer;
 
     /* Get the map of the file. */
-    if (union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY) {
-        WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
-        union_fh_single_layer->size = (size_t)size;
-        num_chunks = (size_t)size / u->chunk_size;
-        if ((size_t)size % u->chunk_size != 0)
-            ++num_chunks;
-        union_fh_single_layer->chunks_alloc = num_chunks;
-        union_fh_single_layer->num_chunks = num_chunks;
-        WT_ERR(__wt_calloc_def(
-          session, num_chunks == 0 ? 1 : num_chunks, &union_fh_single_layer->chunks));
+    WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
+    WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
+    union_fh_single_layer->size = (wt_off_t)size;
+    // TODO: Query the holes in the file to allocate extents with.
 
-        for (i = 0; i < num_chunks; i++) {
-            // XXX Use file map instead! This is not good on so many accounts, it's embarrassing.
-            offset = (wt_off_t)(i * u->chunk_size);
-            length = u->chunk_size;
-            if ((size_t)offset + length > (size_t)size) {
-                WT_ASSERT(session, size > offset);
-                length = (size_t)size - (size_t)offset;
-            }
-            WT_ASSERT(session, length <= u->chunk_size);
-            WT_ERR(fh->fh_read(fh, (WT_SESSION *)session, offset, length, buf));
-            zero = true;
-            for (j = 0; j < length; j++)
-                if (buf[j] != 0) {
-                    zero = false;
-                    break;
-                }
-            if (!zero)
-                union_fh_single_layer->chunks[i] = true;
-        }
-    }
-
-    if (0) {
 err:
-        __wt_free(session, union_fh_single_layer->chunks);
-    }
-
-    __wt_free(session, buf);
     __wt_free(session, path);
     return (ret);
 }
@@ -997,12 +978,12 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
 
     /* Open it in the destination layer. */
     WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->destination, session, name, &exist), true);
-    WT_ERR(__union_fs_open_file_layer(u, session, fh, &u->destination, flags, true, !exist));
+    WT_ERR(__union_fs_open_in_destination(u, session, fh, flags, !exist));
 
     /* If it exists in the source, open it. */
     WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->source, session, name, &exist), true);
     if (exist)
-        WT_ERR(__union_fs_open_file_layer(u, session, fh, &u->source, flags, false, false));
+        WT_ERR(__union_fs_open_in_source(u, session, fh, flags));
 
     /* If there is a tombstone, delete it. */
     // if (have_tombstone && __union_fs_is_top(u, layer_index))
@@ -1064,7 +1045,7 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
     if (ret == WT_NOTFOUND || !exist)
         return (0);
 
-    goto err;
+    // This needs more thought.
     // /* If the file exists at the top layer, delete it. */
     // if (__union_fs_is_top(u, layer_index)) {
     //     layer_fs = u->layers[layer_index]->file_system;
@@ -1074,7 +1055,6 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
     //     /* Otherwise create a tombstone in the top layer. */
     //     WT_RET(__union_fs_create_tombstone(fs, session, name, flags));
 
-err:
     __wt_free(session, path);
     return (0);
 }
@@ -1173,7 +1153,7 @@ __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt
     exist = false;
     path = NULL;
 
-    // // XXX This may need to work across layers
+    // TODO: This will need to work across layers
 
     WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, name, &which, &exist));
     if (ret == WT_NOTFOUND || !exist)
@@ -1248,9 +1228,6 @@ __wt_os_union_fs(
     file_system->destination.file_system = fs;
     file_system->source.file_system = fs;
 
-    /* Initialize the union operations. */
-    file_system->chunk_size = 4096; // XXX Should be higher once recovery is implemented
-
     /* Initialize the FS jump table. */
     file_system->iface.fs_directory_list = __union_fs_directory_list;
     file_system->iface.fs_directory_list_single = __union_fs_directory_list_single;
@@ -1268,10 +1245,9 @@ __wt_os_union_fs(
     file_system->destination.home = destination;
     file_system->source.home = source;
 
-    WT_UNUSED(__union_fs_reconcile_by_name);
-    WT_UNUSED(__union_fs_remove_tombstone);
-    WT_UNUSED(__union_fs_create_tombstone);
-    WT_UNUSED(__union_fs_create_stop);
-    WT_UNUSED(__union_fs_stop);
+    // WT_UNUSED(__union_fs_remove_tombstone);
+    // WT_UNUSED(__union_fs_create_tombstone);
+    // WT_UNUSED(__union_fs_create_stop);
+    // WT_UNUSED(__union_fs_stop);
     return (0);
 }

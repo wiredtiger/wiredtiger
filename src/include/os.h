@@ -208,10 +208,8 @@ struct __wt_union_alloc_list {
  */
 struct __wt_union_fs_fh_single_layer {
     WT_FILE_HANDLE *fh;
-
-    WT_UNION_FS_LAYER *layer;
     bool complete;
-
+    wt_off_t size;
     WT_UNION_ALLOC_LIST *allocation_list;
     WT_UNION_ALLOC_LIST *end;
 };
@@ -247,5 +245,4 @@ struct __wt_union_fs {
     WT_FILE_SYSTEM iface;
     WT_UNION_FS_LAYER source;
     WT_UNION_FS_LAYER destination;
-    size_t chunk_size;
 };
