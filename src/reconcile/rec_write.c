@@ -2415,8 +2415,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /*
-         * If we need to restore the page to memory, copy the disk image if it is not disaggregated
-         * or it is empty.
+         * If we need to restore the page to memory, copy the disk image.
+         *
+         * We need to write the disk image for disaggregated storage as a later reconciliation may
+         * build a delta that is based on a page image that was never written to disk.
          */
         if (multi->supd_restore && (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || chunk->entries == 0))
             goto copy_image;
