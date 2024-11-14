@@ -772,17 +772,20 @@ __union_fs_file_read(
 
     sl = __dest_can_service_rw(union_fh, session, offset, len);
 
-    if (sl == NONE) {
-        /* Read the full read from the source. */
-        WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
-        /* Promote the read */
-        WT_ERR(__read_promote(union_fh, session, offset, len, sl, read_data));
-    } else {
+    /*
+     * TODO: Wiredtiger will read the metadata file after creation but before anything has
+     * been written in this case we forward the read to the empty metadata file in the
+     * destinaion. Is this correct?
+     */
+    if (union_fh->source == NULL || sl == FULL) {
         /* Read the full read from the destination. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
-        /* No more work to do. */
+    } else {
+        /* Read the full read from the source. */
+        WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
+        /* Promote the read */
+        WT_ERR(__read_promote(union_fh, session, offset, len, sl, read_data));
     }
-
 err:
     return (ret);
 }
