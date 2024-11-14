@@ -21,14 +21,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_DECL_ITEM(item);
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
-    char buf[4096], *cfg_ret,
-      *metadata_value_cfg; /* TODO the 4096 puts an upper bound on metadata entry length */
+    char *buf, *cfg_ret, *metadata_value_cfg;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
-    size_t len, metadata_value_cfg_len, sep;
+    size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
 
     conn = S2C(session);
 
+    buf = NULL;
     cursor = NULL;
     internal_session = NULL;
     md_cursor = NULL;
@@ -37,7 +37,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     metadata_value_cfg = NULL;
     shared_metadata_session = NULL;
 
-    WT_ERR(__wt_scr_alloc(session, 4096, &item));
+    WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -55,23 +55,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
     WT_ERR(__wt_disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, item));
 
-    if (item->size >= sizeof(buf))
-        WT_ERR(ENOMEM);
+    /* Add the terminating zero byte to the end of the buffer. */
+    len = item->size + 1;
+    WT_ERR(__wt_calloc_def(session, len, &buf));
     memcpy(buf, item->data, item->size);
     buf[item->size] = '\0';
-    if (item->size > 0 && buf[item->size - 1] == '\n')
-        buf[item->size - 1] = '\0';
 
-    /* Parse out the key and the new checkpoint config value. */
-    metadata_key = buf;
-    for (sep = 0; sep < item->size; sep++)
-        if (buf[sep] == '\n') {
-            buf[sep] = '\0';
-            metadata_value = buf + sep + 1;
-            break;
-        }
-    if (metadata_value == NULL)
-        WT_ERR(EINVAL);
+    metadata_key = WT_DISAGG_METADATA_URI;
+    metadata_value = buf;
 
     /* We need an internal session when modifying metadata. */
     WT_ERR(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
@@ -171,11 +162,15 @@ err:
         WT_TRET(cursor->close(cursor));
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
+
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
     if (shared_metadata_session != NULL)
         WT_TRET(__wt_session_close_internal(shared_metadata_session));
+
+    __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
+
     __wt_scr_free(session, &item);
     return (ret);
 }

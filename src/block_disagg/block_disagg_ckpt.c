@@ -140,9 +140,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         /* Get the config we want to print to the metadata file */
         WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
 
-        len += cval.len + 2; /* +2 for the separator and the newline */
+        len = cval.len + 1; /* +1 for the last byte */
         WT_ERR(__wt_calloc_def(session, len, &entry));
-        WT_ERR(__wt_snprintf(entry, len, "%s\n%.*s\n", tablename, (int)cval.len, cval.str));
+        WT_ERR(__wt_snprintf(entry, len, "%.*s", (int)cval.len, cval.str));
 
         WT_ERR(__wt_scr_alloc(session, len, &buf));
         memcpy(buf->mem, entry, len);
