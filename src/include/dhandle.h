@@ -134,6 +134,9 @@ struct __wt_data_handle {
     WT_DSRC_STATS *stats[WT_STAT_DSRC_COUNTER_SLOTS];
     WT_DSRC_STATS *stat_array;
 
+	/* Evict data for this handle */
+	WT_EVICT_HANDLE_DATA evict_handle_data;
+
 /*
  * Flags values over 0xfff are reserved for WT_BTREE_*. This lets us combine the dhandle and btree
  * flags when we need, for example, to pass both sets in a function call. These flags can only be

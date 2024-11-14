@@ -606,6 +606,9 @@ err:
             F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
     }
 
+	/* Initialize per-dhandle eviction data */
+	__wt_evict_init_dhandle(session, dhandle);
+
     if (WT_DHANDLE_BTREE(dhandle) && session->dhandle != NULL) {
         __wt_evict_file_exclusive_off(session);
 

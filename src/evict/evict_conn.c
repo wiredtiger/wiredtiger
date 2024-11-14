@@ -282,24 +282,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_cond_auto_alloc(
       session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_cond));
-    WT_RET(__wt_spin_init(session, &evict->evict_pass_lock, "evict pass"));
-    WT_RET(__wt_spin_init(session, &evict->evict_queue_lock, "evict queues"));
     WT_RET(__wt_spin_init(session, &evict->evict_walk_lock, "evict walk"));
-    if ((ret = __wt_open_internal_session(
-           conn, "evict pass", false, WT_SESSION_NO_DATA_HANDLES, 0, &evict->walk_session)) != 0)
-        WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
-
-    /* Allocate the LRU eviction queue. */
-    evict->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
-    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
-        WT_RET(__wt_calloc_def(session, evict->evict_slots, &evict->evict_queues[i].evict_queue));
-        WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
-    }
-
-    /* Ensure there are always non-NULL queues. */
-    evict->evict_current_queue = evict->evict_fill_queue = &evict->evict_queues[0];
-    evict->evict_other_queue = &evict->evict_queues[1];
-    evict->evict_urgent_queue = &evict->evict_queues[WT_EVICT_URGENT_QUEUE];
 
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
@@ -331,16 +314,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
         return (0);
 
     __wt_cond_destroy(session, &evict->evict_cond);
-    __wt_spin_destroy(session, &evict->evict_pass_lock);
-    __wt_spin_destroy(session, &evict->evict_queue_lock);
     __wt_spin_destroy(session, &evict->evict_walk_lock);
-    if (evict->walk_session != NULL)
-        WT_TRET(__wt_session_close_internal(evict->walk_session));
-
-    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
-        __wt_spin_destroy(session, &evict->evict_queues[i].evict_lock);
-        __wt_free(session, evict->evict_queues[i].evict_queue);
-    }
     __wt_free(session, conn->evict);
     return (ret);
 }

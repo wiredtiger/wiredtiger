@@ -535,3 +535,169 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     return (0);
 }
 
+
+/*
+ * __wt_evict_init_handle_data --
+ *     Initialize the per-tree eviction data.
+ */
+int
+__wt_evict_init_handle_data(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
+	WT_EVICT_HANDLE *evict_handle;
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_BUCKET_SET *bucket_set;
+	int i, j;
+
+	dhandle = session->dhandle;
+
+	if (!WT_DHANDLE_BTREE(dhandle))
+		return (0);
+
+	btree = dhandle->handle;
+	evict_handle = &btree->evict_handle;
+
+	for (i = 0; i < WT_EVICT_LEVELS; i++) { /* Bucket Set. Then iterate over buckets... */
+		bucketset = &evict_handle->evict_bucketset[i];
+		for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
+			bucket = &bucketset->buckets[j];
+			bucket->id = j;
+			WT_RET(__wt_spin_init(session, &bucket->evict_queue_lock, "evict bucket queue block"))
+			TAILQ_INIT(&bucket->evict_queue);
+		}
+	}
+	return (0);
+}
+
+/*
+ *  __wt_evict_bucket_range --
+ *      Get the lower and upper range of read generations hosted by this bucket.
+ *
+ * Example where the lowest bucket upper range is 400 and the evict bucket range is defined
+ * to 300. Bucket 1 lower range is the upper range of the previous bucket plus one. Bucket 1
+ * upper range is the upper range of the previous evict bucket plus 300.
+ *
+ * | bucket0           | bucket 1         | bucket 2          |
+ * |                   |                  |                   |
+ * | lower range: 0    | lower range: 401 | lower range: 701  |    etc.
+ * | upper range: 400  | upper range: 700 | upper range: 1000 |
+ *
+ */
+static inline void
+__wt_evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *max_range) {
+
+	WT_EVICT_BUCKETSET *bucketset;
+
+	/*
+	 * The address of the first bucket in the set is the same as the address
+	 * of the bucketset.
+	 */
+	bucketset = (WT_BUCKET_SET *)(bucket - bucket->id);
+
+	if (bucket->id == 0) {
+		*min_range = 0;
+		*max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
+	}
+	else {
+		*min_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
+			WT_EVICT_BUCKET_RANGE * (bucket->id - 1) + 1;
+		*max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
+			WT_EVICT_BUCKET_RANGE * bucket->id;
+	}
+}
+
+/*
+ * __wt_evict_bucket_remove --
+ *     Remove the page from the bucket's queue.
+ */
+static inline bool
+__wt_evict_bucket_remove(WT_SESSION_IMPL *session, WT_PAGE *page) {
+
+	WT_EVICT_BUCKET *bucket;
+
+	bucket =  __wt_atomic_load64(&page->bucket)
+	if (bucket == NULL)
+		return true;
+
+	wt_spin_lock(session, &page->bucket->evict_queue_lock);
+	/*
+	 * Atomically set the page's bucket to NULL using cas, so if someone beat us,
+	 * we don't try to remove the page from where it no longer is.
+	 */
+	if (__wt_atomic_cas_ptr(&page->bucket, bucket, NULL)) {
+		TAILQ_REMOVE(page->bucket->evict_queue, page, evict_q);
+	}
+	wt_spin_unlock(session, &page->bucket->evict_queue_lock);
+}
+
+void
+__wt_evict_insert_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page) {
+
+	WT_BTREE *btree;
+	WT_EVICT_HANDLE *evict_handle;
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_BUCKETSET *bucketset;
+	WT_EVICT_HANDLE_DATA *evict_handle;
+	uint64_t min_range, max_range, dst_bucket, read_gen;
+
+	/* Is the page already in a bucket? */
+	if ((bucket =  __wt_atomic_load64(&page->bucket)) != NULL) {
+		__wt_evict_bucket_range(bucket, &min_range, &max_range);
+		/* Is the page already in the right bucket? */
+		if ((read_gen = __wt_atomic_load64(&page->read_gen)) >= min_range && read_gen <= max_range)
+			return;
+		else
+			__wt_evict_bucket_remove(page);
+	}
+
+	/*
+	 * If the page is still in a bucket, we failed to remove it.
+	 * That means someone raced with us to move the page, so we
+	 * let them succeed.
+	 */
+	if ((bucket =  __wt_atomic_load64(&page->bucket)) != NULL)
+		return;
+
+	/* Evict handle has the bucket sets for this data handle */
+	evict_handle = &dhandle->evict_handle_data;
+
+	/* Find the bucket set for the page depending on its type */
+	if (WT_PAGE_IS_INTERNAL(page))
+		bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_INTERNAL];
+	else if (__wt_page_is_modified(page))
+		bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF];
+	else
+		bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF];
+
+	/*
+	 * Find the right bucket. The page's read generation may change as we are looking
+	 * for the right bucket. In that case, the page will end up in a lower bucket.
+	 * That's okay, because we are maintaining approximately sorted order.
+	 */
+  retry:
+	if ((read_gen = __wt_atomic_load64(&page->read_gen)) <= bucketset->lowest_bucket_upper_range)
+		dst_bucket = 0;
+	else {
+		dst_bucket =
+			1 + (read_gen - bucketset->lowest_bucket_upper_range) / WT_EVICT_BUCKET_RANGE;
+		if (dst_bucket >= WT_EVICT_NUM_BUCKETS) {
+			__wt_evict_renumber_buckets(bucketset);
+			S2C(session)->evict->evict_renumbered_buckets++;
+			goto retry;
+		}
+	}
+
+	bucket = &bucketset->buckets[dst_bucket];
+
+	/* If the page is still not in the bucket insert it into this bucket. */
+	wt_spin_lock(session, &bucket->evict_queue_lock);
+	/*
+	 * Atomically set the page's bucket to NULL using cas, so if someone beat us,
+	 * we don't try to remove the page from where it no longer is.
+	 */
+	if (__wt_atomic_cas_ptr(&page->bucket, NULL, bucket)) {
+		TAILQ_INSERT_HEAD(page->bucket->evict_queue, page, evict_q);
+	}
+	wt_spin_unlock(session, &page->bucket->evict_queue_lock);
+}

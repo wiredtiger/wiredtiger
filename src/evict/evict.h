@@ -10,39 +10,17 @@
 
 #include "evict_private.h"
 
+
 /*
- * A key structure for eviction is called a bucket set. Each bucket in a set represents
- * a range of read generations, or any other eviction scores we decide to use in the future.
- * Each bucket has a queue of pages that belong to that range of read generations.
- * Each page will be in exactly one queue across all bucket sets and buckets.
- *
- * This data structure keeps all pages in an approximately sorted order. Pages in a higher
- * numbered bucket will generally have higher read generations than pages in a lower numbered
- * buckets. Within each bucket pages will not be sorted according to their read generations,
- * but this is good enough to roughly prioritize eviction of pages with lower-numbered
- * read generations. The benefit of this method is that it avoids walking the tree and
- * refrains from keeping an expensive global order of all pages.
- *
- * We use multiple bucket sets to prioritize eviction. Each tree has its own set of buckets.
- * Leaf pages are in a separate bucket set from internal pages. Clean pages are in a
- * separate bucket set than dirty pages. If contention on bucket queue spinlocks is observed
- * we may introduced a separate bucket set per CPU, similarly to per-CPU statistics counters.
- *
- * The lowest bucket upper range tells us the maximum read generation in the lowest bucket.
- * The upper range of the highest bucket is computed by adding the factor of the bucket range
- * times the number of remaining buckets to the lowest buckets' range. If the highest bucket
- * range becomes too small to accommodate the read generation of any page, we update the
- * lowest bucket's range, and by extension the highest bucket's range is updated accordingly.
- * We won't move the pages between buckets even as we update the read generations, because
- * this is expensive. All we care about is maintaining approximately sorted order or pages
- * by their read generations, and this method does the job.
+ * Per-dhandle evict data
  */
+struct __wt_evict_handle_data {
+	WT_EVICT_BUCKETSET evict_bucketset[WT_EVICT_LEVELS];
+}
 
-struct __wt_evict_bucketset {
-	struct __wt_evict_bucket buckets[WT_EVICT_NUM_BUCKETS];
-	uint64_t lowest_bucket_upper_range; /* must be updated atomically */
-};
-
+/*
+ * Connection evict data.
+ */
 struct __wt_evict {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
@@ -65,7 +43,6 @@ struct __wt_evict {
      * Eviction thread information.
      */
     WT_CONDVAR *evict_cond;      /* Eviction server condition */
-    WT_SPINLOCK evict_walk_lock; /* Eviction walk location */
 
     /*
      * Eviction threshold percentages use double type to allow for specifying percentages less than

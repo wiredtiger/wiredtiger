@@ -802,7 +802,8 @@ struct __wt_page {
     uint64_t read_gen;
 
     uint64_t cache_create_gen; /* Page create timestamp */
-    uint64_t evict_pass_gen;   /* Eviction pass generation */
+	TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
+	WT_EVICT_BUCKET *bucket; /* Bucket containing this page */
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3
