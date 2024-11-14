@@ -31,10 +31,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * This is the history store btree. As part of the checkpointing the data store, we will move
-     * the older values into the history store without using any transactions. This led to
-     * representation of all the modifications on the history store page with a transaction that is
-     * maximum than the checkpoint snapshot. But these modifications are done by the checkpoint
-     * itself, so we shouldn't ignore them for consistency.
+     * the older values into the history store without using any transactions, we shouldn't ignore
+     * them for consistency
      */
     if (WT_IS_HS(session->dhandle))
         return (false);
