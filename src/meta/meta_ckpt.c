@@ -691,7 +691,7 @@ __meta_ckptlist_allocate_new_ckpt(
      *
      * First, if the previous checkpoint is from an earlier database run its time might be off,
      * either because of issues with the system clock or because the checkpoint clock got run
-     * forward (see notes in txn_ckpt.c) and we crashed and restarted and are still behind it. This
+     * forward (see notes in checkpoint_txn.c) and we crashed and restarted and are still behind it. This
      * could be ruled out by checking the write generation.
      *
      * Second, a single-tree checkpoint can occur while a global checkpoint is in progress. In that
