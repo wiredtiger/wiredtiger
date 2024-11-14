@@ -58,7 +58,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
             if (multi->addr.addr == NULL)
                 return (false);
 
-     /* RTS, recovery or shutdown should not leave anything dirty behind. */
+    /* RTS, recovery or shutdown should not leave anything dirty behind. */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
         return (false);
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
@@ -68,7 +68,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * There is no snapshot transaction active. Usually, there is one in ordinary application
      * checkpoints but not all internal cases. Furthermore, this guarantees the metadata file is
      * never skipped.
-     * */
+     */
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
 
