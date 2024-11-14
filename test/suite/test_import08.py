@@ -104,16 +104,21 @@ class test_import08(test_import_base):
             # btree.
             self.session.checkpoint()
 
+        # Now that we've finished doing our checkpoints, we can let go of the transaction ID we
+        # allocated earlier.
+        session2.rollback_transaction()
+
+        # Take one last checkpoint to ensure the metadata is consistent before and after connection
+        # close. This is necessary as it's possible for connection close to take a checkpoint if
+        # there is available space at the end of the file.
+        self.session.checkpoint()
+
         # Export the metadata for the table.
         c = self.session.open_cursor('metadata:', None, None)
         original_db_file_config = c[self.uri]
         c.close()
 
         self.printVerbose(3, '\nFile configuration:\n' + original_db_file_config)
-
-        # Now that we've finished doing our checkpoints, we can let go of the transaction ID we
-        # allocated earlier.
-        session2.rollback_transaction()
 
         # Close the connection.
         self.close_conn()
