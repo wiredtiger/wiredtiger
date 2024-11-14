@@ -596,20 +596,25 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
 }
 
 // This may be easier with a partial_start, partial_end, partial macro.
-typedef enum { NONE, PARTIAL, FULL, GROW} RW_SERVICE_LEVEL;
+/*
+ * Given a read or a write must fall either in an existing extend or on the edge of it the two
+ * choices are NONE or FULL.
+ *
+ * This only works by assuming that the block manager is the only thing that will use this and that
+ * it only reads and writes full blocks. If that changes this code will unceremoniously fall over.
+ */
+typedef enum { NONE, FULL} RW_SERVICE_LEVEL;
 
 static RW_SERVICE_LEVEL
 __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len) {
     WT_UNION_FS_FH_SINGLE_LAYER *dest_fh;
     WT_UNION_ALLOC_LIST *alloc;
     wt_off_t rw_end;
-    bool found_start, found_end;
 
     WT_UNUSED(session);
 
     // Walk the extend list until extent offset + size > read offset + size.
     dest_fh = &union_fh->destination;
-    found_start = found_end = false;
     rw_end = offset + (wt_off_t)len;
 
 
@@ -617,31 +622,17 @@ __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off
     if (dest_fh->allocation_list == NULL)
         return (NONE);
 
-    // TODO: this will miss overlaps that don't have the start or the end in a given extent.
-
     alloc = dest_fh->allocation_list;
     while (alloc != NULL) {
         wt_off_t alloc_end = alloc->off + alloc->size;
-        /* The start of the rw is in this allocation. */
-        if (offset >= alloc->off && offset < alloc_end) {
-            found_start = true;
-            /* The full rw is in this allocation. */
-            if (rw_end < alloc_end)
-                return (FULL);
-        }
-        /* The end of the rw is inside this alloc. */
-        if (rw_end < alloc_end && rw_end > alloc->off) {
-            found_end = true;
-        }
-
-        if (alloc->next == NULL && offset == alloc_end) {
-            return (GROW);
+        /* The read is in this allocation. */
+        if (offset >= alloc->off && rw_end <= alloc_end) {
+            printf("Full match on read\n");
+            return (FULL);
         }
         alloc = alloc->next;
     }
 
-    if (found_start || found_end)
-        return (PARTIAL);
     return (NONE);
 }
 
@@ -661,17 +652,11 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
     printf("UPDATE EXTENT %s, %ld, %lu, %p\n", union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
 
     sl = __dest_can_service_rw(union_fh, session, offset, len);
-    switch (sl) {
-        
-    }
     if (sl == FULL) {
         /* The full write was serviced from single extent. */
         return (0);
-    } else if (sl == PARTIAL) {
-        /* We need to grow, merge, etc here. */
-    } else if ()
     } else {
-        /* Allocate a new extent. */
+        /* Allocate a new extent or grow an existing one. Merge not yet implemented.... */
         alloc = union_fh->destination.allocation_list;
         while (alloc != NULL) {
             /* Find the first extend that the write is before. */
@@ -749,7 +734,7 @@ __read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offs
     alloc = dest_fh->allocation_list;
     if (alloc == NULL) {
         /* TODO: In the future this will be only NONE. Once Partial reads and promotions are implemented. */
-        WT_ASSERT(session, level == NONE || level == PARTIAL);
+        WT_ASSERT(session, level == NONE);
         WT_RET(__wt_calloc_one(session, &alloc));
         alloc->off = offset;
         alloc->size = (wt_off_t)len;
@@ -787,13 +772,11 @@ __union_fs_file_read(
 
     sl = __dest_can_service_rw(union_fh, session, offset, len);
 
-    if (sl == NONE || sl == PARTIAL) {
+    if (sl == NONE) {
         /* Read the full read from the source. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
         /* Promote the read */
         WT_ERR(__read_promote(union_fh, session, offset, len, sl, read_data));
-    } else if (sl == PARTIAL) { // TODO: Right now we service this using a NONE type read. We need to implement this.
-        /* A combined read from the destination and the source. */
     } else {
         /* Read the full read from the destination. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
