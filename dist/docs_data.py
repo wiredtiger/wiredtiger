@@ -34,7 +34,7 @@ arch_doc_pages = [
     ArchDocPage('arch-checkpoint',
         ['WT_CONNECTION'],
         ['src/block/block_ckpt.c', 'src/block/block_ckpt_scan.c',
-         'src/conn/conn_ckpt.c', 'src/meta/meta_ckpt.c',
+         'src/checkpoint/checkpoint_conn.c', 'src/meta/meta_ckpt.c',
          'src/checkpoint/checkpoint_txn.c']),
     ArchDocPage('arch-cloud-storage-extension',
         ['S3_FILE_HANDLE', 'S3_FILE_SYSTEM', 'S3_STORAGE', 'azure_file_handle', 'azure_file_sytem',
