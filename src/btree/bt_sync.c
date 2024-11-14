@@ -142,7 +142,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     tried_eviction = false;
 
     /* Don't bump page read generations. */
-    flags = WT_READ_NO_GEN;
+    flags = WT_READ_INTERNAL_OP;
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
@@ -388,7 +388,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        __wt_verbose(session, WT_VERB_CHECKPOINT,
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
           "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
           " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
           syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages, leaf_bytes,

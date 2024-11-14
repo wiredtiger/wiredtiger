@@ -131,9 +131,9 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     F_SET(ckpt, WT_CKPT_UPDATE);
     WT_ERR(__wt_buf_set(session, &ckpt->raw, checkpoint->data, checkpoint->size));
     WT_ERR(__wt_meta_ckptlist_update_config(session, ckptbase, config_tmp, &config));
-    __wt_verbose(session, WT_VERB_CHECKPOINT, "import metadata: %s", config);
+    __wt_verbose_info(session, WT_VERB_CHECKPOINT, "import metadata: %s", config);
     *configp = config;
-
+    WT_STAT_CONN_INCR(session, session_table_create_import_repair);
 err:
     F_CLR(session, WT_SESSION_IMPORT_REPAIR);
 
