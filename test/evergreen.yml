@@ -2775,7 +2775,10 @@ tasks:
     exec_timeout_secs: 9000
     commands:
       - func: "get project"
-      - func: "compile wiredtiger with builtins"
+      - func: "compile wiredtiger"
+        vars: 
+          # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
+          posix_configure_flags: -DENABLE_STRICT=1 -DHAVE_DIAGNOSTIC=1 -DNON_BARRIER_DIAGNOSTIC_YIELDS=1 -DHAVE_BUILTIN_EXTENSION_LZ4=1 -DHAVE_BUILTIN_EXTENSION_SNAPPY=1 -DHAVE_BUILTIN_EXTENSION_ZLIB=1 -DHAVE_BUILTIN_EXTENSION_ZSTD=0
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -4298,7 +4301,7 @@ buildvariants:
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
   run_on:
-  - ubuntu1804-zseries-build
+  - rhel8-zseries-small
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -4357,7 +4360,7 @@ buildvariants:
 - name: rhel8-zseries
   display_name: "~ RHEL8 zSeries"
   run_on:
-  - rhel80-zseries-test
+  - rhel8-zseries-small
   batchtime: 120 # 2 hours
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
