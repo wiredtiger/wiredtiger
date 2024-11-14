@@ -2489,6 +2489,24 @@ tasks:
             # developers local workflow, but needs to be run in PR builds before the code is merged.
             bash s_string -r 2>&1
 
+  - name: s-docs
+    # Detect potential breakages to the "s_docs -l" command, which is depended on by the open-source
+    # release process. It is not covered by the s-all task and does not need to be executed as frequent.
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_PATH}
+
+            cd dist
+            # The "-l" command option is used to generate the top-level documentation landing page.
+            bash -x s_docs -l 2>&1
+    
   - name: s-outdated-fixmes
     # Detect any FIXME comments in the codebase tied to closed Jira tickets.
     # This will send a GET request to JIRA for each FIXME ticket so we don't
