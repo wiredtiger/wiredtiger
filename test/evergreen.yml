@@ -2496,14 +2496,13 @@ tasks:
       - func: "get project"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/dist"
           shell: bash
           script: |
             set -o errexit
             set -o verbose
             ${PREPARE_PATH}
 
-            cd dist
             # The "-l" command option is used to generate the top-level documentation landing page.
             bash -x s_docs -l 2>&1
 
