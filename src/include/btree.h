@@ -93,6 +93,9 @@ typedef enum { /* Start position for eviction walk */
 /* An invalid btree file ID value. ID 0 is reserved for the metadata file. */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
+/* Three bits reserved for ID namespaces. */
+#define WT_BTREE_ID_NAMESPACE_SHARED ((uint32_t)1 << 29)
+
 /*
  * WT_BTREE --
  *	A btree handle.
