@@ -451,7 +451,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (__wt_conn_is_disagg(session)) {
         /* Skip the shared metadata table for disaggregated storage; we'll checkpoint it later. */
-        if (strcmp(btree->dhandle->name, WT_DISAGG_METADATA_URI) == 0)
+        if (WT_IS_DISAGG_META(btree->dhandle))
             return (0);
         /* Skip checkpointing shared tables if we are not a leader. */
         /* TODO: Figure out how to avoid checkpointing clean objects in *all* cases. */
@@ -2475,9 +2475,11 @@ fake:
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
      * is enabled and resolution deferred until transaction end. The exception is if the handle is
      * being discarded, in which case the handle will be gone by the time we try to apply or unroll
-     * the meta tracking event.
+     * the meta tracking event. Another exception is disaggregated storage, which requires
+     * checkpoints to be resolved early, so that their metadata could be incorporated to the shared
+     * metadata table.
      */
-    if (!fake_ckpt) {
+    if (!fake_ckpt && !F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         resolve_bm = false;
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RESOLVE);

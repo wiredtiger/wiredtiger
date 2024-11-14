@@ -88,6 +88,29 @@ __wt_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_
 }
 
 /*
+ * __block_disagg_update_shared_metadata --
+ *     Update the shared metadata.
+ */
+static int
+__block_disagg_update_shared_metadata(
+  WT_BM *bm, WT_SESSION_IMPL *session, const char *key, const char *value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+
+    WT_UNUSED(bm);
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    cursor->set_value(cursor, value);
+    WT_ERR(cursor->insert(cursor));
+
+err:
+    return (ret);
+}
+
+/*
  * __wt_block_disagg_checkpoint_resolve --
  *     Resolve the checkpoint.
  */
@@ -100,11 +123,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_CURSOR *cursor, *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
     size_t len;
     uint64_t checkpoint_id;
     char *entry, *tablename;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
@@ -113,7 +134,6 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     buf = NULL;
     cursor = NULL;
     entry = NULL;
-    internal_session = NULL;
     md_cursor = NULL;
     tablename = NULL;
 
@@ -150,12 +170,8 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
     } else {
         /* Keep all metadata for regular tables. */
-        WT_ERR(
-          __wt_open_internal_session(conn, "checkpoint-resolve", false, 0, 0, &internal_session));
-        WT_ERR(__wt_open_cursor(internal_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
-        cursor->set_key(cursor, tablename);
-        cursor->set_value(cursor, md_value);
-        WT_ERR(cursor->insert(cursor));
+        WT_SAVE_DHANDLE(
+          session, ret = __block_disagg_update_shared_metadata(bm, session, tablename, md_value));
     }
 
 err:
@@ -166,8 +182,6 @@ err:
         WT_TRET(cursor->close(cursor));
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
-    if (internal_session != NULL)
-        WT_TRET(__wt_session_close_internal(internal_session));
 
     return (ret);
 }

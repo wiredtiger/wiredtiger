@@ -276,6 +276,9 @@ struct __wt_cache_pool {
  */
 #define WT_IS_HS(dh) F_ISSET(dh, WT_DHANDLE_HS)
 
+/* Optimize comparisons against the shared metadata store for disaggregated storage. */
+#define WT_IS_DISAGG_META(dh) F_ISSET(dh, WT_DHANDLE_DISAGG_META)
+
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_EVICT_CALL_CLOSING 0x1u  /* Closing connection or tree */
