@@ -2506,7 +2506,7 @@ tasks:
             cd dist
             # The "-l" command option is used to generate the top-level documentation landing page.
             bash -x s_docs -l 2>&1
-    
+
   - name: s-outdated-fixmes
     # Detect any FIXME comments in the codebase tied to closed Jira tickets.
     # This will send a GET request to JIRA for each FIXME ticket so we don't
