@@ -1944,7 +1944,6 @@ static int
 __checkpoint_lock_dirty_tree(
   WT_SESSION_IMPL *session, bool is_checkpoint, bool force, bool need_tracking, const char *cfg[])
 {
-    WT_BM *bm;
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG dropconf;
@@ -1960,7 +1959,6 @@ __checkpoint_lock_dirty_tree(
     bool is_drop, is_wt_ckpt, seen_ckpt_add, skip_ckpt;
 
     btree = S2BT(session);
-    bm = btree->bm;
     ckpt = ckptbase = NULL;
     ckpt_bytes_allocated = 0;
     dhandle = session->dhandle;
@@ -2014,8 +2012,7 @@ __checkpoint_lock_dirty_tree(
      * we want to periodically check if we need to delete old checkpoints that may have been in use
      * by an open cursor.
      */
-    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop &&
-      !bm->can_truncate(btree->bm, session)) {
+    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop) {
         /* In the common case of the timer set forever, don't even check the time. */
         skip_ckpt = true;
         if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
@@ -2177,8 +2174,13 @@ __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *
 static int
 __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
 {
-    WT_BTREE *btree = S2BT(session);
-    WT_BM *bm = btree->bm;
+    WT_BTREE *btree;
+    WT_CKPT *ckpt;
+    uint64_t timer;
+    int deleted;
+    const char *name;
+
+    btree = S2BT(session);
 
     /*
      * Check for clean objects not requiring a checkpoint.
@@ -2190,21 +2192,19 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      *
      * If the application repeatedly checkpoints an object (imagine hourly checkpoints using the
      * same explicit or internal name), there's no reason to repeat the checkpoint for clean
-     * objects, unless there is available space to be recovered at the end of the file. The test is
-     * if the only checkpoint we're deleting is the last one in the list and it has the same name as
-     * the checkpoint we're about to take, skip the work. (We can't skip checkpoints that delete
-     * more than the last checkpoint because deleting those checkpoints might free up space in the
-     * file.) This means an application toggling between two (or more) checkpoint names will
-     * repeatedly take empty checkpoints, but that's not likely enough to make detection worthwhile.
+     * objects. The test is if the only checkpoint we're deleting is the last one in the list and it
+     * has the same name as the checkpoint we're about to take, skip the work. (We can't skip
+     * checkpoints that delete more than the last checkpoint because deleting those checkpoints
+     * might free up space in the file.) This means an application toggling between two (or more)
+     * checkpoint names will repeatedly take empty checkpoints, but that's not likely enough to make
+     * detection worthwhile.
      *
      * Checkpoint read-only objects otherwise: the application must be able to open the checkpoint
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
-    if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
-        WT_CKPT *ckpt = NULL;
-        int deleted = 0;
-
+    if (!btree->modified && !force) {
+        deleted = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
@@ -2223,7 +2223,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
          * skip the checkpoint, there's nothing to do. The exception is if we're deleting two or
          * more checkpoints: then we may save space.
          */
-        const char *name = (ckpt - 1)->name;
+        name = (ckpt - 1)->name;
         if (ckpt > ckptbase + 1 && deleted < 2 &&
           (strcmp(name, (ckpt - 2)->name) == 0 ||
             (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
@@ -2237,7 +2237,6 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * timer.
              */
             if (ckpt - ckptbase > 2) {
-                uint64_t timer = 0;
                 __wt_seconds(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
                 WT_BTREE_CLEAN_CKPT(session, btree, timer);
