@@ -280,7 +280,7 @@ def palm_command_line_args():
 
 opts = palm_command_line_args()
 if opts.version:
-    print('wt_binary_decode version "{}"'.format(decode_version))
+    print('wt_palm_decode version "{}"'.format(decode_version))
     sys.exit(0)
 
 if not opts.length:
