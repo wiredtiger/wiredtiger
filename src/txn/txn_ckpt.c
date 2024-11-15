@@ -2177,15 +2177,8 @@ __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *
 static int
 __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
 {
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_CKPT *ckpt;
-    uint64_t timer;
-    int deleted;
-    const char *name;
-
-    btree = S2BT(session);
-    bm = btree->bm;
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
 
     /*
      * Check for clean objects not requiring a checkpoint.
@@ -2209,7 +2202,9 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force && !bm->can_truncate(bm, session)) {
-        deleted = 0;
+        WT_CKPT *ckpt = NULL;
+        int deleted = 0;
+
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
@@ -2228,7 +2223,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
          * skip the checkpoint, there's nothing to do. The exception is if we're deleting two or
          * more checkpoints: then we may save space.
          */
-        name = (ckpt - 1)->name;
+        const char *name = (ckpt - 1)->name;
         if (ckpt > ckptbase + 1 && deleted < 2 &&
           (strcmp(name, (ckpt - 2)->name) == 0 ||
             (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
@@ -2242,6 +2237,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * timer.
              */
             if (ckpt - ckptbase > 2) {
+                uint64_t timer = 0;
                 __wt_seconds(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
                 WT_BTREE_CLEAN_CKPT(session, btree, timer);
