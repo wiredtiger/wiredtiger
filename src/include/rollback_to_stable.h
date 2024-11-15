@@ -109,6 +109,12 @@ struct __wt_rollback_to_stable {
     WT_THREAD_GROUP thread_group;
     uint32_t threads_num;
 
+    /*
+     * RTS threads_num configuration at connection level, by default the value is 0 representing not
+     * configured.
+     */
+    uint32_t cfg_threads_num;
+
     /* Locked: RTS system work queue. */
     TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;
     WT_SPINLOCK rts_lock; /* RTS work queue spinlock */
