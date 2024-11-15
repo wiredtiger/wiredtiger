@@ -802,9 +802,11 @@ __union_fs_file_read(
      * destinaion. Is this correct?
      */
     if (union_fh->source == NULL || sl == FULL) {
+        printf("    READ FROM DEST (src is NULL? %s)\n", union_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
     } else {
+        printf("    READ FROM SOURCE\n");
         /* Read the full read from the source. */
         WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
