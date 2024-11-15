@@ -92,7 +92,6 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Check tables in the leader
         for uri in self.oligarch_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
-            self.tty(uri)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], uri)
             cursor.close()
@@ -103,12 +102,14 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Check tables in the follower
         for uri in self.oligarch_uris + self.other_uris:
             # XXX Why does this need to be "read-uncommitted" for non-oligarch tables to work?
-            session_follow.begin_transaction('isolation="read-uncommitted"')
+            if not uri.startswith('oligarch'):
+                session_follow.begin_transaction('isolation="read-uncommitted"')
             cursor = session_follow.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], uri)
             cursor.close()
-            session_follow.rollback_transaction()
+            if not uri.startswith('oligarch'):
+                session_follow.rollback_transaction()
 
         session_follow.close()
         conn_follow.close()
