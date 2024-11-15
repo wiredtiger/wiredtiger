@@ -2272,9 +2272,9 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
         }
 
     /*
-     * During RTS and recovery, reset the maximum timestamp used for reconciliation to a value that
-     * is the same as the maximum between the start and stop durable timestamps. In those specific
-     * scenarios, we should always reflect the state of the stable content.
+     * During RTS, recovery, or shutdown reset the maximum timestamp used for reconciliation to a
+     * value that is the same as the maximum between the start and stop durable timestamps. In those
+     * specific scenarios, we should always reflect the state of the stable content.
      */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
       F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT | WT_CONN_RECOVERING))
