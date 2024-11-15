@@ -21,10 +21,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_DECL_ITEM(item);
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
-    char *buf, *cfg_ret, *metadata_value_cfg;
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
     size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
+    char *buf, *cfg_ret, *metadata_value_cfg;
+    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
 
