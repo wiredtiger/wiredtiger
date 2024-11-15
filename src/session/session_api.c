@@ -1596,7 +1596,7 @@ err:
 
 /*
  * __check_key_outside_truncate_range --
- *     Checks if the key falls outside the truncate range, inclusive of the start and stop keys if
+ *     Checks if a cursor is positioned on a key that falls outside the truncate range, inclusive of the start and stop keys if
  *     provided.
  */
 static bool
@@ -1745,8 +1745,10 @@ __wt_session_range_truncate(
         if (needs_next_prev) {
             ret = start->next(start);
             if (ret == WT_PREPARE_CONFLICT) {
-                /* Don't return a prepare conflict if the key we land on falls outside the truncate
-                 * range. */
+                /* 
+                 * Don't return a prepare conflict if the key we land on falls outside the truncate
+                 * range. 
+                 */
                 if (__check_key_outside_truncate_range(start, trunc_info)) {
                     F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                     WT_ERR_NOTFOUND_OK(start->next(start), true);
