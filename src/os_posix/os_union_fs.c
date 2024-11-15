@@ -647,7 +647,7 @@ __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off
     while (alloc != NULL) {
         /* The read is in this allocation. */
         if (offset >= alloc->off && rw_end <= EXTENT_END(alloc)) {
-            printf("Full match on read\n");
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "READ %s: Full match", union_fh->iface.name);
             return (FULL);
         }
         alloc = alloc->next;
@@ -668,7 +668,7 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
     RW_SERVICE_LEVEL sl;
     prev = alloc = new = NULL;
 
-    printf("UPDATE EXTENT %s, %ld, %lu, %p\n", union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p", union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
 
     sl = __dest_can_service_rw(union_fh, session, offset, len);
     if (sl == FULL) {
@@ -682,7 +682,7 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
             if (alloc->off == offset) {
                 /* This is the exact extend we are concerned with. Assert that it fits inside it. */
                 WT_ASSERT(session, EXTENT_END(alloc) >= offset + (wt_off_t)len);
-                printf("EXTENT MATCH %s, no work done\n", union_fh->iface.name);
+                __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done", union_fh->iface.name);
                 return (0);
             }
             if (alloc->off > offset) {
@@ -716,7 +716,7 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
                 prev->len += len;
                 //TODO: Merge with next extent.
                 if (prev->next->off == EXTENT_END(prev)) {
-                    printf("Could merge extent!!!\n");
+                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Could merge extent for %s", union_fh->iface.name);
                 }
                 return (0);
             }
@@ -728,7 +728,7 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
         new->next = alloc;
         prev->next = new;
         if (EXTENT_END(prev) == new->off) {
-            printf("Could merge extent!!!\n");
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Could merge extent for %s", union_fh->iface.name);
         }
     }
     return (0);
@@ -747,13 +747,10 @@ __union_fs_file_write(
     union_fh = (WT_UNION_FS_FH *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    printf("WRITE %s: %ld, %zu\n", fh->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %zu", fh->name, offset, len);
     WT_RET(union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
 
     WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
-
-    //  fprintf(stderr, "WRITE %s : %ld %zu\n", fh->name, offset, len);
-
 
     // TODO: I think this is error checking?
     // XXX
@@ -782,7 +779,7 @@ __union_fs_file_write(
  */
 static int
 __read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read) {
-    printf("PROMOTE READ %s : %ld, %zu\n", union_fh->iface.name, offset, len);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "PROMOTE READ %s : %ld, %zu", union_fh->iface.name, offset, len);
     WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
     return (0);
 }
@@ -807,7 +804,7 @@ __union_fs_file_read(
 
     // XXX We really want to read this faster than one chunk at a time... this is embarrassing.
 
-    printf("READ %s : %ld, %zu\n", file_handle->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %zu", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -819,11 +816,12 @@ __union_fs_file_read(
      * destinaion. Is this correct?
      */
     if (union_fh->source == NULL || sl == FULL) {
-        printf("    READ FROM DEST (src is NULL? %s)\n", union_fh->source == NULL ? "YES" : "NO");
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)", union_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
     } else {
-        printf("    READ FROM SOURCE\n");
+        /* Interestingly you cannot not have a format in verbose. */
+         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
         WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
@@ -970,9 +968,9 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
     ioctl(fd, FS_IOC_FIEMAP, fiemap_fetch_extent_num);
     num_extents = fiemap_fetch_extent_num->fm_mapped_extents;
 
-    printf("\nFile: %s\n", filename);
-    printf("    len: %llu\n", (unsigned long long) union_fh->destination.size);
-    printf("    num_extents: %u\n", num_extents);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %llu", (unsigned long long) union_fh->destination.size);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    num_extents: %u", num_extents);
 
     /////////////////////////////////////////////////////////////////////////////
     // 2. Now we know the number of extents in the file call fiemap again with this number and parse the extents
@@ -998,7 +996,7 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
     fiemap_extent_list = (struct fiemap_extent *)(fiemap + 1); 
     for (unsigned int i = 0; i < num_extents; i++) {
 
-        printf(">       Extent %u: offset: %llu, length: %llu, flags: %u\n",
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, ">       Extent %u: offset: %llu, length: %llu, flags: %u",
                i,
                (unsigned long long)fiemap_extent_list[i].fe_logical,
                (unsigned long long)fiemap_extent_list[i].fe_length,
@@ -1014,7 +1012,6 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
             WT_ASSERT_ALWAYS(session, fiemap_last_flag_set == true, "Last extent but FIEMAP_EXTENT_LAST not set!");
         }
     }
-    printf("\n");
     free(fiemap);
     free(fiemap_fetch_extent_num);
 
