@@ -575,9 +575,6 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    /* Close each layer. */
-    printf("CLOSING %s\n", file_handle->name);
-
     // FIXME - To remove
     {
         // DEBUG CODE - The second time we've closed WiredTiger.wt in union_fs.cpp there 
@@ -1097,7 +1094,6 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_ERR(__wt_strdup(session, name, &fh->iface.name));
     fh->iface.file_system = fs;
     fh->file_type = file_type;
-    printf("OPENING %s\n", name);
 
     // XXX Handle the exclusive flag and other flags
 

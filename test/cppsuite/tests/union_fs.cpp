@@ -92,7 +92,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 5;
+static const int crud_ops = 500;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
@@ -270,7 +270,7 @@ main(int argc, char *argv[])
     logger::trace_level = LOG_TRACE;
 
     /* Create a connection, set the cache size and specify the home directory. */
-    const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB";
+    const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB,verbose=[fileops:2]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
@@ -319,19 +319,21 @@ main(int argc, char *argv[])
     // t.join();
 
     /* Another message. */
-    logger::log_msg(LOG_INFO, "End of test. Closing wiredtiger and renaming directories.");
+    logger::log_msg(LOG_INFO, "End of test. Reading everything to combine the layers as we don't have the background thread yet.");
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();
     connection_manager::instance().close();
-    time_t now = time(0);
-    tm *local_time = localtime(&now);
+    // time_t now = time(0);
+    // tm *local_time = localtime(&now);
 
     // WT_TEST -> WT_TEST_H:M
     // TOP -> WT_TEST
-    std::filesystem::rename("WT_TEST",
-      "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
+    // TODO: Add a "keep" arg.
+    // std::filesystem::rename("WT_TEST",
+    //   "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
+    testutil_assert(std::filesystem::remove_all("WT_TEST") >= 0);
     std::filesystem::rename("TOP", "WT_TEST");
 
     return (0);
