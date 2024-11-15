@@ -64,12 +64,15 @@ typedef struct __wt_calltrack_thread {
 extern __thread WT_CALLTRACK_THREAD wt_calltrack_thread;
 
 typedef struct __wt_calltrack_global {
+    bool enabled;
     uint64_t tstart;
     uint64_t tnid;
     bool is_running;
     uint64_t n_flushers_running;
 } WT_CALLTRACK_GLOBAL;
 extern WT_CALLTRACK_GLOBAL wt_calltrack_global;
+
+void wiredtiger_calltrack_set(bool enable, int memorder);
 
 static WT_INLINE void
 __wt_set_indent(int indent)
@@ -308,7 +311,8 @@ __wt_calltrack_write_entry(uint64_t ts, int64_t ret, const char *name, const cha
 }
 
 #define __WT_CALL_WRAP_IMPL_BUF_GRAPH(FUNCNAME, CALL, SESSION, RET_INIT, RET_VAL, RET_RET)  \
-    if (wt_calltrack_thread.is_service_thread) {                                            \
+    if (wt_calltrack_thread.is_service_thread ||                                            \
+             !__atomic_load_n(&wt_calltrack_global.enabled, __ATOMIC_RELAXED)) {            \
         RET_INIT CALL;                                                                      \
         RET_RET;                                                                            \
     } else {                                                                                \

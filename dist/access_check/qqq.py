@@ -48,9 +48,13 @@ import wt_defs
 #
 # Who does eviction:
 # select * from slices where name = "__wt_evict"
+# select * from slices where name = "__wt_txn_checkpoint"
+# select * from slices where name in ("__evict_page", "__evict_lru_walk", "__evict_pass", "__wt_txn_checkpoint")
 # Pivot on "track_id"
 
 # select distinct name, cat from slices where name like "%:WAIT%"
+
+# OpenTelemetry SPM-1514
 
 _session_from_type = {
     "WT_SESSION_IMPL":    lambda arg: f"""{arg}""",

@@ -2456,6 +2456,9 @@ start_run(WTPERF *wtperf)
 
     /* Optional workload. */
     if (wtperf->workers_cnt != 0 && (opts->run_time != 0 || opts->run_ops != 0)) {
+        wiredtiger_calltrack_set(true, __ATOMIC_RELEASE);
+        printf("Enable tracing\n");
+
         /*
          * If we have a workload, close and reopen the connection so that LSM can detect read-only
          * workloads.
@@ -2580,6 +2583,7 @@ err:
         if ((t_ret = fclose(wtperf->logf)) != 0 && ret == 0)
             ret = t_ret;
     }
+
     return (ret);
 }
 
@@ -2605,6 +2609,8 @@ usage(void)
     config_opt_usage();
 }
 
+void __attribute__((destructor)) __wt_calltrack_deinit_flushers(void);
+
 int
 main(int argc, char *argv[])
 {
@@ -2617,6 +2623,8 @@ main(int argc, char *argv[])
     const char *append_comma, *config_opts;
     char *cc_buf, *path, *sess_cfg, *tc_buf, *user_cconfig, *user_tconfig;
 
+    printf("Disable tracing\n");
+    wiredtiger_calltrack_set(false, __ATOMIC_RELEASE);
     /* The first WTPERF structure (from which all others are derived). */
     wtperf = &_wtperf;
     memset(wtperf, 0, sizeof(*wtperf));
@@ -2857,6 +2865,8 @@ err:
     free(tc_buf);
     free(user_cconfig);
     free(user_tconfig);
+
+    __wt_calltrack_deinit_flushers();
 
     return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

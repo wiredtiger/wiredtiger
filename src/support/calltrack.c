@@ -8,9 +8,16 @@ __thread WT_CALLTRACK_THREAD wt_calltrack_thread = {
 };
 
 WT_CALLTRACK_GLOBAL wt_calltrack_global = {
+    .enabled = true,
     .is_running = true,
     .n_flushers_running = 0,
 };
+
+void
+wiredtiger_calltrack_set(bool enable, int memorder)
+{
+    __atomic_store_n(&wt_calltrack_global.enabled, enable, memorder);
+}
 
 void __global_calibrate_ticks(void);
 
@@ -109,7 +116,10 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
                     break;
                 }
                 // fprintf(tracefile, "%"SCNuMAX" %"PRIu64" = %d\n", buf->ostid, buf->tnid, thread_status);
-                __wt_sleep(0, 1000);
+                if (cycles != 1010)
+                    __wt_sleep(0, 1000);
+                else
+                    fflush(tracefile);
             }
             continue;
         }
