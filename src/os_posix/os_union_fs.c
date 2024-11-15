@@ -810,7 +810,7 @@ __union_fs_file_read(
 
     // XXX We really want to read this faster than one chunk at a time... this is embarrassing.
 
-    printf("READ %s : %ld. %zu\n", file_handle->name, offset, len);
+    printf("READ %s : %ld, %zu\n", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -946,7 +946,7 @@ err:
  *     When opening a file from destination create its existing extent list from the file system information.
  *     Any holes in the extent list are data that hasn't been copied from source yet.
  */
-static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH_SINGLE_LAYER *union_fh_single_layer, WT_FILE_HANDLE *fh) {
+static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH *union_fh) {
     struct fiemap *fiemap_fetch_extent_num, *fiemap;
     unsigned int num_extents;
     int fd;
@@ -966,7 +966,7 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
     memset(fiemap_fetch_extent_num, 0, sizeof(struct fiemap));
 
     fiemap_fetch_extent_num->fm_start = 0; // Start from the beginning of the file
-    fiemap_fetch_extent_num->fm_length = (unsigned long long)union_fh_single_layer->size; // Get the entire file
+    fiemap_fetch_extent_num->fm_length = (unsigned long long)union_fh->destination.size; // Get the entire file
     fiemap_fetch_extent_num->fm_flags = 0; // TODO - flags?
     fiemap_fetch_extent_num->fm_extent_count = 0; // Set zero. this means the call returns the number of fiemap_extent_list in the file
 
@@ -974,7 +974,7 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
     num_extents = fiemap_fetch_extent_num->fm_mapped_extents;
 
     printf("\nFile: %s\n", filename);
-    printf("    len: %llu\n", (unsigned long long) union_fh_single_layer->size);
+    printf("    len: %llu\n", (unsigned long long) union_fh->destination.size);
     printf("    num_extents: %u\n", num_extents);
 
     /////////////////////////////////////////////////////////////////////////////
@@ -985,7 +985,7 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
     memset(fiemap, 0, sizeof(struct fiemap));
 
     fiemap->fm_start = 0; // Start from the beginning of the file
-    fiemap->fm_length = (unsigned long long) union_fh_single_layer->size; // Get the entire file
+    fiemap->fm_length = (unsigned long long) union_fh->destination.size; // Get the entire file
     fiemap->fm_flags = 0; // TODO - flags?
     fiemap->fm_extent_count = num_extents;
 
@@ -1007,9 +1007,9 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
                (unsigned long long)fiemap_extent_list[i].fe_length,
                fiemap_extent_list[i].fe_flags);
 
-        // TODO - is this fh correct? The test results seem to indicate it is
-        __dest_update_alloc_list_write((WT_UNION_FS_FH *)fh, session, 
-            (wt_off_t)fiemap_extent_list[i].fe_logical, (size_t)fiemap_extent_list[i].fe_length);
+        // TODO - is this fh correct? Twas not.
+        __dest_update_alloc_list_write(union_fh, session,
+          (wt_off_t)fiemap_extent_list[i].fe_logical, (size_t)fiemap_extent_list[i].fe_length);
 
         // Sanity check we've read all extents in the file
         if (i == num_extents - 1) {
@@ -1056,7 +1056,7 @@ __union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNIO
     WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
     union_fh_single_layer->size = (wt_off_t)size;
 
-    __union_build_extents_from_dest_file(session, path, union_fh_single_layer, fh);
+    __union_build_extents_from_dest_file(session, path, union_fh);
  
 err:
     __wt_free(session, path);
