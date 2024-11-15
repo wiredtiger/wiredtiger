@@ -44,7 +44,7 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
     oligarch_uris = ["oligarch:test_oligarch13a", "oligarch:test_oligarch13b"]
     other_uris = ["file:test_oligarch13c"]
 
-    disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_oligarch13', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # Load the page log extension, which has object storage support
