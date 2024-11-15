@@ -373,7 +373,9 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we get a match. This will be the last valid record that matches the
      * table/page.
      */
-    while (ret == 0 && !RESULT_MATCH(&result_key, table_id, page_id, now)) {
+    while (ret == 0 &&
+      (!RESULT_MATCH(&result_key, table_id, page_id, now) ||
+        result_key.checkpoint_id > checkpoint_id)) {
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
         readonly_result_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_result_key, &result_key);
@@ -440,7 +442,8 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
         readonly_page_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_page_key, &page_key);
 
-        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, now)) {
+        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, now) &&
+          page_key.checkpoint_id <= matches->checkpoint_id) {
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
             matches->revision = page_key.revision;
