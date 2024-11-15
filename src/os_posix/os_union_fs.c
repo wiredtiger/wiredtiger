@@ -779,7 +779,7 @@ __union_fs_file_write(
  */
 static int
 __read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read) {
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "PROMOTE READ %s : %ld, %zu", union_fh->iface.name, offset, len);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %zu", union_fh->iface.name, offset, len);
     WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
     return (0);
 }

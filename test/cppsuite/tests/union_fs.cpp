@@ -82,6 +82,14 @@ public:
           random_generator::instance().generate_integer(0ul, collection_count() - 1));
     }
 
+    std::vector<std::string>::const_iterator begin() const {
+        return _collections.cbegin();
+    }
+
+    std::vector<std::string>::const_iterator end() const {
+        return _collections.cend();
+    }
+
     size_t
     collection_count()
     {
@@ -92,7 +100,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 500;
+static const int crud_ops = 1000;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
@@ -212,8 +220,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
     std::string key, value;
     for (int i = 0; i < crud_ops; i++) {
         auto ran = random_generator::instance().generate_integer(0, 100);
-        // if (ran <= 1 || !file_created) {
-        if (!file_created) {
+        if (ran <= 1 || !file_created) {
             // Create a new file, if none exist force this path.s
             create_collection(session);
             file_created = true;
@@ -270,6 +277,7 @@ main(int argc, char *argv[])
     logger::trace_level = LOG_TRACE;
 
     /* Create a connection, set the cache size and specify the home directory. */
+    // TODO: Make verbosity level configurable at runtime.
     const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB,verbose=[fileops:1]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
@@ -321,6 +329,18 @@ main(int argc, char *argv[])
     /* Another message. */
     logger::log_msg(LOG_INFO, "End of test. Reading everything to combine the layers as we don't have the background thread yet.");
 
+    for (auto it = db.begin(); it != db.end(); ++it) {
+        auto count = 0, print_count = 1;
+        auto walk_cursor = crud_session.open_scoped_cursor(*it);
+        logger::log_msg(LOG_INFO, "Walking " + *it);
+        while (walk_cursor->next(walk_cursor.get()) != WT_NOTFOUND) {
+            count ++;
+            if (count % 20 == 0) {
+                logger::log_msg(LOG_TRACE, std::string(print_count, '.'));
+                print_count ++;
+            }
+        }
+    }
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();
