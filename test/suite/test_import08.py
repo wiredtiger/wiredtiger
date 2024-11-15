@@ -114,12 +114,12 @@ class test_import08(test_import_base):
         # Now that we've finished doing our checkpoints, we can let go of the transaction ID we
         # allocated earlier.
         session2.rollback_transaction()
-        
+
         # Create a new database.
         newdir = 'IMPORT_DB'
         shutil.rmtree(newdir, ignore_errors=True)
         os.mkdir(newdir)
-        
+
         # Copy over the datafiles for the object we want to import.
         self.copy_file(self.original_db_file, '.', newdir)
 
