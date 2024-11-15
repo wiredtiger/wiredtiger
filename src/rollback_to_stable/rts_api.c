@@ -352,7 +352,7 @@ __wt_rollback_to_stable_init(WT_SESSION_IMPL *session, const char **cfg)
     /* Setup variables. */
     conn->rts->dryrun = false;
 
-    /* Setup threads_num at connection level */
+    /* Setup threads_num at connection level. */
     if ((ret = __wt_config_gets(session, cfg, "rollback_to_stable.threads", &cval)) == 0)
         conn->rts->cfg_threads_num = (uint32_t)cval.val;
     WT_RET_NOTFOUND_OK(ret);
@@ -362,7 +362,7 @@ __wt_rollback_to_stable_init(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __wt_rollback_to_stable_reconfig --
- *     Re-config the threads_num
+ *     Re-config the threads_num.
  */
 int
 __wt_rollback_to_stable_reconfig(WT_SESSION_IMPL *session, const char **cfg)
@@ -373,7 +373,7 @@ __wt_rollback_to_stable_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 
     conn = S2C(session);
 
-    /* Re-config threads_num at connection level */
+    /* Re-config threads_num at connection level. */
     if ((ret = __wt_config_gets(session, cfg, "rollback_to_stable.threads", &cval)) == 0)
         conn->rts->cfg_threads_num = (uint32_t)cval.val;
     WT_RET_NOTFOUND_OK(ret);
