@@ -557,6 +557,11 @@ __union_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, b
     return (0);
 }
 
+static int
+__union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
+  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
+
+
 /*
  * __union_fs_file_close --
  *     Close the file.
@@ -572,6 +577,21 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     /* Close each layer. */
     printf("CLOSING %s\n", file_handle->name);
+
+    // FIXME - To remove
+    {
+        // DEBUG CODE - The second time we've closed WiredTiger.wt in union_fs.cpp there 
+        // will be multiple writes to it. Open it again to confirm we've recovered all 
+        // the extents properly
+        static int numm = 0;
+        if(strcmp(file_handle->name, "./WiredTiger.wt") == 0) {
+            if(++numm == 2) {
+                __union_fs_open_file(fh->iface.file_system, wt_session, file_handle->name, 
+                    fh->file_type, 0, (WT_FILE_HANDLE **)&fh);
+            }
+        }
+    }
+
     fh->destination.fh->close(fh->destination.fh, wt_session);
     //TODO: Reconcile the file?
     // TODO: Free the extent linked list.
@@ -913,6 +933,97 @@ err:
     return (ret);
 }
 
+#include <linux/fiemap.h> // struct fiemap
+#include <linux/fs.h>     // FS_IOS_FIEMAP
+#include <sys/ioctl.h>    // ioctl()      
+
+// FIXME - a lot of hacky casting in here
+// FIXME - Add WT_ERR/WT_RET logic
+// FIXME - Use __wt_* funcs instead of malloc and strcmp
+
+/*
+ * __union_build_extents_from_dest_file --
+ *     When opening a file from destination create its existing extent list from the file system information.
+ *     Any holes in the extent list are data that hasn't been copied from source yet.
+ */
+static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH_SINGLE_LAYER *union_fh_single_layer, WT_FILE_HANDLE *fh) {
+    struct fiemap *fiemap_fetch_extent_num, *fiemap;
+    unsigned int num_extents;
+    int fd;
+    bool fiemap_last_flag_set;
+    
+    struct fiemap_extent *fiemap_extent_list;
+
+    fd = open(filename, O_RDONLY);
+
+    /////////////////////////////////////////////////////////////////////////////
+    // 1. Run fiemap ioctl with fm_extent_count set to zero. Instead of returning 
+    // a list of extents it'll tell us how many extents are in the file.
+    // TODO - how to confirm this doesn't change after we've read the value?
+    //        I think we're safe as no one else would be writing to the file(???)
+    /////////////////////////////////////////////////////////////////////////////
+    fiemap_fetch_extent_num = malloc(sizeof(struct fiemap));
+    memset(fiemap_fetch_extent_num, 0, sizeof(struct fiemap));
+
+    fiemap_fetch_extent_num->fm_start = 0; // Start from the beginning of the file
+    fiemap_fetch_extent_num->fm_length = (unsigned long long)union_fh_single_layer->size; // Get the entire file
+    fiemap_fetch_extent_num->fm_flags = 0; // TODO - flags?
+    fiemap_fetch_extent_num->fm_extent_count = 0; // Set zero. this means the call returns the number of fiemap_extent_list in the file
+
+    ioctl(fd, FS_IOC_FIEMAP, fiemap_fetch_extent_num);
+    num_extents = fiemap_fetch_extent_num->fm_mapped_extents;
+
+    printf("\nFile: %s\n", filename);
+    printf("    len: %llu\n", (unsigned long long) union_fh_single_layer->size);
+    printf("    num_extents: %u\n", num_extents);
+
+    /////////////////////////////////////////////////////////////////////////////
+    // 2. Now we know the number of extents in the file call fiemap again with this number and parse the extents
+    /////////////////////////////////////////////////////////////////////////////
+
+    fiemap = malloc(sizeof(struct fiemap) + sizeof(struct fiemap_extent) * (num_extents));
+    memset(fiemap, 0, sizeof(struct fiemap));
+
+    fiemap->fm_start = 0; // Start from the beginning of the file
+    fiemap->fm_length = (unsigned long long) union_fh_single_layer->size; // Get the entire file
+    fiemap->fm_flags = 0; // TODO - flags?
+    fiemap->fm_extent_count = num_extents;
+
+    ioctl(fd, FS_IOC_FIEMAP, fiemap);
+
+
+    /////////////////////////////////////////////////////////////////////////////
+    // 3. Using the returned fiemap info re-build the extent lists 
+    // TODO - Using a custom extent list instead of the WT impl?
+    /////////////////////////////////////////////////////////////////////////////
+
+    // fiemap_extent_list lives in an array at the end of the fiemap
+    fiemap_extent_list = (struct fiemap_extent *)(fiemap + 1); 
+    for (unsigned int i = 0; i < num_extents; i++) {
+
+        printf(">       Extent %u: offset: %llu, length: %llu, flags: %u\n",
+               i,
+               (unsigned long long)fiemap_extent_list[i].fe_logical,
+               (unsigned long long)fiemap_extent_list[i].fe_length,
+               fiemap_extent_list[i].fe_flags);
+
+        // TODO - is this fh correct? The test results seem to indicate it is
+        __dest_update_alloc_list_write((WT_UNION_FS_FH *)fh, session, 
+            (wt_off_t)fiemap_extent_list[i].fe_logical, (size_t)fiemap_extent_list[i].fe_length);
+
+        // Sanity check we've read all extents in the file
+        if (i == num_extents - 1) {
+            fiemap_last_flag_set = (fiemap_extent_list[i].fe_flags & FIEMAP_EXTENT_LAST) != 0;
+            WT_ASSERT_ALWAYS(session, fiemap_last_flag_set == true, "Last extent but FIEMAP_EXTENT_LAST not set!");
+        }
+    }
+    printf("\n");
+    free(fiemap);
+    free(fiemap_fetch_extent_num);
+
+    close(fd);
+}
+
 /*
  * __union_fs_open_in_destination --
  *     Open a file handle.
@@ -944,8 +1055,9 @@ __union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNIO
     WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
     union_fh_single_layer->size = (wt_off_t)size;
-    // TODO: Query the holes in the file to allocate extents with.
 
+    __union_build_extents_from_dest_file(session, path, union_fh_single_layer, fh);
+ 
 err:
     __wt_free(session, path);
     return (ret);
