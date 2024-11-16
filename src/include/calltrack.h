@@ -318,9 +318,9 @@ __wt_calltrack_write_entry(uint64_t ts, int64_t ret, const char *name, const cha
     entry->name = name;
     entry->cat = cat;
     entry->enter = enter;
-    WT_COMPILER_BARRIER();
+    // WT_COMPILER_BARRIER();
     __atomic_store_n(&wt_calltrack_thread.buf->writer, (wt_calltrack_thread.buf->writer + 1) % WT_CALLTRACK_THREAD_BUF_ENTRIES, __ATOMIC_RELEASE);
-    WT_COMPILER_BARRIER();
+    // WT_COMPILER_BARRIER();
 }
 
 #define __WT_CALL_WRAP_IMPL_BUF_GRAPH(FUNCNAME, CALL, SESSION, RET_INIT, RET_VAL, RET_RET)  \

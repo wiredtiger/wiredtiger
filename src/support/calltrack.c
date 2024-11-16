@@ -97,10 +97,40 @@ __wt_is_thread_terminated(WT_CALLTRACK_THREAD_BUF *buf)
 #endif
 }
 
+/* If CALLTRACK_INTERLEAVE is defined, then only snapshots at this interval are reported */
+// #define CALLTRACK_INTERLEAVE 1000
+
+/* If CALLTRACK_MIN_DURATION is defined, events shorter than this are not reported */
+#define CALLTRACK_MIN_DURATION 500
+
+/* Top level calls are always reported */
+// #define CALLTRACK_ALWAYS_REPORT_TOPLEVEL
+
+
+#if defined(CALLTRACK_INTERLEAVE) || defined(CALLTRACK_MIN_DURATION)
+#define CALLTRACK_FILTER 1
+#endif
+
+#define CT_REPORT_ENTER(entry) \
+    fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\", \"name\": \"%s\"},\n", \
+        entry->ts, buf->pid, buf->tnid, entry->name)
+#define CT_REPORT_LEAVE(entry) \
+    fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"E\", \"args\": {\"<ret>\": \"%"PRId64"\"}},\n", \
+        entry->ts, buf->pid, buf->tnid, entry->ret);
+
 WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     wt_calltrack_thread.is_service_thread = true;
     int cycles = 0;
     WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF *)arg;
+#if defined(CALLTRACK_INTERLEAVE) || defined(CALLTRACK_MIN_DURATION)
+#define CALLTRACK_MAX_STACK 100
+    WT_CALLTRACK_LOG_ENTRY stack[CALLTRACK_MAX_STACK];
+    int last_report_stack_depth = 0;
+#endif
+#if defined(CALLTRACK_INTERLEAVE)
+    uint64_t next_report_ts = 0;
+#endif
+
 #define FBUFSZ 4*1024*1024
     char * fbuf = (char *)malloc(FBUFSZ);
     FILE *tracefile = __wt_calltrack_open_tracefile(buf->tnid);
@@ -140,14 +170,53 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
             WT_CALLTRACK_LOG_ENTRY *entry = &buf->entries[reader];
             if (entry->enter) {
                 ++wt_calltrack_thread.nest_level;
-                // fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\", \"name\": \"%s\", \"cat\": \"%s\"},\n",
-                //     entry->ts, buf->pid, buf->tnid, entry->name, entry->cat);
-                fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\", \"name\": \"%s\"},\n",
-                    entry->ts, buf->pid, buf->tnid, entry->name);
+#ifndef CALLTRACK_FILTER
+                CT_REPORT_ENTER(entry);
+#else
+                if (wt_calltrack_thread.nest_level < CALLTRACK_MAX_STACK) {
+                    memcpy(&stack[wt_calltrack_thread.nest_level-1], entry, sizeof(WT_CALLTRACK_LOG_ENTRY));
+#if defined(CALLTRACK_INTERLEAVE)
+                    if (entry->ts >= next_report_ts) {
+                        next_report_ts = entry->ts + CALLTRACK_INTERLEAVE;
+                        for (int i = last_report_stack_depth; i < wt_calltrack_thread.nest_level; i++) {
+                            WT_CALLTRACK_LOG_ENTRY *entry2 = &stack[i];
+                            CT_REPORT_ENTER(entry2);
+                        }
+                        last_report_stack_depth = wt_calltrack_thread.nest_level;
+                    }
+#endif
+                }
+#endif
             } else {
                 --wt_calltrack_thread.nest_level;
-                fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"E\", \"args\": {\"<ret>\": \"%"PRId64"\"}},\n",
-                    entry->ts, buf->pid, buf->tnid, entry->ret);
+#ifndef CALLTRACK_FILTER
+                CT_REPORT_LEAVE(entry);
+#else
+#if defined(CALLTRACK_INTERLEAVE)
+                if (wt_calltrack_thread.nest_level < last_report_stack_depth) {
+                    CT_REPORT_LEAVE(entry);
+                    last_report_stack_depth = wt_calltrack_thread.nest_level;
+                }
+#endif
+#if defined(CALLTRACK_MIN_DURATION)
+                if (wt_calltrack_thread.nest_level < CALLTRACK_MAX_STACK) {
+                    if (
+#ifdef CALLTRACK_ALWAYS_REPORT_TOPLEVEL
+                        wt_calltrack_thread.nest_level == 0 ||
+#endif
+                            entry->ts - stack[wt_calltrack_thread.nest_level].ts >= CALLTRACK_MIN_DURATION) {
+                        if (last_report_stack_depth <= wt_calltrack_thread.nest_level) {
+                            for (int i = last_report_stack_depth; i <= wt_calltrack_thread.nest_level; i++) {
+                                WT_CALLTRACK_LOG_ENTRY *entry2 = &stack[i];
+                                CT_REPORT_ENTER(entry2);
+                            }
+                        }
+                        CT_REPORT_LEAVE(entry);
+                        last_report_stack_depth = wt_calltrack_thread.nest_level;
+                    }
+                }
+#endif
+#endif
             }
             reader = (reader + 1) % WT_CALLTRACK_THREAD_BUF_ENTRIES;
         }
@@ -161,4 +230,3 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     __atomic_fetch_sub(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELAXED);
     return NULL;
 }
-
