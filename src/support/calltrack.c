@@ -140,8 +140,10 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
             WT_CALLTRACK_LOG_ENTRY *entry = &buf->entries[reader];
             if (entry->enter) {
                 ++wt_calltrack_thread.nest_level;
-                fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\", \"name\": \"%s\", \"cat\": \"%s\"},\n",
-                    entry->ts, buf->pid, buf->tnid, entry->name, entry->cat);
+                // fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\", \"name\": \"%s\", \"cat\": \"%s\"},\n",
+                //     entry->ts, buf->pid, buf->tnid, entry->name, entry->cat);
+                fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\", \"name\": \"%s\"},\n",
+                    entry->ts, buf->pid, buf->tnid, entry->name);
             } else {
                 --wt_calltrack_thread.nest_level;
                 fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"E\", \"args\": {\"<ret>\": \"%"PRId64"\"}},\n",
