@@ -63,8 +63,7 @@ class test_oligarch04(wttest.WiredTigerTestCase):
             if i % 10000 == 0:
                 time.sleep(5)
 
-        #TODO Resetting the cursor causes the connection close to hang
-        #cursor.reset()
+        cursor.reset()
 
         self.pr('opening cursor')
         cursor.close()

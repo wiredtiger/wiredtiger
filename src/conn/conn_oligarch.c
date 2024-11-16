@@ -486,9 +486,10 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
             /* We've done (or tried to do) a checkpoint - that's it. */
             return (ret);
         } else if (entry != NULL) {
-            __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-              "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-              entry->accumulated_write_bytes);
+            if (entry->accumulated_write_bytes > 0)
+                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
+                  "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
+                  entry->accumulated_write_bytes);
         }
     }
 
@@ -889,8 +890,8 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
-    WT_ERR(
-      __wt_session_create(internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S"));
+    WT_ERR(__wt_session_create(internal_session, WT_DISAGG_METADATA_URI,
+      "key_format=S,value_format=S,log=(enabled=false),oligarch_log=(enabled=false)"));
 
 err:
     if (internal_session != NULL)
@@ -1087,11 +1088,11 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_disagg_destroy_conn_config --
- *     Free the disaggregated storage state.
+ * __wti_disagg_destroy --
+ *     Shut down disaggregated storage.
  */
 int
-__wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
+__wti_disagg_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1099,10 +1100,6 @@ __wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
-
-    __wt_free(session, disagg->page_log);
-    __wt_free(session, disagg->stable_prefix);
-    __wt_free(session, disagg->storage_source);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {
@@ -1114,6 +1111,9 @@ __wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
         disagg->bstorage_meta = NULL;
     }
 
+    __wt_free(session, disagg->page_log);
+    __wt_free(session, disagg->stable_prefix);
+    __wt_free(session, disagg->storage_source);
     return (ret);
 }
 

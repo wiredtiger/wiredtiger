@@ -1376,9 +1376,6 @@ err:
         F_SET(conn, WT_CONN_PANIC);
     }
 
-    /* Free the disaggregated storage config. */
-    WT_TRET(__wti_disagg_destroy_conn_config(session));
-
     /*
      * Now that the final checkpoint is complete, the shutdown process should not allocate a
      * significant amount of new memory. If a user configured leaking memory on shutdown, we will

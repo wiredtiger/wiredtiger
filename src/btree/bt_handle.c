@@ -538,6 +538,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (strcmp(session->dhandle->name, WT_DISAGG_METADATA_URI) == 0) {
         F_SET(btree->dhandle, WT_DHANDLE_DISAGG_META);
         F_CLR(btree, WT_BTREE_LOGGED);
+        F_CLR(btree, WT_BTREE_OLIGARCH_LOGGED);
     }
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
