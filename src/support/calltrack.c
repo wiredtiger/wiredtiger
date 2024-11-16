@@ -70,6 +70,8 @@ FILE *__wt_calltrack_open_tracefile(uintmax_t id);
 FILE *
 __wt_calltrack_open_tracefile(uintmax_t id)
 {
+    // WT_UNUSED(id);
+    // return fopen("/dev/null", "w");
     char filename[256];
     snprintf(filename, sizeof(filename), "calltrack-%05"SCNuMAX".json", id);
     return fopen(filename, "w");
@@ -98,8 +100,15 @@ __wt_is_thread_terminated(WT_CALLTRACK_THREAD_BUF *buf)
 WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     wt_calltrack_thread.is_service_thread = true;
     int cycles = 0;
-    WT_CALLTRACK_THREAD_BUF *buf = ((WT_CALLTRACK_THREAD *)arg)->buf;
-    FILE *tracefile = __wt_calltrack_open_tracefile(((WT_CALLTRACK_THREAD *)arg)->tnid);
+    WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF *)arg;
+#define FBUFSZ 4*1024*1024
+    char * fbuf = (char *)malloc(FBUFSZ);
+    FILE *tracefile = __wt_calltrack_open_tracefile(buf->tnid);
+    if (tracefile == NULL) {
+        fprintf(stderr, "Failed to open tracefile\n");
+        abort();
+    }
+    setbuffer(tracefile, fbuf, FBUFSZ);
     fprintf(tracefile, "{\"traceEvents\": [\n");
     while (1) {
         if (!__wt_calltrack_can_read(buf)) {
@@ -146,6 +155,7 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     free(buf);
     fprintf(tracefile, "{}]}\n");
     fclose(tracefile);
+    free(fbuf);
     __atomic_fetch_sub(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELAXED);
     return NULL;
 }

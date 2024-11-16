@@ -266,6 +266,10 @@ __wt_calltrack_init_thread_and_buf(void) {
     // if (wt_calltrack_thread.pid)
     //     return;
     wt_calltrack_thread.buf = malloc(WT_CALLTRACK_THREAD_BUF_ENTRIES * sizeof(WT_CALLTRACK_LOG_ENTRY));
+    if (!wt_calltrack_thread.buf) {
+        fprintf(stderr, "Failed to allocate buffer\n");
+        abort();
+    }
     wt_calltrack_thread.buf->writer = wt_calltrack_thread.buf->reader = 0;
     wt_calltrack_thread.buf->pid = wt_calltrack_thread.pid = (uintmax_t)getpid();
     wt_calltrack_thread.buf->tnid = wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);
@@ -276,8 +280,8 @@ __wt_calltrack_init_thread_and_buf(void) {
 #endif
     __atomic_fetch_add(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELAXED);
     pthread_t thread;
-    WT_COMPILER_BARRIER();
-    pthread_create(&thread, NULL, __wt_calltrack_buf_flusher, &wt_calltrack_thread);
+    WT_FULL_BARRIER();
+    pthread_create(&thread, NULL, __wt_calltrack_buf_flusher, wt_calltrack_thread.buf);
     pthread_detach(thread);
 }
 
@@ -285,12 +289,21 @@ static WT_INLINE void __wt_calltrack_wait_for_write(void);
 static WT_INLINE void
 __wt_calltrack_wait_for_write(void) {
     int reader;
-    int max_reader = (wt_calltrack_thread.buf->writer + WT_CALLTRACK_THREAD_BUF_ENTRIES - 1) % WT_CALLTRACK_THREAD_BUF_ENTRIES;
+    int max_reader = (wt_calltrack_thread.buf->writer + 1) % WT_CALLTRACK_THREAD_BUF_ENTRIES;
+    uint64_t count = 0;
 retry:
     /* If next reader is equal to writer, the buffer is full */
     reader = __atomic_load_n(&wt_calltrack_thread.buf->reader, __ATOMIC_ACQUIRE);
     if (reader == max_reader) {
-        __wt_yield();
+        ++count;
+        wt_calltrack_thread.is_service_thread = true;
+        if (count < 1000)
+            __wt_yield();
+        else if (count < 2000)
+            __wt_sleep(0, count - 1000);
+        else
+            __wt_sleep(0, 1000);
+        wt_calltrack_thread.is_service_thread = false;
         goto retry;
     }
 }

@@ -173,7 +173,11 @@ class Patcher:
               "_free" in func.name.value or
               "_atomic" in func.name.value or
               "byteswap" in func.name.value or
-              func.name.value in ("__wt_abort", "__wt_yield", "__wt_thread_create", "__wt_epoch_raw") or
+              func.name.value in (
+                  "__wt_abort", "__wt_yield", "__wt_thread_create", "__wt_epoch_raw",
+                  "__wt_clock", "__wt_clock_to_usec",
+                  "__wt_thread_id", "__wt_thread_str",
+              ) or
               func.name.value in [
                   "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
                   "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
