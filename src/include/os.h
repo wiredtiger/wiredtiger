@@ -210,6 +210,10 @@ struct __wt_union_fs_fh_single_layer {
     WT_FILE_HANDLE *fh;
     bool complete;
     wt_off_t size;
+    /* 
+     * allocation_list tracks which ranges in the file have been written to destination 
+     * at any point in time. Holes in these extents should only shrink and never grow.
+     */
     WT_UNION_ALLOC_LIST *allocation_list;
     WT_UNION_ALLOC_LIST *end;
 };

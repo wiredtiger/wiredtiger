@@ -32,6 +32,8 @@
 // #define WT_UNION_FS_STOP_SUFFIX ".stop"
 // #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
+static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
+
 /*
  * __union_fs_filename --
  *     Generate a filename for the given layer.
@@ -657,6 +659,34 @@ __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off
 }
 
 /*
+ * __union_merge_with_next_extents --
+ *
+ * Merge the current extent with the following extent(s) if they overlap.
+ */
+static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent) {
+    WT_UNION_ALLOC_LIST *next_extent;
+    wt_off_t new_len;
+
+    next_extent = extent->next;
+    WT_ASSERT_ALWAYS(session, next_extent != NULL, "Attempting to merge with NULL!");
+    WT_ASSERT_ALWAYS(session, EXTENT_END(extent) >= next_extent->off, 
+        "Attempting to merge non-overlapping extents! extent_end = %ld, next->off = %ld", EXTENT_END(extent), next_extent->off);
+
+    extent->next = next_extent->next;
+    new_len = EXTENT_END(next_extent) - extent->off; // TODO check for off by one
+    // FIXME - A lot of pointless typecasting. Consider dropping wt_off_t in favour of size_t.
+    extent->len = (size_t)WT_MAX((wt_off_t)extent->len, new_len);
+    __wt_free(session, next_extent);
+
+    // Run it again in case we also overlap with the N+1 extent
+    // TODO - loop instead of recursion.
+    if(extent->next != NULL && EXTENT_END(extent) >= extent->next->off) {
+        WT_RET(__union_merge_with_next_extents(session, extent));
+    }
+    return (0);
+}
+
+/*
  * __dest_update_alloc_list_write --
  *     Track that we wrote something. This will require creating new extends, growing existing ones
  *     and merging overlapping extents.
@@ -675,15 +705,25 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
         /* The full write was serviced from single extent. */
         return (0);
     } else {
-        /* Allocate a new extent or grow an existing one. Merge not yet implemented.... */
+        /* Allocate a new extent or grow an existing one. */
         alloc = union_fh->destination.allocation_list;
         while (alloc != NULL) {
             /* Find the first extend that the write is before. */
             if (alloc->off == offset) {
-                /* This is the exact extend we are concerned with. Assert that it fits inside it. */
-                WT_ASSERT(session, EXTENT_END(alloc) >= offset + (wt_off_t)len);
-                __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done", union_fh->iface.name);
-                return (0);
+
+                /* If the write fits the current extent just add it */
+                if(EXTENT_END(alloc) >= offset + (wt_off_t)len) {
+                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done", union_fh->iface.name);
+                    return (0);
+                } else {
+                    /* Otherwise grow the extent to match the new write. */
+                    WT_ASSERT(session, alloc->len < len);
+                    alloc->len = len;
+                    if(alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
+                        WT_RET(__union_merge_with_next_extents(session, alloc));
+                    }
+                    return (0);
+                }
             }
             if (alloc->off > offset) {
                 break;
@@ -714,9 +754,8 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
             if (EXTENT_END(prev) == offset) {
                 // Grow prev.
                 prev->len += len;
-                //TODO: Merge with next extent.
-                if (prev->next->off == EXTENT_END(prev)) {
-                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Could merge extent for %s", union_fh->iface.name);
+                if (prev->next->off <= EXTENT_END(prev)) {
+                    __union_merge_with_next_extents(session, prev);
                 }
                 return (0);
             }
@@ -727,8 +766,8 @@ __dest_update_alloc_list_write(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *sessio
         new->len = len;
         new->next = alloc;
         prev->next = new;
-        if (EXTENT_END(prev) == new->off) {
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Could merge extent for %s", union_fh->iface.name);
+        if (EXTENT_END(prev) >= new->off) {
+            __union_merge_with_next_extents(session, prev);
         }
     }
     return (0);
