@@ -101,12 +101,16 @@ __block_disagg_update_shared_metadata(
 
     WT_UNUSED(bm);
 
+    cursor = NULL;
+
     WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
     cursor->set_key(cursor, key);
     cursor->set_value(cursor, value);
     WT_ERR(cursor->insert(cursor));
 
 err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 
@@ -120,7 +124,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *cursor, *md_cursor;
+    WT_CURSOR *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t len;
@@ -132,7 +136,6 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     conn = S2C(session);
 
     buf = NULL;
-    cursor = NULL;
     entry = NULL;
     md_cursor = NULL;
     tablename = NULL;
@@ -178,8 +181,6 @@ err:
     __wt_scr_free(session, &buf);
     __wt_free(session, tablename);
     __wt_free(session, entry); /* TODO may not have been allocated */
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 

@@ -454,7 +454,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         if (WT_IS_DISAGG_META(btree->dhandle))
             return (0);
         /* Skip checkpointing shared tables if we are not a leader. */
-        /* TODO: Figure out how to avoid checkpointing clean objects in *all* cases. */
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->oligarch_manager.leader)
             return (0);
     }

@@ -77,10 +77,11 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
             session_follow.create(uri, cfg)
 
         # Put data to all tables
+        value_prefix = 'aaa'
         for uri in self.oligarch_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                cursor[str(i)] = uri
+                cursor[str(i)] = value_prefix + str(i)
                 if i % 250 == 0:
                     time.sleep(1)
             cursor.close()
@@ -93,7 +94,7 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.oligarch_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], uri)
+                self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         # Pick up the checkpoint in the follower
@@ -107,7 +108,7 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 session_follow.begin_transaction('isolation="read-uncommitted"')
             cursor = session_follow.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], uri)
+                self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
             if not uri.startswith('oligarch'):
                 session_follow.rollback_transaction()
