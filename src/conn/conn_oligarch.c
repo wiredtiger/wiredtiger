@@ -1032,23 +1032,20 @@ __wt_disagg_get_meta(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
-    WT_ITEM result;
     WT_PAGE_LOG_GET_ARGS get_args;
     u_int count;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
-    WT_CLEAR(result);
     WT_CLEAR(get_args);
 
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         count = 1;
         WT_RET(disagg->page_log_meta->plh_get(disagg->page_log_meta, &session->iface, page_id,
-          checkpoint_id, &get_args, &result, &count));
+          checkpoint_id, &get_args, item, &count));
         /* TODO: Add retries if the metadata is not found - maybe it was not yet materialized. */
         WT_ASSERT(session, count == 1 && get_args.delta_count == 0); /* TODO: corrupt data */
-        *item = result;
         return (0);
     }
 

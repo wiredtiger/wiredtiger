@@ -99,8 +99,6 @@ class test_oligarch12(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertEquals(cursor[str(i)], value1)
         cursor.close()
 
-        self.skipTest('The test will fail due to unaligned buffers during connection close')
-
         # Pick up the second version and check
         conn_follow.reconfigure(f'disaggregated=(checkpoint_id={checkpoint2})')
         cursor = session_follow.open_cursor(self.uri, None, None)
