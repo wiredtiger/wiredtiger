@@ -630,6 +630,27 @@ __wt_evict_bucket_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 	page->bucket = NULL;
 }
 
+/*
+ * __evict_renumber_buckets --
+ *     Atomically increases the lowest bucket upper bound. Upper bounds of the
+ *     remaining buckets are automatically derived from the upper bound of the
+ *     lowest bucket, so that's all that we need to update.
+ */
+static inline int
+__evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset) {
+	uint64_t prev, new;
+
+	prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
+	new = prev + WT_EVICT_BUCKET_RANGE;
+
+	/*
+	 * If the compare and swap fails, someone else is trying to update the
+	 * value at the same time. We let them win the race and return. The bucket's upper
+	 * range can only grow, so we are okay to lose this race.
+	 */
+	__wt_atomic_casv64(&bucketset->lowest_bucket_upper_range, prev, new)
+}
+
 static int
 __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
 
@@ -683,7 +704,7 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 		dst_bucket =
 			1 + (read_gen - bucketset->lowest_bucket_upper_range) / WT_EVICT_BUCKET_RANGE;
 		if (dst_bucket >= WT_EVICT_NUM_BUCKETS) {
-			__wt_evict_renumber_buckets(bucketset);
+			__evict_renumber_buckets(bucketset);
 			S2C(session)->evict->evict_renumbered_buckets++;
 			goto retry;
 		}
