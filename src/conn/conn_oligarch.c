@@ -1135,7 +1135,7 @@ __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_
  *     Advance to the next checkpoint. If the current checkpoint is 0, just start the next one.
  */
 int
-__wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session)
+__wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
@@ -1153,8 +1153,10 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session)
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     WT_ASSERT(session, checkpoint_id > 0);
 
-    WT_RET(disagg->npage_log->page_log->pl_complete_checkpoint(
-      disagg->npage_log->page_log, &session->iface, checkpoint_id));
+    if (ckpt_success)
+        WT_RET(disagg->npage_log->page_log->pl_complete_checkpoint(
+          disagg->npage_log->page_log, &session->iface, checkpoint_id));
+
     WT_RET(__wt_disagg_begin_checkpoint(session, checkpoint_id + 1));
 
     return (0);
