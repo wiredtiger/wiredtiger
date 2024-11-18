@@ -147,9 +147,9 @@ __wt_oligarch_manager_start(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(session, &manager->oligarch_lock, "oligarch manager"));
 
     /*
-     * Be lazy for now, allow for up to 1000 files to be allocated. In the future this should be
-     * able to grow dynamically and a more conservative number used here. Until then oligarch table
-     * application will crash in a system with more than 1000 files.
+     * TODO Be lazy for now, allow for up to 1000 files to be allocated. In the future this should
+     * be able to grow dynamically and a more conservative number used here. Until then oligarch
+     * table application will crash in a system with more than 1000 files.
      */
     manager->open_oligarch_table_count = conn->next_file_id + 1000;
     WT_ERR(__wt_calloc(session, sizeof(WT_OLIGARCH_MANAGER_ENTRY *),
