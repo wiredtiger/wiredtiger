@@ -142,6 +142,7 @@ class test_bug028(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Open a connection with a non-standard buffer alignment.
     def test_bug028(self):
+        self.skipTest('removed on develop along with WT_ITEM_ALIGNED flag')
         self.open_conn(1, '-1', False)
         self.open_conn(2, '1K', False)
         self.open_conn(3, '2K', False)

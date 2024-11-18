@@ -87,9 +87,9 @@ class test_oligarch07(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
 
         # TODO: debug this test.
-        # When the skip is enabled, the test runs to the end, but fails in an assertion when one
-        # of the connections closes, during the cleanup for the test.
-        self.skipTest('running past this point causes the test to fail in connection close')
+        # When the skip is removed, one of the instances loops forever in
+        # __oligarch_log_wait_for_earlier_slot.
+        self.skipTest('running past this point causes the test to loop forever')
 
         #
         # Part 2: The big switcheroo
