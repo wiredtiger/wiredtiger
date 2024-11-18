@@ -1500,17 +1500,9 @@ err:
     }
 
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
-    if (tracking)
-        WT_TRET(__wt_meta_track_off(session, false, failed));
-
-    /*
-     * Update the global checkpoint ID in disaggregated storage. This has to be done after
-     * checkpoint resolve, which happens when we turn off metadata tracking above.
-     */
-    if (!failed && ret == 0 /* ensure that turning off meta tracking worked */) {
-        WT_ACQUIRE_READ(num_meta_put, conn->disaggregated_storage.num_meta_put);
-        if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put)
-            WT_TRET(__wt_disagg_advance_checkpoint(session));
+    if (tracking) {
+        if (__wt_meta_track_off(session, false, failed) != 0)
+            return (__wt_panic(session, WT_PANIC, "Failed to turn off metadata tracking."));
     }
 
     __checkpoint_set_scrub_target(session, 0.0);
@@ -1537,6 +1529,17 @@ err:
         WT_TRET(__wt_txn_checkpoint_log(session, full,
           (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL));
     }
+
+    /*
+     * Update the global checkpoint ID in disaggregated storage. This has to be done after
+     * checkpoint resolve, which happens when we turn off metadata tracking above.
+     *
+     * Ensure that turning off meta tracking worked.
+     */
+    WT_ACQUIRE_READ(num_meta_put, conn->disaggregated_storage.num_meta_put);
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put)
+        if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
+            return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
 
     for (i = 0; i < session->ckpt_handle_next; ++i) {
         if (session->ckpt_handle[i] == NULL)
