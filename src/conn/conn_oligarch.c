@@ -1082,6 +1082,7 @@ __wt_disagg_put_meta(
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
         WT_RET(disagg->page_log_meta->plh_put(
           disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &put_args, item));
+        __wt_atomic_addv64(&disagg->num_meta_put, 1);
         return (0);
     }
 
@@ -1089,6 +1090,7 @@ __wt_disagg_put_meta(
         WT_RET(
           disagg->bstorage_meta->fh_obj_put(disagg->bstorage_meta, &session->iface, page_id, item));
         WT_RET(disagg->bstorage_meta->fh_obj_checkpoint(disagg->bstorage_meta, &session->iface));
+        __wt_atomic_addv64(&disagg->num_meta_put, 1);
         return (0);
     }
 
@@ -1124,6 +1126,7 @@ __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_
 
     /* Store is sufficient because updates are protected by the checkpoint lock. */
     WT_RELEASE_WRITE(disagg->global_checkpoint_id, next_checkpoint_id);
+    disagg->num_meta_put_at_ckpt_begin = disagg->num_meta_put;
     return (0);
 }
 
