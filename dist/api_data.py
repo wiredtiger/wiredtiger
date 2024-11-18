@@ -816,9 +816,9 @@ connection_runtime_config = [
         ]),
     Config('rollback_to_stable', '', r'''
         rollback tables to an earlier point in time, discarding all updates to checkpoint durable
-        tables that have commit times more recent than the current global stable timestamp''',
+        tables that have durable times more recent than the current global stable timestamp''',
         type='category', subconfig=[
-            Config('threads', '', r'''
+            Config('threads', 4, r'''
                 maximum number of threads WiredTiger will start to help RTS. Each
                 RTS worker thread uses a session from the configured session_max''',
                 min=0, max=10),
