@@ -1041,15 +1041,38 @@ static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char 
                (unsigned long long)fiemap_extent_list[i].fe_length,
                fiemap_extent_list[i].fe_flags);
 
-        // TODO - is this fh correct? Twas not.
-        __dest_update_alloc_list_write(union_fh, session,
-          (wt_off_t)fiemap_extent_list[i].fe_logical, (size_t)fiemap_extent_list[i].fe_length);
-
-        // Sanity check we've read all extents in the file
+        // Special handling for the final extent
         if (i == num_extents - 1) {
+            unsigned long long file_len_per_extents;
+            unsigned long long actual_file_len;
+
+            __wt_verbose_debug2(session, WT_VERB_FILEOPS, "DBG LAST EXTENT %d", 1);
+
+            // Make sure the "last extent" flag is set
             fiemap_last_flag_set = (fiemap_extent_list[i].fe_flags & FIEMAP_EXTENT_LAST) != 0;
             WT_ASSERT_ALWAYS(session, fiemap_last_flag_set == true, "Last extent but FIEMAP_EXTENT_LAST not set!");
+            
+            // TODO - ioctl fiemap tracks disk usage which is *not* the same as the file and 
+            // can extend past the end of the file.
+            // For example this is the results of stat TOP/WiredTiger.basecfg.wt
+            //       File: TOP/WiredTiger.basecfg.set
+            //       Size: 316             Blocks: 8          IO Block: 4096   regular file
+            // We only set 316 bytes but there's 32KB of backing space, and the extent map tells us we've 
+            // used a whole 4KB block.
+            // The following code truncates the final extent in the list to match the actual file size. 
+            // TODO - think about this. Feels ugly
+            file_len_per_extents = fiemap_extent_list[i].fe_logical + fiemap_extent_list[i].fe_length;
+            actual_file_len = (unsigned long long)union_fh->destination.size;
+            __wt_verbose_debug2(session, WT_VERB_FILEOPS, "extent_len = %llu, actual_len = %llu", file_len_per_extents, actual_file_len);
+
+            if(file_len_per_extents > actual_file_len) {
+                fiemap_extent_list[i].fe_length = actual_file_len - fiemap_extent_list[i].fe_logical;
+                __wt_verbose_debug2(session, WT_VERB_FILEOPS, "TRUNCING to %llu", (unsigned long long)fiemap_extent_list[i].fe_length);
+            }
         }
+
+        __dest_update_alloc_list_write(union_fh, session,
+          (wt_off_t)fiemap_extent_list[i].fe_logical, (size_t)fiemap_extent_list[i].fe_length);
     }
     free(fiemap);
     free(fiemap_fetch_extent_num);
