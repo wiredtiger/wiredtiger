@@ -966,6 +966,48 @@ err:
     __wt_free(session, path);
     return (ret);
 }
+static int fd_is_valid(int fd)
+{
+    return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
+}
+#include <unistd.h>
+/*
+ * __union_build_extents_from_dest_file_lseek --
+ *     When opening a file from destination create its existing extent list from the file system information.
+ *     Any holes in the extent list are data that hasn't been copied from source yet.
+ */
+static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH *union_fh) {
+    wt_off_t start_offset, next_offset;
+    int fd;
+    bool another;
+
+    WT_UNUSED(union_fh);
+    fd = open(filename, O_RDONLY);
+    start_offset = next_offset = 0;
+    another = false;
+
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %llu", (unsigned long long) union_fh->destination.size);
+    WT_ASSERT(session, fd_is_valid(fd));
+
+    while ((next_offset = lseek(fd, next_offset, SEEK_HOLE)) != -1) {
+        WT_ASSERT(session, next_offset > start_offset);
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has %shole at offset %ld", filename, another ? "another " : "", next_offset);
+        __dest_update_alloc_list_write(union_fh, session, start_offset, (size_t)(next_offset - start_offset));
+        // We now need to seek data to find the end of the hole
+        start_offset = lseek(fd, next_offset, SEEK_DATA);
+        if (start_offset == -1) {
+            // This should mean theres no more data.
+            WT_ASSERT(session, errno == ENXIO);
+        }
+        another = true;
+    }
+    if (next_offset == -1)
+        WT_ASSERT(session, errno == ENXIO);
+
+    close(fd);
+}
+
 
 #include <linux/fiemap.h> // struct fiemap
 #include <linux/fs.h>     // FS_IOS_FIEMAP
@@ -976,11 +1018,11 @@ err:
 // FIXME - Use __wt_* funcs instead of malloc and strcmp
 
 /*
- * __union_build_extents_from_dest_file --
+ * __union_build_extents_from_dest_file_ioctl --
  *     When opening a file from destination create its existing extent list from the file system information.
  *     Any holes in the extent list are data that hasn't been copied from source yet.
  */
-static void __union_build_extents_from_dest_file(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH *union_fh) {
+static void __union_build_extents_from_dest_file_ioctl(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH *union_fh) {
     struct fiemap *fiemap_fetch_extent_num, *fiemap;
     unsigned int num_extents;
     int fd;
@@ -1112,8 +1154,13 @@ __union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNIO
     WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
     union_fh_single_layer->size = (wt_off_t)size;
 
-    __union_build_extents_from_dest_file(session, path, union_fh);
- 
+    if (strcmp(union_fh->iface.name, "./WiredTiger.wt") == 0) {
+        printf("Metadata\n");
+    }
+
+    __union_build_extents_from_dest_file_lseek(session, path, union_fh);
+    WT_UNUSED(__union_build_extents_from_dest_file_ioctl);
+
 err:
     __wt_free(session, path);
     return (ret);

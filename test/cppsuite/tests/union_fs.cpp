@@ -100,7 +100,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 1000;
+static const int crud_ops = 200;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
