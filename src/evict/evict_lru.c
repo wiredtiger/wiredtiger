@@ -612,37 +612,45 @@ __wt_evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *
  *     Remove the page from the bucket's queue.
  */
 static inline bool
-__wt_evict_bucket_remove(WT_SESSION_IMPL *session, WT_PAGE *page) {
+__wt_evict_bucket_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 
 	WT_EVICT_BUCKET *bucket;
+	WT_PAGE *page;
 
-	bucket =  __wt_atomic_load64(&page->bucket)
-	if (bucket == NULL)
-		return true;
+	WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL);
+	page = ref->page;
+
+	if ((bucket = &page->bucket) == NULL)
+		return;
 
 	wt_spin_lock(session, &page->bucket->evict_queue_lock);
-	/*
-	 * Atomically set the page's bucket to NULL using cas, so if someone beat us,
-	 * we don't try to remove the page from where it no longer is.
-	 */
-	if (__wt_atomic_cas_ptr(&page->bucket, bucket, NULL)) {
-		TAILQ_REMOVE(page->bucket->evict_queue, page, evict_q);
-	}
+	TAILQ_REMOVE(page->bucket->evict_queue, page, evict_q);
 	wt_spin_unlock(session, &page->bucket->evict_queue_lock);
+
+	page->bucket = NULL;
 }
 
-void
-__wt_evict_insert_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page) {
+static int
+__evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
 
 	WT_BTREE *btree;
 	WT_EVICT_HANDLE *evict_handle;
 	WT_EVICT_BUCKET *bucket;
 	WT_EVICT_BUCKETSET *bucketset;
 	WT_EVICT_HANDLE_DATA *evict_handle;
+	WT_PAGE *page;
+	WT_REF_STATE previous_state;
 	uint64_t min_range, max_range, dst_bucket, read_gen;
 
+	page = ref->page;
+	/*
+	 * Lock the page so it doesn't disappear.
+	 * We aren't evicting the page, so we don't need to check for hazard pointers.
+	 */
+    WT_REF_LOCK(session, ref, &previous_state);
+
 	/* Is the page already in a bucket? */
-	if ((bucket =  __wt_atomic_load64(&page->bucket)) != NULL) {
+	if ((bucket = page->bucket) != NULL) {
 		__wt_evict_bucket_range(bucket, &min_range, &max_range);
 		/* Is the page already in the right bucket? */
 		if ((read_gen = __wt_atomic_load64(&page->read_gen)) >= min_range && read_gen <= max_range)
@@ -650,14 +658,6 @@ __wt_evict_insert_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAG
 		else
 			__wt_evict_bucket_remove(page);
 	}
-
-	/*
-	 * If the page is still in a bucket, we failed to remove it.
-	 * That means someone raced with us to move the page, so we
-	 * let them succeed.
-	 */
-	if ((bucket =  __wt_atomic_load64(&page->bucket)) != NULL)
-		return;
 
 	/* Evict handle has the bucket sets for this data handle */
 	evict_handle = &dhandle->evict_handle_data;
@@ -672,8 +672,9 @@ __wt_evict_insert_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAG
 
 	/*
 	 * Find the right bucket. The page's read generation may change as we are looking
-	 * for the right bucket. In that case, the page will end up in a lower bucket.
-	 * That's okay, because we are maintaining approximately sorted order.
+	 * for the right bucket. In that case, the page will end up in a lower bucket than.
+	 * it should be. That's okay, because we are maintaining approximately sorted order.
+	 * We expect such events to be rare, because read generations are updated infrequently.
 	 */
   retry:
 	if ((read_gen = __wt_atomic_load64(&page->read_gen)) <= bucketset->lowest_bucket_upper_range)
@@ -690,14 +691,49 @@ __wt_evict_insert_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAG
 
 	bucket = &bucketset->buckets[dst_bucket];
 
-	/* If the page is still not in the bucket insert it into this bucket. */
 	wt_spin_lock(session, &bucket->evict_queue_lock);
-	/*
-	 * Atomically set the page's bucket to NULL using cas, so if someone beat us,
-	 * we don't try to remove the page from where it no longer is.
-	 */
-	if (__wt_atomic_cas_ptr(&page->bucket, NULL, bucket)) {
-		TAILQ_INSERT_HEAD(page->bucket->evict_queue, page, evict_q);
-	}
+	TAILQ_INSERT_HEAD(page->bucket->evict_queue, page, evict_q);
 	wt_spin_unlock(session, &page->bucket->evict_queue_lock);
+
+	page->bucket = bucket;
+
+	WT_REF_UNLOCK(ref, previous_state);
+}
+
+/* !!!
+ * __wt_evict_touch_page --
+ *     Update a page's eviction state (read generation) when it is accessed.
+ *
+ *     A page that is recently read will have a higher read generation, indicating that it is less
+ *     likely to be evicted. This mechanism helps eviction to prioritize the order in which pages
+ *     are evicted.
+ *
+ *     This function is called every time a page is touched in the cache.
+ *
+ *     Input parameters:
+ *       (1) `page`: The page whose eviction state is being updated.
+ *       (2) `internal_only`: A flag indicating whether the operation is internal. If true, the read
+ *            generation is not updated, as internal operations (such as compaction or eviction)
+ *            should not affect the page's eviction priority.
+ *       (3) `wont_need`: A flag indicating that the page will not be needed in the future. If true,
+ *            the page is marked for forced eviction.
+ */
+void
+__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref,
+					  bool internal_only, bool wont_need)
+{
+	WT_PAGE *page;
+
+	page = ref->page;
+
+    /* Is this the first use of the page? */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
+        if (wont_need)
+            __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
+        else
+            __wti_evict_read_gen_new(session, page);
+    } else if (!internal_only)
+        __wti_evict_read_gen_bump(session, page);
+
+	__evict_enqueue_page(session, dhandle, ref);
 }

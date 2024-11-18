@@ -216,8 +216,12 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
  *            the page is marked for forced eviction.
  */
 static WT_INLINE void
-__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
+__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_REF *ref, bool internal_only, bool wont_need)
 {
+	WT_PAGE *page;
+
+	page = ref->page;
+
     /* Is this the first use of the page? */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
         if (wont_need)
