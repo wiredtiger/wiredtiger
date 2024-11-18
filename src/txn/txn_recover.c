@@ -700,6 +700,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
     fileid = (uint32_t)cval.val;
 
+    /* We just want the ID, regardless of the namespace it's in. */
+    FLD_CLR(fileid, WT_BTREE_ID_NAMESPACE_SHARED);
+
     /* Track the largest file ID we have seen. */
     if (fileid > r->max_fileid)
         r->max_fileid = fileid;
