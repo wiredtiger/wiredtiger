@@ -400,7 +400,7 @@ report_running_configs()
 
 # Wait for a process to die. Handle both child and non-child processes.
 # $1 pid
-# Return <exit code> of process if child or 127 if non-child
+# Return <exit code> of process if child or 117 if non-child
 wait_for_process()
 {
 	pid=$1
@@ -545,6 +545,8 @@ resolve()
 		# process exited with a likely failure, call it a failure.
 		signame=""
 		case $eret in
+		117)
+			signame="FORMAT_FAILED_TO_KILL_PARENT_THREAD";;
 		$((128 + 3)))
 			signame="SIGQUIT";;
 		$((128 + 4)))
