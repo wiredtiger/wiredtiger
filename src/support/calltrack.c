@@ -55,6 +55,7 @@ __wt_calltrack_deinit_flushers(void)
     __atomic_store_n(&wt_calltrack_global.is_running, false, __ATOMIC_RELEASE);
     for (int i = 0; i < 100 && __atomic_load_n(&wt_calltrack_global.n_flushers_running, __ATOMIC_ACQUIRE) != 0; i++)
         __wt_sleep(0, 1000);
+    __wt_sleep(0, 100000);
 }
 
 bool __wt_calltrack_can_read(WT_CALLTRACK_THREAD_BUF *buf);
@@ -146,7 +147,8 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
                 __wt_yield();
                 WT_COMPILER_BARRIER();
             } else {
-                if (wt_calltrack_thread.nest_level == 0 && !__atomic_load_n(&wt_calltrack_global.is_running, __ATOMIC_ACQUIRE))
+                bool is_running = __atomic_load_n(&wt_calltrack_global.is_running, __ATOMIC_ACQUIRE);
+                if (wt_calltrack_thread.nest_level == 0 && !is_running)
                     break;
                 if (__wt_is_thread_terminated(buf)) {
                     // fprintf(tracefile, "%"SCNuMAX" %"PRIu64" = %d\n", buf->ostid, buf->tnid, thread_status);
@@ -159,6 +161,8 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
                     __wt_sleep(0, 1000);
                 else
                     fflush(tracefile);
+                if (!is_running && cycles > 1030)
+                    break;
             }
             continue;
         }
