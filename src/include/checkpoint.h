@@ -31,6 +31,9 @@
 #define WT_CHECKPOINT_STATE_START_TXN 18
 #define WT_CHECKPOINT_STATE_CKPT_TREE 19
 
+#define WT_DISAGG_CHECKPOINT_ID_NONE 0
+#define WT_DISAGG_CHECKPOINT_ID_FIRST 1
+
 struct __wt_checkpoint_cleanup {
     WT_SESSION_IMPL *session; /* checkpoint cleanup session */
     wt_thread_t tid;          /* checkpoint cleanup thread */

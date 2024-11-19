@@ -15,60 +15,57 @@
 static int
 __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *md_cursor;
+    WT_CURSOR *cursor, *md_cursor;
     WT_DECL_ITEM(item);
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
-    char buf[4096], *cfg_ret,
-      *metadata_value_cfg; /* TODO the 4096 puts an upper bound on metadata entry length */
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
-    size_t len, sep;
+    WT_SESSION_IMPL *internal_session, *shared_metadata_session;
+    size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
+    char *buf, *cfg_ret, *metadata_value_cfg;
+    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
 
+    buf = NULL;
+    cursor = NULL;
     internal_session = NULL;
     md_cursor = NULL;
     metadata_key = NULL;
     metadata_value = NULL;
     metadata_value_cfg = NULL;
+    shared_metadata_session = NULL;
 
-    WT_ERR(__wt_scr_alloc(session, 4096, &item));
-
-    /* Only followers are allowed to pick up new checkpoints. */
-    if (conn->oligarch_manager.leader)
-        WT_ERR(EINVAL);
+    WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     WT_ACQUIRE_READ(global_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+
+    if (checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+        return (EINVAL);
 
     /* Check the checkpoint ID to ensure that we are not going backwards. */
     if (checkpoint_id + 1 < global_checkpoint_id)
         WT_ERR_MSG(session, EINVAL, "Global checkpoint ID went backwards: %" PRIu64 " -> %" PRIu64,
           global_checkpoint_id - 1, checkpoint_id);
 
-    /* Read the checkpoint metadata from the special metadata page. */
+    /*
+     * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
+     */
+
+    /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
     WT_ERR(__wt_disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, item));
 
-    if (item->size >= sizeof(buf))
-        WT_ERR(ENOMEM);
+    /* Add the terminating zero byte to the end of the buffer. */
+    len = item->size + 1;
+    WT_ERR(__wt_calloc_def(session, len, &buf));
     memcpy(buf, item->data, item->size);
     buf[item->size] = '\0';
-    if (item->size > 0 && buf[item->size - 1] == '\n')
-        buf[item->size - 1] = '\0';
 
-    /* Parse out the key and the new checkpoint config value. */
-    metadata_key = buf;
-    for (sep = 0; sep < item->size; sep++)
-        if (buf[sep] == '\n') {
-            buf[sep] = '\0';
-            metadata_value = buf + sep + 1;
-            break;
-        }
-    if (metadata_value == NULL)
-        WT_ERR(EINVAL);
+    metadata_key = WT_DISAGG_METADATA_URI;
+    metadata_value = buf;
 
     /* We need an internal session when modifying metadata. */
     WT_ERR(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
@@ -83,7 +80,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     len = strlen("checkpoint=") + strlen(metadata_value) + 1 /* for NUL */;
 
     /* Allocate/create a new config we're going to insert */
-    WT_ERR(__wt_calloc_def(session, len, &metadata_value_cfg));
+    metadata_value_cfg_len = len;
+    WT_ERR(__wt_calloc_def(session, metadata_value_cfg_len, &metadata_value_cfg));
     WT_ERR(__wt_snprintf(metadata_value_cfg, len, "checkpoint=%s", metadata_value));
     cfg[0] = current_value;
     cfg[1] = metadata_value_cfg;
@@ -92,6 +90,74 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
 
     /* Put our new config in */
     WT_ERR(__wt_metadata_insert(internal_session, metadata_key, cfg_ret));
+
+    /*
+     * Part 2: Get the metadata for other tables from the shared metadata table.
+     */
+
+    /* We need a separate internal session to pick up the new checkpoint. */
+    WT_ERR(__wt_open_internal_session(
+      conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
+
+    /*
+     * Scan the metadata table. The cursor config below ensures that we open the latest checkpoint,
+     * which we just received from the primary. We do this by creating a checkpoint cursor on
+     * WT_CHECKPOINT (we can't specify the exact checkpoint order anyways, as it is prohibited by
+     * the API). This is nonetheless guaranteed to be the latest checkpoint because:
+     *   - The checkpoint ID can only advance, so the received checkpoint is guaranteed to be more
+     *     recent than any checkpoint that we have received previously.
+     *   - We can't create or receive another checkpoint in the meantime, because we currently hold
+     *     the checkpoint lock.
+     */
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+    cfg[1] = "checkpoint=" WT_CHECKPOINT ",checkpoint_use_history=false";
+    cfg[2] = NULL;
+    WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &metadata_key));
+        WT_ERR(cursor->get_value(cursor, &metadata_value));
+
+        md_cursor->set_key(md_cursor, metadata_key);
+        WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+
+        if (ret == 0) {
+            /* Existing table: Just apply the new metadata. */
+            WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
+            len = strlen("checkpoint=") + strlen(metadata_value) + 1 /* for NUL */;
+            if (len > metadata_value_cfg_len) {
+                metadata_value_cfg_len = len;
+                WT_ERR(
+                  __wt_realloc_noclear(session, NULL, metadata_value_cfg_len, &metadata_value_cfg));
+            }
+            WT_ERR(
+              __wt_snprintf(metadata_value_cfg, len, "checkpoint=%.*s", (int)cval.len, cval.str));
+
+            /* Merge the new checkpoint metadata into the current table metadata. */
+            WT_ERR(md_cursor->get_value(md_cursor, &current_value));
+            cfg[0] = current_value;
+            cfg[1] = metadata_value_cfg;
+            cfg[2] = NULL;
+            WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+
+            /* TODO: Possibly check that the other parts of the metadata are identical. */
+
+            /* Put our new config in */
+            md_cursor->set_value(md_cursor, cfg_ret);
+            WT_ERR(md_cursor->insert(md_cursor));
+        } else {
+            /* New table: Insert new metadata. */
+            /* TODO: Verify that there is no btree ID conflict. */
+            md_cursor->set_value(md_cursor, metadata_value);
+            WT_ERR(md_cursor->insert(md_cursor));
+            /* TODO: Create the corresponding oligarch table metadata. */
+        }
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    /*
+     * Part 3: Do the bookkeeping.
+     */
 
     /*
      * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
@@ -106,11 +172,19 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_RELEASE_WRITE(conn->disaggregated_storage.global_checkpoint_id, checkpoint_id + 1);
 
 err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(internal_session, &md_cursor));
+
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
+    if (shared_metadata_session != NULL)
+        WT_TRET(__wt_session_close_internal(shared_metadata_session));
+
+    __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
+
     __wt_scr_free(session, &item);
     return (ret);
 }
@@ -426,9 +500,10 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
             /* We've done (or tried to do) a checkpoint - that's it. */
             return (ret);
         } else if (entry != NULL) {
-            __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-              "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-              entry->accumulated_write_bytes);
+            if (entry->accumulated_write_bytes > 0)
+                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
+                  "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
+                  entry->accumulated_write_bytes);
         }
     }
 
@@ -816,6 +891,29 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 }
 
 /*
+ * __disagg_metadata_table_init --
+ *     Initialize the shared metadata table.
+ */
+static int
+__disagg_metadata_table_init(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
+    WT_ERR(__wt_session_create(internal_session, WT_DISAGG_METADATA_URI,
+      "key_format=S,value_format=S,log=(enabled=false),oligarch_log=(enabled=false)"));
+
+err:
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -830,23 +928,27 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_STORAGE_SOURCE *storage;
     uint64_t checkpoint_id, next_checkpoint_id;
-    bool was_leader;
+    bool leader, was_leader;
 
     conn = S2C(session);
+    leader = was_leader = conn->oligarch_manager.leader;
     npage_log = NULL;
     bstorage = NULL;
     nstorage = NULL;
-    was_leader = conn->oligarch_manager.leader;
 
     /* Reconfig-only settings. */
     if (reconfig) {
 
-        /* Pick up a new checkpoint. */
+        /* Pick up a new checkpoint (followers only). */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
         if (cval.len > 0 && cval.val >= 0) {
-            WT_WITH_CHECKPOINT_LOCK(
-              session, ret = __disagg_pick_up_checkpoint(session, (uint64_t)cval.val));
-            WT_ERR(ret);
+            if (leader)
+                WT_ERR(EINVAL); /* Leaders can't pick up new checkpoints. */
+            else {
+                WT_WITH_CHECKPOINT_LOCK(
+                  session, ret = __disagg_pick_up_checkpoint(session, (uint64_t)cval.val));
+                WT_ERR(ret);
+            }
         }
     }
 
@@ -857,29 +959,31 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (cval.len > 0 && cval.val >= 0)
         next_checkpoint_id = (uint64_t)cval.val;
     else
-        next_checkpoint_id = 0;
+        next_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
     /* Set the role. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
     if (cval.len == 0)
-        conn->oligarch_manager.leader = false;
+        conn->oligarch_manager.leader = leader = false;
     else {
         if (WT_CONFIG_LIT_MATCH("follower", cval))
-            conn->oligarch_manager.leader = false;
+            conn->oligarch_manager.leader = leader = false;
         else if (WT_CONFIG_LIT_MATCH("leader", cval))
-            conn->oligarch_manager.leader = true;
+            conn->oligarch_manager.leader = leader = true;
         else
             WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
         /* Follower step-up. */
-        if (reconfig && !was_leader && conn->oligarch_manager.leader) {
+        if (reconfig && !was_leader && leader) {
             /*
              * Note that we should have picked up a new checkpoint ID above. Now that we are the new
              * leader, we need to begin the next checkpoint.
              */
-            if (next_checkpoint_id == 0)
+            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
                 WT_ACQUIRE_READ(
                   next_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+                next_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_FIRST;
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
@@ -942,21 +1046,27 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     if (__wt_conn_is_disagg(session)) {
 
-        /* Set the global checkpoint ID to one plus the one we are opening. */
+        /* Initialize the shared metadata table. */
+        WT_ERR(__disagg_metadata_table_init(session));
+
+        /* Pick up the selected checkpoint. */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_id", &cval));
-        if (cval.len > 0 && cval.val >= 0)
-            checkpoint_id = (uint64_t)cval.val + 1;
-        else
+        if (cval.len > 0 && cval.val >= 0) {
+            checkpoint_id = (uint64_t)cval.val;
+            WT_WITH_CHECKPOINT_LOCK(
+              session, ret = __disagg_pick_up_checkpoint(session, checkpoint_id));
+            WT_ERR(ret);
+        } else
             /*
              * TODO: If we are starting with local files, get the checkpoint ID from them?
              * Alternatively, maybe we should just fail if the checkpoint ID is not specified?
              */
-            checkpoint_id = 1;
+            checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
-        if (conn->oligarch_manager.leader) {
-            if (next_checkpoint_id == 0)
-                next_checkpoint_id = checkpoint_id;
+        if (leader) {
+            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+                next_checkpoint_id = checkpoint_id + 1;
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
@@ -992,11 +1102,11 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wti_disagg_destroy_conn_config --
- *     Free the disaggregated storage state.
+ * __wti_disagg_destroy --
+ *     Shut down disaggregated storage.
  */
 int
-__wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
+__wti_disagg_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1004,10 +1114,6 @@ __wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
-
-    __wt_free(session, disagg->page_log);
-    __wt_free(session, disagg->stable_prefix);
-    __wt_free(session, disagg->storage_source);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {
@@ -1019,6 +1125,9 @@ __wti_disagg_destroy_conn_config(WT_SESSION_IMPL *session)
         disagg->bstorage_meta = NULL;
     }
 
+    __wt_free(session, disagg->page_log);
+    __wt_free(session, disagg->stable_prefix);
+    __wt_free(session, disagg->storage_source);
     return (ret);
 }
 
@@ -1114,6 +1223,9 @@ __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_
     if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
         return (0);
 
+    if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+        return (EINVAL);
+
     WT_ACQUIRE_READ(cur_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     if (next_checkpoint_id < cur_checkpoint_id)
         WT_RET_MSG(session, EINVAL, "The checkpoint ID did not advance");
@@ -1148,7 +1260,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         return (0);
 
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-    WT_ASSERT(session, checkpoint_id > 0);
+    WT_ASSERT(session, checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
 
     if (ckpt_success)
         WT_RET(disagg->npage_log->page_log->pl_complete_checkpoint(
