@@ -42,7 +42,7 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     oligarch_uris = ["oligarch:test_oligarch13a", "oligarch:test_oligarch13b"]
-    other_uris = ["file:test_oligarch13c"]
+    other_uris = ["file:test_oligarch13c", "table:test_oligarch13d"]
 
     disagg_storages = gen_disagg_storages('test_oligarch13', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -102,16 +102,10 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Check tables in the follower
         for uri in self.oligarch_uris + self.other_uris:
-            # XXX Non-oligarch tables still have transaction IDs from the leader, so we need to set
-            #     the isolation level to "read-uncommitted" to disable the visibility checks.
-            if not uri.startswith('oligarch'):
-                session_follow.begin_transaction('isolation="read-uncommitted"')
             cursor = session_follow.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
-            if not uri.startswith('oligarch'):
-                session_follow.rollback_transaction()
 
         session_follow.close()
         conn_follow.close()

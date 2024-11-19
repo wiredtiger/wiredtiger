@@ -121,7 +121,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
         md_cursor->set_key(md_cursor, metadata_key);
         WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
 
-        if (ret == 0) {
+        if (ret == 0 && WT_PREFIX_MATCH(metadata_key, "file:")) {
             /* Existing table: Just apply the new metadata. */
             WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
             len = strlen("checkpoint=") + strlen(metadata_value) + 1 /* for NUL */;
