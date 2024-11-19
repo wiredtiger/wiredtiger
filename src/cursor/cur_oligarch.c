@@ -1301,10 +1301,8 @@ __coligarch_next_random(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     int exact;
-    bool leave;
 
     coligarch = (WT_CURSOR_OLIGARCH *)cursor;
-    leave = false;
 
     CURSOR_API_CALL(cursor, session, ret, next, coligarch->dhandle);
     __cursor_novalue(cursor);
