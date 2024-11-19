@@ -601,6 +601,9 @@ __ckpt_copy_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *src_ckpt, WT_CKPT *dst_c
           session, src_ckpt->backup_blocks[i].id_str, &dst_ckpt->backup_blocks[i].id_str));
         WT_RET(__wt_buf_set(session, &dst_ckpt->backup_blocks[i].bitstring,
           src_ckpt->backup_blocks[i].bitstring.data, src_ckpt->backup_blocks[i].bitstring.size));
+        WT_RET(__wt_buf_set(session, &dst_ckpt->backup_blocks[i].full_bitstring,
+          src_ckpt->backup_blocks[i].full_bitstring.data,
+          src_ckpt->backup_blocks[i].full_bitstring.size));
         dst_ckpt->backup_blocks[i].nbits = src_ckpt->backup_blocks[i].nbits;
         dst_ckpt->backup_blocks[i].offset = src_ckpt->backup_blocks[i].offset;
         dst_ckpt->backup_blocks[i].granularity = src_ckpt->backup_blocks[i].granularity;
@@ -1214,7 +1217,8 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
             skip_rename = true;
 
         WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));
-        WT_RET(__wt_raw_to_hex(session, blk->full_bitstring.data, blk->full_bitstring.size, &full_bitstring));
+        WT_RET(__wt_raw_to_hex(
+          session, blk->full_bitstring.data, blk->full_bitstring.size, &full_bitstring));
         WT_RET(__wt_buf_catfmt(session, buf,
           "%s\"%s\"=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",offset=%" PRIu64
           "%s,full=%.*s,blocks=%.*s)",
