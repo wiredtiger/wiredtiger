@@ -787,6 +787,7 @@ __union_fs_file_write(
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %zu", fh->name, offset, len);
+    // TODO - why write to file before setting the extent?
     WT_RET(union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
 
     WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
@@ -810,6 +811,7 @@ __union_fs_file_write(
  *     Write out the contents of a read into the destination. This will be overkill for cases where
  *     a read is performed to service a write. Which is most cases however this is a PoC.
  *
+ *     // Why partial? We copy the whole block. P sure this text is outdated
  *     This is somewhat tricky as we need to compute what parts of the read require copying to the
  *     destination, which requires parsing the existing extent lists in the destination and finding
  *     the gaps to then be filled by N writes.
@@ -820,6 +822,14 @@ static int
 __read_promote(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read) {
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %zu", union_fh->iface.name, offset, len);
     WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
+    if(strcmp(union_fh->iface.name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
+        printf("DBG PROMOTE WRITE\n\n");
+        for (int i = 0; i < 4096; i++) {
+            printf("%c", read[i]);
+        }
+        printf("\n\n");
+    }
+
     return (0);
 }
 
@@ -866,6 +876,15 @@ __union_fs_file_read(
         /* Promote the read */
         WT_ERR(__read_promote(union_fh, session, offset, len, read_data));
     }
+
+    if(strcmp(file_handle->name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
+        printf("DBG READ\n\n");
+        for (int i = 0; i < 4096; i++) {
+            printf("%c", read_data[i]);
+        }
+        printf("\n\n");
+    }
+
 err:
     return (ret);
 }
