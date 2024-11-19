@@ -649,7 +649,7 @@ __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off
     while (alloc != NULL) {
         /* The read is in this allocation. */
         if (offset >= alloc->off && rw_end <= EXTENT_END(alloc)) {
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "READ %s: Full match", union_fh->iface.name);
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "CAN SERVICE %s: Full match", union_fh->iface.name);
             return (FULL);
         }
         alloc = alloc->next;
