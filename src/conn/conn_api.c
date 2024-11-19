@@ -1455,8 +1455,8 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     /*
-     * If config is NULL or empty, and threads_num is configured at the connection level, use the
-     * connection-level value.
+     * In the absence of an API configuration, utilize the RTS worker thread settings defined at
+     * the connection level.
      */
     if ((config == NULL || *config == '\0') && conn->rts->cfg_threads_num != 0) {
         WT_RET(
