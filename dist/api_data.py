@@ -1911,7 +1911,8 @@ methods = {
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
         Config('checkpoint_crash_random', '-1', r'''
-            if true, checkpoint will crash between the checkpoint steps''',
+            when any number is zero or higher, a crash will be triggered in the middle of
+            checkpoint''',
             type='int'),
         ]),
     Config('drop', '', r'''

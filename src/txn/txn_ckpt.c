@@ -1131,7 +1131,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
     full = idle = tracking = use_timestamp = false;
-    ckpt_crash_random = -1;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -1243,8 +1242,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_random", &cval));
     ckpt_crash_random = (int)cval.val;
 
-    printf("ckpt_crash_random: %d\n", ckpt_crash_random);
-
     if (ckpt_crash_random >= 0) {
         /* Calculate total checkpoint steps and crash point. */
         ckpt_total_steps = session->ckpt_handle_next + 2;
@@ -1265,8 +1262,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
                 F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_LOG_OP);
             }
         }
-        printf("ckpt_total_steps: %d, ckpt_relative_crash_step: %d\n", ckpt_total_steps,
-          ckpt_relative_crash_step);
     }
 
     /* Log the final checkpoint prepare progress message if needed. */
@@ -2582,7 +2577,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_HANDLE, &tsp);
 
-    /* If the checkpoint crash is enabled then crash in between checkpointing tables.*/
+    /* If the checkpoint crash feature is enabled, trigger a crash between checkpointing tables. */
     if (session->ckpt_crash_point) {
         if (session->ckpt_crash_point == 1)
             __wt_abort(session);

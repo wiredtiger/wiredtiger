@@ -220,8 +220,10 @@ struct __wt_session_impl {
     /* Checkpoint handles */
     WT_DATA_HANDLE **ckpt_handle; /* Handle list */
     u_int ckpt_handle_next;       /* Next empty slot */
-    u_int ckpt_crash_point;       /* Checkpoint Crash between checkpointing tables*/
     size_t ckpt_handle_allocated; /* Bytes allocated */
+
+    /* Checkpoint crash for RTS Model testing. */
+    u_int ckpt_crash_point; /* Crash point in the middle of checkpoint process */
 
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *ckpt_drop_list;
