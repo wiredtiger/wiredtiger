@@ -803,7 +803,7 @@ __coligarch_search_near(WT_CURSOR *cursor, int *exactp)
     ingest_found = ret != WT_NOTFOUND;
 
     /* If there wasn't an exact match, check the stable table as well */
-    if (ingest_cmp != 0) {
+    if (!ingest_found || ingest_cmp != 0) {
         coligarch->stable_cursor->set_key(coligarch->stable_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           coligarch->stable_cursor->search_near(coligarch->stable_cursor, &stable_cmp), true);
@@ -1170,38 +1170,62 @@ err:
 static int
 __coligarch_largest_key(WT_CURSOR *cursor)
 {
+    WT_COLLATOR *collator;
+    WT_CURSOR *larger_cursor, *ingest_cursor, *stable_cursor;
+    WT_CURSOR_OLIGARCH *coligarch;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool key_only;
+    int cmp;
+    bool ingest_found, stable_found;
 
-    key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
-    CURSOR_API_CALL(cursor, session, ret, largest_key, ((WT_CURSOR_OLIGARCH *)cursor)->dhandle);
+    coligarch = (WT_CURSOR_OLIGARCH *)cursor;
+    ingest_found = stable_found = false;
 
-    if (WT_CURSOR_BOUNDS_SET(cursor))
-        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with cursor largest key");
+    CURSOR_API_CALL(cursor, session, ret, largest_key, coligarch->dhandle);
+    __cursor_novalue(cursor);
+    WT_ERR(__coligarch_enter(coligarch, false, false));
+
+    ingest_cursor = coligarch->ingest_cursor;
+    stable_cursor = coligarch->stable_cursor;
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
-    /* Reset the cursor to give up the cursor position. */
-    WT_ERR(cursor->reset(cursor));
+    WT_ERR_NOTFOUND_OK(ingest_cursor->largest_key(ingest_cursor), true);
+    if (ret == 0)
+        ingest_found = true;
 
-    /* Set the flag to bypass value read. */
-    F_SET(cursor, WT_CURSTD_KEY_ONLY);
+    WT_ERR_NOTFOUND_OK(stable_cursor->largest_key(stable_cursor), true);
+    if (ret == 0)
+        stable_found = true;
 
-    /* Call cursor prev to get the largest key. */
-    WT_ERR(__coligarch_prev_int(session, cursor));
+    if (!ingest_found && !stable_found) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    if (ingest_found && !stable_found)
+        larger_cursor = ingest_cursor;
+    else if (!ingest_found && stable_found) {
+        larger_cursor = stable_cursor;
+    } else {
+        __coligarch_get_collator(coligarch, &collator);
+        WT_ERR(__wt_compare(session, collator, &ingest_cursor->key, &stable_cursor->key, &cmp));
+        if (cmp <= 0)
+            larger_cursor = stable_cursor;
+        else
+            larger_cursor = ingest_cursor;
+    }
 
     /* Copy the key as we will reset the cursor after that. */
-    WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));
+    WT_ERR(__wt_buf_set(session, key, larger_cursor->key.data, larger_cursor->key.size));
     WT_ERR(cursor->reset(cursor));
     WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
     /* Set the key as external. */
     F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 err:
-    if (!key_only)
-        F_CLR(cursor, WT_CURSTD_KEY_ONLY);
+    __coligarch_leave(coligarch);
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
@@ -1266,6 +1290,55 @@ err:
 }
 
 /*
+ * __coligarch_next_random --
+ *     WT_CURSOR->next_random method for the oligarch cursor type.
+ */
+static int
+__coligarch_next_random(WT_CURSOR *cursor)
+{
+    WT_CURSOR *c;
+    WT_CURSOR_OLIGARCH *coligarch;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    int exact;
+    bool leave;
+
+    coligarch = (WT_CURSOR_OLIGARCH *)cursor;
+    leave = false;
+
+    CURSOR_API_CALL(cursor, session, ret, next, coligarch->dhandle);
+    __cursor_novalue(cursor);
+    WT_ERR(__coligarch_enter(coligarch, false, false));
+
+    for (;;) {
+        c = coligarch->stable_cursor;
+        /*
+         * This call to next_random on the ingest table can potentially end in WT_NOTFOUND if the
+         * ingest table is empty.
+         */
+        WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
+        if (ret == WT_NOTFOUND) {
+            c = coligarch->ingest_cursor;
+            WT_ERR(__wt_curfile_next_random(c));
+        }
+
+        F_SET(cursor, WT_CURSTD_KEY_INT);
+        WT_ERR(c->get_key(c, &cursor->key));
+
+        /*
+         * Search near the current key to resolve any tombstones and position to a valid document.
+         * If we see a WT_NOTFOUND here that is valid, as the tree has no documents visible to us.
+         */
+        WT_ERR(__coligarch_search_near(cursor, &exact));
+        break;
+    }
+
+err:
+    __coligarch_leave(coligarch);
+    API_END_RET(session, ret);
+}
+
+/*
  * __wt_coligarch_open --
  *     WT_SESSION->open_cursor method for oligarch cursors.
  */
@@ -1321,10 +1394,6 @@ __wt_coligarch_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
     if (cval.val != 0)
         WT_RET_MSG(session, EINVAL, "Oligarch trees do not support bulk loading");
 
-    WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
-    if (cval.val != 0)
-        WT_RET_MSG(session, EINVAL, "Oligarch trees do not support random positioning");
-
     /* Get the oligarch tree, and hold a reference to it until the cursor is closed. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, cfg, 0));
 
@@ -1342,6 +1411,12 @@ __wt_coligarch_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
     cursor->value_format = oligarch->value_format;
 
     WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
+
+    WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
+    if (cval.val != 0) {
+        __wt_cursor_set_notsup(cursor);
+        cursor->next = __coligarch_next_random;
+    }
 
     if (0) {
 err:

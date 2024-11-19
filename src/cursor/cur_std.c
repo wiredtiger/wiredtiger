@@ -1284,53 +1284,6 @@ err:
 }
 
 /*
- * __wti_cursor_largest_key --
- *     WT_CURSOR->largest_key default implementation..
- */
-int
-__wti_cursor_largest_key(WT_CURSOR *cursor)
-{
-    WT_CURSOR_BTREE *cbt;
-    WT_DECL_ITEM(key);
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    bool key_only;
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
-    CURSOR_API_CALL(cursor, session, ret, largest_key, cbt->dhandle);
-
-    if (WT_CURSOR_BOUNDS_SET(cursor))
-        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with cursor largest key");
-
-    WT_ERR(__wt_scr_alloc(session, 0, &key));
-
-    /* Reset the cursor to give up the cursor position. */
-    WT_ERR(cursor->reset(cursor));
-
-    /* Set the flag to bypass value read. */
-    F_SET(cursor, WT_CURSTD_KEY_ONLY);
-
-    /* Call btree cursor prev to get the largest key. */
-    WT_ERR(__wt_btcur_prev(cbt, false));
-
-    /* Copy the key as we will reset the cursor after that. */
-    WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));
-    WT_ERR(cursor->reset(cursor));
-    WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
-    /* Set the key as external. */
-    F_SET(cursor, WT_CURSTD_KEY_EXT);
-
-err:
-    if (!key_only)
-        F_CLR(cursor, WT_CURSTD_KEY_ONLY);
-    __wt_scr_free(session, &key);
-    if (ret != 0)
-        WT_TRET(cursor->reset(cursor));
-    API_END_RET_STAT(session, ret, cursor_largest_key);
-}
-
-/*
  * __wti_cursor_bound --
  *     WT_CURSOR->bound default implementation.
  */
