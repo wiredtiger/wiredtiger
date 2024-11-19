@@ -1117,7 +1117,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
-    u_int i;
+    u_int i, ckpt_total_steps, ckpt_relative_crash_step;
+    int ckpt_crash_random;
     const char *name;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -1130,6 +1131,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
     full = idle = tracking = use_timestamp = false;
+    ckpt_crash_random = -1;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -1237,6 +1239,35 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
+
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_random", &cval));
+    ckpt_crash_random = (int)cval.val;
+
+    printf("ckpt_crash_random: %d\n", ckpt_crash_random);
+
+    if (ckpt_crash_random >= 0) {
+        /* Calculate total checkpoint steps and crash point. */
+        ckpt_total_steps = session->ckpt_handle_next + 2;
+        ckpt_relative_crash_step = ((u_int)ckpt_crash_random / (WT_THOUSAND / ckpt_total_steps));
+
+        /* Adjust crash step if it's between checkpointing tables. */
+        if (ckpt_relative_crash_step < session->ckpt_handle_next)
+            session->ckpt_crash_point = ckpt_relative_crash_step + 1;
+        else {
+            /* Calculate the relative crash step between log operation and metadata update. */
+            ckpt_relative_crash_step = ckpt_relative_crash_step - session->ckpt_handle_next;
+
+            if (ckpt_relative_crash_step == 0) {
+                F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_LOG_OP);
+                F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE);
+            } else {
+                F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE);
+                F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_LOG_OP);
+            }
+        }
+        printf("ckpt_total_steps: %d, ckpt_relative_crash_step: %d\n", ckpt_total_steps,
+          ckpt_relative_crash_step);
+    }
 
     /* Log the final checkpoint prepare progress message if needed. */
     if (conn->ckpt_progress_msg_count > 0)
@@ -1407,6 +1438,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * This is very similar to __wt_meta_track_off, ideally they would be merged.
      */
     if (full || !logging) {
+        /*
+         * Crash if the checkpoint crash feature is enabled and configured to fail before updating
+         * the metadata.
+         */
+        if (F_ISSET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE))
+            __wt_abort(session);
+
         session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
         /* Disable metadata tracking during the metadata checkpoint. */
         saved_meta_next = session->meta_track_next;
@@ -1536,7 +1574,7 @@ err:
     __txn_checkpoint_clear_time(session);
 
     __wt_free(session, session->ckpt_handle);
-    session->ckpt_handle_allocated = session->ckpt_handle_next = 0;
+    session->ckpt_handle_allocated = session->ckpt_handle_next = session->ckpt_crash_point = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
@@ -2349,7 +2387,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
     bool fake_ckpt, resolve_bm;
-
     WT_UNUSED(cfg);
 
     btree = S2BT(session);
@@ -2544,6 +2581,13 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_HANDLE, &tsp);
+
+    /* If the checkpoint crash is enabled then crash in between checkpointing tables.*/
+    if (session->ckpt_crash_point) {
+        if (session->ckpt_crash_point == 1)
+            __wt_abort(session);
+        --session->ckpt_crash_point;
+    }
 
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);

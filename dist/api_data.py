@@ -1910,6 +1910,9 @@ methods = {
         Config('checkpoint_cleanup', 'false', r'''
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
+        Config('checkpoint_crash_random', '-1', r'''
+            if true, checkpoint will crash between the checkpoint steps''',
+            type='int'),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the
