@@ -278,7 +278,7 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB,verbose=[fileops:1]";
+    const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB,verbose=[fileops:3,block:3,block_cache:3]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
