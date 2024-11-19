@@ -83,6 +83,14 @@ class test_oligarch10(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.largest_key(), 0)
         self.assertEqual(cursor.get_key(), self.nitems)
 
+        self.session.begin_transaction()
+        cursor[self.nitems + 100] = f'Value'
+
+        # Check the largest key before commit
+        self.assertEqual(cursor.largest_key(), 0)
+        self.assertEqual(cursor.get_key(), self.nitems + 100)
+        self.session.rollback_transaction()
+
         # Ensure that all data makes it to the follower
         conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
 
