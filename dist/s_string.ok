@@ -9,7 +9,6 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
-ANDed
 APIs
 AREALLSET
 ARG
@@ -658,6 +657,7 @@ cv
 cval
 cx
 cxa
+dKB
 dT
 darwin
 data's
@@ -758,14 +758,9 @@ fclose
 fcntl
 fd
 fdatasync
-fe
-feffff
 fextend
 ffc
 fff
-fffff
-ffffff
-ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -1110,7 +1105,6 @@ packv
 pageref
 pagesize
 param
-params
 pareto
 parserp
 patchp
