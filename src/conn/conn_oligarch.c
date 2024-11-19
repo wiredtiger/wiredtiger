@@ -43,6 +43,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
 
     WT_ACQUIRE_READ(global_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
+    if (checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+        return (EINVAL);
+
     /* Check the checkpoint ID to ensure that we are not going backwards. */
     if (checkpoint_id + 1 < global_checkpoint_id)
         WT_ERR_MSG(session, EINVAL, "Global checkpoint ID went backwards: %" PRIu64 " -> %" PRIu64,
@@ -96,7 +99,16 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_ERR(__wt_open_internal_session(
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
-    /* Scan the metadata table. */
+    /*
+     * Scan the metadata table. The cursor config below ensures that we open the latest checkpoint,
+     * which we just received from the primary. We do this by creating a checkpoint cursor on
+     * WT_CHECKPOINT (we can't specify the exact checkpoint order anyways, as it is prohibited by
+     * the API). This is nonetheless guaranteed to be the latest checkpoint because:
+     *   - The checkpoint ID can only advance, so the received checkpoint is guaranteed to be more
+     *     recent than any checkpoint that we have received previously.
+     *   - We can't create or receive another checkpoint in the meantime, because we currently hold
+     *     the checkpoint lock.
+     */
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = "checkpoint=" WT_CHECKPOINT ",checkpoint_use_history=false";
     cfg[2] = NULL;
@@ -127,6 +139,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
             cfg[1] = metadata_value_cfg;
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+
+            /* TODO: Possibly check that the other parts of the metadata are identical. */
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
@@ -945,7 +959,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (cval.len > 0 && cval.val >= 0)
         next_checkpoint_id = (uint64_t)cval.val;
     else
-        next_checkpoint_id = 0;
+        next_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
     /* Set the role. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
@@ -965,11 +979,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              * Note that we should have picked up a new checkpoint ID above. Now that we are the new
              * leader, we need to begin the next checkpoint.
              */
-            if (next_checkpoint_id == 0)
+            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
                 WT_ACQUIRE_READ(
                   next_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-            if (next_checkpoint_id == 0)
-                next_checkpoint_id = 1;
+            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+                next_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_FIRST;
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
@@ -1047,11 +1061,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              * TODO: If we are starting with local files, get the checkpoint ID from them?
              * Alternatively, maybe we should just fail if the checkpoint ID is not specified?
              */
-            checkpoint_id = 0;
+            checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
         if (leader) {
-            if (next_checkpoint_id == 0)
+            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
                 next_checkpoint_id = checkpoint_id + 1;
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
@@ -1209,6 +1223,9 @@ __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_
     if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
         return (0);
 
+    if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+        return (EINVAL);
+
     WT_ACQUIRE_READ(cur_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     if (next_checkpoint_id < cur_checkpoint_id)
         WT_RET_MSG(session, EINVAL, "The checkpoint ID did not advance");
@@ -1243,7 +1260,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         return (0);
 
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-    WT_ASSERT(session, checkpoint_id > 0);
+    WT_ASSERT(session, checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
 
     if (ckpt_success)
         WT_RET(disagg->npage_log->page_log->pl_complete_checkpoint(

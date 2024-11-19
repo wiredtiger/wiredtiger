@@ -97,7 +97,7 @@ __block_disagg_update_shared_metadata(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
 
     WT_UNUSED(bm);
 
