@@ -698,9 +698,10 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     uint32_t fileid, lsnfile, lsnoffset;
 
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
-    fileid = (uint32_t)cval.val;
+    fileid = WT_BTREE_ID_UNNAMESPACED((uint32_t)cval.val);
 
     /* Track the largest file ID we have seen. */
+    fprintf(stderr, "__recovery_setup_file comparing %u to %u\n", r->max_fileid, fileid);
     if (fileid > r->max_fileid)
         r->max_fileid = fileid;
 
