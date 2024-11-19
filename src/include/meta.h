@@ -111,6 +111,7 @@ struct __wt_blkincr {
 struct __wt_block_mods {
     const char *id_str;
 
+    WT_ITEM full_bitstring;
     WT_ITEM bitstring;
     uint64_t nbits; /* Number of bits in bitstring */
 

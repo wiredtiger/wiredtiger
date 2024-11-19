@@ -35,6 +35,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM b, k, v;
     WT_DECL_RET;
+    bool cmp;
 
     WT_ASSERT(session, btree != NULL);
     WT_ASSERT(session, btree->dhandle != NULL);
@@ -61,6 +62,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         if (WT_CONFIG_MATCH(cb->incr_src->id_str, k) == 0)
             continue;
 
+	cmp = false;
         /*
          * We found a match. If we have a name, then there should be granularity and nbits. The
          * granularity should be set to something. But nbits may be 0 if there are no blocks
@@ -96,12 +98,35 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
             /*
              * We found a match. Load the block information into the cursor.
              */
+            if ((ret = __wt_config_subgets(session, &v, "full", &b)) == 0) {
+                WT_ERR(__wt_backup_load_incr(session, &b, &cb->full_bitstring, cb->nbits));
+	        cmp = true;
+	    }
             if ((ret = __wt_config_subgets(session, &v, "blocks", &b)) == 0) {
                 WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
                 cb->bit_offset = 0;
                 F_SET(cb, WT_CURBACKUP_INCR_INIT);
             }
             WT_ERR_NOTFOUND_OK(ret, false);
+	    if (cmp) {
+                uint64_t offset = 0;
+                uint64_t cleared = 0;
+		bool set, set_full;
+                while (offset < cb->nbits) {
+		    set = set_full = false;
+                    if (__bit_test(cb->full_bitstring.mem, offset))
+			set_full = true;
+		    /* The full bitstring should be a superset of the real bitstring */
+                    if (__bit_test(cb->bitstring.mem, offset)) {
+			set = true;
+			WT_ASSERT(session, set_full == true);
+		    }
+		    if (!set && set_full)
+			++cleared;
+		    ++offset;
+		}
+		__wt_errx(session, "CURBACKUP: %s Cleared %d bits", btree->dhandle->name, (int)cleared);
+	    }
         }
         break;
     }
@@ -197,7 +222,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         start_bitoff = cb->bit_offset;
         total_len = cb->granularity;
         found = false;
-        /* The bit offset can be less than or equal to but never greater than the number of bits. */
+        /* The bit offset can be less than or equal to but never greater than the number of
+         * bits. */
         WT_ASSERT(session, cb->bit_offset <= cb->nbits);
         /* Look for the next chunk that had modifications. */
         while (cb->bit_offset < cb->nbits)

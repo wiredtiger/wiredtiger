@@ -411,6 +411,7 @@ static int
 __ckpt_mod_blkmod_entry(
   WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len, bool set)
 {
+    WT_DECL_RET;
     wt_off_t clr_len, clr_off;
     uint64_t adj, end_bit, gran, start_bit;
     uint32_t end_buf_bytes, end_rdup_bits, end_rdup_bytes;
@@ -438,22 +439,34 @@ __ckpt_mod_blkmod_entry(
         /* If we don't have enough, extend the buffer. */
         if (blk_mod->nbits == 0) {
             WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup_bytes));
+            ret = __wt_buf_initsize(session, &blk_mod->full_bitstring, end_rdup_bytes);
+            if (ret != 0) {
+                __wt_buf_free(session, &blk_mod->bitstring);
+                WT_RET(ret);
+            }
             memset(blk_mod->bitstring.mem, 0, end_rdup_bytes);
+            memset(blk_mod->full_bitstring.mem, 0, end_rdup_bytes);
         } else {
             WT_RET(
               __wt_buf_set(session, &blk_mod->bitstring, blk_mod->bitstring.data, end_rdup_bytes));
+            WT_RET(__wt_buf_set(
+              session, &blk_mod->full_bitstring, blk_mod->full_bitstring.data, end_rdup_bytes));
             memset(
               (uint8_t *)blk_mod->bitstring.mem + end_buf_bytes, 0, end_rdup_bytes - end_buf_bytes);
+            memset((uint8_t *)blk_mod->full_bitstring.mem + end_buf_bytes, 0,
+              end_rdup_bytes - end_buf_bytes);
         }
         blk_mod->nbits = end_rdup_bits;
     }
     /* Make sure we're not going to run past the end of the bitmap */
     WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
+    WT_ASSERT(session, blk_mod->full_bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
     WT_ASSERT(session, end_bit < blk_mod->nbits);
     /* Change all the bits needed to record this offset/length pair. */
-    if (set)
+    if (set) {
         __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
-    else {
+        __bit_nset(blk_mod->full_bitstring.mem, start_bit, end_bit);
+    } else {
         /*
          * We can only clear full ranges represented by bits. Ignore any partial ranges at the
          * beginning and end of the offset/length range but clear any full bit ranges in between.
@@ -479,6 +492,7 @@ __ckpt_mod_blkmod_entry(
             end_bit = (uint64_t)(clr_off + clr_len - 1) / gran;
             WT_ASSERT(session, end_bit >= start_bit);
             WT_STAT_CONN_INCRV(session, backup_bits_clr, end_bit - start_bit + 1);
+            /* Don't clear bits from the full_bitstring. */
             __bit_nclr(blk_mod->bitstring.mem, start_bit, end_bit);
         }
     }

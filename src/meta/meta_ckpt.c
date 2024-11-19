@@ -90,6 +90,12 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
             WT_RET(__wt_backup_load_incr(session, &b, &blk_mod->bitstring, blk_mod->nbits));
             F_SET(blk_mod, WT_BLOCK_MODS_VALID);
         }
+        ret = __wt_config_subgets(session, &v, "full", &b);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret != WT_NOTFOUND) {
+            WT_RET(__wt_backup_load_incr(session, &b, &blk_mod->full_bitstring, blk_mod->nbits));
+            F_SET(blk_mod, WT_BLOCK_MODS_VALID);
+        }
     }
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
@@ -1171,10 +1177,12 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
 {
     WT_BLOCK_MODS *blk;
     WT_ITEM bitstring;
+    WT_ITEM full_bitstring;
     u_int i;
     bool skip_rename, valid;
 
     WT_CLEAR(bitstring);
+    WT_CLEAR(full_bitstring);
     skip_rename = valid = false;
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
@@ -1206,17 +1214,20 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
             skip_rename = true;
 
         WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));
+        WT_RET(__wt_raw_to_hex(session, blk->full_bitstring.data, blk->full_bitstring.size, &full_bitstring));
         WT_RET(__wt_buf_catfmt(session, buf,
           "%s\"%s\"=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",offset=%" PRIu64
-          "%s,blocks=%.*s)",
+          "%s,full=%.*s,blocks=%.*s)",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset,
           skip_rename                          ? "" :
             F_ISSET(blk, WT_BLOCK_MODS_RENAME) ? ",rename=1" :
                                                  ",rename=0",
-          (int)bitstring.size, (char *)bitstring.data));
+          (int)full_bitstring.size, (char *)full_bitstring.data, (int)bitstring.size,
+          (char *)bitstring.data));
         /* The hex string length should match the appropriate number of bits. */
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
         __wt_buf_free(session, &bitstring);
+        __wt_buf_free(session, &full_bitstring);
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
     return (0);
