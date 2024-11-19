@@ -120,9 +120,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     /* Shut down oligarch manager - this should be done after closing out data handles. */
     WT_TRET(__wt_oligarch_manager_destroy(session, true));
 
-    /* Free the disaggregated storage config. */
-    WT_TRET(__wti_disagg_destroy_conn_config(session));
-
     /*
      * Now that all data handles are closed, tell logging that a checkpoint has completed then shut
      * down the log manager (only after closing data handles). The call to destroy the log manager
@@ -134,6 +131,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
         WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wti_logmgr_destroy(session));
     WT_TRET(__wt_oligarch_logmgr_destroy(session));
+
+    /* Shut down disaggregated storage. */
+    WT_TRET(__wti_disagg_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
     WT_TRET(__wti_conn_remove_collator(session));

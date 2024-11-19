@@ -449,6 +449,15 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) || WT_IS_HS(btree->dhandle))
         return (0);
 
+    if (__wt_conn_is_disagg(session)) {
+        /* Skip the shared metadata table for disaggregated storage; we'll checkpoint it later. */
+        if (WT_IS_DISAGG_META(btree->dhandle))
+            return (0);
+        /* Skip checkpointing shared tables if we are not a leader. */
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->oligarch_manager.leader)
+            return (0);
+    }
+
     /*
      * We may have raced between starting the checkpoint transaction and some operation completing
      * on the handle that updated the metadata (e.g., closing a bulk load cursor). All such
@@ -1310,6 +1319,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+    }
+
+    /* Checkpoint the shared metadata table last, as it could have changed. */
+    if (__wt_conn_is_disagg(session) && conn->oligarch_manager.leader) {
+        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
+        if (S2BT(session)->modified)
+            WT_ERR(__wt_checkpoint(session, cfg));
     }
 
     /*
@@ -2461,9 +2477,11 @@ fake:
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
      * is enabled and resolution deferred until transaction end. The exception is if the handle is
      * being discarded, in which case the handle will be gone by the time we try to apply or unroll
-     * the meta tracking event.
+     * the meta tracking event. Another exception is disaggregated storage, which requires
+     * checkpoints to be resolved early, so that their metadata could be incorporated to the shared
+     * metadata table.
      */
-    if (!fake_ckpt) {
+    if (!fake_ckpt && !F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         resolve_bm = false;
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_RESOLVE);

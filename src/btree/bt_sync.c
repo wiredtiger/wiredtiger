@@ -33,14 +33,17 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      *    of all the modifications on the history store page with a transaction that is maximum than
      *    the checkpoint snapshot. But these modifications are done by the checkpoint itself, so we
      *    shouldn't ignore them for consistency.
-     * 2. they must be leaf pages,
-     * 3. there is a snapshot transaction active (which is the case in ordinary application
+     * 2. the same for disaggregated storage metadata.
+     * 3. they must be leaf pages,
+     * 4. there is a snapshot transaction active (which is the case in ordinary application
      *    checkpoints but not all internal cases),
-     * 4. the first dirty update on the page is sufficiently recent the checkpoint transaction would
+     * 5. the first dirty update on the page is sufficiently recent the checkpoint transaction would
      *     skip them,
-     * 5. there's already an address for every disk block involved.
+     * 6. there's already an address for every disk block involved.
      */
     if (WT_IS_HS(session->dhandle))
+        return (false);
+    if (WT_IS_DISAGG_META(session->dhandle))
         return (false);
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
