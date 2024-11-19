@@ -207,7 +207,8 @@ conn_stats = [
     ##########################################
     # Backup statistics
     ##########################################
-    BackupStat('backup_bits_clr', 'backup total bits cleared'),
+    BackupStat('backup_bits_clr', 'XXX backup total bits cleared'),
+    BackupStat('backup_bits_diff', 'XXX backup total bits different from full bitmap cleared savings'),
     BackupStat('backup_blocks', 'total modified incremental blocks'),
     BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
     BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),

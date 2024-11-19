@@ -1451,7 +1451,11 @@ main(int argc, char *argv[])
 
     backup_force_stop_interval = 3;
     backup_full_interval = 4;
+#if 0
     backup_granularity_kb = 1024;
+#else
+    backup_granularity_kb = 4;
+#endif
     backup_verify_immediately = false;
     backup_verify_quick = false;
     columns = stress = false;

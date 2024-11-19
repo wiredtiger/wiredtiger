@@ -125,6 +125,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
                         ++cleared;
                     ++offset;
                 }
+                WT_STAT_CONN_INCRV(session, backup_bits_diff, cleared);
                 __wt_errx(
                   session, "CURBACKUP: %s Cleared %d bits", btree->dhandle->name, (int)cleared);
             }
