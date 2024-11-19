@@ -1309,6 +1309,7 @@ __coligarch_next_random(WT_CURSOR *cursor)
     WT_ERR(__coligarch_enter(coligarch, false, false));
 
     for (;;) {
+        /* TODO: consider the size of ingest table in the future. */
         c = coligarch->stable_cursor;
         /*
          * This call to next_random on the ingest table can potentially end in WT_NOTFOUND if the
