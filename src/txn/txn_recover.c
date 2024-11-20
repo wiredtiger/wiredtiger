@@ -698,10 +698,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     uint32_t fileid, lsnfile, lsnoffset;
 
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
-    fileid = WT_BTREE_ID_UNNAMESPACED((uint32_t)cval.val);
+    fileid = (uint32_t)cval.val;
 
     /* Track the largest file ID we have seen. */
-    fprintf(stderr, "__recovery_setup_file comparing %u to %u\n", r->max_fileid, fileid);
     if (fileid > r->max_fileid)
         r->max_fileid = fileid;
 
@@ -822,7 +821,7 @@ __recovery_file_scan(WT_RECOVERY *r)
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
      * from the latest file id.
      */
-    S2C(r->session)->next_file_id = r->max_fileid;
+    S2C(r->session)->next_file_id = WT_BTREE_ID_UNNAMESPACED(r->max_fileid);
 
     return (0);
 }
