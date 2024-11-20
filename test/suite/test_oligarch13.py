@@ -69,12 +69,9 @@ class test_oligarch13(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 cfg += ',block_manager=disagg,oligarch_log=(enabled=false),log=(enabled=false)'
             self.session.create(uri, cfg)
 
-        # Create only the oligarch tables in the follower
+        # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
-        for uri in self.oligarch_uris:
-            cfg = self.create_session_config
-            session_follow.create(uri, cfg)
 
         # Put data to all tables
         value_prefix = 'aaa'

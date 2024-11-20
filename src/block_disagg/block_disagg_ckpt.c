@@ -207,6 +207,24 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
             ret = 0; /* In case this is still set to WT_NOTFOUND from the previous step. */
         }
+
+        /* Check if we need to include any other metadata keys for oligarch tables. */
+        if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
+            /* TODO: Less hacky way of finding related metadata. */
+
+            WT_ERR(__wt_snprintf(md_key, len, "oligarch:%s", block_disagg->name));
+            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
+            md_cursor->set_key(md_cursor, md_key);
+            WT_ERR(md_cursor->search(md_cursor));
+            WT_ERR_NOTFOUND_OK(md_cursor->get_value(md_cursor, &md_value), true);
+            if (ret == 0) {
+                WT_SAVE_DHANDLE(session,
+                  ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
+                WT_ERR(ret);
+            }
+
+            ret = 0; /* In case this is still set to WT_NOTFOUND from the previous step. */
+        }
     }
 
 err:

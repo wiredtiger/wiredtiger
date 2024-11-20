@@ -9,6 +9,36 @@
 #include "wt_internal.h"
 
 /*
+ * __oligarch_create_missing_ingest_table --
+ *     Create a missing ingest table from an existing oligarch configuration.
+ */
+static int
+__oligarch_create_missing_ingest_table(
+  WT_SESSION_IMPL *session, const char *uri, const char *oligarch_cfg)
+{
+    WT_CONFIG_ITEM key_format, value_format;
+    WT_DECL_ITEM(ingest_config);
+    WT_DECL_RET;
+
+    WT_ERR(__wt_config_getones(session, oligarch_cfg, "key_format", &key_format));
+    WT_ERR(__wt_config_getones(session, oligarch_cfg, "value_format", &value_format));
+
+    /* TODO Refactor this with __create_oligarch? */
+    WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
+    WT_ERR(__wt_buf_fmt(session, ingest_config,
+      "key_format=\"%.*s\",value_format=\"%.*s\","
+      "oligarch_log=(enabled=true,oligarch_constituent=true),in_memory=true,"
+      "disaggregated=(page_log=none,storage_source=none)",
+      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
+
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
+
+err:
+    __wt_scr_free(session, &ingest_config);
+    return (ret);
+}
+
+/*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
@@ -23,7 +53,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
-    char *buf, *cfg_ret, *metadata_value_cfg;
+    char *buf, *cfg_ret, *metadata_value_cfg, *oligarch_ingest_uri;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
@@ -35,6 +65,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     metadata_key = NULL;
     metadata_value = NULL;
     metadata_value_cfg = NULL;
+    oligarch_ingest_uri = NULL;
     shared_metadata_session = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
@@ -148,9 +179,26 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
+
+            /* Create the corresponding ingest table, if it does not exist. */
+            if (WT_PREFIX_MATCH(metadata_key, "oligarch:")) {
+                WT_ERR(__wt_config_getones(session, metadata_value, "ingest", &cval));
+                if (cval.len > 0) {
+                    WT_ERR(__wt_calloc_def(session, cval.len + 1, &oligarch_ingest_uri));
+                    memcpy(oligarch_ingest_uri, cval.str, cval.len);
+                    oligarch_ingest_uri[cval.len] = '\0';
+                    md_cursor->set_key(md_cursor, oligarch_ingest_uri);
+                    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+                    if (ret == WT_NOTFOUND)
+                        WT_ERR(__oligarch_create_missing_ingest_table(
+                          internal_session, oligarch_ingest_uri, metadata_value));
+                }
+            }
+
+            /* Insert the actual metadata. */
+            md_cursor->set_key(md_cursor, metadata_key);
             md_cursor->set_value(md_cursor, metadata_value);
             WT_ERR(md_cursor->insert(md_cursor));
-            /* TODO: Create the corresponding oligarch table metadata. */
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -184,6 +232,7 @@ err:
 
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
+    __wt_free(session, oligarch_ingest_uri);
 
     __wt_scr_free(session, &item);
     return (ret);

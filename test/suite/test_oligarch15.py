@@ -56,6 +56,21 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def early_setup(self):
         os.mkdir('kv_home')
 
+    # Restart the node without local files
+    def restart_without_local_files(self):
+        # Clean up
+        self.close_conn()
+
+        # Remove local files
+        for f in os.listdir():
+            if os.path.isdir(f):
+                continue
+            if f.startswith('WiredTiger') or f.startswith('test_'):
+                os.remove(f)
+
+        # Reopen the connection
+        self.open_conn()
+
     # Test starting without local files.
     def test_oligarch14(self):
         # The node started as a follower, so step it up as the leader
@@ -83,24 +98,8 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         checkpoint_id = self.disagg_get_complete_checkpoint()
 
-        # Clean up
-        self.close_conn()
-
-        # Remove local files
-        for f in os.listdir():
-            if os.path.isdir(f):
-                continue
-            if f.startswith('WiredTiger') or f.startswith('test_'):
-                os.remove(f)
-
         # Reopen the connection
-        self.open_conn()
-
-        # Recreate oligarch tables
-        # FIXME-SLS-496 Remove this after we can create oligarch table metadata automatically
-        for uri in self.oligarch_uris:
-            cfg = self.create_session_config
-            self.session.create(uri, cfg)
+        self.restart_without_local_files()
 
         # Pick up the checkpoint
         self.conn.reconfigure(f'disaggregated=(checkpoint_id={checkpoint_id})')
@@ -113,4 +112,39 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
+
+        # Do a few more updates to ensure that the tables continue to be writable
+        value_prefix2 = 'bbb'
+        for uri in self.oligarch_uris + self.other_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    cursor[str(i)] = value_prefix2 + str(i)
+                if i % 250 == 0:
+                    time.sleep(1)
+            cursor.close()
+
+        time.sleep(1)
+        self.session.checkpoint()
+        time.sleep(1)
+        checkpoint_id = self.disagg_get_complete_checkpoint()
+
+        # Reopen the connection
+        self.restart_without_local_files()
+
+        # Pick up the checkpoint
+        self.conn.reconfigure(f'disaggregated=(checkpoint_id={checkpoint_id})')
+
+        # Become the leader (skip a few extra checkpoint IDs just in case)
+        self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
+
+        # Check tables after the restart
+        for uri in self.oligarch_uris + self.other_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                else:
+                    self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
