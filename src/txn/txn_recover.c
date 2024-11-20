@@ -821,6 +821,13 @@ __recovery_file_scan(WT_RECOVERY *r)
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
      * from the latest file id.
      */
+    /*
+     * TODO: it's not something specific to this line, but note the places we call the namespace
+     * macros. The boundary is that the on-disk trees have namespaced IDs, but the maximum file ID
+     * variable is not namespaced. This avoids us having to increment it by a number other than one,
+     * among other annoyances, but they're all solvable problems. We can revisit this decision after
+     * using the namespaced file IDs for a while.
+     */
     S2C(r->session)->next_file_id = WT_BTREE_ID_UNNAMESPACED(r->max_fileid);
 
     return (0);
