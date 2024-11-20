@@ -266,6 +266,8 @@ typedef struct {
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */
 
+    uint64_t backup_cnt;
+    uint64_t backup_range_cnt;
     uint64_t truncate_cnt; /* truncation operation counter */
 
     uint64_t replay_cached_committed;    /* Our committed timestamp, cached */

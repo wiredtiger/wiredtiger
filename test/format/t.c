@@ -419,6 +419,9 @@ skip_operations:
     if (!GV(QUIET))
         printf("\r%78s\r", " ");
     __wt_seconds(NULL, &now);
+    if (g.backup_range_cnt != 0)
+        printf("%s: backups: %" PRIu64 " ranges copied %" PRIu64 "\n", progname, g.backup_cnt,
+          g.backup_range_cnt);
     printf("%s: successful run completed (%" PRIu64 " seconds)\n ", progname, now - start);
     fflush(stdout);
 

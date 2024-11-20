@@ -1390,11 +1390,11 @@ static const char *const __stats_connection_desc[] = {
   "background-compact: background compact successful calls",
   "background-compact: background compact timeout",
   "background-compact: number of files tracked by background compaction",
-  "backup: XXX backup total bits cleared",
-  "backup: XXX backup total bits different from full bitmap cleared savings",
   "backup: backup cursor open",
   "backup: backup duplicate cursor open",
   "backup: backup granularity size",
+  "backup: backup total bits cleared",
+  "backup: backup total bits cleared compared to full bitmap",
   "backup: incremental backup enabled",
   "backup: opening the backup cursor in progress",
   "backup: total modified incremental blocks",
@@ -2173,11 +2173,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->background_compact_success = 0;
     stats->background_compact_timeout = 0;
     stats->background_compact_files_tracked = 0;
-    stats->backup_bits_clr = 0;
-    stats->backup_bits_diff = 0;
     /* not clearing backup_cursor_open */
     /* not clearing backup_dup_open */
     stats->backup_granularity = 0;
+    stats->backup_bits_clr = 0;
+    stats->backup_bits_diff = 0;
     /* not clearing backup_incremental */
     /* not clearing backup_start */
     stats->backup_blocks = 0;
@@ -2907,11 +2907,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->background_compact_timeout += WT_STAT_CONN_READ(from, background_compact_timeout);
     to->background_compact_files_tracked +=
       WT_STAT_CONN_READ(from, background_compact_files_tracked);
-    to->backup_bits_clr += WT_STAT_CONN_READ(from, backup_bits_clr);
-    to->backup_bits_diff += WT_STAT_CONN_READ(from, backup_bits_diff);
     to->backup_cursor_open += WT_STAT_CONN_READ(from, backup_cursor_open);
     to->backup_dup_open += WT_STAT_CONN_READ(from, backup_dup_open);
     to->backup_granularity += WT_STAT_CONN_READ(from, backup_granularity);
+    to->backup_bits_clr += WT_STAT_CONN_READ(from, backup_bits_clr);
+    to->backup_bits_diff += WT_STAT_CONN_READ(from, backup_bits_diff);
     to->backup_incremental += WT_STAT_CONN_READ(from, backup_incremental);
     to->backup_start += WT_STAT_CONN_READ(from, backup_start);
     to->backup_blocks += WT_STAT_CONN_READ(from, backup_blocks);

@@ -252,6 +252,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
             trace_msg(session,
               "Backup file %s type WT_BACKUP_RANGE offset %" PRIu64 " length %" PRIu64, name,
               offset, size);
+            ++g.backup_range_cnt;
             /*
              * Since we are using system calls below instead of a WiredTiger function, we have to
              * prepend the home directory to the file names ourselves.
@@ -580,7 +581,7 @@ backup(void *arg)
                 src_id = g.backup_id - 1;
                 /* Use consolidation too. */
                 testutil_snprintf(cfg, sizeof(cfg),
-                  "incremental=(enabled,consolidate=true,src_id=%" PRIu64 ",this_id=%" PRIu64 ")",
+                  "incremental=(enabled,consolidate=false,src_id=%" PRIu64 ",this_id=%" PRIu64 ")",
                   src_id, g.backup_id);
                 /* Restart a full incremental every once in a while. */
                 full = false;
@@ -635,6 +636,7 @@ backup(void *arg)
         if (ret != 0)
             testutil_die(ret, "session.open_cursor: backup");
         trace_msg(session, "Backup #%u cursor opened. Yielded %u times", counter, num_yield);
+        ++g.backup_cnt;
 
         while ((ret = backup_cursor->next(backup_cursor)) == 0) {
             testutil_check(backup_cursor->get_key(backup_cursor, &key));

@@ -436,11 +436,11 @@ struct __wt_connection_stats {
     int64_t background_compact_success;
     int64_t background_compact_timeout;
     int64_t background_compact_files_tracked;
-    int64_t backup_bits_clr;
-    int64_t backup_bits_diff;
     int64_t backup_cursor_open;
     int64_t backup_dup_open;
     int64_t backup_granularity;
+    int64_t backup_bits_clr;
+    int64_t backup_bits_diff;
     int64_t backup_incremental;
     int64_t backup_start;
     int64_t backup_blocks;

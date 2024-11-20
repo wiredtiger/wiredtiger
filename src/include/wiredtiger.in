@@ -5553,19 +5553,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BACKGROUND_COMPACT_TIMEOUT		1022
 /*! background-compact: number of files tracked by background compaction */
 #define	WT_STAT_CONN_BACKGROUND_COMPACT_FILES_TRACKED	1023
-/*! backup: XXX backup total bits cleared */
-#define	WT_STAT_CONN_BACKUP_BITS_CLR			1024
-/*!
- * backup: XXX backup total bits different from full bitmap cleared
- * savings
- */
-#define	WT_STAT_CONN_BACKUP_BITS_DIFF			1025
 /*! backup: backup cursor open */
-#define	WT_STAT_CONN_BACKUP_CURSOR_OPEN			1026
+#define	WT_STAT_CONN_BACKUP_CURSOR_OPEN			1024
 /*! backup: backup duplicate cursor open */
-#define	WT_STAT_CONN_BACKUP_DUP_OPEN			1027
+#define	WT_STAT_CONN_BACKUP_DUP_OPEN			1025
 /*! backup: backup granularity size */
-#define	WT_STAT_CONN_BACKUP_GRANULARITY			1028
+#define	WT_STAT_CONN_BACKUP_GRANULARITY			1026
+/*! backup: backup total bits cleared */
+#define	WT_STAT_CONN_BACKUP_BITS_CLR			1027
+/*! backup: backup total bits cleared compared to full bitmap */
+#define	WT_STAT_CONN_BACKUP_BITS_DIFF			1028
 /*! backup: incremental backup enabled */
 #define	WT_STAT_CONN_BACKUP_INCREMENTAL			1029
 /*! backup: opening the backup cursor in progress */
