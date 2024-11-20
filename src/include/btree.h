@@ -98,6 +98,8 @@ typedef enum { /* Start position for eviction walk */
 
 #define WT_BTREE_ID_NAMESPACED(x) ((x) << WT_BTREE_ID_NAMESPACE_BITS)
 #define WT_BTREE_ID_UNNAMESPACED(x) ((x) >> WT_BTREE_ID_NAMESPACE_BITS)
+#define WT_BTREE_ID_SHARED(x) \
+    (((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1)) == WT_BTREE_ID_NAMESPACE_SHARED)
 
 /*
  * WT_BTREE --
