@@ -228,6 +228,8 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns,
                 WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_REUSE));
             current_col = col + 1;
         }
+
+        WT_RET_NOTFOUND_OK(ret);
     }
     WT_RET_TEST(ret != WT_NOTFOUND, ret);
 
