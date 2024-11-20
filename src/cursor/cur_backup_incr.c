@@ -102,6 +102,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
                 WT_ERR(__wt_backup_load_incr(session, &b, &cb->full_bitstring, cb->nbits));
                 cmp = true;
             }
+            WT_ERR_NOTFOUND_OK(ret, false);
             if ((ret = __wt_config_subgets(session, &v, "blocks", &b)) == 0) {
                 WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
                 cb->bit_offset = 0;
