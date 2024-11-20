@@ -41,7 +41,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     oligarch_uris = ["oligarch:test_oligarch15a", "oligarch:test_oligarch15b"]
-    # FIXME-SLS-555 Add the "table:" URI to the list once it is supported.
+    # FIXME-SLS-555 Add the "table:" URI to the list once it is supported
     # other_uris = ["file:test_oligarch15c", "table:test_oligarch15d"]
     other_uris = ["file:test_oligarch15c"]
 
@@ -60,7 +60,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test starting without local files.
     def test_oligarch14(self):
-        # The node started as a follower, so step it up as the leader.
+        # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # Create tables
@@ -99,7 +99,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.open_conn()
 
         # Recreate oligarch tables
-        # FIXME-SLS-496 Remove this after we can create oligarch table metadata automatically.
+        # FIXME-SLS-496 Remove this after we can create oligarch table metadata automatically
         for uri in self.oligarch_uris:
             cfg = self.create_session_config
             self.session.create(uri, cfg)
@@ -112,7 +112,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Check tables in the follower
         for uri in self.oligarch_uris + self.other_uris:
-            # FIXME-SLS-555 Drop isolation="read-uncommitted" when it is no longer needed.
+            # FIXME-SLS-555 Drop isolation="read-uncommitted" when it is no longer needed
             if not uri.startswith('oligarch'):
                 self.session.begin_transaction('isolation="read-uncommitted"')
             cursor = self.session.open_cursor(uri, None, None)
