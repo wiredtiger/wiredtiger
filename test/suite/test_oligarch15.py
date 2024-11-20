@@ -58,7 +58,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Restart the node without local files
     def restart_without_local_files(self):
-        # Clean up
+        # Close the current connection
         self.close_conn()
 
         # Remove local files
