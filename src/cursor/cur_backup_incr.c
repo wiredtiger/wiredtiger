@@ -113,14 +113,8 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
                 uint64_t cleared = 0;
                 bool set, set_full;
                 while (offset < cb->nbits) {
-                    set = set_full = false;
-                    if (__bit_test(cb->full_bitstring.mem, offset))
-                        set_full = true;
-                    /* The full bitstring should be a superset of the real bitstring */
-                    if (__bit_test(cb->bitstring.mem, offset)) {
-                        set = true;
-                        WT_ASSERT(session, set_full == true);
-                    }
+                    set_full = __bit_test(cb->full_bitstring.mem, offset);
+                    set = __bit_test(cb->bitstring.mem, offset);
                     if (!set && set_full)
                         ++cleared;
                     ++offset;
