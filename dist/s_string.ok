@@ -9,7 +9,6 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
-ANDed
 APIs
 AREALLSET
 ARG
@@ -214,6 +213,7 @@ LLVMFuzzerTestOneInput
 LOGOP
 LOGREC
 LOGSCAN
+LOGSLOT
 LRU
 LSB
 LSM
@@ -293,6 +293,7 @@ POS
 POSIX
 PPC
 PREFETCH
+PREV
 PRId
 PRIu
 PRNG
@@ -322,6 +323,7 @@ RCPC
 RCS
 RCpc
 RDNOLOCK
+READGEN
 READONLY
 REALLOC
 RECNO
@@ -664,10 +666,12 @@ cv
 cval
 cx
 cxa
+dKB
 dT
 darwin
 data's
 datalen
+dataset
 datasource
 datastore
 dbar
@@ -699,6 +703,7 @@ dev
 dh
 dhandle
 dhandles
+didworkp
 difftime
 dir
 directio
@@ -763,14 +768,9 @@ fclose
 fcntl
 fd
 fdatasync
-fe
-feffff
 fextend
 ffc
 fff
-fffff
-ffffff
-ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -1082,6 +1082,7 @@ notsup
 novalue
 nowait
 np
+npos
 nrecs
 nsec
 nset
@@ -1092,6 +1093,7 @@ numbare
 nvram
 objectid
 offpage
+offsetp
 ok
 oldv
 ondisk
@@ -1120,7 +1122,6 @@ packv
 pageref
 pagesize
 param
-params
 pareto
 parserp
 patchp
@@ -1129,6 +1130,7 @@ pathnames
 perf
 pfx
 pid
+pindexp
 pmem
 poptable
 popthreads
@@ -1146,6 +1148,7 @@ precompilation
 precompiled
 precompiling
 prefetch
+prefetching
 preload
 prepend
 prepended
@@ -1184,6 +1187,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readdir
 readgen
 readlock
 readonly
@@ -1259,6 +1263,7 @@ skiplist
 skiplists
 skipp
 skippable
+slotp
 slvg
 sn
 snaplen
@@ -1319,6 +1324,7 @@ sunused
 supd
 superset
 sw
+syncop
 sys
 syscall
 syscrypto

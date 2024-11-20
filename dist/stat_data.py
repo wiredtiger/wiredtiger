@@ -106,7 +106,7 @@ class EvictCacheWalkStat(Stat):
         flags += ',cache_walk'
         Stat.__init__(self, name, EvictCacheWalkStat.prefix, desc, flags)
 class EvictStat(Stat):
-    prefix = 'eviction'
+    prefix = 'cache'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, EvictStat.prefix, desc, flags)
 class JoinStat(Stat):
@@ -207,6 +207,7 @@ conn_stats = [
     ##########################################
     # Backup statistics
     ##########################################
+    BackupStat('backup_bits_clr', 'backup total bits cleared'),
     BackupStat('backup_blocks', 'total modified incremental blocks'),
     BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
     BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
@@ -281,6 +282,8 @@ conn_stats = [
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
+    CacheStat('npos_evict_walk_max', 'eviction walk restored - had to walk this many pages', 'max_aggregate,no_scale'),
+    CacheStat('npos_read_walk_max', 'npos read - had to walk this many pages', 'max_aggregate,no_scale'),
 
     ##########################################
     # Eviction statistics
@@ -326,6 +329,8 @@ conn_stats = [
     EvictStat('eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     EvictStat('eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
+    EvictStat('eviction_restored_pos', 'eviction walk restored position'),
+    EvictStat('eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
     EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
@@ -338,7 +343,6 @@ conn_stats = [
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
-    EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
     EvictStat('eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
     EvictStat('eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
@@ -350,11 +354,20 @@ conn_stats = [
     EvictStat('eviction_target_strategy_dirty', 'eviction walk target strategy only dirty pages'),
     EvictStat('eviction_timed_out_ops', 'operations timed out waiting for space in cache'),
     EvictStat('eviction_walk', 'pages walked for eviction'),
+    EvictStat('eviction_walk_from_root', 'eviction walks started from root of tree'),
     EvictStat('eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
     EvictStat('eviction_walk_passes', 'eviction passes of a file'),
+    EvictStat('eviction_walk_random_returns_null_position', 'eviction walks random search fails to locate a page, results in a null position'),
+    EvictStat('eviction_walk_restart', 'eviction walks restarted'),
+    EvictStat('eviction_walk_saved_pos', 'eviction walks started from saved location in tree'),
     EvictStat('eviction_walk_sleeps', 'eviction walk most recent sleeps for checkpoint handle gathering'),
+    EvictStat('eviction_walks_abandoned', 'eviction walks abandoned'),
     EvictStat('eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale'),
+    EvictStat('eviction_walks_ended', 'eviction walks reached end of tree'),
+    EvictStat('eviction_walks_gave_up_no_targets', 'eviction walks gave up because they saw too many pages and found no candidates'),
+    EvictStat('eviction_walks_gave_up_ratio', 'eviction walks gave up because they saw too many pages and found too few candidates'),
     EvictStat('eviction_walks_started', 'files with new eviction walks started'),
+    EvictStat('eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
     EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
     EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
     # Note eviction_worker_evict_attempt - eviction_worker_evict_fail = evict page successes by eviction worker threads.
@@ -694,6 +707,7 @@ conn_stats = [
     SessionOpStat('session_table_compact_timeout', 'table compact timeout', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_fail', 'table create with import failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
@@ -976,6 +990,8 @@ conn_dsrc_stats = [
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_dirty_internal', 'tracked dirty internal page bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_dirty_leaf', 'tracked dirty leaf page bytes in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_total', 'bytes dirty in the cache cumulative', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
@@ -1009,15 +1025,6 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_target_page_lt32', 'eviction walk target pages histogram - 10-31'),
     CacheStat('cache_eviction_target_page_lt64', 'eviction walk target pages histogram - 32-63'),
     CacheStat('cache_eviction_target_page_reduced', 'eviction walk target pages reduced due to history store cache pressure'),
-    CacheStat('cache_eviction_walk_from_root', 'eviction walks started from root of tree'),
-    CacheStat('cache_eviction_walk_random_returns_null_position', 'eviction walks random search fails to locate a page, results in a null position'),
-    CacheStat('cache_eviction_walk_restart', 'eviction walks restarted'),
-    CacheStat('cache_eviction_walk_saved_pos', 'eviction walks started from saved location in tree'),
-    CacheStat('cache_eviction_walks_abandoned', 'eviction walks abandoned'),
-    CacheStat('cache_eviction_walks_ended', 'eviction walks reached end of tree'),
-    CacheStat('cache_eviction_walks_gave_up_no_targets', 'eviction walks gave up because they saw too many pages and found no candidates'),
-    CacheStat('cache_eviction_walks_gave_up_ratio', 'eviction walks gave up because they saw too many pages and found too few candidates'),
-    CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
     CacheStat('cache_hs_btree_truncate', 'history store table truncation to remove all the keys of a btree'),
     CacheStat('cache_hs_btree_truncate_dryrun', 'history store table truncations that would have happened in non-dryrun mode'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),

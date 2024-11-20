@@ -59,6 +59,9 @@
 #define NUM_ALLOC 5
 static const char *alloc_sizes[] = {"512B", "8K", "64K", "1M", "16M"};
 
+static const char *run_alloc;
+static int run_gran = 0;
+static int total_ranges = 0;
 static int verbose_level = 0;
 static uint64_t seed = 0;
 
@@ -305,6 +308,7 @@ create_table(WT_SESSION *session, WT_RAND_STATE *rand, TABLE_INFO *tinfo, uint32
     if (__wt_random(rand) % 4 == 0) {
         alloc = __wt_random(rand) % NUM_ALLOC;
         allocstr = alloc_sizes[alloc];
+        run_alloc = allocstr;
         testutil_snprintf(buf, sizeof(buf),
           "%s,allocation_size=%s,internal_page_max=%s,leaf_page_max=%s", TABLE_FORMAT, allocstr,
           allocstr, allocstr);
@@ -399,6 +403,7 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, TABLE_IN
         granularity += 1;
         granularity_kb = granularity * 1024;
     }
+    run_gran = (int)granularity_kb;
     if (__wt_random(rand) % 2 == 0)
         consolidate = true;
     else
@@ -427,6 +432,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, TABLE_INFO *tinfo)
       "INCREMENTAL BACKUP: COMPLETE: %" PRIu32 " files=%" PRId32 ", ranges=%" PRId32
       ", unmodified=%" PRId32 "\n",
       tinfo->incr_backup_number, nfiles, nranges, num_modified);
+    total_ranges += nranges;
 }
 
 /*
@@ -752,7 +758,7 @@ main(int argc, char *argv[])
         /*
          * Run with fixed seeds, and then with a random seed.
          *
-         * NOTE: changing this test, and/of random number generation, may change the behavior of
+         * NOTE: changing this test, and/or random number generation, may change the behavior of
          * this test with the following seeds.
          *
          * A seed of 123456789 can reproduce the incremental bitmap backup bug that was fixed in
@@ -774,6 +780,7 @@ main(int argc, char *argv[])
         rnd.v = seed_param;
         run_test(working_dir, &rnd, preserve);
     }
+    printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc);
 
     return (EXIT_SUCCESS);
 }

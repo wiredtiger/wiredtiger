@@ -128,6 +128,15 @@ functions:
     type: setup
     params:
       directory: wiredtiger
+  "generate github token": &gen_github_token
+    command: github.generate_token
+    params:
+      owner: wiredtiger
+      repo: automation-scripts
+      expansion_name: generated_token
+      permissions:
+          metadata: read
+          contents: read
   "get automation-scripts": &get_automation_scripts
     command: shell.exec
     type: setup
@@ -137,7 +146,7 @@ functions:
         set -o errexit
         set -o verbose
         if ! [ -d "./automation-scripts" ]; then
-          git clone git@github.com:wiredtiger/automation-scripts.git
+          git clone https://x-access-token:${generated_token}@github.com/wiredtiger/automation-scripts.git
         fi
   "fetch artifacts": &fetch_artifacts
     command: s3.get
@@ -179,7 +188,7 @@ functions:
         # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
         # the case of patch builds, it is possible that the developer has a branch name that doesn't
         # adhere to naming rules, therefore derive the base branch name from git.
-        branch=$(git branch --contains | grep -e "mongodb" -e "develop")
+        branch=$(git branch --contains | grep -e "mongodb" -e "develop" -e "evg-pr-test-")
         if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
@@ -208,6 +217,12 @@ functions:
         virtualenv -p python3 venv
         source venv/bin/activate
         buildscripts/poetry_sync.sh
+
+        # The bazel cache uses a substantial (>30GB) amount of data which causes our evergreen hosts
+        # to run out of disk space. By default it's saved into ~/.cache, but we want it saved into
+        # our evergreen workspace which has more backing storage
+        echo "startup --output_user_root=${workdir}/bazel-output-root" >> ~/.bazelrc
+        echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
         ./buildscripts/scons.py --variables-files=etc/scons/mongodbtoolchain_stable_gcc.vars --link-model=dynamic --ninja generate-ninja ICECC=icecc CCACHE=ccache
         ninja -j$(nproc --all) install-mongod
@@ -242,6 +257,7 @@ functions:
           ${CODE_COVERAGE_FLAGS} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
+          ${WORDS_BIGENDIAN|} \
           ${GNU_C_VERSION|} \
           ${GNU_CXX_VERSION|} \
           ${CLANG_C_VERSION|} \
@@ -262,7 +278,7 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
-        if [[ "${build_variant|}" =~ "macos-13" ]]; then
+        if [[ "${build_variant|}" =~ "macos-14" ]]; then
           # For mac builds, we want explicitly tell cmake which python to use, as
           # well as the matching library directory and header files. The find_libpython
           # module gives us the library.
@@ -270,6 +286,9 @@ functions:
           $SYSPY -mvenv venv
           source venv/bin/activate
           pip3 install find_libpython==0.4.0
+          # FIXME-WT-13704: installing swig to accommodate for macos14 not having swig by default, will be removed once swig
+          # is installed on this distro.
+          pip3 install swig==4.2.1
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
@@ -288,7 +307,7 @@ functions:
              fi
           fi
 
-          if [ "${build_variant|}" = "macos-13-arm64" ]; then
+          if [ "${build_variant|}" = "macos-14-arm64" ]; then
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPython3_EXECUTABLE=$SYSPY -DPython3_LIBRARY=$SYSPYLIB -DPython3_INCLUDE_DIR=$SYSPYINCDEF"
           else
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB -DPYTHON_INCLUDE_DIR=$SYSPYINCDEF"
@@ -361,6 +380,11 @@ functions:
         else
           # Compiling with CMake generated Ninja file.
           cd cmake_build
+          # FIXME-WT-13704: using virtual env to accommodate for macos14 not having swig by default, will be removed once swig
+          # is installed on this distro.
+          if [[ "${build_variant|}" =~ "macos-14-arm64" ]]; then
+            source ../venv/bin/activate
+          fi
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
             ninja -j ${num_jobs} 2>&1
           else
@@ -369,6 +393,7 @@ functions:
         fi
         echo "Ending 'make wiredtiger' step"
   "compile wiredtiger":
+    - *gen_github_token
     - *get_automation_scripts
     - *configure_wiredtiger
     - *make_wiredtiger
@@ -544,7 +569,7 @@ functions:
             exit 0
           fi
 
-          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
+          git clone https://github.com/wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
           # Branches to update are defined through an expansion variable.
@@ -1127,6 +1152,7 @@ functions:
           ${python_binary|python3} wiredtiger/bench/perf_run_py/perf_json_converter_for_atlas_evergreen.py -i ${input_file} -n ${test_name} -o ${output_path}
 
   "upload stats to atlas":
+    - *gen_github_token
     - *get_automation_scripts
     - command: shell.exec
       params:
@@ -1444,12 +1470,6 @@ tasks:
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=9
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
-      # Check that WiredTiger will compile for code coverage, as this may switch to alternative
-      # implementations of some code which may generate different compiler errors to a 'normal' build
-      - func: "compile wiredtiger"
-        vars:
-          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
-          CODE_COVERAGE_FLAGS: -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
@@ -1475,6 +1495,30 @@ tasks:
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
+
+  # Compile WiredTiger with uncommon build flags to make sure we compile code that
+  # is often pre-processed out.
+  - name: compile-uncommon-build-flags
+    tags: ["pull_request", "pull_request_compilers"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+
+      # Check that WiredTiger will compile for code coverage, as this may switch to alternative
+      # implementations of some code which may generate different compiler errors to a 'normal' build
+      - func: "compile wiredtiger"
+        vars:
+          CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
+          CODE_COVERAGE_FLAGS: -DCODE_COVERAGE_MEASUREMENT=1 -DINLINE_FUNCTIONS_INSTEAD_OF_MACROS=1
+
+      # Check that WiredTiger compiles when building for big endian systems.
+      # This doesn't need to run on a big endian machine, we're just checking
+      # that the code inside #ifdef WORDS_BIGENDIAN paths will compile.
+      - func: "compile wiredtiger"
+        vars:
+          WORDS_BIGENDIAN: -DWORDS_BIGENDIAN=1
+          # The catch2 unit tests make use of WORDS_BIGENDIAN. Make sure they're compiled
+          HAVE_UNITTEST: -DHAVE_UNITTEST=1
 
   - name: make-check-test
     commands:
@@ -1645,7 +1689,7 @@ tasks:
         vars:
           directory: bench/wtperf
 
-  - name: catch2-unittest-test
+  - name: catch2-test
     tags: ["pull_request"]
     commands:
       - func: "get project"
@@ -1660,9 +1704,9 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            test/unittest/catch2-unittests
+            test/catch2/catch2-unittests
 
-  - name: catch2-unittest-assertions
+  - name: catch2-assertions
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1676,7 +1720,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            test/unittest/catch2-unittests
+            test/catch2/catch2-unittests
 
   # End of normal make check test tasks
 
@@ -2719,6 +2763,7 @@ tasks:
   - name: configure-combinations
     commands:
       - func: "get project"
+      - func: "generate github token"
       - func: "get automation-scripts"
       - command: shell.exec
         params:
@@ -2962,6 +3007,7 @@ tasks:
             echo ". task_id       =  ${task_id}"
             echo ". task_name     =  ${task_name}"
             echo ". build_id      =  ${build_id}"
+            echo ". build_variant =  ${build_variant}"
             echo ". version_id    =  ${version_id}"
             echo ". revision      =  ${revision}"
             echo ". github_commit =  ${github_commit}"
@@ -3005,6 +3051,21 @@ tasks:
                 pr_args+="--github_pr_number ${github_pr_number} "
                 pr_args+="--github_token ${github_token} "
             fi
+
+            # Compose and append the code change coverage report URL.
+            # An artifact URL is composed of a few components:
+            # - <domain>/
+            #     e.g. https://build_external.s3.amazonaws.com/
+            # - <project>/<build_variant>/<revision>/
+            #     e.g. wiredtiger/code-statistics/eb9b4dcafba665d0cd78af6382b47ff595d741da/
+            # - <task_name>_<build_id>-<execution>/
+            #     e.g. code-change-report_wiredtiger_code_statistics_patch_eb9b4dcafba665d0cd78af6382b47ff595d741da_6717f121c5311a000762e3c4_24_10_22_18_38_26-0/
+            # - <file_name>
+            #     e.g. code_change_report.html
+            domain="https://build_external.s3.amazonaws.com"
+            file_name="code_change_report.html"
+            code_change_report_url=$domain/${project}/${build_variant}/${revision}/${task_name}_${build_id}-${execution}/$file_name
+            pr_args+="--code_change_report_url $code_change_report_url "
 
             if [ ${is_patch|false} = true ]; then
               ./test/evergreen/coverage-report.sh true ${python_binary|python3} ${github_commit} "$pr_args"
@@ -3197,6 +3258,7 @@ tasks:
   - name: long-test
     commands:
       - func: "get project"
+      - func: "generate github token"
       - func: "get automation-scripts"
       - func: "configure wiredtiger"
       - func: "make wiredtiger"
@@ -3731,6 +3793,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_with_builtins
+          # FIXME-WT-13690: Enable ZSTD compression once failure has been resolved.
+          HAVE_BUILTIN_EXTENSION_ZSTD: -DHAVE_BUILTIN_EXTENSION_ZSTD=0
       - func: "format test script"
         vars:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
@@ -5322,12 +5386,12 @@ buildvariants:
     - name: format-failure-configs-test
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
-    - name: catch2-unittest-test
+    - name: catch2-test
     - name: s3-tiered-storage-extensions-test
     # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
     # - name: azure-gcp-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
-    - name: catch2-unittest-assertions
+    - name: catch2-assertions
     - name: ".tiered_unittest"
     - name: bench-tiered-push-pull-s3
     - name: csuite-timestamp-abort-test-s3
@@ -5423,10 +5487,10 @@ buildvariants:
       distros: ubuntu2004-build
     - name: format-smoke-test
     - name: ".data-validation-stress-test"
-    - name: catch2-unittest-test
+    - name: catch2-test
     - name: s3-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
-    - name: catch2-unittest-assertions
+    - name: catch2-assertions
     - name: bench-tiered-push-pull-s3
 
 # Very minimal set without any extensions
@@ -5446,7 +5510,7 @@ buildvariants:
     - name: compile
     - name: csuite-tests-fast
     - name: fops
-    - name: catch2-unittest-test
+    - name: catch2-test
     - name: examples-c-test
 
 - name: ubuntu2004-msan
@@ -5630,13 +5694,13 @@ buildvariants:
     - name: make-check-test
     - name: ".unit_test"
     - name: fops
-    - name: catch2-unittest-test
+    - name: catch2-test
 
 - <<: *mac_test_template
-  name: macos-13-arm64
-  display_name: "macOS 13 (ARM64)"
+  name: macos-14-arm64
+  display_name: "macOS 14 (ARM64)"
   run_on:
-    - macos-13-arm64
+    - macos-14-arm64
   batchtime: 120 # 2 hours
   expansions:
     python_binary: '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11'
@@ -5662,7 +5726,7 @@ buildvariants:
 - name: big-endian
   display_name: "~ Big-endian (s390x/zSeries)"
   run_on:
-  - rhel80-zseries-build
+  - rhel8-zseries-small
   batchtime: 4320 # 3 days
   expansions:
     ENABLE_TCMALLOC: 0
@@ -5677,7 +5741,7 @@ buildvariants:
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
   run_on:
-  - rhel81-power8-small
+  - rhel8-power-small
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
@@ -5699,7 +5763,7 @@ buildvariants:
 - name: rhel8-zseries
   display_name: "~ RHEL8 zSeries"
   run_on:
-  - rhel80-zseries-test
+  - rhel8-zseries-small
   batchtime: 120 # 2 hours
   expansions:
     ENABLE_TCMALLOC: 0

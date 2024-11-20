@@ -1181,21 +1181,19 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
-
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing WiredTiger library.");
     __wt_timer_start(session, &timer);
 
-    /*
-     * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
-     * of cache.
-     */
-    __wt_set_shared_double(&conn->evict->eviction_dirty_trigger, 1.0);
-    __wt_set_shared_double(&conn->evict->eviction_dirty_target, 0.1);
+    __wt_evict_favor_clearing_dirty_cache(session);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
       F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE, NULL));
     F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY_PROGRESS, "%s", "rolling back all running transactions.");
 
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
@@ -1205,6 +1203,7 @@ err:
     WT_TRET(__wt_session_array_walk(
       conn->default_session, __conn_rollback_transaction_callback, true, NULL));
 
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing all running sessions.");
     /* Close open, external sessions. */
     WT_TRET(
       __wt_session_array_walk(conn->default_session, __conn_close_session_callback, true, NULL));
@@ -1221,6 +1220,8 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
     /* Shut down pre-fetching - it should not operate while closing the connection. */
     WT_TRET(__wti_prefetch_destroy(session));
 
@@ -1283,7 +1284,7 @@ err:
 
     /* Time since the shutdown has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.shutdown_ms);
-    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
       "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
       conn->shutdown_timeline.shutdown_ms, conn->shutdown_timeline.rts_ms,
@@ -2804,7 +2805,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
     if (exist)
         WT_RET(__wt_turtle_validate_version(session));
 
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+    if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED))
         WT_RET(__wt_log_compat_verify(session));
 
     return (0);
@@ -3100,7 +3101,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * If the log extend length is not set use the default of the configured maximum log file size.
      * That size is not known until it is initialized as part of the log server initialization.
      */
-    conn->log_extend_len = WT_CONFIG_UNSET;
+    conn->log_mgr.extend_len = WT_CONFIG_UNSET;
     for (ft = file_types; ft->name != NULL; ft++) {
         ret = __wt_config_subgets(session, &cval, ft->name, &sval);
         if (ret == 0) {
@@ -3114,10 +3115,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
                  * length in that case to use the default.
                  */
                 if (sval.val == 1)
-                    conn->log_extend_len = WT_CONFIG_UNSET;
+                    conn->log_mgr.extend_len = WT_CONFIG_UNSET;
                 else if (sval.val == 0 ||
                   (sval.val >= WT_LOG_FILE_MIN && sval.val <= WT_LOG_FILE_MAX))
-                    conn->log_extend_len = sval.val;
+                    conn->log_mgr.extend_len = sval.val;
                 else
                     WT_ERR_MSG(session, EINVAL, "invalid log extend length: %" PRId64, sval.val);
                 break;
@@ -3362,10 +3363,10 @@ err:
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
          * that we don't try to checkpoint data handles. We need an explicit flag instead of
-         * checking that WT_CONN_LOG_RECOVER_DONE is not set because other errors earlier than
-         * recovery will not have that flag set.
+         * checking that WT_LOG_RECOVER_DONE is not set because other errors earlier than recovery
+         * will not have that flag set.
          */
-        if (ret == WT_RUN_RECOVERY || FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_FAILED))
+        if (ret == WT_RUN_RECOVERY || F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_FAILED))
             F_SET(conn, WT_CONN_PANIC);
         /*
          * If we detected a data corruption issue, we really want to indicate the corruption instead
