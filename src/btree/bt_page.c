@@ -457,7 +457,8 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
             page->pg_intl_parent_ref = ref;
             break;
         }
-        ref->page = page;
+        // ref->page = page;
+        WT_LRU_REF_PAGE_SET(ref, page, lru_all);
     }
 
     *pagep = page;

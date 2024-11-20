@@ -47,6 +47,9 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
         !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
+    // TODO: do it in __wt_ref_out and/or in __wt_free_ref ?
+    WT_CACHE_LRU_REMOVE_FROM_ALL(ref);
+
     __wt_page_out(session, &ref->page);
 }
 
@@ -327,7 +330,12 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
      * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
      * page or a leaf page, to catch any we've missed.
      */
+    WT_LRU_TRACEF("__wt_free_ref", "ref=%p", (void*)ref);
     WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL) || F_ISSET(ref, WT_REF_FLAG_LEAF));
+
+    // TODO: do it in __wt_ref_out and/or in __wt_free_ref ?
+    WT_CACHE_LRU_REMOVE_FROM_ALL(ref);
+    CLEAR_GUARD(ref, lru_all);
 
     /*
      * Optionally free the referenced pages. (The path to free referenced page is used for error

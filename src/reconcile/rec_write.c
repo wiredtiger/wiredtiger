@@ -542,7 +542,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
     /*
      * Fake up a reference structure, and write the next root page.
      */
-    __wt_root_ref_init(session, &fake_ref, next, page->type == WT_PAGE_COL_INT);
+    __wt_root_ref_init(session, NULL, &fake_ref, next, page->type == WT_PAGE_COL_INT);
     return (__wt_reconcile(session, &fake_ref, NULL, flags));
 
 err:

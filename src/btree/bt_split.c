@@ -203,6 +203,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
     size_t size;
     void *key;
 
+    WT_LRU_TRACEF("__split_ref_move", "from=%p to=%p", (void*)*from_refp, (void*)(*to_refp));
     ref = *from_refp;
     addr = NULL;
 
@@ -460,7 +461,8 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          */
         ref = *alloc_refp++;
         ref->home = root;
-        ref->page = child;
+        // ref->page = child;
+        WT_LRU_REF_PAGE_SET(ref, child, lru_all);
         ref->addr = NULL;
         if (root->type == WT_PAGE_ROW_INT) {
             __wt_ref_key(root, *root_refp, &p, &size);
@@ -985,7 +987,8 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          */
         ref = *alloc_refp++;
         ref->home = parent;
-        ref->page = child;
+        // ref->page = child;
+        WT_LRU_REF_PAGE_SET(ref, child, lru_all);
         ref->addr = NULL;
         if (page->type == WT_PAGE_ROW_INT) {
             __wt_ref_key(page, *page_refp, &p, &size);
@@ -1795,7 +1798,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ERR(__wt_calloc_one(session, &split_ref[0]));
     parent_incr += sizeof(WT_REF);
     child = split_ref[0];
-    child->page = ref->page;
+    // child->page = ref->page;
+    WT_LRU_REF_PAGE_SET(child, ref->page, lru_all);
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
@@ -1837,7 +1841,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ERR(__wt_calloc_one(session, &split_ref[1]));
     parent_incr += sizeof(WT_REF);
     child = split_ref[1];
-    child->page = right;
+    // child->page = right;
+    WT_LRU_REF_PAGE_SET(child, right, lru_all);
     F_SET(child, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     if (type == WT_PAGE_ROW_LEAF) {
@@ -2283,7 +2288,8 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
-    ref->page = new->page;
+    // ref->page = new->page;
+    WT_LRU_REF_PAGE_SET(ref, new->page, lru_all);
 
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 

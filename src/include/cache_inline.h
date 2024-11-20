@@ -44,8 +44,11 @@ __wt_cache_read_gen_incr(WT_SESSION_IMPL *session)
  *     Update the page's read generation.
  */
 static WT_INLINE void
-__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_PAGE *page;
+
+    page = ref->page;
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST)
         return;
@@ -62,6 +65,8 @@ __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * avoid some number of updates immediately after each update we have to make.
      */
     __wt_atomic_store64(&page->read_gen, __wt_cache_read_gen(session) + WT_READGEN_STEP);
+
+    WT_LRU_UPDATE(ref, lru_all);
 }
 
 /*
@@ -105,6 +110,8 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_UNUSED(session);
 
     __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_OLDEST);
+
+    // WT_LRU_UPDATE(ref, lru_evict_soon);
 }
 
 /*
@@ -311,22 +318,29 @@ __wt_eviction_dirty_target(WT_CACHE *cache)
 static WT_INLINE bool
 __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
-    WT_CACHE *cache;
-    uint64_t bytes_dirty, bytes_max;
-
-    cache = S2C(session)->cache;
-
-    /*
-     * Avoid division by zero if the cache size has not yet been set in a shared cache.
-     */
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
-    bytes_max = S2C(session)->cache_size + 1;
-
-    if (pct_fullp != NULL)
-        *pct_fullp = (100.0 * bytes_dirty) / bytes_max;
-
-    return (bytes_dirty > (uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100);
+    WT_UNUSED(session);
+    if (pct_fullp != NULL) *pct_fullp = 0;
+    return true;
 }
+// static WT_INLINE bool
+// __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+// {
+//     WT_CACHE *cache;
+//     uint64_t bytes_dirty, bytes_max;
+
+//     cache = S2C(session)->cache;
+
+//     /*
+//      * Avoid division by zero if the cache size has not yet been set in a shared cache.
+//      */
+//     bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
+//     bytes_max = S2C(session)->cache_size + 1;
+
+//     if (pct_fullp != NULL)
+//         *pct_fullp = (100.0 * bytes_dirty) / bytes_max;
+
+//     return (bytes_dirty > (uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100);
+// }
 
 /*
  * __wt_eviction_updates_needed --
@@ -336,22 +350,29 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 static WT_INLINE bool
 __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
-    WT_CACHE *cache;
-    uint64_t bytes_max, bytes_updates;
-
-    cache = S2C(session)->cache;
-
-    /*
-     * Avoid division by zero if the cache size has not yet been set in a shared cache.
-     */
-    bytes_max = S2C(session)->cache_size + 1;
-    bytes_updates = __wt_cache_bytes_updates(cache);
-
-    if (pct_fullp != NULL)
-        *pct_fullp = (100.0 * bytes_updates) / bytes_max;
-
-    return (bytes_updates > (uint64_t)(cache->eviction_updates_trigger * bytes_max) / 100);
+    WT_UNUSED(session);
+    if (pct_fullp != NULL) *pct_fullp = 0;
+    return true;
 }
+// static WT_INLINE bool
+// __wt_eviction_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+// {
+//     WT_CACHE *cache;
+//     uint64_t bytes_max, bytes_updates;
+
+//     cache = S2C(session)->cache;
+
+//     /*
+//      * Avoid division by zero if the cache size has not yet been set in a shared cache.
+//      */
+//     bytes_max = S2C(session)->cache_size + 1;
+//     bytes_updates = __wt_cache_bytes_updates(cache);
+
+//     if (pct_fullp != NULL)
+//         *pct_fullp = (100.0 * bytes_updates) / bytes_max;
+
+//     return (bytes_updates > (uint64_t)(cache->eviction_updates_trigger * bytes_max) / 100);
+// }
 
 /*
  * __wt_btree_dominating_cache --
@@ -482,6 +503,8 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
 
     if (didworkp != NULL)
         *didworkp = false;
+
+    return (0); //!!
 
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */
     if (F_ISSET(session, WT_SESSION_NO_RECONCILE))

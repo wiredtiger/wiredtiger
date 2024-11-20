@@ -229,6 +229,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
+    WT_LRU_UPDATE(ref, lru_all);
 
     WT_ASSERT(session, ret == 0);
     return (0);
@@ -473,7 +474,7 @@ skip_evict:
                 else
                     __wt_cache_read_gen_new(session, page);
             } else if (!LF_ISSET(WT_READ_NO_GEN))
-                __wt_cache_read_gen_bump(session, page);
+                __wt_cache_read_gen_bump(session, ref);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger

@@ -13,5 +13,7 @@ if(CODE_COVERAGE_MEASUREMENT)
     list(APPEND clang_flags "-Wno-unused-function")
 endif ()
 
+list(APPEND clang_flags "-Wno-unused-function")
+
 # Set our common compiler flags that can be used by the rest of our build.
 set(COMPILER_DIAGNOSTIC_C_FLAGS ${clang_flags})

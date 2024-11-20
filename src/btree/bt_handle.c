@@ -599,18 +599,21 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
  *     Initialize a tree root reference, and link in the root page.
  */
 void
-__wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bool is_recno)
+__wt_root_ref_init(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *root_ref, WT_PAGE *root, bool is_recno)
 {
     WT_UNUSED(session); /* Used in a macro for diagnostic builds */
     memset(root_ref, 0, sizeof(*root_ref));
 
     root_ref->page = root;
+    // WT_LRU_REF_PAGE_SET(root_ref, page, lru_all);  // we never want to evict root! it's on the stack
     F_SET(root_ref, WT_REF_FLAG_INTERNAL);
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 
     root_ref->ref_recno = is_recno ? 1 : WT_RECNO_OOB;
 
     root->pg_intl_parent_ref = root_ref;
+
+    root_ref->my_btree = btree;
 }
 
 /*
@@ -678,9 +681,8 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
     WT_ERR(__wt_page_inmem(session, NULL, dsk.data,
       WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page, NULL));
     dsk.mem = NULL;
-
     /* Finish initializing the root, root reference links. */
-    __wt_root_ref_init(session, &btree->root, page, btree->type != BTREE_ROW);
+    __wt_root_ref_init(session, btree, &btree->root, page, btree->type != BTREE_ROW);
 
 err:
     __wt_buf_free(session, &dsk);
@@ -762,7 +764,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
     }
 
     /* Finish initializing the root, root reference links. */
-    __wt_root_ref_init(session, &btree->root, root, btree->type != BTREE_ROW);
+    __wt_root_ref_init(session, btree, &btree->root, root, btree->type != BTREE_ROW);
 
     return (0);
 

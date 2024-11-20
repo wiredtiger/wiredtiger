@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include <stdbool.h>
 
 static int __evict_clear_all_walks(WT_SESSION_IMPL *);
 static void __evict_list_clear_page_locked(WT_SESSION_IMPL *, WT_REF *, bool);
@@ -201,6 +202,8 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CACHE *cache;
 
     WT_ASSERT(session, __wt_ref_is_root(ref) || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+
+    WT_CACHE_LRU_REMOVE_FROM_ALL(ref);
 
     /* Fast path: if the page isn't in the queue, don't bother searching. */
     if (!F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU))
@@ -703,6 +706,149 @@ __evict_update_work(WT_SESSION_IMPL *session)
     __wt_atomic_store32(&cache->flags, flags);
 
     return (F_ISSET(cache, WT_CACHE_EVICT_ALL | WT_CACHE_EVICT_URGENT));
+}
+
+static WT_REF *
+__get_root_ref(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    /* See also: __ref_ascend */
+    while (!__wt_ref_is_root(ref)) {
+        WT_ASSERT(session, ref->home != NULL);
+        WT_ASSERT(session, WT_PAGE_IS_INTERNAL(ref->home));
+        ref = ref->home->pg_intl_parent_ref;
+    }
+
+    return (ref);
+}
+
+static WT_BTREE *
+__get_ref_btree(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_REF *root_ref;
+
+    root_ref = __get_root_ref(session, ref);
+    WT_ASSERT(session, root_ref != NULL);
+    return (root_ref->my_btree);
+}
+
+static bool
+__evict_pre_push_candidate_as_lru_check(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
+{
+    WT_PAGE *page;
+    bool modified;
+
+    page = ref->page;
+    if (page == NULL) return (false);
+
+    /* Use the EVICT_LRU flag to avoid putting pages onto the list multiple times. */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) return (false);
+
+    /*
+     * Re-check the "no eviction" flag, used to enforce exclusive access when a handle is being
+     * closed.
+     */
+    if (btree->evict_disabled != 0) return (false);
+
+    modified = __wt_page_is_modified(page);
+
+    /* Don't queue dirty pages in trees during checkpoints. */
+    if (modified && WT_BTREE_SYNCING(btree)) return (false);
+
+    /*
+     * It's possible (but unlikely) to visit a page without a read generation, if we race with
+     * the read instantiating the page. Set the page's read generation here to ensure a bug
+     * doesn't somehow leave a page without a read generation.
+     */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
+        __wt_cache_read_gen_new(session, page);
+
+    /* Pages being forcibly evicted go on the urgent queue. */
+    if (modified &&
+        (__wt_atomic_load64(&page->read_gen) == WT_READGEN_OLDEST ||
+        page->memory_footprint >= btree->splitmempage)) {
+        // if (__wt_page_evict_urgent(session, ref))
+        //     urgent_queued = true;
+        return (true);
+    }
+
+    /*
+     * If history store dirty content is dominating the cache, we want to prioritize evicting
+     * history store pages over other btree pages. This helps in keeping cache contents below
+     * the configured cache size during checkpoints where reconciling non-HS pages can generate
+     * significant amount of HS dirty content very quickly.
+     */
+    if (WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
+        // if (__wt_page_evict_urgent(session, ref))
+        //     urgent_queued = true;
+        // return (true);
+    }
+
+    /* Pages that are empty or from dead trees are fast-tracked. */
+    if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD)) return (true);
+
+    /*
+     * Do not evict a clean metadata page that contains historical data needed to satisfy a
+     * reader. Since there is no history store for metadata, we won't be able to serve an older
+     * reader if we evict this page.
+     */
+    if (WT_IS_METADATA(session->dhandle) /* && F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) */ &&
+      F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
+      !__wt_txn_visible_all(
+        session, page->modify->rec_max_txn, page->modify->rec_max_timestamp))
+    {
+        return (false);
+    }
+
+    /*
+     * Don't attempt eviction of internal pages with children in cache (indicated by seeing an
+     * internal page that is the parent of the last page we saw).
+     *
+     * Also skip internal page unless we get aggressive, the tree is idle (indicated by the tree
+     * being skipped for walks), or we are in eviction debug mode. The goal here is that if
+     * trees become completely idle, we eventually push them out of cache completely.
+     */
+    // TODO::
+
+    if (!__wt_page_can_evict(session, ref, NULL)) return (false);
+
+    return (true);
+}
+
+static bool
+__evict_push_candidate_as_lru(
+  WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_EVICT_ENTRY *evict, WT_REF *ref, bool check)
+{
+    WT_BTREE *btree;
+    uint16_t new_flags, orig_flags;
+    u_int slot;
+
+    btree = __get_ref_btree(session, ref);
+    if (check && !__evict_pre_push_candidate_as_lru_check(session, btree, ref))
+        return (false);
+
+    /*
+     * Threads can race to queue a page (e.g., an ordinary LRU walk can race with a page being
+     * queued for urgent eviction).
+     */
+    orig_flags = new_flags = ref->page->flags_atomic;
+    FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
+    if (orig_flags == new_flags ||
+      !__wt_atomic_cas16(&ref->page->flags_atomic, orig_flags, new_flags))
+        return (false);
+
+    /* Keep track of the maximum slot we are using. */
+    slot = (u_int)(evict - queue->evict_queue);
+    if (slot >= queue->evict_max)
+        queue->evict_max = slot + 1;
+
+    if (evict->ref != NULL)
+        __evict_list_clear(session, evict);
+
+    evict->btree = btree;
+    evict->ref = ref;
+    evict->score = 0;
+
+    return (true);
 }
 
 /*
@@ -1872,6 +2018,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
     end = start + target_pages;
 
+    // TODO: lock ? __wt_spin_lock(session, &queue->evict_lock);
+    if (slotp != NULL) {
+        for (evict = start; evict < end; ++evict) {
+            WT_LRU_POP(ref, lru_all);
+            if (ref == NULL)
+                break;
+            if (!__evict_push_candidate_as_lru(session, queue, evict, ref, true))
+                --evict;
+        }
+        *slotp += (u_int)(evict - start);
+        return 0;
+    }
+
     /*
      * Examine at least a reasonable number of pages before deciding whether to give up. When we are
      * only looking for dirty pages, search the tree for longer.
@@ -2439,7 +2598,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
      * that point, eviction has already unlocked the page and some other thread may have evicted it
      * by the time we look at it.
      */
-    __wt_cache_read_gen_bump(session, ref->page);
+    __wt_cache_read_gen_bump(session, ref);
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
 

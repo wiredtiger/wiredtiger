@@ -1239,6 +1239,21 @@ struct __wt_ref {
      */
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
+
+#define WT_LRU_ENTRY(name) \
+    uint64_t name##__guard1; \
+    TAILQ_ENTRY(__wt_ref) name; \
+    uint64_t name##__guard2; \
+    uint64_t name##_t; \
+    uint64_t name##__guard3
+
+    WT_LRU_ENTRY(lru_all);
+    // WT_LRU_ENTRY(lru_dirty);
+    // WT_LRU_ENTRY(lru_updated);
+    // WT_LRU_ENTRY(lru_forced_eviction);
+    // WT_LRU_ENTRY(lru_evict_soon);
+    WT_BTREE *my_btree;
+
 #ifdef HAVE_REF_TRACK
 #define WT_REF_SAVE_STATE_MAX 3
     /* Capture history of ref state changes. */
@@ -1257,9 +1272,12 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+// #define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE sizeof(WT_REF)
 #else
-#define WT_REF_SIZE 48
+// #define WT_REF_SIZE 48
+// #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
+#define WT_REF_SIZE (sizeof(WT_REF))
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 
