@@ -642,20 +642,6 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
 
-    // FIXME - To remove
-    {
-        // DEBUG CODE - The second time we've closed WiredTiger.wt in union_fs.cpp there 
-        // will be multiple writes to it. Open it again to confirm we've recovered all 
-        // the extents properly
-        static int numm = 0;
-        if(strcmp(file_handle->name, "./WiredTiger.wt") == 0) {
-            if(++numm == 2) {
-                __union_fs_open_file(fh->iface.file_system, wt_session, file_handle->name, 
-                    fh->file_type, 0, (WT_FILE_HANDLE **)&fh);
-            }
-        }
-    }
-
     fh->destination.fh->close(fh->destination.fh, wt_session);
     __union_fs_free_extent_list(session, &fh->destination);
     //TODO: Reconcile the file?
