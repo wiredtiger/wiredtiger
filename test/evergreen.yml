@@ -280,6 +280,7 @@ functions:
           $SYSPY -mvenv venv
           source venv/bin/activate
           pip3 install find_libpython
+          pip3 install swig==4.2.1
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
@@ -371,6 +372,9 @@ functions:
         else
           # Compiling with CMake generated Ninja file.
           cd cmake_build
+          if [[ "${build_variant|}" =~ "macos-14-arm64" ]]; then
+            source ../venv/bin/activate
+          fi
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
             ninja -j ${num_jobs} 2>&1
           else
