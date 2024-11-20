@@ -146,10 +146,12 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     /* Get the checkpoint ID. */
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
+    /* Allocate a buffer for metadata keys (plus extra space to fit the longer keys below). */
+    len = strlen("file:") + strlen(block_disagg->name) + 16;
+    WT_ERR(__wt_calloc_def(session, len, &md_key));
+
     /* Get a metadata cursor pointing to this table */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    len = strlen("file:") + strlen(block_disagg->name) + 16; /* TODO less hacky way to get URI */
-    WT_ERR(__wt_calloc_def(session, len, &md_key));
     WT_ERR(__wt_snprintf(md_key, len, "file:%s", block_disagg->name));
     md_cursor->set_key(md_cursor, md_key);
     WT_ERR(md_cursor->search(md_cursor));
@@ -186,9 +188,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
             md_cursor->set_key(md_cursor, md_key);
             WT_ERR(md_cursor->search(md_cursor));
             WT_ERR_NOTFOUND_OK(md_cursor->get_value(md_cursor, &md_value), true);
-            if (ret != 0)
-                ret = 0;
-            else {
+            if (ret == 0) {
                 WT_SAVE_DHANDLE(session,
                   ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
                 WT_ERR(ret);
@@ -199,13 +199,13 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
             md_cursor->set_key(md_cursor, md_key);
             WT_ERR(md_cursor->search(md_cursor));
             WT_ERR_NOTFOUND_OK(md_cursor->get_value(md_cursor, &md_value), true);
-            if (ret != 0)
-                ret = 0;
-            else {
+            if (ret == 0) {
                 WT_SAVE_DHANDLE(session,
                   ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
                 WT_ERR(ret);
             }
+
+            ret = 0; /* In case this is still set to WT_NOTFOUND from the previous step. */
         }
     }
 
