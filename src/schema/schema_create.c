@@ -1469,7 +1469,7 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
         if (import_list->entries[i].file_id != prev_file_id) {
             prev_file_id = import_list->entries[i].file_id;
             new_file_id = WT_BTREE_ID_NAMESPACED(++conn->next_file_id);
-            if (FLD_ISSET(prev_file_id, WT_BTREE_ID_NAMESPACE_SHARED))
+            if (WT_BTREE_ID_SHARED(prev_file_id))
                 WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
         }
 
