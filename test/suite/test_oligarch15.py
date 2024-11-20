@@ -110,7 +110,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Become the leader (skip a few extra checkpoint IDs just in case)
         self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
 
-        # Check tables in the follower
+        # Check tables after the restart
         for uri in self.oligarch_uris + self.other_uris:
             # FIXME-SLS-555 Drop isolation="read-uncommitted" when it is no longer needed
             if not uri.startswith('oligarch'):
