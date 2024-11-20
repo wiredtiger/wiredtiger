@@ -437,3 +437,19 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 0, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+
+    def test_skip_invisible_updates(self):
+        self.create()
+
+        session2 = self.conn.open_session()
+        cursor = session2.open_cursor(self.uri, None)
+        # Add a value to the update chain
+        session2.begin_transaction()
+        cursor[1] = 0
+
+        # Open a version cursor
+        self.session.begin_transaction()
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,visible_only=true))")
+        version_cursor.set_key(1)
+        self.assertEquals(version_cursor.search(), 0)
+        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
