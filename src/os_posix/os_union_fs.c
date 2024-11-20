@@ -895,9 +895,7 @@ __union_fs_file_read(
     WT_UNION_FS_FH *union_fh;
     RW_SERVICE_LEVEL sl;
     char *read_data;
-    bool exist;
 
-    exist = false;
     union_fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
     sl = NONE;
@@ -913,14 +911,9 @@ __union_fs_file_read(
      * been written in this case we forward the read to the empty metadata file in the
      * destinaion. Is this correct?
      */
-    WT_ERR(__dest_has_tombstone(union_fh, session, file_handle->name, &exist));
-    if (exist) {
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FOUND TOMBSTONE %s (src is NULL? %s)", file_handle->name, union_fh->source == NULL ? "YES" : "NO");
-        if (union_fh->source != NULL) {
-            __wt_verbose_debug2(session, WT_VERB_FILEOPS, " WE gon die!%s", "");
-        }
-    }
-    if (exist || union_fh->source == NULL || sl == FULL) {
+    if (union_fh->destination.complete || union_fh->source == NULL || sl == FULL) {
+        // TODO: Right now if complete is true source will always be null. So the if statement here
+        // has redundancy is there a time when we need it? Maybe with the background thread.
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)", union_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
@@ -955,19 +948,16 @@ __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off
 {
     WT_UNION_FS_FH *fh;
     wt_off_t destination_size, source_size;
-    bool exist;
 
     fh = (WT_UNION_FS_FH *)file_handle;
 
     WT_RET(fh->destination.fh->fh_size(fh->destination.fh, wt_session, &destination_size));
     if (fh->source != NULL)
         WT_RET(fh->source->fh_size(fh->source, wt_session, &source_size));
-    // TODO: This needs fixing somehow. THIS DEFINITELY NEEDS FIXING.
-    // If there is a tombstone then we technically cannot use the source size.
-    WT_RET(__dest_has_tombstone(fh, (WT_SESSION_IMPL*)wt_session, file_handle->name, &exist));
+    // TODO: This was fixed to handle completeness but I imagine file truncation and other things will cause similar problems.
 
     // Aww yeah nested ternary.
-    *sizep = exist ? destination_size : destination_size > source_size ? destination_size : source_size;
+    *sizep = fh->destination.complete ? destination_size : destination_size > source_size ? destination_size : source_size;
     return (0);
 }
 
@@ -1134,15 +1124,27 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->destination, session, name, &exist), true);
     WT_ERR(__union_fs_open_in_destination(u, session, fh, flags, !exist));
 
-    // TODO: If there's a tombstone here we don't need to open it in source. This also means we 
-    // can skip the tombstone check on read, and set complete.
-
-    /* If it exists in the source, open it. */
-    WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->source, session, name, &exist), true);
-    if (exist)
-        WT_ERR(__union_fs_open_in_source(u, session, fh, flags));
+    WT_ERR(__dest_has_tombstone(fh, session, name, &have_tombstone));
+    if (have_tombstone)
+        /*
+         * Set the complete flag, we know that if there is a tombstone we should never look in the
+         * source. Therefore the destination must be complete.
+         */
+        fh->destination.complete = true;
+    else {
+        /*
+         * If it exists in the source, open it. If it doesn't exist in the source then by defintion
+         * the destination file is complete.
+         */
+        WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->source, session, name, &exist), true);
+        if (exist)
+            WT_ERR(__union_fs_open_in_source(u, session, fh, flags));
+        else
+            fh->destination.complete = true;
+    }
 
     /* If there is a tombstone, delete it. */
+    // TODO: do we need this? I don't think so.
     // if (have_tombstone && __union_fs_is_top(u, layer_index))
     // WT_ERR(__union_fs_remove_tombstone(fs, session, fh->layers[0]->fh->name, flags));
     // XXX Initialize the top layer file if it's actually new
