@@ -41,9 +41,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     oligarch_uris = ["oligarch:test_oligarch15a", "oligarch:test_oligarch15b"]
-    # FIXME-SLS-555 Add the "table:" URI to the list once it is supported
-    # other_uris = ["file:test_oligarch15c", "table:test_oligarch15d"]
-    other_uris = ["file:test_oligarch15c"]
+    other_uris = ["file:test_oligarch15c", "table:test_oligarch15d"]
 
     disagg_storages = gen_disagg_storages('test_oligarch15', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -112,12 +110,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Check tables after the restart
         for uri in self.oligarch_uris + self.other_uris:
-            # FIXME-SLS-555 Drop isolation="read-uncommitted" when it is no longer needed
-            if not uri.startswith('oligarch'):
-                self.session.begin_transaction('isolation="read-uncommitted"')
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
-            if not uri.startswith('oligarch'):
-                self.session.rollback_transaction()
