@@ -326,31 +326,6 @@ main(int argc, char *argv[])
     // do_inserts = false;
     // t.join();
 
-    /* Another message. */
-    logger::log_msg(LOG_INFO, "End of test. Reading everything to combine the layers as we don't have the background thread yet.");
-
-    for (auto it = db.begin(); it != db.end(); ++it) {
-        auto count = 0, print_count = 1;
-        auto walk_cursor = crud_session.open_scoped_cursor(*it);
-        logger::log_msg(LOG_INFO, "Walking " + *it);
-        while (walk_cursor->next(walk_cursor.get()) != WT_NOTFOUND) {
-            count ++;
-            if (count % 20 == 0) {
-                logger::log_msg(LOG_TRACE, std::string(print_count, '.'));
-                print_count ++;
-            }
-        }
-    }
-    // Fix bad scoping issue, if we don't have these brackets the cursor goes out of scope at
-    // the wrong time and we seggie.
-    {
-        auto walk_cursor = crud_session.open_scoped_cursor("file:WiredTiger.wt");
-        logger::log_msg(LOG_INFO, "Walking WiredTiger.wt");
-        while (walk_cursor->next(walk_cursor.get()) != WT_NOTFOUND) {
-
-        }
-    }
-
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();

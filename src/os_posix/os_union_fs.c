@@ -633,13 +633,13 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FS_FH_SINGLE_LAYE
 
 /*
  * __union_fs_fill_holes_on_file _close --
- *     On file close make sure we've copied across all data from source to destination. 
- *     This means there are no holes in the destination file's extent list. If we find one promote 
+ *     On file close make sure we've copied across all data from source to destination.
+ *     This means there are no holes in the destination file's extent list. If we find one promote
  *     read the content into the destination.
- *     
- *     NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions 
+ *
+ *     NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions
  *            of the destination file are already handled elsewhere.
- * 
+ *
  *     FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
  *             Maybe we only need this for our test which overwrites WT_TEST on each loop?
  */
@@ -655,10 +655,8 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
 
     while(alloc != NULL) {
         next_alloc = alloc->next;
-        
         if(next_alloc == NULL)
             break;
-        
         if(EXTENT_END(alloc) < next_alloc->off) {
             __wt_verbose_debug3((WT_SESSION_IMPL*)wt_session, WT_VERB_FILEOPS, "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, EXTENT_END(alloc), next_alloc->off);
             WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(next_alloc->off - EXTENT_END(alloc)), buf));
