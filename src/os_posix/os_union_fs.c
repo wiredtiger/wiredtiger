@@ -30,7 +30,7 @@
 #include <unistd.h>
 
 // #define WT_UNION_FS_STOP_SUFFIX ".stop"
-// #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
+#define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
 static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
 
@@ -61,26 +61,23 @@ err:
     return (ret);
 }
 
-// /*
-//  * __union_fs_marker --
-//  *     Generate a name of a marker file.
-//  */
-// static int
-// __union_fs_marker(
-//   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
-// {
-//     size_t p, suffix_len;
+/*
+ * __union_fs_marker --
+ *     Generate a name of a marker file.
+ */
+static int
+__union_fs_marker(WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
+{
+    size_t p, suffix_len;
 
-//     WT_UNUSED(fs);
+    p = strlen(name);
+    suffix_len = strlen(marker);
 
-//     p = strlen(name);
-//     suffix_len = strlen(marker);
-
-//     WT_RET(__wt_malloc(session, p + suffix_len + 1, out));
-//     memcpy(*out, name, p);
-//     memcpy(*out + p, marker, suffix_len + 1);
-//     return (0);
-// }
+    WT_RET(__wt_malloc(session, p + suffix_len + 1, out));
+    memcpy(*out, name, p);
+    memcpy(*out + p, marker, suffix_len + 1);
+    return (0);
+}
 
 // /*
 //  * __union_fs_stop --
@@ -152,18 +149,65 @@ err:
 //     return (__union_fs_create_marker(fs, session, name, WT_UNION_FS_STOP_SUFFIX, flags));
 // }
 
-// /*
-//  * __union_fs_create_tombstone --
-//  *     Create a tombstone for the given file.
-//  */
-// static int
-// __union_fs_create_tombstone(
-//   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
-// {
-//     return (__union_fs_create_marker(fs, session, name, WT_UNION_FS_TOMBSTONE_SUFFIX, flags));
-// }
+/*
+ * __union_fs_create_tombstone --
+ *     Create a tombstone for the given file.
+ */
+static int
+__union_fs_create_tombstone(
+  WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
+{
+    WT_DECL_RET;
+    WT_UNION_FS *u;
+    WT_FILE_HANDLE *fh;
+    char *path, *path_marker;
+    uint32_t open_flags;
 
-// /*
+
+    u = (WT_UNION_FS *)fs;
+    path = path_marker = NULL;
+
+    WT_ERR(__union_fs_filename(&u->destination, session, name, &path));
+    WT_ERR(__union_fs_marker(session, path, WT_UNION_FS_TOMBSTONE_SUFFIX, &path_marker));
+
+    open_flags = WT_FS_OPEN_CREATE;
+    if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
+        FLD_SET(open_flags, WT_FS_OPEN_DURABLE);
+
+    WT_ERR(u->destination.file_system->fs_open_file(
+       u->destination.file_system, &session->iface, path_marker, WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
+    WT_ERR(fh->close(fh, &session->iface));
+
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Creating tombstone: %s", path_marker);
+
+err:
+    __wt_free(session, path);
+    __wt_free(session, path_marker);
+
+    return (ret);
+}
+
+static int
+__dest_has_tombstone(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, const char *name, bool *existp) {
+    WT_DECL_RET;
+    WT_UNION_FS *u;
+    char *path, *path_marker;
+
+    u = union_fh->destination.back_pointer;
+
+    WT_ERR(__union_fs_filename(&u->destination, session, name, &path));
+    WT_ERR(__union_fs_marker(session, path, WT_UNION_FS_TOMBSTONE_SUFFIX, &path_marker));
+
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Tombstone check for %s", name);
+
+    u->destination.file_system->fs_exist(u->destination.file_system, (WT_SESSION*)session, path_marker, existp);
+
+err:
+    __wt_free(session, path);
+    __wt_free(session, path_marker);
+    return (ret);
+}
+ // /*
 //  * __union_fs_is_stop --
 //  *     Check if the given file is a stop file marker.
 //  */
@@ -564,6 +608,26 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
 
 
+static void
+__union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FS_FH_SINGLE_LAYER *destination) {
+    WT_UNION_ALLOC_LIST *alloc;
+    WT_UNION_ALLOC_LIST *temp;
+
+    temp = alloc = NULL;
+    alloc = destination->allocation_list;
+    destination->allocation_list = NULL;
+
+    while (alloc != NULL) {
+        temp = alloc;
+        alloc = alloc->next;
+
+        temp->next = NULL;
+        __wt_free(session, temp);
+    }
+
+    return;
+}
+
 /*
  * __union_fs_file_close --
  *     Close the file.
@@ -576,6 +640,7 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
 
     // FIXME - To remove
     {
@@ -592,6 +657,7 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     }
 
     fh->destination.fh->close(fh->destination.fh, wt_session);
+    __union_fs_free_extent_list(session, &fh->destination);
     //TODO: Reconcile the file?
     // TODO: Free the extent linked list.
 
@@ -789,20 +855,8 @@ __union_fs_file_write(
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %zu", fh->name, offset, len);
     // TODO - why write to file before setting the extent?
     WT_RET(union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
-
+    WT_RET(union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
     WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
-
-    // TODO: I think this is error checking?
-    // XXX
-    // WT_ERR(__wt_calloc_def(session, len, &b));
-    // WT_ERR(l->fh->fh_read(l->fh, wt_session, offset, len, b));
-    // WT_ASSERT(session, memcmp(buf, b, len) == 0);
-
-    // // XXX
-    // WT_ERR(__wt_calloc_def(session, (size_t)x + 1048576 * 10, &d));
-    // WT_ERR(union_fh->iface.fh_read(&union_fh->iface, wt_session, 0, (size_t)x, d));
-    // WT_ASSERT(session, memcmp(c, d, (size_t)x) == 0);
-
     return (0);
 }
 
@@ -810,11 +864,6 @@ __union_fs_file_write(
  * __read_promote --
  *     Write out the contents of a read into the destination. This will be overkill for cases where
  *     a read is performed to service a write. Which is most cases however this is a PoC.
- *
- *     // Why partial? We copy the whole block. P sure this text is outdated
- *     This is somewhat tricky as we need to compute what parts of the read require copying to the
- *     destination, which requires parsing the existing extent lists in the destination and finding
- *     the gaps to then be filled by N writes.
  *
  *     TODO: Locking needed.
  */
@@ -846,12 +895,12 @@ __union_fs_file_read(
     WT_UNION_FS_FH *union_fh;
     RW_SERVICE_LEVEL sl;
     char *read_data;
+    bool exist;
 
+    exist = false;
     union_fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
     sl = NONE;
-
-    // XXX We really want to read this faster than one chunk at a time... this is embarrassing.
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %zu", file_handle->name, offset, len);
 
@@ -864,7 +913,14 @@ __union_fs_file_read(
      * been written in this case we forward the read to the empty metadata file in the
      * destinaion. Is this correct?
      */
-    if (union_fh->source == NULL || sl == FULL) {
+    WT_ERR(__dest_has_tombstone(union_fh, session, file_handle->name, &exist));
+    if (exist) {
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FOUND TOMBSTONE %s (src is NULL? %s)", file_handle->name, union_fh->source == NULL ? "YES" : "NO");
+        if (union_fh->source != NULL) {
+            __wt_verbose_debug2(session, WT_VERB_FILEOPS, " WE gon die!%s", "");
+        }
+    }
+    if (exist || union_fh->source == NULL || sl == FULL) {
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)", union_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
@@ -879,6 +935,7 @@ __union_fs_file_read(
 
     if(strcmp(file_handle->name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
         printf("DBG READ\n\n");
+        WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
         for (int i = 0; i < 4096; i++) {
             printf("%c", read_data[i]);
         }
@@ -898,15 +955,19 @@ __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off
 {
     WT_UNION_FS_FH *fh;
     wt_off_t destination_size, source_size;
+    bool exist;
 
     fh = (WT_UNION_FS_FH *)file_handle;
 
     WT_RET(fh->destination.fh->fh_size(fh->destination.fh, wt_session, &destination_size));
     if (fh->source != NULL)
         WT_RET(fh->source->fh_size(fh->source, wt_session, &source_size));
-    // TODO: This needs fixing somehow.
+    // TODO: This needs fixing somehow. THIS DEFINITELY NEEDS FIXING.
+    // If there is a tombstone then we technically cannot use the source size.
+    WT_RET(__dest_has_tombstone(fh, (WT_SESSION_IMPL*)wt_session, file_handle->name, &exist));
 
-    *sizep = destination_size > source_size ? destination_size : source_size;
+    // Aww yeah nested ternary.
+    *sizep = exist ? destination_size : destination_size > source_size ? destination_size : source_size;
     return (0);
 }
 
@@ -922,40 +983,6 @@ __union_fs_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     fh = (WT_UNION_FS_FH *)file_handle;
     return (fh->destination.fh->fh_sync(fh->destination.fh, wt_session));
 }
-
-/*
- * __union_fs_file_read_chunk --
- *     Read a chunk from a file.
- */
-// __union_fs_file_read_chunk(
-//   WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, size_t chunk_index, void *buf, size_t *lenp)
-// {
-//     WT_UNION_FS *u;
-//     WT_UNION_FS_FH_SINGLE_LAYER *l;
-//     size_t read_len, read_offset;
-
-//     u = (WT_UNION_FS *)union_fh->iface.file_system;
-//     // l = &union_fh->destination;
-//     // if (!__union_fs_chunk_in_layer(l, chunk_index)) {
-//     l = &(union_fh->source);
-//     WT_ASSERT(session, __union_fs_chunk_in_layer(l, chunk_index));
-//     // }
-//     read_offset = chunk_index * u->chunk_size;
-//     read_len = u->chunk_size;
-//     if (read_offset >= l->size) {
-//         if (lenp != NULL)
-//             *lenp = read_len;
-//         return (0);
-//     }
-//     if (read_offset + read_len > l->size)
-//         read_len = l->size - read_offset;
-//     WT_ASSERT(session, read_len > 0);
-//     if (lenp != NULL)
-//         *lenp = read_len;
-//     return (l->fh->fh_read(l->fh, (WT_SESSION *)session, (wt_off_t)read_offset, read_len, buf));
-// }
-
-
 
 /*
  * __union_fs_open_in_source --
@@ -1027,120 +1054,6 @@ static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session,
     close(fd);
 }
 
-
-#include <linux/fiemap.h> // struct fiemap
-#include <linux/fs.h>     // FS_IOS_FIEMAP
-#include <sys/ioctl.h>    // ioctl()      
-
-// FIXME - a lot of hacky casting in here
-// FIXME - Add WT_ERR/WT_RET logic
-// FIXME - Use __wt_* funcs instead of malloc and strcmp
-
-/*
- * __union_build_extents_from_dest_file_ioctl --
- *     When opening a file from destination create its existing extent list from the file system information.
- *     Any holes in the extent list are data that hasn't been copied from source yet.
- */
-static void __union_build_extents_from_dest_file_ioctl(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH *union_fh) {
-    struct fiemap *fiemap_fetch_extent_num, *fiemap;
-    unsigned int num_extents;
-    int fd;
-    bool fiemap_last_flag_set;
-    
-    struct fiemap_extent *fiemap_extent_list;
-
-    fd = open(filename, O_RDONLY);
-
-    /////////////////////////////////////////////////////////////////////////////
-    // 1. Run fiemap ioctl with fm_extent_count set to zero. Instead of returning 
-    // a list of extents it'll tell us how many extents are in the file.
-    // TODO - how to confirm this doesn't change after we've read the value?
-    //        I think we're safe as no one else would be writing to the file(???)
-    /////////////////////////////////////////////////////////////////////////////
-    fiemap_fetch_extent_num = malloc(sizeof(struct fiemap));
-    memset(fiemap_fetch_extent_num, 0, sizeof(struct fiemap));
-
-    fiemap_fetch_extent_num->fm_start = 0; // Start from the beginning of the file
-    fiemap_fetch_extent_num->fm_length = (unsigned long long)union_fh->destination.size; // Get the entire file
-    fiemap_fetch_extent_num->fm_flags = 0; // TODO - flags?
-    fiemap_fetch_extent_num->fm_extent_count = 0; // Set zero. this means the call returns the number of fiemap_extent_list in the file
-
-    ioctl(fd, FS_IOC_FIEMAP, fiemap_fetch_extent_num);
-    num_extents = fiemap_fetch_extent_num->fm_mapped_extents;
-
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %llu", (unsigned long long) union_fh->destination.size);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    num_extents: %u", num_extents);
-
-    /////////////////////////////////////////////////////////////////////////////
-    // 2. Now we know the number of extents in the file call fiemap again with this number and parse the extents
-    /////////////////////////////////////////////////////////////////////////////
-
-    fiemap = malloc(sizeof(struct fiemap) + sizeof(struct fiemap_extent) * (num_extents));
-    memset(fiemap, 0, sizeof(struct fiemap));
-
-    fiemap->fm_start = 0; // Start from the beginning of the file
-    fiemap->fm_length = (unsigned long long) union_fh->destination.size; // Get the entire file
-    fiemap->fm_flags = 0; // TODO - flags?
-    fiemap->fm_extent_count = num_extents;
-
-    ioctl(fd, FS_IOC_FIEMAP, fiemap);
-
-
-    /////////////////////////////////////////////////////////////////////////////
-    // 3. Using the returned fiemap info re-build the extent lists 
-    // TODO - Using a custom extent list instead of the WT impl?
-    /////////////////////////////////////////////////////////////////////////////
-
-    // fiemap_extent_list lives in an array at the end of the fiemap
-    fiemap_extent_list = (struct fiemap_extent *)(fiemap + 1); 
-    for (unsigned int i = 0; i < num_extents; i++) {
-
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, ">       Extent %u: offset: %llu, length: %llu, flags: %u",
-               i,
-               (unsigned long long)fiemap_extent_list[i].fe_logical,
-               (unsigned long long)fiemap_extent_list[i].fe_length,
-               fiemap_extent_list[i].fe_flags);
-
-        // Special handling for the final extent
-        if (i == num_extents - 1) {
-            unsigned long long file_len_per_extents;
-            unsigned long long actual_file_len;
-
-            __wt_verbose_debug2(session, WT_VERB_FILEOPS, "DBG LAST EXTENT %d", 1);
-
-            // Make sure the "last extent" flag is set
-            fiemap_last_flag_set = (fiemap_extent_list[i].fe_flags & FIEMAP_EXTENT_LAST) != 0;
-            WT_ASSERT_ALWAYS(session, fiemap_last_flag_set == true, "Last extent but FIEMAP_EXTENT_LAST not set!");
-            
-            // TODO - ioctl fiemap tracks disk usage which is *not* the same as the file and 
-            // can extend past the end of the file.
-            // For example this is the results of stat TOP/WiredTiger.basecfg.wt
-            //       File: TOP/WiredTiger.basecfg.set
-            //       Size: 316             Blocks: 8          IO Block: 4096   regular file
-            // We only set 316 bytes but there's 32KB of backing space, and the extent map tells us we've 
-            // used a whole 4KB block.
-            // The following code truncates the final extent in the list to match the actual file size. 
-            // TODO - think about this. Feels ugly
-            file_len_per_extents = fiemap_extent_list[i].fe_logical + fiemap_extent_list[i].fe_length;
-            actual_file_len = (unsigned long long)union_fh->destination.size;
-            __wt_verbose_debug2(session, WT_VERB_FILEOPS, "extent_len = %llu, actual_len = %llu", file_len_per_extents, actual_file_len);
-
-            if(file_len_per_extents > actual_file_len) {
-                fiemap_extent_list[i].fe_length = actual_file_len - fiemap_extent_list[i].fe_logical;
-                __wt_verbose_debug2(session, WT_VERB_FILEOPS, "TRUNCING to %llu", (unsigned long long)fiemap_extent_list[i].fe_length);
-            }
-        }
-
-        __dest_update_alloc_list_write(union_fh, session,
-          (wt_off_t)fiemap_extent_list[i].fe_logical, (size_t)fiemap_extent_list[i].fe_length);
-    }
-    free(fiemap);
-    free(fiemap_fetch_extent_num);
-
-    close(fd);
-}
-
 /*
  * __union_fs_open_in_destination --
  *     Open a file handle.
@@ -1167,19 +1080,14 @@ __union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNIO
     WT_ERR(u->destination.file_system->fs_open_file(
       u->destination.file_system, (WT_SESSION *)session, path, union_fh->file_type, flags, &fh));
     union_fh_single_layer->fh = fh;
+    union_fh_single_layer->back_pointer = u;
 
     /* Get the map of the file. */
     WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
     union_fh_single_layer->size = (wt_off_t)size;
 
-    if (strcmp(union_fh->iface.name, "./WiredTiger.wt") == 0) {
-        printf("Metadata\n");
-    }
-
     __union_build_extents_from_dest_file_lseek(session, path, union_fh);
-    WT_UNUSED(__union_build_extents_from_dest_file_ioctl);
-
 err:
     __wt_free(session, path);
     return (ret);
@@ -1226,6 +1134,9 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->destination, session, name, &exist), true);
     WT_ERR(__union_fs_open_in_destination(u, session, fh, flags, !exist));
 
+    // TODO: If there's a tombstone here we don't need to open it in source. This also means we 
+    // can skip the tombstone check on read, and set complete.
+
     /* If it exists in the source, open it. */
     WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->source, session, name, &exist), true);
     if (exist)
@@ -1271,7 +1182,6 @@ static int
 __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, uint32_t flags)
 {
     WT_DECL_RET;
-    WT_FILE_SYSTEM *layer_fs;
     WT_SESSION_IMPL *session;
     WT_UNION_FS *u;
     char *path;
@@ -1280,10 +1190,8 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
 
     session = (WT_SESSION_IMPL *)wt_session;
     u = (WT_UNION_FS *)fs;
-    WT_UNUSED(u);
-    WT_UNUSED(layer_fs);
-    WT_UNUSED(flags);
 
+    WT_UNUSED(layer);
     exist = false;
     path = NULL;
 
@@ -1291,15 +1199,13 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
     if (ret == WT_NOTFOUND || !exist)
         return (0);
 
-    // This needs more thought.
-    // /* If the file exists at the top layer, delete it. */
-    // if (__union_fs_is_top(u, layer_index)) {
-    //     layer_fs = u->layers[layer_index]->file_system;
-    //     WT_ERR(__union_fs_filename(u->layers[layer_index], session, name, &path));
-    //     WT_ERR(layer_fs->fs_remove(layer_fs, wt_session, path, flags));
-    // } else
-    //     /* Otherwise create a tombstone in the top layer. */
-    //     WT_RET(__union_fs_create_tombstone(fs, session, name, flags));
+    WT_ERR(__union_fs_filename(&u->destination, session, name, &path));
+    u->destination.file_system->fs_remove(u->destination.file_system, wt_session, path, flags);
+
+    // We need file tombstones here but can we be sure this is correct?
+    __union_fs_create_tombstone(fs, session, name, flags);
+    // We don't have a file handle here so WT must have previously closed it.
+err:
 
     __wt_free(session, path);
     return (0);
@@ -1339,12 +1245,15 @@ __union_fs_rename(
     path_from = NULL;
     path_to = NULL;
 
-    // XXX The logic below isn't atomic.
-    // TODO: Do we need this? Yes lol....
+    /*
+     * WiredTiger frequently renames the turtle file, and some other files. This function is more
+     * critical than it may seem at first.
+     */
 
     /* Reconcile the differences between layers. */
     WT_ERR(__union_fs_reconcile_by_name(u, session, from));
 
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Renaming file from: %s to %s\n", from, to);
     WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, from, &which, &exist));
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
@@ -1358,18 +1267,8 @@ __union_fs_rename(
         __wt_free(session, path_from);
         __wt_free(session, path_to);
 
-        // /* Create a stop file for the target. */
-        // WT_ERR(__union_fs_create_stop(fs, session, to, flags));
-
-        // /* Create a tombstone for the source. */
-        // WT_ERR(__union_fs_create_tombstone(fs, session, from, flags));
-
-        /* See if there is a file in a lower level. */
-        // TODO: This?
-        // WT_ERR_NOTFOUND_OK(
-        //     __union_fs_find_layer(fs, session, from, layer_index, &layer_index, &exist), true);
-        // if (ret == WT_NOTFOUND || !exist)
-        //     WT_ERR(ENOENT);
+        /* Create a tombstone for the file. */
+        WT_ERR(__union_fs_create_tombstone(fs, session, to, flags));
     }
 
 err:

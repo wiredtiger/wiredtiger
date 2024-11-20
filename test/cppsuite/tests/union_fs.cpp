@@ -278,7 +278,7 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",cache_size=500MB,verbose=[fileops:3,block:3,block_cache:3]";
+    const std::string conn_config = CONNECTION_CREATE + ",cache_size=5GB,verbose=[fileops:3,block:3,block_cache:3,read:2]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
@@ -341,6 +341,16 @@ main(int argc, char *argv[])
             }
         }
     }
+    // Fix bad scoping issue, if we don't have these brackets the cursor goes out of scope at
+    // the wrong time and we seggie.
+    {
+        auto walk_cursor = crud_session.open_scoped_cursor("file:WiredTiger.wt");
+        logger::log_msg(LOG_INFO, "Walking WiredTiger.wt");
+        while (walk_cursor->next(walk_cursor.get()) != WT_NOTFOUND) {
+
+        }
+    }
+
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();
