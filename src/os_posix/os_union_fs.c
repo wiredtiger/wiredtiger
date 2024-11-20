@@ -33,6 +33,9 @@
 #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
 static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
+static int __union_fs_file_read(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
+
+#define EXTENT_END(ext) ((ext)->off + (wt_off_t)(ext)->len)
 
 /*
  * __union_fs_filename --
@@ -629,6 +632,57 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FS_FH_SINGLE_LAYE
 }
 
 /*
+ * __union_fs_fill_holes_on_file _close --
+ *     On file close make sure we've copied across all data from source to destination. 
+ *     This means there are no holes in the destination file's extent list. If we find one promote 
+ *     read the content into the destination.
+ *     
+ *     NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions 
+ *            of the destination file are already handled elsewhere.
+ * 
+ *     FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
+ *             Maybe we only need this for our test which overwrites WT_TEST on each loop?
+ */
+static int
+__union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+    WT_UNION_FS_FH *fh;
+    WT_UNION_ALLOC_LIST *alloc, *next_alloc;
+    char buf[4096000]; // FIXME - 4MB buffer as a placeholder
+
+    fh = (WT_UNION_FS_FH *)file_handle;
+    alloc = fh->destination.allocation_list;
+
+    while(alloc != NULL) {
+        next_alloc = alloc->next;
+        
+        if(next_alloc == NULL)
+            break;
+        
+        if(EXTENT_END(alloc) < next_alloc->off) {
+            __wt_verbose_debug3((WT_SESSION_IMPL*)wt_session, WT_VERB_FILEOPS, "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, EXTENT_END(alloc), next_alloc->off);
+            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(next_alloc->off - EXTENT_END(alloc)), buf));
+
+            // We've modified the extent list while walking it. Start again to be safe.
+            alloc = fh->destination.allocation_list;
+            continue;
+        }
+
+        alloc = alloc->next;
+    }
+
+    // Finally check if there's a hole at the end of the file.
+    if(alloc != NULL) {
+        if(fh->destination.size > EXTENT_END(alloc)) {
+            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(fh->destination.size - EXTENT_END(alloc)), buf));
+            // No need to restart the extent validation. This is the final extent.
+        }
+    }
+
+    return (0);
+}
+
+/*
  * __union_fs_file_close --
  *     Close the file.
  */
@@ -641,6 +695,8 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     fh = (WT_UNION_FS_FH *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
+
+    __union_fs_fill_holes_on_file_close(file_handle, wt_session);
 
     fh->destination.fh->close(fh->destination.fh, wt_session);
     __union_fs_free_extent_list(session, &fh->destination);
@@ -678,7 +734,6 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
  */
 typedef enum { NONE, FULL} RW_SERVICE_LEVEL;
 
-#define EXTENT_END(ext) (ext)->off + (wt_off_t)(ext)->len
 
 static RW_SERVICE_LEVEL
 __dest_can_service_rw(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len) {
