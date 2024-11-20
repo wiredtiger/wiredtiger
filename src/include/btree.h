@@ -138,6 +138,7 @@ struct __wt_btree {
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
     u_int split_deepen_per_child; /* Entries per child when deepened */
     int split_pct;                /* Split page percent */
+    u_int delta_pct;              /* Delta page percent (of full page size) */
 
     WT_COMPRESSOR *compressor;    /* Page compressor */
                                   /*

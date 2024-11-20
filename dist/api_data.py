@@ -340,6 +340,14 @@ file_config = format_meta + file_runtime_config + tiered_config + file_disaggreg
         \c unencrypted setting only checksums blocks that are not encrypted. See @ref
         tune_checksum for more information.''',
         choices=['on', 'off', 'uncompressed', 'unencrypted']),
+    Config('delta_pct', '20', r'''
+        the size threshold (as a percentage) at which a delta will cease to be emitted when
+        reconciling a page. For example, if this is set to 20, the size of a delta is 19 bytes,
+        and the size of the full page image is 100 bytes, reconciliation can emit a delta for the
+        page (if various other preconditions are met). Conversely, if the delta came to 21 bytes,
+        reconciliation would not emit a delta. Deltas larger than full pages are permitted for
+        measurement and testing reasons, and may be disallowed in future.''',
+        min='1', max='1000'),
     Config('dictionary', '0', r'''
         the maximum number of unique values remembered in the row-store/variable-length column-store
         leaf page value dictionary; see @ref file_formats_compression for more information''',

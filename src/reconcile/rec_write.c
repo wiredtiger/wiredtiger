@@ -2430,7 +2430,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
       block_meta->delta_count < WT_DELTA_LIMIT) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
-        if (build_delta && r->delta.size > chunk->image.size / 5)
+        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
             build_delta = false;
     }
 

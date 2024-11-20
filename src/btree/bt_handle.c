@@ -1173,6 +1173,13 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         btree->split_deepen_per_child = (u_int)cval.val;
 
     /*
+     * Get the percentage of a page size that a delta must be less than in order to write that delta
+     * (instead of just giving up and writing the full page).
+     */
+    WT_RET(__wt_config_gets(session, cfg, "delta_pct", &cval));
+    btree->delta_pct = (u_int)cval.val;
+
+    /*
      * Get the maximum internal/leaf page key/value sizes.
      *
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow

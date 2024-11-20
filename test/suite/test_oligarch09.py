@@ -60,7 +60,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 1000
 
     def session_create_config(self):
-        cfg = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'delta_pct=200,key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg,oligarch_log=(enabled=false)'
         return cfg
