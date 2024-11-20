@@ -256,6 +256,24 @@ __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_shared --
+ *     Given a tree's URI and config, determine whether it's shared.
+ */
+static WT_INLINE int
+__wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg, bool *shared)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_ASSERT(session, shared != NULL);
+    *shared = false;
+
+    WT_RET(__wt_config_gets(session, bt_cfg, "block_manager", &cval));
+    *shared = (WT_SUFFIX_MATCH(uri, ".wt_stable") || WT_CONFIG_LIT_MATCH("disagg", cval));
+
+    return (0);
+}
+
+/*
  * __wt_cache_page_inmem_incr --
  *     Increment a page's memory footprint in the cache.
  */

@@ -198,8 +198,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
       *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL},
       *filestripped;
     char *fileconf, *filemeta;
-    uint32_t allocsize;
-    bool against_stable, exists, import, import_repair, is_metadata;
+    uint32_t allocsize, fileid;
+    bool against_stable, exists, import, import_repair, is_metadata, is_shared;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
@@ -211,6 +211,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
+
+    WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
 
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
@@ -315,11 +317,13 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
      */
     if (!is_metadata) {
         if (!import_repair) {
+            fileid = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id);
+            if (is_shared)
+                FLD_SET(fileid, WT_BTREE_ID_NAMESPACE_SHARED);
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
               "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-              ++S2C(session)->next_file_id, WT_BTREE_VERSION_MAX.major,
-              WT_BTREE_VERSION_MAX.minor));
+              fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
@@ -1277,7 +1281,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     char *meta_value;
     const char *cfg[5] = {WT_CONFIG_BASE(session, tiered_meta), NULL, NULL, NULL, NULL};
     const char *metadata;
-    bool free_metadata;
+    bool free_metadata, shared;
 
     conn = S2C(session);
     metadata = NULL;
@@ -1291,6 +1295,13 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
         goto err;
     }
     WT_RET_NOTFOUND_OK(ret);
+
+    /*
+     * Make sure we're not trying to share a tiered table.
+     */
+    WT_RET(__wt_btree_shared(session, uri, cfg, &shared));
+    if (shared)
+        WT_RET_MSG(session, EINVAL, "sharing tiered tables is unsupported");
 
     /*
      * We're creating a tiered table. Set the initial tiers list to empty. Opening the table will
@@ -1309,8 +1320,9 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
             WT_ERR(__wt_buf_fmt(session, tmp,
               ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
               ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
-              conn->bstorage->bucket, conn->bstorage->bucket_prefix, ++conn->next_file_id,
-              WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+              conn->bstorage->bucket, conn->bstorage->bucket_prefix,
+              WT_BTREE_ID_NAMESPACED(++conn->next_file_id), WT_BTREE_VERSION_MAX.major,
+              WT_BTREE_VERSION_MAX.minor));
             cfg[1] = tmp->data;
             cfg[2] = config;
             cfg[3] = "tiers=()";
@@ -1456,7 +1468,9 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
         /* Generate a new file ID. */
         if (import_list->entries[i].file_id != prev_file_id) {
             prev_file_id = import_list->entries[i].file_id;
-            new_file_id = ++conn->next_file_id;
+            new_file_id = WT_BTREE_ID_NAMESPACED(++conn->next_file_id);
+            if (WT_BTREE_ID_SHARED(prev_file_id))
+                WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
         }
 
         /* Update config with the new file ID. */

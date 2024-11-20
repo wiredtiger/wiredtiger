@@ -746,6 +746,7 @@ __wt_schema_open_oligarch(WT_SESSION_IMPL *session)
     /* Add the ingest table file identifier into the oligarch managers list of tracked tables */
     ingest_id = ((WT_BTREE *)oligarch->ingest->handle)->id;
     stable_id = ((WT_BTREE *)oligarch->stable->handle)->id;
+    WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
 
     /* Flag the ingest btree as participating in automatic garbage collection */
     F_SET(((WT_BTREE *)oligarch->ingest->handle), WT_BTREE_GARBAGE_COLLECT);
