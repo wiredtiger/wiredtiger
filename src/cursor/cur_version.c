@@ -478,6 +478,41 @@ err:
 }
 
 /*
+ * __curversion_skip_starting_updates --
+ *     Skip aborted and invisible updates
+ */
+static WT_INLINE void
+__curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor)
+{
+    WT_UPDATE *upd;
+    uint8_t prepare_state;
+
+    session = CUR2S(version_cursor);
+
+    for (upd = version_cursor->next_upd; upd != NULL; upd = upd->next) {
+        /* Skip aborted updates. */
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (!F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY))
+            break;
+
+        /* Skip invisible updates. */
+        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_INPROGRESS)
+            continue;
+
+        if (!__txn_visible_id(session, upd->txnid))
+            continue;
+    }
+
+    version_cursor->next_upd = upd;
+
+    if (version_cursor->next_upd == NULL)
+        F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
+}
+
+/*
  * __curversion_search --
  *     WT_CURSOR->search method for version cursors.
  */
@@ -542,12 +577,7 @@ __curversion_search(WT_CURSOR *cursor)
         WT_ERR(__wt_illegal_value(session, page->type));
     }
 
-    /* Walk to the first non aborted update. This update cannot be obsolete if exists. */
-    while (version_cursor->next_upd != NULL && version_cursor->next_upd->txnid == WT_TXN_ABORTED)
-        version_cursor->next_upd = version_cursor->next_upd->next;
-
-    if (version_cursor->next_upd == NULL)
-        F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
+    __curversion_skip_starting_updates(session, version_cursor);
 
     /* Point to the newest version. */
     WT_ERR(__curversion_next_int(cursor));
@@ -625,6 +655,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       __wt_cursor_checkpoint_id,                       /* checkpoint ID */
       __curversion_close);                             /* close */
 
+    WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
@@ -682,6 +713,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
     version_cursor->upd_durable_stop_ts = WT_TS_MAX;
     version_cursor->upd_stop_ts = WT_TS_MAX;
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets_def(session, cfg, "debug.dump_version.visible_only", 0, &cval), true);
+    if (ret == 0 && cval.val)
+        F_SET(version_cursor, WT_CURVERSION_VISIBLE_ONLY);
 
     /* Mark the cursor as version cursor for python api. */
     F_SET(cursor, WT_CURSTD_VERSION_CURSOR);

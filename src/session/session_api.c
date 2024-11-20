@@ -645,7 +645,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
              * Open a version cursor instead of a table cursor if we are using the special debug
              * configuration.
              */
-            if ((ret = __wt_config_gets_def(session, cfg, "debug.dump_version", 0, &cval)) == 0 &&
+            if ((ret = __wt_config_gets_def(
+                   session, cfg, "debug.dump_version.enabled", 0, &cval)) == 0 &&
               cval.val) {
                 if (WT_STREQ(uri, WT_HS_URI))
                     WT_RET_MSG(session, EINVAL, "cannot open version cursor on the history store");
