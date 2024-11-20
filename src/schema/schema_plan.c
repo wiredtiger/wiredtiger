@@ -189,7 +189,7 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns,
     for (i = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; i++) {
         have_it = false;
 
-        while ((ret = __find_next_col(session, table, &k, &cg, &col, &coltype)) == 0 &&
+        while ((__find_next_col(session, table, &k, &cg, &col, &coltype)) == 0 &&
           (!have_it || cg != start_cg || col != start_col)) {
             /*
              * First we move to the column. If that is in a different column group to the last
