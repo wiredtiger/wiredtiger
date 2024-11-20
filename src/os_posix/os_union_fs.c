@@ -201,9 +201,9 @@ __dest_has_tombstone(WT_UNION_FS_FH *union_fh, WT_SESSION_IMPL *session, const c
     WT_ERR(__union_fs_filename(&u->destination, session, name, &path));
     WT_ERR(__union_fs_marker(session, path, WT_UNION_FS_TOMBSTONE_SUFFIX, &path_marker));
 
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Tombstone check for %s", name);
 
     u->destination.file_system->fs_exist(u->destination.file_system, (WT_SESSION*)session, path_marker, existp);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path);
@@ -995,6 +995,7 @@ __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off
         WT_RET(fh->source->fh_size(fh->source, wt_session, &source_size));
     // TODO: This was fixed to handle completeness but I imagine file truncation and other things will cause similar problems.
 
+    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS, "File size check for %s. Destination complete (Y/N)? %s. Source NULL? %s", file_handle->name, fh->destination.complete ? "Y":"N", fh->source == NULL ? "Y" : "N");
     // Aww yeah nested ternary.
     *sizep = fh->destination.complete ? destination_size : destination_size > source_size ? destination_size : source_size;
     return (0);
