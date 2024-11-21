@@ -734,7 +734,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets_def(session, cfg, "debug.dump_version.visible_only", 0, &cval), true);
     if (ret == 0) {
-        if (cal.val)
+        if (cval.val)
             F_SET(version_cursor, WT_CURVERSION_VISIBLE_ONLY);
     } else
         ret = 0;
