@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, time, wiredtiger, wttest
+import os, os.path, shutil, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -46,6 +46,8 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_oligarch15', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
+    num_restarts = 0
+
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -61,12 +63,18 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Close the current connection
         self.close_conn()
 
-        # Remove local files
+        # Move the local files to another directory
+        self.num_restarts += 1
+        dir = f'SAVE.{self.num_restarts}'
+        os.mkdir(dir)
         for f in os.listdir():
             if os.path.isdir(f):
                 continue
             if f.startswith('WiredTiger') or f.startswith('test_'):
-                os.remove(f)
+                os.rename(f, os.path.join(dir, f))
+
+        # Also save the PALM database (to aid debugging)
+        shutil.copytree('kv_home', os.path.join(dir, 'kv_home'))
 
         # Reopen the connection
         self.open_conn()
