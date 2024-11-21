@@ -34,6 +34,7 @@
 
 static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
 static int __union_fs_file_read(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
+static int __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
 #define EXTENT_END(ext) ((ext)->off + (wt_off_t)(ext)->len)
 
@@ -319,6 +320,7 @@ err:
     return (ret);
 }
 
+// TODO - Do we need fs_find_layer? We should only ever interact with the file in the destination layer.
 /*
  * __union_fs_find_layer --
  *     Find a layer for the given file. Return the index of the layer and whether the layer contains
@@ -649,6 +651,7 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
     WT_UNION_FS_FH *fh;
     WT_UNION_ALLOC_LIST *alloc, *next_alloc;
     char buf[4096000]; // FIXME - 4MB buffer as a placeholder
+    wt_off_t file_size;
 
     fh = (WT_UNION_FS_FH *)file_handle;
     alloc = fh->destination.allocation_list;
@@ -670,9 +673,10 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
     }
 
     // Finally check if there's a hole at the end of the file.
+    __union_fs_file_size(file_handle, wt_session, &file_size);
     if(alloc != NULL) {
-        if(fh->destination.size > EXTENT_END(alloc)) {
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(fh->destination.size - EXTENT_END(alloc)), buf));
+        if(file_size > EXTENT_END(alloc)) {
+            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(file_size - EXTENT_END(alloc)), buf));
             // No need to restart the extent validation. This is the final extent.
         }
     }
@@ -774,7 +778,7 @@ static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_AL
 
     next_extent = extent->next;
     WT_ASSERT_ALWAYS(session, next_extent != NULL, "Attempting to merge with NULL!");
-    WT_ASSERT_ALWAYS(session, EXTENT_END(extent) >= next_extent->off, 
+    WT_ASSERT_ALWAYS(session, EXTENT_END(extent) >= next_extent->off,
         "Attempting to merge non-overlapping extents! extent_end = %ld, next->off = %ld", EXTENT_END(extent), next_extent->off);
 
     extent->next = next_extent->next;
@@ -986,18 +990,12 @@ static int
 __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
     WT_UNION_FS_FH *fh;
-    wt_off_t destination_size, source_size;
+    wt_off_t destination_size;
 
     fh = (WT_UNION_FS_FH *)file_handle;
 
     WT_RET(fh->destination.fh->fh_size(fh->destination.fh, wt_session, &destination_size));
-    if (fh->source != NULL)
-        WT_RET(fh->source->fh_size(fh->source, wt_session, &source_size));
-    // TODO: This was fixed to handle completeness but I imagine file truncation and other things will cause similar problems.
-
-    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS, "File size check for %s. Destination complete (Y/N)? %s. Source NULL? %s", file_handle->name, fh->destination.complete ? "Y":"N", fh->source == NULL ? "Y" : "N");
-    // Aww yeah nested ternary.
-    *sizep = fh->destination.complete ? destination_size : destination_size > source_size ? destination_size : source_size;
+    *sizep = destination_size;
     return (0);
 }
 
@@ -1053,15 +1051,16 @@ static int fd_is_valid(int fd)
  *     Any holes in the extent list are data that hasn't been copied from source yet.
  */
 static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session, char *filename, WT_UNION_FS_FH *union_fh) {
-    wt_off_t data_offset, data_end_offset;
+    wt_off_t data_offset, data_end_offset, file_size;
     int fd;
 
     WT_UNUSED(union_fh);
     fd = open(filename, O_RDONLY);
     data_offset = data_end_offset = 0;
 
+    __union_fs_file_size((WT_FILE_HANDLE*)union_fh, (WT_SESSION*)session, &file_size);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %llu", (unsigned long long) union_fh->destination.size);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
     WT_ASSERT(session, fd_is_valid(fd));
 
     // Find the next data block. data_end_offset is initialised to zero so we start from the beginning of the file.
@@ -1076,7 +1075,7 @@ static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session,
         // FIXME - unhandled ret
         __dest_update_alloc_list_write(union_fh, session, data_offset, (size_t)(data_end_offset - data_offset));
     }
-    
+
     close(fd);
 }
 
@@ -1090,7 +1089,6 @@ __union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNIO
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
     WT_UNION_FS_FH_SINGLE_LAYER *union_fh_single_layer;
-    wt_off_t size;
     char *path;
 
     path = NULL;
@@ -1110,9 +1108,6 @@ __union_fs_open_in_destination(WT_UNION_FS *u, WT_SESSION_IMPL *session, WT_UNIO
 
     /* Get the map of the file. */
     WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
-    WT_ERR(fh->fh_size(fh, (WT_SESSION *)session, &size));
-    union_fh_single_layer->size = (wt_off_t)size;
-
     __union_build_extents_from_dest_file_lseek(session, path, union_fh);
 err:
     __wt_free(session, path);
@@ -1133,12 +1128,12 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_UNION_FS *u;
     WT_UNION_FS_FH *fh;
     LAYER which;
-    bool exist, have_tombstone, readonly;
+    bool dest_exist, source_exist, have_tombstone, readonly;
 
     session = (WT_SESSION_IMPL *)wt_session;
     u = (WT_UNION_FS *)fs;
 
-    exist = false;
+    dest_exist = source_exist = false;
     fh = NULL;
     have_tombstone = false;
     WT_UNUSED(have_tombstone);
@@ -1157,8 +1152,8 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     // XXX Handle the exclusive flag and other flags
 
     /* Open it in the destination layer. */
-    WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->destination, session, name, &exist), true);
-    WT_ERR(__union_fs_open_in_destination(u, session, fh, flags, !exist));
+    WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->destination, session, name, &dest_exist), true);
+    WT_ERR(__union_fs_open_in_destination(u, session, fh, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(fh, session, name, &have_tombstone));
     if (have_tombstone)
@@ -1169,12 +1164,28 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
         fh->destination.complete = true;
     else {
         /*
-         * If it exists in the source, open it. If it doesn't exist in the source then by defintion
+         * If it exists in the source, open it. If it doesn't exist in the source then by definition
          * the destination file is complete.
          */
-        WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->source, session, name, &exist), true);
-        if (exist)
+        WT_ERR_NOTFOUND_OK(__union_fs_has_file(&u->source, session, name, &source_exist), true);
+        if (source_exist) {
             WT_ERR(__union_fs_open_in_source(u, session, fh, flags));
+
+            if(!dest_exist) {
+                // We're creating a new destination file which is backed by a source file. It currently has a
+                // length of zero, but we want its length to be the same as the source file.
+                // We do this by reading the last byte of the file. This will read promote the byte into the
+                // destination file, setting the file size.
+                wt_off_t source_size;
+                char buf[10];
+
+                fh->source->fh_size(fh->source, wt_session, &source_size);
+                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+                    "Creating destination file backed by source file. Copying size (%ld) from source file", source_size);
+
+                WT_ERR(__union_fs_file_read((WT_FILE_HANDLE *)fh, wt_session, source_size - 1, 1, buf));
+            }
+        }
         else
             fh->destination.complete = true;
     }
@@ -1336,19 +1347,13 @@ __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt
     exist = false;
     path = NULL;
 
-    // TODO: This will need to work across layers
-
     WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, name, &which, &exist));
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
 
-    if (which == DESTINATION) {
-        // TODO: Should any file ever exist in destination that doesn't exist in source? Not
-        // considering drops at this stage.
-        union_layer = &u->destination;
-    } else {
-        union_layer = &u->source;
-    }
+    // The file will always exist in the destination. This the is authorative file size.
+    WT_ASSERT(session, which == DESTINATION);
+    union_layer = &u->destination;
     WT_RET(__union_fs_filename(union_layer, session, name, &path));
     ret = union_layer->file_system->fs_size(union_layer->file_system, wt_session, path, sizep);
 

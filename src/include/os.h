@@ -209,7 +209,6 @@ struct __wt_union_alloc_list {
 struct __wt_union_fs_fh_single_layer {
     WT_FILE_HANDLE *fh;
     bool complete;
-    wt_off_t size;
 
     /* We need to get back to the file system when checking for tombstone files. */
     WT_UNION_FS *back_pointer;
