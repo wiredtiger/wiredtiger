@@ -339,6 +339,8 @@ __curversion_next_int(WT_CURSOR *cursor)
             } else {
                 if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) &&
                   cbt->upd_value->tw.prepare) {
+                    version_prepare_state = 0;
+
                     if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw))
                         goto skip_on_page;
 
@@ -348,7 +350,6 @@ __curversion_next_int(WT_CURSOR *cursor)
                     stop_txn = WT_TXN_MAX;
                     stop_ts = WT_TS_MAX;
                     durable_stop_ts = WT_TS_MAX;
-                    version_prepare_state = 0;
                 } else
                     version_prepare_state = cbt->upd_value->tw.prepare;
             }
