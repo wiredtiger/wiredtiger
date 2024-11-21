@@ -17,6 +17,8 @@ struct __wt_truncate_info {
     const char *uri;
     WT_CURSOR *start;
     WT_CURSOR *stop;
+    WT_CURSOR *orig_start;
+    WT_CURSOR *orig_stop;
     WT_ITEM *orig_start_key;
     WT_ITEM *orig_stop_key;
 

@@ -1594,6 +1594,27 @@ err:
     API_END_RET(session, ret);
 }
 
+static bool
+__check_key_outside_truncate_range(WT_CURSOR *current, WT_TRUNCATE_INFO *trunc_info)
+{
+    int start_cmp, stop_cmp;
+    if (trunc_info->orig_start == NULL && trunc_info->orig_stop == NULL)
+        return false;
+
+    if (trunc_info->orig_start != NULL) {
+        current->compare(current, trunc_info->orig_start, &start_cmp);
+        if (start_cmp < 0)
+            return (true);
+    }
+
+    if (trunc_info->orig_stop != NULL) {
+        current->compare(current, trunc_info->orig_stop, &stop_cmp);
+        if (stop_cmp > 0)
+            return (true);
+    }
+    return (false);
+}
+
 /*
  * __wt_session_range_truncate --
  *     Session handling of a range truncate.
@@ -1602,6 +1623,7 @@ int
 __wt_session_range_truncate(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop)
 {
+    WT_CURSOR *orig_start, *orig_stop;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(orig_start_key);
     WT_DECL_ITEM(orig_stop_key);
@@ -1614,6 +1636,7 @@ __wt_session_range_truncate(
 
     actual_uri = NULL;
     local_start = local_stop = log_trunc = false;
+    orig_start = orig_stop = NULL;
     orig_start_key = orig_stop_key = NULL;
 
     /* Setup the truncate information structure */
@@ -1641,6 +1664,9 @@ __wt_session_range_truncate(
     if (stop != NULL && stop->compare == NULL)
         WT_ERR(__wt_bad_object_type(session, stop->uri));
 
+    WT_ERR(__session_open_cursor((WT_SESSION *)session, actual_uri, NULL, NULL, &orig_start));
+    WT_ERR(__session_open_cursor((WT_SESSION *)session, actual_uri, NULL, NULL, &orig_stop));
+
     /*
      * Use temporary buffers to store the original start and stop keys. We track the original keys
      * for writing the truncate operation in the write-ahead log.
@@ -1649,11 +1675,13 @@ __wt_session_range_truncate(
         WT_ERR(__wt_cursor_get_raw_key(start, &start_key));
         WT_ERR(__wt_scr_alloc(session, 0, &orig_start_key));
         WT_ERR(__wt_buf_set(session, orig_start_key, start_key.data, start_key.size));
+        orig_start->set_key(orig_start, start_key.data);
     }
     if (stop != NULL) {
         WT_ERR(__wt_cursor_get_raw_key(stop, &stop_key));
         WT_ERR(__wt_scr_alloc(session, 0, &orig_stop_key));
         WT_ERR(__wt_buf_set(session, orig_stop_key, stop_key.data, stop_key.size));
+        orig_stop->set_key(orig_stop, stop_key.data);
     }
 
     /*
@@ -1688,6 +1716,8 @@ __wt_session_range_truncate(
     trunc_info->session = session;
     trunc_info->start = start;
     trunc_info->stop = stop;
+    trunc_info->orig_start = orig_start;
+    trunc_info->orig_stop = orig_stop;
     trunc_info->orig_start_key = orig_start_key;
     trunc_info->orig_stop_key = orig_stop_key;
     trunc_info->uri = actual_uri;
@@ -1709,7 +1739,7 @@ __wt_session_range_truncate(
                  * Don't return a prepare conflict if the key we land on falls outside the truncate
                  * range.
                  */
-                if (cmp < 0) {
+                if (__check_key_outside_truncate_range(start, trunc_info)) {
                     F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                     WT_ERR_NOTFOUND_OK(start->search_near(start, &cmp), true);
                     F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
@@ -1740,7 +1770,7 @@ __wt_session_range_truncate(
              * Don't return a prepare conflict if the key we land on falls outside the truncate
              * range.
              */
-            if (cmp > 0) {
+            if (__check_key_outside_truncate_range(stop, trunc_info)) {
                 F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
                 WT_ERR_NOTFOUND_OK(stop->search_near(stop, &cmp), true);
                 F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
