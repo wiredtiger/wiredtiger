@@ -1066,8 +1066,9 @@ static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session,
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %llu", (unsigned long long) union_fh->destination.size);
     WT_ASSERT(session, fd_is_valid(fd));
 
-    while ((next_offset = lseek(fd, next_offset, SEEK_HOLE)) != -1) {
-        WT_ASSERT(session, next_offset > start_offset);
+    // Walk the file finding alternate holes and data sections. When we find a data section write it into the extent list.
+    while ((next_offset = lseek(fd, start_offset, SEEK_HOLE)) != -1) {
+        WT_ASSERT(session, next_offset >= start_offset);
         __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has %shole at offset %ld", filename, another ? "another " : "", next_offset);
         __dest_update_alloc_list_write(union_fh, session, start_offset, (size_t)(next_offset - start_offset));
         // We now need to seek data to find the end of the hole
