@@ -516,7 +516,7 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
 
         /* Skip invisible updates. */
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
-        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_INPROGRESS)
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
             continue;
 
         if (!__txn_visible_id(session, upd->txnid))
