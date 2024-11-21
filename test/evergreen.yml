@@ -202,7 +202,7 @@ functions:
             . test/evergreen/find_cmake.sh
             mkdir -p cmake_build
             cd cmake_build
-            $CMAKE \
+            ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} $CMAKE \
             ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} $MACOS_PYTHON_FLAGS -G "${cmake_generator|Ninja}" ./..
           fi
         elif [ "$OS" != "Windows_NT" ]; then
@@ -4146,10 +4146,10 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
 
-- name: macos-1014
-  display_name: OS X 10.14
+- name: macos-1014-aws
+  display_name: OS X 10.14 AWS
   run_on:
-  - macos-1014
+  - macos-1014-aws
   batchtime: 120 # 2 hours
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
@@ -4178,9 +4178,10 @@ buildvariants:
 - name: macos-1014-cmake
   display_name: "* OS X 10.14 CMake"
   run_on:
-  - macos-1014
+  - macos-1014-aws
   batchtime: 120 # 2 hours
   expansions:
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
     posix_configure_flags:
       -DCMAKE_C_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
