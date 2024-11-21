@@ -150,36 +150,36 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
     do {                                                                                    \
         WT_SESSION_IMPL *__session__ = SESSION;                                             \
                                                                                             \
-        if (!wt_calltrack_thread.tid_str[0])                                                       \
+        if (!wt_calltrack_thread.tid_str[0])                                                \
             WT_UNUSED(__wt_thread_str(wt_calltrack_thread.tid_str, sizeof(wt_calltrack_thread.tid_str))); \
                                                                                             \
         uint64_t __ts_start__, __ts_end__;                                                  \
                                                                                             \
-        ++wt_calltrack_thread.nest_level;                                                          \
+        ++wt_calltrack_thread.nest_level;                                                   \
                                                                                             \
-        __wt_set_indent(wt_calltrack_thread.nest_level * 2);                                       \
+        __wt_set_indent(wt_calltrack_thread.nest_level * 2);                                \
         __wt_set_session_info(__session__);                                                 \
         __ts_start__ = __wt_clock(NULL);                                                    \
         printf("%11.6lf %3d%s%s%-27s\t\t[%s]%s: %s:%d: %s\n",                               \
           __wt_clock_to_sec_d(__ts_start__, wt_calltrack_global.tstart),                    \
-          wt_calltrack_thread.nest_level, wt_calltrack_thread._indent_buf,                                \
-          FUNCNAME, wt_calltrack_thread._args_buf,                                                 \
-          wt_calltrack_thread.tid_str,                                                             \
-          wt_calltrack_thread._session_info_buf, __FILE__, __LINE__, __PRETTY_FUNCTION__);         \
+          wt_calltrack_thread.nest_level, wt_calltrack_thread._indent_buf,                  \
+          FUNCNAME, wt_calltrack_thread._args_buf,                                          \
+          wt_calltrack_thread.tid_str,                                                      \
+          wt_calltrack_thread._session_info_buf, __FILE__, __LINE__, __PRETTY_FUNCTION__);  \
                                                                                             \
         RET_INIT CALL;                                                                      \
                                                                                             \
         __ts_end__ = __wt_clock(NULL);                                                      \
-        __wt_set_indent(wt_calltrack_thread.nest_level * 2);                                       \
+        __wt_set_indent(wt_calltrack_thread.nest_level * 2);                                \
         __wt_set_session_info(__session__);                                                 \
         printf("%11.6lf %3d%s%s " RET_FMT "  (%.6lf)\t\t[%s]%s: %s:%d: %s\n",               \
           __wt_clock_to_sec_d(__ts_end__, wt_calltrack_global.tstart),                      \
-          wt_calltrack_thread.nest_level, wt_calltrack_thread._indent_buf,                                \
+          wt_calltrack_thread.nest_level, wt_calltrack_thread._indent_buf,                  \
           FUNCNAME, RET_ARG, __wt_clock_to_sec_d(__ts_end__, __ts_start__),                 \
-          wt_calltrack_thread.tid_str,                                                             \
-          wt_calltrack_thread._session_info_buf, __FILE__, __LINE__, __PRETTY_FUNCTION__);         \
+          wt_calltrack_thread.tid_str,                                                      \
+          wt_calltrack_thread._session_info_buf, __FILE__, __LINE__, __PRETTY_FUNCTION__);  \
                                                                                             \
-        --wt_calltrack_thread.nest_level;                                                          \
+        --wt_calltrack_thread.nest_level;                                                   \
         RET_RET;                                                                            \
     } while (0)
 
@@ -191,47 +191,56 @@ __wt_set_session_info(WT_SESSION_IMPL *session)
 
 #define __WT_CALL_WRAP_IMPL_GRAPH(FUNCNAME, CALL, SESSION, RET_INIT, RET_FMT, RET_ARG, RET_RET)      \
     do {                                                                                    \
-        WT_SESSION_IMPL *__session__ = SESSION;                                             \
-                                                                                            \
-        if (!wt_calltrack_thread.pid) {                                                            \
-            wt_calltrack_thread.pid = (uintmax_t)getpid();                                         \
-            wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);        \
-            __wt_thread_id(&wt_calltrack_thread.ostid);                                         \
-            __WT_GET_LINUX_TID(wt_calltrack_thread.linux_tid);                              \
-        }                                                                                   \
-                                                                                            \
+        WT_SESSION_IMPL *__session__;                                                       \
         uint64_t __ts__;                                                                    \
                                                                                             \
-        ++wt_calltrack_thread.nest_level;                                                          \
+        bool enabled = !wt_calltrack_thread.is_service_thread &&                            \
+            __atomic_load_n(&wt_calltrack_global.enabled, __ATOMIC_RELAXED);                \
                                                                                             \
-        __wt_set_indent(wt_calltrack_thread.nest_level * 2);                                       \
-        __wt_set_session_info(__session__);                                                 \
-        __ts__ = __wt_clock(NULL);                                                          \
-        printf("{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\",%s\"name\": \"%s\", \"cat\": \"%s\", \"args\": {\"session in\": \"%s\", \"args\": \"%s\"}},\n", \
-          __wt_clock_to_usec(__ts__, wt_calltrack_global.tstart),                           \
-          wt_calltrack_thread.pid, wt_calltrack_thread.tnid,                                               \
-          wt_calltrack_thread._indent_buf,                                                         \
-          FUNCNAME,                                                                         \
-          __FILE__,                                                                         \
-          wt_calltrack_thread._session_info_buf,                                                   \
-          wt_calltrack_thread._args_buf                                                            \
-          );                                                                                \
+        if (enabled) {                                                                      \
+            __session__ = SESSION;                                                          \
+            if (!wt_calltrack_thread.pid) {                                                 \
+                wt_calltrack_thread.pid = (uintmax_t)getpid();                              \
+                wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);        \
+                __wt_thread_id(&wt_calltrack_thread.ostid);                                 \
+                __WT_GET_LINUX_TID(wt_calltrack_thread.linux_tid);                          \
+            }                                                                               \
+                                                                                            \
+                                                                                            \
+            ++wt_calltrack_thread.nest_level;                                               \
+                                                                                            \
+            __wt_set_indent(wt_calltrack_thread.nest_level * 2);                            \
+            __wt_set_session_info(__session__);                                             \
+            __ts__ = __wt_clock(NULL);                                                      \
+            printf("{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"B\",%s\"name\": \"%s\", \"cat\": \"%s\", \"args\": {\"session in\": \"%s\", \"args\": \"%s\"}},\n", \
+            __wt_clock_to_usec(__ts__, wt_calltrack_global.tstart),                         \
+            wt_calltrack_thread.pid, wt_calltrack_thread.tnid,                              \
+            wt_calltrack_thread._indent_buf,                                                \
+            FUNCNAME,                                                                       \
+            __FILE__,                                                                       \
+            wt_calltrack_thread._session_info_buf,                                          \
+            wt_calltrack_thread._args_buf                                                   \
+            );                                                                              \
+        }                                                                                   \
                                                                                             \
         RET_INIT CALL;                                                                      \
                                                                                             \
-        __ts__ = __wt_clock(NULL);                                                          \
-        __wt_set_indent(wt_calltrack_thread.nest_level * 2);                                       \
-        __wt_set_session_info(__session__);                                                 \
-        printf("{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"E\",%s\"name\": \"%s\", \"args\": {\"session out\": \"%s\", \"<ret>\": \"" RET_FMT "\"}},\n", \
-          __wt_clock_to_usec(__ts__, wt_calltrack_global.tstart),                           \
-          wt_calltrack_thread.pid, wt_calltrack_thread.tnid,                                               \
-          wt_calltrack_thread._indent_buf,                                                         \
-          FUNCNAME,                                                                         \
-          wt_calltrack_thread._session_info_buf,                                                   \
-          RET_ARG                                                                           \
-          );                                                                                \
+        if (enabled) {                                                                      \
+            __ts__ = __wt_clock(NULL);                                                      \
+            __wt_set_indent(wt_calltrack_thread.nest_level * 2);                            \
+            __wt_set_session_info(__session__);                                             \
+            printf("{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"E\",%s\"name\": \"%s\", \"args\": {\"session out\": \"%s\", \"<ret>\": \"" RET_FMT "\"}},\n", \
+            __wt_clock_to_usec(__ts__, wt_calltrack_global.tstart),                         \
+            wt_calltrack_thread.pid, wt_calltrack_thread.tnid,                              \
+            wt_calltrack_thread._indent_buf,                                                \
+            FUNCNAME,                                                                       \
+            wt_calltrack_thread._session_info_buf,                                          \
+            RET_ARG                                                                         \
+            );                                                                              \
                                                                                             \
-        --wt_calltrack_thread.nest_level;                                                          \
+            --wt_calltrack_thread.nest_level;                                               \
+        }                                                                                   \
+                                                                                            \
         RET_RET;                                                                            \
     } while (0)
 
@@ -324,14 +333,16 @@ __wt_calltrack_write_entry(uint64_t ts, int64_t ret, const char *name, const cha
 }
 
 #define __WT_CALL_WRAP_IMPL_BUF_GRAPH(FUNCNAME, CALL, SESSION, RET_INIT, RET_VAL, RET_RET)  \
-    if (wt_calltrack_thread.is_service_thread ||                                            \
-             !__atomic_load_n(&wt_calltrack_global.enabled, __ATOMIC_RELAXED)) {            \
+    do {                                                                                    \
+        bool enabled = !wt_calltrack_thread.is_service_thread &&                            \
+            __atomic_load_n(&wt_calltrack_global.enabled, __ATOMIC_RELAXED);                \
+        if (enabled) {                                                                      \
+            if (!wt_calltrack_thread.pid) __wt_calltrack_init_thread_and_buf();             \
+            __wt_calltrack_write_entry(__wt_clock(NULL), 0, FUNCNAME, __FILE__, 1);         \
+        }                                                                                   \
         RET_INIT CALL;                                                                      \
+        if (enabled) {                                                                      \
+            __wt_calltrack_write_entry(__wt_clock(NULL), RET_VAL, FUNCNAME, __FILE__, 0);   \
+        }                                                                                   \
         RET_RET;                                                                            \
-    } else {                                                                                \
-        if (!wt_calltrack_thread.pid) __wt_calltrack_init_thread_and_buf();                 \
-        __wt_calltrack_write_entry(__wt_clock(NULL), 0, FUNCNAME, __FILE__, 1);             \
-        RET_INIT CALL;                                                                      \
-        __wt_calltrack_write_entry(__wt_clock(NULL), RET_VAL, FUNCNAME, __FILE__, 0);       \
-        RET_RET;                                                                            \
-    }
+    } while (0)

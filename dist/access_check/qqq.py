@@ -119,6 +119,57 @@ def _get_int_kind_fmt_arg(typename: str, varname: str = "__ret__") -> str:
 def _function_complexity(body: str) -> int:
     return body.count(";") + body.count("{")
 
+
+def want_instrument_file(file: str, module: str) -> bool:
+    if "/calltrack." in file or "/checksum/" in file or "/utilities/" in file or "/packing/" in file:
+        return False
+    if (file.endswith("/include/stat.h") or
+        file.endswith("/include/block.h")):
+        return False
+    return True
+
+def want_instrument_func(
+        st: Statement, func: FunctionParts,
+        file: str, module: str,
+        func_args: list[Variable],
+        complexity: int, is_api: bool, is_wait: bool, is_syscall: bool, is_io: bool) -> bool:
+    if ("pack_" in func.name.value or
+            "_destroy" in func.name.value or
+            "_free" in func.name.value or
+            "_atomic" in func.name.value or
+            "byteswap" in func.name.value or
+            func.name.value in (
+                "__wt_abort", "__wt_yield", "__wt_thread_create", "__wt_epoch_raw",
+                "__wt_clock", "__wt_clock_to_usec",
+                "__wt_thread_id", "__wt_thread_str",
+            ) or
+            func.name.value in [
+                "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
+                "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
+                "__block_extlist_dump",
+                "__wt_compare",
+                "__config_next", "__config_merge_cmp", "__config_process_value", "__wt_config_initn",
+                "__wt_config_init", "__wt_config_next", "__config_getraw", "__config_merge_scan",
+                "__strip_comma", "__config_merge_format_next", "__wti_config_get", "__wt_config_gets",
+                "__wt_config_getones",
+                "__wt_direct_io_size_check",
+                "__wt_ref_is_root", "__ref_get_state",
+                "__wt_lex_compare", "__wt_ref_key",
+                "__cursor_pos_clear", "__wt_cursor_key_order_reset",
+            ]):
+        return False
+    elif is_api or is_wait or is_io:
+        return True
+    elif func.name.value.endswith("_server") or func.name.value.endswith("_run"):
+        return True
+    elif not module:
+        return False
+    # elif complexity <= 5:
+    #     # Ignore too "simple" functions
+    #     return
+    return True
+
+
 class Patcher:
     txt = ""
     patch_list: list[tuple[tuple[int, int], int, str]]
@@ -138,6 +189,9 @@ class Patcher:
             pos = patch[0][1]
         ret.append(self.txt[pos:])
         return "".join(ret)
+
+    def is_patched(self) -> bool:
+        return bool(self.patch_list)
 
     def _replace(self, range_: tuple[int, int], txt: str) -> None:
         self.idx += 1
@@ -169,38 +223,9 @@ class Patcher:
                       "WT_SYSCALL" in func.body.value)
         is_io = ("/include/os_fhandle_inline.h" in self.file or
                  "/os_fs.c" in self.file)
-        if ("pack_" in func.name.value or
-              "_destroy" in func.name.value or
-              "_free" in func.name.value or
-              "_atomic" in func.name.value or
-              "byteswap" in func.name.value or
-              func.name.value in (
-                  "__wt_abort", "__wt_yield", "__wt_thread_create", "__wt_epoch_raw",
-                  "__wt_clock", "__wt_clock_to_usec",
-                  "__wt_thread_id", "__wt_thread_str",
-              ) or
-              func.name.value in [
-                  "__block_ext_prealloc", "__block_ext_alloc", "__block_size_alloc",
-                  "__block_extend", "__block_append", "__block_off_remove", "__block_ext_insert",
-                  "__block_extlist_dump",
-                  "__wt_compare",
-                  "__config_next", "__config_merge_cmp", "__config_process_value", "__wt_config_initn",
-                  "__wt_config_init", "__wt_config_next", "__config_getraw", "__config_merge_scan",
-                  "__strip_comma", "__config_merge_format_next", "__wti_config_get", "__wt_config_gets",
-                  "__wt_config_getones",
-                  "__wt_direct_io_size_check",
-                  "__wt_ref_is_root", "__ref_get_state",
-                  "__wt_lex_compare", "__wt_ref_key",
-                  "__cursor_pos_clear", "__wt_cursor_key_order_reset",
-              ]):
+
+        if not want_instrument_func(st, func, self.file, self.mod, func_args, complexity, is_api, is_wait, is_syscall, is_io):
             return
-        elif is_api or is_wait or is_io:
-            pass # instrument this function
-        elif not self.mod:
-            return
-        # elif complexity <= 5:
-        #     # Ignore too "simple" functions
-        #     return
 
         self.count += 1
 
@@ -247,7 +272,7 @@ class Patcher:
         # Rename the original function
         self._replace(func.name.range, f"{func.name.value}__orig_")
 
-        # Create a new function with the original name
+        # Create a new function with original name
 
         # /* {[arg.typename[0].value for arg in func_args]} */
         # /* {[arg.typename[-1].value for arg in func_args]} */
@@ -282,12 +307,9 @@ class Patcher:
             self.file = scope_file().name
             self.mod = fname_to_module(self.file)
             self.txt = txt
-            if "/calltrack." in self.file or "/checksum/" in self.file or "/utilities/" in self.file or "/packing/" in self.file:
+            if "/calltrack." in self.file or not want_instrument_file(self.file, self.mod):
                 return
             print(f" --- [{self.mod}] {self.file}")
-            if (self.file.endswith("/include/stat.h") or
-                self.file.endswith("/include/block.h")):
-                return
             for st in StatementList.fromText(txt, 0):
                 st.getKind()
                 if st.getKind().is_function_def:
@@ -313,6 +335,8 @@ def main():
     for file in files:
         parcher = Patcher()
         parcher.parseDetailsFromFile(file)
+        if not parcher.count:
+            continue
         # print(parcher.get_patched())
         # write file back
         with open(file, "w") as f:

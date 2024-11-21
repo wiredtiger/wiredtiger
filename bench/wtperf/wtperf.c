@@ -2609,8 +2609,6 @@ usage(void)
     config_opt_usage();
 }
 
-void __attribute__((destructor)) __wt_calltrack_deinit_flushers(void);
-
 int
 main(int argc, char *argv[])
 {
@@ -2865,8 +2863,6 @@ err:
     free(tc_buf);
     free(user_cconfig);
     free(user_tconfig);
-
-    __wt_calltrack_deinit_flushers();
 
     return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
