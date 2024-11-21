@@ -163,7 +163,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_UPDATE *first, *next_upd, *tombstone, *upd;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     uint64_t hs_upd_type, raw, stop_txn;
-    uint8_t *p, version_prepare_state;
+    uint8_t *p, prepare_state, version_prepare_state;
     bool upd_found;
 
     session = CUR2S(cursor);
@@ -219,8 +219,8 @@ __curversion_next_int(WT_CURSOR *cursor)
                 version_cursor->next_upd = NULL;
                 F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
             } else {
-                if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
-                  upd->prepare_state == WT_PREPARE_LOCKED)
+                WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
                 else
                     version_prepare_state = 0;
@@ -332,12 +332,26 @@ __curversion_next_int(WT_CURSOR *cursor)
                 stop_txn = cbt->upd_value->tw.stop_txn;
             }
 
-            if (tombstone != NULL &&
-              (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
-                tombstone->prepare_state == WT_PREPARE_LOCKED))
-                version_prepare_state = 1;
-            else
-                version_prepare_state = cbt->upd_value->tw.prepare;
+            if (tombstone != NULL) {
+                WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, tombstone->prepare_state);
+                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+                    version_prepare_state = 1;
+            } else {
+                if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) &&
+                  cbt->upd_value->tw.prepare) {
+                    if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw))
+                        goto skip_on_page;
+
+                    if (stop_txn == cbt->upd_value->tw.start_txn)
+                        goto skip_on_page;
+
+                    stop_txn = WT_TXN_MAX;
+                    stop_ts = WT_TS_MAX;
+                    durable_stop_ts = WT_TS_MAX;
+                    version_prepare_state = 0;
+                } else
+                    version_prepare_state = cbt->upd_value->tw.prepare;
+            }
 
             WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
               cbt->upd_value->tw.start_txn, cbt->upd_value->tw.start_ts,
@@ -347,6 +361,7 @@ __curversion_next_int(WT_CURSOR *cursor)
             upd_found = true;
         } else
             ret = 0;
+skip_on_page:
         F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
     }
 
@@ -464,7 +479,7 @@ __curversion_reset(WT_CURSOR *cursor)
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->reset(hs_cursor));
     version_cursor->next_upd = NULL;
-    version_cursor->flags = 0;
+    F_CLR(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED | WT_CURVERSION_ON_DISK_EXHAUSTED | WT_CURVERSION_HS_EXHAUSTED);
     F_CLR(cursor, WT_CURSTD_KEY_SET);
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
