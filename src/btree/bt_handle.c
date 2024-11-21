@@ -556,6 +556,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
       WT_CONFIG_LIT_MATCH("disagg", cval)) {
         F_SET(btree, WT_BTREE_DISAGGREGATED);
 
+        /*
+         * Get the percentage of a page size that a delta must be less than in order to write that
+         * delta (instead of just giving up and writing the full page).
+         */
+        WT_RET(__wt_config_gets(session, cfg, "disaggregated.delta_pct", &cval));
+        btree->delta_pct = (u_int)cval.val;
+
         WT_RET(__btree_setup_page_log(session, btree));
         WT_RET(__btree_setup_storage_source(session, btree));
 
@@ -1171,13 +1178,6 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         btree->split_deepen_per_child = WT_SPLIT_DEEPEN_PER_CHILD_DEF;
     else
         btree->split_deepen_per_child = (u_int)cval.val;
-
-    /*
-     * Get the percentage of a page size that a delta must be less than in order to write that delta
-     * (instead of just giving up and writing the full page).
-     */
-    WT_RET(__wt_config_gets(session, cfg, "delta_pct", &cval));
-    btree->delta_pct = (u_int)cval.val;
 
     /*
      * Get the maximum internal/leaf page key/value sizes.

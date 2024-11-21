@@ -23,7 +23,7 @@
 #define WT_CONF_ID_Compatibility 213ULL
 #define WT_CONF_ID_Debug 137ULL
 #define WT_CONF_ID_Debug_mode 215ULL
-#define WT_CONF_ID_Disaggregated 21ULL
+#define WT_CONF_ID_Disaggregated 20ULL
 #define WT_CONF_ID_Encryption 25ULL
 #define WT_CONF_ID_Eviction 232ULL
 #define WT_CONF_ID_File_manager 244ULL
@@ -127,9 +127,9 @@
 #define WT_CONF_ID_cursor_reposition 220ULL
 #define WT_CONF_ID_cursors 186ULL
 #define WT_CONF_ID_default 315ULL
-#define WT_CONF_ID_delta_pct 19ULL
+#define WT_CONF_ID_delta_pct 24ULL
 #define WT_CONF_ID_dhandle_buckets 306ULL
-#define WT_CONF_ID_dictionary 20ULL
+#define WT_CONF_ID_dictionary 19ULL
 #define WT_CONF_ID_direct_io 300ULL
 #define WT_CONF_ID_do_not_clear_txn_id 158ULL
 #define WT_CONF_ID_drop 179ULL
@@ -247,7 +247,7 @@
 #define WT_CONF_ID_os_cache_dirty_pct 256ULL
 #define WT_CONF_ID_os_cache_max 50ULL
 #define WT_CONF_ID_overwrite 106ULL
-#define WT_CONF_ID_page_log 22ULL
+#define WT_CONF_ID_page_log 21ULL
 #define WT_CONF_ID_path 265ULL
 #define WT_CONF_ID_percent_file_in_dram 200ULL
 #define WT_CONF_ID_pinned 212ULL
@@ -300,12 +300,12 @@
 #define WT_CONF_ID_split_pct 55ULL
 #define WT_CONF_ID_src_id 147ULL
 #define WT_CONF_ID_stable 100ULL
-#define WT_CONF_ID_stable_prefix 23ULL
+#define WT_CONF_ID_stable_prefix 22ULL
 #define WT_CONF_ID_stable_timestamp 167ULL
 #define WT_CONF_ID_start_generation 89ULL
 #define WT_CONF_ID_statistics 155ULL
 #define WT_CONF_ID_storage_path 293ULL
-#define WT_CONF_ID_storage_source 24ULL
+#define WT_CONF_ID_storage_source 23ULL
 #define WT_CONF_ID_strategy 132ULL
 #define WT_CONF_ID_stress_skiplist 227ULL
 #define WT_CONF_ID_strict 168ULL
@@ -619,7 +619,6 @@ static const struct {
     uint64_t count;
     uint64_t create;
     uint64_t cursors;
-    uint64_t delta_pct;
     uint64_t dictionary;
     uint64_t direct_io;
     uint64_t do_not_clear_txn_id;
@@ -1018,7 +1017,6 @@ static const struct {
   WT_CONF_ID_count,
   WT_CONF_ID_create,
   WT_CONF_ID_cursors,
-  WT_CONF_ID_delta_pct,
   WT_CONF_ID_dictionary,
   WT_CONF_ID_direct_io,
   WT_CONF_ID_do_not_clear_txn_id,

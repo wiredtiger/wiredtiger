@@ -655,7 +655,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"disaggregated", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs, 3,
     confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 21, INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_CATEGORY, 20, INT64_MIN, INT64_MAX, NULL},
   {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 231,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction", "category", NULL, NULL, confchk_wiredtiger_open_eviction_subconfigs, 3,
@@ -1133,11 +1133,13 @@ static const char *confchk_checksum_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CON
   __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_disaggregated_subconfigs[] = {
-  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 22, INT64_MIN,
+  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 24, 1,
+    1000, NULL},
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
     INT64_MAX, NULL},
-  {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 23,
+  {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 22,
     INT64_MIN, INT64_MAX, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 24,
+  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 23,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1146,7 +1148,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_encryption_subconfigs[] = {
   {"keyid", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 27, INT64_MIN,
@@ -1304,12 +1306,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -1405,9 +1405,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
 static const uint8_t confchk_WT_SESSION_create_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 12, 15, 18,
-  19, 19, 21, 30, 30, 32, 38, 40, 40, 43, 45, 45, 45, 50, 52, 52, 54, 55, 55, 55, 55, 55, 55, 55,
-  55};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 12, 14, 17,
+  18, 18, 20, 29, 29, 31, 37, 39, 39, 42, 44, 44, 44, 49, 51, 51, 53, 54, 54, 54, 54, 54, 54, 54,
+  54};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_drop[] = {
   {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 124,
@@ -1807,12 +1807,10 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -1888,8 +1886,8 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
 static const uint8_t confchk_file_config_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 11, 14, 15, 16, 16,
-  18, 24, 24, 26, 31, 33, 33, 36, 38, 38, 38, 41, 42, 42, 44, 45, 45, 45, 45, 45, 45, 45, 45};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 11, 13, 14, 15, 15,
+  17, 23, 23, 25, 30, 32, 32, 35, 37, 37, 37, 40, 41, 41, 43, 44, 44, 44, 44, 44, 44, 44, 44};
 
 static const char *confchk_access_pattern_hint4_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -1945,12 +1943,10 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -2034,8 +2030,8 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 static const uint8_t confchk_file_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 14, 17, 18, 19, 19, 21,
-  28, 28, 30, 35, 37, 37, 40, 42, 42, 43, 46, 48, 48, 51, 52, 52, 52, 52, 52, 52, 52, 52};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 14, 16, 17, 18, 18, 20,
+  27, 27, 29, 34, 36, 36, 39, 41, 41, 42, 45, 47, 47, 50, 51, 51, 51, 51, 51, 51, 51, 51};
 
 static const char *confchk_verbose7_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
@@ -2132,12 +2128,10 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -2220,8 +2214,8 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
 static const uint8_t confchk_lsm_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 12, 15, 16, 17, 17, 19,
-  25, 25, 27, 34, 36, 36, 40, 42, 42, 42, 45, 46, 46, 48, 49, 49, 49, 49, 49, 49, 49, 49};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 12, 14, 15, 16, 16, 18,
+  24, 24, 26, 33, 35, 35, 39, 41, 41, 41, 44, 45, 45, 47, 48, 48, 48, 48, 48, 48, 48, 48};
 
 static const char *confchk_access_pattern_hint6_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -2277,12 +2271,10 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -2370,8 +2362,8 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
 static const uint8_t confchk_object_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 14, 17, 18, 21, 21,
-  23, 30, 30, 32, 37, 39, 39, 42, 44, 44, 45, 48, 50, 50, 53, 54, 54, 54, 54, 54, 54, 54, 54};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 14, 16, 17, 20, 20,
+  22, 29, 29, 31, 36, 38, 38, 41, 43, 43, 44, 47, 49, 49, 52, 53, 53, 53, 53, 53, 53, 53, 53};
 
 static const char *confchk_role2_choices[] = {
   __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
@@ -2381,13 +2373,13 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_disaggregated_subconfigs[] 
     INT64_MAX, NULL},
   {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 97, -1,
     INT64_MAX, NULL},
-  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 22, INT64_MIN,
+  {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
     INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 98, INT64_MIN, INT64_MAX, confchk_role2_choices},
-  {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 23,
+  {"stable_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 22,
     INT64_MIN, INT64_MAX, NULL},
-  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 24,
+  {"storage_source", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 23,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2415,7 +2407,7 @@ static const WT_CONFIG_CHECK confchk_oligarch_meta[] = {
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
-    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"ingest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 99, INT64_MIN,
     INT64_MAX, NULL},
@@ -2537,12 +2529,10 @@ static const WT_CONFIG_CHECK confchk_tier_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -2626,8 +2616,8 @@ static const WT_CONFIG_CHECK confchk_tier_meta[] = {
 static const uint8_t confchk_tier_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 9, 17, 20, 21, 22, 22, 24,
-  31, 31, 33, 38, 40, 40, 43, 45, 45, 46, 49, 51, 51, 54, 55, 55, 55, 55, 55, 55, 55, 55};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 9, 17, 19, 20, 21, 21, 23,
+  30, 30, 32, 37, 39, 39, 42, 44, 44, 45, 48, 50, 50, 53, 54, 54, 54, 54, 54, 54, 54, 54};
 
 static const char *confchk_access_pattern_hint8_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -2683,12 +2673,10 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 1,
-    1000, NULL},
-  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 20, 0, INT64_MAX,
+  {"dictionary", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 19, 0, INT64_MAX,
     NULL},
-  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 3,
-    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+  {"disaggregated", "category", NULL, NULL, confchk_WT_SESSION_create_disaggregated_subconfigs, 4,
+    confchk_WT_SESSION_create_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -2782,8 +2770,8 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
 static const uint8_t confchk_tiered_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 14, 17, 18, 21, 21,
-  23, 30, 30, 32, 38, 40, 40, 44, 46, 46, 47, 50, 53, 53, 56, 57, 57, 57, 57, 57, 57, 57, 57};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 14, 16, 17, 20, 20,
+  22, 29, 29, 31, 37, 39, 39, 43, 45, 45, 46, 49, 52, 52, 55, 56, 56, 56, 56, 56, 56, 56, 56};
 const char __WT_CONFIG_CHOICE_FILE[] = "FILE";
 const char __WT_CONFIG_CHOICE_DRAM[] = "DRAM";
 
@@ -3138,7 +3126,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 300, INT64_MIN, INT64_MAX, confchk_direct_io_choices},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
-    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -3404,7 +3392,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 300, INT64_MIN, INT64_MAX, confchk_direct_io2_choices},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
-    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -3669,7 +3657,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 300, INT64_MIN, INT64_MAX, confchk_direct_io3_choices},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
-    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -3926,7 +3914,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 300, INT64_MIN, INT64_MAX, confchk_direct_io4_choices},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
-    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 21,
+    confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 25,
@@ -4196,8 +4184,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
-    "checksum=on,colgroups=,collator=,columns=,delta_pct=20,"
-    "dictionary=0,disaggregated=(page_log=,stable_prefix=,"
+    "checksum=on,colgroups=,collator=,columns=,dictionary=0,"
+    "disaggregated=(delta_pct=20,page_log=,stable_prefix=,"
     "storage_source=),encryption=(keyid=,name=),exclusive=false,"
     "extractor=,format=btree,huffman_key=,huffman_value=,"
     "ignore_in_memory_cache_size=false,immutable=false,"
@@ -4219,7 +4207,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),type=file,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_WT_SESSION_create, 55, confchk_WT_SESSION_create_jump, 25, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_create, 54, confchk_WT_SESSION_create_jump, 25, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true,remove_shared=false",
@@ -4288,11 +4276,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
-    "checksum=on,collator=,columns=,delta_pct=20,dictionary=0,"
-    "disaggregated=(page_log=,stable_prefix=,storage_source=),"
-    "encryption=(keyid=,name=),format=btree,huffman_key=,"
-    "huffman_value=,ignore_in_memory_cache_size=false,in_memory=false"
-    ",internal_item_max=0,internal_key_max=0,"
+    "checksum=on,collator=,columns=,dictionary=0,"
+    "disaggregated=(delta_pct=20,page_log=,stable_prefix=,"
+    "storage_source=),encryption=(keyid=,name=),format=btree,"
+    "huffman_key=,huffman_value=,ignore_in_memory_cache_size=false,"
+    "in_memory=false,internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
@@ -4304,18 +4292,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_file_config, 45, confchk_file_config_jump, 46, WT_CONF_SIZING_NONE, false},
+    confchk_file_config, 44, confchk_file_config_jump, 46, WT_CONF_SIZING_NONE, false},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,checksum=on,"
-    "collator=,columns=,delta_pct=20,dictionary=0,"
-    "disaggregated=(page_log=,stable_prefix=,storage_source=),"
-    "encryption=(keyid=,name=),format=btree,huffman_key=,"
-    "huffman_value=,id=,ignore_in_memory_cache_size=false,"
-    "in_memory=false,internal_item_max=0,internal_key_max=0,"
+    "collator=,columns=,dictionary=0,disaggregated=(delta_pct=20,"
+    "page_log=,stable_prefix=,storage_source=),encryption=(keyid=,"
+    "name=),format=btree,huffman_key=,huffman_value=,id=,"
+    "ignore_in_memory_cache_size=false,in_memory=false,"
+    "internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
@@ -4327,7 +4315,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_file_meta, 52, confchk_file_meta_jump, 47, WT_CONF_SIZING_NONE, false},
+    confchk_file_meta, 51, confchk_file_meta_jump, 47, WT_CONF_SIZING_NONE, false},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -4340,11 +4328,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
-    "checksum=on,chunks=,collator=,columns=,delta_pct=20,dictionary=0"
-    ",disaggregated=(page_log=,stable_prefix=,storage_source=),"
-    "encryption=(keyid=,name=),format=btree,huffman_key=,"
-    "huffman_value=,ignore_in_memory_cache_size=false,in_memory=false"
-    ",internal_item_max=0,internal_key_max=0,"
+    "checksum=on,chunks=,collator=,columns=,dictionary=0,"
+    "disaggregated=(delta_pct=20,page_log=,stable_prefix=,"
+    "storage_source=),encryption=(keyid=,name=),format=btree,"
+    "huffman_key=,huffman_value=,ignore_in_memory_cache_size=false,"
+    "in_memory=false,internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,last=0,leaf_item_max=0,leaf_key_max=0,"
     "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=true),"
@@ -4361,19 +4349,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_lsm_meta, 49, confchk_lsm_meta_jump, 49, WT_CONF_SIZING_NONE, false},
+    confchk_lsm_meta, 48, confchk_lsm_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,checksum=on,"
-    "collator=,columns=,delta_pct=20,dictionary=0,"
-    "disaggregated=(page_log=,stable_prefix=,storage_source=),"
-    "encryption=(keyid=,name=),flush_time=0,flush_timestamp=0,"
-    "format=btree,huffman_key=,huffman_value=,id=,"
-    "ignore_in_memory_cache_size=false,in_memory=false,"
-    "internal_item_max=0,internal_key_max=0,"
+    "collator=,columns=,dictionary=0,disaggregated=(delta_pct=20,"
+    "page_log=,stable_prefix=,storage_source=),encryption=(keyid=,"
+    "name=),flush_time=0,flush_timestamp=0,format=btree,huffman_key=,"
+    "huffman_value=,id=,ignore_in_memory_cache_size=false,"
+    "in_memory=false,internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
@@ -4385,7 +4372,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_object_meta, 54, confchk_object_meta_jump, 50, WT_CONF_SIZING_NONE, false},
+    confchk_object_meta, 53, confchk_object_meta_jump, 50, WT_CONF_SIZING_NONE, false},
   {"oligarch.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -4407,7 +4394,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "block_compressor=,block_manager=default,bucket=,bucket_prefix=,"
     "cache_directory=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
-    "columns=,delta_pct=20,dictionary=0,disaggregated=(page_log=,"
+    "columns=,dictionary=0,disaggregated=(delta_pct=20,page_log=,"
     "stable_prefix=,storage_source=),encryption=(keyid=,name=),"
     "format=btree,huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,in_memory=false,"
@@ -4423,19 +4410,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_tier_meta, 55, confchk_tier_meta_jump, 53, WT_CONF_SIZING_NONE, false},
+    confchk_tier_meta, 54, confchk_tier_meta_jump, 53, WT_CONF_SIZING_NONE, false},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,checksum=on,"
-    "collator=,columns=,delta_pct=20,dictionary=0,"
-    "disaggregated=(page_log=,stable_prefix=,storage_source=),"
-    "encryption=(keyid=,name=),flush_time=0,flush_timestamp=0,"
-    "format=btree,huffman_key=,huffman_value=,id=,"
-    "ignore_in_memory_cache_size=false,in_memory=false,"
-    "internal_item_max=0,internal_key_max=0,"
+    "collator=,columns=,dictionary=0,disaggregated=(delta_pct=20,"
+    "page_log=,stable_prefix=,storage_source=),encryption=(keyid=,"
+    "name=),flush_time=0,flush_timestamp=0,format=btree,huffman_key=,"
+    "huffman_value=,id=,ignore_in_memory_cache_size=false,"
+    "in_memory=false,internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,last=0,leaf_item_max=0,leaf_key_max=0,"
     "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=true),"
@@ -4448,7 +4434,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),tiers=,value_format=u,verbose=[],version=(major=0,"
     "minor=0),write_timestamp_usage=none",
-    confchk_tiered_meta, 57, confchk_tiered_meta_jump, 54, WT_CONF_SIZING_NONE, false},
+    confchk_tiered_meta, 56, confchk_tiered_meta_jump, 54, WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"

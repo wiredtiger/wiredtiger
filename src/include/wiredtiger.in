@@ -1217,19 +1217,20 @@ struct __wt_session {
      * <code>(column[\,...])</code>. For tables\, the number of entries must match the total number
      * of values in \c key_format and \c value_format.  For colgroups and indices\, all column names
      * must appear in the list of columns for the table., a list of strings; default empty.}
-     * @config{delta_pct, the size threshold (as a percentage) at which a delta will cease to be
-     * emitted when reconciling a page.  For example\, if this is set to 20\, the size of a delta is
-     * 19 bytes\, and the size of the full page image is 100 bytes\, reconciliation can emit a delta
-     * for the page (if various other preconditions are met). Conversely\, if the delta came to 21
-     * bytes\, reconciliation would not emit a delta.  Deltas larger than full pages are permitted
-     * for measurement and testing reasons\, and may be disallowed in future., an integer between \c
-     * 1 and \c 1000; default \c 20.}
      * @config{dictionary, the maximum number of unique values remembered in the
      * row-store/variable-length column-store leaf page value dictionary; see @ref
      * file_formats_compression for more information., an integer greater than or equal to \c 0;
      * default \c 0.}
      * @config{disaggregated = (, configure disaggregated storage for this file., a set of related
      * configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;delta_pct, the
+     * size threshold (as a percentage) at which a delta will cease to be emitted when reconciling a
+     * page.  For example\, if this is set to 20\, the size of a delta is 20 bytes\, and the size of
+     * the full page image is 100 bytes\, reconciliation can emit a delta for the page (if various
+     * other preconditions are met). Conversely\, if the delta came to 21 bytes\, reconciliation
+     * would not emit a delta.  Deltas larger than full pages are permitted for measurement and
+     * testing reasons\, and may be disallowed in future., an integer between \c 1 and \c 1000;
+     * default \c 20.}
      * @config{ ),,}
      * @config{encryption = (, configure an encryptor for file blocks.  When a table is created\,
      * its encryptor is not implicitly used for any related indices or column groups., a set of
