@@ -323,7 +323,7 @@ functions:
           if [ "$OS" != "Windows_NT" ]; then
             CC=/opt/mongodbtoolchain/v4/bin/gcc CXX=/opt/mongodbtoolchain/v4/bin/g++ PATH=/opt/mongodbtoolchain/v4/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
-              --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+              --enable-silent-rules --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
     - *make_wiredtiger
   "compile wiredtiger docs":
