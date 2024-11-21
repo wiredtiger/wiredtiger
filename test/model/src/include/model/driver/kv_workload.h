@@ -305,13 +305,13 @@ operator<<(std::ostream &out, const checkpoint &op)
  *     A representation of this workload operation.
  */
 struct checkpoint_crash : public without_txn_id, public without_table_id {
-    int crash_step;
+    uint64_t crash_step;
 
     /*
      * checkpoint_crash::checkpoint_crash --
      *     Create the operation.
      */
-    inline checkpoint_crash(const int crash_step) : crash_step(crash_step) {}
+    inline checkpoint_crash(const uint64_t crash_step) : crash_step(crash_step) {}
 
     /*
      * checkpoint_crash::operator== --

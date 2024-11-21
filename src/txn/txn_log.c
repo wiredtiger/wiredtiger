@@ -513,13 +513,6 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         break;
     case WT_TXN_LOG_CKPT_STOP:
         /*
-         * Crash if the checkpoint crash feature is enabled and configured to fail before the
-         * checkpoint log operation.
-         */
-        if (F_ISSET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_LOG_OP))
-            __wt_abort(session);
-
-        /*
          * During a clean connection close, we get here without the prepare or start steps. In that
          * case, log the current LSN as the checkpoint LSN.
          */

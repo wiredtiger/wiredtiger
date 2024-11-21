@@ -224,7 +224,8 @@ test_workload_restart(void)
              << model::operation::commit_transaction(2, 25, 26)
              << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
              << model::operation::remove(k_table1_id, 1, key1) << model::operation::checkpoint()
-             << model::operation::restart() << model::operation::begin_transaction(1)
+             << model::operation::checkpoint_crash(123) << model::operation::restart()
+             << model::operation::begin_transaction(1)
              << model::operation::insert(k_table1_id, 1, key3, value3)
              << model::operation::prepare_transaction(1, 23)
              << model::operation::commit_transaction(1, 24, 25)
@@ -372,7 +373,7 @@ test_workload_parse(void)
     testutil_assert(model::operation::parse("checkpoint(\"test\")") ==
       model::operation::any(model::operation::checkpoint("test")));
     testutil_assert(model::operation::parse("checkpoint_crash(123)") ==
-      model::operation::any(model::operation::checkpoint()));
+      model::operation::any(model::operation::checkpoint_crash(123)));
     testutil_assert(model::operation::parse("commit_transaction(1)") ==
       model::operation::any(model::operation::commit_transaction(1)));
     testutil_assert(model::operation::parse("commit_transaction(1, 2)") ==

@@ -327,6 +327,7 @@ kv_workload::assert_timestamps()
                 ckpt_oldest = k_timestamp_none;
         }
         if (std::holds_alternative<operation::crash>(op) ||
+          std::holds_alternative<operation::checkpoint_crash>(op) ||
           std::holds_alternative<operation::restart>(op)) {
             oldest = ckpt_oldest;
             stable = ckpt_stable;

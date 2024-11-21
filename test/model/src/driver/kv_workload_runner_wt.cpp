@@ -316,7 +316,6 @@ kv_workload_runner_wt::do_operation(const operation::checkpoint_crash &op)
 
     WT_SESSION *session;
     int ret = _connection->open_session(_connection, nullptr, nullptr, &session);
-    std::cout << "kv_workload_runner_wt:: do_operation::checkpoint_crash\n";
     if (ret != 0)
         return ret;
     wiredtiger_session_guard session_guard(session);

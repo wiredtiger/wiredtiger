@@ -1243,25 +1243,19 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     ckpt_crash_random = (int)cval.val;
 
     if (ckpt_crash_random >= 0) {
-        /* Calculate total checkpoint steps and crash point. */
-        ckpt_total_steps = session->ckpt_handle_next + 2;
+        /*
+         * Calculate total checkpoint steps and crash point. The total checkpoint steps required are
+         * the number of data handles that need to be checkpointed plus the final metadata update.
+         */
+        ckpt_total_steps = session->ckpt_handle_next + 1;
         ckpt_relative_crash_step = ((u_int)ckpt_crash_random / (WT_THOUSAND / ckpt_total_steps));
 
-        /* Adjust crash step if it's between checkpointing tables. */
         if (ckpt_relative_crash_step < session->ckpt_handle_next)
+            /* Adjust crash step if it's between checkpointing tables. */
             session->ckpt_crash_point = ckpt_relative_crash_step + 1;
-        else {
-            /* Calculate the relative crash step between log operation and metadata update. */
-            ckpt_relative_crash_step = ckpt_relative_crash_step - session->ckpt_handle_next;
-
-            if (ckpt_relative_crash_step == 0) {
-                F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_LOG_OP);
-                F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE);
-            } else {
-                F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE);
-                F_CLR(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_LOG_OP);
-            }
-        }
+        else
+            /* Crash before updating the metadata. */
+            F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE);
     }
 
     /* Log the final checkpoint prepare progress message if needed. */
