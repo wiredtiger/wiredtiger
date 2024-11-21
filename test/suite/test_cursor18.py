@@ -467,7 +467,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,visible_only=true))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), wiredtiger.WT_NOTFOUND)
-    
+
     def test_skip_prepare_on_disk(self):
         self.create()
 
@@ -494,7 +494,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,visible_only=true))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), wiredtiger.WT_NOTFOUND)
-    
+
     def test_skip_prepare_tombstone_and_full_value_on_disk(self):
         self.create()
 

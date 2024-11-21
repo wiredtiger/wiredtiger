@@ -479,7 +479,9 @@ __curversion_reset(WT_CURSOR *cursor)
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->reset(hs_cursor));
     version_cursor->next_upd = NULL;
-    F_CLR(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED | WT_CURVERSION_ON_DISK_EXHAUSTED | WT_CURVERSION_HS_EXHAUSTED);
+    F_CLR(version_cursor,
+      WT_CURVERSION_UPDATE_EXHAUSTED | WT_CURVERSION_ON_DISK_EXHAUSTED |
+        WT_CURVERSION_HS_EXHAUSTED);
     F_CLR(cursor, WT_CURSTD_KEY_SET);
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
@@ -731,8 +733,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets_def(session, cfg, "debug.dump_version.visible_only", 0, &cval), true);
-    if (ret == 0 && cval.val)
-        F_SET(version_cursor, WT_CURVERSION_VISIBLE_ONLY);
+    if (ret == 0) {
+        if (cal.val)
+            F_SET(version_cursor, WT_CURVERSION_VISIBLE_ONLY);
+    } else
+        ret = 0;
 
     /* Mark the cursor as version cursor for python api. */
     F_SET(cursor, WT_CURSTD_VERSION_CURSOR);
