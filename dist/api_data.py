@@ -1736,7 +1736,14 @@ methods = {
         Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that enables iteration
             through the history of values for a given key.''',
-            type='boolean'),
+            type='category', subconfig=[
+                Config('enabled', 'false', r'''
+                    enable version cursor''',
+                    type='boolean', undoc=True),
+                Config('visible_only', 'false', r'''
+                    only dump updates that are visible to the session''',
+                    type='boolean', undoc=True),
+        ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
