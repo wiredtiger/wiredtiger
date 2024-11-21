@@ -102,7 +102,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 200;
+static const int crud_ops = 20000;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
@@ -221,7 +221,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
     /* Insert random data. */
     std::string key, value;
     for (int i = 0; i < crud_ops; i++) {
-        auto ran = random_generator::instance().generate_integer(0, 100);
+        auto ran = random_generator::instance().generate_integer(0, 10000);
         if (ran <= 1 || !file_created) {
             // Create a new file, if none exist force this path.s
             create_collection(session);
@@ -232,14 +232,14 @@ do_random_crud(scoped_session &session, bool fresh_start)
         if (i == warmup_insertions)
             fresh_start = false;
 
-        if (fresh_start || (ran >= 0 && ran < 50)) {
+        if (fresh_start || (ran >= 0 && ran < 5000)) {
 
             // Write.
             write(session, fresh_start);
             continue;
         }
 
-        if (ran >= 50 && ran <= 100) {
+        if (ran >= 5000 && ran <= 10000) {
             // Read.
             read(session);
             continue;
@@ -280,7 +280,7 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",cache_size=5GB,verbose=[fileops:3,block:3,block_cache:3,read:2]";
+    const std::string conn_config = CONNECTION_CREATE + ",cache_size=1GB,verbose=[fileops:1,block:1,block_cache:1,read:1]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
