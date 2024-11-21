@@ -5397,7 +5397,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".unit_test_long"

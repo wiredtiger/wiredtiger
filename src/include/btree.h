@@ -93,6 +93,14 @@ typedef enum { /* Start position for eviction walk */
 /* An invalid btree file ID value. ID 0 is reserved for the metadata file. */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
+#define WT_BTREE_ID_NAMESPACE_BITS 3
+#define WT_BTREE_ID_NAMESPACE_SHARED 1
+
+#define WT_BTREE_ID_NAMESPACED(x) ((x) << WT_BTREE_ID_NAMESPACE_BITS)
+#define WT_BTREE_ID_UNNAMESPACED(x) ((x) >> WT_BTREE_ID_NAMESPACE_BITS)
+#define WT_BTREE_ID_SHARED(x) \
+    (((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1)) == WT_BTREE_ID_NAMESPACE_SHARED)
+
 /*
  * WT_BTREE --
  *	A btree handle.
@@ -138,6 +146,7 @@ struct __wt_btree {
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
     u_int split_deepen_per_child; /* Entries per child when deepened */
     int split_pct;                /* Split page percent */
+    u_int delta_pct;              /* Delta page percent (of full page size) */
 
     WT_COMPRESSOR *compressor;    /* Page compressor */
                                   /*
