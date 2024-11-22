@@ -1013,6 +1013,25 @@ __union_fs_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
+ * __union_fs_file_truncate --
+ *     Truncate a file. This operation is only applied to the destination file.
+ */
+static int
+__union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
+{
+    WT_UNION_FS_FH *fh;
+    wt_off_t old_len;
+
+    fh = (WT_UNION_FS_FH *)file_handle;
+
+    // If we truncate a range we'll never need to read that range fromt the source file. Mark it as such.
+    __union_fs_file_size(file_handle, wt_session, &old_len);
+    __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL*)wt_session, len, (size_t)(old_len - len));
+
+    return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));
+}
+
+/*
  * __union_fs_open_in_source --
  *     Open a file handle in the source.
  */
@@ -1211,6 +1230,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     fh->iface.fh_read = __union_fs_file_read;
     fh->iface.fh_size = __union_fs_file_size;
     fh->iface.fh_sync = __union_fs_file_sync;
+    fh->iface.fh_truncate = __union_fs_file_truncate;
     fh->iface.fh_write = __union_fs_file_write;
 
     *file_handlep = (WT_FILE_HANDLE *)fh;
