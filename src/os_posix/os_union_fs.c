@@ -65,6 +65,25 @@ err:
     return (ret);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+/*
+ * __union_debug_dump_extent_list --
+ *     Dump the contents of a file handle's extent list.
+ */
+static void __union_debug_dump_extent_list(WT_UNION_FS_FH *union_fh) {
+    WT_UNION_ALLOC_LIST *alloc;
+
+    printf("Dumping extent list\n");
+    alloc = union_fh->destination.allocation_list;
+
+    while(alloc != NULL) {
+        printf("Extent: %ld-%ld\n", alloc->off, alloc->off + (wt_off_t)alloc->len);
+        alloc = alloc->next;
+    }
+}
+#pragma GCC diagnostic pop
+
 /*
  * __union_fs_marker --
  *     Generate a name of a marker file.
