@@ -470,7 +470,6 @@ static int
 __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor)
 {
     WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_UPDATE *upd;
