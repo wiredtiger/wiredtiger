@@ -5,6 +5,7 @@ __thread WT_CALLTRACK_THREAD wt_calltrack_thread = {
     .tnid = 0,
     .pid = 0,
     .is_service_thread = false,
+    .cached_reader_pos = 0,
 };
 
 WT_CALLTRACK_GLOBAL wt_calltrack_global = {
@@ -143,27 +144,25 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     fprintf(tracefile, "{\"traceEvents\": [\n");
     while (1) {
         if (!__wt_calltrack_can_read(buf)) {
-            if (++cycles < 1000) {
-                __wt_yield();
-                WT_COMPILER_BARRIER();
-            } else {
-                bool is_running = __atomic_load_n(&wt_calltrack_global.is_running, __ATOMIC_ACQUIRE);
-                if (wt_calltrack_thread.nest_level == 0 && !is_running)
-                    break;
-                if (__wt_is_thread_terminated(buf)) {
-                    // fprintf(tracefile, "%"SCNuMAX" %"PRIu64" = %d\n", buf->ostid, buf->tnid, thread_status);
-                    // __wt_sleep(1, 0);
-                    // continue;
-                    break;
-                }
+            ++cycles;
+
+            bool is_running = __atomic_load_n(&wt_calltrack_global.is_running, __ATOMIC_ACQUIRE);
+            if (wt_calltrack_thread.nest_level == 0 && !is_running)
+                break;
+            if (__wt_is_thread_terminated(buf)) {
                 // fprintf(tracefile, "%"SCNuMAX" %"PRIu64" = %d\n", buf->ostid, buf->tnid, thread_status);
-                if (cycles != 1010)
-                    __wt_sleep(0, 1000);
-                else
-                    fflush(tracefile);
-                if (!is_running && cycles > 1030)
-                    break;
+                // __wt_sleep(1, 0);
+                // continue;
+                break;
             }
+            // fprintf(tracefile, "%"SCNuMAX" %"PRIu64" = %d\n", buf->ostid, buf->tnid, thread_status);
+            if (cycles != 50)
+                __wt_sleep(0, 10000);
+            else
+                fflush(tracefile);
+            if (!is_running && cycles > 3)
+                break;
+
             continue;
         }
         cycles = 0;

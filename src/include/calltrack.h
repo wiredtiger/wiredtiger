@@ -59,6 +59,7 @@ typedef struct __wt_calltrack_thread {
         WT_CALLTRACK_THREAD_BUF *buf;
     };
     /* Live data */
+    int cached_reader_pos;
     int nest_level;
 } WT_CALLTRACK_THREAD;
 extern __thread WT_CALLTRACK_THREAD wt_calltrack_thread;
@@ -300,10 +301,12 @@ __wt_calltrack_wait_for_write(void) {
     int reader;
     int max_reader = (wt_calltrack_thread.buf->writer + 1) % WT_CALLTRACK_THREAD_BUF_ENTRIES;
     uint64_t count = 0;
-retry:
+
     /* If next reader is equal to writer, the buffer is full */
-    reader = __atomic_load_n(&wt_calltrack_thread.buf->reader, __ATOMIC_ACQUIRE);
-    if (reader == max_reader) {
+    reader = wt_calltrack_thread.cached_reader_pos;
+    if (reader != max_reader)
+        return;
+    while ((reader = __atomic_load_n(&wt_calltrack_thread.buf->reader, __ATOMIC_ACQUIRE)) == max_reader) {
         ++count;
         wt_calltrack_thread.is_service_thread = true;
         if (count < 1000)
@@ -313,8 +316,8 @@ retry:
         else
             __wt_sleep(0, 1000);
         wt_calltrack_thread.is_service_thread = false;
-        goto retry;
     }
+    wt_calltrack_thread.cached_reader_pos = reader;
 }
 
 static WT_INLINE void __wt_calltrack_write_entry(uint64_t ts, int64_t ret, const char *name, const char *cat, int enter /*, const char *fmt, ... */);
