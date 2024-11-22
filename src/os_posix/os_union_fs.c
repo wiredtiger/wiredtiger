@@ -62,7 +62,7 @@ __union_fs_filename(
         /*
          * Now that we use conn->home for the destination folder name is passed in as
          * `DEST_FOLDER/file.wt`. We need to strip `DEST_FOLDER` and prepend `SOURCE_FOLDER` in the
-         * filepath.
+         * file path.
          */
         filename = basename(name);
         /* +1 for the path separator, +1 for the null terminator. */
@@ -603,10 +603,7 @@ __dest_can_service_rw(
 
 /*
  * __union_merge_with_next_extents --
- *
- *
- *
- * Merge the current extent with the following extent(s) if they overlap.
+ *     Merge the current extent with the following extent(s) if they overlap.
  */
 static int
 __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent)
@@ -622,7 +619,7 @@ __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *e
 
     extent->next = next_extent->next;
     new_len = EXTENT_END(next_extent) - extent->off; // TODO check for off by one
-    // FIXME - A lot of pointless typecasting. Consider dropping wt_off_t in favour of size_t.
+    // FIXME - A lot of pointless typecasting. Consider dropping wt_off_t in favor of size_t.
     extent->len = (size_t)WT_MAX((wt_off_t)extent->len, new_len);
     __wt_free(session, next_extent);
 
@@ -798,8 +795,8 @@ __union_fs_file_read(
     sl = __dest_can_service_rw(union_fh, session, offset, len);
 
     /*
-     * TODO: Wiredtiger will read the metadata file after creation but before anything has been
-     * written in this case we forward the read to the empty metadata file in the destinaion. Is
+     * TODO: WiredTiger will read the metadata file after creation but before anything has been
+     * written in this case we forward the read to the empty metadata file in the destination. Is
      * this correct?
      */
     if (union_fh->destination.complete || union_fh->source == NULL || sl == FULL) {
@@ -875,7 +872,7 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
 
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
 
-    // If we truncate a range we'll never need to read that range fromt the source file. Mark it as
+    // If we truncate a range we'll never need to read that range from the source file. Mark it as
     // such.
     __union_fs_file_size(file_handle, wt_session, &old_len);
     __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
@@ -935,7 +932,7 @@ __union_build_extents_from_dest_file_lseek(
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
-    // Find the next data block. data_end_offset is initialised to zero so we start from the
+    // Find the next data block. data_end_offset is initialized to zero so we start from the
     // beginning of the file.
     while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
 
@@ -1146,7 +1143,7 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
 err:
 
     __wt_free(session, path);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1225,7 +1222,7 @@ __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
 
-    // The file will always exist in the destination. This the is authorative file size.
+    // The file will always exist in the destination. This the is authoritative file size.
     WT_ASSERT(session, which == WT_UNION_FS_LAYER_DESTINAION);
     WT_RET(__union_fs_filename(&union_fs->destination, session, name, &path));
     ret = union_fs->os_file_system->fs_size(union_fs->os_file_system, wt_session, path, sizep);

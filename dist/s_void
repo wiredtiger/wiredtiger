@@ -63,6 +63,7 @@ func_ok()
         -e '/int __time_value_validate_parent_stable$/d' \
         -e '/int __tree_walk_skip_count_callback$/d' \
         -e '/int __txn_rollback_to_stable_custom_skip$/d' \
+        -e '/int __union_fs_file_close$/d' \
         -e '/int __win_terminate$/d' \
         -e '/int __wt_block_compact_end$/d' \
         -e '/int __wt_block_compact_start$/d' \

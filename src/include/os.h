@@ -194,8 +194,8 @@ struct __wt_fstream {
  * __wt_union_alloc_list
  */
 struct __wt_union_alloc_list {
-    wt_off_t off; /* Allocations's file offset */
-    size_t len;   /* Allocations's Size */
+    wt_off_t off;
+    size_t len;
 
     WT_UNION_ALLOC_LIST *next;
 };
