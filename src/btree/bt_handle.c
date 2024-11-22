@@ -769,7 +769,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
 err:
     if (ref != NULL && ref->page != NULL)
-        __wt_page_out(session, &ref->page);
+        __wt_ref_out(session, ref);
     if (root != NULL)
         __wt_page_out(session, &root);
     return (ret);

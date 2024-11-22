@@ -464,7 +464,10 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     return (0);
 
 err:
-    __wt_page_out(session, &page);
+	if (ref != NULL && ref->page == page)
+		__wt_ref_out(session, ref);
+	else
+		__wt_page_out(session, &page);
     return (ret);
 }
 

@@ -636,6 +636,9 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
+	/* Remove the ref from evict queues before freeing. */
+	TODO;
+
     WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
 
