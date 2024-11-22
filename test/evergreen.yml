@@ -2927,13 +2927,6 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
-          env: 
-            test_env_vars: 
-              PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-              top_dir=$(git rev-parse --show-toplevel)
-              top_builddir=$top_dir/build_posix
-              LD_LIBRARY_PATH=$top_builddir/.libs
-            python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
           script: |
             set -o errexit
             set -o verbose
@@ -4332,7 +4325,7 @@ buildvariants:
       --enable-strict
       --enable-static
       --prefix=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
   - name: compile
   - name: unit-test
