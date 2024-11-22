@@ -2925,16 +2925,16 @@ tasks:
             PATH=/opt/mongodbtoolchain/v4/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
           make_command: PATH=/opt/mongodbtoolchain/v4/bin:$PATH make
       - command: expansions.update
-       params:
-        updates:
-        - key: test_env_vars
-          value: |
-            PATH=/opt/mongodbtoolchain/v4/bin:$PATH
-            top_dir=$(git rev-parse --show-toplevel)
-            top_builddir=$top_dir/build_posix
-            LD_LIBRARY_PATH=$top_builddir/.libs
-        - key: python_binary
-          value: /opt/mongodbtoolchain/v4/bin/python3
+        params:
+          updates:
+          - key: test_env_vars
+            value: |
+              PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+              top_dir=$(git rev-parse --show-toplevel)
+              top_builddir=$top_dir/build_posix
+              LD_LIBRARY_PATH=$top_builddir/.libs
+          - key: python_binary
+            value: /opt/mongodbtoolchain/v4/bin/python3
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
