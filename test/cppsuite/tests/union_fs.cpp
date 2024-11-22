@@ -287,13 +287,13 @@ main(int argc, char *argv[])
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
         logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
+        testutil_assert(std::filesystem::remove_all("WT_UNION_SOURCE") >= 0);
         testutil_assert(std::filesystem::remove_all("WT_TEST") >= 0);
-        testutil_assert(std::filesystem::remove_all("TOP") >= 0);
     }
 
     // We will recreate this directory every time, on exit the contents in it will be moved to
-    // WT_TEST/.
-    testutil_assert(std::filesystem::create_directory("TOP"));
+    // WT_UNION_SOURCE/.
+    testutil_assert(std::filesystem::create_directory("WT_TEST"));
 
     /* Create connection. */
     if (fresh_start) {
@@ -335,13 +335,13 @@ main(int argc, char *argv[])
     // time_t now = time(0);
     // tm *local_time = localtime(&now);
 
-    // WT_TEST -> WT_TEST_H:M
-    // TOP -> WT_TEST
+    // WT_UNION_SOURCE -> WT_TEST_H:M
+    // TOP -> WT_UNION_SOURCE
     // TODO: Add a "keep" arg.
-    // std::filesystem::rename("WT_TEST",
+    // std::filesystem::rename("WT_UNION_SOURCE",
     //   "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
-    testutil_assert(std::filesystem::remove_all("WT_TEST") >= 0);
-    std::filesystem::rename("TOP", "WT_TEST");
+    testutil_assert(std::filesystem::remove_all("WT_UNION_SOURCE") >= 0);
+    std::filesystem::rename("WT_TEST", "WT_UNION_SOURCE");
 
     return (0);
 }

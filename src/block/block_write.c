@@ -392,9 +392,6 @@ __wti_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, w
     __wt_page_header_byteswap(buf->mem);
     ret = __block_write_off(
       session, block, buf, offsetp, sizep, checksump, data_checksum, checkpoint_io, caller_locked);
-    if(strcmp(block->name, "WiredTiger.wt") == 0 && (*offsetp == 8192)) {
-        printf("DDBBGG Wrote to WiredTiger.wt, checksum %#" PRIx32"\n", *checksump);
-    }
     __wt_page_header_byteswap(buf->mem);
     return (ret);
 }

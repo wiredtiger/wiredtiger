@@ -53,10 +53,23 @@ __union_fs_filename(
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
 
-    len = strlen(layer->home) + 1 + strlen(name) + 1;
-    WT_RET(__wt_calloc(session, 1, len, &buf));
-    WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), name));
-    *pathp = buf;
+    if(layer->which == DESTINATION) {
+        WT_RET(__wt_strdup(session, name, pathp));
+        printf("DDBBGG - DEST path is just relative path\n");
+    } else {
+        char *filename;
+        // Now that we use conn->home for the destination folder name is passed in as `DEST_FOLDER/file.wt`.
+        // We need to strip `DEST_FOLDER` and prepend `SOURCE_FOLDER` in the filepath
+        filename = basename(name);
+        // +1 for the path separator, +1 for the null terminator
+        len = strlen(layer->home) + 1 + strlen(filename) + 1;
+        WT_RET(__wt_calloc(session, 1, len, &buf));
+        WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), filename));
+
+        *pathp = buf;
+        __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            "Generated SOURCE path: %s\n layer->home = %s, name = %s\n", buf, layer->home, name);
+    }
 
     if (0) {
 err:
