@@ -2924,6 +2924,17 @@ tasks:
             CXX=/opt/mongodbtoolchain/v4/bin/g++
             PATH=/opt/mongodbtoolchain/v4/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
           make_command: PATH=/opt/mongodbtoolchain/v4/bin:$PATH make
+      - command: expansions.update
+       params:
+        updates:
+        - key: test_env_vars
+          value: |
+            PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+            top_dir=$(git rev-parse --show-toplevel)
+            top_builddir=$top_dir/build_posix
+            LD_LIBRARY_PATH=$top_builddir/.libs
+        - key: python_binary
+          value: /opt/mongodbtoolchain/v4/bin/python3
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -4325,7 +4336,7 @@ buildvariants:
       --enable-strict
       --enable-static
       --prefix=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
   - name: compile
   - name: unit-test
