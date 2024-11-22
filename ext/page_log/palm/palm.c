@@ -800,7 +800,7 @@ err:
 #ifndef HAVE_BUILTIN_EXTENSION_PALM
 /*
  * wiredtiger_extension_init --
- *     WiredTiger snappy compression extension.
+ *     WiredTiger page and log mock extension.
  */
 int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
