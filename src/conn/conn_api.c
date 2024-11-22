@@ -2935,13 +2935,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * If the application didn't configure its own file system, configure one of ours. Check to
      * ensure we have a valid file system.
      *
-     * Check the "aux_path" config.  If it is provided validate that a custom file system has not
+     * Check the "aux_path" config. If it is provided validate that a custom file system has not
      * been provided, and that the connection is not in memory.
      */
     WT_ERR(__wt_config_gets(session, cfg, "aux_path", &cval));
     if (conn->file_system == NULL) {
         if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
-            WT_ASSERT_ALWAYS(session, cval.len == 0, "An in memory connection is not compatible with a live restore.");
+            WT_ASSERT_ALWAYS(session, cval.len == 0,
+              "An in memory connection is not compatible with a live restore.");
             WT_ERR(__wt_os_inmemory(session));
         } else {
 #if defined(_MSC_VER)
@@ -2955,7 +2956,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #endif
         }
     } else
-        WT_ASSERT_ALWAYS(session, cval.len == 0, "A custom file system is not compatible with a live restore.");
+        WT_ASSERT_ALWAYS(
+          session, cval.len == 0, "A custom file system is not compatible with a live restore.");
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
     /* Make sure no other thread of control already owns this database. */

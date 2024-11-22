@@ -84,11 +84,15 @@ public:
           random_generator::instance().generate_integer(0ul, collection_count() - 1));
     }
 
-    std::vector<std::string>::const_iterator begin() const {
+    std::vector<std::string>::const_iterator
+    begin() const
+    {
         return _collections.cbegin();
     }
 
-    std::vector<std::string>::const_iterator end() const {
+    std::vector<std::string>::const_iterator
+    end() const
+    {
         return _collections.cend();
     }
 
@@ -281,7 +285,8 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR + "\",cache_size=1GB,verbose=[fileops:1,block:1,block_cache:1,read:1]";
+    const std::string conn_config = CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR +
+      "\",cache_size=1GB,verbose=[fileops:1,block:1,block_cache:1,read:1]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
@@ -340,7 +345,8 @@ main(int argc, char *argv[])
     // TOP -> WT_UNION_SOURCE
     // TODO: Add a "keep" arg.
     // std::filesystem::rename("WT_UNION_SOURCE",
-    //   "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
+    //   "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" +
+    //   std::to_string(local_time->tm_min));
     testutil_assert(std::filesystem::remove_all(SOURCE_DIR) >= 0);
     std::filesystem::rename("WT_TEST", SOURCE_DIR);
 

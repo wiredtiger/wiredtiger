@@ -29,12 +29,13 @@
 #include "wt_internal.h"
 #include <unistd.h>
 
-// #define WT_UNION_FS_STOP_SUFFIX ".stop"
 #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
 static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
-static int __union_fs_file_read(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
-static int __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
+static int __union_fs_file_read(
+  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
+static int __union_fs_file_size(
+  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
 #define EXTENT_END(ext) ((ext)->off + (wt_off_t)(ext)->len)
 
@@ -44,7 +45,7 @@ static int __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_sess
  */
 static int
 __union_fs_filename(
-    WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, char **pathp)
+  WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, char **pathp)
 {
     WT_DECL_RET;
     size_t len;
@@ -58,8 +59,9 @@ __union_fs_filename(
         printf("DDBBGG - DEST path is just relative path\n");
     } else {
         char *filename;
-        // Now that we use conn->home for the destination folder name is passed in as `DEST_FOLDER/file.wt`.
-        // We need to strip `DEST_FOLDER` and prepend `SOURCE_FOLDER` in the filepath
+        // Now that we use conn->home for the destination folder name is passed in as
+        // `DEST_FOLDER/file.wt`. We need to strip `DEST_FOLDER` and prepend `SOURCE_FOLDER` in the
+        // filepath
         filename = basename(name);
         // +1 for the path separator, +1 for the null terminator
         len = strlen(layer->home) + 1 + strlen(filename) + 1;
@@ -68,7 +70,7 @@ __union_fs_filename(
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-            "Generated SOURCE path: %s\n layer->home = %s, name = %s\n", buf, layer->home, name);
+          "Generated SOURCE path: %s\n layer->home = %s, name = %s\n", buf, layer->home, name);
     }
 
     if (0) {
@@ -84,13 +86,15 @@ err:
  * __union_debug_dump_extent_list --
  *     Dump the contents of a file handle's extent list.
  */
-static void __union_debug_dump_extent_list(WT_UNION_FILE_HANDLE *union_fh) {
+static void
+__union_debug_dump_extent_list(WT_UNION_FILE_HANDLE *union_fh)
+{
     WT_UNION_ALLOC_LIST *alloc;
 
     printf("Dumping extent list\n");
     alloc = union_fh->destination.allocation_list;
 
-    while(alloc != NULL) {
+    while (alloc != NULL) {
         printf("Extent: %ld-%ld\n", alloc->off, alloc->off + (wt_off_t)alloc->len);
         alloc = alloc->next;
     }
@@ -115,76 +119,6 @@ __union_fs_marker(WT_SESSION_IMPL *session, const char *name, const char *marker
     return (0);
 }
 
-// /*
-//  * __union_fs_stop --
-//  *     Generate a name of a stop marker.
-//  */
-// static int
-// __union_fs_stop(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, char **out)
-// {
-//     return (__union_fs_marker(fs, session, name, WT_UNION_FS_STOP_SUFFIX, out));
-// }
-
-// /*
-//  * __union_fs_tombstone --
-//  *     Generate a name of a tombstone.
-//  */
-// static int
-// __union_fs_tombstone(
-//   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, char **tombstonep)
-// {
-//     return (__union_fs_marker(fs, session, name, WT_UNION_FS_TOMBSTONE_SUFFIX, tombstonep));
-// }
-
-// /*
-//  * __union_fs_create_marker --
-//  *     Create a marker file for the given file.
-//  */
-// static int
-// __union_fs_create_marker(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name,
-//   const char *marker, uint32_t flags)
-// {
-//     WT_DECL_RET;
-//     WT_FILE_HANDLE *fh;
-//     WT_FILE_SYSTEM *layer_fs;
-//     WT_UNION_FS *u;
-//     uint32_t open_flags;
-//     char *path, *path_marker;
-
-//     fh = NULL;
-//     path = NULL;
-//     path_marker = NULL;
-//     u = (WT_UNION_FS *)fs;
-
-//     WT_ERR(__union_fs_filename(__union_fs_top(u), session, name, &path));
-
-//     layer_fs = &u->destination.file_system;
-//     open_flags = WT_FS_OPEN_CREATE;
-//     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
-//         FLD_SET(open_flags, WT_FS_OPEN_DURABLE);
-
-//     WT_ERR(__union_fs_marker(fs, session, path, marker, &path_marker));
-//     WT_ERR(layer_fs->fs_open_file(
-//       layer_fs, &session->iface, path_marker, WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
-//     WT_ERR(fh->close(fh, &session->iface));
-
-// err:
-//     __wt_free(session, path);
-//     __wt_free(session, path_marker);
-//     return (0);
-// }
-
-// /*
-//  * __union_fs_create_stop --
-//  *     Create a stop marker for the given file.
-//  */
-// static int
-// __union_fs_create_stop(
-//   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
-// {
-//     return (__union_fs_create_marker(fs, session, name, WT_UNION_FS_STOP_SUFFIX, flags));
-// }
-
 /*
  * __union_fs_create_tombstone --
  *     Create a tombstone for the given file.
@@ -199,7 +133,6 @@ __union_fs_create_tombstone(
     char *path, *path_marker;
     uint32_t open_flags;
 
-
     union_fs = (WT_UNION_FS *)fs;
     path = path_marker = NULL;
 
@@ -210,8 +143,8 @@ __union_fs_create_tombstone(
     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
         FLD_SET(open_flags, WT_FS_OPEN_DURABLE);
 
-    WT_ERR(union_fs->os_file_system->fs_open_file(
-       union_fs->os_file_system, &session->iface, path_marker, WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
+    WT_ERR(union_fs->os_file_system->fs_open_file(union_fs->os_file_system, &session->iface,
+      path_marker, WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Creating tombstone: %s", path_marker);
@@ -224,7 +157,9 @@ err:
 }
 
 static int
-__dest_has_tombstone(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, const char *name, bool *existp) {
+__dest_has_tombstone(
+  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, const char *name, bool *existp)
+{
     WT_DECL_RET;
     WT_UNION_FS *union_fs;
     char *path, *path_marker;
@@ -234,125 +169,37 @@ __dest_has_tombstone(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, c
     WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
     WT_ERR(__union_fs_marker(session, path, WT_UNION_FS_TOMBSTONE_SUFFIX, &path_marker));
 
-
-    union_fs->os_file_system->fs_exist(union_fs->os_file_system, (WT_SESSION*)session, path_marker, existp);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
+    union_fs->os_file_system->fs_exist(
+      union_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
+    __wt_verbose_debug2(
+      session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path);
     __wt_free(session, path_marker);
     return (ret);
 }
- // /*
-//  * __union_fs_is_stop --
-//  *     Check if the given file is a stop file marker.
-//  */
-// static bool
-// __union_fs_is_stop(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name)
-// {
-//     size_t name_len, suffix_len;
-
-//     WT_UNUSED(fs);
-//     WT_UNUSED(session);
-
-//     name_len = strlen(name);
-//     suffix_len = strlen(WT_UNION_FS_STOP_SUFFIX);
-//     if (name_len <= suffix_len)
-//         return (false);
-
-//     return (strcmp(name + name_len - suffix_len, WT_UNION_FS_STOP_SUFFIX) == 0);
-// }
-
-// /*
-//  * __union_fs_is_tombstone --
-//  *     Check if the given file is a tombstone.
-//  */
-// static bool
-// __union_fs_is_tombstone(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name)
-// {
-//     size_t name_len, suffix_len;
-
-//     WT_UNUSED(fs);
-//     WT_UNUSED(session);
-
-//     name_len = strlen(name);
-//     suffix_len = strlen(WT_UNION_FS_TOMBSTONE_SUFFIX);
-//     if (name_len <= suffix_len)
-//         return (false);
-
-//     return (strcmp(name + name_len - suffix_len, WT_UNION_FS_TOMBSTONE_SUFFIX) == 0);
-// }
-
-// /*
-//  * __union_fs_remove_tombstone --
-//  *     Remove a tombstone for the given file.
-//  */
-// static int
-// __union_fs_remove_tombstone(
-//   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
-// {
-//     WT_DECL_RET;
-//     WT_FILE_SYSTEM *layer_fs;
-//     WT_UNION_FS *u;
-//     uint32_t remove_flags;
-//     char *tombstone;
-
-//     tombstone = NULL;
-//     u = (WT_UNION_FS *)fs;
-
-//     layer_fs = &u->destination.file_system;
-//     remove_flags = 0;
-//     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
-//         remove_flags |= WT_FS_OPEN_DURABLE;
-
-//     WT_ERR(__union_fs_tombstone(fs, session, name, &tombstone));
-//     WT_ERR(layer_fs->fs_remove(layer_fs, &session->iface, tombstone, remove_flags));
-
-// err:
-//     __wt_free(session, tombstone);
-//     return (0);
-// }
 
 static int
-__union_fs_has_file(
-  WT_UNION_FS *union_fs, WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, bool *existsp)
+__union_fs_has_file(WT_UNION_FS *union_fs, WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session,
+  const char *name, bool *existsp)
 {
     WT_DECL_RET;
     char *path;
 
     path = NULL;
 
-    /* If the start layer has a stop file, we are finished. */
-    // if (start_layer_excl != WT_UNION_FS_TOP) {
-    //     layer_fs = __union_fs_top(u)->file_system;
-    //     WT_ERR(__union_fs_filename(__union_fs_top(u), session, name, &path));
-    //     WT_ERR(__union_fs_stop(fs, session, path, &stop));
-    //     WT_ERR(layer_fs->fs_exist(layer_fs, &session->iface, stop, &exist));
-    //     if (exist)
-    //         WT_ERR(WT_NOTFOUND);
-    //     __wt_free(session, path);
-    // }
     WT_ERR(__union_fs_filename(layer, session, name, &path));
-    // 8(__union_fs_tombstone(fs, session, path, &tombstone));
-    //
-    // /* Check the tombstone. */
-    // WT_ERR(layer_fs->fs_exist(layer_fs, &session->iface, tombstone, &exist));
-    // if (exist) {
-    //  *existp = false;
-    // if (indexp != NULL)
-    //  *indexp = (size_t)i;
-    // break;
-    // }
-
-    /* Check for the file itself. */
-    WT_ERR(union_fs->os_file_system->fs_exist(union_fs->os_file_system, &session->iface, path, existsp));
+    WT_ERR(
+      union_fs->os_file_system->fs_exist(union_fs->os_file_system, &session->iface, path, existsp));
 err:
     __wt_free(session, path);
 
     return (ret);
 }
 
-// TODO - Do we need fs_find_layer? We should only ever interact with the file in the destination layer.
+// TODO - Do we need fs_find_layer? We should only ever interact with the file in the destination
+// layer.
 /*
  * __union_fs_find_layer --
  *     Find a layer for the given file. Return the index of the layer and whether the layer contains
@@ -360,8 +207,8 @@ err:
  *     layer index - 1; use WT_UNION_FS_TOP to indicate starting at the top.
  */
 static int
-__union_fs_find_layer(
-  WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, WT_UNION_FS_LAYER_TYPE *whichp, bool *existp)
+__union_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name,
+  WT_UNION_FS_LAYER_TYPE *whichp, bool *existp)
 {
     WT_UNION_FS *union_fs;
 
@@ -427,8 +274,8 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
             layer = &union_fs->source;
         }
         WT_ERR(__union_fs_filename(layer, session, directory, &path));
-        WT_ERR(union_fs->os_file_system->fs_directory_list(
-          union_fs->os_file_system, &session->iface, path, prefix, &layer_entries, &layer_num_entries));
+        WT_ERR(union_fs->os_file_system->fs_directory_list(union_fs->os_file_system,
+          &session->iface, path, prefix, &layer_entries, &layer_num_entries));
         __wt_free(session, path);
 
         /* Process the entries from the layer, properly handling tombstones. */
@@ -442,35 +289,36 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
             //     /* Find the tombstone in a list and mark it as removed. */
             //     l = strlen(layer_entries[i]) - strlen(WT_UNION_FS_TOMBSTONE_SUFFIX);
             //     for (j = 0; j < num_entries; j++) {
-            //         if (strncmp(entries[j], layer_entries[i], l) == 0 && strlen(entries[j]) == l) {
+            //         if (strncmp(entries[j], layer_entries[i], l) == 0 && strlen(entries[j]) == l)
+            //         {
             //             entries[j][0] = '\0';
             //             break;
             //         }
             //     }
             // } else {
-                /* See if the entry is in the list. Remember any slots that can be reused. */
-                found = false;
-                reuse = (uint32_t)-1;
-                for (j = 0; j < num_entries; j++) {
-                    if (strcmp(entries[j], layer_entries[i]) == 0) {
-                        found = true;
-                        break;
-                    }
-                    if (reuse != 0 && entries[j][0] == '\0')
-                        reuse = (uint32_t)-1;
+            /* See if the entry is in the list. Remember any slots that can be reused. */
+            found = false;
+            reuse = (uint32_t)-1;
+            for (j = 0; j < num_entries; j++) {
+                if (strcmp(entries[j], layer_entries[i]) == 0) {
+                    found = true;
+                    break;
                 }
+                if (reuse != 0 && entries[j][0] == '\0')
+                    reuse = (uint32_t)-1;
+            }
 
-                if (!found) {
-                    if (reuse != (uint32_t)-1) {
-                        __wt_free(session, entries[reuse]);
-                        WT_ERR(__wt_strdup(session, layer_entries[i], &entries[reuse]));
-                    } else {
-                        WT_ERR(__wt_realloc_def(
-                          session, &entries_alloc_size, num_entries + 1, &entries));
-                        WT_ERR(__wt_strdup(session, layer_entries[i], &entries[num_entries]));
-                        ++num_entries;
-                    }
+            if (!found) {
+                if (reuse != (uint32_t)-1) {
+                    __wt_free(session, entries[reuse]);
+                    WT_ERR(__wt_strdup(session, layer_entries[i], &entries[reuse]));
+                } else {
+                    WT_ERR(
+                      __wt_realloc_def(session, &entries_alloc_size, num_entries + 1, &entries));
+                    WT_ERR(__wt_strdup(session, layer_entries[i], &entries[num_entries]));
+                    ++num_entries;
                 }
+            }
             // }
         }
 
@@ -580,13 +428,12 @@ __union_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, b
     return (0);
 }
 
-static int
-__union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
+static int __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
 
-
 static void
-__union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh) {
+__union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
+{
     WT_UNION_ALLOC_LIST *alloc;
     WT_UNION_ALLOC_LIST *temp;
 
@@ -607,15 +454,15 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 
 /*
  * __union_fs_fill_holes_on_file _close --
- *     On file close make sure we've copied across all data from source to destination.
- *     This means there are no holes in the destination file's extent list. If we find one promote
- *     read the content into the destination.
+ *     On file close make sure we've copied across all data from source to destination. This means
+ *     there are no holes in the destination file's extent list. If we find one promote read the
+ *     content into the destination.
  *
- *     NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions
- *            of the destination file are already handled elsewhere.
+ * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the
+ *     destination file are already handled elsewhere.
  *
- *     FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
- *             Maybe we only need this for our test which overwrites WT_TEST on each loop?
+ * FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
+ *     Maybe we only need this for our test which overwrites WT_TEST on each loop?
  */
 static int
 __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
@@ -628,13 +475,16 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
     alloc = fh->destination.allocation_list;
 
-    while(alloc != NULL) {
+    while (alloc != NULL) {
         next_alloc = alloc->next;
-        if(next_alloc == NULL)
+        if (next_alloc == NULL)
             break;
-        if(EXTENT_END(alloc) < next_alloc->off) {
-            __wt_verbose_debug3((WT_SESSION_IMPL*)wt_session, WT_VERB_FILEOPS, "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, EXTENT_END(alloc), next_alloc->off);
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(next_alloc->off - EXTENT_END(alloc)), buf));
+        if (EXTENT_END(alloc) < next_alloc->off) {
+            __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+              "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name,
+              EXTENT_END(alloc), next_alloc->off);
+            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc),
+              (size_t)(next_alloc->off - EXTENT_END(alloc)), buf));
 
             // We've modified the extent list while walking it. Start again to be safe.
             alloc = fh->destination.allocation_list;
@@ -646,9 +496,10 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
 
     // Finally check if there's a hole at the end of the file.
     __union_fs_file_size(file_handle, wt_session, &file_size);
-    if(alloc != NULL) {
-        if(file_size > EXTENT_END(alloc)) {
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc), (size_t)(file_size - EXTENT_END(alloc)), buf));
+    if (alloc != NULL) {
+        if (file_size > EXTENT_END(alloc)) {
+            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc),
+              (size_t)(file_size - EXTENT_END(alloc)), buf));
             // No need to restart the extent validation. This is the final extent.
         }
     }
@@ -668,7 +519,8 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
 
     __union_fs_fill_holes_on_file_close(file_handle, wt_session);
 
@@ -704,11 +556,12 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
  * This only works by assuming that the block manager is the only thing that will use this and that
  * it only reads and writes full blocks. If that changes this code will unceremoniously fall over.
  */
-typedef enum { NONE, FULL} RW_SERVICE_LEVEL;
-
+typedef enum { NONE, FULL } RW_SERVICE_LEVEL;
 
 static RW_SERVICE_LEVEL
-__dest_can_service_rw(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len) {
+__dest_can_service_rw(
+  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+{
     WT_UNION_ALLOC_LIST *alloc;
     wt_off_t rw_end;
 
@@ -724,7 +577,8 @@ __dest_can_service_rw(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, 
     while (alloc != NULL) {
         /* The read is in this allocation. */
         if (offset >= alloc->off && rw_end <= EXTENT_END(alloc)) {
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "CAN SERVICE %s: Full match", union_fh->iface.name);
+            __wt_verbose_debug3(
+              session, WT_VERB_FILEOPS, "CAN SERVICE %s: Full match", union_fh->iface.name);
             return (FULL);
         }
         alloc = alloc->next;
@@ -735,17 +589,21 @@ __dest_can_service_rw(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, 
 
 /*
  * __union_merge_with_next_extents --
+ *    
  *
  * Merge the current extent with the following extent(s) if they overlap.
  */
-static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent) {
+static int
+__union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent)
+{
     WT_UNION_ALLOC_LIST *next_extent;
     wt_off_t new_len;
 
     next_extent = extent->next;
     WT_ASSERT_ALWAYS(session, next_extent != NULL, "Attempting to merge with NULL!");
     WT_ASSERT_ALWAYS(session, EXTENT_END(extent) >= next_extent->off,
-        "Attempting to merge non-overlapping extents! extent_end = %ld, next->off = %ld", EXTENT_END(extent), next_extent->off);
+      "Attempting to merge non-overlapping extents! extent_end = %ld, next->off = %ld",
+      EXTENT_END(extent), next_extent->off);
 
     extent->next = next_extent->next;
     new_len = EXTENT_END(next_extent) - extent->off; // TODO check for off by one
@@ -755,7 +613,7 @@ static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_AL
 
     // Run it again in case we also overlap with the N+1 extent
     // TODO - loop instead of recursion.
-    if(extent->next != NULL && EXTENT_END(extent) >= extent->next->off) {
+    if (extent->next != NULL && EXTENT_END(extent) >= extent->next->off) {
         WT_RET(__union_merge_with_next_extents(session, extent));
     }
     return (0);
@@ -767,13 +625,15 @@ static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_AL
  *     and merging overlapping extents.
  */
 static int
-__dest_update_alloc_list_write(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+__dest_update_alloc_list_write(
+  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
     WT_UNION_ALLOC_LIST *alloc, *prev, *new;
     RW_SERVICE_LEVEL sl;
     prev = alloc = new = NULL;
 
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p", union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p",
+      union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
 
     sl = __dest_can_service_rw(union_fh, session, offset, len);
     if (sl == FULL) {
@@ -787,14 +647,15 @@ __dest_update_alloc_list_write(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *
             if (alloc->off == offset) {
 
                 /* If the write fits the current extent just add it */
-                if(EXTENT_END(alloc) >= offset + (wt_off_t)len) {
-                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done", union_fh->iface.name);
+                if (EXTENT_END(alloc) >= offset + (wt_off_t)len) {
+                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done",
+                      union_fh->iface.name);
                     return (0);
                 } else {
                     /* Otherwise grow the extent to match the new write. */
                     WT_ASSERT(session, alloc->len < len);
                     alloc->len = len;
-                    if(alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
+                    if (alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
                         WT_RET(__union_merge_with_next_extents(session, alloc));
                     }
                     return (0);
@@ -863,7 +724,8 @@ __union_fs_file_write(
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %zu", fh->name, offset, len);
     // TODO - why write to file before setting the extent?
-    WT_RET(union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
+    WT_RET(
+      union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
     WT_RET(union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
     WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
     return (0);
@@ -874,13 +736,17 @@ __union_fs_file_write(
  *     Write out the contents of a read into the destination. This will be overkill for cases where
  *     a read is performed to service a write. Which is most cases however this is a PoC.
  *
- *     TODO: Locking needed.
+ * TODO: Locking needed.
  */
 static int
-__read_promote(WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read) {
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %zu", union_fh->iface.name, offset, len);
-    WT_RET(__union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
-    if(strcmp(union_fh->iface.name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
+__read_promote(
+  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read)
+{
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %zu",
+      union_fh->iface.name, offset, len);
+    WT_RET(
+      __union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
+    if (strcmp(union_fh->iface.name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
         printf("DBG PROMOTE WRITE\n\n");
         for (int i = 0; i < 4096; i++) {
             printf("%c", read[i]);
@@ -909,35 +775,39 @@ __union_fs_file_read(
     session = (WT_SESSION_IMPL *)wt_session;
     sl = NONE;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %zu", file_handle->name, offset, len);
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "READ %s : %ld, %zu", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
     sl = __dest_can_service_rw(union_fh, session, offset, len);
 
     /*
-     * TODO: Wiredtiger will read the metadata file after creation but before anything has
-     * been written in this case we forward the read to the empty metadata file in the
-     * destinaion. Is this correct?
+     * TODO: Wiredtiger will read the metadata file after creation but before anything has been
+     * written in this case we forward the read to the empty metadata file in the destinaion. Is
+     * this correct?
      */
     if (union_fh->destination.complete || union_fh->source == NULL || sl == FULL) {
         // TODO: Right now if complete is true source will always be null. So the if statement here
         // has redundancy is there a time when we need it? Maybe with the background thread.
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)", union_fh->source == NULL ? "YES" : "NO");
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
+          union_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
-        WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
+        WT_ERR(union_fh->destination.fh->fh_read(
+          union_fh->destination.fh, wt_session, offset, len, read_data));
     } else {
         /* Interestingly you cannot not have a format in verbose. */
-         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
         WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
         WT_ERR(__read_promote(union_fh, session, offset, len, read_data));
     }
 
-    if(strcmp(file_handle->name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
+    if (strcmp(file_handle->name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
         printf("DBG READ\n\n");
-        WT_ERR(union_fh->destination.fh->fh_read(union_fh->destination.fh, wt_session, offset, len, read_data));
+        WT_ERR(union_fh->destination.fh->fh_read(
+          union_fh->destination.fh, wt_session, offset, len, read_data));
         for (int i = 0; i < 4096; i++) {
             printf("%c", read_data[i]);
         }
@@ -990,9 +860,10 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
 
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
 
-    // If we truncate a range we'll never need to read that range fromt the source file. Mark it as such.
+    // If we truncate a range we'll never need to read that range fromt the source file. Mark it as
+    // such.
     __union_fs_file_size(file_handle, wt_session, &old_len);
-    __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL*)wt_session, len, (size_t)(old_len - len));
+    __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
 
     return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));
 }
@@ -1002,7 +873,9 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
  *     Open a file handle in the source.
  */
 static int
-__union_fs_open_in_source(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh, uint32_t flags) {
+__union_fs_open_in_source(
+  WT_UNION_FS *union_fs, WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh, uint32_t flags)
+{
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
 
@@ -1012,7 +885,6 @@ __union_fs_open_in_source(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session, WT_UN
 
     // Clear the create flag. TODO: Can we assert something here?
     FLD_CLR(flags, WT_FS_OPEN_CREATE);
-
 
     /* Open the file in the layer. */
     WT_ERR(__union_fs_filename(&union_fs->source, session, union_fh->iface.name, &path));
@@ -1025,17 +897,21 @@ err:
     __wt_free(session, path);
     return (ret);
 }
-static int fd_is_valid(int fd)
+static int
+fd_is_valid(int fd)
 {
     return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
 }
 #include <unistd.h>
 /*
  * __union_build_extents_from_dest_file_lseek --
- *     When opening a file from destination create its existing extent list from the file system information.
- *     Any holes in the extent list are data that hasn't been copied from source yet.
+ *     When opening a file from destination create its existing extent list from the file system
+ *     information. Any holes in the extent list are data that hasn't been copied from source yet.
  */
-static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh) {
+static void
+__union_build_extents_from_dest_file_lseek(
+  WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh)
+{
     wt_off_t data_offset, data_end_offset, file_size;
     int fd;
 
@@ -1043,22 +919,25 @@ static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session,
     fd = open(filename, O_RDONLY);
     data_offset = data_end_offset = 0;
 
-    __union_fs_file_size((WT_FILE_HANDLE*)union_fh, (WT_SESSION*)session, &file_size);
+    __union_fs_file_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
     WT_ASSERT(session, fd_is_valid(fd));
 
-    // Find the next data block. data_end_offset is initialised to zero so we start from the beginning of the file.
+    // Find the next data block. data_end_offset is initialised to zero so we start from the
+    // beginning of the file.
     while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
 
         data_end_offset = lseek(fd, data_offset, SEEK_HOLE);
         // All data must be followed by a hole
         WT_ASSERT(session, data_end_offset != -1);
-        WT_ASSERT(session, data_end_offset > data_offset -1);
+        WT_ASSERT(session, data_end_offset > data_offset - 1);
 
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename, data_offset, data_end_offset);
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename,
+          data_offset, data_end_offset);
         // FIXME - unhandled ret
-        __dest_update_alloc_list_write(union_fh, session, data_offset, (size_t)(data_end_offset - data_offset));
+        __dest_update_alloc_list_write(
+          union_fh, session, data_offset, (size_t)(data_end_offset - data_offset));
     }
 
     close(fd);
@@ -1069,7 +948,8 @@ static void __union_build_extents_from_dest_file_lseek(WT_SESSION_IMPL *session,
  *     Open a file handle.
  */
 static int
-__union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh, uint32_t flags, bool create)
+__union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session,
+  WT_UNION_FILE_HANDLE *union_fh, uint32_t flags, bool create)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
@@ -1133,7 +1013,8 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     // XXX Handle the exclusive flag and other flags
 
     /* Open it in the destination layer. */
-    WT_ERR_NOTFOUND_OK(__union_fs_has_file(union_fs, &union_fs->destination, session, name, &dest_exist), true);
+    WT_ERR_NOTFOUND_OK(
+      __union_fs_has_file(union_fs, &union_fs->destination, session, name, &dest_exist), true);
     WT_ERR(__union_fs_open_in_destination(union_fs, session, union_fh, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(union_fh, session, name, &have_tombstone));
@@ -1148,26 +1029,29 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
          * If it exists in the source, open it. If it doesn't exist in the source then by definition
          * the destination file is complete.
          */
-        WT_ERR_NOTFOUND_OK(__union_fs_has_file(union_fs, &union_fs->source, session, name, &source_exist), true);
+        WT_ERR_NOTFOUND_OK(
+          __union_fs_has_file(union_fs, &union_fs->source, session, name, &source_exist), true);
         if (source_exist) {
             WT_ERR(__union_fs_open_in_source(union_fs, session, union_fh, flags));
 
-            if(!dest_exist) {
-                // We're creating a new destination file which is backed by a source file. It currently has a
-                // length of zero, but we want its length to be the same as the source file.
-                // We do this by reading the last byte of the file. This will read promote the byte into the
-                // destination file, setting the file size.
+            if (!dest_exist) {
+                // We're creating a new destination file which is backed by a source file. It
+                // currently has a length of zero, but we want its length to be the same as the
+                // source file. We do this by reading the last byte of the file. This will read
+                // promote the byte into the destination file, setting the file size.
                 wt_off_t source_size;
                 char buf[10];
 
                 union_fh->source->fh_size(union_fh->source, wt_session, &source_size);
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                    "Creating destination file backed by source file. Copying size (%ld) from source file", source_size);
+                  "Creating destination file backed by source file. Copying size (%ld) from source "
+                  "file",
+                  source_size);
 
-                WT_ERR(__union_fs_file_read((WT_FILE_HANDLE *)union_fh, wt_session, source_size - 1, 1, buf));
+                WT_ERR(__union_fs_file_read(
+                  (WT_FILE_HANDLE *)union_fh, wt_session, source_size - 1, 1, buf));
             }
-        }
-        else
+        } else
             union_fh->destination.complete = true;
     }
 
@@ -1281,7 +1165,8 @@ __union_fs_rename(
      * critical than it may seem at first.
      */
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Renaming file from: %s to %s\n", from, to);
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "UNION_FS: Renaming file from: %s to %s\n", from, to);
     WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, from, &which, &exist));
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
@@ -1290,7 +1175,8 @@ __union_fs_rename(
     if (which == WT_UNION_FS_LAYER_DESTINAION) {
         WT_ERR(__union_fs_filename(&union_fs->destination, session, from, &path_from));
         WT_ERR(__union_fs_filename(&union_fs->destination, session, to, &path_to));
-        WT_ERR(union_fs->os_file_system->fs_rename(union_fs->os_file_system, wt_session, path_from, path_to, flags));
+        WT_ERR(union_fs->os_file_system->fs_rename(
+          union_fs->os_file_system, wt_session, path_from, path_to, flags));
         __wt_free(session, path_from);
         __wt_free(session, path_to);
 
@@ -1364,8 +1250,8 @@ __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
  *     Initialize a union file system configuration.
  */
 int
-__wt_os_union_fs(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg, const char *destination, WT_FILE_SYSTEM **fsp)
+__wt_os_union_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg, const char *destination,
+  WT_FILE_SYSTEM **fsp)
 {
     WT_UNION_FS *union_fs;
 
@@ -1383,16 +1269,17 @@ __wt_os_union_fs(
     union_fs->iface.fs_size = __union_fs_size;
     union_fs->iface.terminate = __union_fs_terminate;
 
-
     /* Initialize the layers. */
     union_fs->destination.home = destination;
     union_fs->destination.which = WT_UNION_FS_LAYER_DESTINAION;
     WT_RET(__wt_strndup(session, source_cfg->str, source_cfg->len, &union_fs->source.home));
     union_fs->source.which = WT_UNION_FS_LAYER_SOURCE;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s", union_fs->source.home, destination);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
+      union_fs->source.home, destination);
 
     /* Update the callers pointer. */
-    *fsp = (WT_FILE_SYSTEM*)union_fs;
+    *fsp = (WT_FILE_SYSTEM *)union_fs;
     return (0);
 }
