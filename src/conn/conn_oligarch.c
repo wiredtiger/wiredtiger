@@ -1191,7 +1191,7 @@ __wt_disagg_get_meta(
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_PAGE_LOG_GET_ARGS get_args;
-    u_int count;
+    u_int count, retry;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
@@ -1199,11 +1199,28 @@ __wt_disagg_get_meta(
 
     if (disagg->page_log_meta != NULL) {
         WT_ASSERT(session, disagg->bstorage_meta == NULL);
-        count = 1;
-        WT_RET(disagg->page_log_meta->plh_get(
-          disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &get_args, item, &count));
-        /* TODO: Add retries if the metadata is not found - maybe it was not yet materialized. */
-        WT_ASSERT(session, count == 1 && get_args.delta_count == 0); /* TODO: corrupt data */
+
+        retry = 0;
+        for (;;) {
+            count = 1;
+            WT_RET(disagg->page_log_meta->plh_get(disagg->page_log_meta, &session->iface, page_id,
+              checkpoint_id, &get_args, item, &count));
+            WT_ASSERT(session, count <= 1 && get_args.delta_count == 0); /* TODO: corrupt data */
+
+            /* Found the data. */
+            if (count == 1)
+                break;
+
+            /* Otherwise retry up to 100 times to account for page materialization delay. */
+            if (retry > 100)
+                return (WT_NOTFOUND);
+            __wt_verbose_notice(session, WT_VERB_READ,
+              "retry #%" PRIu32 " for metadata page_id %" PRIu64 ", checkpoint_id %" PRIu64, retry,
+              page_id, checkpoint_id);
+            __wt_sleep(0, 10000 + retry * 5000);
+            ++retry;
+        }
+
         return (0);
     }
 
