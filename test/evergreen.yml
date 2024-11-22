@@ -321,7 +321,7 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
+            CC=/opt/mongodbtoolchain/v4/bin/gcc CXX=/opt/mongodbtoolchain/v4/bin/g++ PATH=/opt/mongodbtoolchain/v4/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
               --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
@@ -2923,18 +2923,6 @@ tasks:
           configure_env_vars:
             CXX=/opt/mongodbtoolchain/v4/bin/g++
             PATH=/opt/mongodbtoolchain/v4/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
-          make_command: PATH=/opt/mongodbtoolchain/v4/bin:$PATH make
-      - command: expansions.update
-        params:
-          updates:
-          - key: test_env_vars
-            value: |
-              PATH=/opt/mongodbtoolchain/v4/bin:$PATH
-              top_dir=$(git rev-parse --show-toplevel)
-              top_builddir=$top_dir/build_posix
-              LD_LIBRARY_PATH=$top_builddir/.libs
-          - key: python_binary
-            value: /opt/mongodbtoolchain/v4/bin/python3
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -4239,10 +4227,10 @@ buildvariants:
   - rhel8-zseries-small
   batchtime: 4320 # 3 days
   expansions:
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       top_dir=$(git rev-parse --show-toplevel)
       top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.lib
@@ -4321,9 +4309,9 @@ buildvariants:
   batchtime: 120 # 2 hours
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    make_command: PATH=/opt/mongodbtoolchain/v4/bin:$PATH make
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       top_dir=$(git rev-parse --show-toplevel)
       top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
@@ -4336,7 +4324,7 @@ buildvariants:
       --enable-strict
       --enable-static
       --prefix=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
   - name: compile
   - name: unit-test
@@ -4363,7 +4351,7 @@ buildvariants:
       -DENABLE_SNAPPY=1
       -DENABLE_STRICT=1
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
     make_command: ninja
