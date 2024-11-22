@@ -136,7 +136,8 @@ typedef struct palm_handle {
  * Forward function declarations for internal functions
  */
 static int palm_configure(PALM *, WT_CONFIG_ARG *);
-static int palm_configure_int(PALM *, WT_CONFIG_ARG *, const char *, uint32_t *);
+static int palm_configure_int(
+  PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, uint32_t *);
 static int palm_err(PALM *, WT_SESSION *, int, const char *, ...);
 static int palm_kv_err(PALM *, WT_SESSION *, int, const char *, ...);
 static void palm_init_context(PALM *, PALM_KV_CONTEXT *);
@@ -154,26 +155,45 @@ static int palm_terminate(WT_PAGE_LOG *, WT_SESSION *);
 static int
 palm_configure(PALM *palm, WT_CONFIG_ARG *config)
 {
-    int ret;
+    WT_CONFIG_PARSER *env_parser;
+    const char *env_config;
+    int ret, t_ret;
+
+    if ((env_config = getenv("WT_PALM_CONFIG")) == NULL)
+        env_config = "";
+
+    /* A null session is allowed. */
+    if ((ret = palm->wt_api->config_parser_open(
+           palm->wt_api, NULL, env_config, strlen(env_config), &env_parser)) != 0)
+        goto err;
 
     palm->cache_size_mb = DEFAULT_PALM_CACHE_SIZE_MB;
-    if ((ret = palm_configure_int(palm, config, "cache_size_mb", &palm->cache_size_mb)) != 0)
-        return (ret);
-    if ((ret = palm_configure_int(palm, config, "delay_ms", &palm->delay_ms)) != 0)
-        return (ret);
-    if ((ret = palm_configure_int(palm, config, "error_ms", &palm->error_ms)) != 0)
-        return (ret);
-    if ((ret = palm_configure_int(palm, config, "force_delay", &palm->force_delay)) != 0)
-        return (ret);
-    if ((ret = palm_configure_int(palm, config, "force_error", &palm->force_error)) != 0)
-        return (ret);
     if ((ret = palm_configure_int(
-           palm, config, "materialization_delay_ms", &palm->materialization_delay_ms)) != 0)
-        return (ret);
-    if ((ret = palm_configure_int(palm, config, "verbose", &palm->verbose)) != 0)
-        return (ret);
+           palm, env_parser, config, "cache_size_mb", &palm->cache_size_mb)) != 0)
+        goto err;
+    if ((ret = palm_configure_int(palm, env_parser, config, "delay_ms", &palm->delay_ms)) != 0)
+        goto err;
+    if ((ret = palm_configure_int(palm, env_parser, config, "error_ms", &palm->error_ms)) != 0)
+        goto err;
+    if ((ret = palm_configure_int(palm, env_parser, config, "force_delay", &palm->force_delay)) !=
+      0)
+        goto err;
+    if ((ret = palm_configure_int(palm, env_parser, config, "force_error", &palm->force_error)) !=
+      0)
+        goto err;
+    if ((ret = palm_configure_int(palm, env_parser, config, "materialization_delay_ms",
+           &palm->materialization_delay_ms)) != 0)
+        goto err;
+    if ((ret = palm_configure_int(palm, env_parser, config, "verbose", &palm->verbose)) != 0)
+        goto err;
 
-    return (0);
+err:
+    if (env_parser != NULL) {
+        t_ret = env_parser->close(env_parser);
+        if (ret == 0)
+            ret = t_ret;
+    }
+    return (ret);
 }
 
 /*
@@ -181,14 +201,20 @@ palm_configure(PALM *palm, WT_CONFIG_ARG *config)
  *     Look for a particular configuration key, and return its integer value.
  */
 static int
-palm_configure_int(PALM *palm, WT_CONFIG_ARG *config, const char *key, uint32_t *valuep)
+palm_configure_int(PALM *palm, WT_CONFIG_PARSER *env_parser, WT_CONFIG_ARG *config, const char *key,
+  uint32_t *valuep)
 {
     WT_CONFIG_ITEM v;
     int ret;
 
     ret = 0;
 
-    if ((ret = palm->wt_api->config_get(palm->wt_api, NULL, config, key, &v)) == 0) {
+    /*
+     * Environment configuration overrides configuration used with loading the library, so check
+     * that first.
+     */
+    if ((ret = env_parser->get(env_parser, key, &v)) == 0 ||
+      (ret = palm->wt_api->config_get(palm->wt_api, NULL, config, key, &v)) == 0) {
         if (v.len == 0 || v.type != WT_CONFIG_ITEM_NUM)
             ret = palm_err(palm, NULL, EINVAL, "force_error config arg: integer required");
         else
@@ -683,12 +709,14 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
     return (ret);
 }
 
+int palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config);
+
 /*
- * wiredtiger_extension_init --
- *     A simple shared library encryption example.
+ * palm_extension_init --
+ *     A standalone, durable implementation of the WT_PAGE_LOG interface (PALI).
  */
 int
-wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
+palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     PALM *palm;
     const char *home;
@@ -764,3 +792,19 @@ err:
     }
     return (ret);
 }
+
+/*
+ * We have to remove this symbol when building as a builtin extension otherwise it will conflict
+ * with other builtin libraries.
+ */
+#ifndef HAVE_BUILTIN_EXTENSION_PALM
+/*
+ * wiredtiger_extension_init --
+ *     WiredTiger page and log mock extension.
+ */
+int
+wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
+{
+    return palm_extension_init(connection, config);
+}
+#endif
