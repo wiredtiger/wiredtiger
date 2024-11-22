@@ -1713,7 +1713,7 @@ retry:
             continue;
         }
 
-        if (evict->use_npos_in_pass) {
+        if (!evict->use_npos_in_pass) {
             /*
              * Skip files if we have too many active walks.
              *
