@@ -2835,7 +2835,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_DECL_ITEM(i2);
     WT_DECL_ITEM(i3);
     WT_DECL_RET;
-    WT_FILE_SYSTEM *fs;
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session, *verify_session;
@@ -2851,7 +2850,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     *connectionp = NULL;
 
     conn = NULL;
-    fs = NULL;
     session = verify_session = NULL;
     merge_cfg = NULL;
     try_salvage = false;
@@ -2944,14 +2942,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #if defined(_MSC_VER)
             WT_ERR(__wt_os_win(session));
 #else
-            // WT_ERR(__wt_os_posix(session, &conn->file_system));
+            // TODO: Only do union fs when both paths specified.
+            // WT_ERR(__wt_os_posix(session));
 
             // FIXME - Stop hardcoding the source destination
-            WT_ERR(__wt_os_union_fs(session, "WT_UNION_SOURCE", conn->home, fs));
-            WT_ERR(__wt_os_posix(session, &fs));
-            ((WT_UNION_FS *)conn->file_system)->destination.file_system = fs;
-            WT_ERR(__wt_os_posix(session, &fs));
-            ((WT_UNION_FS *)conn->file_system)->source.file_system = fs;
+            WT_ERR(__wt_os_union_fs(session, "WT_UNION_SOURCE", conn->home, &conn->file_system));
 
 #endif
         }

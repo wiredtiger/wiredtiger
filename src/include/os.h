@@ -190,8 +190,6 @@ struct __wt_fstream {
     int (*fstr_printf)(WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
 };
 
-typedef enum { SOURCE, DESTINATION } LAYER;
-
 /*
  * __wt_union_alloc_list
  */
@@ -203,10 +201,10 @@ struct __wt_union_alloc_list {
 };
 
 /*
- * __wt_file_handle_union_fs_layer --
+ * WT_DESTINATION_METADATA --
  *     A file handle in a union file system - one layer.
  */
-struct __wt_union_fs_fh_single_layer {
+typedef struct {
     WT_FILE_HANDLE *fh;
     bool complete;
 
@@ -214,21 +212,22 @@ struct __wt_union_fs_fh_single_layer {
     WT_UNION_FS *back_pointer;
 
     /*
-     * allocation_list tracks which ranges in the file have been written to destination
-     * at any point in time. Holes in these extents should only shrink and never grow.
+     * allocation_list tracks which ranges in the destination file shouldn't be brought up from
+     * the source layer. Holes in these extents should only shrink and never grow.
      */
     WT_UNION_ALLOC_LIST *allocation_list;
-    WT_UNION_ALLOC_LIST *end;
-};
+} WT_DESTINATION_METADATA;
+
+typedef enum  { WT_UNION_FS_LAYER_DESTINAION, WT_UNION_FS_LAYER_SOURCE} WT_UNION_FS_LAYER_TYPE;
 
 /*
- * __wt_file_handle_union_fs --
+ * __wt_union_file_handle --
  *     A file handle in a union file system.
  */
-struct __wt_union_fs_fh {
+struct __wt_union_file_handle {
     WT_FILE_HANDLE iface;
     WT_FILE_HANDLE *source;
-    WT_UNION_FS_FH_SINGLE_LAYER destination; /* 0 is the most recent layer. */
+    WT_DESTINATION_METADATA destination; /* 0 is the most recent layer. */
 
     WT_FS_OPEN_FILE_TYPE file_type;
 };
@@ -238,10 +237,8 @@ struct __wt_union_fs_fh {
  *     A layer in a union file system.
  */
 struct __wt_union_fs_layer {
-    WT_FILE_SYSTEM *file_system;
-
     const char *home;
-    LAYER which;
+    WT_UNION_FS_LAYER_TYPE which;
 };
 
 /*
@@ -250,6 +247,7 @@ struct __wt_union_fs_layer {
  */
 struct __wt_union_fs {
     WT_FILE_SYSTEM iface;
-    WT_UNION_FS_LAYER source;
+    WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
     WT_UNION_FS_LAYER destination;
+    WT_UNION_FS_LAYER source;
 };

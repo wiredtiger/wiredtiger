@@ -24,7 +24,7 @@ extern int __wt_once(void (*init_routine)(void)) WT_GCC_FUNC_DECL_ATTRIBUTE((war
 extern int __wt_os_posix(WT_SESSION_IMPL *session, WT_FILE_SYSTEM **fsp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_os_union_fs(WT_SESSION_IMPL *session, const char *source, const char *destination,
-  WT_FILE_SYSTEM *fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_FILE_SYSTEM **fsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
   WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
