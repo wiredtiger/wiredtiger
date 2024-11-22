@@ -4243,7 +4243,7 @@ buildvariants:
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
   run_on:
-  - rhel81-power8-small
+  - rhel8-power-small
   batchtime: 120 # 2 hours
   expansions:
     format_test_setting: ulimit -c unlimited
@@ -4277,14 +4277,14 @@ buildvariants:
 - name: rhel8-ppc-cmake
   display_name: "* RHEL8 PPC CMake"
   run_on:
-  - rhel81-power8-small
+  - rhel8-power-small
   batchtime: 10080 # 7 days
   expansions:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
@@ -4292,7 +4292,7 @@ buildvariants:
       -DENABLE_SNAPPY=1
       -DENABLE_STRICT=1
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     cmake_generator: Ninja
     make_command: ninja
