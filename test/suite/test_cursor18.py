@@ -558,3 +558,54 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 1, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+
+    def test_multiple_keys_with_search(self):
+        self.create()
+
+        cursor = self.session.open_cursor(self.uri, None)
+        # Add a value to the update chain
+        self.session.begin_transaction()
+        cursor[1] = 0
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
+
+        # Add another value to the update chain
+        self.session.begin_transaction()
+        cursor[2] = 1
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+
+        # Open a version cursor
+        self.session.begin_transaction()
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
+        version_cursor.set_key(1)
+        self.assertEquals(version_cursor.search(), 0)
+        self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 1, 1, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 0)
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 2)
+        self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
+        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+
+    def test_multiple_keys_with_next(self):
+        self.create()
+
+        cursor = self.session.open_cursor(self.uri, None)
+        # Add a value to the update chain
+        self.session.begin_transaction()
+        cursor[1] = 0
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
+
+        # Add another value to the update chain
+        self.session.begin_transaction()
+        cursor[2] = 1
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+
+        # Open a version cursor
+        self.session.begin_transaction()
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 1, 1, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 0)
+        self.assertEquals(version_cursor.next(), 0)
+        self.assertEquals(version_cursor.get_key(), 2)
+        self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
+        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)

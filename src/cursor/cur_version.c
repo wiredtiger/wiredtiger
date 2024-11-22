@@ -435,80 +435,75 @@ err:
 }
 
 /*
- * __curversion_next --
- *     WT_CURSOR->next method for version cursors. The next function will position the cursor on the
- *     next update of the key it is positioned at. We traverse through updates on the update chain,
- *     then the ondisk value, and finally from the history store.
+ * __curversion_version_reset --
+ *     reset the version information in the version cursor
  */
-static int
-__curversion_next(WT_CURSOR *cursor)
+static WT_INLINE int
+__curversion_version_reset(WT_CURSOR_VERSION *version_cursor)
 {
-    WT_CURSOR_VERSION *version_cursor;
+    WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
 
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
-
-    CURSOR_API_CALL(
-      cursor, session, ret, next, ((WT_CURSOR_BTREE *)version_cursor->file_cursor)->dhandle);
-    WT_ERR(__curversion_next_int(cursor));
-
-err:
-    if (ret != 0)
-        WT_TRET(cursor->reset(cursor));
-    API_END_RET(session, ret);
-}
-
-/*
- * __curversion_reset --
- *     WT_CURSOR::reset for version cursors.
- */
-static int
-__curversion_reset(WT_CURSOR *cursor)
-{
-    WT_CURSOR *file_cursor, *hs_cursor;
-    WT_CURSOR_VERSION *version_cursor;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    version_cursor = (WT_CURSOR_VERSION *)cursor;
     hs_cursor = version_cursor->hs_cursor;
-    file_cursor = version_cursor->file_cursor;
-    CURSOR_API_CALL(cursor, session, ret, reset, NULL);
 
-    if (file_cursor != NULL)
-        WT_TRET(file_cursor->reset(file_cursor));
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->reset(hs_cursor));
     version_cursor->next_upd = NULL;
-    F_CLR(version_cursor,
-      WT_CURVERSION_UPDATE_EXHAUSTED | WT_CURVERSION_ON_DISK_EXHAUSTED |
-        WT_CURVERSION_HS_EXHAUSTED);
-    F_CLR(cursor, WT_CURSTD_KEY_SET);
-    F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
     /* Clear the information used to track update metadata. */
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
     version_cursor->upd_durable_stop_ts = WT_TS_MAX;
     version_cursor->upd_stop_ts = WT_TS_MAX;
 
-err:
-    API_END_RET(session, ret);
+    F_CLR(version_cursor,
+      WT_CURVERSION_UPDATE_EXHAUSTED | WT_CURVERSION_ON_DISK_EXHAUSTED |
+        WT_CURVERSION_HS_EXHAUSTED);
+
+    return (0);
 }
 
 /*
  * __curversion_skip_starting_updates --
  *     Skip aborted and invisible updates
  */
-static WT_INLINE void
+static int
 __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *version_cursor)
 {
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_ROW *rip;
     WT_UPDATE *upd;
     uint8_t prepare_state;
 
-    session = CUR2S(version_cursor);
+    cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
 
-    for (upd = version_cursor->next_upd; upd != NULL; upd = upd->next) {
+    /*
+     * If we position on a key, set next update of the version cursor to be the first update on the
+     * key if any.
+     */
+    page = cbt->ref->page;
+    switch (page->type) {
+    case WT_PAGE_ROW_LEAF:
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else {
+            rip = &page->pg_row[cbt->slot];
+            upd = WT_ROW_UPDATE(page, rip);
+        }
+        break;
+    case WT_PAGE_COL_FIX:
+    case WT_PAGE_COL_VAR:
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else
+            upd = NULL;
+        break;
+    default:
+        WT_RET(__wt_illegal_value(session, page->type));
+    }
+
+    for (; upd != NULL; upd = upd->next) {
         /* Skip aborted updates. */
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
@@ -529,6 +524,85 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
 
     if (version_cursor->next_upd == NULL)
         F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
+
+    return (0);
+}
+
+/*
+ * __curversion_next --
+ *     WT_CURSOR->next method for version cursors. The next function will position the cursor on the
+ *     next update of the key it is positioned at. We traverse through updates on the update chain,
+ *     then the ondisk value, and finally from the history store.
+ */
+static int
+__curversion_next(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    file_cursor = version_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    CURSOR_API_CALL(
+      cursor, session, ret, next, ((WT_CURSOR_BTREE *)version_cursor->file_cursor)->dhandle);
+
+    /* Place the cursor on the first key if it is not positioned. */
+    if (!F_ISSET(file_cursor, WT_CURSTD_KEY_INT)) {
+        F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
+        WT_ERR(__wt_btcur_next(cbt, false));
+        WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+        WT_ERR(__curversion_skip_starting_updates(session, version_cursor));
+    }
+
+    for (;;) {
+        WT_ERR_NOTFOUND_OK(__curversion_next_int(cursor), true);
+
+        if (ret == 0)
+            break;
+
+        /* Move to the next key if we exhausted all the versions of the current key. */
+        WT_ERR(__curversion_version_reset(version_cursor));
+        WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+        F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
+        WT_ERR(__wt_btcur_next(cbt, false));
+        WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+        WT_ERR(__curversion_skip_starting_updates(session, version_cursor));
+    };
+
+err:
+    if (ret != 0)
+        WT_TRET(cursor->reset(cursor));
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curversion_reset --
+ *     WT_CURSOR::reset for version cursors.
+ */
+static int
+__curversion_reset(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_VERSION *version_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    version_cursor = (WT_CURSOR_VERSION *)cursor;
+    file_cursor = version_cursor->file_cursor;
+    CURSOR_API_CALL(cursor, session, ret, reset, NULL);
+
+    if (file_cursor != NULL)
+        WT_TRET(file_cursor->reset(file_cursor));
+    WT_TRET(__curversion_version_reset(version_cursor));
+    F_CLR(cursor, WT_CURSTD_KEY_SET);
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
+
+err:
+    API_END_RET(session, ret);
 }
 
 /*
@@ -542,8 +616,6 @@ __curversion_search(WT_CURSOR *cursor)
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
-    WT_PAGE *page;
-    WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
 
@@ -571,32 +643,7 @@ __curversion_search(WT_CURSOR *cursor)
     WT_ERR(__wt_btcur_search(cbt));
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
 
-    /*
-     * If we position on a key, set next update of the version cursor to be the first update on the
-     * key if any.
-     */
-    page = cbt->ref->page;
-    switch (page->type) {
-    case WT_PAGE_ROW_LEAF:
-        if (cbt->ins != NULL)
-            version_cursor->next_upd = cbt->ins->upd;
-        else {
-            rip = &page->pg_row[cbt->slot];
-            version_cursor->next_upd = WT_ROW_UPDATE(page, rip);
-        }
-        break;
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        if (cbt->ins != NULL)
-            version_cursor->next_upd = cbt->ins->upd;
-        else
-            version_cursor->next_upd = NULL;
-        break;
-    default:
-        WT_ERR(__wt_illegal_value(session, page->type));
-    }
-
-    __curversion_skip_starting_updates(session, version_cursor);
+    WT_ERR(__curversion_skip_starting_updates(session, version_cursor));
 
     /* Point to the newest version. */
     WT_ERR(__curversion_next_int(cursor));
