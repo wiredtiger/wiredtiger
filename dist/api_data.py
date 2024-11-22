@@ -664,7 +664,7 @@ connection_runtime_config = [
                 to remember its walking position in the tree. This might be preferable to set to
                 "true" if there are many collections. It can improve or degrade performance
                 depending on the workload.''',
-                type='boolean'),
+                type='boolean', undoc=True),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache

@@ -2310,19 +2310,14 @@ struct __wt_connection {
      * is found on the root page\, attempt to locate a random in-memory page by examining all
      * entries on the root page., a boolean flag; default \c true.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * evict_use_npos, Experimental: Use "soft pointers" instead of hard hazard pointers in eviction
-     * server to remember its walking position in the tree.  This might be preferable to set to
-     * "true" if there are many collections.  It can improve or degrade performance depending on the
-     * workload., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max,
-     * maximum number of threads WiredTiger will start to help evict pages from cache.  The number
-     * of threads started will vary depending on the current eviction load.  Each eviction worker
-     * thread uses a session from the configured session_max., an integer between \c 1 and \c 20;
-     * default \c 8.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads
-     * WiredTiger will start to help evict pages from cache.  The number of threads currently
-     * running will vary depending on the current eviction load., an integer between \c 1 and \c 20;
-     * default \c 1.}
+     * threads_max, maximum number of threads WiredTiger will start to help evict pages from cache.
+     * The number of threads started will vary depending on the current eviction load.  Each
+     * eviction worker thread uses a session from the configured session_max., an integer between \c
+     * 1 and \c 20; default \c 8.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of
+     * threads WiredTiger will start to help evict pages from cache.  The number of threads
+     * currently running will vary depending on the current eviction load., an integer between \c 1
+     * and \c 20; default \c 1.}
      * @config{ ),,}
      * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring
      * the dirty content in cache to this level.  It is a percentage of the cache size if the value
@@ -3179,18 +3174,14 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is
  * found on the root page\, attempt to locate a random in-memory page by examining all entries on
  * the root page., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_use_npos,
- * Experimental: Use "soft pointers" instead of hard hazard pointers in eviction server to remember
- * its walking position in the tree.  This might be preferable to set to "true" if there are many
- * collections.  It can improve or degrade performance depending on the workload., a boolean flag;
- * default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads
- * WiredTiger will start to help evict pages from cache.  The number of threads started will vary
- * depending on the current eviction load.  Each eviction worker thread uses a session from the
- * configured session_max., an integer between \c 1 and \c 20; default \c 8.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start to
- * help evict pages from cache.  The number of threads currently running will vary depending on the
- * current eviction load., an integer between \c 1 and \c 20; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max,
+ * maximum number of threads WiredTiger will start to help evict pages from cache.  The number of
+ * threads started will vary depending on the current eviction load.  Each eviction worker thread
+ * uses a session from the configured session_max., an integer between \c 1 and \c 20; default \c
+ * 8.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start
+ * to help evict pages from cache.  The number of threads currently running will vary depending on
+ * the current eviction load., an integer between \c 1 and \c 20; default \c 1.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is
