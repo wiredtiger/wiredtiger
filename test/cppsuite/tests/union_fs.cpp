@@ -107,6 +107,7 @@ static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
 static const int value_size = 10;
+static const char *SOURCE_DIR = "WT_UNION_SOURCE";
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 void do_random_crud(scoped_session &session, bool fresh_start);
@@ -280,14 +281,14 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",cache_size=1GB,verbose=[fileops:1,block:1,block_cache:1,read:1]";
+    const std::string conn_config = CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR + "\",cache_size=1GB,verbose=[fileops:1,block:1,block_cache:1,read:1]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
         logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
-        testutil_assert(std::filesystem::remove_all("WT_UNION_SOURCE") >= 0);
+        testutil_assert(std::filesystem::remove_all(SOURCE_DIR) >= 0);
         testutil_assert(std::filesystem::remove_all("WT_TEST") >= 0);
     }
 
@@ -340,8 +341,8 @@ main(int argc, char *argv[])
     // TODO: Add a "keep" arg.
     // std::filesystem::rename("WT_UNION_SOURCE",
     //   "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" + std::to_string(local_time->tm_min));
-    testutil_assert(std::filesystem::remove_all("WT_UNION_SOURCE") >= 0);
-    std::filesystem::rename("WT_TEST", "WT_UNION_SOURCE");
+    testutil_assert(std::filesystem::remove_all(SOURCE_DIR) >= 0);
+    std::filesystem::rename("WT_TEST", SOURCE_DIR);
 
     return (0);
 }

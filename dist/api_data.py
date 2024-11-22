@@ -1184,6 +1184,8 @@ wiredtiger_open_common =\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
+    Config('aux_path', '', r'''The auxiliary path configuration specifies a second path to a
+        WiredTiger database. This is then used to perform a live backup restore process.'''),
     Config('backup_restore_target', '', r'''
         If non-empty and restoring from a backup, restore only the table object targets listed.
         WiredTiger will remove all the metadata entries for the tables that are not listed in

@@ -1354,6 +1354,8 @@ __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_ASSERT(session, union_fs->os_file_system != NULL);
     WT_RET(union_fs->os_file_system->terminate(union_fs->os_file_system, wt_session));
 
+    __wt_free(session, union_fs->source.home);
+    // TOOD: Do we free ourselves here?
     return (0);
 }
 
@@ -1363,7 +1365,7 @@ __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
  */
 int
 __wt_os_union_fs(
-  WT_SESSION_IMPL *session, const char *source, const char *destination, WT_FILE_SYSTEM **fsp)
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg, const char *destination, WT_FILE_SYSTEM **fsp)
 {
     WT_UNION_FS *union_fs;
 
@@ -1385,8 +1387,10 @@ __wt_os_union_fs(
     /* Initialize the layers. */
     union_fs->destination.home = destination;
     union_fs->destination.which = WT_UNION_FS_LAYER_DESTINAION;
-    union_fs->source.home = source;
+    WT_RET(__wt_strndup(session, source_cfg->str, source_cfg->len, &union_fs->source.home));
     union_fs->source.which = WT_UNION_FS_LAYER_SOURCE;
+
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s", union_fs->source.home, destination);
 
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM*)union_fs;
