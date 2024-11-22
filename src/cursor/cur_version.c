@@ -476,6 +476,7 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
     uint8_t prepare_state;
 
     cbt = (WT_CURSOR_BTREE *)version_cursor->file_cursor;
+    upd = NULL;
 
     /*
      * If we position on a key, set next update of the version cursor to be the first update on the
@@ -495,8 +496,6 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
     case WT_PAGE_COL_VAR:
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
-        else
-            upd = NULL;
         break;
     default:
         WT_RET(__wt_illegal_value(session, page->type));
