@@ -564,7 +564,7 @@ __curversion_next(WT_CURSOR *cursor)
         if (ret == 0)
             break;
 
-        /* Move to the next key if we exhausted all the versions of the current key. */
+        /* Move to the next key if we have visited all the versions of the current key. */
         WT_ERR(__curversion_version_reset(version_cursor));
         WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
         F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
