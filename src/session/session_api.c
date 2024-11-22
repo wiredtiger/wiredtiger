@@ -936,7 +936,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
      * the command after performing a system wide checkpoint. Only retry once to avoid potentially
      * waiting forever.
      */
-    ret = __session_alter_internal(session, uri, cfg);
+    WT_ERR_ERROR_OK(__session_alter_internal(session, uri, cfg), EBUSY, true);
     if (ret == EBUSY) {
         WT_ERR(__session_blocking_checkpoint(session));
         WT_STAT_CONN_INCR(session, session_table_alter_trigger_checkpoint);
