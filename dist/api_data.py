@@ -127,10 +127,6 @@ disaggregated_config_common = [
     Config('stable_prefix', '', r'''
         directory of WT oligarch stable table''',
         type='string', undoc=True),
-    Config('storage_source', '', r'''
-        The custom storage source used as a backing for this table - currently only used
-        experimentally by oligarch tables to back their stable component in shared/object
-        based storage''', type='string', undoc=True),
 ]
 # FIXME: We cannot set undoc=True, because an undocumented category must be the same for all
 # methods, but we need different sets supported fields for connection open, reconfigure, and create.
