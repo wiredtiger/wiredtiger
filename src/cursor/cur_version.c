@@ -367,7 +367,9 @@ skip_on_page:
         F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
     }
 
-    if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
+    if (version_cursor->hs_cursor == NULL)
+        F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
+    else if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
         /* Ensure we can see all the content in the history store. */
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
@@ -721,12 +723,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR(version_cursor->file_cursor->close(version_cursor->file_cursor));
     WT_ERR(__wt_open_cursor(session, uri, cursor, file_cursor_cfg, &version_cursor->file_cursor));
 
-    /* Open the history store cursor for operations on the regular history store .*/
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN)) {
+    /* Open the history store cursor for btrees may have data in the history store.*/
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
         WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
         F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-    } else
-        F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
+    }
 
     /* Initialize information used to track update metadata. */
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
