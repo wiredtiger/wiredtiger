@@ -723,7 +723,8 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR(__wt_open_cursor(session, uri, cursor, file_cursor_cfg, &version_cursor->file_cursor));
 
     /* Open the history store cursor for btrees may have data in the history store.*/
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+      !F_ISSET(CUR2BT(version_cursor->file_cursor), WT_BTREE_IN_MEMORY)) {
         WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
         F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
