@@ -367,9 +367,8 @@ skip_on_page:
         F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
     }
 
-    if (version_cursor->hs_cursor == NULL)
-        F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-    else if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
+    if (!upd_found && version_cursor->hs_cursor != NULL &&
+      !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
         /* Ensure we can see all the content in the history store. */
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
