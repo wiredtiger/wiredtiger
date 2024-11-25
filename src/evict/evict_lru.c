@@ -585,7 +585,7 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session)
  *
  */
 static inline void
-__wt_evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *max_range) {
+__evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *max_range) {
 
 	WT_EVICT_BUCKETSET *bucketset;
 
@@ -608,26 +608,49 @@ __wt_evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *
 }
 
 /*
- * __wt_evict_bucket_remove --
- *     Remove the page from the bucket's queue.
+ * __wt_evict_page_cleared --
+ *      Double check that the page has been removed from its evict queue.
  */
 static inline bool
-__wt_evict_bucket_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
+__wt_evict_page_cleared(WT_PAGE *page) {
+
+	return (&page->bucket == NULL);
+}
+
+/*
+ * __wt_evict_remove --
+ *     Remove the page from its evict queue.
+ */
+static inline bool
+__wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 
 	WT_EVICT_BUCKET *bucket;
 	WT_PAGE *page;
+	WT_REF_STATE previous_state;
+	bool locked;
 
-	WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED && ref->page != NULL);
+	locked = false;
+
+	WT_ASSERT(session, ref->page != NULL);
+	if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED) {
+		WT_REF_LOCK(session, ref, &previous_state);
+		locked = true;
+	}
 	page = ref->page;
 
 	if ((bucket = &page->bucket) == NULL)
 		return;
 
 	wt_spin_lock(session, &page->bucket->evict_queue_lock);
-	TAILQ_REMOVE(page->bucket->evict_queue, page, evict_q);
+	TAILQ_REMOVE(&page->bucket->evict_queue, page, evict_q);
+	page->bucket->num_items--;
+	WT_ASSERT(session, page->bucket->num_items >= 0);
 	wt_spin_unlock(session, &page->bucket->evict_queue_lock);
 
 	page->bucket = NULL;
+
+	if (locked)
+		WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
@@ -654,7 +677,6 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset) {
 static int
 __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
 
-	WT_BTREE *btree;
 	WT_EVICT_HANDLE *evict_handle;
 	WT_EVICT_BUCKET *bucket;
 	WT_EVICT_BUCKETSET *bucketset;
@@ -672,12 +694,12 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 
 	/* Is the page already in a bucket? */
 	if ((bucket = page->bucket) != NULL) {
-		__wt_evict_bucket_range(bucket, &min_range, &max_range);
+		__evict_bucket_range(bucket, &min_range, &max_range);
 		/* Is the page already in the right bucket? */
 		if ((read_gen = __wt_atomic_load64(&page->read_gen)) >= min_range && read_gen <= max_range)
 			return;
 		else
-			__wt_evict_bucket_remove(page);
+			__wt_evict_remove(session, ref);
 	}
 
 	/* Evict handle has the bucket sets for this data handle */
@@ -714,14 +736,15 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 
 	wt_spin_lock(session, &bucket->evict_queue_lock);
 	TAILQ_INSERT_HEAD(page->bucket->evict_queue, page, evict_q);
-	wt_spin_unlock(session, &page->bucket->evict_queue_lock);
+	bucket->num_items++;
+	wt_spin_unlock(session, &bucket->evict_queue_lock);
 
 	page->bucket = bucket;
 
 	WT_REF_UNLOCK(ref, previous_state);
 }
 
-/* !!!
+/*
  * __wt_evict_touch_page --
  *     Update a page's eviction state (read generation) when it is accessed.
  *
@@ -732,7 +755,7 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
  *     This function is called every time a page is touched in the cache.
  *
  *     Input parameters:
- *       (1) `page`: The page whose eviction state is being updated.
+ *       (1) `ref`: The reference to a page whose eviction state is being updated.
  *       (2) `internal_only`: A flag indicating whether the operation is internal. If true, the read
  *            generation is not updated, as internal operations (such as compaction or eviction)
  *            should not affect the page's eviction priority.
@@ -756,5 +779,135 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
     } else if (!internal_only)
         __wti_evict_read_gen_bump(session, page);
 
-	__evict_enqueue_page(session, dhandle, ref);
+	if (!internal_only)
+		__evict_enqueue_page(session, dhandle, ref);
+}
+
+/*
+ * __wt_evict_one --
+ *     Evict a single page from a given tree following the priority order.
+ */
+bool
+__wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag) {
+
+	WT_EVICT_HANDLE *evict_handle;
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_BUCKETSET *bucketset;
+	WT_REF *ref;
+	WT_REF_STATE previous_state;
+	WT_PAGE *page;
+	bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
+	int i, j;
+
+	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
+	ref = NULL;
+
+	/*
+	 * We iterate over bucket sets in a fixed order: first we try the clean leaf page bucket,
+	 * then dirty leaf page bucket, then internal page bucket.
+	 *
+	 * In each bucketset we iterate over the buckets starting with the smallest, because
+	 * smaller buckets will have pages with smaller read generations.
+	 *
+	 */
+	for (i = WT_EVICT_LEVEL_CLEAN_LEAF; i <=  WT_EVICT_LEVEL_INTERNAL; i++) {
+		bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
+		for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
+			ref = NULL;
+			bucket = &bucketset->buckets[j];
+			if (__wt_atomic_load64(&bucket->num_items) == 0)
+				continue;
+			wt_spin_lock(session, &bucket->evict_queue_lock);
+			ref =  TAILQ_FIRST(&bucket->evict_queue);
+			if (ref != NULL)
+				TAILQ_REMOVE(&page->bucket->evict_queue, ref, evict_q);
+			wt_spin_unlock(session, &bucket->evict_queue_lock);
+			if (ref != NULL) {
+				/*
+				 * Get exclusive access to the page if our caller doesn't have the tree locked down.
+				 */
+				if (!closing) {
+					if (__evict_exclusive(session, ref) != 0)
+						continue;
+				}
+				WT_WITH_BTREE(session, dhandle->btree, ret = __evict_review(session, ref, flags,
+																			&inmem_split));
+				if (ret != 0)
+					continue;
+				WT_REF_LOCK(session, ref, &previous_state);
+				ref->evict->bucket = NULL;
+				WT_REF_UNLOCK(ref, &previous_state);
+				break;
+			}
+		}
+	}
+
+	if (ref == NULL)
+		return false;
+
+	page = ref->page;
+	stats_flags = 0;
+	clean_page = ebusy_only = false;
+
+	__wt_verbose_debug3(
+		session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+
+	tree_dead = F_ISSET(dhandle, WT_DHANDLE_DEAD);
+
+	/* As re-entry into eviction is possible, only clear the statistics on the first entry. */
+	if (__wt_session_gen((session), (WT_GEN_EVICT)) == 0) {
+		WT_CLEAR(session->evict_timeline);
+		session->evict_timeline.evict_start = __wt_clock(session);
+	} else {
+		session->evict_timeline.reentry_hs_eviction = true;
+		session->evict_timeline.reentry_hs_evict_start = __wt_clock(session);
+	}
+
+    /*
+     * Enter the eviction and split generation. If we re-enter eviction, leave the previous
+     * generation (eviction or split) generation (which must be as low as the current generation),
+     * untouched.
+     */
+    WT_ENTER_GENERATION(session, WT_GEN_EVICT);
+    WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
+
+	/*
+     * Immediately increment the forcible eviction counter, we might do an in-memory split and not
+     * an eviction, which skips the other statistics.
+     */
+    if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+        FLD_SET(stats_flags, WT_EVICT_STATS_URGENT);
+        WT_STAT_CONN_INCR(session, eviction_force);
+
+        /*
+         * Track history store pages being force evicted while holding a history store cursor open.
+         */
+        if (session->hs_cursor_counter > 0 && WT_IS_HS(dhandle)) {
+            FLD_SET(stats_flags, WT_EVICT_STATS_FORCE_HS);
+            WT_STAT_CONN_INCR(session, eviction_force_hs);
+        }
+    }
+
+	/*
+     * Review the page for conditions that would block its eviction. If the check fails (for
+     * example, we find a page with active children), quit. Make this check for clean pages, too:
+     * while unlikely eviction would choose an internal page with children, it's not disallowed.
+     */
+    WT_ERR(__evict_review(session, ref, flags, &inmem_split));
+
+	/*
+     * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
+     * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
+     */
+    if (inmem_split) {
+        WT_ERR(__wt_split_insert(session, ref));
+        goto done;
+    }
+
+  err:
+	succeeded = false;
+  done:
+	if (!closing)
+		__evict_exclusive_clear(session, ref, previous_state);
+	return (ref != NULL);
 }

@@ -47,8 +47,11 @@
 #define WT_EVICT_NUM_BUCKETS 100
 #define WT_EVICT_LEVELS 3
 #define WT_EVICT_LEVEL_CLEAN_LEAF 0
-#define WT_EVICT_LEVEL_DIRTY_LEAF 0
-#define WT_EVICT_LEVEL_INTERNAL   0
+#define WT_EVICT_LEVEL_DIRTY_LEAF 1
+#define WT_EVICT_LEVEL_INTERNAL   2
+
+#define WT_DHANDLE_TO_BUCKETSET(dhandle, set_number) \
+	&dhandle->handle->evict_handle->evict_bucketset[set_number]
 
 struct __wt_evict_bucket {
 	WT_SPINLOCK evict_queue_lock;
