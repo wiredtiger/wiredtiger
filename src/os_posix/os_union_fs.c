@@ -1093,14 +1093,16 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
     if (ret == WT_NOTFOUND || !exist)
         return (0);
 
-    WT_ASSERT(session, layer == WT_UNION_FS_LAYER_DESTINATION);
+    /* It's possible to call remove on a file that hasn't yet been created in the destination. In
+     * these cases we only need to create the tombstone */
+    if (layer == WT_UNION_FS_LAYER_DESTINATION) {
+        WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
+        union_fs->os_file_system->fs_remove(union_fs->os_file_system, wt_session, path, flags);
+    }
 
-    WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
-    union_fs->os_file_system->fs_remove(union_fs->os_file_system, wt_session, path, flags);
-
-    // We need file tombstones here but can we be sure this is correct?
+    /* We need file tombstones here but can we be sure this is correct? */
     __union_fs_create_tombstone(fs, session, name, flags);
-    // We don't have a file handle here so WT must have previously closed it.
+    /* We don't have a file handle here so WT must have previously closed it. */
 err:
 
     __wt_free(session, path);
