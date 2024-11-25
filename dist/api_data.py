@@ -660,7 +660,7 @@ connection_runtime_config = [
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
             Config('evict_use_softptr', 'false', r'''
-                Experimental: Use "soft pointers" (or "normalized position") instead of hard hazard
+                Experimental: Use "soft pointers" instead of hard hazard
                 pointers in eviction server to remember its walking position in the tree. This might
                 be preferable to set to "true" if there are many collections. It can improve or
                 degrade performance depending on the workload.''',
