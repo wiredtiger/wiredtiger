@@ -606,6 +606,8 @@ struct __wt_cursor_version {
     /* The previous traversed update's start_ts will become the stop_ts. */
     wt_timestamp_t upd_stop_ts;
 
+    wt_timestamp_t end_timestamp;
+
 #define WT_CURVERSION_UPDATE_CHAIN 0
 #define WT_CURVERSION_DISK_IMAGE 1
 #define WT_CURVERSION_HISTORY_STORE 2
