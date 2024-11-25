@@ -1735,7 +1735,7 @@ methods = {
             undoc=True),
         Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that enables iteration
-            through the history of values for a given key.''',
+            through the history of values for all the keys.''',
             type='category', subconfig=[
                 Config('enabled', 'false', r'''
                     enable version cursor''',
