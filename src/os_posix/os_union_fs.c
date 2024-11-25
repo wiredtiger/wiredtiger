@@ -422,16 +422,16 @@ static int __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, cons
 static void
 __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
 {
-    WT_UNION_ALLOC_LIST *alloc;
+    WT_UNION_ALLOC_LIST *hole;
     WT_UNION_ALLOC_LIST *temp;
 
-    temp = alloc = NULL;
-    alloc = union_fh->destination.allocation_list;
-    union_fh->destination.allocation_list = NULL;
+    temp = hole = NULL;
+    hole = union_fh->destination.hole_list;
+    union_fh->destination.hole_list = NULL;
 
-    while (alloc != NULL) {
-        temp = alloc;
-        alloc = alloc->next;
+    while (hole != NULL) {
+        temp = hole;
+        hole = hole->next;
 
         temp->next = NULL;
         __wt_free(session, temp);
