@@ -2949,9 +2949,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
             WT_ERR(__wt_os_win(session));
 #else
             /* If an "aux_path" has been provided setup the union file system. */
-            if (cval.len != 0)
+            if (cval.len != 0) {
+                F_SET(conn, WT_CONN_UNION_FS);
                 WT_ERR(__wt_os_union_fs(session, &cval, conn->home, &conn->file_system));
-            else
+            } else
                 WT_ERR(__wt_os_posix(session, &conn->file_system));
 #endif
         }
