@@ -70,14 +70,14 @@ err:
 static void
 __union_debug_dump_extent_list(WT_UNION_FILE_HANDLE *union_fh)
 {
-    WT_UNION_ALLOC_LIST *alloc;
+    WT_UNION_ALLOC_LIST *hole;
 
     printf("Dumping extent list\n");
-    alloc = union_fh->destination.allocation_list;
+    hole = union_fh->destination.hole_list;
 
-    while (alloc != NULL) {
-        printf("Extent: %ld-%ld\n", alloc->off, alloc->off + (wt_off_t)alloc->len);
-        alloc = alloc->next;
+    while (hole != NULL) {
+        printf("Hole: %ld-%ld\n", hole->off, hole->off + (wt_off_t)hole->len);
+        hole = hole->next;
     }
 }
 #pragma GCC diagnostic pop
