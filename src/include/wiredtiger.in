@@ -975,7 +975,7 @@ struct __wt_session {
      * @config{debug = (, configure debug specific behavior on a cursor.  Generally only used for
      * internal testing purposes., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;dump_version = (, open a version cursor\, which is a debug
-     * cursor on a table that enables iteration through the history of values for a given key., a
+     * cursor on a table that enables iteration through the history of values for all the keys., a
      * set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
      * ),,}
