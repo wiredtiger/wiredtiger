@@ -174,8 +174,6 @@ __open_verbose_file_type_tag(WT_FS_OPEN_FILE_TYPE file_type)
         return ("log");
     case WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG:
         return ("oligarch_log");
-    case WT_FS_OPEN_FILE_TYPE_PANTRY:
-        return ("pantry");
     case WT_FS_OPEN_FILE_TYPE_REGULAR:
         break;
     }

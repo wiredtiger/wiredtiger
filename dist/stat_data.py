@@ -125,10 +125,6 @@ class OligarchStat(Stat):
     prefix = 'oligarch'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, OligarchStat.prefix, desc, flags)
-class PantryStat(Stat):
-    prefix = 'pantry'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, PantryStat.prefix, desc, flags)
 class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
@@ -1181,12 +1177,6 @@ conn_dsrc_stats = [
     ##########################################
     BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
-
-    ##########################################
-    # Pantry block manager statistics
-    ##########################################
-    PantryStat('pantry_block_get', 'Pantry block manager get'),
-    PantryStat('pantry_block_put', 'Pantry block manager put '),
 
     ##########################################
     # Reconciliation statistics

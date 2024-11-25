@@ -969,21 +969,16 @@ err:
 int
 __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
-    WT_BUCKET_STORAGE *bstorage;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-    WT_STORAGE_SOURCE *storage;
     uint64_t checkpoint_id, next_checkpoint_id;
     bool leader, was_leader;
 
     conn = S2C(session);
     leader = was_leader = conn->oligarch_manager.leader;
     npage_log = NULL;
-    bstorage = NULL;
-    nstorage = NULL;
 
     /* Reconfig-only settings. */
     if (reconfig) {
@@ -1049,48 +1044,16 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.page_log));
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.stable_prefix", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.stable_prefix));
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.storage_source));
 
     /* Setup any configured page log. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     WT_ERR(__wt_schema_open_page_log(session, &cval, &npage_log));
     conn->disaggregated_storage.npage_log = npage_log;
 
-    /* Setup any configured storage source on the data handle */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.storage_source", &cval));
-    WT_ERR(__wt_schema_open_storage_source(session, &cval, &nstorage));
-
-    /* TODO: Deduplicate this with __btree_setup_storage_source */
-    if (nstorage != NULL) {
-        WT_ERR(__wt_calloc_one(session, &bstorage));
-        bstorage->auth_token = NULL;
-        bstorage->cache_directory = NULL;
-        WT_ERR(__wt_strndup(session, "foo", 3, &bstorage->bucket));
-        WT_ERR(__wt_strndup(session, "bar", 3, &bstorage->bucket_prefix));
-
-        storage = nstorage->storage_source;
-        WT_ERR(storage->ss_customize_file_system(
-          storage, &session->iface, bstorage->bucket, "", NULL, &bstorage->file_system));
-        bstorage->storage_source = storage;
-
-        F_SET(bstorage, WT_BUCKET_FREE);
-        conn->disaggregated_storage.bstorage = bstorage;
-        conn->disaggregated_storage.nstorage = nstorage;
-    }
-
     /* Set up a handle for accessing shared metadata. */
     if (npage_log != NULL) {
         WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
           WT_DISAGG_METADATA_TABLE_ID, &conn->disaggregated_storage.page_log_meta));
-    }
-    if (bstorage != NULL) {
-        WT_WITH_BUCKET_STORAGE(bstorage, session, {
-            WT_FILE_SYSTEM *fs = bstorage->file_system;
-            ret =
-              fs->fs_open_file(fs, &session->iface, "metadata.meta", WT_FS_OPEN_FILE_TYPE_REGULAR,
-                WT_FS_OPEN_CREATE, &conn->disaggregated_storage.bstorage_meta);
-        });
     }
 
     if (__wt_conn_is_disagg(session)) {
@@ -1122,15 +1085,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         }
     }
 
-    if (0) {
 err:
-        if (bstorage != NULL && conn->disaggregated_storage.bstorage == NULL) {
-            __wt_free(session, bstorage->bucket);
-            __wt_free(session, bstorage->bucket_prefix);
-            __wt_free(session, bstorage);
-        }
-    }
-
     return (ret);
 }
 
@@ -1147,7 +1102,7 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
-    return (disagg->page_log_meta != NULL || disagg->bstorage_meta != NULL);
+    return (disagg->page_log_meta != NULL);
 }
 
 /*
@@ -1168,10 +1123,6 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     if (disagg->page_log_meta != NULL) {
         WT_TRET(disagg->page_log_meta->plh_close(disagg->page_log_meta, &session->iface));
         disagg->page_log_meta = NULL;
-    }
-    if (disagg->bstorage_meta != NULL) {
-        WT_TRET(disagg->bstorage_meta->close(disagg->bstorage_meta, &session->iface));
-        disagg->bstorage_meta = NULL;
     }
 
     __wt_free(session, disagg->page_log);
@@ -1198,7 +1149,6 @@ __wt_disagg_get_meta(
     WT_CLEAR(get_args);
 
     if (disagg->page_log_meta != NULL) {
-        WT_ASSERT(session, disagg->bstorage_meta == NULL);
         count = 1;
         WT_RET(disagg->page_log_meta->plh_get(
           disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &get_args, item, &count));
@@ -1206,14 +1156,6 @@ __wt_disagg_get_meta(
         WT_ASSERT(session, count == 1 && get_args.delta_count == 0); /* TODO: corrupt data */
         return (0);
     }
-
-    if (disagg->bstorage_meta != NULL) {
-        WT_RET(
-          disagg->bstorage_meta->fh_obj_checkpoint_load(disagg->bstorage_meta, &session->iface));
-        return (
-          disagg->bstorage_meta->fh_obj_get(disagg->bstorage_meta, &session->iface, page_id, item));
-    }
-
     return (ENOTSUP);
 }
 
@@ -1234,21 +1176,11 @@ __wt_disagg_put_meta(
 
     WT_CLEAR(put_args);
     if (disagg->page_log_meta != NULL) {
-        WT_ASSERT(session, disagg->bstorage_meta == NULL);
         WT_RET(disagg->page_log_meta->plh_put(
           disagg->page_log_meta, &session->iface, page_id, checkpoint_id, &put_args, item));
         __wt_atomic_addv64(&disagg->num_meta_put, 1);
         return (0);
     }
-
-    if (disagg->bstorage_meta != NULL) {
-        WT_RET(
-          disagg->bstorage_meta->fh_obj_put(disagg->bstorage_meta, &session->iface, page_id, item));
-        WT_RET(disagg->bstorage_meta->fh_obj_checkpoint(disagg->bstorage_meta, &session->iface));
-        __wt_atomic_addv64(&disagg->num_meta_put, 1);
-        return (0);
-    }
-
     return (ENOTSUP);
 }
 
