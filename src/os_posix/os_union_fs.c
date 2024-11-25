@@ -455,41 +455,21 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 static int
 __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-    WT_UNION_ALLOC_LIST *alloc, *next_alloc;
+    WT_UNION_ALLOC_LIST *hole;
     WT_UNION_FILE_HANDLE *fh;
-    char buf[4096000]; // FIXME - 4MB buffer as a placeholder
-    wt_off_t file_size;
+    // FIXME - 4MB buffer as a placeholder. When we find a large hole we should break the read into small chunks
+    char buf[4096000];
 
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    alloc = fh->destination.allocation_list;
+    hole = fh->destination.hole_list;
 
-    while (alloc != NULL) {
-        next_alloc = alloc->next;
-        if (next_alloc == NULL)
-            break;
-        if (EXTENT_END(alloc) < next_alloc->off) {
-            __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-              "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name,
-              EXTENT_END(alloc), next_alloc->off);
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc),
-              (size_t)(next_alloc->off - EXTENT_END(alloc)), buf));
-
-            // We've modified the extent list while walking it. Start again to be safe.
-            alloc = fh->destination.allocation_list;
-            continue;
-        }
-
-        alloc = alloc->next;
-    }
-
-    // Finally check if there's a hole at the end of the file.
-    __union_fs_file_size(file_handle, wt_session, &file_size);
-    if (alloc != NULL) {
-        if (file_size > EXTENT_END(alloc)) {
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc),
-              (size_t)(file_size - EXTENT_END(alloc)), buf));
-            // No need to restart the extent validation. This is the final extent.
-        }
+    while (hole != NULL) {
+        __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+          "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
+          EXTENT_END(hole));
+        WT_RET(__union_fs_file_read(
+          file_handle, wt_session, hole->off, (size_t)(EXTENT_END(hole) - hole->off), buf));
+        hole = hole->next;
     }
 
     return (0);
