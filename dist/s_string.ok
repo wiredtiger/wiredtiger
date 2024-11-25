@@ -92,6 +92,7 @@ CustomersPhone
 Cygwin
 DAX
 DESC
+DEST
 DHANDLE
 DIRECTIO
 DNE
@@ -304,6 +305,7 @@ PTR
 Pe
 Phong
 PlatformSDK
+PoC
 Podir
 Posix
 PostgreSQL

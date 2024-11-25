@@ -218,7 +218,7 @@ typedef struct {
     WT_UNION_ALLOC_LIST *allocation_list;
 } WT_DESTINATION_METADATA;
 
-typedef enum { WT_UNION_FS_LAYER_DESTINAION, WT_UNION_FS_LAYER_SOURCE } WT_UNION_FS_LAYER_TYPE;
+typedef enum { WT_UNION_FS_LAYER_DESTINATION, WT_UNION_FS_LAYER_SOURCE } WT_UNION_FS_LAYER_TYPE;
 
 /*
  * __wt_union_file_handle --

@@ -34,9 +34,8 @@ __union_fs_filename(
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
 
-    if (layer->which == WT_UNION_FS_LAYER_DESTINAION) {
+    if (layer->which == WT_UNION_FS_LAYER_DESTINATION) {
         WT_RET(__wt_strdup(session, name, pathp));
-        printf("DDBBGG - DEST path is just relative path\n");
     } else {
         char *filename;
         /*
@@ -188,8 +187,7 @@ err:
     return (ret);
 }
 
-// TODO - Do we need fs_find_layer? We should only ever interact with the file in the destination
-// layer.
+/* Do we need fs_find_layer? We should only interact with the file in the destination. */
 /*
  * __union_fs_find_layer --
  *     Find a layer for the given file. Return the index of the layer and whether the layer contains
@@ -211,7 +209,7 @@ __union_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *
     if (*existp) {
         /* The file exists in the destination we don't need to look any further. */
         if (whichp != NULL)
-            *whichp = WT_UNION_FS_LAYER_DESTINAION;
+            *whichp = WT_UNION_FS_LAYER_DESTINATION;
         return (0);
     }
 
@@ -714,7 +712,7 @@ __union_fs_file_write(
     union_fh = (WT_UNION_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %zu", fh->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
     // TODO - why write to file before setting the extent?
     WT_RET(
       union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
@@ -734,17 +732,10 @@ static int
 __read_promote(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read)
 {
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %zu",
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %lu",
       union_fh->iface.name, offset, len);
     WT_RET(
       __union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
-    if (strcmp(union_fh->iface.name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
-        printf("DBG PROMOTE WRITE\n\n");
-        for (int i = 0; i < 4096; i++) {
-            printf("%c", read[i]);
-        }
-        printf("\n\n");
-    }
 
     return (0);
 }
@@ -768,7 +759,7 @@ __union_fs_file_read(
     sl = NONE;
 
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "READ %s : %ld, %zu", file_handle->name, offset, len);
+      session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -794,16 +785,6 @@ __union_fs_file_read(
         WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
         WT_ERR(__read_promote(union_fh, session, offset, len, read_data));
-    }
-
-    if (strcmp(file_handle->name, "./WiredTiger.wt") == 0 && (offset == 8192)) {
-        printf("DBG READ\n\n");
-        WT_ERR(union_fh->destination.fh->fh_read(
-          union_fh->destination.fh, wt_session, offset, len, read_data));
-        for (int i = 0; i < 4096; i++) {
-            printf("%c", read_data[i]);
-        }
-        printf("\n\n");
     }
 
 err:
@@ -1112,7 +1093,7 @@ __union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, 
     if (ret == WT_NOTFOUND || !exist)
         return (0);
 
-    WT_ASSERT(session, layer == WT_UNION_FS_LAYER_DESTINAION);
+    WT_ASSERT(session, layer == WT_UNION_FS_LAYER_DESTINATION);
 
     WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
     union_fs->os_file_system->fs_remove(union_fs->os_file_system, wt_session, path, flags);
@@ -1160,7 +1141,7 @@ __union_fs_rename(
         return (ENOENT);
 
     /* If the file is the top layer, rename it and leave a tombstone behind. */
-    if (which == WT_UNION_FS_LAYER_DESTINAION) {
+    if (which == WT_UNION_FS_LAYER_DESTINATION) {
         WT_ERR(__union_fs_filename(&union_fs->destination, session, from, &path_from));
         WT_ERR(__union_fs_filename(&union_fs->destination, session, to, &path_to));
         WT_ERR(union_fs->os_file_system->fs_rename(
@@ -1203,7 +1184,7 @@ __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt
         return (ENOENT);
 
     // The file will always exist in the destination. This the is authoritative file size.
-    WT_ASSERT(session, which == WT_UNION_FS_LAYER_DESTINAION);
+    WT_ASSERT(session, which == WT_UNION_FS_LAYER_DESTINATION);
     WT_RET(__union_fs_filename(&union_fs->destination, session, name, &path));
     ret = union_fs->os_file_system->fs_size(union_fs->os_file_system, wt_session, path, sizep);
 
@@ -1229,7 +1210,7 @@ __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_RET(union_fs->os_file_system->terminate(union_fs->os_file_system, wt_session));
 
     __wt_free(session, union_fs->source.home);
-    // TOOD: Do we free ourselves here?
+    // TODO: Do we free ourselves here?
     return (0);
 }
 
@@ -1259,7 +1240,7 @@ __wt_os_union_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg, const cha
 
     /* Initialize the layers. */
     union_fs->destination.home = destination;
-    union_fs->destination.which = WT_UNION_FS_LAYER_DESTINAION;
+    union_fs->destination.which = WT_UNION_FS_LAYER_DESTINATION;
     WT_RET(__wt_strndup(session, source_cfg->str, source_cfg->len, &union_fs->source.home));
     union_fs->source.which = WT_UNION_FS_LAYER_SOURCE;
 
