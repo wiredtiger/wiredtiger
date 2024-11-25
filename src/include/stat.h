@@ -1038,8 +1038,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rename_fail;
-    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
@@ -1432,18 +1430,6 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_hs_removed;
     int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_update_conflict;
-};
-
-/*
- * Statistics entries for join cursors.
- */
-#define WT_JOIN_STATS_BASE 3000
-struct __wt_join_stats {
-    int64_t main_access;
-    int64_t bloom_false_positive;
-    int64_t membership_check;
-    int64_t bloom_insert;
-    int64_t iterated;
 };
 
 /*
