@@ -836,6 +836,8 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
     // If we truncate a range we'll never need to read that range from the source file. Mark it as
     // such.
     __union_fs_file_size(file_handle, wt_session, &old_len);
+    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+      "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
     __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
 
     return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));

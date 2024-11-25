@@ -117,6 +117,7 @@ static const char *SOURCE_DIR = "WT_UNION_SOURCE";
 void do_random_crud(scoped_session &session, bool fresh_start);
 void create_collection(scoped_session &session);
 void read(scoped_session &session);
+void trigger_fs_truncate(scoped_session &session);
 void write(scoped_session &session, bool fresh_start);
 std::string key_to_str(uint64_t);
 std::string generate_key();
@@ -136,6 +137,18 @@ read(scoped_session &session)
     } else if (ret != 0) {
         testutil_assert(ret == 0);
     }
+}
+
+// Truncate from a random key to the end of the file and then call compact. This should
+// result in the backing file on disk being fs_truncated.
+void
+trigger_fs_truncate(scoped_session &session)
+{
+    // Truncate from a random key all the way to the end of the collection and then call compact
+    const std::string coll_name = db.get_random_collection();
+    scoped_cursor rnd_cursor = session.open_scoped_cursor(coll_name, "next_random=true");
+    session->truncate(session.get(), coll_name.c_str(), rnd_cursor.get(), nullptr, nullptr);
+    session->compact(session.get(), coll_name.c_str(), nullptr);
 }
 
 std::string
@@ -234,26 +247,31 @@ do_random_crud(scoped_session &session, bool fresh_start)
             continue;
         }
 
-        if (i == warmup_insertions)
-            fresh_start = false;
-
-        if (fresh_start || (ran >= 0 && ran < 5000)) {
-
-            // Write.
-            write(session, fresh_start);
-            continue;
+        if (i == 0) {
+            for(int j = 0; j < warmup_insertions; j++)
+                write(session, true);
+            i = warmup_insertions;
         }
 
-        if (ran >= 5000 && ran <= 10000) {
-            // Read.
+        if (ran < 5000) {
+            // 50% Write.
+            write(session, false);
+            continue;
+        } else if (ran <= 9980) {
+            // 49.8% Read.
             read(session);
             continue;
+        } else if (ran <= 10000) {
+            // 0.2% fs_truncate
+            trigger_fs_truncate(session);
+            continue;
+        } else {
+            logger::log_msg(LOG_ERROR,
+            "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
+            testutil_assert(false);
         }
 
-        // TODO: Add other operations. E.g. checkpoint? Truncate? Compact? things like that.
-
         // Unreachable.
-        testutil_assert(false);
     }
 }
 
@@ -286,7 +304,7 @@ main(int argc, char *argv[])
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
     const std::string conn_config = CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR +
-      "\",cache_size=1GB,verbose=[fileops:1,block:1,block_cache:1,read:1]";
+      "\",cache_size=1GB,verbose=[fileops:2]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
