@@ -1136,7 +1136,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     uint32_t i;
     int ret;
     char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64], verify_dir[PATH_MAX],
-      aux_dir[PATH_MAX];
+      aux_dir[PATH_MAX], live_restore_cfg[PATH_MAX + 200];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     bool fatal;
 
@@ -1149,15 +1149,14 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
      * Open the connection which forces recovery to be run.
      */
     if (backup_index == 0) {
-        char cfg[PATH_MAX + 200];
         testutil_snprintf(verify_dir, sizeof(verify_dir), "%s", WT_HOME_DIR);
 
         if (live_restore_backups) {
             testutil_snprintf(aux_dir, sizeof(aux_dir), "%s_aux", verify_dir);
-            testutil_snprintf(cfg, sizeof(cfg), "aux_path=%s", aux_dir);
-
+            testutil_snprintf(live_restore_cfg, sizeof(live_restore_cfg), "aux_path=%s", aux_dir);
             testutil_copy(verify_dir, aux_dir);
-            testutil_wiredtiger_open(opts, verify_dir, cfg, &reopen_event, &conn, true, false);
+            testutil_wiredtiger_open(
+              opts, verify_dir, live_restore_cfg, &reopen_event, &conn, true, false);
         } else {
             testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
         }
@@ -1188,7 +1187,15 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          * trying to create it would cause the test to abort as we currently allow only one
          * statistics thread at a time.
          */
-        testutil_wiredtiger_open(opts, verify_dir, NULL, &other_event, &conn, true, false);
+        if (live_restore_backups) {
+            testutil_snprintf(aux_dir, sizeof(aux_dir), "%s_aux", verify_dir);
+            testutil_snprintf(live_restore_cfg, sizeof(live_restore_cfg), "aux_path=%s", aux_dir);
+            testutil_copy(verify_dir, aux_dir);
+            testutil_wiredtiger_open(
+              opts, verify_dir, live_restore_cfg, &other_event, &conn, true, false);
+        } else {
+            testutil_wiredtiger_open(opts, verify_dir, NULL, &other_event, &conn, true, false);
+        }
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
