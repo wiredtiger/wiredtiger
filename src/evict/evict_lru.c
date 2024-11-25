@@ -453,7 +453,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
      * no hazard pointers are leaked in case the setting is reconfigured while eviction pass is
      * running.
      */
-    evict->use_softptr_in_pass = __wt_atomic_loadbool(&conn->evict_use_softptr);
+    evict->use_npos_in_pass = __wt_atomic_loadbool(&conn->evict_use_npos);
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
@@ -462,7 +462,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         return (0);
 
     if (!__wt_evict_cache_stuck(session)) {
-        if (evict->use_softptr_in_pass)
+        if (evict->use_npos_in_pass)
             __evict_set_saved_walk_tree(session, NULL);
         else {
             /*
@@ -920,7 +920,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
     if ((ref = btree->evict_ref) == NULL)
         return (0);
 
-    if (!evict->use_softptr_in_pass || clear_pos)
+    if (!evict->use_npos_in_pass || clear_pos)
         WT_STAT_CONN_INCR(session, eviction_walks_abandoned);
 
     /*
@@ -929,7 +929,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
      */
     btree->evict_ref = NULL;
 
-    if (evict->use_softptr_in_pass) {
+    if (evict->use_npos_in_pass) {
         /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
         if (clear_pos)
             __wt_evict_clear_npos(btree);
@@ -1719,7 +1719,7 @@ retry:
             continue;
         }
 
-        if (!evict->use_softptr_in_pass) {
+        if (!evict->use_npos_in_pass) {
             /*
              * Skip files if we have too many active walks.
              *
@@ -2542,7 +2542,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
         btree->evict_ref = ref;
-        if (evict->use_softptr_in_pass)
+        if (evict->use_npos_in_pass)
             __evict_clear_walk(session, false);
     }
 
