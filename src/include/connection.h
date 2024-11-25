@@ -621,7 +621,7 @@ struct __wt_connection_impl {
     uint32_t evict_threads_max; /* Max eviction threads */
     uint32_t evict_threads_min; /* Min eviction threads */
     bool evict_sample_inmem;
-    wt_shared bool evict_use_npos;
+    wt_shared bool evict_use_softptr;
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
