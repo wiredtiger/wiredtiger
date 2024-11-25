@@ -448,6 +448,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &evict->evict_pass_lock);
 
+    /*
+     * Copy the connection setting for use in the current run of Eviction Server. This ensures that
+     * no hazard pointers are leaked in case the setting is reconfigured while eviction pass is
+     * running.
+     */
     evict->use_npos_in_pass = __wt_atomic_loadbool(&conn->evict_use_npos);
 
     /* Evict pages from the cache as needed. */
@@ -892,7 +897,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 /*
  * __evict_clear_walk --
- *     Clear a single walk point and remember its position as a soft pointer.
+ *     Clear a single walk point and remember its position as a soft pointer if clear_pos is unset.
  */
 static int
 __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
@@ -925,6 +930,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
     btree->evict_ref = NULL;
 
     if (evict->use_npos_in_pass) {
+        /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
         if (clear_pos)
             __wt_evict_clear_npos(btree);
         else {
