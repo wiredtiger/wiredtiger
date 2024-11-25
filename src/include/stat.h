@@ -938,8 +938,6 @@ struct __wt_connection_stats {
     int64_t oligarch_manager_pinned_id_tables_searched;
     int64_t oligarch_manager_running;
     int64_t oligarch_manager_active;
-    int64_t pantry_block_get;
-    int64_t pantry_block_put;
     int64_t perf_hist_fsread_latency_lt10;
     int64_t perf_hist_fsread_latency_lt50;
     int64_t perf_hist_fsread_latency_lt100;
@@ -1412,8 +1410,6 @@ struct __wt_dsrc_stats {
     int64_t oligarch_manager_logops_applied;
     int64_t oligarch_manager_logops_skipped;
     int64_t oligarch_manager_skip_lsn;
-    int64_t pantry_block_get;
-    int64_t pantry_block_put;
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
