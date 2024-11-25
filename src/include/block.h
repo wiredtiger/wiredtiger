@@ -434,65 +434,6 @@ struct __wt_block_header {
 #define WT_BLOCK_COMPRESS_SKIP 64
 
 /*
- * WT_BLOCK_PANTRY --
- *	Block manager handle for pantry storage block manager.
- */
-struct __wt_block_pantry {
-    const char *name;  /* Name */
-    uint32_t objectid; /* Object id */
-    uint32_t ref;      /* References */
-
-    TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
-    TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
-
-    /*
-     * Custom pantry fields - above this line the structure needs to exactly match the WT_BLOCK
-     * structure, since it can be treated as one for connection caching and a few other things.
-     * Ideally we would split this into a public/private structure, similar to session handles, and
-     * customize file and pantry handles as necessary. That's invasive so save the grunt work for
-     * now.
-     */
-
-    WT_FH *fh;
-};
-
-/*
- * WT_BLOCK_PANTRY_HEADER --
- *	The pantry block manager custom header
- */
-struct __wt_block_pantry_header {
-    /*
-     * The pantry identifier for a particular page.
-     */
-    uint64_t pantry_id; /* 00-07: pantry identifier */
-
-    /*
-     * Page checksums are stored in two places. Similarly to the default block header.
-     */
-    uint32_t checksum; /* 08-11: checksum */
-
-    /*
-     * No automatic generation: flag values cannot change, they're written to disk.
-     */
-    uint8_t flags; /* 12: flags */
-
-    /*
-     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
-     * 32-bit aligned and having a few bytes to play with in the future can't hurt.
-     */
-    uint8_t unused[3]; /* 13-15: unused padding */
-};
-
-/*
- * WT_BLOCK_PANTRY_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
- * inserts padding it will break the world.
- */
-#define WT_BLOCK_PANTRY_HEADER_SIZE 16
-#define WT_BLOCK_PANTRY_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_PANTRY_HEADER_SIZE)
-#define WT_BLOCK_PANTRY_ID_INVALID UINT64_MAX
-#define WT_BLOCK_PANTRY_CHECKPOINT_BUFFER (1024)
-
-/*
  * WT_BLOCK_DISAGG --
  *	Block manager handle for disaggregated storage block manager.
  */
