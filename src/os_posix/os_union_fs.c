@@ -17,7 +17,10 @@ static int __union_fs_file_read(
 static int __union_fs_file_size(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
+// FIXME - Make these static funcs
+// FIXME - Check for off by ones. Are our extents inclusive of EXTENT_END?
 #define EXTENT_END(ext) ((ext)->off + (wt_off_t)(ext)->len)
+#define ADDR_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
 
 /*
  * __union_fs_filename --
@@ -527,36 +530,45 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
 typedef enum { NONE, FULL } RW_SERVICE_LEVEL;
 
 /*
- * __dest_can_service_rw --
- *     Return if a the read or write can be serviced by the destination.
+ * __union_can_service_read --
+ *     Return if a the read can be serviced by the destination file.
  */
 static RW_SERVICE_LEVEL
-__dest_can_service_rw(
+__union_can_service_read(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_ALLOC_LIST *alloc;
-    wt_off_t rw_end;
+    WT_UNION_ALLOC_LIST *hole;
+    wt_off_t read_end;
+    bool read_begins_in_hole, read_ends_in_hole;
 
-    WT_UNUSED(session);
+    read_end = offset + (wt_off_t)len;
 
-    /* Walk the extent list until extent offset + size > read offset + size. */
-    rw_end = offset + (wt_off_t)len;
+    while (hole != NULL) {
 
-    /* Nothing has been written into the destination yet. */
-    if ((alloc = union_fh->destination.allocation_list) == NULL)
-        return (NONE);
+        if (offset > EXTENT_END(hole))
+            /* We're past where a hole could be. Stop searching. */
+            break;
 
-    while (alloc != NULL) {
-        /* The read is in this allocation. */
-        if (offset >= alloc->off && rw_end <= EXTENT_END(alloc)) {
-            __wt_verbose_debug3(
-              session, WT_VERB_FILEOPS, "CAN SERVICE %s: Full match", union_fh->iface.name);
-            return (FULL);
+        read_begins_in_hole = ADDR_IN_EXTENT(offset, hole);
+        read_ends_in_hole = ADDR_IN_EXTENT(read_end, hole);
+        if(read_begins_in_hole && read_ends_in_hole) {
+            /* Our read is entirely within a hole */
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "CANNOT SERVICE %s: Reading from hole. Read: %ld-%ld, hole: %ld-%ld", 
+              union_fh->iface.name, offset, read_end, hole->off, EXTENT_END(hole));
+              return (NONE);
+        } else if(read_begins_in_hole != read_ends_in_hole) {
+            // The read starts in a hole but doesn't finish in it, or vice versa.
+            // This should never happen.
+            WT_ASSERT_ALWAYS(session, false, "Read partially covers a hole");
         }
-        alloc = alloc->next;
+
+        hole = hole->next;
     }
 
-    return (NONE);
+    __wt_verbose_debug3(
+      session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", union_fh->iface.name);
+    return (FULL);
 }
 
 /*
@@ -605,77 +617,78 @@ __dest_update_alloc_list_write(
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p",
       union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
 
-    sl = __dest_can_service_rw(union_fh, session, offset, len);
-    if (sl == FULL) {
-        /* The full write was serviced from single extent. */
-        return (0);
-    } else {
-        /* Allocate a new extent or grow an existing one. */
-        alloc = union_fh->destination.allocation_list;
-        while (alloc != NULL) {
-            /* Find the first extend that the write is before. */
-            if (alloc->off == offset) {
+    // FIXME - this just needs to delete extents now
 
-                /* If the write fits the current extent just add it */
-                if (EXTENT_END(alloc) >= offset + (wt_off_t)len) {
-                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done",
-                      union_fh->iface.name);
-                    return (0);
-                } else {
-                    /* Otherwise grow the extent to match the new write. */
-                    WT_ASSERT(session, alloc->len < len);
-                    alloc->len = len;
-                    if (alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
-                        WT_RET(__union_merge_with_next_extents(session, alloc));
-                    }
-                    return (0);
-                }
-            }
-            if (alloc->off > offset) {
-                break;
-            }
-            prev = alloc;
-            alloc = alloc->next;
-        }
+    // if (sl == FULL) {
+    //     /* The full write was serviced from single extent. */
+    //     return (0);
+    // } else {
+    //     /* Allocate a new extent or grow an existing one. */
+    //     alloc = union_fh->destination.allocation_list;
+    //     while (alloc != NULL) {
+    //         /* Find the first extend that the write is before. */
+    //         if (alloc->off == offset) {
 
-        if (prev == NULL) {
-            // New extent is at the start.
-            /* Allocate a new extent. */
-            WT_RET(__wt_calloc_one(session, &new));
-            new->off = offset;
-            new->len = len;
-            new->next = alloc;
-            union_fh->destination.allocation_list = new;
-            return (0);
+    //             /* If the write fits the current extent just add it */
+    //             if (EXTENT_END(alloc) >= offset + (wt_off_t)len) {
+    //                 __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done",
+    //                   union_fh->iface.name);
+    //                 return (0);
+    //             } else {
+    //                 /* Otherwise grow the extent to match the new write. */
+    //                 WT_ASSERT(session, alloc->len < len);
+    //                 alloc->len = len;
+    //                 if (alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
+    //                     WT_RET(__union_merge_with_next_extents(session, alloc));
+    //                 }
+    //                 return (0);
+    //             }
+    //         }
+    //         if (alloc->off > offset) {
+    //             break;
+    //         }
+    //         prev = alloc;
+    //         alloc = alloc->next;
+    //     }
 
-        } else if (alloc == NULL) {
-            // New extent is after.
-            if (EXTENT_END(prev) == offset) {
-                // Grow prev.
-                prev->len += len;
-                return (0);
-            }
-        } else {
-            // New extent is in between.
-            if (EXTENT_END(prev) == offset) {
-                // Grow prev.
-                prev->len += len;
-                if (prev->next->off <= EXTENT_END(prev)) {
-                    __union_merge_with_next_extents(session, prev);
-                }
-                return (0);
-            }
-        }
-        /* Allocate a new extent. */
-        WT_RET(__wt_calloc_one(session, &new));
-        new->off = offset;
-        new->len = len;
-        new->next = alloc;
-        prev->next = new;
-        if (EXTENT_END(prev) >= new->off) {
-            __union_merge_with_next_extents(session, prev);
-        }
-    }
+    //     if (prev == NULL) {
+    //         // New extent is at the start.
+    //         /* Allocate a new extent. */
+    //         WT_RET(__wt_calloc_one(session, &new));
+    //         new->off = offset;
+    //         new->len = len;
+    //         new->next = alloc;
+    //         union_fh->destination.allocation_list = new;
+    //         return (0);
+
+    //     } else if (alloc == NULL) {
+    //         // New extent is after.
+    //         if (EXTENT_END(prev) == offset) {
+    //             // Grow prev.
+    //             prev->len += len;
+    //             return (0);
+    //         }
+    //     } else {
+    //         // New extent is in between.
+    //         if (EXTENT_END(prev) == offset) {
+    //             // Grow prev.
+    //             prev->len += len;
+    //             if (prev->next->off <= EXTENT_END(prev)) {
+    //                 __union_merge_with_next_extents(session, prev);
+    //             }
+    //             return (0);
+    //         }
+    //     }
+    //     /* Allocate a new extent. */
+    //     WT_RET(__wt_calloc_one(session, &new));
+    //     new->off = offset;
+    //     new->len = len;
+    //     new->next = alloc;
+    //     prev->next = new;
+    //     if (EXTENT_END(prev) >= new->off) {
+    //         __union_merge_with_next_extents(session, prev);
+    //     }
+    // }
     return (0);
 }
 /*
@@ -743,7 +756,7 @@ __union_fs_file_read(
 
     read_data = (char *)buf;
 
-    sl = __dest_can_service_rw(union_fh, session, offset, len);
+    sl = __union_can_service_read(union_fh, session, offset, len);
 
     /*
      * TODO: WiredTiger will read the metadata file after creation but before anything has been
