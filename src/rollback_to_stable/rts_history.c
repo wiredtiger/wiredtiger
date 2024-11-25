@@ -188,7 +188,7 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     WT_CONFIG_ITEM cval, durableval, key;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    wt_timestamp_t max_durable_ts, newest_stop_durable_ts, newest_stop_ts;
+    wt_timestamp_t max_durable_ts, newest_page_stop_durable_ts, newest_stop_ts;
     size_t i;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -207,20 +207,21 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
      * stop timestamp, we must include the newest stop timestamp also into the calculation of
      * maximum timestamp of the history store.
      */
-    newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
+    newest_page_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
+        ret = __wt_config_subgets(session, &cval, "newest_page_stop_durable_ts", &durableval);
         if (ret == 0)
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
+            newest_page_stop_durable_ts =
+              WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)durableval.val);
         WT_ERR_NOTFOUND_OK(ret, false);
         ret = __wt_config_subgets(session, &cval, "newest_stop_ts", &durableval);
         if (ret == 0)
             newest_stop_ts = WT_MAX(newest_stop_ts, (wt_timestamp_t)durableval.val);
         WT_ERR_NOTFOUND_OK(ret, false);
     }
-    max_durable_ts = WT_MAX(newest_stop_ts, newest_stop_durable_ts);
+    max_durable_ts = WT_MAX(newest_stop_ts, newest_page_stop_durable_ts);
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
     release_dhandle = true;
 

@@ -2100,7 +2100,7 @@ __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *
          */
         if (ckpt->ta.newest_stop_ts != WT_TS_MAX) {
             F_SET(btree, WT_BTREE_OBSOLETE_PAGES);
-            stop_ts = ckpt->ta.newest_stop_durable_ts;
+            stop_ts = ckpt->ta.newest_durable_ts;
         }
         if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn, stop_ts)) {
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_obsolete_applied);
@@ -2223,7 +2223,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
      */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
       F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT | WT_CONN_RECOVERING))
-        btree->rec_max_timestamp = WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
+        btree->rec_max_timestamp = ta->newest_durable_ts;
 }
 
 /*

@@ -1707,9 +1707,12 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             WT_TIME_AGGREGATE_MERGE(session, &temp_ta, &prev_ptr->ta_after_split_boundary);
             /*
              * We track a bit more information than we need to because ta should always be a
-             * combination of the before split ta and after split ta. We can assert that here.
+             * combination of the before split ta and after split ta except the
+             * `newest_page_stop_durable_ts`. We can assert that here.
              */
-            WT_ASSERT(session, memcmp(&prev_ptr->ta, &temp_ta, sizeof(WT_TIME_AGGREGATE)) == 0);
+            WT_ASSERT(session,
+              (memcmp(&prev_ptr->ta, &temp_ta, sizeof(WT_TIME_AGGREGATE)) == 0) ||
+                (prev_ptr->ta.newest_page_stop_durable_ts != temp_ta.newest_page_stop_durable_ts));
         }
 #endif
 

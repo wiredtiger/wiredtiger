@@ -504,7 +504,7 @@ __wt_txn_op_delete_commit(
         if (addr_found)
             ret = __wt_txn_timestamp_usage_check(session, op,
               page_del->timestamp != WT_TS_NONE ? page_del->timestamp : txn->commit_timestamp,
-              WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
+              addr.ta.newest_durable_ts);
         WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         WT_ERR(ret);
     }

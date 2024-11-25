@@ -118,8 +118,8 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
         WT_RET(__wt_calloc_one(session, &addr));
-        addr->ta.newest_start_durable_ts = unpack.ta.newest_start_durable_ts;
-        addr->ta.newest_stop_durable_ts = unpack.ta.newest_stop_durable_ts;
+        addr->ta.newest_durable_ts = unpack.ta.newest_durable_ts;
+        addr->ta.newest_page_stop_durable_ts = unpack.ta.newest_page_stop_durable_ts;
         addr->ta.oldest_start_ts = unpack.ta.oldest_start_ts;
         addr->ta.newest_txn = unpack.ta.newest_txn;
         addr->ta.newest_stop_ts = unpack.ta.newest_stop_ts;

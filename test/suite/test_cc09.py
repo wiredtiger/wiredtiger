@@ -50,7 +50,7 @@ class test_cc09(test_cc_base):
 
     # Necessary conditions for checkpoint cleanup to run.
     cc_scenarios = [
-        ('newest_stop_durable_ts', dict(has_delete=True, bump_oldest_ts=False)),
+        ('newest_page_stop_durable_ts', dict(has_delete=True, bump_oldest_ts=False)),
         ('obsolete_ts', dict(has_delete=False, bump_oldest_ts=True)),
         ('none', dict(has_delete=False, bump_oldest_ts=False)),
     ]
@@ -83,10 +83,11 @@ class test_cc09(test_cc_base):
         cursor = self.session.open_cursor(uri, None, None)
 
         if self.has_delete:
-            self.session.begin_transaction()
-            cursor.set_key(1)
-            cursor.remove()
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 1))
+            for i in range(1000):
+                self.session.begin_transaction()
+                cursor.set_key(i)
+                cursor.remove()
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(nrows + 1))
             self.session.checkpoint()
 
         if self.bump_oldest_ts:
