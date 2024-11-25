@@ -15,9 +15,6 @@ add_subdirectory(collators/revint)
 # Build the encryptor extensions.
 add_subdirectory(encryptors/nop)
 
-# Build the extractor extensions.
-add_subdirectory(extractors/csv)
-
 # We currently don't support these tests extensions on non-POSIX systems since they are designed around the
 # existence of POSIX utilities or certain system headers e.g Linux signals.
 if(WT_POSIX)
