@@ -8,7 +8,7 @@
 
 #pragma once
 
-#define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
+#include "checkpoint_private.h"
 
 /*
  * Inactive should always be 0. Other states are roughly ordered by appearance in the checkpoint
