@@ -1,0 +1,234 @@
+#!/usr/bin/perl
+
+use v5.24;
+no strict;
+
+sub id() {
+    system q{
+for f in calltrack-[0-9]*; do echo "$f " $(head -10 $f | grep -oE '"[a-zA-Z0-9_]*_(server|run)[":]'); done | tr -d '":'
+    };
+}
+
+sub nl($) {
+    local $_;
+    while (1) {
+        if (!defined($_=$_[0]->getline())) {
+            $_[0]->close();
+            return undef;
+        }
+        next if !/"ts": (\d++)/;
+        $t=$1;
+        return [$t, (s/, "cat": "[^"]++"//r), $_[0]];
+    }
+}
+
+sub openall() {
+    sort {$a->[0] <=> $b->[0]} grep {$_} map {nl(IO::File->new($_ ne "-" ? $_ : "/dev/stdin", "r") or die "$_: $!")} @ARGV;
+}
+
+sub sortedloop(&) {
+    while (@l) {
+        while (@l == 1 || (@l && $l[0][0] <= $l[1][0])) {
+            $t = $l[0][0];
+            $_[0]->();
+            $l[0] = nl($l[0][2]);
+            shift @l if !$l[0];
+        }
+        @l = sort {$a->[0] <=> $b->[0]} @l;
+    }
+}
+
+sub merge() {
+    @ARGV or die "No input files";
+    @l = openall();
+    open F, ">", "calltrack-merged.json";
+    say F '{"traceEvents": [';
+    sortedloop {
+        print F $l[0][1];
+    };
+    say F '{}]}';
+    close F;
+}
+
+sub split_by_lines() {
+    @ARGV or die "No input files";
+    @l = openall();
+
+    open F, ">", "calltrack-l-@{[++$fi]}.json";
+    say F '{"traceEvents": [';
+
+    sortedloop {
+        print F $l[0][1];
+        if (++$num > 12e6) {
+            $num=0;
+            say F '{}]}';
+            close F;
+            open F, ">", "calltrack-l-@{[++$fi]}.json";
+            say F '{"traceEvents": [';
+        }
+    };
+
+    say F '{}]}';
+    close F;
+}
+
+sub split_by_size() {
+    @ARGV or die "No input files";
+    @l = openall();
+
+    open F, ">", "calltrack-s-@{[++$fi]}.json";
+    say F q/{"traceEvents": [/;
+
+    sortedloop {
+        $txt=$l[0][1];
+        $sz += length($txt);
+        if ($sz >= 1024*1024*1024) {
+            $sz=length($txt);
+            say F q/{}]}/;
+            close F;
+            open F, ">", "calltrack-s-@{[++$fi]}.json";
+            say F q/{"traceEvents": [/;
+        }
+        print F $txt;
+    };
+
+    say F q/{}]}/;
+    close F;
+}
+
+sub split_by_time() {
+    $timelist = shift @ARGV;
+    $timelist =~ /^\d|\.|\+/ or die "The first argument must be a list of split points in seconds";
+    @S = map {$_*1e6} split /[;,:\s]/, $timelist
+        or die "The first argument must be a list of split points in seconds";
+
+    @ARGV or die "No input files";
+    @l = openall();
+
+    open F, ">", "calltrack-t-0.json";
+    $fi=0;
+    say F q/{"traceEvents": [/;
+
+    sortedloop {
+        if (@S && $fi <= $#S && $t >= $S[$fi]) {
+            say F q/{}]}/;
+            close F;
+            open F, ">", "calltrack-t-@{[$fi+1]}-$S[$fi].json";
+            ++$fi;
+            print F qq/{"traceEvents": [\n/, map {@$_} values %st;
+        }
+        if ($l[0][1] =~ /"tid": (\d++).*?"ph": "([EB])"/) {
+            $2 eq "B" ? (push @{$st{$1}}, $l[0][1]) : pop @{$st{$1}}
+        }
+        print F $l[0][1];
+    };
+
+    say F q/{}]}/;
+    close F;
+}
+
+sub interleave() {
+    $interleave = shift @ARGV or die "The first argument must be interleave interval in usec";
+
+    @ARGV or die "No input files";
+    @l = openall();
+
+    open F, ">", "calltrack-interleave-$interleave.json";
+    say F '{"traceEvents": [';
+
+    sortedloop {
+        if ($l[0][1] =~ /"tid": (\d++).*?"ph": "([EB])"/) {
+            if ($2 eq "B") {
+                push @{$st{$1}{L}}, $l[0][1];
+            } else {
+                pop @{$st{$1}{L}};
+                if (@{$st{$1}{L}} < $st{$1}{Dlast}) {
+                    print F ($l[0][1]);
+                    --$st{$1}{Dlast};
+                }
+            }
+        }
+        if ($t >= 0+$tNext) {
+            $tNext = $t + $interleave;
+            for (values %st) {
+                print F ((@{$_->{L}})[$_->{Dlast} .. @{$_->{L}}-1]);
+                $_->{Dlast} = @{$_->{L}};
+            }
+        }
+    };
+
+    say F '{}]}';
+    close F;
+}
+
+sub mindur() {
+    $mindur = shift @ARGV or die "The first argument must be minimal call duration in usec";
+
+    @ARGV or die "No input files";
+    @l = openall();
+
+    open F, ">", "calltrack-min-$mindur.json";
+    say F '{"traceEvents": [';
+
+    sortedloop {
+        if ($l[0][1] =~ /"tid": (\d++).*?"ph": "([EB])"/) {
+            if ($2 eq "B") {
+                push @{$st{$1}{L}}, $l[0];
+            } else {
+                $thr = $st{$1};
+                if (@{$thr->{L}} && $thr->{L}[-1] && $t - $thr->{L}[-1][0] >= $mindur) {
+                    print F map {$_->[1]} (@{$thr->{L}})[$thr->{Dlast} .. @{$thr->{L}}-1];
+                    # $thr->{Dlast} = @{$thr->{L}};
+
+                    print F ($l[0][1]);
+                # } else {
+                #     say "Dropping short event: $t - $thr->{L}[-1][0] = ".($t - $thr->{L}[-1][0]) if $thr->{L}[-1];
+                }
+                pop @{$thr->{L}};
+                $thr->{Dlast} = @{$thr->{L}};
+            }
+        }
+    };
+
+    say F '{}]}';
+    close F;
+}
+
+sub help() {
+    say qq{$0 <command> [args]
+Commands:
+    id                  Identify threads.
+    merge <file>...     Merge files.
+    splitl <file>...    Split by 12M lines.
+    splits <file>...    Split by 1G size.
+    splitt "t1 ..." <file>...
+                        Split by time. List of split points in S env var.
+    interleave <interval> <file>...
+                        Interleave events.
+    mindur <duration> <file>...
+                        Remove events shorter than duration.
+};
+    exit;
+}
+
+$cmd = shift @ARGV or help();
+
+if ($cmd eq "id") {
+    id();
+} elsif ($cmd eq "merge") {
+    merge();
+} elsif ($cmd eq "splitl") {
+    split_by_lines();
+} elsif ($cmd eq "splits") {
+    split_by_size();
+} elsif ($cmd eq "splitt") {
+    split_by_time();
+} elsif ($cmd eq "interleave") {
+    interleave();
+} elsif ($cmd eq "mindur") {
+    mindur();
+} elsif ($cmd eq "help" || $cmd eq "-h" || $cmd eq "") {
+    help();
+} else {
+    die "Unknown command: $cmd";
+}
