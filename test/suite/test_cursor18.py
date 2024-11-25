@@ -610,7 +610,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_update_chain_end_timestamp(self):
+    def test_update_chain_start_timestamp(self):
         self.create()
         cursor = self.session.open_cursor(self.uri, None)
 
@@ -626,14 +626,14 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(1)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(1)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_update_chain_end_timestamp_with_remove(self):
+    def test_update_chain_start_timestamp_with_remove(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -656,7 +656,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(1)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(1)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
@@ -666,7 +666,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.verify_value(version_cursor, 1, 1, 2, 2, 3, 0, 0, 0, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_update_chain_end_timestamp_with_remove_exclusive(self):
+    def test_update_chain_start_timestamp_with_remove_exclusive(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -689,14 +689,14 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(2)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(2)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 5, 5, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 0, 1)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_end_timestamp(self):
+    def test_ondisk_start_timestamp(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -714,11 +714,11 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(1)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(1)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_with_deletion_on_update_chain_end_timestamp(self):
+    def test_ondisk_with_deletion_on_update_chain_start_timestamp(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -742,14 +742,14 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(1)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(1)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 1, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_with_deletion_on_update_chain_end_timestamp_exclusive(self):
+    def test_ondisk_with_deletion_on_update_chain_start_timestamp_exclusive(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -773,11 +773,11 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(5)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(5)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_only_with_deletion_end_timestamp(self):
+    def test_ondisk_only_with_deletion_start_timestamp(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -805,14 +805,14 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(1)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(1)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 1, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_only_with_deletion_end_timestamp_exclusive(self):
+    def test_ondisk_only_with_deletion_start_timestamp_exclusive(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -840,11 +840,11 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(5)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(5)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_with_hs_end_timestamp(self):
+    def test_ondisk_with_hs_start_timestamp(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -867,7 +867,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(1)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(1)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
@@ -877,7 +877,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0, 2, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
-    def test_ondisk_with_hs_end_timestamp_exclusive(self):
+    def test_ondisk_with_hs_start_timestamp_exclusive(self):
         self.create()
 
         cursor = self.session.open_cursor(self.uri, None)
@@ -905,7 +905,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,end_timestamp=" + self.timestamp_str(5)+ "))")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true,start_timestamp=" + self.timestamp_str(5)+ "))")
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)

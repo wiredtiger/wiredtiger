@@ -977,10 +977,10 @@ struct __wt_session {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;dump_version = (, open a version cursor\, which is a debug
      * cursor on a table that enables iteration through the history of values for all the keys., a
      * set of related configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end_timestamp, Only return updates
-     * with durable timestamps larger than the end timestamp.  If a tombstone has a timestamp larger
-     * than end timestamp but the associated full value has a timestamp smaller than the end
-     * timestamp\, it returns the tombstone and the full value., a string; default empty.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start_timestamp, Only return updates
+     * with durable timestamps larger than the start timestamp.  If a tombstone has a timestamp
+     * larger than the start timestamp but the associated full value has a timestamp smaller than
+     * the start timestamp\, it returns the tombstone and the full value., a string; default empty.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp; ),,}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict,
      * Configure the cursor to evict the page positioned on when the reset API call is used., a

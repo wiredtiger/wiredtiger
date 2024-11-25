@@ -146,7 +146,6 @@
 #define WT_CONF_ID_durable_timestamp 3ULL
 #define WT_CONF_ID_early_load 278ULL
 #define WT_CONF_ID_enabled 43ULL
-#define WT_CONF_ID_end_timestamp 140ULL
 #define WT_CONF_ID_entry 279ULL
 #define WT_CONF_ID_error_prefix 232ULL
 #define WT_CONF_ID_evict_sample_inmem 236ULL
@@ -304,6 +303,7 @@
 #define WT_CONF_ID_stable_prefix 22ULL
 #define WT_CONF_ID_stable_timestamp 168ULL
 #define WT_CONF_ID_start_generation 88ULL
+#define WT_CONF_ID_start_timestamp 140ULL
 #define WT_CONF_ID_statistics 156ULL
 #define WT_CONF_ID_storage_path 294ULL
 #define WT_CONF_ID_strategy 131ULL

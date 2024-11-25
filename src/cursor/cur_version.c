@@ -192,8 +192,8 @@ __curversion_next_int(WT_CURSOR *cursor)
             version_cursor->next_upd = NULL;
             F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
         } else {
-            if (version_cursor->end_timestamp != WT_TS_NONE &&
-              upd->durable_ts <= version_cursor->end_timestamp)
+            if (version_cursor->start_timestamp != WT_TS_NONE &&
+              upd->durable_ts <= version_cursor->start_timestamp)
                 goto done;
 
             if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -343,13 +343,13 @@ __curversion_next_int(WT_CURSOR *cursor)
                 else
                     version_prepare_state = 0;
             } else {
-                if (version_cursor->end_timestamp != WT_TS_NONE) {
+                if (version_cursor->start_timestamp != WT_TS_NONE) {
                     if (WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
                         /*
                          * We are done if we have an on-disk stop durable timstamp that is smaller
                          * than or equal to the end timestamp.
                          */
-                        if (cbt->upd_value->tw.durable_stop_ts <= version_cursor->end_timestamp)
+                        if (cbt->upd_value->tw.durable_stop_ts <= version_cursor->start_timestamp)
                             goto done;
                     } else {
                         /*
@@ -357,7 +357,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                          * the on disk start durable timestamp is smaller than or equal to the end
                          * timestamp.
                          */
-                        if (cbt->upd_value->tw.durable_start_ts <= version_cursor->end_timestamp)
+                        if (cbt->upd_value->tw.durable_start_ts <= version_cursor->start_timestamp)
                             goto done;
                     }
                 }
@@ -424,10 +424,10 @@ skip_on_page:
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
 
-        if (version_cursor->end_timestamp != WT_TS_NONE) {
+        if (version_cursor->start_timestamp != WT_TS_NONE) {
             /* We are done if the durable stop timestamp is smaller or equal to the end timestamp.
              */
-            if (twp->durable_stop_ts <= version_cursor->end_timestamp)
+            if (twp->durable_stop_ts <= version_cursor->start_timestamp)
                 goto done;
 
             /*
@@ -436,7 +436,7 @@ skip_on_page:
              * stop durable timestamp is larger than the end timestamp.
              */
             if (twp->durable_stop_ts == WT_TS_MAX &&
-              twp->durable_start_ts <= version_cursor->end_timestamp)
+              twp->durable_start_ts <= version_cursor->start_timestamp)
                 goto done;
         }
 
@@ -828,9 +828,9 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
         ret = 0;
 
     WT_ERR_NOTFOUND_OK(
-      __wt_config_gets_def(session, cfg, "debug.dump_version.end_timestamp", 0, &cval), true);
+      __wt_config_gets_def(session, cfg, "debug.dump_version.start_timestamp", 0, &cval), true);
     if (ret == 0)
-        WT_ERR(__wt_txn_parse_timestamp(session, "end", &version_cursor->end_timestamp, &cval));
+        WT_ERR(__wt_txn_parse_timestamp(session, "end", &version_cursor->start_timestamp, &cval));
     else
         ret = 0;
 
