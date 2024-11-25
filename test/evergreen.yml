@@ -2712,12 +2712,12 @@ tasks:
           # CC is set to the system default "clang" binary here as a workaround. Change it back
           # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
           configure_env_vars:
-            CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
-            CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+            CCAS=/opt/mongodbtoolchain/v4/bin/gcc CC=/usr/bin/clang
+            CXX=/opt/mongodbtoolchain/v4/bin/clang++ PATH=/opt/mongodbtoolchain/v4/bin:$PATH
             CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+            -I/opt/mongodbtoolchain/v4/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
             CXXFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+            -I/opt/mongodbtoolchain/v4/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
           posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         # Run smoke tests, don't stop at failed tests, use default config
@@ -4244,15 +4244,20 @@ buildvariants:
 - name: rhel8-ppc
   display_name: "~ RHEL8 PPC"
   run_on:
-  - rhel81-power8-small
+  - rhel8-power-small
   batchtime: 120 # 2 hours
   expansions:
+    configure_env_vars:
+      CC=/opt/mongodbtoolchain/v4/bin/gcc
+      CXX=/opt/mongodbtoolchain/v4/bin/gcc++
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+      ADD_CFLAGS="-ggdb -fPIC"
     format_test_setting: ulimit -c unlimited
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    make_command: PATH=/opt/mongodbtoolchain/v4/bin:$PATH make
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       top_dir=$(git rev-parse --show-toplevel)
       top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
@@ -4265,7 +4270,7 @@ buildvariants:
       --enable-strict
       --enable-static
       --prefix=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
   - name: compile
   - name: unit-test
@@ -4278,14 +4283,14 @@ buildvariants:
 - name: rhel8-ppc-cmake
   display_name: "* RHEL8 PPC CMake"
   run_on:
-  - rhel81-power8-small
+  - rhel8-power-small
   batchtime: 10080 # 7 days
   expansions:
     test_env_vars:
       WT_BUILDDIR=$(git rev-parse --show-toplevel)/cmake_build
       LD_LIBRARY_PATH=$WT_BUILDDIR
     posix_configure_flags:
-      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
       -DHAVE_DIAGNOSTIC=1
       -DENABLE_PYTHON=1
@@ -4293,7 +4298,7 @@ buildvariants:
       -DENABLE_SNAPPY=1
       -DENABLE_STRICT=1
       -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     cmake_generator: Ninja
     make_command: ninja
