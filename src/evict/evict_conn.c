@@ -222,7 +222,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
     conn->evict_sample_inmem = cval.val != 0;
 
-    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_use_npos", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_use_softptr", &cval));
     __wt_atomic_storebool(&conn->evict_use_npos, cval.val != 0);
 
     /* Retrieve the wait time and convert from milliseconds */

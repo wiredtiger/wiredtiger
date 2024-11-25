@@ -147,7 +147,7 @@
 #define WT_CONF_ID_entry 272ULL
 #define WT_CONF_ID_error_prefix 220ULL
 #define WT_CONF_ID_evict_sample_inmem 224ULL
-#define WT_CONF_ID_evict_use_npos 225ULL
+#define WT_CONF_ID_evict_use_softptr 225ULL
 #define WT_CONF_ID_eviction 209ULL
 #define WT_CONF_ID_eviction_checkpoint_target 226ULL
 #define WT_CONF_ID_eviction_checkpoint_ts_ordering 219ULL
@@ -424,7 +424,7 @@ static const struct {
     } Encryption;
     struct {
         uint64_t evict_sample_inmem;
-        uint64_t evict_use_npos;
+        uint64_t evict_use_softptr;
         uint64_t threads_max;
         uint64_t threads_min;
     } Eviction;
@@ -802,7 +802,7 @@ static const struct {
   },
   {
     WT_CONF_ID_Eviction | (WT_CONF_ID_evict_sample_inmem << 16),
-    WT_CONF_ID_Eviction | (WT_CONF_ID_evict_use_npos << 16),
+    WT_CONF_ID_Eviction | (WT_CONF_ID_evict_use_softptr << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_threads_max << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_threads_min << 16),
   },
