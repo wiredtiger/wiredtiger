@@ -1739,6 +1739,11 @@ methods = {
                 Config('visible_only', 'false', r'''
                     only dump updates that are visible to the session''',
                     type='boolean', undoc=True),
+                Config('start_timestamp', '', r'''
+                    Only return updates with durable timestamps larger than the start timestamp. If a
+                    tombstone has a timestamp larger than the start timestamp but the associated full
+                    value has a timestamp smaller than the start timestamp, it returns the tombstone and
+                    the full value.'''),
         ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
