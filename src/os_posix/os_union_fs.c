@@ -574,7 +574,7 @@ __union_remove_extlist_hole(
               session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off, EXTENT_END(hole));
 
             tmp = hole;
-            if(prev_hole == NULL)
+            if (prev_hole == NULL)
                 union_fh->destination.hole_list = hole->next;
             else
                 prev_hole->next = hole->next;
@@ -815,12 +815,17 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
      */
     __union_fs_file_size(file_handle, wt_session, &old_len);
 
-    if(old_len == len)
-        // Sometimes we truncate but don't change the length
+    if (old_len == len)
+        /* Sometimes we call truncate but don't change the length. Ignore */
         return (0);
 
-    if(len > old_len)
-        WT_ASSERT_ALWAYS((WT_SESSION_IMPL*)wt_session, false, "ftruncate used to extend");
+    if (len > old_len)
+        /*
+         * It's technically allowed to extend a file by calling truncate. We're ignoring this case
+         * for now.
+         */
+        WT_ASSERT_ALWAYS(
+          (WT_SESSION_IMPL *)wt_session, false, "truncate call used to extend file!");
 
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
       "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
@@ -869,9 +874,9 @@ static int
 __union_build_holes_from_dest_file_lseek(
   WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh)
 {
+    WT_DECL_RET;
     wt_off_t data_offset, data_end_offset, file_size;
     int fd;
-    WT_DECL_RET;
 
     data_offset = data_end_offset = 0;
     fd = open(filename, O_RDONLY);
@@ -882,8 +887,8 @@ __union_build_holes_from_dest_file_lseek(
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
-    if(file_size > 0) {
-        // Initialise the hole_list as one big hole. We'll then find data segments and remove them.
+    if (file_size > 0) {
+        /* Initialize the hole_list as one big hole. Then find data segments and remove them. */
         WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
         union_fh->destination.hole_list->off = 0;
         union_fh->destination.hole_list->len = (size_t)file_size;
@@ -909,7 +914,7 @@ __union_build_holes_from_dest_file_lseek(
 
 err:
     close(fd);
-    return(ret);
+    return (ret);
 }
 
 /*
@@ -1018,10 +1023,14 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                   "file",
                   source_size);
 
-                // Set size by truncating. We're bypassing the union layer so we don't track the write
-                union_fh->destination.fh->fh_truncate(union_fh->destination.fh, wt_session, source_size);
+                /*
+                 * Set size by truncating. We're bypassing the union layer so we don't track the
+                 * write.
+                 */
+                union_fh->destination.fh->fh_truncate(
+                  union_fh->destination.fh, wt_session, source_size);
 
-                // Initialise the hole_list as one big hole as we need to read it all from source.
+                /* Initialize as one big hole. We need to read everything from source. */
                 WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
                 union_fh->destination.hole_list->off = 0;
                 union_fh->destination.hole_list->len = (size_t)source_size;
