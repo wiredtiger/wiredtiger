@@ -233,15 +233,19 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_logmgr_create(session));
     WT_RET(__wt_oligarch_logmgr_create(session));
 
+    /* Initialize metadata tracking, required before creating tables. */
+    // XXX Move up earlier
+    WT_RET(__wt_meta_track_init(session));
+
+    // XXX Init disagg early
+    WT_RET(__wti_disagg_conn_config(session, cfg, false));
+
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
      * Recovery must run before the history store table is created (because recovery will update the
      * metadata, and set the maximum file id seen), and before eviction is started for real.
      */
     WT_RET(__wt_txn_recover(session, cfg));
-
-    /* Initialize metadata tracking, required before creating tables. */
-    WT_RET(__wt_meta_track_init(session));
 
     /* Can create a table, so must be done after metadata tracking. */
     WT_RET(__wt_chunkcache_setup(session, cfg));

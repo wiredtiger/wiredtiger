@@ -33,8 +33,8 @@
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
-#define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
-#define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
+#define WT_HS_FILE "WiredTigerHS.wt_stable"     /* History store table */
+#define WT_HS_URI "file:WiredTigerHS.wt_stable" /* History store table URI */
 
 #define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */

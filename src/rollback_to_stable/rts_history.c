@@ -190,6 +190,7 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     WT_DECL_RET;
     wt_timestamp_t max_durable_ts, newest_stop_durable_ts, newest_stop_ts;
     size_t i;
+    const char *cfg[] = {WT_HS_CONFIG, NULL};
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool release_dhandle;
@@ -221,7 +222,7 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
         WT_ERR_NOTFOUND_OK(ret, false);
     }
     max_durable_ts = WT_MAX(newest_stop_ts, newest_stop_durable_ts);
-    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
+    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, cfg, 0));
     release_dhandle = true;
 
     /*

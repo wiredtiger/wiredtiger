@@ -302,7 +302,7 @@ struct __wt_ovfl_reuse {
     ",block_compressor=" WT_HS_COMPRESSOR                              \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
-    ",prefix_compression=false"
+    ",prefix_compression=false,block_manager=disagg"
 
 /*
  * WT_SAVE_UPD --

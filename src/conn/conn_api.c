@@ -3361,7 +3361,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wti_connection_workers(session, cfg));
 
     /* Initialize disaggregated storage (the metadata table must be open at this point). */
-    WT_ERR(__wti_disagg_conn_config(session, cfg, false));
+    // XXX WT_ERR(__wti_disagg_conn_config(session, cfg, false));
 
     /*
      * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring

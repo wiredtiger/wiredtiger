@@ -1388,8 +1388,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* If the history store file exists on disk, update its statistic. */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
-        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
-        WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
+        (void)hs_size;
+        // XXX WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+        // XXX WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
     }
 
     /*

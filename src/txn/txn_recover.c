@@ -860,6 +860,11 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
      */
     metac->set_key(metac, WT_HS_URI);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
+    // XXX
+    *hs_exists = ret == 0;
+    ret = 0;
+    if (session /*always true*/)
+        goto err;
     if (ret == WT_NOTFOUND) {
         *hs_exists = false;
         ret = 0;
@@ -1083,6 +1088,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
     }
 
+    // XXX
+#if 0
     if (!hs_exists) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "%s",
           "Creating the history store before applying log records. Likely recovering after an"
@@ -1092,6 +1099,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
          */
         WT_ERR(__wt_hs_open(session, cfg));
     }
+#endif
+    WT_ERR(__wt_hs_open(session, cfg));
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
@@ -1141,8 +1150,9 @@ done:
      * Set the history store file size as it may already exist after a restart.
      */
     if (hs_exists) {
-        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
-        WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
+        (void)hs_size;
+        // XXX WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+        // XXX WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
     }
 
     /*
