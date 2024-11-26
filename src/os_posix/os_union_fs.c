@@ -827,25 +827,32 @@ err:
 
 #include <unistd.h>
 /*
- * __union_build_extents_from_dest_file_lseek --
- *     When opening a file from destination create its existing extent list from the file system
+ * __union_build_holes_from_dest_file_lseek --
+ *     When opening a file from destination create its existing hole list from the file system
  *     information. Any holes in the extent list are data that hasn't been copied from source yet.
  */
-static void
-__union_build_extents_from_dest_file_lseek(
+static int
+__union_build_holes_from_dest_file_lseek(
   WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh)
 {
     wt_off_t data_offset, data_end_offset, file_size;
     int fd;
+    WT_DECL_RET;
 
     data_offset = data_end_offset = 0;
     fd = open(filename, O_RDONLY);
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
-    __union_fs_file_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size);
+    WT_ERR(__union_fs_file_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
+
+    // Initalise the hole_list as one big hole. We'll then find data segments and remove them.
+    WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
+    union_fh->destination.hole_list->off = 0;
+    union_fh->destination.hole_list->len = (size_t)file_size;
+    union_fh->destination.hole_list->next = NULL;
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
@@ -860,12 +867,13 @@ __union_build_extents_from_dest_file_lseek(
 
         __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename,
           data_offset, data_end_offset);
-        /* FIXME - unhandled ret */
-        __union_remove_extlist_hole(
-          union_fh, session, data_offset, (size_t)(data_end_offset - data_offset));
+        WT_ERR(__union_remove_extlist_hole(
+          union_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
     }
 
+err:
     close(fd);
+    return(ret);
 }
 
 /*
@@ -894,7 +902,7 @@ __union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session,
 
     /* Get the map of the file. */
     WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
-    __union_build_extents_from_dest_file_lseek(session, path, union_fh);
+    __union_build_holes_from_dest_file_lseek(session, path, union_fh);
 err:
     __wt_free(session, path);
     return (ret);
