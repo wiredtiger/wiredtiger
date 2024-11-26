@@ -7,8 +7,8 @@
 #define WT_SIZE_CHECK_UNPACK_PTR0(p, end) WT_RET_TEST(!(p) || !(end) || (p) > (end), EINVAL)
 
 /*
- * Defining PACKING_COMPATIBILITY_MODE makes __wt_oligarch_logop_*_unpack functions behave in a more
- * compatible way with older versions of WiredTiger and wiredtiger_struct_unpack(...fmt...)
+ * Defining PACKING_COMPATIBILITY_MODE makes __wt_layered_table_logop_*_unpack functions behave in a
+ * more compatible way with older versions of WiredTiger and wiredtiger_struct_unpack(...fmt...)
  * function. This only alters the behavior for corrupted binary data, returning some value rather
  * than failing with EINVAL.
  */
@@ -119,17 +119,17 @@ __pack_encode_string(uint8_t **pp, uint8_t *end, const char *item)
     } while (0)
 
 /*
- * __wt_oligarch_logrec_alloc --
+ * __wt_layered_table_logrec_alloc --
  *     Allocate a new WT_ITEM structure.
  */
 int
-__wt_oligarch_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
+__wt_layered_table_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logrecp)
 {
     WT_ITEM *logrec;
     WT_LOG *log;
     size_t allocsize;
 
-    log = S2C(session)->oligarch_log_info.log;
+    log = S2C(session)->layered_table_log_info.log;
     allocsize = log == NULL ? WT_LOG_ALIGN : log->allocsize;
     WT_RET(__wt_scr_alloc(session, WT_ALIGN(size + 1, allocsize), &logrec));
     WT_CLEAR(*(WT_LOG_RECORD *)logrec->data);
@@ -140,21 +140,21 @@ __wt_oligarch_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **logr
 }
 
 /*
- * __wt_oligarch_logrec_free --
+ * __wt_layered_table_logrec_free --
  *     Free the given WT_ITEM structure.
  */
 void
-__wt_oligarch_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
+__wt_layered_table_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp)
 {
     __wt_scr_free(session, logrecp);
 }
 
 /*
- * __wt_oligarch_logrec_read --
+ * __wt_layered_table_logrec_read --
  *     Read the record type.
  */
 int
-__wt_oligarch_logrec_read(
+__wt_layered_table_logrec_read(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep)
 {
     WT_UNUSED(session);
@@ -163,11 +163,11 @@ __wt_oligarch_logrec_read(
 }
 
 /*
- * __wt_oligarch_logop_read --
+ * __wt_layered_table_logop_read --
  *     Peek at the operation type.
  */
 int
-__wt_oligarch_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek, const uint8_t *end,
+__wt_layered_table_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek, const uint8_t *end,
   uint32_t *optypep, uint32_t *opsizep)
 {
     const uint8_t *p, **pp;
@@ -181,11 +181,11 @@ __wt_oligarch_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp_peek, cons
 }
 
 /*
- * __wt_oligarch_logop_unpack --
+ * __wt_layered_table_logop_unpack --
  *     Read the operation type.
  */
 int
-__wt_oligarch_logop_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
+__wt_layered_table_logop_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint32_t *optypep, uint32_t *opsizep)
 {
     WT_UNUSED(session);
@@ -195,11 +195,11 @@ __wt_oligarch_logop_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const u
 }
 
 /*
- * __wt_oligarch_logop_write --
+ * __wt_layered_table_logop_write --
  *     Write the operation type.
  */
 int
-__wt_oligarch_logop_write(
+__wt_layered_table_logop_write(
   WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end, uint32_t optype, uint32_t opsize)
 {
     WT_UNUSED(session);
@@ -209,11 +209,11 @@ __wt_oligarch_logop_write(
 }
 
 /*
- * __oligarch_logrec_make_json_str --
+ * __layered_table_logrec_make_json_str --
  *     Unpack a string into JSON escaped format.
  */
 static int
-__oligarch_logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
+__layered_table_logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
     size_t needed;
 
@@ -229,11 +229,11 @@ __oligarch_logrec_make_json_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT
 }
 
 /*
- * __oligarch_logrec_make_hex_str --
+ * __layered_table_logrec_make_hex_str --
  *     Convert data to a hexadecimal representation.
  */
 static int
-__oligarch_logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
+__layered_table_logrec_make_hex_str(WT_SESSION_IMPL *session, WT_ITEM **escapedp, WT_ITEM *item)
 {
     size_t needed;
 
@@ -290,12 +290,12 @@ __wt_struct_unpack_col_modify(
 }
 
 /*
- * __wt_oligarch_logop_col_modify_pack --
+ * __wt_layered_table_logop_col_modify_pack --
  *     Pack the log operation col_modify.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_col_modify_pack(
+__wt_layered_table_logop_col_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     size_t size;
@@ -308,7 +308,7 @@ __wt_oligarch_logop_col_modify_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_COL_MODIFY, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_COL_MODIFY, (uint32_t)size));
     WT_RET(__wt_struct_pack_col_modify(&buf, end, fileid, recno, value));
 
     logrec->size += (uint32_t)size;
@@ -316,11 +316,11 @@ __wt_oligarch_logop_col_modify_pack(
 }
 
 /*
- * __wt_oligarch_logop_col_modify_unpack --
+ * __wt_layered_table_logop_col_modify_unpack --
  *     Unpack the log operation col_modify.
  */
 int
-__wt_oligarch_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
     WT_DECL_RET;
@@ -331,7 +331,7 @@ __wt_oligarch_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_col_modify(pp, end, fileidp, recnop, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_col_modify: unpack failure");
 
@@ -351,11 +351,11 @@ __wt_oligarch_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **
 }
 
 /*
- * __wt_oligarch_logop_col_modify_print --
+ * __wt_layered_table_logop_col_modify_print --
  *     Print the log operation col_modify.
  */
 int
-__wt_oligarch_logop_col_modify_print(
+__wt_layered_table_logop_col_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
@@ -364,7 +364,7 @@ __wt_oligarch_logop_col_modify_print(
     WT_ITEM value;
     WT_DECL_ITEM(escaped);
 
-    WT_RET(__wt_oligarch_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
+    WT_RET(__wt_layered_table_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -373,10 +373,10 @@ __wt_oligarch_logop_col_modify_print(
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"recno\": %" PRIu64 ",\n", recno));
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &value));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &value));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"value\": \"%s\"", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &value));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &value));
         WT_ERR(__wt_fprintf(
           session, args->fs, ",\n        \"value-hex\": \"%s\"", (char *)escaped->mem));
     }
@@ -429,12 +429,12 @@ __wt_struct_unpack_col_put(
 }
 
 /*
- * __wt_oligarch_logop_col_put_pack --
+ * __wt_layered_table_logop_col_put_pack --
  *     Pack the log operation col_put.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_col_put_pack(
+__wt_layered_table_logop_col_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value)
 {
     size_t size;
@@ -447,7 +447,7 @@ __wt_oligarch_logop_col_put_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_COL_PUT, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_COL_PUT, (uint32_t)size));
     WT_RET(__wt_struct_pack_col_put(&buf, end, fileid, recno, value));
 
     logrec->size += (uint32_t)size;
@@ -455,12 +455,12 @@ __wt_oligarch_logop_col_put_pack(
 }
 
 /*
- * __wt_oligarch_logop_col_put_unpack --
+ * __wt_layered_table_logop_col_put_unpack --
  *     Unpack the log operation col_put.
  */
 int
-__wt_oligarch_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-  uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
+__wt_layered_table_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+  const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
 {
     WT_DECL_RET;
     uint32_t optype, size;
@@ -470,7 +470,7 @@ __wt_oligarch_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_col_put(pp, end, fileidp, recnop, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_col_put: unpack failure");
 
@@ -490,11 +490,11 @@ __wt_oligarch_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
 }
 
 /*
- * __wt_oligarch_logop_col_put_print --
+ * __wt_layered_table_logop_col_put_print --
  *     Print the log operation col_put.
  */
 int
-__wt_oligarch_logop_col_put_print(
+__wt_layered_table_logop_col_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
@@ -503,7 +503,7 @@ __wt_oligarch_logop_col_put_print(
     WT_ITEM value;
     WT_DECL_ITEM(escaped);
 
-    WT_RET(__wt_oligarch_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
+    WT_RET(__wt_layered_table_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -512,10 +512,10 @@ __wt_oligarch_logop_col_put_print(
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"recno\": %" PRIu64 ",\n", recno));
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &value));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &value));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"value\": \"%s\"", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &value));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &value));
         WT_ERR(__wt_fprintf(
           session, args->fs, ",\n        \"value-hex\": \"%s\"", (char *)escaped->mem));
     }
@@ -565,12 +565,12 @@ __wt_struct_unpack_col_remove(
 }
 
 /*
- * __wt_oligarch_logop_col_remove_pack --
+ * __wt_layered_table_logop_col_remove_pack --
  *     Pack the log operation col_remove.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_col_remove_pack(
+__wt_layered_table_logop_col_remove_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno)
 {
     size_t size;
@@ -583,7 +583,7 @@ __wt_oligarch_logop_col_remove_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_COL_REMOVE, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_COL_REMOVE, (uint32_t)size));
     WT_RET(__wt_struct_pack_col_remove(&buf, end, fileid, recno));
 
     logrec->size += (uint32_t)size;
@@ -591,11 +591,11 @@ __wt_oligarch_logop_col_remove_pack(
 }
 
 /*
- * __wt_oligarch_logop_col_remove_unpack --
+ * __wt_layered_table_logop_col_remove_unpack --
  *     Unpack the log operation col_remove.
  */
 int
-__wt_oligarch_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *fileidp, uint64_t *recnop)
 {
     WT_DECL_RET;
@@ -606,7 +606,7 @@ __wt_oligarch_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_col_remove(pp, end, fileidp, recnop)) != 0)
         WT_RET_MSG(session, ret, "logop_col_remove: unpack failure");
 
@@ -626,17 +626,17 @@ __wt_oligarch_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **
 }
 
 /*
- * __wt_oligarch_logop_col_remove_print --
+ * __wt_layered_table_logop_col_remove_print --
  *     Print the log operation col_remove.
  */
 int
-__wt_oligarch_logop_col_remove_print(
+__wt_layered_table_logop_col_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     uint32_t fileid;
     uint64_t recno;
 
-    WT_RET(__wt_oligarch_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
+    WT_RET(__wt_layered_table_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -691,12 +691,12 @@ __wt_struct_unpack_col_truncate(
 }
 
 /*
- * __wt_oligarch_logop_col_truncate_pack --
+ * __wt_layered_table_logop_col_truncate_pack --
  *     Pack the log operation col_truncate.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_col_truncate_pack(
+__wt_layered_table_logop_col_truncate_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t start, uint64_t stop)
 {
     size_t size;
@@ -709,7 +709,8 @@ __wt_oligarch_logop_col_truncate_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_COL_TRUNCATE, (uint32_t)size));
+    WT_RET(
+      __wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_COL_TRUNCATE, (uint32_t)size));
     WT_RET(__wt_struct_pack_col_truncate(&buf, end, fileid, start, stop));
 
     logrec->size += (uint32_t)size;
@@ -717,11 +718,11 @@ __wt_oligarch_logop_col_truncate_pack(
 }
 
 /*
- * __wt_oligarch_logop_col_truncate_unpack --
+ * __wt_layered_table_logop_col_truncate_unpack --
  *     Unpack the log operation col_truncate.
  */
 int
-__wt_oligarch_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
 {
     WT_DECL_RET;
@@ -732,7 +733,7 @@ __wt_oligarch_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t 
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_col_truncate(pp, end, fileidp, startp, stopp)) != 0)
         WT_RET_MSG(session, ret, "logop_col_truncate: unpack failure");
 
@@ -752,18 +753,18 @@ __wt_oligarch_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t 
 }
 
 /*
- * __wt_oligarch_logop_col_truncate_print --
+ * __wt_layered_table_logop_col_truncate_print --
  *     Print the log operation col_truncate.
  */
 int
-__wt_oligarch_logop_col_truncate_print(
+__wt_layered_table_logop_col_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     uint32_t fileid;
     uint64_t start;
     uint64_t stop;
 
-    WT_RET(__wt_oligarch_logop_col_truncate_unpack(session, pp, end, &fileid, &start, &stop));
+    WT_RET(__wt_layered_table_logop_col_truncate_unpack(session, pp, end, &fileid, &start, &stop));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -819,12 +820,12 @@ __wt_struct_unpack_row_modify(
 }
 
 /*
- * __wt_oligarch_logop_row_modify_pack --
+ * __wt_layered_table_logop_row_modify_pack --
  *     Pack the log operation row_modify.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_row_modify_pack(
+__wt_layered_table_logop_row_modify_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     size_t size;
@@ -837,7 +838,7 @@ __wt_oligarch_logop_row_modify_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_ROW_MODIFY, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_ROW_MODIFY, (uint32_t)size));
     WT_RET(__wt_struct_pack_row_modify(&buf, end, fileid, key, value));
 
     logrec->size += (uint32_t)size;
@@ -845,11 +846,11 @@ __wt_oligarch_logop_row_modify_pack(
 }
 
 /*
- * __wt_oligarch_logop_row_modify_unpack --
+ * __wt_layered_table_logop_row_modify_unpack --
  *     Unpack the log operation row_modify.
  */
 int
-__wt_oligarch_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     WT_DECL_RET;
@@ -860,7 +861,7 @@ __wt_oligarch_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_row_modify(pp, end, fileidp, keyp, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_modify: unpack failure");
 
@@ -880,11 +881,11 @@ __wt_oligarch_logop_row_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **
 }
 
 /*
- * __wt_oligarch_logop_row_modify_print --
+ * __wt_layered_table_logop_row_modify_print --
  *     Print the log operation row_modify.
  */
 int
-__wt_oligarch_logop_row_modify_print(
+__wt_layered_table_logop_row_modify_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
@@ -893,7 +894,7 @@ __wt_oligarch_logop_row_modify_print(
     WT_ITEM value;
     WT_DECL_ITEM(escaped);
 
-    WT_RET(__wt_oligarch_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
+    WT_RET(__wt_layered_table_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -901,17 +902,17 @@ __wt_oligarch_logop_row_modify_print(
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_modify\",\n"));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &key));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &key));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"key\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &key));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &key));
         WT_ERR(
           __wt_fprintf(session, args->fs, "        \"key-hex\": \"%s\",\n", (char *)escaped->mem));
     }
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &value));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &value));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"value\": \"%s\"", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &value));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &value));
         WT_ERR(__wt_fprintf(
           session, args->fs, ",\n        \"value-hex\": \"%s\"", (char *)escaped->mem));
     }
@@ -963,12 +964,12 @@ __wt_struct_unpack_row_put(
 }
 
 /*
- * __wt_oligarch_logop_row_put_pack --
+ * __wt_layered_table_logop_row_put_pack --
  *     Pack the log operation row_put.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_row_put_pack(
+__wt_layered_table_logop_row_put_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value)
 {
     size_t size;
@@ -981,7 +982,7 @@ __wt_oligarch_logop_row_put_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_ROW_PUT, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_ROW_PUT, (uint32_t)size));
     WT_RET(__wt_struct_pack_row_put(&buf, end, fileid, key, value));
 
     logrec->size += (uint32_t)size;
@@ -989,12 +990,12 @@ __wt_oligarch_logop_row_put_pack(
 }
 
 /*
- * __wt_oligarch_logop_row_put_unpack --
+ * __wt_layered_table_logop_row_put_unpack --
  *     Unpack the log operation row_put.
  */
 int
-__wt_oligarch_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-  uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
+__wt_layered_table_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+  const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep)
 {
     WT_DECL_RET;
     uint32_t optype, size;
@@ -1004,7 +1005,7 @@ __wt_oligarch_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_row_put(pp, end, fileidp, keyp, valuep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_put: unpack failure");
 
@@ -1024,11 +1025,11 @@ __wt_oligarch_logop_row_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
 }
 
 /*
- * __wt_oligarch_logop_row_put_print --
+ * __wt_layered_table_logop_row_put_print --
  *     Print the log operation row_put.
  */
 int
-__wt_oligarch_logop_row_put_print(
+__wt_layered_table_logop_row_put_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
@@ -1037,7 +1038,7 @@ __wt_oligarch_logop_row_put_print(
     WT_ITEM value;
     WT_DECL_ITEM(escaped);
 
-    WT_RET(__wt_oligarch_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
+    WT_RET(__wt_layered_table_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -1045,17 +1046,17 @@ __wt_oligarch_logop_row_put_print(
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_put\",\n"));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &key));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &key));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"key\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &key));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &key));
         WT_ERR(
           __wt_fprintf(session, args->fs, "        \"key-hex\": \"%s\",\n", (char *)escaped->mem));
     }
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &value));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &value));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"value\": \"%s\"", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &value));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &value));
         WT_ERR(__wt_fprintf(
           session, args->fs, ",\n        \"value-hex\": \"%s\"", (char *)escaped->mem));
     }
@@ -1105,12 +1106,12 @@ __wt_struct_unpack_row_remove(
 }
 
 /*
- * __wt_oligarch_logop_row_remove_pack --
+ * __wt_layered_table_logop_row_remove_pack --
  *     Pack the log operation row_remove.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_row_remove_pack(
+__wt_layered_table_logop_row_remove_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key)
 {
     size_t size;
@@ -1123,7 +1124,7 @@ __wt_oligarch_logop_row_remove_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_ROW_REMOVE, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_ROW_REMOVE, (uint32_t)size));
     WT_RET(__wt_struct_pack_row_remove(&buf, end, fileid, key));
 
     logrec->size += (uint32_t)size;
@@ -1131,11 +1132,11 @@ __wt_oligarch_logop_row_remove_pack(
 }
 
 /*
- * __wt_oligarch_logop_row_remove_unpack --
+ * __wt_layered_table_logop_row_remove_unpack --
  *     Unpack the log operation row_remove.
  */
 int
-__wt_oligarch_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp)
 {
     WT_DECL_RET;
@@ -1146,7 +1147,7 @@ __wt_oligarch_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_row_remove(pp, end, fileidp, keyp)) != 0)
         WT_RET_MSG(session, ret, "logop_row_remove: unpack failure");
 
@@ -1166,11 +1167,11 @@ __wt_oligarch_logop_row_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **
 }
 
 /*
- * __wt_oligarch_logop_row_remove_print --
+ * __wt_layered_table_logop_row_remove_print --
  *     Print the log operation row_remove.
  */
 int
-__wt_oligarch_logop_row_remove_print(
+__wt_layered_table_logop_row_remove_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
@@ -1178,7 +1179,7 @@ __wt_oligarch_logop_row_remove_print(
     WT_ITEM key;
     WT_DECL_ITEM(escaped);
 
-    WT_RET(__wt_oligarch_logop_row_remove_unpack(session, pp, end, &fileid, &key));
+    WT_RET(__wt_layered_table_logop_row_remove_unpack(session, pp, end, &fileid, &key));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -1186,10 +1187,10 @@ __wt_oligarch_logop_row_remove_print(
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_remove\",\n"));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &key));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &key));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"key\": \"%s\"", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &key));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &key));
         WT_ERR(
           __wt_fprintf(session, args->fs, ",\n        \"key-hex\": \"%s\"", (char *)escaped->mem));
     }
@@ -1245,13 +1246,13 @@ __wt_struct_unpack_row_truncate(const uint8_t **pp, const uint8_t *end, uint32_t
 }
 
 /*
- * __wt_oligarch_logop_row_truncate_pack --
+ * __wt_layered_table_logop_row_truncate_pack --
  *     Pack the log operation row_truncate.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
-  WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
+__wt_layered_table_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec,
+  uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode)
 {
     size_t size;
     uint8_t *buf, *end;
@@ -1263,7 +1264,8 @@ __wt_oligarch_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec,
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_ROW_TRUNCATE, (uint32_t)size));
+    WT_RET(
+      __wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_ROW_TRUNCATE, (uint32_t)size));
     WT_RET(__wt_struct_pack_row_truncate(&buf, end, fileid, start, stop, mode));
 
     logrec->size += (uint32_t)size;
@@ -1271,11 +1273,11 @@ __wt_oligarch_logop_row_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec,
 }
 
 /*
- * __wt_oligarch_logop_row_truncate_unpack --
+ * __wt_layered_table_logop_row_truncate_unpack --
  *     Unpack the log operation row_truncate.
  */
 int
-__wt_oligarch_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *fileidp, WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep)
 {
     WT_DECL_RET;
@@ -1286,7 +1288,7 @@ __wt_oligarch_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t 
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_row_truncate(pp, end, fileidp, startp, stopp, modep)) != 0)
         WT_RET_MSG(session, ret, "logop_row_truncate: unpack failure");
 
@@ -1306,11 +1308,11 @@ __wt_oligarch_logop_row_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t 
 }
 
 /*
- * __wt_oligarch_logop_row_truncate_print --
+ * __wt_layered_table_logop_row_truncate_print --
  *     Print the log operation row_truncate.
  */
 int
-__wt_oligarch_logop_row_truncate_print(
+__wt_layered_table_logop_row_truncate_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_DECL_RET;
@@ -1320,8 +1322,8 @@ __wt_oligarch_logop_row_truncate_print(
     uint32_t mode;
     WT_DECL_ITEM(escaped);
 
-    WT_RET(
-      __wt_oligarch_logop_row_truncate_unpack(session, pp, end, &fileid, &start, &stop, &mode));
+    WT_RET(__wt_layered_table_logop_row_truncate_unpack(
+      session, pp, end, &fileid, &start, &stop, &mode));
 
     if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
@@ -1329,17 +1331,17 @@ __wt_oligarch_logop_row_truncate_print(
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_truncate\",\n"));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid\": %" PRIu32 ",\n", fileid));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"fileid-hex\": \"0x%" PRIx32 "\",\n", fileid));
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &start));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &start));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"start\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &start));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &start));
         WT_ERR(__wt_fprintf(
           session, args->fs, "        \"start-hex\": \"%s\",\n", (char *)escaped->mem));
     }
-    WT_ERR(__oligarch_logrec_make_json_str(session, &escaped, &stop));
+    WT_ERR(__layered_table_logrec_make_json_str(session, &escaped, &stop));
     WT_ERR(__wt_fprintf(session, args->fs, "        \"stop\": \"%s\",\n", (char *)escaped->mem));
     if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_HEX)) {
-        WT_ERR(__oligarch_logrec_make_hex_str(session, &escaped, &stop));
+        WT_ERR(__layered_table_logrec_make_hex_str(session, &escaped, &stop));
         WT_ERR(
           __wt_fprintf(session, args->fs, "        \"stop-hex\": \"%s\",\n", (char *)escaped->mem));
     }
@@ -1387,12 +1389,12 @@ __wt_struct_unpack_checkpoint_start(const uint8_t **pp, const uint8_t *end)
 }
 
 /*
- * __wt_oligarch_logop_checkpoint_start_pack --
+ * __wt_layered_table_logop_checkpoint_start_pack --
  *     Pack the log operation checkpoint_start.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
+__wt_layered_table_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec)
 {
     size_t size;
     uint8_t *buf, *end;
@@ -1404,8 +1406,8 @@ __wt_oligarch_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *log
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(
-      __wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_CHECKPOINT_START, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(
+      session, &buf, end, WT_LOGOP_CHECKPOINT_START, (uint32_t)size));
     WT_RET(__wt_struct_pack_checkpoint_start(&buf, end));
 
     logrec->size += (uint32_t)size;
@@ -1413,11 +1415,11 @@ __wt_oligarch_logop_checkpoint_start_pack(WT_SESSION_IMPL *session, WT_ITEM *log
 }
 
 /*
- * __wt_oligarch_logop_checkpoint_start_unpack --
+ * __wt_layered_table_logop_checkpoint_start_unpack --
  *     Unpack the log operation checkpoint_start.
  */
 int
-__wt_oligarch_logop_checkpoint_start_unpack(
+__wt_layered_table_logop_checkpoint_start_unpack(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end)
 {
     WT_DECL_RET;
@@ -1428,7 +1430,7 @@ __wt_oligarch_logop_checkpoint_start_unpack(
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_checkpoint_start(pp, end)) != 0)
         WT_RET_MSG(session, ret, "logop_checkpoint_start: unpack failure");
 
@@ -1449,15 +1451,15 @@ __wt_oligarch_logop_checkpoint_start_unpack(
 }
 
 /*
- * __wt_oligarch_logop_checkpoint_start_print --
+ * __wt_layered_table_logop_checkpoint_start_print --
  *     Print the log operation checkpoint_start.
  */
 int
-__wt_oligarch_logop_checkpoint_start_print(
+__wt_layered_table_logop_checkpoint_start_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
 
-    WT_RET(__wt_oligarch_logop_checkpoint_start_unpack(session, pp, end));
+    WT_RET(__wt_layered_table_logop_checkpoint_start_unpack(session, pp, end));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"checkpoint_start\"\n"));
 
@@ -1503,12 +1505,12 @@ __wt_struct_unpack_prev_lsn(const uint8_t **pp, const uint8_t *end, WT_LSN *prev
 }
 
 /*
- * __wt_oligarch_logop_prev_lsn_pack --
+ * __wt_layered_table_logop_prev_lsn_pack --
  *     Pack the log operation prev_lsn.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
+__wt_layered_table_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
 {
     size_t size;
     uint8_t *buf, *end;
@@ -1520,7 +1522,7 @@ __wt_oligarch_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_PREV_LSN, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_PREV_LSN, (uint32_t)size));
     WT_RET(__wt_struct_pack_prev_lsn(&buf, end, prev_lsn));
 
     logrec->size += (uint32_t)size;
@@ -1528,11 +1530,11 @@ __wt_oligarch_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_
 }
 
 /*
- * __wt_oligarch_logop_prev_lsn_unpack --
+ * __wt_layered_table_logop_prev_lsn_unpack --
  *     Unpack the log operation prev_lsn.
  */
 int
-__wt_oligarch_logop_prev_lsn_unpack(
+__wt_layered_table_logop_prev_lsn_unpack(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp)
 {
     WT_DECL_RET;
@@ -1543,7 +1545,7 @@ __wt_oligarch_logop_prev_lsn_unpack(
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_prev_lsn(pp, end, prev_lsnp)) != 0)
         WT_RET_MSG(session, ret, "logop_prev_lsn: unpack failure");
 
@@ -1563,16 +1565,16 @@ __wt_oligarch_logop_prev_lsn_unpack(
 }
 
 /*
- * __wt_oligarch_logop_prev_lsn_print --
+ * __wt_layered_table_logop_prev_lsn_print --
  *     Print the log operation prev_lsn.
  */
 int
-__wt_oligarch_logop_prev_lsn_print(
+__wt_layered_table_logop_prev_lsn_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     WT_LSN prev_lsn;
 
-    WT_RET(__wt_oligarch_logop_prev_lsn_unpack(session, pp, end, &prev_lsn));
+    WT_RET(__wt_layered_table_logop_prev_lsn_unpack(session, pp, end, &prev_lsn));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"prev_lsn\",\n"));
     WT_RET(__wt_fprintf(session, args->fs, "        \"prev_lsn\": [%" PRIu32 ", %" PRIu32 "]",
@@ -1623,12 +1625,12 @@ __wt_struct_unpack_backup_id(const uint8_t **pp, const uint8_t *end, uint32_t *i
 }
 
 /*
- * __wt_oligarch_logop_backup_id_pack --
+ * __wt_layered_table_logop_backup_id_pack --
  *     Pack the log operation backup_id.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_backup_id_pack(
+__wt_layered_table_logop_backup_id_pack(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t index, uint64_t granularity, const char *id)
 {
     size_t size;
@@ -1641,7 +1643,7 @@ __wt_oligarch_logop_backup_id_pack(
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_BACKUP_ID, (uint32_t)size));
+    WT_RET(__wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_BACKUP_ID, (uint32_t)size));
     WT_RET(__wt_struct_pack_backup_id(&buf, end, index, granularity, id));
 
     logrec->size += (uint32_t)size;
@@ -1649,11 +1651,11 @@ __wt_oligarch_logop_backup_id_pack(
 }
 
 /*
- * __wt_oligarch_logop_backup_id_unpack --
+ * __wt_layered_table_logop_backup_id_unpack --
  *     Unpack the log operation backup_id.
  */
 int
-__wt_oligarch_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint32_t *indexp, uint64_t *granularityp, const char **idp)
 {
     WT_DECL_RET;
@@ -1664,7 +1666,7 @@ __wt_oligarch_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **p
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_backup_id(pp, end, indexp, granularityp, idp)) != 0)
         WT_RET_MSG(session, ret, "logop_backup_id: unpack failure");
 
@@ -1684,18 +1686,18 @@ __wt_oligarch_logop_backup_id_unpack(WT_SESSION_IMPL *session, const uint8_t **p
 }
 
 /*
- * __wt_oligarch_logop_backup_id_print --
+ * __wt_layered_table_logop_backup_id_print --
  *     Print the log operation backup_id.
  */
 int
-__wt_oligarch_logop_backup_id_print(
+__wt_layered_table_logop_backup_id_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     uint32_t index;
     uint64_t granularity;
     const char *id;
 
-    WT_RET(__wt_oligarch_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id));
+    WT_RET(__wt_layered_table_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"backup_id\",\n"));
     WT_RET(__wt_fprintf(session, args->fs, "        \"index\": %" PRIu32 ",\n", index));
@@ -1760,14 +1762,14 @@ __wt_struct_unpack_txn_timestamp(const uint8_t **pp, const uint8_t *end, uint64_
 }
 
 /*
- * __wt_oligarch_logop_txn_timestamp_pack --
+ * __wt_layered_table_logop_txn_timestamp_pack --
  *     Pack the log operation txn_timestamp.
  */
 WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result))
 int
-__wt_oligarch_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
-  uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
-  uint64_t prepare_ts, uint64_t read_ts)
+__wt_layered_table_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec,
+  uint64_t time_sec, uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts,
+  uint64_t first_commit_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
     size_t size;
     uint8_t *buf, *end;
@@ -1780,7 +1782,8 @@ __wt_oligarch_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec
 
     buf = (uint8_t *)logrec->data + logrec->size;
     end = buf + size;
-    WT_RET(__wt_oligarch_logop_write(session, &buf, end, WT_LOGOP_TXN_TIMESTAMP, (uint32_t)size));
+    WT_RET(
+      __wt_layered_table_logop_write(session, &buf, end, WT_LOGOP_TXN_TIMESTAMP, (uint32_t)size));
     WT_RET(__wt_struct_pack_txn_timestamp(
       &buf, end, time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts));
 
@@ -1789,11 +1792,11 @@ __wt_oligarch_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec
 }
 
 /*
- * __wt_oligarch_logop_txn_timestamp_unpack --
+ * __wt_layered_table_logop_txn_timestamp_unpack --
  *     Unpack the log operation txn_timestamp.
  */
 int
-__wt_oligarch_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
+__wt_layered_table_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end, uint64_t *time_secp, uint64_t *time_nsecp, uint64_t *commit_tsp,
   uint64_t *durable_tsp, uint64_t *first_commit_tsp, uint64_t *prepare_tsp, uint64_t *read_tsp)
 {
@@ -1805,7 +1808,7 @@ __wt_oligarch_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t
     pp_orig = *pp;
 #endif
 
-    if ((ret = __wt_oligarch_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
+    if ((ret = __wt_layered_table_logop_unpack(session, pp, end, &optype, &size)) != 0 ||
       (ret = __wt_struct_unpack_txn_timestamp(pp, end, time_secp, time_nsecp, commit_tsp,
          durable_tsp, first_commit_tsp, prepare_tsp, read_tsp)) != 0)
         WT_RET_MSG(session, ret, "logop_txn_timestamp: unpack failure");
@@ -1827,11 +1830,11 @@ __wt_oligarch_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t
 }
 
 /*
- * __wt_oligarch_logop_txn_timestamp_print --
+ * __wt_layered_table_logop_txn_timestamp_print --
  *     Print the log operation txn_timestamp.
  */
 int
-__wt_oligarch_logop_txn_timestamp_print(
+__wt_layered_table_logop_txn_timestamp_print(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     uint64_t time_sec;
@@ -1842,7 +1845,7 @@ __wt_oligarch_logop_txn_timestamp_print(
     uint64_t prepare_ts;
     uint64_t read_ts;
 
-    WT_RET(__wt_oligarch_logop_txn_timestamp_unpack(session, pp, end, &time_sec, &time_nsec,
+    WT_RET(__wt_layered_table_logop_txn_timestamp_unpack(session, pp, end, &time_sec, &time_nsec,
       &commit_ts, &durable_ts, &first_commit_ts, &prepare_ts, &read_ts));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"txn_timestamp\",\n"));
@@ -1858,66 +1861,66 @@ __wt_oligarch_logop_txn_timestamp_print(
 }
 
 /*
- * __wt_txn_oligarch_op_printlog --
+ * __wt_txn_layered_table_op_printlog --
  *     Print operation from a log cookie.
  */
 int
-__wt_txn_oligarch_op_printlog(
+__wt_txn_layered_table_op_printlog(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     uint32_t optype, opsize;
 
     /* Peek at the size and the type. */
-    WT_RET(__wt_oligarch_logop_read(session, pp, end, &optype, &opsize));
+    WT_RET(__wt_layered_table_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
 
     switch (optype) {
     case WT_LOGOP_COL_MODIFY:
-        WT_RET(__wt_oligarch_logop_col_modify_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_col_modify_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_COL_PUT:
-        WT_RET(__wt_oligarch_logop_col_put_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_col_put_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_COL_REMOVE:
-        WT_RET(__wt_oligarch_logop_col_remove_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_col_remove_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_COL_TRUNCATE:
-        WT_RET(__wt_oligarch_logop_col_truncate_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_col_truncate_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_ROW_MODIFY:
-        WT_RET(__wt_oligarch_logop_row_modify_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_row_modify_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_ROW_PUT:
-        WT_RET(__wt_oligarch_logop_row_put_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_row_put_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_ROW_REMOVE:
-        WT_RET(__wt_oligarch_logop_row_remove_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_row_remove_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_ROW_TRUNCATE:
-        WT_RET(__wt_oligarch_logop_row_truncate_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_row_truncate_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_CHECKPOINT_START:
-        WT_RET(__wt_oligarch_logop_checkpoint_start_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_checkpoint_start_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_PREV_LSN:
-        WT_RET(__wt_oligarch_logop_prev_lsn_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_prev_lsn_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_BACKUP_ID:
-        WT_RET(__wt_oligarch_logop_backup_id_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_backup_id_print(session, pp, end, args));
         break;
 
     case WT_LOGOP_TXN_TIMESTAMP:
-        WT_RET(__wt_oligarch_logop_txn_timestamp_print(session, pp, end, args));
+        WT_RET(__wt_layered_table_logop_txn_timestamp_print(session, pp, end, args));
         break;
 
     default:

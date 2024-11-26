@@ -186,7 +186,7 @@ of the documentation.
     - @ref arch-fs-os
 
 - @subpage arch-toc-disaggregated-storage
-    - @ref arch-disagg-oligarch
+    - @ref arch-disagg-layered
 
 - @subpage arch-glossary
 
@@ -351,7 +351,7 @@ operation.
 
 /*! @page arch-toc-disaggregated-storage Disaggregated Storage Support
 
-@subpage arch-disagg-oligarch
+@subpage arch-disagg-layered
 
 WiredTiger includes some experimental support for a disaggregated storage layer, allowing persisted data
 to be stored and retrieved using network services. This work is in active development, so documentation

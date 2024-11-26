@@ -291,17 +291,17 @@ struct __wt_btree {
 #define WT_BTREE_GARBAGE_COLLECT 0x00010000u /* Content becomes obsolete automatically */
 #define WT_BTREE_IGNORE_CACHE 0x00020000u    /* Cache-resident object */
 #define WT_BTREE_IN_MEMORY 0x00040000u       /* No checkpoint. Never write to disk in eviction. */
-#define WT_BTREE_LOGGED 0x00080000u          /* Commit-level durability without timestamps */
-#define WT_BTREE_NO_CHECKPOINT 0x00100000u   /* Disable checkpoints */
-#define WT_BTREE_NO_EVICT 0x00200000u        /* Cache-resident object. Never run eviction on it. */
-#define WT_BTREE_OBSOLETE_PAGES 0x00400000u  /* Handle has obsolete pages */
-#define WT_BTREE_OLIGARCH_LOGGED 0x00800000u /* oligarch log enabled */
-#define WT_BTREE_READONLY 0x01000000u        /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x02000000u         /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x04000000u       /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x08000000u         /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x10000000u          /* Handle is for verify */
-                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_BTREE_LAYERED_TABLE_LOGGED 0x00080000u /* layered table log enabled */
+#define WT_BTREE_LOGGED 0x00100000u               /* Commit-level durability without timestamps */
+#define WT_BTREE_NO_CHECKPOINT 0x00200000u        /* Disable checkpoints */
+#define WT_BTREE_NO_EVICT 0x00400000u       /* Cache-resident object. Never run eviction on it. */
+#define WT_BTREE_OBSOLETE_PAGES 0x00800000u /* Handle has obsolete pages */
+#define WT_BTREE_READONLY 0x01000000u       /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x02000000u        /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x04000000u      /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x08000000u        /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x10000000u         /* Handle is for verify */
+                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 

@@ -297,7 +297,7 @@ struct __wt_txn {
     uint32_t forced_iso; /* Isolation is currently forced. */
 
     WT_TXN_LOG txn_log;
-    WT_TXN_LOG txn_oligarch_log;
+    WT_TXN_LOG txn_layered_table_log;
 
     /* Snapshot data. */
     WT_TXN_SNAPSHOT snapshot_data;
@@ -378,7 +378,7 @@ struct __wt_txn {
 #define WT_TXN_HAS_TS_PREPARE 0x000040u
 #define WT_TXN_IGNORE_PREPARE 0x000080u
 #define WT_TXN_IS_CHECKPOINT 0x000100u
-#define WT_TXN_OLIGARCH_SYNC_SET 0x000200u
+#define WT_TXN_LAYERED_TABLE_SYNC_SET 0x000200u
 #define WT_TXN_PREPARE 0x000400u
 #define WT_TXN_PREPARE_IGNORE_API_CHECK 0x000800u
 #define WT_TXN_READONLY 0x001000u

@@ -454,7 +454,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         if (WT_IS_DISAGG_META(btree->dhandle))
             return (0);
         /* Skip checkpointing shared tables if we are not a leader. */
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->oligarch_manager.leader)
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->layered_table_manager.leader)
             return (0);
     }
 
@@ -1322,7 +1322,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Checkpoint the shared metadata table last, as it could have changed. */
-    if (__wt_conn_is_disagg(session) && conn->oligarch_manager.leader) {
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
         WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
             WT_ERR(__wt_checkpoint(session, cfg));

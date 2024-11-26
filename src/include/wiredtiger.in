@@ -1109,16 +1109,16 @@ struct __wt_session {
      * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible with
      * LSM tables; see @ref tuning_cache_resident for more information., a boolean flag; default \c
      * false.}
+     * @config{layered_table_log = (, the transaction layered table log configuration for this
+     * object.  Only valid if \c layered_table_log is enabled in ::wiredtiger_open., a set of
+     * related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
+     * if false\, this object has checkpoint-level durability., a boolean flag; default \c true.}
+     * @config{ ),,}
      * @config{log = (, the transaction log configuration for this object.  Only valid if \c log is
      * enabled in ::wiredtiger_open., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object has checkpoint-level
      * durability., a boolean flag; default \c true.}
-     * @config{ ),,}
-     * @config{oligarch_log = (, the transaction oligarch log configuration for this object.  Only
-     * valid if \c oligarch log is enabled in ::wiredtiger_open., a set of related configuration
-     * options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object
-     * has checkpoint-level durability., a boolean flag; default \c true.}
      * @config{ ),,}
      * @config{os_cache_dirty_max, maximum dirty system buffer cache usage\, in bytes.  If
      * non-zero\, schedule writes for dirty blocks belonging to this object in the system buffer
@@ -1298,6 +1298,12 @@ struct __wt_session {
      * number are stored in column-store files., a format string; default \c u.}
      * @config{key_gap, This option is no longer supported\, retained for backward compatibility.,
      * an integer greater than or equal to \c 0; default \c 10.}
+     * @config{layered_table_log = (, the transaction layered table log configuration for this
+     * object.  Only valid if \c layered_table_log is enabled in ::wiredtiger_open., a set of
+     * related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
+     * if false\, this object has checkpoint-level durability., a boolean flag; default \c true.}
+     * @config{ ),,}
      * @config{leaf_key_max, the largest key stored in a leaf node\, in bytes.  If set\, keys larger
      * than the specified size are stored as overflow items (which may require additional I/O to
      * access). The default value is one-tenth the size of a newly split leaf page., an integer
@@ -1374,12 +1380,6 @@ struct __wt_session {
      * is soft - it is possible for pages to be temporarily larger than this value.  This setting is
      * ignored for LSM trees\, see \c chunk_size., an integer between \c 512B and \c 10TB; default
      * \c 5MB.}
-     * @config{oligarch_log = (, the transaction oligarch log configuration for this object.  Only
-     * valid if \c oligarch log is enabled in ::wiredtiger_open., a set of related configuration
-     * options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object
-     * has checkpoint-level durability., a boolean flag; default \c true.}
-     * @config{ ),,}
      * @config{os_cache_dirty_max, maximum dirty system buffer cache usage\, in bytes.  If
      * non-zero\, schedule writes for dirty blocks belonging to this object in the system buffer
      * cache after that many bytes from this object are written into the buffer cache., an integer
@@ -1561,9 +1561,9 @@ struct __wt_session {
      *
      * @param session the session handle
      * @configstart{WT_SESSION.log_flush, see dist/api_data.py}
-     * @config{oligarch_sync, forcibly flush the oligarch log and wait for it to achieve the
-     * synchronization level specified.  The \c off setting forces any buffered log records to be
-     * written to the file system.  The \c on setting forces log records to be written to the
+     * @config{layered_table_sync, forcibly flush the layered table log and wait for it to achieve
+     * the synchronization level specified.  The \c off setting forces any buffered log records to
+     * be written to the file system.  The \c on setting forces log records to be written to the
      * storage device., a string\, chosen from the following options: \c "off"\, \c "on"; default \c
      * on.}
      * @config{sync, forcibly flush the log and wait for it to achieve the synchronization level
@@ -1793,13 +1793,13 @@ struct __wt_session {
      * @config{isolation, the isolation level for this transaction; defaults to the session's
      * isolation level., a string\, chosen from the following options: \c "read-uncommitted"\, \c
      * "read-committed"\, \c "snapshot"; default empty.}
+     * @config{layered_table_sync, whether to sync layered table log records when the transaction
+     * commits\, inherited from ::wiredtiger_open \c transaction_layered_table_sync., a boolean
+     * flag; default empty.}
      * @config{name, name of the transaction for tracing and debugging., a string; default empty.}
      * @config{no_timestamp, allow a commit without a timestamp\, creating values that have "always
      * existed" and are visible regardless of timestamp.  See @ref timestamp_txn_api., a boolean
      * flag; default \c false.}
-     * @config{oligarch_sync, whether to sync oligarch log records when the transaction commits\,
-     * inherited from ::wiredtiger_open \c transaction_oligarch_sync., a boolean flag; default
-     * empty.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
@@ -1859,11 +1859,11 @@ struct __wt_session {
      * for the commit of a prepared transaction\, and otherwise not permitted.  The value must also
      * be after the current oldest and stable timestamps and must not be older than the commit
      * timestamp.  See @ref timestamp_prepare., a string; default empty.}
-     * @config{oligarch_sync, override whether to sync oligarch log records when the transaction
-     * commits.  The default is inherited from ::wiredtiger_open \c transaction_oligarch_sync.  The
-     * \c off setting does not wait for records to be written or synchronized.  The \c on setting
-     * forces log records to be written to the storage device., a string\, chosen from the following
-     * options: \c "off"\, \c "on"; default empty.}
+     * @config{layered_table_sync, override whether to sync layered table log records when the
+     * transaction commits.  The default is inherited from ::wiredtiger_open \c
+     * transaction_layered_table_sync.  The \c off setting does not wait for records to be written
+     * or synchronized.  The \c on setting forces log records to be written to the storage device.,
+     * a string\, chosen from the following options: \c "off"\, \c "on"; default empty.}
      * @config{operation_timeout_ms, when non-zero\, a requested limit on the time taken to complete
      * operations in this transaction.  Time is measured in real time milliseconds from the start of
      * each WiredTiger API call.  There is no guarantee any operation will not take longer than this
@@ -2461,6 +2461,23 @@ struct __wt_connection {
      * are given as a list\, where each option specifies an event handler category e.g.  'error'
      * represents the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values
      * chosen from the following options: \c "error"\, \c "message"; default \c [].}
+     * @config{layered_table_log = (, enable layered table logging.  This will use three sessions
+     * from the configured session_max., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\,
+     * as a percentage of the layered table log's \c file_max.  If non-zero\, schedule writes for
+     * dirty blocks belonging to the log in the system buffer cache after that percentage of the log
+     * has been written into the buffer cache without an intervening file sync., an integer between
+     * \c 0 and \c 100; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate
+     * layered table log files., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * prealloc_init_count, initial number of pre-allocated layered table log files., an integer
+     * between \c 1 and \c 500; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically
+     * remove unneeded layered table log files., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into layered table log
+     * files., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
      * session_max., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\,
@@ -2486,23 +2503,6 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;worker_thread_max, Configure a set of
      * threads to manage merging LSM trees in the database.  Each worker thread uses a session
      * handle from the configured session_max., an integer between \c 3 and \c 20; default \c 4.}
-     * @config{ ),,}
-     * @config{oligarch_log = (, enable oligarch logging.  Enabling oligarch logging uses three
-     * sessions from the configured session_max., a set of related configuration options defined as
-     * follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer
-     * cache usage\, as a percentage of the oligarch log's \c file_max.  If non-zero\, schedule
-     * writes for dirty blocks belonging to the log in the system buffer cache after that percentage
-     * of the log has been written into the buffer cache without an intervening file sync., an
-     * integer between \c 0 and \c 100; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc,
-     * pre-allocate oligarch log files., a boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial number of pre-allocated oligarch
-     * log files., an integer between \c 1 and \c 500; default \c 1.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded oligarch log files., a
-     * boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write
-     * zeroes into oligarch log files., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
      * compatibility., an integer greater than or equal to \c 0; default \c 0.}
@@ -2580,8 +2580,8 @@ struct __wt_connection {
      * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
      * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
      * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
-     * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
-     * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c
+     * "history_store"\, \c "history_store_activity"\, \c "layered"\, \c "log"\, \c "lsm"\, \c
+     * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
      * "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
      * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
      * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c
@@ -3381,6 +3381,40 @@ struct __wt_connection {
  * given as a list\, where each option specifies an event handler category e.g.  'error' represents
  * the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values chosen from
  * the following options: \c "error"\, \c "message"; default \c [].}
+ * @config{layered_table_log = (, enable layered table logging.  This will use three sessions from
+ * the configured session_max., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for layered table log records.
+ * Permitted values are \c "none" or a custom compression engine name created with
+ * WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c
+ * "zlib" or \c "zstd" compression\, these names are also available.  See @ref compression for more
+ * information., a string; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable layered
+ * table logging subsystem., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * file_max, the maximum size of layered table log files., an integer between \c 100KB and \c 2GB;
+ * default \c 100MB.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system
+ * buffer cache usage\, as a percentage of the layered table log's \c file_max.  If non-zero\,
+ * schedule writes for dirty blocks belonging to the log in the system buffer cache after that
+ * percentage of the log has been written into the buffer cache without an intervening file sync.,
+ * an integer between \c 0 and \c 100; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name
+ * of a directory into which layered table log files are written.  The directory must already exist.
+ * If the value is not an absolute path\, the path is relative to the database home (see @ref
+ * absolute_path for more information)., a string; default \c ".".}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * prealloc, pre-allocate layered table log files., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial number of pre-allocated layered
+ * table log files., an integer between \c 1 and \c 500; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or fail with an error if recovery needs to
+ * run after an unclean shutdown., a string\, chosen from the following options: \c "error"\, \c
+ * "on"; default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded
+ * layered table log files., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * zero_fill, manually write zeroes into layered table log files., a boolean flag; default \c
+ * false.}
+ * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log records.  Permitted
@@ -3430,39 +3464,6 @@ struct __wt_connection {
  * @config{multiprocess, permit sharing between processes (will automatically start an RPC server
  * for primary processes and use RPC for secondary processes). <b>Not yet supported in
  * WiredTiger</b>., a boolean flag; default \c false.}
- * @config{oligarch_log = (, enable oligarch logging.  Enabling oligarch logging uses three sessions
- * from the configured session_max., a set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for oligarch log records.
- * Permitted values are \c "none" or a custom compression engine name created with
- * WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c
- * "zlib" or \c "zstd" compression\, these names are also available.  See @ref compression for more
- * information., a string; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable
- * oligarch logging subsystem., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * file_max, the maximum size of oligarch log files., an integer between \c 100KB and \c 2GB;
- * default \c 100MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system
- * buffer cache usage\, as a percentage of the oligarch log's \c file_max.  If non-zero\, schedule
- * writes for dirty blocks belonging to the log in the system buffer cache after that percentage of
- * the log has been written into the buffer cache without an intervening file sync., an integer
- * between \c 0 and \c 100; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a
- * directory into which oligarch log files are written.  The directory must already exist.  If the
- * value is not an absolute path\, the path is relative to the database home (see @ref absolute_path
- * for more information)., a string; default \c ".".}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc,
- * pre-allocate oligarch log files., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc_init_count, initial number of pre-allocated oligarch log
- * files., an integer between \c 1 and \c 500; default \c 1.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * recover, run recovery or fail with an error if recovery needs to run after an unclean shutdown.,
- * a string\, chosen from the following options: \c "error"\, \c "on"; default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;remove, automatically remove unneeded oligarch log files., a
- * boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes
- * into oligarch log files., a boolean flag; default \c false.}
- * @config{ ),,}
  * @config{operation_timeout_ms, this option is no longer supported\, retained for backward
  * compatibility., an integer greater than or equal to \c 0; default \c 0.}
  * @config{operation_tracking = (, enable tracking of performance-critical functions.  See @ref
@@ -3545,14 +3546,14 @@ struct __wt_connection {
  * setting this value above 0 configures statistics logging., an integer between \c 0 and \c 100000;
  * default \c 0.}
  * @config{ ),,}
- * @config{transaction_oligarch_sync = (, how to sync oligarch log records when the transaction
- * commits., a set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to sync the oligarch oligarch log on every
- * commit by default\, can be overridden by the \c sync setting to WT_SESSION::commit_transaction.,
- * a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, the method used to
- * ensure oligarch log records are stable on disk\, see @ref tune_durability for more information.,
- * a string\, chosen from the following options: \c "dsync"\, \c "fsync"\, \c "none"; default \c
+ * @config{transaction_layered_table_sync = (, how to sync layered table log records when the
+ * transaction commits., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to sync the layered table log on every commit by
+ * default\, can be overridden by the \c sync setting to WT_SESSION::commit_transaction., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, the method used to ensure
+ * layered table log records are stable on disk\, see @ref tune_durability for more information., a
+ * string\, chosen from the following options: \c "dsync"\, \c "fsync"\, \c "none"; default \c
  * fsync.}
  * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
@@ -3580,12 +3581,12 @@ struct __wt_connection {
  * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
  * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
  * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
- * "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c
- * "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "oligarch"\, \c "overflow"\, \c "page_delta"\,
- * \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\,
- * \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
- * "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default
- * \c [].}
+ * "history_store"\, \c "history_store_activity"\, \c "layered"\, \c "log"\, \c "lsm"\, \c
+ * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
+ * "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
+ * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\,
+ * \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c
+ * "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  Not supported when
  * opening a connection from a backup.  This API allows verification and detection of corruption in
  * WiredTiger metadata., a boolean flag; default \c false.}
@@ -4881,8 +4882,8 @@ typedef enum {
     WT_FS_OPEN_FILE_TYPE_CHECKPOINT,/*!< open a data file checkpoint */
     WT_FS_OPEN_FILE_TYPE_DATA,  /*!< open a data file */
     WT_FS_OPEN_FILE_TYPE_DIRECTORY, /*!< open a directory */
+    WT_FS_OPEN_FILE_TYPE_LAYERED_TABLE_LOG, /* !< open a layered table log file */
     WT_FS_OPEN_FILE_TYPE_LOG,   /*!< open a log file */
-    WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG, /* !< open an oligarch log file */
     WT_FS_OPEN_FILE_TYPE_PANTRY,   /*!< open a pantry object */
     WT_FS_OPEN_FILE_TYPE_REGULAR    /*!< open a regular file */
 } WT_FS_OPEN_FILE_TYPE;
@@ -6530,10 +6531,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CAPACITY_BYTES_CHUNKCACHE		1244
 /*! capacity: bytes written for eviction */
 #define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1245
+/*! capacity: bytes written for layered table log */
+#define	WT_STAT_CONN_CAPACITY_BYTES_LAYERED_TABLE_LOG	1246
 /*! capacity: bytes written for log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1246
-/*! capacity: bytes written for oligarch log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_OLIGARCH_LOG	1247
+#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1247
 /*! capacity: bytes written total */
 #define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1248
 /*! capacity: threshold to call fsync */
@@ -6544,10 +6545,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1251
 /*! capacity: time waiting during eviction (usecs) */
 #define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1252
+/*! capacity: time waiting during layered table logging (usecs) */
+#define	WT_STAT_CONN_CAPACITY_TIME_LAYERED_TABLE_LOG	1253
 /*! capacity: time waiting during logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1253
-/*! capacity: time waiting during oligarch logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_OLIGARCH_LOG		1254
+#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1254
 /*! capacity: time waiting during read (usecs) */
 #define	WT_STAT_CONN_CAPACITY_TIME_READ			1255
 /*! capacity: time waiting for chunk cache IO bandwidth (usecs) */
@@ -6960,220 +6961,217 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DH_SESSION_HANDLES			1432
 /*! data-handle: session sweep attempts */
 #define	WT_STAT_CONN_DH_SESSION_SWEEPS			1433
+/*! layered: Layered table cursor insert operations */
+#define	WT_STAT_CONN_LAYERED_CURS_INSERT		1434
+/*! layered: Layered table cursor next operations */
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT			1435
+/*! layered: Layered table cursor next operations from ingest table */
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_INGEST		1436
+/*! layered: Layered table cursor next operations from stable table */
+#define	WT_STAT_CONN_LAYERED_CURS_NEXT_STABLE		1437
+/*! layered: Layered table cursor prev operations */
+#define	WT_STAT_CONN_LAYERED_CURS_PREV			1438
+/*! layered: Layered table cursor prev operations from ingest table */
+#define	WT_STAT_CONN_LAYERED_CURS_PREV_INGEST		1439
+/*! layered: Layered table cursor prev operations from stable table */
+#define	WT_STAT_CONN_LAYERED_CURS_PREV_STABLE		1440
+/*! layered: Layered table cursor remove operations */
+#define	WT_STAT_CONN_LAYERED_CURS_REMOVE		1441
+/*! layered: Layered table cursor search near operations */
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR		1442
+/*! layered: Layered table cursor search near operations from ingest table */
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_INGEST	1443
+/*! layered: Layered table cursor search near operations from stable table */
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_NEAR_STABLE	1444
+/*! layered: Layered table cursor search operations */
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH		1445
+/*! layered: Layered table cursor search operations from ingest table */
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_INGEST		1446
+/*! layered: Layered table cursor search operations from stable table */
+#define	WT_STAT_CONN_LAYERED_CURS_SEARCH_STABLE		1447
+/*! layered: Layered table cursor update operations */
+#define	WT_STAT_CONN_LAYERED_CURS_UPDATE		1448
+/*!
+ * layered: checkpoints performed on this table by the layered table
+ * manager
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS	1449
+/*! layered: checkpoints refreshed on shared layered constituents */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_REFRESHED	1450
+/*!
+ * layered: how many log applications the layered table manager applied
+ * on this tree
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED	1451
+/*!
+ * layered: how many log applications the layered table manager skipped
+ * on this tree
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED	1452
+/*!
+ * layered: how many previously-applied LSNs the layered table manager
+ * skipped on this tree
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_SKIP_LSN	1453
+/*!
+ * layered: the number of tables the layered table manager considered for
+ * checkpointing
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINT_CANDIDATES	1454
+/*! layered: the number of tables the layered table manager has open */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_TABLES	1455
+/*!
+ * layered: the number of tables the layered table manager thread has
+ * search to calculate the pinned ID
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_PINNED_ID_TABLES_SEARCHED	1456
+/*! layered: whether the layered table manager thread has been started */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_RUNNING	1457
+/*!
+ * layered: whether the layered table manager thread is currently busy
+ * doing work
+ */
+#define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_ACTIVE	1458
 /*! lock: checkpoint lock acquisitions */
-#define	WT_STAT_CONN_LOCK_CHECKPOINT_COUNT		1434
+#define	WT_STAT_CONN_LOCK_CHECKPOINT_COUNT		1459
 /*! lock: checkpoint lock application thread wait time (usecs) */
-#define	WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_APPLICATION	1435
+#define	WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_APPLICATION	1460
 /*! lock: checkpoint lock internal thread wait time (usecs) */
-#define	WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_INTERNAL	1436
+#define	WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_INTERNAL	1461
 /*! lock: dhandle lock application thread time waiting (usecs) */
-#define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_APPLICATION	1437
+#define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_APPLICATION	1462
 /*! lock: dhandle lock internal thread time waiting (usecs) */
-#define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_INTERNAL		1438
+#define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_INTERNAL		1463
 /*! lock: dhandle read lock acquisitions */
-#define	WT_STAT_CONN_LOCK_DHANDLE_READ_COUNT		1439
+#define	WT_STAT_CONN_LOCK_DHANDLE_READ_COUNT		1464
 /*! lock: dhandle write lock acquisitions */
-#define	WT_STAT_CONN_LOCK_DHANDLE_WRITE_COUNT		1440
+#define	WT_STAT_CONN_LOCK_DHANDLE_WRITE_COUNT		1465
 /*! lock: metadata lock acquisitions */
-#define	WT_STAT_CONN_LOCK_METADATA_COUNT		1441
+#define	WT_STAT_CONN_LOCK_METADATA_COUNT		1466
 /*! lock: metadata lock application thread wait time (usecs) */
-#define	WT_STAT_CONN_LOCK_METADATA_WAIT_APPLICATION	1442
+#define	WT_STAT_CONN_LOCK_METADATA_WAIT_APPLICATION	1467
 /*! lock: metadata lock internal thread wait time (usecs) */
-#define	WT_STAT_CONN_LOCK_METADATA_WAIT_INTERNAL	1443
+#define	WT_STAT_CONN_LOCK_METADATA_WAIT_INTERNAL	1468
 /*! lock: schema lock acquisitions */
-#define	WT_STAT_CONN_LOCK_SCHEMA_COUNT			1444
+#define	WT_STAT_CONN_LOCK_SCHEMA_COUNT			1469
 /*! lock: schema lock application thread wait time (usecs) */
-#define	WT_STAT_CONN_LOCK_SCHEMA_WAIT_APPLICATION	1445
+#define	WT_STAT_CONN_LOCK_SCHEMA_WAIT_APPLICATION	1470
 /*! lock: schema lock internal thread wait time (usecs) */
-#define	WT_STAT_CONN_LOCK_SCHEMA_WAIT_INTERNAL		1446
+#define	WT_STAT_CONN_LOCK_SCHEMA_WAIT_INTERNAL		1471
 /*!
  * lock: table lock application thread time waiting for the table lock
  * (usecs)
  */
-#define	WT_STAT_CONN_LOCK_TABLE_WAIT_APPLICATION	1447
+#define	WT_STAT_CONN_LOCK_TABLE_WAIT_APPLICATION	1472
 /*!
  * lock: table lock internal thread time waiting for the table lock
  * (usecs)
  */
-#define	WT_STAT_CONN_LOCK_TABLE_WAIT_INTERNAL		1448
+#define	WT_STAT_CONN_LOCK_TABLE_WAIT_INTERNAL		1473
 /*! lock: table read lock acquisitions */
-#define	WT_STAT_CONN_LOCK_TABLE_READ_COUNT		1449
+#define	WT_STAT_CONN_LOCK_TABLE_READ_COUNT		1474
 /*! lock: table write lock acquisitions */
-#define	WT_STAT_CONN_LOCK_TABLE_WRITE_COUNT		1450
+#define	WT_STAT_CONN_LOCK_TABLE_WRITE_COUNT		1475
 /*! lock: txn global lock application thread time waiting (usecs) */
-#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_APPLICATION	1451
+#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_APPLICATION	1476
 /*! lock: txn global lock internal thread time waiting (usecs) */
-#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_INTERNAL	1452
+#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_INTERNAL	1477
 /*! lock: txn global read lock acquisitions */
-#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_READ_COUNT		1453
+#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_READ_COUNT		1478
 /*! lock: txn global write lock acquisitions */
-#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WRITE_COUNT	1454
+#define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WRITE_COUNT	1479
 /*! log: busy returns attempting to switch slots */
-#define	WT_STAT_CONN_LOG_SLOT_SWITCH_BUSY		1455
+#define	WT_STAT_CONN_LOG_SLOT_SWITCH_BUSY		1480
 /*! log: force log remove time sleeping (usecs) */
-#define	WT_STAT_CONN_LOG_FORCE_REMOVE_SLEEP		1456
+#define	WT_STAT_CONN_LOG_FORCE_REMOVE_SLEEP		1481
 /*! log: log bytes of payload data */
-#define	WT_STAT_CONN_LOG_BYTES_PAYLOAD			1457
+#define	WT_STAT_CONN_LOG_BYTES_PAYLOAD			1482
 /*! log: log bytes written */
-#define	WT_STAT_CONN_LOG_BYTES_WRITTEN			1458
+#define	WT_STAT_CONN_LOG_BYTES_WRITTEN			1483
 /*! log: log files manually zero-filled */
-#define	WT_STAT_CONN_LOG_ZERO_FILLS			1459
+#define	WT_STAT_CONN_LOG_ZERO_FILLS			1484
 /*! log: log flush operations */
-#define	WT_STAT_CONN_LOG_FLUSH				1460
+#define	WT_STAT_CONN_LOG_FLUSH				1485
 /*! log: log force write operations */
-#define	WT_STAT_CONN_LOG_FORCE_WRITE			1461
+#define	WT_STAT_CONN_LOG_FORCE_WRITE			1486
 /*! log: log force write operations skipped */
-#define	WT_STAT_CONN_LOG_FORCE_WRITE_SKIP		1462
+#define	WT_STAT_CONN_LOG_FORCE_WRITE_SKIP		1487
 /*! log: log records compressed */
-#define	WT_STAT_CONN_LOG_COMPRESS_WRITES		1463
+#define	WT_STAT_CONN_LOG_COMPRESS_WRITES		1488
 /*! log: log records not compressed */
-#define	WT_STAT_CONN_LOG_COMPRESS_WRITE_FAILS		1464
+#define	WT_STAT_CONN_LOG_COMPRESS_WRITE_FAILS		1489
 /*! log: log records too small to compress */
-#define	WT_STAT_CONN_LOG_COMPRESS_SMALL			1465
+#define	WT_STAT_CONN_LOG_COMPRESS_SMALL			1490
 /*! log: log release advances write LSN */
-#define	WT_STAT_CONN_LOG_RELEASE_WRITE_LSN		1466
+#define	WT_STAT_CONN_LOG_RELEASE_WRITE_LSN		1491
 /*! log: log scan operations */
-#define	WT_STAT_CONN_LOG_SCANS				1467
+#define	WT_STAT_CONN_LOG_SCANS				1492
 /*! log: log scan records requiring two reads */
-#define	WT_STAT_CONN_LOG_SCAN_REREADS			1468
+#define	WT_STAT_CONN_LOG_SCAN_REREADS			1493
 /*! log: log server thread advances write LSN */
-#define	WT_STAT_CONN_LOG_WRITE_LSN			1469
+#define	WT_STAT_CONN_LOG_WRITE_LSN			1494
 /*! log: log server thread write LSN walk skipped */
-#define	WT_STAT_CONN_LOG_WRITE_LSN_SKIP			1470
+#define	WT_STAT_CONN_LOG_WRITE_LSN_SKIP			1495
 /*! log: log sync operations */
-#define	WT_STAT_CONN_LOG_SYNC				1471
+#define	WT_STAT_CONN_LOG_SYNC				1496
 /*! log: log sync time duration (usecs) */
-#define	WT_STAT_CONN_LOG_SYNC_DURATION			1472
+#define	WT_STAT_CONN_LOG_SYNC_DURATION			1497
 /*! log: log sync_dir operations */
-#define	WT_STAT_CONN_LOG_SYNC_DIR			1473
+#define	WT_STAT_CONN_LOG_SYNC_DIR			1498
 /*! log: log sync_dir time duration (usecs) */
-#define	WT_STAT_CONN_LOG_SYNC_DIR_DURATION		1474
+#define	WT_STAT_CONN_LOG_SYNC_DIR_DURATION		1499
 /*! log: log write operations */
-#define	WT_STAT_CONN_LOG_WRITES				1475
+#define	WT_STAT_CONN_LOG_WRITES				1500
 /*! log: logging bytes consolidated */
-#define	WT_STAT_CONN_LOG_SLOT_CONSOLIDATED		1476
+#define	WT_STAT_CONN_LOG_SLOT_CONSOLIDATED		1501
 /*! log: maximum log file size */
-#define	WT_STAT_CONN_LOG_MAX_FILESIZE			1477
+#define	WT_STAT_CONN_LOG_MAX_FILESIZE			1502
 /*! log: number of pre-allocated log files to create */
-#define	WT_STAT_CONN_LOG_PREALLOC_MAX			1478
+#define	WT_STAT_CONN_LOG_PREALLOC_MAX			1503
 /*! log: pre-allocated log files not ready and missed */
-#define	WT_STAT_CONN_LOG_PREALLOC_MISSED		1479
+#define	WT_STAT_CONN_LOG_PREALLOC_MISSED		1504
 /*! log: pre-allocated log files prepared */
-#define	WT_STAT_CONN_LOG_PREALLOC_FILES			1480
+#define	WT_STAT_CONN_LOG_PREALLOC_FILES			1505
 /*! log: pre-allocated log files used */
-#define	WT_STAT_CONN_LOG_PREALLOC_USED			1481
+#define	WT_STAT_CONN_LOG_PREALLOC_USED			1506
 /*! log: records processed by log scan */
-#define	WT_STAT_CONN_LOG_SCAN_RECORDS			1482
+#define	WT_STAT_CONN_LOG_SCAN_RECORDS			1507
 /*! log: slot close lost race */
-#define	WT_STAT_CONN_LOG_SLOT_CLOSE_RACE		1483
+#define	WT_STAT_CONN_LOG_SLOT_CLOSE_RACE		1508
 /*! log: slot close unbuffered waits */
-#define	WT_STAT_CONN_LOG_SLOT_CLOSE_UNBUF		1484
+#define	WT_STAT_CONN_LOG_SLOT_CLOSE_UNBUF		1509
 /*! log: slot closures */
-#define	WT_STAT_CONN_LOG_SLOT_CLOSES			1485
+#define	WT_STAT_CONN_LOG_SLOT_CLOSES			1510
 /*! log: slot join atomic update races */
-#define	WT_STAT_CONN_LOG_SLOT_RACES			1486
+#define	WT_STAT_CONN_LOG_SLOT_RACES			1511
 /*! log: slot join calls atomic updates raced */
-#define	WT_STAT_CONN_LOG_SLOT_YIELD_RACE		1487
+#define	WT_STAT_CONN_LOG_SLOT_YIELD_RACE		1512
 /*! log: slot join calls did not yield */
-#define	WT_STAT_CONN_LOG_SLOT_IMMEDIATE			1488
+#define	WT_STAT_CONN_LOG_SLOT_IMMEDIATE			1513
 /*! log: slot join calls found active slot closed */
-#define	WT_STAT_CONN_LOG_SLOT_YIELD_CLOSE		1489
+#define	WT_STAT_CONN_LOG_SLOT_YIELD_CLOSE		1514
 /*! log: slot join calls slept */
-#define	WT_STAT_CONN_LOG_SLOT_YIELD_SLEEP		1490
+#define	WT_STAT_CONN_LOG_SLOT_YIELD_SLEEP		1515
 /*! log: slot join calls yielded */
-#define	WT_STAT_CONN_LOG_SLOT_YIELD			1491
+#define	WT_STAT_CONN_LOG_SLOT_YIELD			1516
 /*! log: slot join found active slot closed */
-#define	WT_STAT_CONN_LOG_SLOT_ACTIVE_CLOSED		1492
+#define	WT_STAT_CONN_LOG_SLOT_ACTIVE_CLOSED		1517
 /*! log: slot joins yield time (usecs) */
-#define	WT_STAT_CONN_LOG_SLOT_YIELD_DURATION		1493
+#define	WT_STAT_CONN_LOG_SLOT_YIELD_DURATION		1518
 /*! log: slot transitions unable to find free slot */
-#define	WT_STAT_CONN_LOG_SLOT_NO_FREE_SLOTS		1494
+#define	WT_STAT_CONN_LOG_SLOT_NO_FREE_SLOTS		1519
 /*! log: slot unbuffered writes */
-#define	WT_STAT_CONN_LOG_SLOT_UNBUFFERED		1495
+#define	WT_STAT_CONN_LOG_SLOT_UNBUFFERED		1520
 /*! log: total in-memory size of compressed records */
-#define	WT_STAT_CONN_LOG_COMPRESS_MEM			1496
+#define	WT_STAT_CONN_LOG_COMPRESS_MEM			1521
 /*! log: total log buffer size */
-#define	WT_STAT_CONN_LOG_BUFFER_SIZE			1497
+#define	WT_STAT_CONN_LOG_BUFFER_SIZE			1522
 /*! log: total size of compressed records */
-#define	WT_STAT_CONN_LOG_COMPRESS_LEN			1498
+#define	WT_STAT_CONN_LOG_COMPRESS_LEN			1523
 /*! log: written slots coalesced */
-#define	WT_STAT_CONN_LOG_SLOT_COALESCED			1499
+#define	WT_STAT_CONN_LOG_SLOT_COALESCED			1524
 /*! log: yields waiting for previous log file close */
-#define	WT_STAT_CONN_LOG_CLOSE_YIELDS			1500
-/*! oligarch: Oligarch table cursor insert operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_INSERT		1501
-/*! oligarch: Oligarch table cursor next operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_NEXT			1502
-/*! oligarch: Oligarch table cursor next operations from ingest table */
-#define	WT_STAT_CONN_OLIGARCH_CURS_NEXT_INGEST		1503
-/*! oligarch: Oligarch table cursor next operations from stable table */
-#define	WT_STAT_CONN_OLIGARCH_CURS_NEXT_STABLE		1504
-/*! oligarch: Oligarch table cursor prev operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_PREV			1505
-/*! oligarch: Oligarch table cursor prev operations from ingest table */
-#define	WT_STAT_CONN_OLIGARCH_CURS_PREV_INGEST		1506
-/*! oligarch: Oligarch table cursor prev operations from stable table */
-#define	WT_STAT_CONN_OLIGARCH_CURS_PREV_STABLE		1507
-/*! oligarch: Oligarch table cursor remove operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_REMOVE		1508
-/*! oligarch: Oligarch table cursor search near operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_SEARCH_NEAR		1509
-/*!
- * oligarch: Oligarch table cursor search near operations from ingest
- * table
- */
-#define	WT_STAT_CONN_OLIGARCH_CURS_SEARCH_NEAR_INGEST	1510
-/*!
- * oligarch: Oligarch table cursor search near operations from stable
- * table
- */
-#define	WT_STAT_CONN_OLIGARCH_CURS_SEARCH_NEAR_STABLE	1511
-/*! oligarch: Oligarch table cursor search operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_SEARCH		1512
-/*! oligarch: Oligarch table cursor search operations from ingest table */
-#define	WT_STAT_CONN_OLIGARCH_CURS_SEARCH_INGEST	1513
-/*! oligarch: Oligarch table cursor search operations from stable table */
-#define	WT_STAT_CONN_OLIGARCH_CURS_SEARCH_STABLE	1514
-/*! oligarch: Oligarch table cursor update operations */
-#define	WT_STAT_CONN_OLIGARCH_CURS_UPDATE		1515
-/*! oligarch: checkpoints performed on this table by the oligarch manager */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_CHECKPOINTS	1516
-/*! oligarch: checkpoints refreshed on shared oligarch constituents */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_CHECKPOINTS_REFRESHED	1517
-/*!
- * oligarch: how many log applications the oligarch manager applied on
- * this tree
- */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_LOGOPS_APPLIED	1518
-/*!
- * oligarch: how many log applications the oligarch manager skipped on
- * this tree
- */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_LOGOPS_SKIPPED	1519
-/*!
- * oligarch: how many previously-applied LSNs the oligarch manager
- * skipped on this tree
- */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_SKIP_LSN		1520
-/*!
- * oligarch: the number of tables the oligarch manager considered for
- * checkpointing
- */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_CHECKPOINT_CANDIDATES	1521
-/*! oligarch: the number of tables the oligarch manager has open */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_TABLES		1522
-/*!
- * oligarch: the number of tables the oligarch manager thread has search
- * to calculate the pinned ID
- */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_PINNED_ID_TABLES_SEARCHED	1523
-/*! oligarch: whether the oligarch manager thread has been started */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_RUNNING		1524
-/*!
- * oligarch: whether the oligarch manager thread is currently busy doing
- * work
- */
-#define	WT_STAT_CONN_OLIGARCH_MANAGER_ACTIVE		1525
+#define	WT_STAT_CONN_LOG_CLOSE_YIELDS			1525
 /*! pantry: Pantry block manager get */
 #define	WT_STAT_CONN_PANTRY_BLOCK_GET			1526
 /*! pantry: Pantry block manager put  */
@@ -8425,61 +8423,58 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2245
 /*! cursor: update value size change */
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2246
-/*! oligarch: Oligarch table cursor insert operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_INSERT		2247
-/*! oligarch: Oligarch table cursor next operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_NEXT			2248
-/*! oligarch: Oligarch table cursor next operations from ingest table */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_NEXT_INGEST		2249
-/*! oligarch: Oligarch table cursor next operations from stable table */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_NEXT_STABLE		2250
-/*! oligarch: Oligarch table cursor prev operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_PREV			2251
-/*! oligarch: Oligarch table cursor prev operations from ingest table */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_PREV_INGEST		2252
-/*! oligarch: Oligarch table cursor prev operations from stable table */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_PREV_STABLE		2253
-/*! oligarch: Oligarch table cursor remove operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_REMOVE		2254
-/*! oligarch: Oligarch table cursor search near operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_SEARCH_NEAR		2255
+/*! layered: Layered table cursor insert operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_INSERT		2247
+/*! layered: Layered table cursor next operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT			2248
+/*! layered: Layered table cursor next operations from ingest table */
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_INGEST		2249
+/*! layered: Layered table cursor next operations from stable table */
+#define	WT_STAT_DSRC_LAYERED_CURS_NEXT_STABLE		2250
+/*! layered: Layered table cursor prev operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV			2251
+/*! layered: Layered table cursor prev operations from ingest table */
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV_INGEST		2252
+/*! layered: Layered table cursor prev operations from stable table */
+#define	WT_STAT_DSRC_LAYERED_CURS_PREV_STABLE		2253
+/*! layered: Layered table cursor remove operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_REMOVE		2254
+/*! layered: Layered table cursor search near operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR		2255
+/*! layered: Layered table cursor search near operations from ingest table */
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_INGEST	2256
+/*! layered: Layered table cursor search near operations from stable table */
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_NEAR_STABLE	2257
+/*! layered: Layered table cursor search operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH		2258
+/*! layered: Layered table cursor search operations from ingest table */
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_INGEST		2259
+/*! layered: Layered table cursor search operations from stable table */
+#define	WT_STAT_DSRC_LAYERED_CURS_SEARCH_STABLE		2260
+/*! layered: Layered table cursor update operations */
+#define	WT_STAT_DSRC_LAYERED_CURS_UPDATE		2261
 /*!
- * oligarch: Oligarch table cursor search near operations from ingest
- * table
+ * layered: checkpoints performed on this table by the layered table
+ * manager
  */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_SEARCH_NEAR_INGEST	2256
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS	2262
+/*! layered: checkpoints refreshed on shared layered constituents */
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_REFRESHED	2263
 /*!
- * oligarch: Oligarch table cursor search near operations from stable
- * table
+ * layered: how many log applications the layered table manager applied
+ * on this tree
  */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_SEARCH_NEAR_STABLE	2257
-/*! oligarch: Oligarch table cursor search operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_SEARCH		2258
-/*! oligarch: Oligarch table cursor search operations from ingest table */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_SEARCH_INGEST	2259
-/*! oligarch: Oligarch table cursor search operations from stable table */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_SEARCH_STABLE	2260
-/*! oligarch: Oligarch table cursor update operations */
-#define	WT_STAT_DSRC_OLIGARCH_CURS_UPDATE		2261
-/*! oligarch: checkpoints performed on this table by the oligarch manager */
-#define	WT_STAT_DSRC_OLIGARCH_MANAGER_CHECKPOINTS	2262
-/*! oligarch: checkpoints refreshed on shared oligarch constituents */
-#define	WT_STAT_DSRC_OLIGARCH_MANAGER_CHECKPOINTS_REFRESHED	2263
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_APPLIED	2264
 /*!
- * oligarch: how many log applications the oligarch manager applied on
- * this tree
+ * layered: how many log applications the layered table manager skipped
+ * on this tree
  */
-#define	WT_STAT_DSRC_OLIGARCH_MANAGER_LOGOPS_APPLIED	2264
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_LOGOPS_SKIPPED	2265
 /*!
- * oligarch: how many log applications the oligarch manager skipped on
- * this tree
- */
-#define	WT_STAT_DSRC_OLIGARCH_MANAGER_LOGOPS_SKIPPED	2265
-/*!
- * oligarch: how many previously-applied LSNs the oligarch manager
+ * layered: how many previously-applied LSNs the layered table manager
  * skipped on this tree
  */
-#define	WT_STAT_DSRC_OLIGARCH_MANAGER_SKIP_LSN		2266
+#define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_SKIP_LSN	2266
 /*! pantry: Pantry block manager get */
 #define	WT_STAT_DSRC_PANTRY_BLOCK_GET			2267
 /*! pantry: Pantry block manager put  */
@@ -8748,12 +8743,12 @@ typedef enum {
     WT_VERB_HANDLEOPS,
     WT_VERB_HS,                   /*!< History store messages. */
     WT_VERB_HS_ACTIVITY,          /*!< History store activity messages. */
+    WT_VERB_LAYERED,              /*!< Layered table manager messages. */
     WT_VERB_LOG,                  /*!< Log messages. */
     WT_VERB_LSM,                  /*!< LSM messages. */
     WT_VERB_LSM_MANAGER,
     WT_VERB_MUTEX,
     WT_VERB_METADATA,             /*!< Metadata messages. */
-    WT_VERB_OLIGARCH,             /*!< Oligarch manager messages. */
     WT_VERB_OUT_OF_ORDER,
     WT_VERB_OVERFLOW,
     WT_VERB_PREFETCH,

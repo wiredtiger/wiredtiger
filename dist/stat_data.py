@@ -105,6 +105,10 @@ class JoinStat(Stat):
     prefix = 'join'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, JoinStat.prefix, desc, flags)
+class LayeredStat(Stat):
+    prefix = 'layered'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, LayeredStat.prefix, desc, flags)
 class LockStat(Stat):
     prefix = 'lock'
     def __init__(self, name, desc, flags=''):
@@ -121,10 +125,6 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
-class OligarchStat(Stat):
-    prefix = 'oligarch'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, OligarchStat.prefix, desc, flags)
 class PantryStat(Stat):
     prefix = 'pantry'
     def __init__(self, name, desc, flags=''):
@@ -393,16 +393,16 @@ conn_stats = [
     CapacityStat('capacity_bytes_chunkcache', 'bytes written for chunk cache'),
     CapacityStat('capacity_bytes_ckpt', 'bytes written for checkpoint'),
     CapacityStat('capacity_bytes_evict', 'bytes written for eviction'),
+    CapacityStat('capacity_bytes_layered_table_log', 'bytes written for layered table log'),
     CapacityStat('capacity_bytes_log', 'bytes written for log'),
-    CapacityStat('capacity_bytes_oligarch_log', 'bytes written for oligarch log'),
     CapacityStat('capacity_bytes_read', 'bytes read'),
     CapacityStat('capacity_bytes_written', 'bytes written total'),
     CapacityStat('capacity_threshold', 'threshold to call fsync'),
     CapacityStat('capacity_time_chunkcache', 'time waiting for chunk cache IO bandwidth (usecs)'),
     CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
     CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
+    CapacityStat('capacity_time_layered_table_log', 'time waiting during layered table logging (usecs)'),
     CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
-    CapacityStat('capacity_time_oligarch_log', 'time waiting during oligarch logging (usecs)'),
     CapacityStat('capacity_time_read', 'time waiting during read (usecs)'),
     CapacityStat('capacity_time_total', 'time waiting due to total capacity (usecs)'),
     CapacityStat('fsync_all_fh', 'background fsync file handles synced'),
@@ -537,6 +537,15 @@ conn_stats = [
     DhandleStat('dh_sweeps', 'connection sweeps'),
 
     ##########################################
+    # Layered table statistics
+    ##########################################
+    LayeredStat('layered_table_manager_active', 'whether the layered table manager thread is currently busy doing work'),
+    LayeredStat('layered_table_manager_checkpoint_candidates', 'the number of tables the layered table manager considered for checkpointing'),
+    LayeredStat('layered_table_manager_pinned_id_tables_searched', 'the number of tables the layered table manager thread has search to calculate the pinned ID'),
+    LayeredStat('layered_table_manager_running', 'whether the layered table manager thread has been started'),
+    LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
+
+    ##########################################
     # Locking statistics
     ##########################################
     LockStat('lock_checkpoint_count', 'checkpoint lock acquisitions'),
@@ -622,15 +631,6 @@ conn_stats = [
     LSMStat('lsm_work_units_created', 'tree maintenance operations scheduled'),
     LSMStat('lsm_work_units_discarded', 'tree maintenance operations discarded'),
     LSMStat('lsm_work_units_done', 'tree maintenance operations executed'),
-
-    ##########################################
-    # Oligarch statistics
-    ##########################################
-    OligarchStat('oligarch_manager_active', 'whether the oligarch manager thread is currently busy doing work'),
-    OligarchStat('oligarch_manager_checkpoint_candidates', 'the number of tables the oligarch manager considered for checkpointing'),
-    OligarchStat('oligarch_manager_pinned_id_tables_searched', 'the number of tables the oligarch manager thread has search to calculate the pinned ID'),
-    OligarchStat('oligarch_manager_running', 'whether the oligarch manager thread has been started'),
-    OligarchStat('oligarch_manager_tables', 'the number of tables the oligarch manager has open'),
 
     ##########################################
     # Performance Histogram Stats
@@ -1120,6 +1120,12 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
 
     ##########################################
+    # Disaggrated block manager statistics
+    ##########################################
+    BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
+    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+
+    ##########################################
     # Cursor API error statistics
     ##########################################
     CursorStat('cursor_bound_error', 'cursor bound calls that return an error'),
@@ -1146,41 +1152,35 @@ conn_dsrc_stats = [
     CursorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################
+    # Layered table statistics
+    ##########################################
+    LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
+    LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
+    LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),
+    LayeredStat('layered_curs_remove', 'Layered table cursor remove operations'),
+    LayeredStat('layered_curs_search', 'Layered table cursor search operations'),
+    LayeredStat('layered_curs_search_near', 'Layered table cursor search near operations'),
+    LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
+    LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from ingest table'),
+    LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from ingest table'),
+    LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from ingest table'),
+    LayeredStat('layered_curs_search_near_ingest', 'Layered table cursor search near operations from ingest table'),
+    LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from stable table'),
+    LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from stable table'),
+    LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from stable table'),
+    LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from stable table'),
+
+    LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
+    LayeredStat('layered_table_manager_checkpoints_refreshed', 'checkpoints refreshed on shared layered constituents'),
+    LayeredStat('layered_table_manager_logops_applied', 'how many log applications the layered table manager applied on this tree'),
+    LayeredStat('layered_table_manager_logops_skipped', 'how many log applications the layered table manager skipped on this tree'),
+    LayeredStat('layered_table_manager_skip_lsn', 'how many previously-applied LSNs the layered table manager skipped on this tree'),
+
+    ##########################################
     # LSM statistics
     ##########################################
     LSMStat('lsm_checkpoint_throttle', 'sleep for LSM checkpoint throttle'),
     LSMStat('lsm_merge_throttle', 'sleep for LSM merge throttle'),
-
-    ##########################################
-    # Oligarch statistics
-    ##########################################
-    OligarchStat('oligarch_curs_insert', 'Oligarch table cursor insert operations'),
-    OligarchStat('oligarch_curs_next', 'Oligarch table cursor next operations'),
-    OligarchStat('oligarch_curs_prev', 'Oligarch table cursor prev operations'),
-    OligarchStat('oligarch_curs_remove', 'Oligarch table cursor remove operations'),
-    OligarchStat('oligarch_curs_search', 'Oligarch table cursor search operations'),
-    OligarchStat('oligarch_curs_search_near', 'Oligarch table cursor search near operations'),
-    OligarchStat('oligarch_curs_update', 'Oligarch table cursor update operations'),
-    OligarchStat('oligarch_curs_next_ingest', 'Oligarch table cursor next operations from ingest table'),
-    OligarchStat('oligarch_curs_prev_ingest', 'Oligarch table cursor prev operations from ingest table'),
-    OligarchStat('oligarch_curs_search_ingest', 'Oligarch table cursor search operations from ingest table'),
-    OligarchStat('oligarch_curs_search_near_ingest', 'Oligarch table cursor search near operations from ingest table'),
-    OligarchStat('oligarch_curs_next_stable', 'Oligarch table cursor next operations from stable table'),
-    OligarchStat('oligarch_curs_prev_stable', 'Oligarch table cursor prev operations from stable table'),
-    OligarchStat('oligarch_curs_search_stable', 'Oligarch table cursor search operations from stable table'),
-    OligarchStat('oligarch_curs_search_near_stable', 'Oligarch table cursor search near operations from stable table'),
-
-    OligarchStat('oligarch_manager_checkpoints', 'checkpoints performed on this table by the oligarch manager'),
-    OligarchStat('oligarch_manager_checkpoints_refreshed', 'checkpoints refreshed on shared oligarch constituents'),
-    OligarchStat('oligarch_manager_logops_applied', 'how many log applications the oligarch manager applied on this tree'),
-    OligarchStat('oligarch_manager_logops_skipped', 'how many log applications the oligarch manager skipped on this tree'),
-    OligarchStat('oligarch_manager_skip_lsn', 'how many previously-applied LSNs the oligarch manager skipped on this tree'),
-
-    ##########################################
-    # Disaggrated block manager statistics
-    ##########################################
-    BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
-    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
 
     ##########################################
     # Pantry block manager statistics

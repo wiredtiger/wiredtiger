@@ -116,20 +116,20 @@ connection_disaggregated_config_common = [
         The next checkpoint ID to open when starting (or restarting) the node''',
         min='-1', type='int', undoc=True),
     Config('role', '', r'''
-        whether the oligarch stable table should lead or follow''',
+        whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
         The page log service used as a backing for this table. This is used experimentally
-        by oligarch tables to back their stable component in shared/object based storage''',
+        by layered tables to back their stable component in shared/object based storage''',
         type='string', undoc=True),
     Config('stable_prefix', '', r'''
-        directory of WT oligarch stable table''',
+        directory of stable table in a layered table configuration''',
         type='string', undoc=True),
     Config('storage_source', '', r'''
         The custom storage source used as a backing for this table - currently only used
-        experimentally by oligarch tables to back their stable component in shared/object
+        experimentally by layered tables to back their stable component in shared/object
         based storage''', type='string', undoc=True),
 ]
 # FIXME: We cannot set undoc=True, because an undocumented category must be the same for all
@@ -298,15 +298,15 @@ file_runtime_config = common_runtime_config + [
             if false, this object has checkpoint-level durability''',
             type='boolean'),
         ]),
-    Config('oligarch_log', '', r'''
-        the transaction oligarch log configuration for this object. Only valid if \c oligarch log is enabled in
-        ::wiredtiger_open''',
+    Config('layered_table_log', '', r'''
+        the transaction layered table log configuration for this object. Only valid if \c
+        layered_table_log is enabled in ::wiredtiger_open''',
         type='category', subconfig=[
         Config('enabled', 'true', r'''
             if false, this object has checkpoint-level durability''',
             type='boolean'),
-        Config('oligarch_constituent', 'false', r'''
-            this is an oligarch constituent table that requires runtime log replay''',
+        Config('layered_constituent', 'false', r'''
+            this is a layered constituent table that requires runtime log replay''',
             type='boolean', undoc=True),
         ]),
     Config('os_cache_max', '0', r'''
@@ -396,7 +396,7 @@ file_config = format_meta + file_runtime_config + tiered_config + file_disaggreg
         This option is no longer supported, retained for backward compatibility''',
         min='0'),
     Config('in_memory', 'false', r'''
-        keep the tree data in memory. Used experimentally by oligarch tables''',
+        keep the tree data in memory. Used experimentally by layered tables''',
         type='boolean', undoc=True),
     Config('key_gap', '10', r'''
         This option is no longer supported, retained for backward compatibility''',
@@ -545,16 +545,16 @@ index_meta = format_meta + source_meta + index_only_config + [
 
 table_meta = format_meta + table_only_config
 
-oligarch_config = [
+layered_config = [
     Config('ingest', '', r'''
-        URI for oligarch ingest table''',
+        URI for layered ingest table''',
         type='string', undoc=True),
     Config('stable', '', r'''
-        URI for oligarch stable table''',
+        URI for layered stable table''',
         type='string', undoc=True),
 ]
 
-oligarch_meta = format_meta + oligarch_config + connection_disaggregated_config
+layered_meta = format_meta + layered_config + connection_disaggregated_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
@@ -951,13 +951,13 @@ connection_runtime_config = [
             'handleops',
             'history_store',
             'history_store_activity',
+            'layered',
             'log',
             'lsm',
             'lsm_manager',
             'metadata',
             'mutex',
             'out_of_order',
-            'oligarch',
             'overflow',
             'page_delta',
             'prefetch',
@@ -1033,28 +1033,28 @@ log_configuration_common = [
         type='boolean')
 ]
 
-# wiredtiger_open and WT_CONNECTION.reconfigure oligarch log configurations.
-oligarch_log_configuration_common = [
+# wiredtiger_open and WT_CONNECTION.reconfigure layered table log configurations.
+layered_table_log_configuration_common = [
     Config('archive', 'true', r'''
-        automatically remove unneeded oligarch log files (deprecated)''',
+        automatically remove unneeded layered table log files (deprecated)''',
         type='boolean', undoc=True),
     Config('os_cache_dirty_pct', '0', r'''
-        maximum dirty system buffer cache usage, as a percentage of the oligarch log's \c file_max.
+        maximum dirty system buffer cache usage, as a percentage of the layered table log's \c file_max.
         If non-zero, schedule writes for dirty blocks belonging to the log in the system buffer
         cache after that percentage of the log has been written into the buffer cache without
         an intervening file sync.''',
         min='0', max='100'),
     Config('prealloc', 'true', r'''
-        pre-allocate oligarch log files''',
+        pre-allocate layered table log files''',
         type='boolean'),
     Config('prealloc_init_count', '1', r'''
-        initial number of pre-allocated oligarch log files''',
+        initial number of pre-allocated layered table log files''',
         min='1', max='500'),
     Config('remove', 'true', r'''
-        automatically remove unneeded oligarch log files''',
+        automatically remove unneeded layered table log files''',
         type='boolean'),
     Config('zero_fill', 'false', r'''
-        manually write zeroes into oligarch log files''',
+        manually write zeroes into layered table log files''',
         type='boolean')
 ]
 
@@ -1062,9 +1062,9 @@ connection_reconfigure_log_configuration = [
     Config('log', '', r'''
         enable logging. Enabling logging uses three sessions from the configured session_max''',
         type='category', subconfig=log_configuration_common),
-    Config('oligarch_log', '', r'''
-        enable oligarch logging. Enabling oligarch logging uses three sessions from the configured session_max''',
-        type='category', subconfig=oligarch_log_configuration_common)
+    Config('layered_table_log', '', r'''
+        enable layered table logging. This will use three sessions from the configured session_max''',
+        type='category', subconfig=layered_table_log_configuration_common)
 ]
 wiredtiger_open_log_configuration = [
     Config('log', '', r'''
@@ -1097,29 +1097,29 @@ wiredtiger_open_log_configuration = [
             shutdown''',
             choices=['error', 'on'])
     ]),
-    Config('oligarch_log', '', r'''
-        enable oligarch logging. Enabling oligarch logging uses three sessions from the configured session_max''',
+    Config('layered_table_log', '', r'''
+        enable layered table logging. This will use three sessions from the configured session_max''',
         type='category', subconfig=
-        oligarch_log_configuration_common + [
+        layered_table_log_configuration_common + [
         Config('enabled', 'false', r'''
-            enable oligarch logging subsystem''',
+            enable layered table logging subsystem''',
             type='boolean'),
         Config('compressor', 'none', r'''
-            configure a compressor for oligarch log records. Permitted values are \c "none" or a custom
+            configure a compressor for layered table log records. Permitted values are \c "none" or a custom
             compression engine name created with WT_CONNECTION::add_compressor. If WiredTiger
             has builtin support for \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression,
             these names are also available. See @ref compression for more information'''),
         Config('file_max', '100MB', r'''
-            the maximum size of oligarch log files''',
+            the maximum size of layered table log files''',
             min='100KB',    # !!! Must match WT_LOG_FILE_MIN
             max='2GB'),    # !!! Must match WT_LOG_FILE_MAX
         Config('force_write_wait', '0', r'''
-            enable code that interrupts the usual timing of flushing the oligarch log from the internal
-            oligarch log server thread with a goal of uncovering race conditions. This option is intended
+            enable code that interrupts the usual timing of flushing the layered table log from the internal
+            layered table log server thread with a goal of uncovering race conditions. This option is intended
             for use with internal stress testing of WiredTiger.''',
             min='1', max='60', undoc=True),
         Config('path', '"."', r'''
-            the name of a directory into which oligarch log files are written. The directory must already
+            the name of a directory into which layered table log files are written. The directory must already
             exist. If the value is not an absolute path, the path is relative to the database
             home (see @ref absolute_path for more information)'''),
         Config('recover', 'on', r'''
@@ -1443,15 +1443,15 @@ wiredtiger_open_common =\
             for more information''',
             choices=['dsync', 'fsync', 'none']),
         ]),
-    Config('transaction_oligarch_sync', '', r'''
-        how to sync oligarch log records when the transaction commits''',
+    Config('transaction_layered_table_sync', '', r'''
+        how to sync layered table log records when the transaction commits''',
         type='category', subconfig=[
         Config('enabled', 'false', r'''
-            whether to sync the oligarch oligarch log on every commit by default, can be overridden by the \c
+            whether to sync the layered table log on every commit by default, can be overridden by the \c
             sync setting to WT_SESSION::commit_transaction''',
             type='boolean'),
         Config('method', 'fsync', r'''
-            the method used to ensure oligarch log records are stable on disk, see @ref tune_durability
+            the method used to ensure layered table log records are stable on disk, see @ref tune_durability
             for more information''',
             choices=['dsync', 'fsync', 'none']),
         ]),
@@ -1544,7 +1544,7 @@ methods = {
 
 'object.meta' : Method(object_meta),
 
-'oligarch.meta' : Method(oligarch_meta),
+'layered.meta' : Method(layered_meta),
 
 'table.meta' : Method(table_meta),
 
@@ -1598,7 +1598,7 @@ methods = {
 
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +\
         file_disaggregated_config + source_meta + index_only_config + table_only_config +\
-        oligarch_config + [
+        layered_config + [
     Config('exclusive', 'false', r'''
         fail if the object exists. When false (the default), if the object exists, check that its
         settings match the specified configuration''',
@@ -1689,8 +1689,8 @@ methods = {
         The \c off setting forces any buffered log records to be written to the file system.
         The \c on setting forces log records to be written to the storage device''',
         choices=['off', 'on']),
-    Config('oligarch_sync', 'on', r'''
-        forcibly flush the oligarch log and wait for it to achieve the synchronization level specified.
+    Config('layered_table_sync', 'on', r'''
+        forcibly flush the layered table log and wait for it to achieve the synchronization level specified.
         The \c off setting forces any buffered log records to be written to the file system.
         The \c on setting forces log records to be written to the storage device''',
         choices=['off', 'on']),
@@ -1973,9 +1973,9 @@ methods = {
         whether to sync log records when the transaction commits, inherited from ::wiredtiger_open
         \c transaction_sync''',
         type='boolean'),
-    Config('oligarch_sync', '', r'''
-        whether to sync oligarch log records when the transaction commits, inherited from ::wiredtiger_open
-        \c transaction_oligarch_sync''',
+    Config('layered_table_sync', '', r'''
+        whether to sync layered table log records when the transaction commits, inherited from ::wiredtiger_open
+        \c transaction_layered_table_sync''',
         type='boolean')
 ], compilable=True),
 
@@ -2005,9 +2005,9 @@ methods = {
         to be written or synchronized. The \c on setting forces log records to be written to
         the storage device''',
         choices=['off', 'on']),
-    Config('oligarch_sync', '', r'''
-        override whether to sync oligarch log records when the transaction commits. The default is inherited
-        from ::wiredtiger_open \c transaction_oligarch_sync. The \c off setting does not wait for records
+    Config('layered_table_sync', '', r'''
+        override whether to sync layered table log records when the transaction commits. The default is inherited
+        from ::wiredtiger_open \c transaction_layered_table_sync. The \c off setting does not wait for records
         to be written or synchronized. The \c on setting forces log records to be written to
         the storage device''',
         choices=['off', 'on']),

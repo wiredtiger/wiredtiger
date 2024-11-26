@@ -28,17 +28,17 @@
 
 import os, time, wiredtiger, wttest
 
-# test_oligarch04.py
+# test_layered04.py
 #    Add enough content to trigger a checkpoint in the stable table.
-class test_oligarch04(wttest.WiredTigerTestCase):
+class test_layered04(wttest.WiredTigerTestCase):
     nitems = 50000
-    uri_base = "test_oligarch04"
-    # conn_config = 'log=(enabled),verbose=[oligarch:5]'
-    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
+    uri_base = "test_layered04"
+    # conn_config = 'log=(enabled),verbose=[layered:5]'
+    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
     # conn_config = 'log=(enabled)'
 
-    uri = "oligarch:" + uri_base
+    uri = "layered:" + uri_base
 
     # Load the directory store extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -46,11 +46,11 @@ class test_oligarch04(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm')
 
-    # Test inserting a record into an oligarch tree
-    def test_oligarch04(self):
+    # Test inserting a record into a layered tree
+    def test_layered04(self):
         base_create = 'key_format=S,value_format=S'
 
-        self.pr("create oligarch tree")
+        self.pr("create layered tree")
         self.session.create(self.uri, base_create)
 
         self.pr('opening cursor')

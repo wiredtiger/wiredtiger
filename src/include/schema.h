@@ -73,15 +73,15 @@ struct __wt_table {
 };
 
 /*
- * WT_OLIGARCH --
- *	Handle for an oligarch table. An oligarch table consists of a pair of
+ * WT_LAYERED_TABLE --
+ *	Handle for a layered table. A layered table consists of a pair of
  *	btree handles, one for ingest the other for "stable" data. There is a
  *	background process that copies content from the ingest table via
  *	monitoring and application of write ahead log entries. Once that content is included
  *	in a checkpoint of the stable table it can be garbage collected from the
  *	ingest table.
  */
-struct __wt_oligarch {
+struct __wt_layered_table {
     WT_DATA_HANDLE iface;
 
     WT_DATA_HANDLE *ingest;

@@ -265,26 +265,26 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
-  "oligarch: Oligarch table cursor insert operations",
-  "oligarch: Oligarch table cursor next operations",
-  "oligarch: Oligarch table cursor next operations from ingest table",
-  "oligarch: Oligarch table cursor next operations from stable table",
-  "oligarch: Oligarch table cursor prev operations",
-  "oligarch: Oligarch table cursor prev operations from ingest table",
-  "oligarch: Oligarch table cursor prev operations from stable table",
-  "oligarch: Oligarch table cursor remove operations",
-  "oligarch: Oligarch table cursor search near operations",
-  "oligarch: Oligarch table cursor search near operations from ingest table",
-  "oligarch: Oligarch table cursor search near operations from stable table",
-  "oligarch: Oligarch table cursor search operations",
-  "oligarch: Oligarch table cursor search operations from ingest table",
-  "oligarch: Oligarch table cursor search operations from stable table",
-  "oligarch: Oligarch table cursor update operations",
-  "oligarch: checkpoints performed on this table by the oligarch manager",
-  "oligarch: checkpoints refreshed on shared oligarch constituents",
-  "oligarch: how many log applications the oligarch manager applied on this tree",
-  "oligarch: how many log applications the oligarch manager skipped on this tree",
-  "oligarch: how many previously-applied LSNs the oligarch manager skipped on this tree",
+  "layered: Layered table cursor insert operations",
+  "layered: Layered table cursor next operations",
+  "layered: Layered table cursor next operations from ingest table",
+  "layered: Layered table cursor next operations from stable table",
+  "layered: Layered table cursor prev operations",
+  "layered: Layered table cursor prev operations from ingest table",
+  "layered: Layered table cursor prev operations from stable table",
+  "layered: Layered table cursor remove operations",
+  "layered: Layered table cursor search near operations",
+  "layered: Layered table cursor search near operations from ingest table",
+  "layered: Layered table cursor search near operations from stable table",
+  "layered: Layered table cursor search operations",
+  "layered: Layered table cursor search operations from ingest table",
+  "layered: Layered table cursor search operations from stable table",
+  "layered: Layered table cursor update operations",
+  "layered: checkpoints performed on this table by the layered table manager",
+  "layered: checkpoints refreshed on shared layered constituents",
+  "layered: how many log applications the layered table manager applied on this tree",
+  "layered: how many log applications the layered table manager skipped on this tree",
+  "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "pantry: Pantry block manager get",
   "pantry: Pantry block manager put ",
   "reconciliation: VLCS pages explicitly reconciled as empty",
@@ -636,26 +636,26 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
-    stats->oligarch_curs_insert = 0;
-    stats->oligarch_curs_next = 0;
-    stats->oligarch_curs_next_ingest = 0;
-    stats->oligarch_curs_next_stable = 0;
-    stats->oligarch_curs_prev = 0;
-    stats->oligarch_curs_prev_ingest = 0;
-    stats->oligarch_curs_prev_stable = 0;
-    stats->oligarch_curs_remove = 0;
-    stats->oligarch_curs_search_near = 0;
-    stats->oligarch_curs_search_near_ingest = 0;
-    stats->oligarch_curs_search_near_stable = 0;
-    stats->oligarch_curs_search = 0;
-    stats->oligarch_curs_search_ingest = 0;
-    stats->oligarch_curs_search_stable = 0;
-    stats->oligarch_curs_update = 0;
-    stats->oligarch_manager_checkpoints = 0;
-    stats->oligarch_manager_checkpoints_refreshed = 0;
-    stats->oligarch_manager_logops_applied = 0;
-    stats->oligarch_manager_logops_skipped = 0;
-    stats->oligarch_manager_skip_lsn = 0;
+    stats->layered_curs_insert = 0;
+    stats->layered_curs_next = 0;
+    stats->layered_curs_next_ingest = 0;
+    stats->layered_curs_next_stable = 0;
+    stats->layered_curs_prev = 0;
+    stats->layered_curs_prev_ingest = 0;
+    stats->layered_curs_prev_stable = 0;
+    stats->layered_curs_remove = 0;
+    stats->layered_curs_search_near = 0;
+    stats->layered_curs_search_near_ingest = 0;
+    stats->layered_curs_search_near_stable = 0;
+    stats->layered_curs_search = 0;
+    stats->layered_curs_search_ingest = 0;
+    stats->layered_curs_search_stable = 0;
+    stats->layered_curs_update = 0;
+    stats->layered_table_manager_checkpoints = 0;
+    stats->layered_table_manager_checkpoints_refreshed = 0;
+    stats->layered_table_manager_logops_applied = 0;
+    stats->layered_table_manager_logops_skipped = 0;
+    stats->layered_table_manager_skip_lsn = 0;
     stats->pantry_block_get = 0;
     stats->pantry_block_put = 0;
     stats->rec_vlcs_emptied_pages = 0;
@@ -998,26 +998,27 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
-    to->oligarch_curs_insert += from->oligarch_curs_insert;
-    to->oligarch_curs_next += from->oligarch_curs_next;
-    to->oligarch_curs_next_ingest += from->oligarch_curs_next_ingest;
-    to->oligarch_curs_next_stable += from->oligarch_curs_next_stable;
-    to->oligarch_curs_prev += from->oligarch_curs_prev;
-    to->oligarch_curs_prev_ingest += from->oligarch_curs_prev_ingest;
-    to->oligarch_curs_prev_stable += from->oligarch_curs_prev_stable;
-    to->oligarch_curs_remove += from->oligarch_curs_remove;
-    to->oligarch_curs_search_near += from->oligarch_curs_search_near;
-    to->oligarch_curs_search_near_ingest += from->oligarch_curs_search_near_ingest;
-    to->oligarch_curs_search_near_stable += from->oligarch_curs_search_near_stable;
-    to->oligarch_curs_search += from->oligarch_curs_search;
-    to->oligarch_curs_search_ingest += from->oligarch_curs_search_ingest;
-    to->oligarch_curs_search_stable += from->oligarch_curs_search_stable;
-    to->oligarch_curs_update += from->oligarch_curs_update;
-    to->oligarch_manager_checkpoints += from->oligarch_manager_checkpoints;
-    to->oligarch_manager_checkpoints_refreshed += from->oligarch_manager_checkpoints_refreshed;
-    to->oligarch_manager_logops_applied += from->oligarch_manager_logops_applied;
-    to->oligarch_manager_logops_skipped += from->oligarch_manager_logops_skipped;
-    to->oligarch_manager_skip_lsn += from->oligarch_manager_skip_lsn;
+    to->layered_curs_insert += from->layered_curs_insert;
+    to->layered_curs_next += from->layered_curs_next;
+    to->layered_curs_next_ingest += from->layered_curs_next_ingest;
+    to->layered_curs_next_stable += from->layered_curs_next_stable;
+    to->layered_curs_prev += from->layered_curs_prev;
+    to->layered_curs_prev_ingest += from->layered_curs_prev_ingest;
+    to->layered_curs_prev_stable += from->layered_curs_prev_stable;
+    to->layered_curs_remove += from->layered_curs_remove;
+    to->layered_curs_search_near += from->layered_curs_search_near;
+    to->layered_curs_search_near_ingest += from->layered_curs_search_near_ingest;
+    to->layered_curs_search_near_stable += from->layered_curs_search_near_stable;
+    to->layered_curs_search += from->layered_curs_search;
+    to->layered_curs_search_ingest += from->layered_curs_search_ingest;
+    to->layered_curs_search_stable += from->layered_curs_search_stable;
+    to->layered_curs_update += from->layered_curs_update;
+    to->layered_table_manager_checkpoints += from->layered_table_manager_checkpoints;
+    to->layered_table_manager_checkpoints_refreshed +=
+      from->layered_table_manager_checkpoints_refreshed;
+    to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
+    to->layered_table_manager_logops_skipped += from->layered_table_manager_logops_skipped;
+    to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
     to->pantry_block_get += from->pantry_block_get;
     to->pantry_block_put += from->pantry_block_put;
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
@@ -1381,29 +1382,30 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
-    to->oligarch_curs_insert += WT_STAT_DSRC_READ(from, oligarch_curs_insert);
-    to->oligarch_curs_next += WT_STAT_DSRC_READ(from, oligarch_curs_next);
-    to->oligarch_curs_next_ingest += WT_STAT_DSRC_READ(from, oligarch_curs_next_ingest);
-    to->oligarch_curs_next_stable += WT_STAT_DSRC_READ(from, oligarch_curs_next_stable);
-    to->oligarch_curs_prev += WT_STAT_DSRC_READ(from, oligarch_curs_prev);
-    to->oligarch_curs_prev_ingest += WT_STAT_DSRC_READ(from, oligarch_curs_prev_ingest);
-    to->oligarch_curs_prev_stable += WT_STAT_DSRC_READ(from, oligarch_curs_prev_stable);
-    to->oligarch_curs_remove += WT_STAT_DSRC_READ(from, oligarch_curs_remove);
-    to->oligarch_curs_search_near += WT_STAT_DSRC_READ(from, oligarch_curs_search_near);
-    to->oligarch_curs_search_near_ingest +=
-      WT_STAT_DSRC_READ(from, oligarch_curs_search_near_ingest);
-    to->oligarch_curs_search_near_stable +=
-      WT_STAT_DSRC_READ(from, oligarch_curs_search_near_stable);
-    to->oligarch_curs_search += WT_STAT_DSRC_READ(from, oligarch_curs_search);
-    to->oligarch_curs_search_ingest += WT_STAT_DSRC_READ(from, oligarch_curs_search_ingest);
-    to->oligarch_curs_search_stable += WT_STAT_DSRC_READ(from, oligarch_curs_search_stable);
-    to->oligarch_curs_update += WT_STAT_DSRC_READ(from, oligarch_curs_update);
-    to->oligarch_manager_checkpoints += WT_STAT_DSRC_READ(from, oligarch_manager_checkpoints);
-    to->oligarch_manager_checkpoints_refreshed +=
-      WT_STAT_DSRC_READ(from, oligarch_manager_checkpoints_refreshed);
-    to->oligarch_manager_logops_applied += WT_STAT_DSRC_READ(from, oligarch_manager_logops_applied);
-    to->oligarch_manager_logops_skipped += WT_STAT_DSRC_READ(from, oligarch_manager_logops_skipped);
-    to->oligarch_manager_skip_lsn += WT_STAT_DSRC_READ(from, oligarch_manager_skip_lsn);
+    to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
+    to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
+    to->layered_curs_next_ingest += WT_STAT_DSRC_READ(from, layered_curs_next_ingest);
+    to->layered_curs_next_stable += WT_STAT_DSRC_READ(from, layered_curs_next_stable);
+    to->layered_curs_prev += WT_STAT_DSRC_READ(from, layered_curs_prev);
+    to->layered_curs_prev_ingest += WT_STAT_DSRC_READ(from, layered_curs_prev_ingest);
+    to->layered_curs_prev_stable += WT_STAT_DSRC_READ(from, layered_curs_prev_stable);
+    to->layered_curs_remove += WT_STAT_DSRC_READ(from, layered_curs_remove);
+    to->layered_curs_search_near += WT_STAT_DSRC_READ(from, layered_curs_search_near);
+    to->layered_curs_search_near_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_near_ingest);
+    to->layered_curs_search_near_stable += WT_STAT_DSRC_READ(from, layered_curs_search_near_stable);
+    to->layered_curs_search += WT_STAT_DSRC_READ(from, layered_curs_search);
+    to->layered_curs_search_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_ingest);
+    to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
+    to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
+    to->layered_table_manager_checkpoints +=
+      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints);
+    to->layered_table_manager_checkpoints_refreshed +=
+      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_refreshed);
+    to->layered_table_manager_logops_applied +=
+      WT_STAT_DSRC_READ(from, layered_table_manager_logops_applied);
+    to->layered_table_manager_logops_skipped +=
+      WT_STAT_DSRC_READ(from, layered_table_manager_logops_skipped);
+    to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
     to->pantry_block_get += WT_STAT_DSRC_READ(from, pantry_block_get);
     to->pantry_block_put += WT_STAT_DSRC_READ(from, pantry_block_put);
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
@@ -1740,15 +1742,15 @@ static const char *const __stats_connection_desc[] = {
   "capacity: bytes written for checkpoint",
   "capacity: bytes written for chunk cache",
   "capacity: bytes written for eviction",
+  "capacity: bytes written for layered table log",
   "capacity: bytes written for log",
-  "capacity: bytes written for oligarch log",
   "capacity: bytes written total",
   "capacity: threshold to call fsync",
   "capacity: time waiting due to total capacity (usecs)",
   "capacity: time waiting during checkpoint (usecs)",
   "capacity: time waiting during eviction (usecs)",
+  "capacity: time waiting during layered table logging (usecs)",
   "capacity: time waiting during logging (usecs)",
-  "capacity: time waiting during oligarch logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "capacity: time waiting for chunk cache IO bandwidth (usecs)",
   "checkpoint: checkpoint cleanup successful calls",
@@ -1930,6 +1932,32 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweeps skipped due to checkpoint gathering handles",
   "data-handle: session dhandles swept",
   "data-handle: session sweep attempts",
+  "layered: Layered table cursor insert operations",
+  "layered: Layered table cursor next operations",
+  "layered: Layered table cursor next operations from ingest table",
+  "layered: Layered table cursor next operations from stable table",
+  "layered: Layered table cursor prev operations",
+  "layered: Layered table cursor prev operations from ingest table",
+  "layered: Layered table cursor prev operations from stable table",
+  "layered: Layered table cursor remove operations",
+  "layered: Layered table cursor search near operations",
+  "layered: Layered table cursor search near operations from ingest table",
+  "layered: Layered table cursor search near operations from stable table",
+  "layered: Layered table cursor search operations",
+  "layered: Layered table cursor search operations from ingest table",
+  "layered: Layered table cursor search operations from stable table",
+  "layered: Layered table cursor update operations",
+  "layered: checkpoints performed on this table by the layered table manager",
+  "layered: checkpoints refreshed on shared layered constituents",
+  "layered: how many log applications the layered table manager applied on this tree",
+  "layered: how many log applications the layered table manager skipped on this tree",
+  "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
+  "layered: the number of tables the layered table manager considered for checkpointing",
+  "layered: the number of tables the layered table manager has open",
+  "layered: the number of tables the layered table manager thread has search to calculate the "
+  "pinned ID",
+  "layered: whether the layered table manager thread has been started",
+  "layered: whether the layered table manager thread is currently busy doing work",
   "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
@@ -1997,32 +2025,6 @@ static const char *const __stats_connection_desc[] = {
   "log: total size of compressed records",
   "log: written slots coalesced",
   "log: yields waiting for previous log file close",
-  "oligarch: Oligarch table cursor insert operations",
-  "oligarch: Oligarch table cursor next operations",
-  "oligarch: Oligarch table cursor next operations from ingest table",
-  "oligarch: Oligarch table cursor next operations from stable table",
-  "oligarch: Oligarch table cursor prev operations",
-  "oligarch: Oligarch table cursor prev operations from ingest table",
-  "oligarch: Oligarch table cursor prev operations from stable table",
-  "oligarch: Oligarch table cursor remove operations",
-  "oligarch: Oligarch table cursor search near operations",
-  "oligarch: Oligarch table cursor search near operations from ingest table",
-  "oligarch: Oligarch table cursor search near operations from stable table",
-  "oligarch: Oligarch table cursor search operations",
-  "oligarch: Oligarch table cursor search operations from ingest table",
-  "oligarch: Oligarch table cursor search operations from stable table",
-  "oligarch: Oligarch table cursor update operations",
-  "oligarch: checkpoints performed on this table by the oligarch manager",
-  "oligarch: checkpoints refreshed on shared oligarch constituents",
-  "oligarch: how many log applications the oligarch manager applied on this tree",
-  "oligarch: how many log applications the oligarch manager skipped on this tree",
-  "oligarch: how many previously-applied LSNs the oligarch manager skipped on this tree",
-  "oligarch: the number of tables the oligarch manager considered for checkpointing",
-  "oligarch: the number of tables the oligarch manager has open",
-  "oligarch: the number of tables the oligarch manager thread has search to calculate the pinned "
-  "ID",
-  "oligarch: whether the oligarch manager thread has been started",
-  "oligarch: whether the oligarch manager thread is currently busy doing work",
   "pantry: Pantry block manager get",
   "pantry: Pantry block manager put ",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
@@ -2517,15 +2519,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_bytes_ckpt = 0;
     stats->capacity_bytes_chunkcache = 0;
     stats->capacity_bytes_evict = 0;
+    stats->capacity_bytes_layered_table_log = 0;
     stats->capacity_bytes_log = 0;
-    stats->capacity_bytes_oligarch_log = 0;
     stats->capacity_bytes_written = 0;
     stats->capacity_threshold = 0;
     stats->capacity_time_total = 0;
     stats->capacity_time_ckpt = 0;
     stats->capacity_time_evict = 0;
+    stats->capacity_time_layered_table_log = 0;
     stats->capacity_time_log = 0;
-    stats->capacity_time_oligarch_log = 0;
     stats->capacity_time_read = 0;
     stats->capacity_time_chunkcache = 0;
     stats->checkpoint_cleanup_success = 0;
@@ -2705,6 +2707,31 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweep_skip_ckpt = 0;
     stats->dh_session_handles = 0;
     stats->dh_session_sweeps = 0;
+    stats->layered_curs_insert = 0;
+    stats->layered_curs_next = 0;
+    stats->layered_curs_next_ingest = 0;
+    stats->layered_curs_next_stable = 0;
+    stats->layered_curs_prev = 0;
+    stats->layered_curs_prev_ingest = 0;
+    stats->layered_curs_prev_stable = 0;
+    stats->layered_curs_remove = 0;
+    stats->layered_curs_search_near = 0;
+    stats->layered_curs_search_near_ingest = 0;
+    stats->layered_curs_search_near_stable = 0;
+    stats->layered_curs_search = 0;
+    stats->layered_curs_search_ingest = 0;
+    stats->layered_curs_search_stable = 0;
+    stats->layered_curs_update = 0;
+    stats->layered_table_manager_checkpoints = 0;
+    stats->layered_table_manager_checkpoints_refreshed = 0;
+    stats->layered_table_manager_logops_applied = 0;
+    stats->layered_table_manager_logops_skipped = 0;
+    stats->layered_table_manager_skip_lsn = 0;
+    stats->layered_table_manager_checkpoint_candidates = 0;
+    stats->layered_table_manager_tables = 0;
+    stats->layered_table_manager_pinned_id_tables_searched = 0;
+    stats->layered_table_manager_running = 0;
+    stats->layered_table_manager_active = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -2772,31 +2799,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_compress_len = 0;
     stats->log_slot_coalesced = 0;
     stats->log_close_yields = 0;
-    stats->oligarch_curs_insert = 0;
-    stats->oligarch_curs_next = 0;
-    stats->oligarch_curs_next_ingest = 0;
-    stats->oligarch_curs_next_stable = 0;
-    stats->oligarch_curs_prev = 0;
-    stats->oligarch_curs_prev_ingest = 0;
-    stats->oligarch_curs_prev_stable = 0;
-    stats->oligarch_curs_remove = 0;
-    stats->oligarch_curs_search_near = 0;
-    stats->oligarch_curs_search_near_ingest = 0;
-    stats->oligarch_curs_search_near_stable = 0;
-    stats->oligarch_curs_search = 0;
-    stats->oligarch_curs_search_ingest = 0;
-    stats->oligarch_curs_search_stable = 0;
-    stats->oligarch_curs_update = 0;
-    stats->oligarch_manager_checkpoints = 0;
-    stats->oligarch_manager_checkpoints_refreshed = 0;
-    stats->oligarch_manager_logops_applied = 0;
-    stats->oligarch_manager_logops_skipped = 0;
-    stats->oligarch_manager_skip_lsn = 0;
-    stats->oligarch_manager_checkpoint_candidates = 0;
-    stats->oligarch_manager_tables = 0;
-    stats->oligarch_manager_pinned_id_tables_searched = 0;
-    stats->oligarch_manager_running = 0;
-    stats->oligarch_manager_active = 0;
     stats->pantry_block_get = 0;
     stats->pantry_block_put = 0;
     stats->perf_hist_fsread_latency_lt10 = 0;
@@ -3326,15 +3328,16 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_bytes_ckpt += WT_STAT_CONN_READ(from, capacity_bytes_ckpt);
     to->capacity_bytes_chunkcache += WT_STAT_CONN_READ(from, capacity_bytes_chunkcache);
     to->capacity_bytes_evict += WT_STAT_CONN_READ(from, capacity_bytes_evict);
+    to->capacity_bytes_layered_table_log +=
+      WT_STAT_CONN_READ(from, capacity_bytes_layered_table_log);
     to->capacity_bytes_log += WT_STAT_CONN_READ(from, capacity_bytes_log);
-    to->capacity_bytes_oligarch_log += WT_STAT_CONN_READ(from, capacity_bytes_oligarch_log);
     to->capacity_bytes_written += WT_STAT_CONN_READ(from, capacity_bytes_written);
     to->capacity_threshold += WT_STAT_CONN_READ(from, capacity_threshold);
     to->capacity_time_total += WT_STAT_CONN_READ(from, capacity_time_total);
     to->capacity_time_ckpt += WT_STAT_CONN_READ(from, capacity_time_ckpt);
     to->capacity_time_evict += WT_STAT_CONN_READ(from, capacity_time_evict);
+    to->capacity_time_layered_table_log += WT_STAT_CONN_READ(from, capacity_time_layered_table_log);
     to->capacity_time_log += WT_STAT_CONN_READ(from, capacity_time_log);
-    to->capacity_time_oligarch_log += WT_STAT_CONN_READ(from, capacity_time_oligarch_log);
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
     to->capacity_time_chunkcache += WT_STAT_CONN_READ(from, capacity_time_chunkcache);
     to->checkpoint_cleanup_success += WT_STAT_CONN_READ(from, checkpoint_cleanup_success);
@@ -3532,6 +3535,37 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweep_skip_ckpt += WT_STAT_CONN_READ(from, dh_sweep_skip_ckpt);
     to->dh_session_handles += WT_STAT_CONN_READ(from, dh_session_handles);
     to->dh_session_sweeps += WT_STAT_CONN_READ(from, dh_session_sweeps);
+    to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
+    to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
+    to->layered_curs_next_ingest += WT_STAT_CONN_READ(from, layered_curs_next_ingest);
+    to->layered_curs_next_stable += WT_STAT_CONN_READ(from, layered_curs_next_stable);
+    to->layered_curs_prev += WT_STAT_CONN_READ(from, layered_curs_prev);
+    to->layered_curs_prev_ingest += WT_STAT_CONN_READ(from, layered_curs_prev_ingest);
+    to->layered_curs_prev_stable += WT_STAT_CONN_READ(from, layered_curs_prev_stable);
+    to->layered_curs_remove += WT_STAT_CONN_READ(from, layered_curs_remove);
+    to->layered_curs_search_near += WT_STAT_CONN_READ(from, layered_curs_search_near);
+    to->layered_curs_search_near_ingest += WT_STAT_CONN_READ(from, layered_curs_search_near_ingest);
+    to->layered_curs_search_near_stable += WT_STAT_CONN_READ(from, layered_curs_search_near_stable);
+    to->layered_curs_search += WT_STAT_CONN_READ(from, layered_curs_search);
+    to->layered_curs_search_ingest += WT_STAT_CONN_READ(from, layered_curs_search_ingest);
+    to->layered_curs_search_stable += WT_STAT_CONN_READ(from, layered_curs_search_stable);
+    to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
+    to->layered_table_manager_checkpoints +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints);
+    to->layered_table_manager_checkpoints_refreshed +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_refreshed);
+    to->layered_table_manager_logops_applied +=
+      WT_STAT_CONN_READ(from, layered_table_manager_logops_applied);
+    to->layered_table_manager_logops_skipped +=
+      WT_STAT_CONN_READ(from, layered_table_manager_logops_skipped);
+    to->layered_table_manager_skip_lsn += WT_STAT_CONN_READ(from, layered_table_manager_skip_lsn);
+    to->layered_table_manager_checkpoint_candidates +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoint_candidates);
+    to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
+    to->layered_table_manager_pinned_id_tables_searched +=
+      WT_STAT_CONN_READ(from, layered_table_manager_pinned_id_tables_searched);
+    to->layered_table_manager_running += WT_STAT_CONN_READ(from, layered_table_manager_running);
+    to->layered_table_manager_active += WT_STAT_CONN_READ(from, layered_table_manager_active);
     to->lock_checkpoint_count += WT_STAT_CONN_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application +=
       WT_STAT_CONN_READ(from, lock_checkpoint_wait_application);
@@ -3601,36 +3635,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_compress_len += WT_STAT_CONN_READ(from, log_compress_len);
     to->log_slot_coalesced += WT_STAT_CONN_READ(from, log_slot_coalesced);
     to->log_close_yields += WT_STAT_CONN_READ(from, log_close_yields);
-    to->oligarch_curs_insert += WT_STAT_CONN_READ(from, oligarch_curs_insert);
-    to->oligarch_curs_next += WT_STAT_CONN_READ(from, oligarch_curs_next);
-    to->oligarch_curs_next_ingest += WT_STAT_CONN_READ(from, oligarch_curs_next_ingest);
-    to->oligarch_curs_next_stable += WT_STAT_CONN_READ(from, oligarch_curs_next_stable);
-    to->oligarch_curs_prev += WT_STAT_CONN_READ(from, oligarch_curs_prev);
-    to->oligarch_curs_prev_ingest += WT_STAT_CONN_READ(from, oligarch_curs_prev_ingest);
-    to->oligarch_curs_prev_stable += WT_STAT_CONN_READ(from, oligarch_curs_prev_stable);
-    to->oligarch_curs_remove += WT_STAT_CONN_READ(from, oligarch_curs_remove);
-    to->oligarch_curs_search_near += WT_STAT_CONN_READ(from, oligarch_curs_search_near);
-    to->oligarch_curs_search_near_ingest +=
-      WT_STAT_CONN_READ(from, oligarch_curs_search_near_ingest);
-    to->oligarch_curs_search_near_stable +=
-      WT_STAT_CONN_READ(from, oligarch_curs_search_near_stable);
-    to->oligarch_curs_search += WT_STAT_CONN_READ(from, oligarch_curs_search);
-    to->oligarch_curs_search_ingest += WT_STAT_CONN_READ(from, oligarch_curs_search_ingest);
-    to->oligarch_curs_search_stable += WT_STAT_CONN_READ(from, oligarch_curs_search_stable);
-    to->oligarch_curs_update += WT_STAT_CONN_READ(from, oligarch_curs_update);
-    to->oligarch_manager_checkpoints += WT_STAT_CONN_READ(from, oligarch_manager_checkpoints);
-    to->oligarch_manager_checkpoints_refreshed +=
-      WT_STAT_CONN_READ(from, oligarch_manager_checkpoints_refreshed);
-    to->oligarch_manager_logops_applied += WT_STAT_CONN_READ(from, oligarch_manager_logops_applied);
-    to->oligarch_manager_logops_skipped += WT_STAT_CONN_READ(from, oligarch_manager_logops_skipped);
-    to->oligarch_manager_skip_lsn += WT_STAT_CONN_READ(from, oligarch_manager_skip_lsn);
-    to->oligarch_manager_checkpoint_candidates +=
-      WT_STAT_CONN_READ(from, oligarch_manager_checkpoint_candidates);
-    to->oligarch_manager_tables += WT_STAT_CONN_READ(from, oligarch_manager_tables);
-    to->oligarch_manager_pinned_id_tables_searched +=
-      WT_STAT_CONN_READ(from, oligarch_manager_pinned_id_tables_searched);
-    to->oligarch_manager_running += WT_STAT_CONN_READ(from, oligarch_manager_running);
-    to->oligarch_manager_active += WT_STAT_CONN_READ(from, oligarch_manager_active);
     to->pantry_block_get += WT_STAT_CONN_READ(from, pantry_block_get);
     to->pantry_block_put += WT_STAT_CONN_READ(from, pantry_block_put);
     to->perf_hist_fsread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt10);

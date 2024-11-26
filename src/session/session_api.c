@@ -630,10 +630,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             WT_RET(__wt_clsm_open(session, uri, owner, cfg, cursorp));
         else if (WT_PREFIX_MATCH(uri, "log:"))
             WT_RET(__wt_curlog_open(session, uri, cfg, cursorp));
-        break;
-    case 'o':
-        if (WT_PREFIX_MATCH(uri, "oligarch:"))
-            WT_RET(__wt_coligarch_open(session, uri, owner, cfg, cursorp));
+        else if (WT_PREFIX_MATCH(uri, "layered:"))
+            WT_RET(__wt_clayered_open(session, uri, owner, cfg, cursorp));
         break;
 
     /*

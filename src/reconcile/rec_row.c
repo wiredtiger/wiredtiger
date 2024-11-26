@@ -517,8 +517,8 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
         return (0);
 
     if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
-        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
-          "oligarch table record garbage collected 5");
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
+          "layered table record garbage collected 5");
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
          * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
@@ -557,8 +557,8 @@ __rec_row_garbage_collect_fixup_insert_list(
         return (0);
 
     if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
-        /* __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s", */
-        /*   "oligarch table record garbage collected 4"); */
+        /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s", */
+        /*   "layered table record garbage collected 4"); */
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
          * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
@@ -865,8 +865,8 @@ __wti_rec_row_leaf(
               WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)))) {
             /*
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
-                  "oligarch table record garbage collected 2");
+                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
+                  "layered table record garbage collected 2");
              */
             upd = &upd_tombstone;
         }

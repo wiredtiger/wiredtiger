@@ -116,7 +116,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
       "The page checkpoint id doesn't match the current checkpoint id");
     /* Check that we are the leader (only leaders can write). */
     WT_ASSERT_ALWAYS(
-      session, conn->oligarch_manager.leader, "Trying to write the page from a follower");
+      session, conn->layered_table_manager.leader, "Trying to write the page from a follower");
     /* Check that the checkpoint ID matches the current checkpoint in the page log. */
     if (block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
         WT_RET(block_disagg->plhandle->page_log->pl_get_open_checkpoint(

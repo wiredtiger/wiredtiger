@@ -172,8 +172,8 @@ __open_verbose_file_type_tag(WT_FS_OPEN_FILE_TYPE file_type)
         return ("directory");
     case WT_FS_OPEN_FILE_TYPE_LOG:
         return ("log");
-    case WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG:
-        return ("oligarch_log");
+    case WT_FS_OPEN_FILE_TYPE_LAYERED_TABLE_LOG:
+        return ("layered_table_log");
     case WT_FS_OPEN_FILE_TYPE_PANTRY:
         return ("pantry");
     case WT_FS_OPEN_FILE_TYPE_REGULAR:

@@ -27,26 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
-from wtscenario import make_scenarios
 
-StorageSource = wiredtiger.StorageSource  # easy access to constants
+# test_layered02.py
+#    Basic layered tree cursor creation
+class test_layered02(wttest.WiredTigerTestCase):
 
-# test_oligarch1.py
-#    Basic oligarch tree creation test
-class test_oligarch1(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    uri_base = "test_layered02"
+    conn_config = 'layered_table_log=(enabled),verbose=[layered],disaggregated=(role="leader"),' \
+                + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
-    uri_base = "test_oligarch1"
-    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],disaggregated=(role="leader"),' \
-                + 'disaggregated=(stable_prefix=.,page_log=palm)'
-
-    uri = "oligarch:" + uri_base
-
-    metadata_uris = [
-            (uri, ''),
-            ("file:" + uri_base + ".wt_ingest", ''),
-            ("file:" + uri_base + ".wt_stable", '')
-            ]
+    uri = "layered:" + uri_base
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -54,23 +44,16 @@ class test_oligarch1(wttest.WiredTigerTestCase, DisaggConfigMixin):
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm')
 
-    # Check for a specific string as part of the uri's metadata.
-    def check_metadata(self, uri, val_str):
-        c = self.session.open_cursor('metadata:create')
-        val = c[uri]
-        c.close()
-        self.assertTrue(val_str in val)
+    # Test inserting a record into a layered tree
+    def test_layered02(self):
+        base_create = 'key_format=S,value_format=S'
 
-    # Test calling the create API for an oligarch table.
-    def test_oligarch1(self):
-        base_create = 'key_format=S,value_format=S,disaggregated=(page_log=palm)'
+        self.pr("create layered tree")
+        self.session.create(self.uri, base_create)
 
-        self.pr("create oligarch tree")
-        #conf = ',oligarch=true'
-        conf = ''
-        self.session.create(self.uri, base_create + conf)
+        self.pr('opening cursor')
+        cursor = self.session.open_cursor(self.uri, None, None)
 
-        for u in self.metadata_uris:
-            #print("Checking " + u[0])
-            self.check_metadata(u[0], u[1])
+        self.pr('opening cursor')
+        cursor.close()
 

@@ -26,17 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, time, wiredtiger, wttest
 
-# test_oligarch02.py
-#    Basic oligarch tree cursor creation
-class test_oligarch02(wttest.WiredTigerTestCase):
+StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-    uri_base = "test_oligarch02"
-    conn_config = 'oligarch_log=(enabled),verbose=[oligarch],disaggregated=(role="leader"),' \
+# test_layered05.py
+#    Add enough content to trigger a checkpoint in the stable table.
+class test_layered05(wttest.WiredTigerTestCase):
+    nitems = 100000
+    uri_base = "test_layered05"
+    base_conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
+    conn_config = base_conn_config + 'disaggregated=(role="leader"),'
 
-    uri = "oligarch:" + uri_base
+    uri = "layered:" + uri_base
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -44,16 +47,35 @@ class test_oligarch02(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm')
 
-    # Test inserting a record into an oligarch tree
-    def test_oligarch02(self):
+    # Test records into a layered tree and restarting
+    def test_layered05(self):
         base_create = 'key_format=S,value_format=S'
 
-        self.pr("create oligarch tree")
+        self.pr("create layered tree")
         self.session.create(self.uri, base_create)
 
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        for i in range(self.nitems):
+            cursor["Hello " + str(i)] = "World"
+            cursor["Hi " + str(i)] = "There"
+            cursor["OK " + str(i)] = "Go"
+            if i % 10000 == 0:
+                time.sleep(1)
+
+        cursor.reset()
+
         self.pr('opening cursor')
         cursor.close()
+        time.sleep(1)
 
+        self.reopen_conn(config=self.base_conn_config + 'disaggregated=(role="follower")')
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.next() == 0:
+            item_count += 1
+
+        self.assertEqual(item_count, self.nitems * 3)
+        cursor.close()

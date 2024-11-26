@@ -30,10 +30,10 @@ import wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_oligarch08.py
+# test_layered08.py
 # Simple read write testing using the page log API
 
-class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
@@ -44,9 +44,9 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('snappy', dict(block_compress='snappy')),
     ]
 
-    conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'layered_table_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_oligarch08', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered08', disagg_only = True)
 
     scenarios = make_scenarios(encrypt, compress, disagg_storages)
 
@@ -62,8 +62,8 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_oligarch_read_write(self):
-        uri = "oligarch:test_oligarch08"
+    def test_layered_read_write(self):
+        uri = "layered:test_layered08"
         create_session_config = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         self.pr('CREATING')
         self.session.create(uri, create_session_config)
@@ -77,7 +77,7 @@ class test_oligarch08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         follower_config = self.conn_base_config + 'disaggregated=(role="follower")'

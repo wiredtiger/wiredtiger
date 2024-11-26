@@ -511,8 +511,8 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
       FLD_ISSET(conn->log_info.txn_logsync, WT_LOG_DSYNC))
         f |= FILE_FLAG_WRITE_THROUGH;
 
-    if (file_type == WT_FS_OPEN_FILE_TYPE_OLIGARCH_LOG &&
-      FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_DSYNC))
+    if (file_type == WT_FS_OPEN_FILE_TYPE_LAYERED_TABLE_LOG &&
+      FLD_ISSET(conn->layered_table_log_info.txn_logsync, WT_LOG_DSYNC))
         f |= FILE_FLAG_WRITE_THROUGH;
 
     /* If the user indicated a random workload, disable read-ahead. */

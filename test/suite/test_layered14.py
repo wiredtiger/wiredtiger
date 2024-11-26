@@ -31,14 +31,14 @@ import wiredtiger
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_oligarch14.py
-# Simple testing for oligarch random cursor
-class test_oligarch14(wttest.WiredTigerTestCase, DisaggConfigMixin):
+# test_layered14.py
+# Simple testing for layered random cursor
+class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'layered_table_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_oligarch14', disagg_only = True)
-    uri = "oligarch:test_oligarch13"
+    disagg_storages = gen_disagg_storages('test_layered14', disagg_only = True)
+    uri = "layered:test_layered13"
     nitems = 1000
 
     scenarios = make_scenarios(disagg_storages)
@@ -50,7 +50,7 @@ class test_oligarch14(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_oligarch_random_cursor(self):
+    def test_layered_random_cursor(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -61,7 +61,7 @@ class test_oligarch14(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -77,7 +77,7 @@ class test_oligarch14(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
