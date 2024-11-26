@@ -59,7 +59,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     truncate = 0.005;
 
     checkpoint = 0.02;
-    checkpoint_crash = 0.02;
+    checkpoint_crash = 0.002;
     crash = 0.002;
     evict = 0.1;
     restart = 0.002;

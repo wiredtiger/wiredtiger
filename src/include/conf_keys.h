@@ -88,7 +88,7 @@
 #define WT_CONF_ID_checkpoint_backup_info 57ULL
 #define WT_CONF_ID_checkpoint_cleanup 165ULL
 #define WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty_max 240ULL
-#define WT_CONF_ID_checkpoint_crash_random 166ULL
+#define WT_CONF_ID_checkpoint_crash_point 166ULL
 #define WT_CONF_ID_checkpoint_fail_before_turtle_update 275ULL
 #define WT_CONF_ID_checkpoint_lsn 58ULL
 #define WT_CONF_ID_checkpoint_read_timestamp 124ULL

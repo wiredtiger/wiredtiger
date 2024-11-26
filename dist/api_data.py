@@ -1910,9 +1910,11 @@ methods = {
         Config('checkpoint_cleanup', 'false', r'''
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
-        Config('checkpoint_crash_random', '-1', r'''
-            when any number is zero or higher, a crash will be triggered in the middle of
-            checkpoint''',
+        Config('checkpoint_crash_point', '-1', r'''
+            non-negative number between 0 and 1000 will trigger a controlled crash during the
+            checkpoint process. Lower values will trigger crashes in the initial phase of
+            checkpoint, while higher values will result in crashes in the final phase of the
+            checkpoint process ''',
             type='int'),
         ]),
     Config('drop', '', r'''

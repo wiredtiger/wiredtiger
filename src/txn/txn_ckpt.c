@@ -1120,7 +1120,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     u_int i, ckpt_total_steps, ckpt_relative_crash_step;
     int ckpt_crash_random;
     const char *name;
-    bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
+    bool can_skip, ckpt_crash_before_metadata_upd, failed, full, idle, logging, tracking,
+      use_timestamp;
     void *saved_meta_next;
 
     conn = S2C(session);
@@ -1130,7 +1131,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
-    full = idle = tracking = use_timestamp = false;
+    ckpt_crash_before_metadata_upd = full = idle = tracking = use_timestamp = false;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -1239,7 +1240,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
 
-    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_random", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
     ckpt_crash_random = (int)cval.val;
 
     if (ckpt_crash_random >= 0) {
@@ -1255,7 +1256,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
             session->ckpt_crash_point = ckpt_relative_crash_step + 1;
         else
             /* Crash before updating the metadata. */
-            F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE);
+            ckpt_crash_before_metadata_upd = true;
     }
 
     /* Log the final checkpoint prepare progress message if needed. */
@@ -1410,6 +1411,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_txn_commit(session, NULL));
 
     /*
+     * Crash if the checkpoint crash feature is enabled and configured to fail before updating the
+     * metadata.
+     */
+    if (ckpt_crash_before_metadata_upd)
+        __wt_abort(session);
+
+    /*
      * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
      * may include the changes that are written in parallel by an eviction. To have a consistent
      * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
@@ -1427,13 +1435,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * This is very similar to __wt_meta_track_off, ideally they would be merged.
      */
     if (full || !logging) {
-        /*
-         * Crash if the checkpoint crash feature is enabled and configured to fail before updating
-         * the metadata.
-         */
-        if (F_ISSET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_METADATA_UPDATE))
-            __wt_abort(session);
-
         session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
         /* Disable metadata tracking during the metadata checkpoint. */
         saved_meta_next = session->meta_track_next;
@@ -1563,6 +1564,7 @@ err:
     __txn_checkpoint_clear_time(session);
 
     __wt_free(session, session->ckpt_handle);
+    WT_ASSERT(session, session->ckpt_crash_point == 0);
     session->ckpt_handle_allocated = session->ckpt_handle_next = session->ckpt_crash_point = 0;
 
     session->isolation = txn->isolation = saved_isolation;
@@ -2572,7 +2574,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_HANDLE, &tsp);
 
     /* If the checkpoint crash feature is enabled, trigger a crash between checkpointing tables. */
-    if (session->ckpt_crash_point) {
+    if (session->ckpt_crash_point > 0) {
         if (session->ckpt_crash_point == 1)
             __wt_abort(session);
         --session->ckpt_crash_point;
