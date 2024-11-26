@@ -72,7 +72,7 @@ err:
 static void
 __union_debug_dump_extent_list(WT_UNION_FILE_HANDLE *union_fh)
 {
-    WT_UNION_ALLOC_LIST *hole;
+    WT_UNION_HOLE_LIST *hole;
 
     printf("Dumping extent list\n");
     hole = union_fh->destination.hole_list;
@@ -424,8 +424,8 @@ static int __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, cons
 static void
 __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
 {
-    WT_UNION_ALLOC_LIST *hole;
-    WT_UNION_ALLOC_LIST *temp;
+    WT_UNION_HOLE_LIST *hole;
+    WT_UNION_HOLE_LIST *temp;
 
     temp = hole = NULL;
     hole = union_fh->destination.hole_list;
@@ -457,7 +457,7 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 static int
 __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-    WT_UNION_ALLOC_LIST *hole;
+    WT_UNION_HOLE_LIST *hole;
     WT_UNION_FILE_HANDLE *fh;
     // FIXME - 4MB buffer as a placeholder. When we find a large hole we should break the read into small chunks
     char buf[4096000];
@@ -526,7 +526,7 @@ static int
 __union_remove_extlist_hole(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_ALLOC_LIST *hole, *tmp, *new;
+    WT_UNION_HOLE_LIST *hole, *tmp, *new;
     wt_off_t write_end;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld",
@@ -604,7 +604,7 @@ static bool
 __union_can_service_read(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_ALLOC_LIST *hole;
+    WT_UNION_HOLE_LIST *hole;
     wt_off_t read_end;
     bool read_begins_in_hole, read_ends_in_hole;
 
