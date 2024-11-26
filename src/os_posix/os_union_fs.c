@@ -11,7 +11,6 @@
 
 #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
-static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
 static int __union_fs_file_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
 static int __union_fs_file_size(
@@ -637,36 +636,6 @@ __union_can_service_read(
     __wt_verbose_debug3(
       session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", union_fh->iface.name);
     return (true);
-}
-
-/*
- * __union_merge_with_next_extents --
- *     Merge the current extent with the following extent(s) if they overlap.
- */
-static int
-__union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent)
-{
-    WT_UNION_ALLOC_LIST *next_extent;
-    wt_off_t new_len;
-
-    next_extent = extent->next;
-    WT_ASSERT_ALWAYS(session, next_extent != NULL, "Attempting to merge with NULL!");
-    WT_ASSERT_ALWAYS(session, EXTENT_END(extent) >= next_extent->off,
-      "Attempting to merge non-overlapping extents! extent_end = %ld, next->off = %ld",
-      EXTENT_END(extent), next_extent->off);
-
-    extent->next = next_extent->next;
-    new_len = EXTENT_END(next_extent) - extent->off; // TODO check for off by one
-    // FIXME - A lot of pointless typecasting. Consider dropping wt_off_t in favor of size_t.
-    extent->len = (size_t)WT_MAX((wt_off_t)extent->len, new_len);
-    __wt_free(session, next_extent);
-
-    // Run it again in case we also overlap with the N+1 extent
-    // TODO - loop instead of recursion.
-    if (extent->next != NULL && EXTENT_END(extent) >= extent->next->off) {
-        WT_RET(__union_merge_with_next_extents(session, extent));
-    }
-    return (0);
 }
 
 /*
