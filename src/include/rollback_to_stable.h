@@ -85,6 +85,7 @@
             WT_STAT_CONN_DSRC_INCR(session, stat##_dryrun); \
     } while (0)
 
+#define WT_RTS_MAX_WORKERS 10
 /*
  * WT_RTS_WORK_UNIT --
  *  RTS thread operating work unit.

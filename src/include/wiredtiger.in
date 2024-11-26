@@ -2372,8 +2372,8 @@ struct __wt_connection {
      * updates to checkpoint durable tables that have durable times more recent than the current
      * global stable timestamp., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads, maximum number of threads WiredTiger will start to
-     * help RTS. Each RTS worker thread uses a session from the configured session_max., an integer
-     * between \c 0 and \c 10; default \c 4.}
+     * help RTS. Each RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS., an
+     * integer between \c 0 and \c 10; default \c 4.}
      * @config{ ),,}
      * @config{shared_cache = (, shared cache configuration options.  A database should configure
      * either a cache_size or a shared_cache not both.  Enabling a shared cache uses a session from
@@ -3266,8 +3266,8 @@ struct __wt_connection {
  * updates to checkpoint durable tables that have durable times more recent than the current global
  * stable timestamp., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads, maximum number of threads WiredTiger will start to help
- * RTS. Each RTS worker thread uses a session from the configured session_max., an integer between
- * \c 0 and \c 10; default \c 4.}
+ * RTS. Each RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS., an integer
+ * between \c 0 and \c 10; default \c 4.}
  * @config{ ),,}
  * @config{salvage, open connection and salvage any WiredTiger-owned database and log files that it
  * detects as corrupted.  This call should only be used after getting an error return of

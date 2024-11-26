@@ -819,8 +819,9 @@ connection_runtime_config = [
         type='category', subconfig=[
             Config('threads', 4, r'''
                 maximum number of threads WiredTiger will start to help RTS. Each
-                RTS worker thread uses a session from the configured session_max''',
-                min=0, max=10),
+                RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS''',
+                min=0,
+                max=10),    # !!! Must match WT_RTS_MAX_WORKERS
         ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure either a cache_size

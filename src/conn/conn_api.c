@@ -1329,8 +1329,8 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     /*
-     * In the absence of an API configuration, utilize the RTS worker thread settings defined at
-     * the connection level.
+     * In the absence of an API configuration, utilize the RTS worker thread settings defined at the
+     * connection level.
      */
     if ((config == NULL || *config == '\0') && conn->rts->cfg_threads_num != 0) {
         WT_RET(
@@ -2572,6 +2572,8 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
 
     WT_RET(__wt_config_gets(session, cfg, "lsm_manager.worker_thread_max", &cval));
     v += cval.val;
+
+    v += WT_RTS_MAX_WORKERS;
 
     WT_RET(__wt_config_gets(session, cfg, "session_max", &cval));
     v += cval.val;
