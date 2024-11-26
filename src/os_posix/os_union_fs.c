@@ -69,17 +69,37 @@ err:
  *     Dump the contents of a file handle's extent list.
  */
 static void
-__union_debug_dump_extent_list(WT_UNION_FILE_HANDLE *union_fh)
+__union_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
 {
     WT_UNION_HOLE_LIST *hole;
+    WT_UNION_HOLE_LIST *prev;
+    bool list_valid;
 
-    printf("Dumping extent list\n");
+    prev = NULL;
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", union_fh->iface.name);
     hole = union_fh->destination.hole_list;
+    list_valid = true;
 
     while (hole != NULL) {
-        printf("Hole: %ld-%ld\n", hole->off, hole->off + (wt_off_t)hole->len - 1);
+
+        /* Sanity check. This hole doesn't overlap with the previous hole */
+        if (prev != NULL) {
+            if (EXTENT_END(prev) >= hole->off) {
+                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off, EXTENT_END(prev),
+                  hole->off, EXTENT_END(hole));
+                list_valid = false;
+            }
+        }
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off,
+          hole->off + (wt_off_t)hole->len - 1);
+
+        prev = hole;
         hole = hole->next;
     }
+
+    WT_ASSERT_ALWAYS(session, list_valid, "Extent list contains overlaps!");
 }
 #pragma GCC diagnostic pop
 
