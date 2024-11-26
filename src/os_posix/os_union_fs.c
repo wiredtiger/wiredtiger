@@ -1140,6 +1140,8 @@ __union_fs_rename(
 
         /* Create a tombstone for the file. */
         WT_ERR(__union_fs_create_tombstone(fs, session, to, flags));
+        /* Create a tombstone for the old file as well. */
+        WT_ERR(__union_fs_create_tombstone(fs, session, from, flags));
     }
 
 err:
