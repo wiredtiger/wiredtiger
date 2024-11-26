@@ -586,8 +586,8 @@ __union_remove_extlist_hole(
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "Partial overlap to the left of hole %ld-%ld", hole->off, EXTENT_END(hole));
 
-            hole->off = write_end + 1;
             hole->len = (size_t)(EXTENT_END(hole) - write_end);
+            hole->off = write_end + 1;
 
         } else if (offset > hole->off && write_end >= EXTENT_END(hole)) {
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
