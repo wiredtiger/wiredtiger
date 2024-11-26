@@ -985,6 +985,9 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
 
                 WT_ERR(__union_fs_file_read(
                   (WT_FILE_HANDLE *)union_fh, wt_session, source_size - 1, 1, buf));
+
+                  /* However we don't want to track this read in the hole list. Undo the change. */
+                  union_fh->destination.hole_list->len += 1;
             }
         } else
             union_fh->destination.complete = true;
