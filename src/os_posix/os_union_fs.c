@@ -519,21 +519,13 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
     return (fh->destination.fh->fh_lock(fh->destination.fh, wt_session, lock));
 }
 
-// This may be easier with a partial_start, partial_end, partial macro.
-/*
- * Given a read or a write must fall either in an existing extend or on the edge of it the two
- * choices are NONE or FULL.
- *
- * This only works by assuming that the block manager is the only thing that will use this and that
- * it only reads and writes full blocks. If that changes this code will unceremoniously fall over.
- */
-typedef enum { NONE, FULL } RW_SERVICE_LEVEL;
-
 /*
  * __union_can_service_read --
  *     Return if a the read can be serviced by the destination file.
+ *     This assumes that the block manager is the only thing that perform reads and it only reads
+ *     and writes full blocks. If that changes this code will unceremoniously fall over.
  */
-static RW_SERVICE_LEVEL
+static bool
 __union_can_service_read(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
@@ -556,7 +548,7 @@ __union_can_service_read(
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "CANNOT SERVICE %s: Reading from hole. Read: %ld-%ld, hole: %ld-%ld", 
               union_fh->iface.name, offset, read_end, hole->off, EXTENT_END(hole));
-              return (NONE);
+              return (false);
         } else if(read_begins_in_hole != read_ends_in_hole) {
             // The read starts in a hole but doesn't finish in it, or vice versa.
             // This should never happen.
@@ -568,7 +560,7 @@ __union_can_service_read(
 
     __wt_verbose_debug3(
       session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", union_fh->iface.name);
-    return (FULL);
+    return (true);
 }
 
 /*
@@ -611,7 +603,6 @@ __dest_update_alloc_list_write(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
     WT_UNION_ALLOC_LIST *alloc, *prev, *new;
-    RW_SERVICE_LEVEL sl;
     prev = alloc = new = NULL;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p",
@@ -744,26 +735,25 @@ __union_fs_file_read(
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UNION_FILE_HANDLE *union_fh;
-    RW_SERVICE_LEVEL sl;
+    bool can_service_read;
     char *read_data;
 
     union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
-    sl = NONE;
 
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
-    sl = __union_can_service_read(union_fh, session, offset, len);
+    can_service_read = __union_can_service_read(union_fh, session, offset, len);
 
     /*
      * TODO: WiredTiger will read the metadata file after creation but before anything has been
      * written in this case we forward the read to the empty metadata file in the destination. Is
      * this correct?
      */
-    if (union_fh->destination.complete || union_fh->source == NULL || sl == FULL) {
+    if (union_fh->destination.complete || union_fh->source == NULL || can_service_read) {
         // TODO: Right now if complete is true source will always be null. So the if statement here
         // has redundancy is there a time when we need it? Maybe with the background thread.
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
