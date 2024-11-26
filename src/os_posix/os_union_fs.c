@@ -625,8 +625,8 @@ __union_can_service_read(
     hole = union_fh->destination.hole_list;
     while (hole != NULL) {
 
-        if (offset > EXTENT_END(hole))
-            /* We're past where a hole could be. Stop searching. */
+        if (read_end < hole->off)
+            /* All subsequent holes are past the read. We won't find matching holes */
             break;
 
         read_begins_in_hole = ADDR_IN_EXTENT(offset, hole);
