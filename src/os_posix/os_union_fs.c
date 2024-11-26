@@ -520,6 +520,82 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
 }
 
 /*
+ * __union_remove_extlist_hole --
+ *     Track that we wrote something by removing its hole from the extent list.
+ */
+static int
+__union_remove_extlist_hole(
+  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+{
+    WT_UNION_ALLOC_LIST *hole, *tmp, *new;
+    wt_off_t write_end;
+
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld",
+      union_fh->iface.name, offset, offset + (wt_off_t)len);
+
+    write_end = offset + (wt_off_t)len;
+
+    // FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight forward?
+    hole = union_fh->destination.hole_list;
+    while(hole != NULL) {
+
+        if(write_end < hole->off) {
+            // We won't find any more overlapping holes. Stop searching.
+            break;
+        }
+
+        if(offset <= hole->off && write_end >= EXTENT_END(hole)) {
+            // The write fully overlaps a hole. Delete it.
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld",
+            hole->off, EXTENT_END(hole));
+
+            tmp = hole;
+            hole = hole->next;
+            __wt_free(session, tmp);
+            continue;
+
+        } else if(offset > hole->off && write_end < EXTENT_END(hole)) {
+            // The write is entirely within the hole. Split the hole in two.
+
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully contained by hole %ld-%ld",
+            hole->off, EXTENT_END(hole));
+
+            // First create the hole to the right of the write.
+            WT_RET(__wt_calloc_one(session, &new));
+            new->off = write_end + 1;
+            new->len = (size_t)(EXTENT_END(hole) - write_end);
+            new->next = hole->next;
+
+            // Then shrink the existing hole so it's to the left of the write
+            // and point it at the new hole.
+            hole->len = (size_t)(offset - hole->off);
+            hole->next = new;
+
+        } else if(offset <= hole->off && write_end < EXTENT_END(hole)) {
+            // The write starts before the hole and ends within it. Shrink the hole.
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Partial overlap to the left of hole %ld-%ld",
+            hole->off, EXTENT_END(hole));
+
+            hole->off = write_end + 1;
+            hole->len = (size_t)(EXTENT_END(hole) - write_end);
+
+        } else if(offset > hole->off && write_end >= EXTENT_END(hole)) {
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Partial overlap to the right of hole %ld-%ld",
+                hole->off, EXTENT_END(hole));
+            // The write starts within the hole and ends after it. Shrink the hole.
+            hole->len = (size_t)(offset - hole->off);
+
+        } else {
+            // No overlap. Safety check
+            WT_ASSERT(session, write_end < hole->off || offset > EXTENT_END(hole));
+        }
+
+        hole = hole->next;
+    }
+    return (0);
+}
+
+/*
  * __union_can_service_read --
  *     Return if a the read can be serviced by the destination file.
  *     This assumes that the block manager is the only thing that perform reads and it only reads
@@ -594,95 +670,6 @@ __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *e
 }
 
 /*
- * __dest_update_alloc_list_write --
- *     Track that we wrote something. This will require creating new extends, growing existing ones
- *     and merging overlapping extents.
- */
-static int
-__dest_update_alloc_list_write(
-  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
-{
-    WT_UNION_ALLOC_LIST *alloc, *prev, *new;
-    prev = alloc = new = NULL;
-
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p",
-      union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
-
-    // FIXME - this just needs to delete extents now
-
-    // if (sl == FULL) {
-    //     /* The full write was serviced from single extent. */
-    //     return (0);
-    // } else {
-    //     /* Allocate a new extent or grow an existing one. */
-    //     alloc = union_fh->destination.allocation_list;
-    //     while (alloc != NULL) {
-    //         /* Find the first extend that the write is before. */
-    //         if (alloc->off == offset) {
-
-    //             /* If the write fits the current extent just add it */
-    //             if (EXTENT_END(alloc) >= offset + (wt_off_t)len) {
-    //                 __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done",
-    //                   union_fh->iface.name);
-    //                 return (0);
-    //             } else {
-    //                 /* Otherwise grow the extent to match the new write. */
-    //                 WT_ASSERT(session, alloc->len < len);
-    //                 alloc->len = len;
-    //                 if (alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
-    //                     WT_RET(__union_merge_with_next_extents(session, alloc));
-    //                 }
-    //                 return (0);
-    //             }
-    //         }
-    //         if (alloc->off > offset) {
-    //             break;
-    //         }
-    //         prev = alloc;
-    //         alloc = alloc->next;
-    //     }
-
-    //     if (prev == NULL) {
-    //         // New extent is at the start.
-    //         /* Allocate a new extent. */
-    //         WT_RET(__wt_calloc_one(session, &new));
-    //         new->off = offset;
-    //         new->len = len;
-    //         new->next = alloc;
-    //         union_fh->destination.allocation_list = new;
-    //         return (0);
-
-    //     } else if (alloc == NULL) {
-    //         // New extent is after.
-    //         if (EXTENT_END(prev) == offset) {
-    //             // Grow prev.
-    //             prev->len += len;
-    //             return (0);
-    //         }
-    //     } else {
-    //         // New extent is in between.
-    //         if (EXTENT_END(prev) == offset) {
-    //             // Grow prev.
-    //             prev->len += len;
-    //             if (prev->next->off <= EXTENT_END(prev)) {
-    //                 __union_merge_with_next_extents(session, prev);
-    //             }
-    //             return (0);
-    //         }
-    //     }
-    //     /* Allocate a new extent. */
-    //     WT_RET(__wt_calloc_one(session, &new));
-    //     new->off = offset;
-    //     new->len = len;
-    //     new->next = alloc;
-    //     prev->next = new;
-    //     if (EXTENT_END(prev) >= new->off) {
-    //         __union_merge_with_next_extents(session, prev);
-    //     }
-    // }
-    return (0);
-}
-/*
  * __union_fs_file_write --
  *     File write.
  */
@@ -701,7 +688,7 @@ __union_fs_file_write(
     WT_RET(
       union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
     WT_RET(union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
-    WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
+    WT_RET(__union_remove_extlist_hole(union_fh, session, offset, len));
     return (0);
 }
 
@@ -821,7 +808,7 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
     __union_fs_file_size(file_handle, wt_session, &old_len);
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
       "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
-    __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
+    __union_remove_extlist_hole(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
 
     return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));
 }
@@ -890,7 +877,7 @@ __union_build_extents_from_dest_file_lseek(
         __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename,
           data_offset, data_end_offset);
         // FIXME - unhandled ret
-        __dest_update_alloc_list_write(
+        __union_remove_extlist_hole(
           union_fh, session, data_offset, (size_t)(data_end_offset - data_offset));
     }
 
