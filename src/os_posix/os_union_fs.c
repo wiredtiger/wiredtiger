@@ -623,6 +623,7 @@ __union_can_service_read(
 
     read_end = offset + (wt_off_t)len;
 
+    hole = union_fh->destination.hole_list;
     while (hole != NULL) {
 
         if (offset > EXTENT_END(hole))
