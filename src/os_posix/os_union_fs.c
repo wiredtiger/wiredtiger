@@ -529,7 +529,7 @@ static int
 __union_remove_extlist_hole(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_HOLE_LIST *hole, *tmp, *new;
+    WT_UNION_HOLE_LIST *hole, *tmp, *new, *prev_hole;
     wt_off_t write_end;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", union_fh->iface.name,
@@ -541,6 +541,7 @@ __union_remove_extlist_hole(
      * forward?
      */
     hole = union_fh->destination.hole_list;
+    prev_hole = NULL;
     while (hole != NULL) {
 
         if (write_end < hole->off) {
@@ -554,6 +555,10 @@ __union_remove_extlist_hole(
               session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off, EXTENT_END(hole));
 
             tmp = hole;
+            if(prev_hole == NULL)
+                union_fh->destination.hole_list = hole->next;
+            else
+                prev_hole->next = hole->next;
             hole = hole->next;
             __wt_free(session, tmp);
             continue;
@@ -596,6 +601,7 @@ __union_remove_extlist_hole(
             WT_ASSERT(session, write_end < hole->off || offset > EXTENT_END(hole));
         }
 
+        prev_hole = hole;
         hole = hole->next;
     }
     return (0);
