@@ -855,11 +855,13 @@ __union_build_holes_from_dest_file_lseek(
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
-    // Initalise the hole_list as one big hole. We'll then find data segments and remove them.
-    WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
-    union_fh->destination.hole_list->off = 0;
-    union_fh->destination.hole_list->len = (size_t)file_size;
-    union_fh->destination.hole_list->next = NULL;
+    if(file_size > 0) {
+        // Initialise the hole_list as one big hole. We'll then find data segments and remove them.
+        WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
+        union_fh->destination.hole_list->off = 0;
+        union_fh->destination.hole_list->len = (size_t)file_size;
+        union_fh->destination.hole_list->next = NULL;
+    }
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
@@ -982,7 +984,6 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                  * promote the byte into the destination file, setting the file size.
                  */
                 wt_off_t source_size;
-                char buf[10];
 
                 union_fh->source->fh_size(union_fh->source, wt_session, &source_size);
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -990,11 +991,14 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                   "file",
                   source_size);
 
-                WT_ERR(__union_fs_file_read(
-                  (WT_FILE_HANDLE *)union_fh, wt_session, source_size - 1, 1, buf));
+                // Set size by truncating. We're bypassing the union layer so we don't track the write
+                union_fh->destination.fh->fh_truncate(union_fh->destination.fh, wt_session, source_size);
 
-                  /* However we don't want to track this read in the hole list. Undo the change. */
-                  union_fh->destination.hole_list->len += 1;
+                // Initialise the hole_list as one big hole as we need to read it all from source.
+                WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
+                union_fh->destination.hole_list->off = 0;
+                union_fh->destination.hole_list->len = (size_t)source_size;
+                union_fh->destination.hole_list->next = NULL;
             }
         } else
             union_fh->destination.complete = true;
