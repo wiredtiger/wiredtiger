@@ -125,10 +125,6 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
-class PantryStat(Stat):
-    prefix = 'pantry'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, PantryStat.prefix, desc, flags)
 class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
@@ -1181,12 +1177,6 @@ conn_dsrc_stats = [
     ##########################################
     LSMStat('lsm_checkpoint_throttle', 'sleep for LSM checkpoint throttle'),
     LSMStat('lsm_merge_throttle', 'sleep for LSM merge throttle'),
-
-    ##########################################
-    # Pantry block manager statistics
-    ##########################################
-    PantryStat('pantry_block_get', 'Pantry block manager get'),
-    PantryStat('pantry_block_put', 'Pantry block manager put '),
 
     ##########################################
     # Reconciliation statistics

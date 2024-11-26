@@ -170,12 +170,10 @@ __open_verbose_file_type_tag(WT_FS_OPEN_FILE_TYPE file_type)
         return ("data");
     case WT_FS_OPEN_FILE_TYPE_DIRECTORY:
         return ("directory");
-    case WT_FS_OPEN_FILE_TYPE_LOG:
-        return ("log");
     case WT_FS_OPEN_FILE_TYPE_LAYERED_TABLE_LOG:
         return ("layered_table_log");
-    case WT_FS_OPEN_FILE_TYPE_PANTRY:
-        return ("pantry");
+    case WT_FS_OPEN_FILE_TYPE_LOG:
+        return ("log");
     case WT_FS_OPEN_FILE_TYPE_REGULAR:
         break;
     }

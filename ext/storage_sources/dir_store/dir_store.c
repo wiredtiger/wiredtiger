@@ -45,9 +45,6 @@
 #define WT_MILLION 1000000
 #endif
 
-/* This is the size of a 64 bit number, don't use sizeof since sign-edness causes issues */
-#define STORED_VALUE_SIZE 8
-
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
  * as local files in a designated directory.
@@ -102,8 +99,6 @@ typedef struct {
     uint64_t op_count;      /* Number of operations done on dir_store */
     uint64_t read_ops;
     uint64_t write_ops;
-    uint64_t object_put_ops;
-    uint64_t object_get_ops;
 
     /* Queue of file handles */
     TAILQ_HEAD(dir_store_file_handle_qh, dir_store_file_handle) fileq;
@@ -131,16 +126,6 @@ typedef struct dir_store_file_handle {
     WT_FILE_HANDLE *fh;   /* File handle */
 
     TAILQ_ENTRY(dir_store_file_handle) q; /* Queue of handles */
-
-    /* Protects object ID and size maps. */
-    pthread_rwlock_t obj_map_lock;
-
-    /* Object based directory stores keep an array that tracks ID->offset */
-    bool object_directory;
-    uint64_t *object_id_map;
-    uint64_t *object_size_map;
-    uint64_t object_map_size;
-    uint64_t object_next_offset; /* Next available spot to write to the physical file */
 } DIR_STORE_FILE_HANDLE;
 
 /*
@@ -202,14 +187,6 @@ static int dir_store_file_read(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t,
 static int dir_store_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 static int dir_store_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int dir_store_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
-
-/* Object interface */
-static int dir_store_obj_ckpt(WT_FILE_HANDLE *, WT_SESSION *);
-static int dir_store_obj_ckpt_load(WT_FILE_HANDLE *, WT_SESSION *);
-static int dir_store_obj_delete(WT_FILE_HANDLE *, WT_SESSION *, uint64_t);
-static int dir_store_obj_get(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
-static int dir_store_obj_put(WT_FILE_HANDLE *, WT_SESSION *, uint64_t, WT_ITEM *);
-static int dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *, uint64_t);
 
 #define FS2DS(fs) (((DIR_STORE_FILE_SYSTEM *)(fs))->dir_store)
 #define SHOW_STRING(s) (((s) == NULL) ? "<null>" : (s))
@@ -475,9 +452,6 @@ dir_store_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, c
         while (*name == '/')
             name++;
     }
-    // XXX FIXME XXX The follower is not opening the correct file.
-    if (strcmp(dir, "follower/foo") == 0)
-        dir = "./foo";
     len = strlen(dir) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (dir_store_err(FS2DS(file_system), NULL, ENOMEM, "dir_store_path"));
@@ -1061,63 +1035,6 @@ dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 }
 
 /*
- * dir_store_ckpt_load_internal --
- *     Populate some internal data structures from on-disk content (if any).
- */
-static int
-dir_store_ckpt_load_internal(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session)
-{
-    WT_FILE_HANDLE *wt_fh;
-    wt_off_t offset, size;
-    int ret;
-    uint64_t entries, i, tmp;
-
-    wt_fh = fh->fh;
-
-    /* Check the size before we read. */
-    if ((ret = wt_fh->fh_size(wt_fh, session, &size)) != 0)
-        return (ret);
-
-    /* New file, nothing to load. */
-    if (size <= STORED_VALUE_SIZE)
-        return (0);
-
-    /* Look up the checkpoint's address. */
-    if ((ret = wt_fh->fh_read(wt_fh, session, 0, STORED_VALUE_SIZE, &offset)) != 0)
-        return (ret);
-
-    /* From that address, get the number of entries. */
-    if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &entries)) != 0)
-        return (ret);
-    offset += STORED_VALUE_SIZE;
-
-    if ((ret = pthread_rwlock_wrlock(&fh->obj_map_lock)) != 0)
-        return (ret);
-    dir_store_obj_resize_map(fh, entries);
-
-    /* Go over the entries and rebuild the dir store's internal state. */
-    for (i = 0; i < entries; i++) {
-        if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &tmp)) != 0)
-            goto err;
-
-        fh->object_id_map[i] = tmp;
-        offset += STORED_VALUE_SIZE;
-    }
-
-    for (i = 0; i < entries; i++) {
-        if ((ret = wt_fh->fh_read(wt_fh, session, offset, STORED_VALUE_SIZE, &tmp)) != 0)
-            goto err;
-
-        fh->object_size_map[i] = tmp;
-        offset += STORED_VALUE_SIZE;
-    }
-
-err:
-    pthread_rwlock_unlock(&fh->obj_map_lock);
-    return (ret);
-}
-
-/*
  * dir_store_open --
  *     fopen for our dir_store storage source
  */
@@ -1142,12 +1059,9 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     wt_fs = dir_store_fs->wt_fs;
     bucket_path = cache_path = NULL;
 
-    /*
-     * The pantry store uses this storage source to create object-based interface.
     if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0)
         return (dir_store_err(
           dir_store, session, EINVAL, "ss_open_object: readonly access required: %s", name));
-     */
 
     /*
      * We expect that the dir_store file system will be used narrowly, like when creating or opening
@@ -1204,10 +1118,14 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     } else {
         if ((ret = dir_store_bucket_path(file_system, name, &bucket_path)) != 0)
             goto err;
-
-        ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh);
+        ret = stat(bucket_path, &sb);
         if (ret != 0) {
-            /* Don't show an error, this can happen "normally" in disaggregated storage. */
+            ret = dir_store_err(dir_store, session, errno, "%s: dir_store_open stat", bucket_path);
+            goto err;
+        }
+        if ((ret = wt_fs->fs_open_file(wt_fs, session, bucket_path, file_type, flags, &wt_fh)) !=
+          0) {
+            ret = dir_store_err(dir_store, session, ret, "ss_open_object: open: %s", name);
             goto err;
         }
     }
@@ -1215,22 +1133,6 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     dir_store->object_reads++;
     dir_store_fh->fh = wt_fh;
     dir_store_fh->dir_store = dir_store;
-
-    if ((ret = pthread_rwlock_init(&dir_store_fh->obj_map_lock, NULL)) != 0) {
-        ret = dir_store_err(dir_store, session, ret, "pthread_rwlock_init for obj_map");
-        goto err;
-    }
-
-    /* Determine if this is a directory of objects (for now, just use a file extension). */
-    dir_store_fh->object_directory =
-      (strlen(name) > 10 && strcmp(name + (strlen(name) - 10), ".wt_stable") == 0) ||
-      (strlen(name) > 5 && strcmp(name + (strlen(name) - 5), ".meta") == 0);
-
-    /*
-     * First eight bytes are reserved as out-of-band. This is a 64 bit space so we can write an
-     * extent list on checkpoint or clean shutdown.
-     */
-    dir_store_fh->object_next_offset = 8;
 
     /* Initialize public information. */
     file_handle = (WT_FILE_HANDLE *)dir_store_fh;
@@ -1254,26 +1156,11 @@ dir_store_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *nam
     file_handle->fh_sync_nowait = NULL;
     file_handle->fh_truncate = NULL;
     file_handle->fh_write = dir_store_file_write;
-
-    file_handle->fh_obj_checkpoint = dir_store_obj_ckpt;
-    file_handle->fh_obj_checkpoint_load = dir_store_obj_ckpt_load;
-    file_handle->fh_obj_put = dir_store_obj_put;
-    file_handle->fh_obj_get = dir_store_obj_get;
-    file_handle->fh_obj_delete = dir_store_obj_delete;
     if ((file_handle->name = strdup(name)) == NULL) {
         ret = ENOMEM;
         goto err;
     }
 
-    /* If the file contains a directory of objects, load the checkpoint. */
-    if (dir_store_fh->object_directory)
-        if ((ret = dir_store_ckpt_load_internal(dir_store_fh, session)) != 0)
-            goto err;
-
-    /*
-     * Insert to the dir store last. After this point, we are only allowed to fail if we can't
-     * insert it to the list; otherwise we risk the file handle to be freed more than once.
-     */
     if ((ret = pthread_rwlock_wrlock(&dir_store->file_handle_lock)) != 0) {
         (void)dir_store_err(dir_store, session, ret, "ss_open_object: pthread_rwlock_wrlock");
         goto err;
@@ -1492,7 +1379,6 @@ dir_store_file_close_internal(
     if (wt_fh != NULL && (ret = wt_fh->close(wt_fh, session)) != 0)
         ret = dir_store_err(dir_store, session, ret, "WT_FILE_HANDLE->close: close");
 
-    ret = pthread_rwlock_destroy(&dir_store_fh->obj_map_lock);
     free(dir_store_fh->iface.name);
     free(dir_store_fh);
 
@@ -1531,309 +1417,6 @@ dir_store_file_read(
 
     dir_store_fh->dir_store->read_ops++;
     return (wt_fh->fh_read(wt_fh, session, offset, len, buf));
-}
-
-#define DIR_STORE_MAX(a, b) ((a) < (b) ? (b) : (a))
-
-/*
- * dir_store_obj_resize_map --
- *     Resize the object mapping array for object based stores.
- *
- * NOTE: assumes the caller is holding the object map lock, this is possibly worth changing since it
- *     means we do a (slow) memory allocation with the lock held.
- */
-static int
-dir_store_obj_resize_map(DIR_STORE_FILE_HANDLE *dir_store_fh, uint64_t new_max)
-{
-    uint64_t new_size;
-    uint64_t *new_id_map, *new_size_map;
-
-    /*
-     * It is illegal to use an object interface and the regular file interface on the same handle.
-     */
-    if (dir_store_fh->dir_store->read_ops != 0 || dir_store_fh->dir_store->write_ops != 0)
-        return (EINVAL);
-
-    if (new_max < dir_store_fh->object_map_size)
-        return (0);
-
-    if (new_max < 1000)
-        new_size = 1000;
-    else if (new_max < 10000)
-        new_size = DIR_STORE_MAX(dir_store_fh->object_map_size * 10, new_max);
-    else
-        new_size = DIR_STORE_MAX(dir_store_fh->object_map_size * 2, new_max);
-
-    /* Don't bother cleaning up on error - out of memory will be fatal here. */
-    if ((new_id_map = calloc(new_size, STORED_VALUE_SIZE)) == NULL)
-        return (ENOMEM);
-    if ((new_size_map = calloc(new_size, STORED_VALUE_SIZE)) == NULL)
-        return (ENOMEM);
-
-    if (dir_store_fh->object_map_size != 0) {
-        memcpy(new_id_map, dir_store_fh->object_id_map,
-          dir_store_fh->object_map_size * STORED_VALUE_SIZE);
-        free(dir_store_fh->object_id_map);
-        memcpy(new_size_map, dir_store_fh->object_size_map,
-          dir_store_fh->object_map_size * STORED_VALUE_SIZE);
-        free(dir_store_fh->object_size_map);
-    }
-    dir_store_fh->object_id_map = new_id_map;
-    dir_store_fh->object_size_map = new_size_map;
-    dir_store_fh->object_map_size = new_size;
-    return (0);
-}
-
-/*
- * next_mul8 --
- *     Return the lowest multiple of 8 larger than or equal to the input.
- */
-static uint64_t
-next_mul8(uint64_t i)
-{
-    return (i + 7) & (uint64_t)~0x7;
-}
-
-/* dir_store_ckpt_intl --
- *     Serialise our internal data structures to a given file handle.
- */
-static int
-dir_store_ckpt_intl(
-  DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t begin, wt_off_t *nwritten)
-{
-    WT_FILE_HANDLE *wt_fh;
-    int ret;
-    uint64_t i;
-    wt_off_t curr;
-
-    wt_fh = fh->fh;
-    *nwritten = 0;
-    curr = begin + STORED_VALUE_SIZE; /* Number of entries will precede the data. */
-
-    /* TODO lots of optimisations here - coalescing write calls, packing, etc. */
-    for (i = 0; i < fh->object_map_size; i++) {
-        ret = wt_fh->fh_write(wt_fh, session, curr, STORED_VALUE_SIZE, &fh->object_id_map[i]);
-        if (ret != 0)
-            return (ret);
-        curr += STORED_VALUE_SIZE;
-    }
-
-    for (i = 0; i < fh->object_map_size; i++) {
-        ret = wt_fh->fh_write(wt_fh, session, curr, STORED_VALUE_SIZE, &fh->object_size_map[i]);
-        if (ret != 0)
-            return (ret);
-        curr += STORED_VALUE_SIZE;
-    }
-
-    /* Encode the number of entries at the start of the list. */
-    ret = wt_fh->fh_write(wt_fh, session, begin, STORED_VALUE_SIZE, &i);
-    if (ret != 0)
-        return (ret);
-
-    *nwritten = curr - begin;
-    return (0);
-}
-
-/*
- * Overall scheme for the dir store's checkpoint metadata. The left-hand column
- * isn't aligned like a hex dump or anything, it's just to give the pointers
- * something to reference.
- *
- *     0 | Data pointer (8B)
- *   ... | Normal keys/values
- *   ... | More keys/values...
- *   ... | Normal keys/values
- *  Data | Number of entries (8B) | object_id_map[0]
- *   ... | object_id_map[1] | object_id_map[2]
- *   ... | More object ID entries...
- *   ... | object_id_map[max] | object_size_map[0] (8B)
- *   ... | object_size_map[1] | object_size_map[2]
- *   ... | More object size entries...
- *   ... | object_size_map[max - 1] | object_size_map[max]
- *   ... | Normal keys/values
- */
-
-/* dir_store_ckpt_finalize --
- *     Serialise our the metadata for our URI to a given file handle.
- */
-static int
-dir_store_ckpt_finalize(DIR_STORE_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t ckpt_begin)
-{
-    WT_FILE_HANDLE *wt_fh;
-
-    wt_fh = fh->fh;
-
-    /* TODO add some magic bytes? Version? Checksum? More thought. */
-    return (wt_fh->fh_write(wt_fh, session, 0, STORED_VALUE_SIZE, &ckpt_begin));
-}
-
-/*
- * dir_store_obj_ckpt --
- *     Save any data necessary to restore our internal state, plus some extra data the user wants to
- *     keep alongside it.
- */
-static int
-dir_store_obj_ckpt(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
-{
-    DIR_STORE_FILE_HANDLE *dir_store_fh;
-    wt_off_t start, nwritten;
-    int ret;
-
-    dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
-
-    if (!dir_store_fh->object_directory)
-        return (ENOTSUP);
-
-    /* Align - not strictly necessary, but it makes staring at the hex dump easier. */
-    dir_store_fh->object_next_offset = next_mul8(dir_store_fh->object_next_offset);
-    start = (wt_off_t)dir_store_fh->object_next_offset;
-
-    ret = dir_store_ckpt_intl(dir_store_fh, session, start, &nwritten);
-    if (ret != 0)
-        return (ret);
-    dir_store_fh->object_next_offset += (size_t)nwritten; /* TODO maybe reset alignment? */
-
-    return (dir_store_ckpt_finalize(dir_store_fh, session, start));
-}
-
-/*
- * dir_store_obj_ckpt_load --
- *     Load any data necessary to restore our internal state, plus some extra data the user kept
- *     alongside it.
- */
-static int
-dir_store_obj_ckpt_load(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
-{
-    return (dir_store_ckpt_load_internal((DIR_STORE_FILE_HANDLE *)file_handle, session));
-}
-
-/*
- * dir_store_obj_put --
- *     Put an object into an object store.
- */
-static int
-dir_store_obj_put(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t object_id, WT_ITEM *buf)
-{
-    DIR_STORE_FILE_HANDLE *dir_store_fh;
-    WT_FILE_HANDLE *wt_fh;
-    int ret;
-
-    dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
-    wt_fh = dir_store_fh->fh;
-
-    if (!dir_store_fh->object_directory)
-        return (ENOTSUP);
-
-    dir_store_fh->dir_store->object_put_ops++;
-    ret = wt_fh->fh_write(
-      wt_fh, session, (wt_off_t)dir_store_fh->object_next_offset, buf->size, buf->data);
-    if (ret != 0)
-        return (ret);
-
-    if ((ret = pthread_rwlock_wrlock(&dir_store_fh->obj_map_lock)) != 0)
-        return (ret);
-    if (object_id >= dir_store_fh->object_map_size)
-        dir_store_obj_resize_map(dir_store_fh, object_id);
-
-    /*
-    fprintf(stderr, "PBM writing object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id,
-      dir_store_fh->object_next_offset);
-     */
-    dir_store_fh->object_id_map[object_id] = dir_store_fh->object_next_offset;
-    dir_store_fh->object_size_map[object_id] = buf->size;
-    dir_store_fh->object_next_offset += buf->size;
-    return (pthread_rwlock_unlock(&dir_store_fh->obj_map_lock));
-}
-
-/*
- * dir_store_obj_get --
- *     Get an object from an object store.
- */
-static int
-dir_store_obj_get(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t object_id, WT_ITEM *buf)
-{
-    DIR_STORE_FILE_HANDLE *dir_store_fh;
-    WT_FILE_HANDLE *wt_fh;
-    wt_off_t object_offset;
-    int ret;
-    uint64_t object_size;
-
-    dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
-    wt_fh = dir_store_fh->fh;
-
-    if (!dir_store_fh->object_directory)
-        return (ENOTSUP);
-
-    if ((ret = pthread_rwlock_rdlock(&dir_store_fh->obj_map_lock)) != 0)
-        return (ret);
-
-    if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0) {
-        (void)pthread_rwlock_unlock(&dir_store_fh->obj_map_lock);
-        return (EINVAL);
-    }
-
-    object_offset = (wt_off_t)dir_store_fh->object_id_map[object_id];
-    object_size = dir_store_fh->object_size_map[object_id];
-
-    if ((ret = pthread_rwlock_unlock(&dir_store_fh->obj_map_lock)) != 0)
-        return (ret);
-
-    /*
-     * A buffer without memory indicates that this API should allocate the space, otherwise check to
-     * see if it's already big enough.
-     */
-    if (buf->memsize == 0) {
-        if ((buf->mem = calloc(1, object_size)) == NULL)
-            return (ENOMEM);
-        buf->memsize = object_size;
-    } else if (object_size > buf->memsize)
-        return (ENOSPC);
-
-    /* fprintf(stderr, "PBM reading object: %" PRIu64 " to offset: %" PRIu64 "\n", object_id, */
-    /*   dir_store_fh->object_id_map[object_id]); */
-
-    dir_store_fh->dir_store->object_get_ops++;
-    ret = wt_fh->fh_read(wt_fh, session, object_offset, object_size, buf->mem);
-    buf->size = object_size;
-    /* TODO: cleanup allocated memory on error */
-    return (ret);
-}
-
-/*
- * dir_store_obj_delete --
- *     Delete an object from an object store.
- */
-static int
-dir_store_obj_delete(WT_FILE_HANDLE *file_handle, WT_SESSION *session, uint64_t object_id)
-{
-    DIR_STORE_FILE_HANDLE *dir_store_fh;
-    int ret;
-
-    (void)session;
-
-    dir_store_fh = (DIR_STORE_FILE_HANDLE *)file_handle;
-
-    if (!dir_store_fh->object_directory)
-        return (ENOTSUP);
-
-    if ((ret = pthread_rwlock_wrlock(&dir_store_fh->obj_map_lock)) != 0)
-        return (ret);
-
-    /* Deleting an already deleted thing is fine */
-    if (object_id > dir_store_fh->object_map_size || dir_store_fh->object_id_map[object_id] == 0) {
-        (void)pthread_rwlock_unlock(&dir_store_fh->obj_map_lock);
-        return (0);
-    }
-
-    dir_store_fh->object_id_map[object_id] = 0;
-    dir_store_fh->object_size_map[object_id] = 0;
-
-    if ((ret = pthread_rwlock_unlock(&dir_store_fh->obj_map_lock)) != 0)
-        return (ret);
-
-    return (0);
 }
 
 /*
@@ -1919,8 +1502,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
      */
     dir_store->reference_count = 1;
 
-    /* Don't cache files locally by default. */
-    dir_store->cache = 0; /* This is different from regular dir store! */
+    /* Cache files locally by default */
+    dir_store->cache = 1;
 
     if ((ret = dir_store_configure(dir_store, config)) != 0) {
         free(dir_store);

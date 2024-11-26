@@ -328,61 +328,6 @@ __btree_setup_page_log(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __btree_setup_storage_source --
- *     Configure a WT_BTREE storage source.
- */
-static int
-__btree_setup_storage_source(WT_SESSION_IMPL *session, WT_BTREE *btree)
-{
-    WT_BUCKET_STORAGE *new;
-    WT_CONFIG_ITEM storage_source_item;
-    WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-    WT_STORAGE_SOURCE *storage;
-    const char **cfg;
-
-    cfg = btree->dhandle->cfg;
-    nstorage = NULL;
-
-    /* Setup any configured storage source on the data handle */
-    WT_RET_NOTFOUND_OK(
-      __wt_config_gets(session, cfg, "disaggregated.storage_source", &storage_source_item));
-    if (ret == WT_NOTFOUND || storage_source_item.len == 0) {
-        btree->bstorage = S2C(session)->disaggregated_storage.bstorage;
-        return (0);
-    }
-
-    WT_RET(__wt_schema_open_storage_source(session, &storage_source_item, &nstorage));
-    if (nstorage == NULL)
-        return (0);
-
-    WT_ERR(__wt_calloc_one(session, &new));
-    new->auth_token = NULL;
-    new->cache_directory = NULL;
-    WT_ERR(__wt_strndup(session, "foo", 3, &new->bucket));
-    WT_ERR(__wt_strndup(session, "bar", 3, &new->bucket_prefix));
-
-    storage = nstorage->storage_source;
-    WT_ERR(storage->ss_customize_file_system(
-      storage, &session->iface, new->bucket, "", NULL, &new->file_system));
-    new->storage_source = storage;
-
-    F_SET(new, WT_BUCKET_FREE);
-    btree->bstorage = new;
-
-    if (0) {
-err:
-        if (new != NULL) {
-            __wt_free(session, new->bucket);
-            __wt_free(session, new->bucket_prefix);
-        }
-        __wt_free(session, new);
-    }
-
-    return (ret);
-}
-
-/*
  * __btree_conf --
  *     Configure a WT_BTREE structure.
  */
@@ -564,7 +509,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         btree->delta_pct = (u_int)cval.val;
 
         WT_RET(__btree_setup_page_log(session, btree));
-        WT_RET(__btree_setup_storage_source(session, btree));
 
         /* A page log service and a storage source cannot both be enabled. */
         WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);

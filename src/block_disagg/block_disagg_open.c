@@ -11,10 +11,10 @@
 #if 0
 /*
  * __wt_block_disagg_manager_drop --
- *     Drop a file - this isn't currently called. Pantry manager isn't being notified when an object
- *     should be cleaned up. Doing so will require wiring in non-default block managers such that
- *     the metadata tracking knows which to call. It should also move into the block manager
- *     interface, rather than being a direct call.
+ *     Drop a file - this isn't currently called. The disaggregated manager isn't being notified
+ *     when an object should be cleaned up. Doing so will require wiring in non-default block
+ *     managers such that the metadata tracking knows which to call. It should also move into the
+ *     block manager interface, rather than being a direct call.
  */
 int
 __wt_block_disagg_manager_drop(WT_SESSION_IMPL *session, const char *filename, bool durable)

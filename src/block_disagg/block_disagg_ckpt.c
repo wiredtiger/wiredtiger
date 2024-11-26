@@ -30,7 +30,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * but the alternative is a call for the btree layer to crack the checkpoint cookie into
      * its components, and that's a fair amount of work.
      */
-    /* ckpt->size = __wt_atomic_loadv64(&block_pantry->next_pantry_id); */
     ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
 
     /*

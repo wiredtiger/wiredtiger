@@ -285,8 +285,6 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
-  "pantry: Pantry block manager get",
-  "pantry: Pantry block manager put ",
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
@@ -656,8 +654,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
-    stats->pantry_block_get = 0;
-    stats->pantry_block_put = 0;
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
@@ -1019,8 +1015,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
     to->layered_table_manager_logops_skipped += from->layered_table_manager_logops_skipped;
     to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
-    to->pantry_block_get += from->pantry_block_get;
-    to->pantry_block_put += from->pantry_block_put;
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
@@ -1406,8 +1400,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_table_manager_logops_skipped +=
       WT_STAT_DSRC_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_DSRC_READ(from, layered_table_manager_skip_lsn);
-    to->pantry_block_get += WT_STAT_DSRC_READ(from, pantry_block_get);
-    to->pantry_block_put += WT_STAT_DSRC_READ(from, pantry_block_put);
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
@@ -2025,8 +2017,6 @@ static const char *const __stats_connection_desc[] = {
   "log: total size of compressed records",
   "log: written slots coalesced",
   "log: yields waiting for previous log file close",
-  "pantry: Pantry block manager get",
-  "pantry: Pantry block manager put ",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
   "perf: file system read latency histogram (bucket 2) - 10-49ms",
   "perf: file system read latency histogram (bucket 3) - 50-99ms",
@@ -2799,8 +2789,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_compress_len = 0;
     stats->log_slot_coalesced = 0;
     stats->log_close_yields = 0;
-    stats->pantry_block_get = 0;
-    stats->pantry_block_put = 0;
     stats->perf_hist_fsread_latency_lt10 = 0;
     stats->perf_hist_fsread_latency_lt50 = 0;
     stats->perf_hist_fsread_latency_lt100 = 0;
@@ -3635,8 +3623,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_compress_len += WT_STAT_CONN_READ(from, log_compress_len);
     to->log_slot_coalesced += WT_STAT_CONN_READ(from, log_slot_coalesced);
     to->log_close_yields += WT_STAT_CONN_READ(from, log_close_yields);
-    to->pantry_block_get += WT_STAT_CONN_READ(from, pantry_block_get);
-    to->pantry_block_put += WT_STAT_CONN_READ(from, pantry_block_put);
     to->perf_hist_fsread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt10);
     to->perf_hist_fsread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt50);
     to->perf_hist_fsread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt100);

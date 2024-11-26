@@ -27,16 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin
 
 # test_layered11.py
 #    Create an artificial delay in materializing pages from the page service.
-class test_layered11(wttest.WiredTigerTestCase):
+class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 5000
     uri_base = "test_layered11"
-    # conn_config = 'log=(enabled),verbose=[layered:5]'
-    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                + 'disaggregated=(role="leader"),' \
-                + 'disaggregated=(stable_prefix=.,page_log=palm),'
+    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader"),'
 
     uri = "layered:" + uri_base
 
@@ -46,6 +46,13 @@ class test_layered11(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         config='materialization_delay_ms=3000'  # 3 seconds
         extlist.extension('page_log', 'palm', f'(config="({config})")')
+
+    # Custom test case setup
+    def early_setup(self):
+        os.mkdir('follower')
+        # Create the home directory for the PALM k/v store, and share it with the follower.
+        os.mkdir('kv_home')
+        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     # Test inserting a record into a layered tree
     def test_layered11(self):
@@ -73,6 +80,26 @@ class test_layered11(wttest.WiredTigerTestCase):
 
             item_count = 0
             cursor = self.session.open_cursor(self.uri, None, None)
+            while cursor.next() == 0:
+                item_count += 1
+
+            self.pr('read cursor saw: ' + str(item_count))
+            self.assertEqual(item_count, self.nitems * 3)
+            cursor.close()
+
+        self.session.checkpoint()
+
+        # Now check that we also retry reading the checkpoint metadata
+        with self.expectedStdoutPattern('retry', maxchars=100000):
+            self.pr('opening the follower')
+            conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() \
+                                               + ',create,' + self.conn_base_config \
+                                               + 'disaggregated=(role="follower")')
+            session_follow = conn_follow.open_session('')
+            self.disagg_advance_checkpoint(conn_follow)
+
+            item_count = 0
+            cursor = session_follow.open_cursor(self.uri, None, None)
             while cursor.next() == 0:
                 item_count += 1
 
