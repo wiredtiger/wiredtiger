@@ -795,6 +795,14 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
      * such.
      */
     __union_fs_file_size(file_handle, wt_session, &old_len);
+
+    if(old_len == len)
+        // Sometimes we truncate but don't change the length
+        return (0);
+
+    if(len > old_len)
+        WT_ASSERT_ALWAYS((WT_SESSION_IMPL*)wt_session, false, "ftruncate used to extend");
+
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
       "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
     __union_remove_extlist_hole(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
