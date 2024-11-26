@@ -423,8 +423,8 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         ret = __wt_curfile_insert_check(meta_cursor);
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        ++S2C(session)->ckpt_meta_check;
-        S2C(session)->ckpt_meta_check_time += time_diff;
+        ++S2C(session)->ckpt.meta_check;
+        S2C(session)->ckpt.meta_check_time += time_diff;
         if (ret == WT_ROLLBACK) {
             /*
              * If create or drop or any schema operation of a table is with in an user transaction
@@ -449,8 +449,8 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     WT_SAVE_DHANDLE(session, ret = __checkpoint_lock_dirty_tree(session, true, force, true, cfg));
     time_stop = __wt_clock(session);
     time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-    ++S2C(session)->ckpt_lock;
-    S2C(session)->ckpt_lock_time += time_diff;
+    ++S2C(session)->ckpt.lock;
+    S2C(session)->ckpt.lock_time += time_diff;
     WT_RET(ret);
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
         __checkpoint_update_generation(session);
@@ -575,14 +575,14 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
     __wt_epoch(session, &cur_time);
 
     /* Time since the full database checkpoint started */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.timer_start);
 
-    if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
+    if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress_msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint prepare %s for %" PRIu64 " seconds and it has gathered %" PRIu64
           " dhandles and skipped %" PRIu64 " dhandles",
-          final ? "ran" : "has been running", time_diff, conn->ckpt_apply, conn->ckpt_skip);
-        conn->ckpt_progress_msg_count++;
+          final ? "ran" : "has been running", time_diff, conn->ckpt.apply, conn->ckpt.skip);
+        conn->ckpt.progress_msg_count++;
     }
 }
 
@@ -601,14 +601,14 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     __wt_epoch(session, &cur_time);
 
     /* Time since the full database checkpoint started */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.timer_start);
 
-    if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
+    if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress_msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
-          closing ? "ran" : "has been running", time_diff, conn->ckpt_write_pages,
-          conn->ckpt_write_bytes / WT_MEGABYTE);
-        conn->ckpt_progress_msg_count++;
+          closing ? "ran" : "has been running", time_diff, conn->ckpt.write_pages,
+          conn->ckpt.write_bytes / WT_MEGABYTE);
+        conn->ckpt.progress_msg_count++;
     }
 }
 
@@ -626,39 +626,39 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Output a verbose progress message for long running checkpoints. */
-    if (conn->ckpt_progress_msg_count > 0)
+    if (conn->ckpt.progress_msg_count > 0)
         __wt_checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
-    msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
+    msec = WT_TIMEDIFF_MS(stop, conn->ckpt.timer_start);
 
-    if (msec > conn->ckpt_time_max)
-        conn->ckpt_time_max = msec;
-    if (msec < conn->ckpt_time_min)
-        conn->ckpt_time_min = msec;
-    conn->ckpt_time_recent = msec;
-    conn->ckpt_time_total += msec;
+    if (msec > conn->ckpt.time_max)
+        conn->ckpt.time_max = msec;
+    if (msec < conn->ckpt.time_min)
+        conn->ckpt.time_min = msec;
+    conn->ckpt.time_recent = msec;
+    conn->ckpt.time_total += msec;
 
     /* Compute timer statistics for the scrub. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt_timer_scrub_end, conn->ckpt_timer_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.timer_scrub_end, conn->ckpt.timer_start);
 
-    if (msec > conn->ckpt_scrub_max)
-        conn->ckpt_scrub_max = msec;
-    if (msec < conn->ckpt_scrub_min)
-        conn->ckpt_scrub_min = msec;
-    conn->ckpt_scrub_recent = msec;
-    conn->ckpt_scrub_total += msec;
+    if (msec > conn->ckpt.scrub_max)
+        conn->ckpt.scrub_max = msec;
+    if (msec < conn->ckpt.scrub_min)
+        conn->ckpt.scrub_min = msec;
+    conn->ckpt.scrub_recent = msec;
+    conn->ckpt.scrub_total += msec;
 
     /* Compute timer statistics for the checkpoint prepare. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt_prep_end, conn->ckpt_prep_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.prep_end, conn->ckpt.prep_start);
 
-    if (msec > conn->ckpt_prep_max)
-        conn->ckpt_prep_max = msec;
-    if (msec < conn->ckpt_prep_min)
-        conn->ckpt_prep_min = msec;
-    conn->ckpt_prep_recent = msec;
-    conn->ckpt_prep_total += msec;
+    if (msec > conn->ckpt.prep_max)
+        conn->ckpt.prep_max = msec;
+    if (msec < conn->ckpt.prep_min)
+        conn->ckpt.prep_min = msec;
+    conn->ckpt.prep_recent = msec;
+    conn->ckpt.prep_total += msec;
 }
 
 /*
@@ -679,7 +679,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
     __wt_epoch(session, &stop);
 
     /* Get time diff in milliseconds. */
-    msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
+    msec = WT_TIMEDIFF_MS(stop, conn->ckpt.timer_start);
     __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
       "time: %" PRIu64 " ms, gen: %" PRIu64 ": Full database checkpoint %s", msec,
       __wt_gen(session, WT_GEN_CHECKPOINT), msg);
@@ -741,7 +741,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * which applications can hold open across calls to checkpoint.
      */
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 1);
-    __wt_epoch(session, &conn->ckpt_prep_start);
+    __wt_epoch(session, &conn->ckpt.prep_start);
 
     WT_ERR(__wt_txn_begin(session, txn_conf));
     /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
@@ -882,7 +882,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_operation(session, cfg, __wt_checkpoint_get_handles));
 
-    __wt_epoch(session, &conn->ckpt_prep_end);
+    __wt_epoch(session, &conn->ckpt.prep_end);
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
 
 err:
@@ -1019,10 +1019,10 @@ __txn_checkpoint_establish_time(WT_SESSION_IMPL *session)
     ckpt_sec = WT_MAX(ckpt_sec, conn->flush_most_recent);
 
     for (;;) {
-        WT_ACQUIRE_READ_WITH_BARRIER(most_recent, conn->ckpt_most_recent);
+        WT_ACQUIRE_READ_WITH_BARRIER(most_recent, conn->ckpt.most_recent);
         if (ckpt_sec <= most_recent)
             ckpt_sec = most_recent + 1;
-        if (__wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt_sec))
+        if (__wt_atomic_cas64(&conn->ckpt.most_recent, most_recent, ckpt_sec))
             break;
     }
 
@@ -1114,12 +1114,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_milliseconds = 0;
 
     /* Initialize the verbose tracking timer */
-    __wt_epoch(session, &conn->ckpt_timer_start);
+    __wt_epoch(session, &conn->ckpt.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
-    conn->ckpt_progress_msg_count = 0;
-    conn->ckpt_write_bytes = 0;
-    conn->ckpt_write_pages = 0;
+    conn->ckpt.progress_msg_count = 0;
+    conn->ckpt.write_bytes = 0;
+    conn->ckpt.write_pages = 0;
 
     /*
      * Get a time (wall time, not a timestamp) for this checkpoint. This will be applied to all the
@@ -1151,7 +1151,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "starting transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_START_TXN);
 
-    __wt_epoch(session, &conn->ckpt_timer_scrub_end);
+    __wt_epoch(session, &conn->ckpt.timer_scrub_end);
 
     /*
      * Start the checkpoint for real.
@@ -1184,7 +1184,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
     /* Log the final checkpoint prepare progress message if needed. */
-    if (conn->ckpt_progress_msg_count > 0)
+    if (conn->ckpt.progress_msg_count > 0)
         __checkpoint_prepare_progress(session, true);
 
     /*
@@ -1411,7 +1411,7 @@ err:
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
-    conn->ckpt_timer_start.tv_sec = 0;
+    conn->ckpt.timer_start.tv_sec = 0;
 
     /*
      * XXX Rolling back the changes here is problematic.
@@ -2033,9 +2033,9 @@ __checkpoint_lock_dirty_tree(
     WT_ERR(__drop(session, NULL, ckptbase, name, strlen(name)));
 
     time_stop = __wt_clock(session);
-    ++S2C(session)->ckpt_drop;
+    ++S2C(session)->ckpt.drop;
     time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-    S2C(session)->ckpt_drop_time += time_diff;
+    S2C(session)->ckpt.drop_time += time_diff;
 
     /* Set the name of the new entry at the end of the list. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -2690,7 +2690,7 @@ __checkpoint_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct times
      * We only want to sleep if the flag is set and the checkpoint comes from the API, so check if
      * the session used is either of the two sessions set aside for internal checkpoints.
      */
-    if (conn->ckpt_session != session && conn->meta_ckpt_session != session &&
+    if (conn->ckpt.session != session && conn->meta_ckpt_session != session &&
       FLD_ISSET(conn->timing_stress_flags, flag))
 #ifdef ENABLE_ANTITHESIS
         WT_UNUSED(tsp);
