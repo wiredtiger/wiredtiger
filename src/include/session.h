@@ -222,9 +222,6 @@ struct __wt_session_impl {
     u_int ckpt_handle_next;       /* Next empty slot */
     size_t ckpt_handle_allocated; /* Bytes allocated */
 
-    /* Checkpoint crash. */
-    u_int ckpt_crash_point; /* Crash point in the middle of checkpoint process */
-
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *ckpt_drop_list;
 
