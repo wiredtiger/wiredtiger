@@ -515,8 +515,7 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
           EXTENT_END(hole));
-        WT_RET(__union_fs_file_read(
-          file_handle, wt_session, hole->off, (size_t)(EXTENT_END(hole) - hole->off), buf));
+        WT_RET(__union_fs_file_read(file_handle, wt_session, hole->off, hole->len, buf));
         hole = hole->next;
     }
 
