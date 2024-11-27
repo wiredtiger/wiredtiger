@@ -774,6 +774,8 @@ struct __wt_page {
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
 
+	/* Back pointer to the ref pointing to this page */
+	WT_REF *ref;
 /*
  * The page's read generation acts as an LRU value for each page in the
  * tree; it is used by the eviction server thread to select pages to be
@@ -800,10 +802,8 @@ struct __wt_page {
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
-
     uint64_t cache_create_gen; /* Page create timestamp */
-	TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
-	WT_EVICT_BUCKET *bucket; /* Bucket containing this page */
+	WT_EVICT_PAGE_DATA evict_data;  /* Data used by eviction */
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3

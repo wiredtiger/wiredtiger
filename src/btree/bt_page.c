@@ -21,7 +21,8 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
  */
 int
 __wt_page_alloc(
-  WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, WT_PAGE **pagep)
+	WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, bool evict_add,
+	WT_PAGE **pagep)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -60,7 +61,6 @@ __wt_page_alloc(
     WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    __wt_evict_page_init(page);
 
     switch (type) {
     case WT_PAGE_COL_FIX:
