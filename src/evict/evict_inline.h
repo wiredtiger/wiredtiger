@@ -312,7 +312,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
               session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
             __wt_cache_decr_check_uint64(
               session, &cache->bytes_dirty_intl, modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
-        } else if (!btree->lsm_primary) {
+        } else {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
             __wt_cache_decr_check_uint64(

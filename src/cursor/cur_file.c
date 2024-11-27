@@ -199,12 +199,11 @@ err:
 }
 
 /*
- * __wt_curfile_next_random --
- *     WT_CURSOR->next method for the btree cursor type when configured with next_random. This is
- *     exported because it is called directly within LSM.
+ * __curfile_next_random --
+ *     WT_CURSOR->next method for the btree cursor type when configured with next_random.
  */
-int
-__wt_curfile_next_random(WT_CURSOR *cursor)
+static int
+__curfile_next_random(WT_CURSOR *cursor)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -599,9 +598,8 @@ err:
     /*
      * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
      * the underlying functions didn't set one up. For various reasons, those functions may not have
-     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve (and in
-     * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
-     * search here.
+     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve. For
+     * simplicity, repeat the search here.
      */
     return (ret == 0 ? cursor->search(cursor) : ret);
 }
@@ -1048,7 +1046,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
               session, ENOTSUP, "next_random configuration not supported for column-store objects");
 
         __wt_cursor_set_notsup(cursor);
-        cursor->next = __wt_curfile_next_random;
+        cursor->next = __curfile_next_random;
         cursor->reset = __curfile_reset;
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));

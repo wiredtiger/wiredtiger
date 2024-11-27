@@ -646,9 +646,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             WT_RET(__wt_curindex_open(session, uri, owner, cfg, cursorp));
         break;
     case 'l':
-        if (WT_PREFIX_MATCH(uri, "lsm:"))
-            WT_RET(__wt_clsm_open(session, uri, owner, cfg, cursorp));
-        else if (WT_PREFIX_MATCH(uri, "log:"))
+        if (WT_PREFIX_MATCH(uri, "log:"))
             WT_RET(__wt_curlog_open(session, uri, cfg, cursorp));
         break;
 
@@ -812,9 +810,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
         uri = to_dup->uri;
         if (!WT_PREFIX_MATCH(uri, "backup:") && !WT_PREFIX_MATCH(uri, "colgroup:") &&
           !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "file:") &&
-          !WT_PREFIX_MATCH(uri, "lsm:") && !WT_PREFIX_MATCH(uri, WT_METADATA_URI) &&
-          !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:") &&
-          __wt_schema_get_source(session, uri) == NULL)
+          !WT_PREFIX_MATCH(uri, WT_METADATA_URI) && !WT_PREFIX_MATCH(uri, "table:") &&
+          !WT_PREFIX_MATCH(uri, "tiered:") && __wt_schema_get_source(session, uri) == NULL)
             WT_ERR(__wt_bad_object_type(session, uri));
     }
 

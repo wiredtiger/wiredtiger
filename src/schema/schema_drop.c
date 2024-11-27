@@ -355,8 +355,6 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
         ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __drop_index(session, uri, force, cfg, check_visibility);
-    else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_drop(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __drop_table(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
