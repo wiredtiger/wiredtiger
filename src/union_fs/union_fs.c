@@ -412,9 +412,6 @@ __union_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, b
     return (0);
 }
 
-static int __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
-  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
-
 /*
  * __union_alloc_extent --
  *     Allocate and populate a new extent with the provided parameters.
@@ -460,11 +457,11 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 }
 
 /*
- * __union_fs_file_lock --
+ * __union_fh_lock --
  *     Lock/unlock a file.
  */
 static int
-__union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
+__union_fh_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
     WT_UNION_FILE_HANDLE *fh;
 
@@ -605,11 +602,11 @@ __union_can_service_read(
 }
 
 /*
- * __union_fs_file_write --
+ * __union_fh_write --
  *     File write.
  */
 static int
-__union_fs_file_write(
+__union_fh_write(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
     WT_SESSION_IMPL *session;
@@ -640,18 +637,17 @@ __read_promote(
 {
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %lu",
       union_fh->iface.name, offset, len);
-    WT_RET(
-      __union_fs_file_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
+    WT_RET(__union_fh_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
 
     return (0);
 }
 
 /*
- * __union_fs_file_read --
+ * __union_fh_read --
  *     File read in a union file system.
  */
 static int
-__union_fs_file_read(
+__union_fh_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
     WT_DECL_RET;
@@ -726,7 +722,7 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
           EXTENT_END(hole));
-        WT_RET(__union_fs_file_read(file_handle, wt_session, hole->off, hole->len, buf));
+        WT_RET(__union_fh_read(file_handle, wt_session, hole->off, hole->len, buf));
         hole = hole->next;
     }
 
@@ -734,11 +730,11 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
 }
 
 /*
- * __union_fs_file_close --
+ * __union_fh_close --
  *     Close the file.
  */
 static int
-__union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__union_fh_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_SESSION_IMPL *session;
     WT_UNION_FILE_HANDLE *union_fh;
@@ -762,11 +758,11 @@ __union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
- * __union_fs_file_size --
+ * __union_fh_size --
  *     Get the size of a file in bytes, by file handle.
  */
 static int
-__union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
+__union_fh_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
     WT_UNION_FILE_HANDLE *fh;
     wt_off_t destination_size;
@@ -779,11 +775,11 @@ __union_fs_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off
 }
 
 /*
- * __union_fs_file_sync --
+ * __union_fh_sync --
  *     POSIX fsync. This only sync the destination as the source is readonly.
  */
 static int
-__union_fs_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__union_fh_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_UNION_FILE_HANDLE *fh;
 
@@ -792,11 +788,11 @@ __union_fs_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
- * __union_fs_file_truncate --
+ * __union_fh_truncate --
  *     Truncate a file. This operation is only applied to the destination file.
  */
 static int
-__union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
+__union_fh_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
     WT_UNION_FILE_HANDLE *fh;
     wt_off_t old_len, truncate_start, truncate_end;
@@ -807,7 +803,7 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
      * If we truncate a range we'll never need to read that range from the source file. Mark it as
      * such.
      */
-    __union_fs_file_size(file_handle, wt_session, &old_len);
+    __union_fh_size(file_handle, wt_session, &old_len);
 
     if (old_len == len)
         /* Sometimes we call truncate but don't change the length. Ignore */
@@ -878,7 +874,7 @@ __union_fh_find_holes_in_dest_file(
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
-    WT_ERR(__union_fs_file_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size));
+    WT_ERR(__union_fh_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
@@ -1034,13 +1030,13 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     }
 
     /* Initialize the jump table. */
-    union_fh->iface.close = __union_fs_file_close;
-    union_fh->iface.fh_lock = __union_fs_file_lock;
-    union_fh->iface.fh_read = __union_fs_file_read;
-    union_fh->iface.fh_size = __union_fs_file_size;
-    union_fh->iface.fh_sync = __union_fs_file_sync;
-    union_fh->iface.fh_truncate = __union_fs_file_truncate;
-    union_fh->iface.fh_write = __union_fs_file_write;
+    union_fh->iface.close = __union_fh_close;
+    union_fh->iface.fh_lock = __union_fh_lock;
+    union_fh->iface.fh_read = __union_fh_read;
+    union_fh->iface.fh_size = __union_fh_size;
+    union_fh->iface.fh_sync = __union_fh_sync;
+    union_fh->iface.fh_truncate = __union_fh_truncate;
+    union_fh->iface.fh_write = __union_fh_write;
 
     /* TODO: These are unimplemented. */
     union_fh->iface.fh_advise = NULL;
@@ -1057,7 +1053,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     if (0) {
 err:
         if (union_fh != NULL)
-            __union_fs_file_close((WT_FILE_HANDLE *)union_fh, wt_session);
+            __union_fh_close((WT_FILE_HANDLE *)union_fh, wt_session);
     }
     return (ret);
 }
