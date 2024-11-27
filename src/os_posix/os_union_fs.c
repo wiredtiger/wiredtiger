@@ -750,7 +750,6 @@ __union_fs_file_read(
     WT_SESSION_IMPL *session;
     WT_UNION_FILE_HANDLE *union_fh;
     char *read_data;
-    bool can_service_read;
 
     union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
@@ -760,14 +759,13 @@ __union_fs_file_read(
 
     read_data = (char *)buf;
 
-    can_service_read = __union_can_service_read(union_fh, session, offset, len);
-
     /*
      * TODO: WiredTiger will read the metadata file after creation but before anything has been
      * written in this case we forward the read to the empty metadata file in the destination. Is
      * this correct?
      */
-    if (union_fh->destination.complete || union_fh->source == NULL || can_service_read) {
+    if (union_fh->destination.complete || union_fh->source == NULL ||
+      __union_can_service_read(union_fh, session, offset, len)) {
         /*
          * TODO: Right now if complete is true source will always be null. So the if statement here
          * has redundancy is there a time when we need it? Maybe with the background thread.
