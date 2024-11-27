@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -58,3 +58,11 @@ struct __wt_union_file_handle {
 
     WT_FS_OPEN_FILE_TYPE file_type;
 };
+
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+#ifdef HAVE_UNITTEST
+
+#endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */

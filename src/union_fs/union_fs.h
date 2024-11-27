@@ -1,14 +1,12 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
 #pragma once
-
-#include "os.h"
 
 typedef enum { WT_UNION_FS_LAYER_DESTINATION, WT_UNION_FS_LAYER_SOURCE } WT_UNION_FS_LAYER_TYPE;
 
@@ -31,3 +29,16 @@ struct __wt_union_fs {
     WT_UNION_FS_LAYER destination;
     WT_UNION_FS_LAYER source;
 };
+
+#pragma once
+
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
+extern int __wt_os_union_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
+  const char *destination, WT_FILE_SYSTEM **fsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+
+#ifdef HAVE_UNITTEST
+
+#endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */
