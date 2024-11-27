@@ -29,16 +29,16 @@
 import os, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin
 
-# test_oligarch11.py
+# test_layered11.py
 #    Create an artificial delay in materializing pages from the page service.
-class test_oligarch11(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 5000
-    uri_base = "test_oligarch11"
-    conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    uri_base = "test_layered11"
+    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader"),'
 
-    uri = "oligarch:" + uri_base
+    uri = "layered:" + uri_base
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -54,11 +54,11 @@ class test_oligarch11(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
-    # Test inserting a record into an oligarch tree
-    def test_oligarch11(self):
+    # Test inserting a record into a layered tree
+    def test_layered11(self):
         base_create = 'key_format=S,value_format=S'
 
-        self.pr("create oligarch tree")
+        self.pr("create layered tree")
         self.session.create(self.uri, base_create)
 
         with self.expectedStdoutPattern('retry', maxchars=100000):

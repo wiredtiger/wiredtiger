@@ -1322,12 +1322,12 @@ err:
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY, NULL));
 
     /*
-     * Shut down the oligarch manager thread, ideally this would be taken care of in connection
+     * Shut down the layered table manager thread, ideally this would be taken care of in connection
      * close below, but it needs to precede global transaction state shutdown, so do it here as
      * well. It also needs to happen prior to draining transaction activity - since the manager
      * artificially pins transaction state to allow for garbage collection in ingest tables.
      */
-    WT_TRET(__wt_oligarch_manager_destroy(session, true));
+    WT_TRET(__wt_layered_table_manager_destroy(session, true));
 
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
@@ -2414,14 +2414,15 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"configuration", WT_VERB_CONFIGURATION}, {"error_returns", WT_VERB_ERROR_RETURNS},
       {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
       {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
-      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
-      {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
-      {"lsm", WT_VERB_LSM}, {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"oligarch", WT_VERB_OLIGARCH},
-      {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
-      {"prefetch", WT_VERB_PREFETCH}, {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE},
-      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS},
+      {"layered", WT_VERB_LAYERED}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
+      {"mutex", WT_VERB_MUTEX}, {"out_of_order", WT_VERB_OUT_OF_ORDER},
+      {"overflow", WT_VERB_OVERFLOW}, {"prefetch", WT_VERB_PREFETCH}, {"read", WT_VERB_READ},
+      {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
+      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
+      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
@@ -3302,7 +3303,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * we may need the log path and encryption and compression settings.
      */
     WT_ERR(__wti_logmgr_config(session, cfg, false));
-    WT_ERR(__wt_oligarch_logmgr_config(session, cfg, false));
+    WT_ERR(__wt_layered_table_logmgr_config(session, cfg, false));
     WT_ERR(__conn_version_verify(session));
 
     /*

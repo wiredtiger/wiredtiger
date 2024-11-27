@@ -1098,7 +1098,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     if (table->is_simple) {
         /*
          * Just return a cursor on the underlying data source. Still pass in the owner - sometimes
-         * internal access methods like oligarch create sub-tables.
+         * internal access methods (like layered tables) create sub-tables.
          */
         ret = __wt_open_cursor(session, table->cgroups[0]->source, owner, cfg, cursorp);
 

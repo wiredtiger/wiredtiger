@@ -30,16 +30,15 @@ import os, time, wiredtiger, wttest
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-# test_oligarch05.py
-#    Add enough content to trigger a checkpoint in the stable table.
-class test_oligarch05(wttest.WiredTigerTestCase):
-    nitems = 100000
-    uri_base = "test_oligarch05"
-    base_conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    conn_config = base_conn_config + 'disaggregated=(role="leader"),'
+# test_layered03.py
+#    Basic layered tree cursor insert and read
+class test_layered03(wttest.WiredTigerTestCase):
 
-    uri = "oligarch:" + uri_base
+    uri_base = "test_layered03"
+    conn_config = 'layered_table_log=(enabled),verbose=[layered],disaggregated=(role="leader"),' \
+                + 'disaggregated=(stable_prefix=.,page_log=palm),'
+
+    uri = "layered:" + uri_base
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -47,35 +46,41 @@ class test_oligarch05(wttest.WiredTigerTestCase):
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm')
 
-    # Test records into an oligarch tree and restarting
-    def test_oligarch05(self):
+    # Test inserting a record into a layered tree
+    def test_layered03(self):
         base_create = 'key_format=S,value_format=S'
 
-        self.pr("create oligarch tree")
+        self.pr("create layered tree")
         self.session.create(self.uri, base_create)
 
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-            cursor["Hi " + str(i)] = "There"
-            cursor["OK " + str(i)] = "Go"
-            if i % 10000 == 0:
-                time.sleep(1)
+        self.pr('Inserting a value')
+        cursor["Hello"] = "World"
+        cursor["Hi"] = "There"
+        cursor["OK"] = "Go"
+
+        cursor.set_key("Hello")
+        cursor.search()
+        value = cursor.get_value()
+        value = cursor["Hello"]
+        self.pr("Search retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
         cursor.reset()
-
-        self.pr('opening cursor')
-        cursor.close()
-        time.sleep(1)
-
-        self.reopen_conn(config=self.base_conn_config + 'disaggregated=(role="follower")')
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        item_count = 0
         while cursor.next() == 0:
-            item_count += 1
+            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
-        self.assertEqual(item_count, self.nitems * 3)
+        cursor.reset()
+        while cursor.prev() == 0:
+            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+
+        self.pr('closing cursor')
+        time.sleep(0.5)
         cursor.close()
+
+        self.pr('closing cursor')
+        cursor = self.session.open_cursor(self.uri, None, None)
+        while cursor.next() == 0:
+            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+

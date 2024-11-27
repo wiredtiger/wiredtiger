@@ -31,10 +31,10 @@ import wiredtiger
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_oligarch09.py
+# test_layered09.py
 # Simple read write testing for leaf page delta
 
-class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
@@ -46,13 +46,13 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     uris = [
-        ('oligarch', dict(uri='oligarch:test_oligarch09')),
-        ('btree', dict(uri='file:test_oligarch09')),
+        ('layered', dict(uri='layered:test_layered09')),
+        ('btree', dict(uri='file:test_layered09')),
     ]
 
-    conn_base_config = 'oligarch_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'layered_table_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_oligarch09', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered09', disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
@@ -64,7 +64,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # deltas a lot of the time.
         cfg = 'disaggregated=(delta_pct=20),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg,oligarch_log=(enabled=false)'
+            cfg += ',block_manager=disagg,layered_table_log=(enabled=false)'
         return cfg
 
     def conn_config(self):
@@ -77,7 +77,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_oligarch_read_write(self):
+    def test_layered_read_write(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -90,7 +90,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -101,7 +101,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -118,7 +118,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEquals(cursor[str(i)], value1)
 
-    def test_oligarch_read_modify(self):
+    def test_layered_read_modify(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -131,7 +131,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -146,7 +146,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -163,7 +163,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEquals(cursor[str(i)], value1)
 
-    def test_oligarch_read_delete(self):
+    def test_layered_read_delete(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -175,7 +175,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -187,7 +187,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -205,7 +205,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEquals(cursor[str(i)], value1)
 
-    def test_oligarch_read_insert(self):
+    def test_layered_read_insert(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -217,7 +217,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -227,7 +227,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -241,7 +241,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             self.assertEquals(cursor[str(i)], value1)
 
-    def test_oligarch_read_multiple_delta(self):
+    def test_layered_read_multiple_delta(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -261,7 +261,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -272,7 +272,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -291,7 +291,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEquals(cursor[str(i)], value1)
 
-    def test_oligarch_multiple_updates_delta(self):
+    def test_layered_multiple_updates_delta(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -305,7 +305,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -320,7 +320,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -339,7 +339,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEquals(cursor[str(i)], value1)
 
-    def test_oligarch_read_delete_insert(self):
+    def test_layered_read_delete_insert(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -359,7 +359,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()
@@ -370,7 +370,7 @@ class test_oligarch09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
-        # oligarch watcher implementation
+        # layered table watcher implementation
         import time
         time.sleep(1.0)
         self.session.checkpoint()

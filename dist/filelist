@@ -89,9 +89,9 @@ src/conn/conn_ckpt.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
+src/conn/conn_layered_table_log.c
+src/conn/conn_layered.c
 src/conn/conn_log.c
-src/conn/conn_oligarch_log.c
-src/conn/conn_oligarch.c
 src/conn/conn_open.c
 src/conn/conn_prefetch.c
 src/conn/conn_reconfig.c
@@ -109,9 +109,9 @@ src/cursor/cur_hs.c
 src/cursor/cur_index.c
 src/cursor/cur_join.c
 src/cursor/cur_json.c
+src/cursor/cur_layered.c
 src/cursor/cur_log.c
 src/cursor/cur_metadata.c
-src/cursor/cur_oligarch.c
 src/cursor/cur_stat.c
 src/cursor/cur_std.c
 src/cursor/cur_table.c
@@ -124,6 +124,10 @@ src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
 src/history/hs_verify.c
+src/layered_table_log/layered_table_log.c
+src/layered_table_log/layered_table_log_auto.c
+src/layered_table_log/layered_table_log_slot.c
+src/layered_table_log/layered_table_log_sys.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c
@@ -143,10 +147,6 @@ src/meta/meta_ext.c
 src/meta/meta_table.c
 src/meta/meta_track.c
 src/meta/meta_turtle.c
-src/oligarch_log/oligarch_log.c
-src/oligarch_log/oligarch_log_auto.c
-src/oligarch_log/oligarch_log_slot.c
-src/oligarch_log/oligarch_log_sys.c
 src/optrack/optrack.c
 src/os_common/filename.c
 src/os_common/os_abort.c
@@ -250,7 +250,7 @@ src/tiered/tiered_handle.c
 src/tiered/tiered_work.c
 src/txn/txn.c
 src/txn/txn_ckpt.c
+src/txn/txn_layered_table_log.c
 src/txn/txn_log.c
-src/txn/txn_oligarch_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c

@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __txn_op_oligarch_log_row_key_check --
+ * __txn_op_layered_table_log_row_key_check --
  *     Confirm the cursor references the correct key.
  */
 static void
-__txn_op_oligarch_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__txn_op_layered_table_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_ITEM key;
@@ -56,11 +56,11 @@ __txn_op_oligarch_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *c
 }
 
 /*
- * __txn_op_oligarch_log --
+ * __txn_op_layered_table_log --
  *     Log an operation for the current transaction.
  */
 static int
-__txn_op_oligarch_log(
+__txn_op_layered_table_log(
   WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt, uint32_t fileid)
 {
     WT_CURSOR *cursor;
@@ -79,7 +79,7 @@ __txn_op_oligarch_log(
      */
     if (CUR2BT(cbt)->type == BTREE_ROW) {
         if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATE))
-            __txn_op_oligarch_log_row_key_check(session, cbt);
+            __txn_op_layered_table_log_row_key_check(session, cbt);
 
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
@@ -89,17 +89,18 @@ __txn_op_oligarch_log(
              * rely on the cursor value already having the modify applied.
              */
             if (__wt_modify_idempotent(upd->data))
-                WT_RET(__wt_oligarch_logop_row_modify_pack(
+                WT_RET(__wt_layered_table_logop_row_modify_pack(
                   session, logrec, fileid, &cursor->key, &value));
             else
-                WT_RET(__wt_oligarch_logop_row_put_pack(
+                WT_RET(__wt_layered_table_logop_row_put_pack(
                   session, logrec, fileid, &cursor->key, &cursor->value));
             break;
         case WT_UPDATE_STANDARD:
-            WT_RET(__wt_oligarch_logop_row_put_pack(session, logrec, fileid, &cursor->key, &value));
+            WT_RET(
+              __wt_layered_table_logop_row_put_pack(session, logrec, fileid, &cursor->key, &value));
             break;
         case WT_UPDATE_TOMBSTONE:
-            WT_RET(__wt_oligarch_logop_row_remove_pack(session, logrec, fileid, &cursor->key));
+            WT_RET(__wt_layered_table_logop_row_remove_pack(session, logrec, fileid, &cursor->key));
             break;
         default:
             return (__wt_illegal_value(session, upd->type));
@@ -111,16 +112,17 @@ __txn_op_oligarch_log(
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
             if (__wt_modify_idempotent(upd->data))
-                WT_RET(__wt_oligarch_logop_col_modify_pack(session, logrec, fileid, recno, &value));
-            else
                 WT_RET(
-                  __wt_oligarch_logop_col_put_pack(session, logrec, fileid, recno, &cursor->value));
+                  __wt_layered_table_logop_col_modify_pack(session, logrec, fileid, recno, &value));
+            else
+                WT_RET(__wt_layered_table_logop_col_put_pack(
+                  session, logrec, fileid, recno, &cursor->value));
             break;
         case WT_UPDATE_STANDARD:
-            WT_RET(__wt_oligarch_logop_col_put_pack(session, logrec, fileid, recno, &value));
+            WT_RET(__wt_layered_table_logop_col_put_pack(session, logrec, fileid, recno, &value));
             break;
         case WT_UPDATE_TOMBSTONE:
-            WT_RET(__wt_oligarch_logop_col_remove_pack(session, logrec, fileid, recno));
+            WT_RET(__wt_layered_table_logop_col_remove_pack(session, logrec, fileid, recno));
             break;
         default:
             return (__wt_illegal_value(session, upd->type));
@@ -131,11 +133,11 @@ __txn_op_oligarch_log(
 }
 
 /*
- * __txn_oligarch_oplist_printlog --
+ * __txn_layered_table_oplist_printlog --
  *     Print a list of operations from a log record.
  */
 static int
-__txn_oligarch_oplist_printlog(
+__txn_layered_table_oplist_printlog(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
     bool firstrecord;
@@ -151,7 +153,7 @@ __txn_oligarch_oplist_printlog(
 
         firstrecord = false;
 
-        WT_RET(__wt_txn_oligarch_op_printlog(session, pp, end, args));
+        WT_RET(__wt_txn_layered_table_op_printlog(session, pp, end, args));
         WT_RET(__wt_fprintf(session, args->fs, "\n      }"));
     }
 
@@ -161,11 +163,11 @@ __txn_oligarch_oplist_printlog(
 }
 
 /*
- * __wt_txn_oligarch_op_free --
+ * __wt_txn_layered_table_op_free --
  *     Free memory associated with a transactional operation.
  */
 void
-__wt_txn_oligarch_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__wt_txn_layered_table_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     switch (op->type) {
     case WT_TXN_OP_NONE:
@@ -198,11 +200,11 @@ __wt_txn_oligarch_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __txn_oligarch_logrec_init --
+ * __txn_layered_table_logrec_init --
  *     Allocate and initialize a buffer for a transaction's log records.
  */
 static int
-__txn_oligarch_logrec_init(WT_SESSION_IMPL *session)
+__txn_layered_table_logrec_init(WT_SESSION_IMPL *session)
 {
     WT_DECL_ITEM(logrec);
     WT_DECL_RET;
@@ -215,7 +217,7 @@ __txn_oligarch_logrec_init(WT_SESSION_IMPL *session)
     rectype = WT_LOGREC_COMMIT;
     fmt = WT_UNCHECKED_STRING(Iq);
 
-    if (txn->txn_oligarch_log.logrec != NULL) {
+    if (txn->txn_layered_table_log.logrec != NULL) {
         WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_ID));
         return (0);
     }
@@ -230,26 +232,26 @@ __txn_oligarch_logrec_init(WT_SESSION_IMPL *session)
         WT_ASSERT(session, txn->id != WT_TXN_NONE);
 
     WT_RET(__wt_struct_size(session, &header_size, fmt, rectype, txn->id));
-    WT_RET(__wt_oligarch_logrec_alloc(session, header_size, &logrec));
+    WT_RET(__wt_layered_table_logrec_alloc(session, header_size, &logrec));
 
     WT_ERR(__wt_struct_pack(
       session, (uint8_t *)logrec->data + logrec->size, header_size, fmt, rectype, txn->id));
     logrec->size += (uint32_t)header_size;
-    txn->txn_oligarch_log.logrec = logrec;
+    txn->txn_layered_table_log.logrec = logrec;
 
     if (0) {
 err:
-        __wt_oligarch_logrec_free(session, &logrec);
+        __wt_layered_table_logrec_free(session, &logrec);
     }
     return (ret);
 }
 
 /*
- * __wt_txn_oligarch_log_op --
+ * __wt_txn_layered_table_log_op --
  *     Write the last logged operation into the in-memory buffer.
  */
 int
-__wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__wt_txn_layered_table_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
     WT_DECL_RET;
     WT_ITEM *logrec;
@@ -266,11 +268,11 @@ __wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
 
-    if (!F_ISSET(S2BT(session), WT_BTREE_OLIGARCH_LOGGED))
+    if (!F_ISSET(S2BT(session), WT_BTREE_LAYERED_TABLE_LOGGED))
         FLD_SET(fileid, WT_LOGOP_IGNORE);
 
-    WT_RET(__txn_oligarch_logrec_init(session));
-    logrec = txn->txn_oligarch_log.logrec;
+    WT_RET(__txn_layered_table_logrec_init(session));
+    logrec = txn->txn_layered_table_log.logrec;
 
     switch (op->type) {
     case WT_TXN_OP_NONE:
@@ -281,14 +283,14 @@ __wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
         break;
     case WT_TXN_OP_BASIC_COL:
     case WT_TXN_OP_BASIC_ROW:
-        ret = __txn_op_oligarch_log(session, logrec, op, cbt, fileid);
+        ret = __txn_op_layered_table_log(session, logrec, op, cbt, fileid);
         break;
     case WT_TXN_OP_TRUNCATE_COL:
-        ret = __wt_oligarch_logop_col_truncate_pack(
+        ret = __wt_layered_table_logop_col_truncate_pack(
           session, logrec, fileid, op->u.truncate_col.start, op->u.truncate_col.stop);
         break;
     case WT_TXN_OP_TRUNCATE_ROW:
-        ret = __wt_oligarch_logop_row_truncate_pack(session, logrec, fileid,
+        ret = __wt_layered_table_logop_row_truncate_pack(session, logrec, fileid,
           &op->u.truncate_row.start, &op->u.truncate_row.stop, (uint32_t)op->u.truncate_row.mode);
         break;
     }
@@ -296,11 +298,11 @@ __wt_txn_oligarch_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_txn_oligarch_log_commit --
+ * __wt_txn_layered_table_log_commit --
  *     Write the operations of a transaction to the log at commit time.
  */
 int
-__wt_txn_oligarch_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_layered_table_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_TXN *txn;
 
@@ -309,20 +311,20 @@ __wt_txn_oligarch_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * If there are no log records there is nothing to do.
      */
-    if (txn->txn_oligarch_log.logrec == NULL)
+    if (txn->txn_layered_table_log.logrec == NULL)
         return (0);
 
     /* Write updates to the log. */
-    return (__wt_oligarch_log_write(
-      session, txn->txn_oligarch_log.logrec, NULL, txn->txn_oligarch_log.txn_logsync));
+    return (__wt_layered_table_log_write(
+      session, txn->txn_layered_table_log.logrec, NULL, txn->txn_layered_table_log.txn_logsync));
 }
 
 /*
- * __txn_oligarch_log_file_sync --
+ * __txn_layered_table_log_file_sync --
  *     Write a log record for a file sync.
  */
 static int
-__txn_oligarch_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
+__txn_layered_table_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(logrec);
@@ -339,24 +341,24 @@ __txn_oligarch_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *l
     need_sync = LF_ISSET(WT_TXN_LOG_CKPT_SYNC);
 
     WT_RET(__wt_struct_size(session, &header_size, fmt, rectype, btree->id, start));
-    WT_RET(__wt_oligarch_logrec_alloc(session, header_size, &logrec));
+    WT_RET(__wt_layered_table_logrec_alloc(session, header_size, &logrec));
 
     WT_ERR(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, header_size, fmt,
       rectype, btree->id, start));
     logrec->size += (uint32_t)header_size;
 
-    WT_ERR(__wt_oligarch_log_write(session, logrec, lsnp, need_sync ? WT_LOG_FSYNC : 0));
+    WT_ERR(__wt_layered_table_log_write(session, logrec, lsnp, need_sync ? WT_LOG_FSYNC : 0));
 err:
-    __wt_oligarch_logrec_free(session, &logrec);
+    __wt_layered_table_logrec_free(session, &logrec);
     return (ret);
 }
 
 /*
- * __wt_txn_checkpoint_oligarch_logread --
+ * __wt_txn_checkpoint_layered_table_logread --
  *     Read a log record for a checkpoint operation.
  */
 int
-__wt_txn_checkpoint_oligarch_logread(
+__wt_txn_checkpoint_layered_table_logread(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *ckpt_lsn)
 {
     WT_DECL_RET;
@@ -376,11 +378,11 @@ __wt_txn_checkpoint_oligarch_logread(
 }
 
 /*
- * __wt_txn_ts_oligarch_log --
+ * __wt_txn_ts_layered_table_log --
  *     Write a log record recording timestamps in the transaction.
  */
 int
-__wt_txn_ts_oligarch_log(WT_SESSION_IMPL *session)
+__wt_txn_ts_layered_table_log(WT_SESSION_IMPL *session)
 {
     struct timespec t;
     WT_ITEM *logrec;
@@ -402,8 +404,8 @@ __wt_txn_ts_oligarch_log(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE) && txn->mod_count == 0)
         return (0);
 
-    WT_RET(__txn_oligarch_logrec_init(session));
-    logrec = txn->txn_oligarch_log.logrec;
+    WT_RET(__txn_layered_table_logrec_init(session));
+    logrec = txn->txn_layered_table_log.logrec;
     commit = durable = first_commit = prepare = read = WT_TS_NONE;
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
         commit = txn->commit_timestamp;
@@ -417,16 +419,17 @@ __wt_txn_ts_oligarch_log(WT_SESSION_IMPL *session)
         read = txn_shared->read_timestamp;
 
     __wt_epoch(session, &t);
-    return (__wt_oligarch_logop_txn_timestamp_pack(session, logrec, (uint64_t)t.tv_sec,
+    return (__wt_layered_table_logop_txn_timestamp_pack(session, logrec, (uint64_t)t.tv_sec,
       (uint64_t)t.tv_nsec, commit, durable, first_commit, prepare, read));
 }
 
 /*
- * __wt_txn_checkpoint_oligarch_log --
+ * __wt_txn_checkpoint_layered_table_log --
  *     Write a log record for a checkpoint operation.
  */
 int
-__wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN *lsnp)
+__wt_txn_checkpoint_layered_table_log(
+  WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN *lsnp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(logrec);
@@ -454,7 +457,7 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
                 WT_ASSIGN_LSN(lsnp, ckpt_lsn);
             return (0);
         }
-        return (__txn_oligarch_log_file_sync(session, flags, lsnp));
+        return (__txn_layered_table_log_file_sync(session, flags, lsnp));
     }
 
     switch (flags) {
@@ -468,16 +471,16 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
             rectype = WT_LOGREC_SYSTEM;
             fmt = WT_UNCHECKED_STRING(I);
             WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
-            WT_ERR(__wt_oligarch_logrec_alloc(session, recsize, &logrec));
+            WT_ERR(__wt_layered_table_logrec_alloc(session, recsize, &logrec));
 
             WT_ERR(__wt_struct_pack(
               session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype));
             logrec->size += (uint32_t)recsize;
-            WT_ERR(__wt_oligarch_logop_checkpoint_start_pack(session, logrec));
-            WT_ERR(__wt_oligarch_log_write(session, logrec, ckpt_lsn, 0));
+            WT_ERR(__wt_layered_table_logop_checkpoint_start_pack(session, logrec));
+            WT_ERR(__wt_layered_table_log_write(session, logrec, ckpt_lsn, 0));
         } else {
-            WT_ERR(__wt_oligarch_log_printf(session, "CHECKPOINT: Starting record"));
-            WT_ERR(__wt_oligarch_log_flush_lsn(session, ckpt_lsn, true));
+            WT_ERR(__wt_layered_table_log_printf(session, "CHECKPOINT: Starting record"));
+            WT_ERR(__wt_layered_table_log_flush_lsn(session, ckpt_lsn, true));
         }
 
         /*
@@ -492,7 +495,7 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
          * We need to make sure that the log records in the checkpoint LSN are on disk. In
          * particular to make sure that the current log file exists.
          */
-        WT_ERR(__wt_oligarch_log_force_sync(session, ckpt_lsn));
+        WT_ERR(__wt_layered_table_log_force_sync(session, ckpt_lsn));
         break;
     case WT_TXN_LOG_CKPT_START:
         /* Take a copy of the transaction snapshot. */
@@ -516,7 +519,7 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
             txn->ckpt_nsnapshot = 0;
             WT_CLEAR(empty);
             ckpt_snapshot = &empty;
-            WT_ERR(__wt_oligarch_log_flush_lsn(session, ckpt_lsn, true));
+            WT_ERR(__wt_layered_table_log_flush_lsn(session, ckpt_lsn, true));
         } else
             ckpt_snapshot = txn->ckpt_snapshot;
 
@@ -524,14 +527,14 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
         rectype = WT_LOGREC_CHECKPOINT;
         fmt = WT_UNCHECKED_STRING(IIIIu);
         WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype, ckpt_lsn->l.file,
-          __wt_oligarch_lsn_offset(ckpt_lsn), txn->ckpt_nsnapshot, ckpt_snapshot));
-        WT_ERR(__wt_oligarch_logrec_alloc(session, recsize, &logrec));
+          __wt_layered_table_lsn_offset(ckpt_lsn), txn->ckpt_nsnapshot, ckpt_snapshot));
+        WT_ERR(__wt_layered_table_logrec_alloc(session, recsize, &logrec));
 
         WT_ERR(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt,
-          rectype, ckpt_lsn->l.file, __wt_oligarch_lsn_offset(ckpt_lsn), txn->ckpt_nsnapshot,
+          rectype, ckpt_lsn->l.file, __wt_layered_table_lsn_offset(ckpt_lsn), txn->ckpt_nsnapshot,
           ckpt_snapshot));
         logrec->size += (uint32_t)recsize;
-        WT_ERR(__wt_oligarch_log_write(
+        WT_ERR(__wt_layered_table_log_write(
           session, logrec, lsnp, F_ISSET(conn, WT_CONN_CKPT_SYNC) ? WT_LOG_FSYNC : 0));
 
         /*
@@ -545,7 +548,7 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
           (!FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
             FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
-            __wt_oligarch_log_ckpt(session, ckpt_lsn);
+            __wt_layered_table_log_ckpt(session, ckpt_lsn);
         /* FALLTHROUGH */
     case WT_TXN_LOG_CKPT_CLEANUP:
         /* Cleanup any allocated resources */
@@ -559,17 +562,17 @@ __wt_txn_checkpoint_oligarch_log(WT_SESSION_IMPL *session, bool full, uint32_t f
     }
 
 err:
-    __wt_oligarch_logrec_free(session, &logrec);
+    __wt_layered_table_logrec_free(session, &logrec);
     return (ret);
 }
 
 /*
- * __txn_oligarch_printlog --
+ * __txn_layered_table_printlog --
  *     Print a log record in a human-readable format.
  */
 static int
-__txn_oligarch_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
-  void *cookie, int firstrecord)
+__txn_layered_table_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp,
+  WT_LSN *next_lsnp, void *cookie, int firstrecord)
 {
     WT_LOG_RECORD *logrec;
     WT_TXN_PRINTLOG_ARGS *args;
@@ -589,7 +592,7 @@ __txn_oligarch_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp,
     compressed = F_ISSET(logrec, WT_LOG_RECORD_COMPRESSED);
 
     /* First, peek at the log record type. */
-    WT_RET(__wt_oligarch_logrec_read(session, &p, end, &rectype));
+    WT_RET(__wt_layered_table_logrec_read(session, &p, end, &rectype));
 
     /*
      * When printing just the message records, display the message by itself without the usual log
@@ -606,7 +609,7 @@ __txn_oligarch_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp,
         WT_RET(__wt_fprintf(session, args->fs, ",\n"));
 
     WT_RET(__wt_fprintf(session, args->fs, "  { \"lsn\" : [%" PRIu32 ",%" PRIu32 "],\n",
-      lsnp->l.file, __wt_oligarch_lsn_offset(lsnp)));
+      lsnp->l.file, __wt_layered_table_lsn_offset(lsnp)));
     WT_RET(__wt_fprintf(
       session, args->fs, "    \"hdr_flags\" : \"%s\",\n", compressed ? "compressed" : ""));
     WT_RET(__wt_fprintf(session, args->fs, "    \"rec_len\" : %" PRIu32 ",\n", logrec->len));
@@ -626,7 +629,7 @@ __txn_oligarch_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp,
         WT_RET(__wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid));
         WT_RET(__wt_fprintf(session, args->fs, "    \"type\" : \"commit\",\n"));
         WT_RET(__wt_fprintf(session, args->fs, "    \"txnid\" : %" PRIu64 ",\n", txnid));
-        WT_RET(__txn_oligarch_oplist_printlog(session, &p, end, args));
+        WT_RET(__txn_layered_table_oplist_printlog(session, &p, end, args));
         break;
 
     case WT_LOGREC_FILE_SYNC:
@@ -647,7 +650,7 @@ __txn_oligarch_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp,
         WT_RET(__wt_struct_unpack(
           session, p, WT_PTRDIFF(end, p), WT_UNCHECKED_STRING(II), &lsnfile, &lsnoffset));
         WT_RET(__wt_fprintf(session, args->fs, "    \"type\" : \"system\",\n"));
-        WT_RET(__txn_oligarch_oplist_printlog(session, &p, end, args));
+        WT_RET(__txn_layered_table_oplist_printlog(session, &p, end, args));
         break;
     }
 
@@ -657,11 +660,11 @@ __txn_oligarch_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp,
 }
 
 /*
- * __wt_txn_oligarch_printlog --
+ * __wt_txn_layered_table_printlog --
  *     Print the log in a human-readable format.
  */
 int
-__wt_txn_oligarch_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags,
+__wt_txn_layered_table_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags,
   WT_LSN *start_lsn, WT_LSN *end_lsn) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_DECL_RET;
@@ -680,8 +683,8 @@ __wt_txn_oligarch_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t f
         WT_ERR(__wt_fprintf(session, fs, "[\n"));
     args.fs = fs;
     args.flags = flags;
-    WT_ERR(
-      __wt_oligarch_log_scan(session, start_lsn, end_lsn, 0x0, __txn_oligarch_printlog, &args));
+    WT_ERR(__wt_layered_table_log_scan(
+      session, start_lsn, end_lsn, 0x0, __txn_layered_table_printlog, &args));
     if (!LF_ISSET(WT_TXN_PRINTLOG_MSG))
         ret = __wt_fprintf(session, fs, "\n]\n");
 

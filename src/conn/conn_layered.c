@@ -9,25 +9,25 @@
 #include "wt_internal.h"
 
 /*
- * __oligarch_create_missing_ingest_table --
- *     Create a missing ingest table from an existing oligarch configuration.
+ * __layered_create_missing_ingest_table --
+ *     Create a missing ingest table from an existing layered table configuration.
  */
 static int
-__oligarch_create_missing_ingest_table(
-  WT_SESSION_IMPL *session, const char *uri, const char *oligarch_cfg)
+__layered_create_missing_ingest_table(
+  WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
 {
     WT_CONFIG_ITEM key_format, value_format;
     WT_DECL_ITEM(ingest_config);
     WT_DECL_RET;
 
-    WT_ERR(__wt_config_getones(session, oligarch_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, oligarch_cfg, "value_format", &value_format));
+    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
+    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
 
-    /* TODO Refactor this with __create_oligarch? */
+    /* TODO Refactor this with __create_layered? */
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
     WT_ERR(__wt_buf_fmt(session, ingest_config,
       "key_format=\"%.*s\",value_format=\"%.*s\","
-      "oligarch_log=(enabled=true,oligarch_constituent=true),in_memory=true,"
+      "layered_table_log=(enabled=true,layered_constituent=true),in_memory=true,"
       "disaggregated=(page_log=none,storage_source=none)",
       (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
 
@@ -53,7 +53,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
-    char *buf, *cfg_ret, *metadata_value_cfg, *oligarch_ingest_uri;
+    char *buf, *cfg_ret, *metadata_value_cfg, *layered_ingest_uri;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
@@ -65,7 +65,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     metadata_key = NULL;
     metadata_value = NULL;
     metadata_value_cfg = NULL;
-    oligarch_ingest_uri = NULL;
+    layered_ingest_uri = NULL;
     shared_metadata_session = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
@@ -181,17 +181,17 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
             /* TODO: Verify that there is no btree ID conflict. */
 
             /* Create the corresponding ingest table, if it does not exist. */
-            if (WT_PREFIX_MATCH(metadata_key, "oligarch:")) {
+            if (WT_PREFIX_MATCH(metadata_key, "layered:")) {
                 WT_ERR(__wt_config_getones(session, metadata_value, "ingest", &cval));
                 if (cval.len > 0) {
-                    WT_ERR(__wt_calloc_def(session, cval.len + 1, &oligarch_ingest_uri));
-                    memcpy(oligarch_ingest_uri, cval.str, cval.len);
-                    oligarch_ingest_uri[cval.len] = '\0';
-                    md_cursor->set_key(md_cursor, oligarch_ingest_uri);
+                    WT_ERR(__wt_calloc_def(session, cval.len + 1, &layered_ingest_uri));
+                    memcpy(layered_ingest_uri, cval.str, cval.len);
+                    layered_ingest_uri[cval.len] = '\0';
+                    md_cursor->set_key(md_cursor, layered_ingest_uri);
                     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
                     if (ret == WT_NOTFOUND)
-                        WT_ERR(__oligarch_create_missing_ingest_table(
-                          internal_session, oligarch_ingest_uri, metadata_value));
+                        WT_ERR(__layered_create_missing_ingest_table(
+                          internal_session, layered_ingest_uri, metadata_value));
                 }
             }
 
@@ -211,7 +211,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      * WiredTiger will reload the dir store's checkpoint when opening a cursor: Opening a file
      * cursor triggers __wt_btree_open (even if the file has been opened before).
      */
-    WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints_refreshed);
+    WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_checkpoints_refreshed);
 
     /*
      * Update the checkpoint ID. This doesn't require further synchronization, because the updates
@@ -232,119 +232,121 @@ err:
 
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
-    __wt_free(session, oligarch_ingest_uri);
+    __wt_free(session, layered_ingest_uri);
 
     __wt_scr_free(session, &item);
     return (ret);
 }
 
 /*
- * __wt_oligarch_manager_start --
- *     Start the oligarch manager thread
+ * __wt_layered_table_manager_start --
+ *     Start the layered table manager thread
  */
 int
-__wt_oligarch_manager_start(WT_SESSION_IMPL *session)
+__wt_layered_table_manager_start(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_OLIGARCH_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER *manager;
     uint32_t session_flags;
 
     conn = S2C(session);
-    manager = &conn->oligarch_manager;
+    manager = &conn->layered_table_manager;
 
     /* It's possible to race - only start the manager if we are the winner */
     if (!__wt_atomic_cas32(
-          &manager->state, WT_OLIGARCH_MANAGER_OFF, WT_OLIGARCH_MANAGER_STARTING)) {
+          &manager->state, WT_LAYERED_TABLE_MANAGER_OFF, WT_LAYERED_TABLE_MANAGER_STARTING)) {
         /* This isn't optimal, but it'll do. It's uncommon for multiple threads to be trying to
-         * start the oligarch manager at the same time.
+         * start the layered table manager at the same time.
          * It's probably fine for any "loser" to proceed without waiting, but be conservative
-         * and have a semantic where a return from this function indicates a running oligarch
+         * and have a semantic where a return from this function indicates a running layered table
          * manager->
          */
-        while (__wt_atomic_load32(&manager->state) != WT_OLIGARCH_MANAGER_RUNNING)
+        while (__wt_atomic_load32(&manager->state) != WT_LAYERED_TABLE_MANAGER_RUNNING)
             __wt_sleep(0, 1000);
         return (0);
     }
 
-    WT_RET(__wt_spin_init(session, &manager->oligarch_lock, "oligarch manager"));
+    WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
     /*
      * TODO Be lazy for now, allow for up to 1000 files to be allocated. In the future this should
-     * be able to grow dynamically and a more conservative number used here. Until then oligarch
+     * be able to grow dynamically and a more conservative number used here. Until then layered
      * table application will crash in a system with more than 1000 files.
      */
-    manager->open_oligarch_table_count = conn->next_file_id + 1000;
-    WT_ERR(__wt_calloc(session, sizeof(WT_OLIGARCH_MANAGER_ENTRY *),
-      manager->open_oligarch_table_count, &manager->entries));
+    manager->open_layered_table_count = conn->next_file_id + 1000;
+    WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
+      manager->open_layered_table_count, &manager->entries));
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    WT_ERR(__wt_thread_group_create(session, &manager->threads, "oligarch-manager",
-      WT_OLIGARCH_THREAD_COUNT, WT_OLIGARCH_THREAD_COUNT, session_flags,
-      __wt_oligarch_manager_thread_chk, __wt_oligarch_manager_thread_run, NULL));
+    WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
+      WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
+      __wt_layered_table_manager_thread_chk, __wt_layered_table_manager_thread_run, NULL));
 
     WT_MAX_LSN(&manager->max_replay_lsn);
 
-    WT_STAT_CONN_SET(session, oligarch_manager_running, 1);
+    WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
     __wt_verbose_level(
-      session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5, "%s", "__wt_oligarch_manager_start");
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_OLIGARCH);
+      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_start");
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
     /* Now that everything is setup, allow the manager to be used. */
-    __wt_atomic_store32(&manager->state, WT_OLIGARCH_MANAGER_RUNNING);
+    __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING);
     return (0);
 
 err:
-    /* Quit the oligarch server. */
-    WT_TRET(__wt_oligarch_manager_destroy(session, false));
+    /* Quit the layered table server. */
+    WT_TRET(__wt_layered_table_manager_destroy(session, false));
     return (ret);
 }
 
 /*
- * __wt_oligarch_manager_thread_chk --
- *     Check to decide if the oligarch manager thread should continue running
+ * __wt_layered_table_manager_thread_chk --
+ *     Check to decide if the layered table manager thread should continue running
  */
 bool
-__wt_oligarch_manager_thread_chk(WT_SESSION_IMPL *session)
+__wt_layered_table_manager_thread_chk(WT_SESSION_IMPL *session)
 {
-    if (!S2C(session)->oligarch_manager.leader)
+    if (!S2C(session)->layered_table_manager.leader)
         return (false);
-    return (
-      __wt_atomic_load32(&S2C(session)->oligarch_manager.state) == WT_OLIGARCH_MANAGER_RUNNING);
+    return (__wt_atomic_load32(&S2C(session)->layered_table_manager.state) ==
+      WT_LAYERED_TABLE_MANAGER_RUNNING);
 }
 
 /*
- * __wt_oligarch_manager_add_table --
- *     Add a table to the oligarch manager when it's opened
+ * __wt_layered_table_manager_add_table --
+ *     Add a table to the layered table manager when it's opened
  */
 int
-__wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, uint32_t stable_id)
+__wt_layered_table_manager_add_table(
+  WT_SESSION_IMPL *session, uint32_t ingest_id, uint32_t stable_id)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_OLIGARCH *oligarch;
-    WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE *layered;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
 
     conn = S2C(session);
-    manager = &conn->oligarch_manager;
-    fprintf(stderr, "adding %u to oligarch manager\n", ingest_id);
+    manager = &conn->layered_table_manager;
+    fprintf(stderr, "adding %u to layered table manager\n", ingest_id);
 
-    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
-      "Adding an oligarch tree to tracking without the right dhandle context.");
-    oligarch = (WT_OLIGARCH *)session->dhandle;
+    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
+      "Adding a layered tree to tracking without the right dhandle context.");
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_ALWAYS(session, __wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_RUNNING,
-      "Adding an oligarch table, but the manager isn't running");
-    __wt_spin_lock(session, &manager->oligarch_lock);
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_RUNNING,
+      "Adding a layered table, but the manager isn't running");
+    __wt_spin_lock(session, &manager->layered_table_lock);
     /* Diagnostic sanity check - don't keep adding the same table */
     if (manager->entries[ingest_id] != NULL)
         WT_IGNORE_RET(__wt_panic(session, WT_PANIC,
-          "Internal server error: opening the same oligarch table multiple times"));
+          "Internal server error: opening the same layered table multiple times"));
     WT_RET(__wt_calloc_one(session, &entry));
     entry->ingest_id = ingest_id;
     entry->stable_id = stable_id;
     entry->stable_cursor = NULL;
-    entry->oligarch_table = (WT_OLIGARCH *)session->dhandle;
+    entry->layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     /*
      * There is a bootstrapping problem. Use the global oldest ID as a starting point. Nothing can
@@ -354,94 +356,96 @@ __wt_oligarch_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id, ui
     WT_ACQUIRE_READ(entry->read_checkpoint, conn->disaggregated_storage.global_checkpoint_id);
 
     /*
-     * It's safe to just reference the same string. The lifecycle of the oligarch tree is longer
-     * than it will live in the tracker here.
+     * It's safe to just reference the same string. The lifecycle of the layered tree is longer than
+     * it will live in the tracker here.
      */
-    entry->stable_uri = oligarch->stable_uri;
-    WT_STAT_CONN_INCR(session, oligarch_manager_tables);
-    __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-      "__wt_oligarch_manager_add_table uri=%s ingest=%" PRIu32 " stable=%" PRIu32 " name=%s",
+    entry->stable_uri = layered->stable_uri;
+    WT_STAT_CONN_INCR(session, layered_table_manager_tables);
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+      "__wt_layered_table_manager_add_table uri=%s ingest=%" PRIu32 " stable=%" PRIu32 " name=%s",
       entry->stable_uri, ingest_id, stable_id, session->dhandle->name);
     manager->entries[ingest_id] = entry;
 
-    __wt_spin_unlock(session, &manager->oligarch_lock);
+    __wt_spin_unlock(session, &manager->layered_table_lock);
     return (0);
 }
 
 /*
- * __oligarch_manager_remove_table_inlock --
+ * __layered_table_manager_remove_table_inlock --
  *     Internal table remove implementation.
  */
 static void
-__oligarch_manager_remove_table_inlock(
+__layered_table_manager_remove_table_inlock(
   WT_SESSION_IMPL *session, uint32_t ingest_id, bool from_shutdown)
 {
-    WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
 
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
 
     if ((entry = manager->entries[ingest_id]) != NULL) {
-        WT_STAT_CONN_DECR(session, oligarch_manager_tables);
-        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-          "__wt_oligarch_manager_remove_table %s", entry->stable_uri);
+        WT_STAT_CONN_DECR(session, layered_table_manager_tables);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "__wt_layered_table_manager_remove_table %s", entry->stable_uri);
 
         /* Cursors get automatically closed via the session handle in shutdown. */
         if (!from_shutdown && entry->stable_cursor != NULL)
             entry->stable_cursor->close(entry->stable_cursor);
         __wt_free(session, entry);
-        fprintf(stderr, "oligarch mgr clearing %u\n", ingest_id);
+        fprintf(stderr, "layered table mgr clearing %u\n", ingest_id);
         manager->entries[ingest_id] = NULL;
     }
 }
 
 /*
- * __wt_oligarch_manager_remove_table --
- *     Remove a table to the oligarch manager when it's opened. Note that it is always safe to
+ * __wt_layered_table_manager_remove_table --
+ *     Remove a table to the layered table manager when it's opened. Note that it is always safe to
  *     remove a table from tracking immediately here. It will only be removed when the handle is
  *     closed and a handle is only closed after a checkpoint has completed that included all writes
  *     to the table. By that time the processor would have finished with any records from the
- *     oligarch table.
+ *     layered table.
  */
 void
-__wt_oligarch_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
+__wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
 {
-    WT_OLIGARCH_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER *manager;
     uint32_t manager_state;
 
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
 
     manager_state = __wt_atomic_load32(&manager->state);
 
     /* Shutdown calls this redundantly - ignore cases when the manager is already closed. */
-    if (manager_state == WT_OLIGARCH_MANAGER_OFF)
+    if (manager_state == WT_LAYERED_TABLE_MANAGER_OFF)
         return;
 
     WT_ASSERT_ALWAYS(session,
-      manager_state == WT_OLIGARCH_MANAGER_RUNNING || manager_state == WT_OLIGARCH_MANAGER_STOPPING,
-      "Adding an oligarch table, but the manager isn't running");
-    __wt_spin_lock(session, &manager->oligarch_lock);
-    __oligarch_manager_remove_table_inlock(session, ingest_id, false);
+      manager_state == WT_LAYERED_TABLE_MANAGER_RUNNING ||
+        manager_state == WT_LAYERED_TABLE_MANAGER_STOPPING,
+      "Adding a layered table, but the manager isn't running");
+    __wt_spin_lock(session, &manager->layered_table_lock);
+    __layered_table_manager_remove_table_inlock(session, ingest_id, false);
 
-    __wt_spin_unlock(session, &manager->oligarch_lock);
+    __wt_spin_unlock(session, &manager->layered_table_lock);
 }
 
 /*
- * __oligarch_get_constituent_cursor --
- *     Retrieve or open a constituent cursor for an oligarch tree.
+ * __layered_table_get_constituent_cursor --
+ *     Retrieve or open a constituent cursor for a layered tree.
  */
 static int
-__oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp)
+__layered_table_get_constituent_cursor(
+  WT_SESSION_IMPL *session, uint32_t ingest_id, WT_CURSOR **cursorp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *stable_cursor;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     uint64_t global_ckpt_id;
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
     conn = S2C(session);
-    entry = conn->oligarch_manager.entries[ingest_id];
+    entry = conn->layered_table_manager.entries[ingest_id];
 
     *cursorp = NULL;
 
@@ -467,44 +471,44 @@ __oligarch_get_constituent_cursor(WT_SESSION_IMPL *session, uint32_t ingest_id, 
 }
 
 /*
- * __oligarch_manager_checkpoint_locked --
+ * __layered_table_manager_checkpoint_locked --
  *     Trigger a checkpoint of the handle - will acquire necessary locks
  */
 static int
-__oligarch_manager_checkpoint_locked(WT_SESSION_IMPL *session)
+__layered_table_manager_checkpoint_locked(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_checkpoints);
+    WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_checkpoints);
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_checkpoint(session, 0)));
     return (ret);
 }
 
 /*
- * __oligarch_manager_checkpoint_one --
- *     Review the oligarch tables and checkpoint one if it has enough accumulated content. For now
+ * __layered_table_manager_checkpoint_one --
+ *     Review the layered tables and checkpoint one if it has enough accumulated content. For now
  *     this just checkpoints the first table that meets the threshold. In the future it should be
  *     more fair in selecting a table.
  */
 static int
-__oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
+__layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
 {
     WT_BTREE *ingest_btree;
     WT_CURSOR *stable_cursor;
     WT_DECL_RET;
-    WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_TXN_ISOLATION saved_isolation;
     uint64_t satisfied_txn_id;
     uint32_t i;
 
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
 
-    /* The table count never shrinks, so this is safe. It probably needs the oligarch lock */
-    for (i = 0; i < manager->open_oligarch_table_count; i++) {
+    /* The table count never shrinks, so this is safe. It probably needs the layered table lock */
+    for (i = 0; i < manager->open_layered_table_count; i++) {
         if ((entry = manager->entries[i]) != NULL &&
-          entry->accumulated_write_bytes > WT_OLIGARCH_TABLE_CHECKPOINT_THRESHOLD) {
+          entry->accumulated_write_bytes > WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD) {
             /*
              * Retrieve the current tranasaction ID - ensure it actually gets read from the shared
              * variable here, it would lead to data loss if it was read later and included
@@ -512,11 +516,12 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
              * this requires an "at least as much" guarantee, not an exact match guarantee.
              */
             WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
-            __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
-              "oligarch table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
+            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+              "layered table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
               satisfied_txn_id);
 
-            WT_RET(__oligarch_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
+            WT_RET(
+              __layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
             /*
              * Clear out the byte count before checkpointing - otherwise any writes done during the
              * checkpoint won't count towards the next threshold.
@@ -535,12 +540,12 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
              */
             WT_RET(__wt_meta_track_on(session));
             WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
-              ret = __oligarch_manager_checkpoint_locked(session));
+              ret = __layered_table_manager_checkpoint_locked(session));
             WT_TRET(__wt_meta_track_off(session, false, ret != 0));
             session->txn->isolation = saved_isolation;
             if (ret == 0) {
                 entry->checkpoint_txn_id = satisfied_txn_id;
-                ingest_btree = (WT_BTREE *)entry->oligarch_table->ingest->handle;
+                ingest_btree = (WT_BTREE *)entry->layered_table->ingest->handle;
                 WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
                   "Ingest table not setup for garbage collection");
                 ingest_btree->oldest_live_txnid = satisfied_txn_id;
@@ -550,42 +555,42 @@ __oligarch_manager_checkpoint_one(WT_SESSION_IMPL *session)
             return (ret);
         } else if (entry != NULL) {
             if (entry->accumulated_write_bytes > 0)
-                __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5,
+                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
                   "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
                   entry->accumulated_write_bytes);
         }
     }
 
-    WT_STAT_CONN_SET(session, oligarch_manager_checkpoint_candidates, i);
+    WT_STAT_CONN_SET(session, layered_table_manager_checkpoint_candidates, i);
     return (0);
 }
 
 /*
- * __oligarch_log_replay_op_apply --
+ * __layered_table_log_replay_op_apply --
  *     Apply a transactional operation during recovery.
  */
 static int
-__oligarch_log_replay_op_apply(
+__layered_table_log_replay_op_apply(
   WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
 {
     WT_CURSOR *stable_cursor;
     WT_DECL_RET;
     WT_ITEM key, start_key, stop_key, value;
-    WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     wt_timestamp_t commit, durable, first_commit, prepare, read;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, opsize, optype;
     bool applied;
 
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
     stable_cursor = NULL;
     applied = false;
     fileid = 0;
     memset(&value, 0, sizeof(WT_ITEM));
 
     /* Peek at the size and the type. */
-    WT_ERR(__wt_oligarch_logop_read(session, pp, end, &optype, &opsize));
+    WT_ERR(__wt_layered_table_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
 
     /*
@@ -599,22 +604,23 @@ __oligarch_log_replay_op_apply(
 
     switch (optype) {
     case WT_LOGOP_COL_MODIFY:
-        WT_ERR(__wt_oligarch_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
+        WT_ERR(
+          __wt_layered_table_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
         break;
     case WT_LOGOP_COL_PUT:
-        WT_ERR(__wt_oligarch_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
+        WT_ERR(__wt_layered_table_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
         break;
     case WT_LOGOP_COL_REMOVE:
-        WT_ERR(__wt_oligarch_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
+        WT_ERR(__wt_layered_table_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
         break;
     case WT_LOGOP_COL_TRUNCATE:
-        WT_ERR(__wt_oligarch_logop_col_truncate_unpack(
+        WT_ERR(__wt_layered_table_logop_col_truncate_unpack(
           session, pp, end, &fileid, &start_recno, &stop_recno));
         break;
     case WT_LOGOP_ROW_MODIFY:
-        WT_ERR(__wt_oligarch_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
+        WT_ERR(__wt_layered_table_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
         if ((entry = manager->entries[fileid]) != NULL) {
-            WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
+            WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
             if ((ret = stable_cursor->search(stable_cursor)) != 0)
                 WT_ERR_NOTFOUND_OK(ret, false);
@@ -633,13 +639,14 @@ __oligarch_log_replay_op_apply(
         break;
 
     case WT_LOGOP_ROW_PUT:
-        WT_ERR(__wt_oligarch_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
+        WT_ERR(__wt_layered_table_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
         if ((entry = manager->entries[fileid]) != NULL) {
             /*
-        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
-          "oligarch log application row store put applying to stable table %s", entry->ingest_uri);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+          "layered table log application row store put applying to stable table %s",
+        entry->ingest_uri);
           */
-            WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
+            WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
             __wt_cursor_set_raw_value(stable_cursor, &value);
             WT_ERR(stable_cursor->insert(stable_cursor));
@@ -654,9 +661,9 @@ __oligarch_log_replay_op_apply(
          * TODO: There should not be any remove operations logged - we turn them into tombstone
          * writes.
          */
-        WT_ERR(__wt_oligarch_logop_row_remove_unpack(session, pp, end, &fileid, &key));
+        WT_ERR(__wt_layered_table_logop_row_remove_unpack(session, pp, end, &fileid, &key));
         if ((entry = manager->entries[fileid]) != NULL) {
-            WT_ERR(__oligarch_get_constituent_cursor(session, fileid, &stable_cursor));
+            WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
             __wt_cursor_set_raw_key(stable_cursor, &key);
             /*
              * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling
@@ -670,7 +677,7 @@ __oligarch_log_replay_op_apply(
         break;
 
     case WT_LOGOP_ROW_TRUNCATE:
-        WT_ERR(__wt_oligarch_logop_row_truncate_unpack(
+        WT_ERR(__wt_layered_table_logop_row_truncate_unpack(
           session, pp, end, &fileid, &start_key, &stop_key, &mode));
         break;
     case WT_LOGOP_TXN_TIMESTAMP:
@@ -678,7 +685,7 @@ __oligarch_log_replay_op_apply(
          * Timestamp records are informational only. We have to unpack it to properly move forward
          * in the log record to the next operation, but otherwise ignore.
          */
-        WT_ERR(__wt_oligarch_logop_txn_timestamp_unpack(
+        WT_ERR(__wt_layered_table_logop_txn_timestamp_unpack(
           session, pp, end, &t_sec, &t_nsec, &commit, &durable, &first_commit, &prepare, &read));
         break;
     default:
@@ -690,14 +697,15 @@ __oligarch_log_replay_op_apply(
      * record - it is safe to skip either case.
      */
     if (fileid != 0 && !applied && manager->entries[fileid] != NULL) {
-        WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_logops_skipped);
-        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
-          "oligarch log application skipped a record associated with oligarch tree. Record type: "
+        WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_logops_skipped);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+          "layered table log application skipped a record associated with layered tree. Record "
+          "type: "
           "%" PRIu32,
           optype);
     } else {
         if (applied)
-            WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_logops_applied);
+            WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_logops_applied);
     }
 
 done:
@@ -710,33 +718,33 @@ err:
     __wt_err(session, ret,
       "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
       "/%" PRIu32,
-      optype, lsnp->l.file, __wt_oligarch_lsn_offset(lsnp));
+      optype, lsnp->l.file, __wt_layered_table_lsn_offset(lsnp));
     return (ret);
 }
 
 /*
- * __oligarch_log_replay_commit_apply --
- *     Apply a commit record during oligarch log replay.
+ * __layered_table_log_replay_commit_apply --
+ *     Apply a commit record during layered table log replay.
  */
 static int
-__oligarch_log_replay_commit_apply(
+__layered_table_log_replay_commit_apply(
   WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
 {
     /*
-     * __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1, "%s",
-     *   "oligarch log application commit applying");
+     * __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
+     *   "layered table log application commit applying");
      */
 
     /* The logging subsystem zero-pads records. */
     while (*pp < end && **pp)
-        WT_RET(__oligarch_log_replay_op_apply(session, lsnp, pp, end));
+        WT_RET(__layered_table_log_replay_op_apply(session, lsnp, pp, end));
 
     return (0);
 }
 
 /*
- * __oligarch_log_replay --
- *     Review a log record and replay it against an oligarch stable constituent if relevant. This
+ * __layered_table_log_replay --
+ *     Review a log record and replay it against a layered stable constituent if relevant. This
  *     could be done in a number of ways, including: * Generalize the code in
  *     txn_recover::__txn_op_apply and its callers to work for this runtime case and apply
  *     operations to a different file identifier. * Create a simplified duplicate of the recovery
@@ -746,16 +754,16 @@ __oligarch_log_replay_commit_apply(
  *     Long term we might want to do something different.
  */
 static int
-__oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
-  void *cookie, int firstrecord)
+__layered_table_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp,
+  WT_LSN *next_lsnp, void *cookie, int firstrecord)
 {
     WT_DECL_RET;
-    WT_OLIGARCH_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER *manager;
     uint64_t txnid;
     uint32_t rectype;
     const uint8_t *end, *p;
 
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
     p = WT_LOG_SKIP_HEADER(logrec->data);
     end = (const uint8_t *)logrec->data + logrec->size;
     /* If this becomes multi-threaded we might move the context from manager here */
@@ -766,24 +774,24 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
         return (0);
 
     /* First, peek at the log record type. */
-    WT_RET(__wt_oligarch_logrec_read(session, &p, end, &rectype));
+    WT_RET(__wt_layered_table_logrec_read(session, &p, end, &rectype));
 
     /* We are only ever interested in commit records */
     if (rectype != WT_LOGREC_COMMIT)
         return (0);
 
     if (!WT_IS_MAX_LSN(&manager->max_replay_lsn) &&
-      __wt_oligarch_log_cmp(lsnp, &manager->max_replay_lsn) < 0) {
-        WT_STAT_CONN_DSRC_INCR(session, oligarch_manager_skip_lsn);
-        __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_1,
-          "Oligarch skipping previously applied LSN: [%" PRIu32 "][%" PRIu32 "]", lsnp->l.file,
+      __wt_layered_table_log_cmp(lsnp, &manager->max_replay_lsn) < 0) {
+        WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_skip_lsn);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+          "Layered table skipping previously applied LSN: [%" PRIu32 "][%" PRIu32 "]", lsnp->l.file,
           lsnp->l.offset);
         return (0);
     }
 
     if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid)) != 0)
-        WT_RET_MSG(session, ret, "oligarch_log_replay: unpack failure");
-    WT_RET(__oligarch_log_replay_commit_apply(session, lsnp, &p, end));
+        WT_RET_MSG(session, ret, "layered_table_log_replay: unpack failure");
+    WT_RET(__layered_table_log_replay_commit_apply(session, lsnp, &p, end));
 
     /* Record the highest LSN we've processed so future scans can start from there. */
     WT_ASSIGN_LSN(&manager->max_replay_lsn, next_lsnp);
@@ -794,39 +802,39 @@ __oligarch_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, W
 }
 
 /*
- * __wt_oligarch_manager_thread_run --
- *     Entry function for an oligarch manager thread. This is called repeatedly from the thread
+ * __wt_layered_table_manager_thread_run --
+ *     Entry function for a layered table manager thread. This is called repeatedly from the thread
  *     group code so it does not need to loop itself.
  */
 int
-__wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
+__wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
 {
     WT_DECL_RET;
-    WT_OLIGARCH_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER *manager;
     WT_SESSION_IMPL *session;
 
     WT_UNUSED(session_shared);
     session = thread->session;
     WT_ASSERT(session, session->id != 0);
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
 
-    WT_STAT_CONN_SET(session, oligarch_manager_active, 1);
+    WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
 
     /*
      * There are two threads: let one do log replay and the other checkpoints. For now use just the
      * first thread in the group for log application, otherwise the way cursors are saved in the
      * manager queue gets confused (since they are associated with sessions).
      */
-    /* __wt_verbose_level(session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5, "%s",
-     * "__wt_oligarch_manager_thread_run"); */
+    /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s",
+     * "__wt_layered_table_manager_thread_run"); */
     if (thread->id == 0 && __wt_atomic_load32(&manager->log_applying) == 0 &&
       __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
         if (WT_IS_MAX_LSN(&manager->max_replay_lsn))
-            ret = __wt_oligarch_log_scan(
-              session, NULL, NULL, WT_LOGSCAN_FIRST, __oligarch_log_replay, NULL);
+            ret = __wt_layered_table_log_scan(
+              session, NULL, NULL, WT_LOGSCAN_FIRST, __layered_table_log_replay, NULL);
         else
-            ret = __wt_oligarch_log_scan(
-              session, &manager->max_replay_lsn, NULL, 0, __oligarch_log_replay, NULL);
+            ret = __wt_layered_table_log_scan(
+              session, &manager->max_replay_lsn, NULL, 0, __layered_table_log_replay, NULL);
 
         /* Ignore errors at startup or attempting to read more log record when no additional content
          * has been generated */
@@ -843,9 +851,9 @@ __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thr
         }
         __wt_atomic_store32(&manager->log_applying, 0);
     } else if (thread->id == 1)
-        WT_RET(__oligarch_manager_checkpoint_one(session));
+        WT_RET(__layered_table_manager_checkpoint_one(session));
 
-    WT_STAT_CONN_SET(session, oligarch_manager_active, 0);
+    WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
 
     /* Sometimes the logging subsystem is still getting started and ENOENT is expected */
     if (ret == ENOENT)
@@ -854,69 +862,69 @@ __wt_oligarch_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thr
 }
 
 /*
- * __wt_oligarch_manager_get_pinned_id --
+ * __wt_layered_table_manager_get_pinned_id --
  *     Retrieve the oldest checkpoint ID that's relevant to garbage collection
  */
 void
-__wt_oligarch_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
+__wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
 {
-    WT_OLIGARCH_MANAGER *manager;
-    WT_OLIGARCH_MANAGER_ENTRY *entry;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     uint64_t pinned;
     uint32_t i;
 
-    manager = &S2C(session)->oligarch_manager;
+    manager = &S2C(session)->layered_table_manager;
 
     /* If no tables are being managed, then don't pin anything */
     pinned = WT_TXN_MAX;
-    for (i = 0; i < manager->open_oligarch_table_count; i++) {
+    for (i = 0; i < manager->open_layered_table_count; i++) {
         if ((entry = manager->entries[i]) != NULL && WT_TXNID_LT(entry->checkpoint_txn_id, pinned))
             pinned = entry->checkpoint_txn_id;
     }
 
     *pinnedp = pinned;
 
-    WT_STAT_CONN_SET(session, oligarch_manager_pinned_id_tables_searched, i);
+    WT_STAT_CONN_SET(session, layered_table_manager_pinned_id_tables_searched, i);
 }
 
 /*
- * __wt_oligarch_manager_destroy --
- *     Destroy the oligarch manager thread(s)
+ * __wt_layered_table_manager_destroy --
+ *     Destroy the layered table manager thread(s)
  */
 int
-__wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
+__wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_OLIGARCH_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER *manager;
     uint32_t i;
 
     conn = S2C(session);
-    manager = &conn->oligarch_manager;
+    manager = &conn->layered_table_manager;
 
     __wt_verbose_level(
-      session, WT_VERB_OLIGARCH, WT_VERBOSE_DEBUG_5, "%s", "__wt_oligarch_manager_destroy");
+      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_destroy");
 
-    if (__wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_OFF)
+    if (__wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF)
         return (0);
 
     /*
      * Spin until exclusive access is gained. If we got here from the startup path seeing an error,
      * the state might still be "starting" rather than "running".
      */
-    while (!__wt_atomic_cas32(
-             &manager->state, WT_OLIGARCH_MANAGER_RUNNING, WT_OLIGARCH_MANAGER_STOPPING) &&
+    while (!__wt_atomic_cas32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING,
+             WT_LAYERED_TABLE_MANAGER_STOPPING) &&
       !__wt_atomic_cas32(
-        &manager->state, WT_OLIGARCH_MANAGER_STARTING, WT_OLIGARCH_MANAGER_STOPPING)) {
+        &manager->state, WT_LAYERED_TABLE_MANAGER_STARTING, WT_LAYERED_TABLE_MANAGER_STOPPING)) {
         /* If someone beat us to it, we are done */
-        if (__wt_atomic_load32(&manager->state) == WT_OLIGARCH_MANAGER_OFF)
+        if (__wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF)
             return (0);
         __wt_sleep(0, 1000);
     }
 
-    /* Ensure other things that engage with the oligarch server know it's gone. */
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_OLIGARCH);
+    /* Ensure other things that engage with the layered table server know it's gone. */
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
-    __wt_spin_lock(session, &manager->oligarch_lock);
+    __wt_spin_lock(session, &manager->layered_table_lock);
 
     /* Let any running threads finish up. */
     __wt_cond_signal(session, manager->threads.wait_cond);
@@ -925,16 +933,16 @@ __wt_oligarch_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     WT_RET(__wt_thread_group_destroy(session, &manager->threads));
 
     /* Close any cursors and free any related memory */
-    for (i = 0; i < manager->open_oligarch_table_count; i++) {
+    for (i = 0; i < manager->open_layered_table_count; i++) {
         if (manager->entries[i] != NULL)
-            __oligarch_manager_remove_table_inlock(session, i, from_shutdown);
+            __layered_table_manager_remove_table_inlock(session, i, from_shutdown);
     }
     __wt_free(session, manager->entries);
-    manager->open_oligarch_table_count = 0;
+    manager->open_layered_table_count = 0;
     WT_MAX_LSN(&manager->max_replay_lsn);
 
-    __wt_atomic_store32(&manager->state, WT_OLIGARCH_MANAGER_OFF);
-    WT_STAT_CONN_SET(session, oligarch_manager_running, 0);
+    __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
+    WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
 
     return (0);
 }
@@ -954,7 +962,7 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
     WT_ERR(__wt_session_create(internal_session, WT_DISAGG_METADATA_URI,
-      "key_format=S,value_format=S,log=(enabled=false),oligarch_log=(enabled=false)"));
+      "key_format=S,value_format=S,log=(enabled=false),layered_table_log=(enabled=false)"));
 
 err:
     if (internal_session != NULL)
@@ -977,7 +985,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     bool leader, was_leader;
 
     conn = S2C(session);
-    leader = was_leader = conn->oligarch_manager.leader;
+    leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
 
     /* Reconfig-only settings. */
@@ -1008,12 +1016,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* Set the role. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
     if (cval.len == 0)
-        conn->oligarch_manager.leader = leader = false;
+        conn->layered_table_manager.leader = leader = false;
     else {
         if (WT_CONFIG_LIT_MATCH("follower", cval))
-            conn->oligarch_manager.leader = leader = false;
+            conn->layered_table_manager.leader = leader = false;
         else if (WT_CONFIG_LIT_MATCH("leader", cval))
-            conn->oligarch_manager.leader = leader = true;
+            conn->layered_table_manager.leader = leader = true;
         else
             WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
@@ -1218,7 +1226,7 @@ __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can begin a global checkpoint. */
-    if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
+    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
 
     if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
@@ -1254,7 +1262,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can advance the global checkpoint ID. */
-    if (disagg->npage_log == NULL || !conn->oligarch_manager.leader)
+    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
 
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);

@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_oligarch_log_system_backup_id --
+ * __wt_layered_table_log_system_backup_id --
  *     Write a system log record for the incremental backup IDs.
  */
 int
-__wt_oligarch_log_system_backup_id(WT_SESSION_IMPL *session)
+__wt_layered_table_log_system_backup_id(WT_SESSION_IMPL *session)
 {
     WT_BLKINCR *blk;
     WT_CONNECTION_IMPL *conn;
@@ -31,10 +31,10 @@ __wt_oligarch_log_system_backup_id(WT_SESSION_IMPL *session)
      * If we're not logging or incremental backup isn't turned on or this version doesn't support
      * the system log record, we're done.
      */
-    if (!FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED) ||
-      !FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_INCR_BACKUP))
+    if (!FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ENABLED) ||
+      !FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_INCR_BACKUP))
         return (0);
-    log = conn->oligarch_log_info.log;
+    log = conn->layered_table_log_info.log;
     if (log->log_version < WT_LOG_VERSION_SYSTEM)
         return (0);
 
@@ -48,7 +48,7 @@ __wt_oligarch_log_system_backup_id(WT_SESSION_IMPL *session)
     rectype = WT_LOGREC_SYSTEM;
     fmt = WT_UNCHECKED_STRING(I);
     WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
-    WT_ERR(__wt_oligarch_logrec_alloc(session, recsize, &logrec));
+    WT_ERR(__wt_layered_table_logrec_alloc(session, recsize, &logrec));
     WT_ERR(
       __wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, recsize, fmt, rectype));
     logrec->size += recsize;
@@ -67,23 +67,23 @@ __wt_oligarch_log_system_backup_id(WT_SESSION_IMPL *session)
         if (F_ISSET(blk, WT_BLKINCR_VALID)) {
             WT_ASSERT(session, conn->incr_granularity != 0);
             WT_ASSERT(session, blk->granularity == conn->incr_granularity);
-            WT_ERR(__wt_oligarch_logop_backup_id_pack(
+            WT_ERR(__wt_layered_table_logop_backup_id_pack(
               session, logrec, i, blk->granularity, blk->id_str));
         } else
-            WT_ERR(__wt_oligarch_logop_backup_id_pack(session, logrec, i, UINT64_MAX, &nul));
+            WT_ERR(__wt_layered_table_logop_backup_id_pack(session, logrec, i, UINT64_MAX, &nul));
     }
-    WT_ERR(__wt_oligarch_log_write(session, logrec, NULL, 0));
+    WT_ERR(__wt_layered_table_log_write(session, logrec, NULL, 0));
 err:
-    __wt_oligarch_logrec_free(session, &logrec);
+    __wt_layered_table_logrec_free(session, &logrec);
     return (ret);
 }
 
 /*
- * __wt_oligarch_log_system_prevlsn --
+ * __wt_layered_table_log_system_prevlsn --
  *     Write a system log record for the previous LSN.
  */
 int
-__wt_oligarch_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
+__wt_layered_table_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
 {
     WT_DECL_ITEM(logrec_buf);
     WT_DECL_RET;
@@ -95,18 +95,18 @@ __wt_oligarch_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN
     uint32_t rectype;
     const char *fmt;
 
-    log = S2C(session)->oligarch_log_info.log;
+    log = S2C(session)->layered_table_log_info.log;
     rectype = WT_LOGREC_SYSTEM;
     fmt = WT_UNCHECKED_STRING(I);
 
-    WT_RET(__wt_oligarch_logrec_alloc(session, log->allocsize, &logrec_buf));
+    WT_RET(__wt_layered_table_logrec_alloc(session, log->allocsize, &logrec_buf));
     memset((uint8_t *)logrec_buf->mem, 0, log->allocsize);
 
     WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
     WT_ERR(__wt_struct_pack(
       session, (uint8_t *)logrec_buf->data + logrec_buf->size, recsize, fmt, rectype));
     logrec_buf->size += recsize;
-    WT_ERR(__wt_oligarch_logop_prev_lsn_pack(session, logrec_buf, lsn));
+    WT_ERR(__wt_layered_table_logop_prev_lsn_pack(session, logrec_buf, lsn));
     WT_ASSERT(session, logrec_buf->size <= log->allocsize);
 
     logrec = (WT_LOG_RECORD *)logrec_buf->mem;
@@ -129,73 +129,77 @@ __wt_oligarch_log_system_prevlsn(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN
     WT_CLEAR(tmp);
     memset(&myslot, 0, sizeof(myslot));
     myslot.slot = &tmp;
-    __wt_oligarch_log_slot_activate(session, &tmp);
+    __wt_layered_table_log_slot_activate(session, &tmp);
     /*
      * Override the file handle to the one we're using.
      */
     tmp.slot_fh = log_fh;
-    WT_ERR(__wt_oligarch_log_fill(session, &myslot, true, logrec_buf, NULL));
+    WT_ERR(__wt_layered_table_log_fill(session, &myslot, true, logrec_buf, NULL));
 err:
-    __wt_oligarch_logrec_free(session, &logrec_buf);
+    __wt_layered_table_logrec_free(session, &logrec_buf);
     return (ret);
 }
 
 /*
- * __wt_oligarch_log_recover_prevlsn --
+ * __wt_layered_table_log_recover_prevlsn --
  *     Process a system log record for the previous LSN in recovery.
  */
 int
-__wt_oligarch_log_recover_prevlsn(
+__wt_layered_table_log_recover_prevlsn(
   WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
 {
     WT_DECL_RET;
 
-    if ((ret = __wt_oligarch_logop_prev_lsn_unpack(session, pp, end, lsnp)) != 0)
+    if ((ret = __wt_layered_table_logop_prev_lsn_unpack(session, pp, end, lsnp)) != 0)
         WT_RET_MSG(session, ret, "log_recover_prevlsn: unpack failure");
 
     return (0);
 }
 
 /*
- * __wt_verbose_dump_oligarch_log --
+ * __wt_verbose_dump_layered_table_log --
  *     Dump information about the logging subsystem.
  */
 int
-__wt_verbose_dump_oligarch_log(WT_SESSION_IMPL *session)
+__wt_verbose_dump_layered_table_log(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
 
     conn = S2C(session);
-    log = conn->oligarch_log_info.log;
+    log = conn->layered_table_log_info.log;
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "Logging subsystem: Enabled: %s",
-      FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED) ? "yes" : "no"));
-    if (!FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED))
+      FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ENABLED) ? "yes" : "no"));
+    if (!FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ENABLED))
         return (0);
     /*
      * Logging is enabled, print out the other information.
      */
     WT_RET(__wt_msg(session, "Removing: %s",
-      FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_REMOVE) ? "yes" : "no"));
+      FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_REMOVE) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Running downgraded: %s",
-      FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
+      FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Zero fill files: %s",
-      FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
-    WT_RET(__wt_msg(
-      session, "Pre-allocate files: %s", conn->oligarch_log_info.log_prealloc > 0 ? "yes" : "no"));
+      FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "Pre-allocate files: %s",
+      conn->layered_table_log_info.log_prealloc > 0 ? "yes" : "no"));
     WT_RET(__wt_msg(session, "Initial number of pre-allocated files: %" PRIu32,
-      conn->oligarch_log_info.log_prealloc_init_count));
-    WT_RET(__wt_msg(session, "Logging directory: %s", conn->oligarch_log_info.log_path));
+      conn->layered_table_log_info.log_prealloc_init_count));
+    WT_RET(__wt_msg(session, "Logging directory: %s", conn->layered_table_log_info.log_path));
     WT_RET(__wt_msg(session, "Logging maximum file size: %" PRId64,
-      (int64_t)conn->oligarch_log_info.log_file_max));
+      (int64_t)conn->layered_table_log_info.log_file_max));
     WT_RET(__wt_msg(session, "Log sync setting: %s",
-      !FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_SYNC_ENABLED) ? "none" :
-        FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_DSYNC)       ? "dsync" :
-        FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_FLUSH)       ? "write to OS" :
-        FLD_ISSET(conn->oligarch_log_info.txn_logsync, WT_LOG_FSYNC)       ? "fsync to disk" :
-                                                                             "unknown sync setting"));
+      !FLD_ISSET(conn->layered_table_log_info.txn_logsync, WT_LOG_SYNC_ENABLED) ?
+        "none" :
+        FLD_ISSET(conn->layered_table_log_info.txn_logsync, WT_LOG_DSYNC) ?
+        "dsync" :
+        FLD_ISSET(conn->layered_table_log_info.txn_logsync, WT_LOG_FLUSH) ?
+        "write to OS" :
+        FLD_ISSET(conn->layered_table_log_info.txn_logsync, WT_LOG_FSYNC) ?
+        "fsync to disk" :
+        "unknown sync setting"));
     WT_RET(__wt_msg(session, "Log record allocation alignment: %" PRIu32, log->allocsize));
     WT_RET(__wt_msg(session, "Current log file number: %" PRIu32, log->fileid));
     WT_RET(__wt_msg(session, "Current log version number: %" PRIu16, log->log_version));

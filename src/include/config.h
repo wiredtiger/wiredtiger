@@ -154,9 +154,9 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_file_config 46
 #define WT_CONFIG_ENTRY_file_meta 47
 #define WT_CONFIG_ENTRY_index_meta 48
-#define WT_CONFIG_ENTRY_lsm_meta 49
-#define WT_CONFIG_ENTRY_object_meta 50
-#define WT_CONFIG_ENTRY_oligarch_meta 51
+#define WT_CONFIG_ENTRY_layered_meta 49
+#define WT_CONFIG_ENTRY_lsm_meta 50
+#define WT_CONFIG_ENTRY_object_meta 51
 #define WT_CONFIG_ENTRY_table_meta 52
 #define WT_CONFIG_ENTRY_tier_meta 53
 #define WT_CONFIG_ENTRY_tiered_meta 54
@@ -239,6 +239,7 @@ extern const char __WT_CONFIG_CHOICE_json[];
 extern const char __WT_CONFIG_CHOICE_key_consistent[];
 extern const char __WT_CONFIG_CHOICE_key_out_of_order[];
 extern const char __WT_CONFIG_CHOICE_last_checkpoint[];
+extern const char __WT_CONFIG_CHOICE_layered[];
 extern const char __WT_CONFIG_CHOICE_le[];
 extern const char __WT_CONFIG_CHOICE_leader[];
 extern const char __WT_CONFIG_CHOICE_log[];
@@ -257,7 +258,6 @@ extern const char __WT_CONFIG_CHOICE_off[];
 extern const char __WT_CONFIG_CHOICE_oldest[];
 extern const char __WT_CONFIG_CHOICE_oldest_reader[];
 extern const char __WT_CONFIG_CHOICE_oldest_timestamp[];
-extern const char __WT_CONFIG_CHOICE_oligarch[];
 extern const char __WT_CONFIG_CHOICE_on[];
 extern const char __WT_CONFIG_CHOICE_or[];
 extern const char __WT_CONFIG_CHOICE_ordered[];

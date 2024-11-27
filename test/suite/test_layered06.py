@@ -30,11 +30,11 @@ import os, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin
 from wtscenario import make_scenarios
 
-# test_oligarch06.py
+# test_layered06.py
 #    Start a second WT that shares the stable content with the first.
-class test_oligarch06(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
@@ -44,7 +44,7 @@ class test_oligarch06(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ])
 
     # TODO do Python tests expect a field named uri?
-    uri = "oligarch:test_oligarch06"
+    uri = "layered:test_layered06"
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -60,15 +60,15 @@ class test_oligarch06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
-    # Test records into an oligarch tree and restarting
-    def test_oligarch06(self):
+    # Test records into a layered tree and restarting
+    def test_layered06(self):
         session_config = 'key_format=S,value_format=S'
 
         #
-        # Part 1: Create an oligarch table and check that follower has all the data.
+        # Part 1: Create a layered table and check that follower has all the data.
         #
 
-        self.pr("create oligarch tree")
+        self.pr("create layered tree")
         self.session.create(self.uri, session_config)
 
         self.pr("create second WT")

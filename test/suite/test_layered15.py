@@ -30,20 +30,20 @@ import os, os.path, shutil, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_oligarch15.py
+# test_layered15.py
 #    Start without local files.
-class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm,role="follower"),'
 
     create_session_config = 'key_format=S,value_format=S'
 
-    oligarch_uris = ["oligarch:test_oligarch15a", "oligarch:test_oligarch15b"]
-    other_uris = ["file:test_oligarch15c", "table:test_oligarch15d"]
+    layered_uris = ["layered:test_layered15a", "layered:test_layered15b"]
+    other_uris = ["file:test_layered15c", "table:test_layered15d"]
 
-    disagg_storages = gen_disagg_storages('test_oligarch15', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered15', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     num_restarts = 0
@@ -80,20 +80,20 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.open_conn()
 
     # Test starting without local files.
-    def test_oligarch14(self):
+    def test_layered15(self):
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # Create tables
-        for uri in self.oligarch_uris + self.other_uris:
+        for uri in self.layered_uris + self.other_uris:
             cfg = self.create_session_config
-            if not uri.startswith('oligarch'):
-                cfg += ',block_manager=disagg,oligarch_log=(enabled=false),log=(enabled=false)'
+            if not uri.startswith('layered'):
+                cfg += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
             self.session.create(uri, cfg)
 
         # Put data to tables
         value_prefix = 'aaa'
-        for uri in self.oligarch_uris + self.other_uris:
+        for uri in self.layered_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 cursor[str(i)] = value_prefix + str(i)
@@ -116,7 +116,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
 
         # Check tables after the restart
-        for uri in self.oligarch_uris + self.other_uris:
+        for uri in self.layered_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
@@ -124,7 +124,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Do a few more updates to ensure that the tables continue to be writable
         value_prefix2 = 'bbb'
-        for uri in self.oligarch_uris + self.other_uris:
+        for uri in self.layered_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
@@ -148,7 +148,7 @@ class test_oligarch15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
 
         # Check tables after the restart
-        for uri in self.oligarch_uris + self.other_uris:
+        for uri in self.layered_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:

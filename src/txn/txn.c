@@ -404,7 +404,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_SESSION_IMPL *oldest_session;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    uint64_t id, last_running, metadata_pinned, oldest_id, oligarch_pinned_id, prev_oldest_id;
+    uint64_t id, last_running, layered_pinned_id, metadata_pinned, oldest_id, prev_oldest_id;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
@@ -468,14 +468,14 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     /*
-     * Kludge: oligarch tables need to keep transaction IDs alive to manage garbage collection in
-     * the ingest table. If the oligarch server is running, retrieve the oldest ID necessary in all
-     * oligarch ingest tables and use that as the oldest reader.
+     * Kludge: layered tables need to keep transaction IDs alive to manage garbage collection in the
+     * ingest table. If the layered table server is running, retrieve the oldest ID necessary in all
+     * layered ingest tables and use that as the oldest reader.
      */
-    if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_OLIGARCH)) {
-        __wt_oligarch_manager_get_pinned_id(session, &oligarch_pinned_id);
-        if (WT_TXNID_LT(oligarch_pinned_id, last_running))
-            last_running = oligarch_pinned_id;
+    if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LAYERED)) {
+        __wt_layered_table_manager_get_pinned_id(session, &layered_pinned_id);
+        if (WT_TXNID_LT(layered_pinned_id, last_running))
+            last_running = layered_pinned_id;
     }
     if (WT_TXNID_LT(last_running, oldest_id))
         oldest_id = last_running;
@@ -705,25 +705,25 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
         txn->txn_log.txn_logsync = 0;
 
     /*
-     * The default oligarch sync setting is inherited from the connection, but can be overridden by
-     * an explicit "oligarch_sync" setting for this transaction.
+     * The default layered table sync setting is inherited from the connection, but can be
+     * overridden by an explicit "layered_table_sync" setting for this transaction.
      *
      * We want to distinguish between inheriting implicitly and explicitly.
      */
-    F_CLR(txn, WT_TXN_OLIGARCH_SYNC_SET);
-    WT_ERR(__wt_conf_gets_def(session, conf, oligarch_sync, (int)UINT_MAX, &cval));
+    F_CLR(txn, WT_TXN_LAYERED_TABLE_SYNC_SET);
+    WT_ERR(__wt_conf_gets_def(session, conf, layered_table_sync, (int)UINT_MAX, &cval));
     if (cval.val == 0 || cval.val == 1)
         /*
          * This is an explicit setting of sync. Set the flag so that we know not to overwrite it in
          * commit_transaction.
          */
-        F_SET(txn, WT_TXN_OLIGARCH_SYNC_SET);
+        F_SET(txn, WT_TXN_LAYERED_TABLE_SYNC_SET);
 
     /*
-     * If oligarch sync is turned off explicitly, clear the transaction's sync field.
+     * If layered table sync is turned off explicitly, clear the transaction's sync field.
      */
     if (cval.val == 0)
-        txn->txn_oligarch_log.txn_logsync = 0;
+        txn->txn_layered_table_log.txn_logsync = 0;
 
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
@@ -832,7 +832,7 @@ __txn_release(WT_SESSION_IMPL *session)
     __wti_txn_clear_durable_timestamp(session);
 
     /* Free the scratch buffer allocated for logging. */
-    __wt_oligarch_logrec_free(session, &txn->txn_oligarch_log.logrec);
+    __wt_layered_table_logrec_free(session, &txn->txn_layered_table_log.logrec);
     /* Free the scratch buffer allocated for logging. */
     __wt_logrec_free(session, &txn->txn_log.logrec);
 
@@ -1818,17 +1818,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
-    if (txn->txn_oligarch_log.logrec != NULL) {
+    if (txn->txn_layered_table_log.logrec != NULL) {
         /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
         WT_ASSERT(session,
           !F_ISSET(conn, WT_CONN_RECOVERING) &&
-            FLD_ISSET(conn->oligarch_log_info.log_flags, WT_CONN_LOG_ENABLED));
+            FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ENABLED));
 
         /*
-         * The default oligarch sync setting is inherited from the connection, but can be overridden
-         * by an explicit "oligarch_sync" setting for this transaction.
+         * The default layered table sync setting is inherited from the connection, but can be
+         * overridden by an explicit "layered_table_sync" setting for this transaction.
          */
-        WT_ERR(__wt_config_gets_def(session, cfg, "oligarch_sync", 0, &cval));
+        WT_ERR(__wt_config_gets_def(session, cfg, "layered_table_sync", 0, &cval));
 
         /*
          * If the user chose the default setting, check whether sync is enabled for this transaction
@@ -1840,18 +1840,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * we only override with an explicit setting.
          */
         if (cval.len == 0) {
-            if (!FLD_ISSET(txn->txn_oligarch_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
-              !F_ISSET(txn, WT_TXN_OLIGARCH_SYNC_SET))
-                txn->txn_oligarch_log.txn_logsync = 0;
+            if (!FLD_ISSET(txn->txn_layered_table_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
+              !F_ISSET(txn, WT_TXN_LAYERED_TABLE_SYNC_SET))
+                txn->txn_layered_table_log.txn_logsync = 0;
         } else {
             /*
-             * If the caller already set oligarch sync on begin_transaction then they should not be
-             * using oligarch_sync on commit_transaction. Flag that as an error.
+             * If the caller already set layered table sync on begin_transaction then they should
+             * not be using layered_table_sync on commit_transaction. Flag that as an error.
              */
-            if (F_ISSET(txn, WT_TXN_OLIGARCH_SYNC_SET))
+            if (F_ISSET(txn, WT_TXN_LAYERED_TABLE_SYNC_SET))
                 WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
             if (WT_CONFIG_LIT_MATCH("off", cval))
-                txn->txn_oligarch_log.txn_logsync = 0;
+                txn->txn_layered_table_log.txn_logsync = 0;
             /*
              * We don't need to check for "on" here because that is the default to inherit from the
              * connection setting.
@@ -1865,7 +1865,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          */
         __wt_readlock(session, &txn_global->visibility_rwlock);
         locked = true;
-        WT_ERR(__wt_txn_oligarch_log_commit(session, cfg));
+        WT_ERR(__wt_txn_layered_table_log_commit(session, cfg));
     }
 
     /* If we are logging, write a commit log record. */
@@ -2176,10 +2176,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
 
-    /* A transaction should not have updated any of the oligarch logged tables */
-    if (txn->txn_oligarch_log.logrec != NULL)
-        WT_RET_MSG(
-          session, EINVAL, "a prepared transaction cannot include an oligarch logged table");
+    /* A transaction should not have updated any of the layered logged tables */
+    if (txn->txn_layered_table_log.logrec != NULL)
+        WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a layered logged table");
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not

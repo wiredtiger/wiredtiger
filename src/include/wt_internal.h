@@ -209,14 +209,14 @@ struct __wt_cursor_join_iter;
 typedef struct __wt_cursor_join_iter WT_CURSOR_JOIN_ITER;
 struct __wt_cursor_json;
 typedef struct __wt_cursor_json WT_CURSOR_JSON;
+struct __wt_cursor_layered;
+typedef struct __wt_cursor_layered WT_CURSOR_LAYERED;
 struct __wt_cursor_log;
 typedef struct __wt_cursor_log WT_CURSOR_LOG;
 struct __wt_cursor_lsm;
 typedef struct __wt_cursor_lsm WT_CURSOR_LSM;
 struct __wt_cursor_metadata;
 typedef struct __wt_cursor_metadata WT_CURSOR_METADATA;
-struct __wt_cursor_oligarch;
-typedef struct __wt_cursor_oligarch WT_CURSOR_OLIGARCH;
 struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
@@ -287,6 +287,12 @@ struct __wt_join_stats_group;
 typedef struct __wt_join_stats_group WT_JOIN_STATS_GROUP;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_layered_table;
+typedef struct __wt_layered_table WT_LAYERED_TABLE;
+struct __wt_layered_table_manager;
+typedef struct __wt_layered_table_manager WT_LAYERED_TABLE_MANAGER;
+struct __wt_layered_table_manager_entry;
+typedef struct __wt_layered_table_manager_entry WT_LAYERED_TABLE_MANAGER_ENTRY;
 struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
@@ -337,12 +343,6 @@ struct __wt_named_page_log;
 typedef struct __wt_named_page_log WT_NAMED_PAGE_LOG;
 struct __wt_named_storage_source;
 typedef struct __wt_named_storage_source WT_NAMED_STORAGE_SOURCE;
-struct __wt_oligarch;
-typedef struct __wt_oligarch WT_OLIGARCH;
-struct __wt_oligarch_manager;
-typedef struct __wt_oligarch_manager WT_OLIGARCH_MANAGER;
-struct __wt_oligarch_manager_entry;
-typedef struct __wt_oligarch_manager_entry WT_OLIGARCH_MANAGER_ENTRY;
 struct __wt_optrack_header;
 typedef struct __wt_optrack_header WT_OPTRACK_HEADER;
 struct __wt_optrack_record;
@@ -602,8 +602,8 @@ typedef uint64_t wt_timestamp_t;
 #include "column_inline.h"
 #include "conf_inline.h"
 #include "cursor_inline.h"
+#include "layered_table_log_inline.h"
 #include "log_inline.h"
-#include "oligarch_log_inline.h"
 #include "os_fhandle_inline.h"
 #include "os_fs_inline.h"
 #include "os_fstream_inline.h"

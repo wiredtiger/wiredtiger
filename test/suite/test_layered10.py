@@ -28,16 +28,16 @@
 
 import os, time, wiredtiger, wttest
 
-# test_oligarch10.py
-#    Additional oligarch table & cursor methods.
-class test_oligarch10(wttest.WiredTigerTestCase):
+# test_layered10.py
+#    Additional layered table & cursor methods.
+class test_layered10(wttest.WiredTigerTestCase):
     nitems = 100_000
 
-    conn_base_config = 'oligarch_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-    uri = "oligarch:test_oligarch10"
+    uri = "layered:test_layered10"
 
     # Load the directory store extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -53,8 +53,8 @@ class test_oligarch10(wttest.WiredTigerTestCase):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
-    # Test additional oligarch table / cursor operations
-    def test_oligarch10(self):
+    # Test additional layered table / cursor operations
+    def test_layered10(self):
         session_config = 'key_format=i,value_format=S'
 
         self.session.create(self.uri, session_config)

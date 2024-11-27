@@ -34,18 +34,18 @@
 #define WT_CONF_ID_Import 118ULL
 #define WT_CONF_ID_Incremental 143ULL
 #define WT_CONF_ID_Io_capacity 252ULL
-#define WT_CONF_ID_Log 42ULL
+#define WT_CONF_ID_Layered_table_log 38ULL
+#define WT_CONF_ID_Log 45ULL
 #define WT_CONF_ID_Lsm 76ULL
 #define WT_CONF_ID_Lsm_manager 262ULL
 #define WT_CONF_ID_Merge_custom 86ULL
-#define WT_CONF_ID_Oligarch_log 46ULL
 #define WT_CONF_ID_Operation_tracking 265ULL
 #define WT_CONF_ID_Prefetch 285ULL
 #define WT_CONF_ID_Roundup_timestamps 175ULL
 #define WT_CONF_ID_Shared_cache 267ULL
 #define WT_CONF_ID_Statistics_log 271ULL
 #define WT_CONF_ID_Tiered_storage 55ULL
-#define WT_CONF_ID_Transaction_oligarch_sync 322ULL
+#define WT_CONF_ID_Transaction_layered_table_sync 322ULL
 #define WT_CONF_ID_Transaction_sync 323ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 107ULL
@@ -145,7 +145,7 @@
 #define WT_CONF_ID_dump_pages 166ULL
 #define WT_CONF_ID_durable_timestamp 3ULL
 #define WT_CONF_ID_early_load 278ULL
-#define WT_CONF_ID_enabled 43ULL
+#define WT_CONF_ID_enabled 39ULL
 #define WT_CONF_ID_entry 279ULL
 #define WT_CONF_ID_error_prefix 232ULL
 #define WT_CONF_ID_evict_sample_inmem 236ULL
@@ -206,10 +206,12 @@
 #define WT_CONF_ID_key_gap 37ULL
 #define WT_CONF_ID_keyid 26ULL
 #define WT_CONF_ID_last 75ULL
-#define WT_CONF_ID_leaf_item_max 38ULL
-#define WT_CONF_ID_leaf_key_max 39ULL
-#define WT_CONF_ID_leaf_page_max 40ULL
-#define WT_CONF_ID_leaf_value_max 41ULL
+#define WT_CONF_ID_layered_constituent 40ULL
+#define WT_CONF_ID_layered_table_sync 132ULL
+#define WT_CONF_ID_leaf_item_max 41ULL
+#define WT_CONF_ID_leaf_key_max 42ULL
+#define WT_CONF_ID_leaf_page_max 43ULL
+#define WT_CONF_ID_leaf_value_max 44ULL
 #define WT_CONF_ID_leak_memory 184ULL
 #define WT_CONF_ID_local_retention 60ULL
 #define WT_CONF_ID_lock_wait 124ULL
@@ -217,8 +219,8 @@
 #define WT_CONF_ID_log_retention 223ULL
 #define WT_CONF_ID_log_size 208ULL
 #define WT_CONF_ID_max_percent_overhead 199ULL
-#define WT_CONF_ID_memory_page_image_max 44ULL
-#define WT_CONF_ID_memory_page_max 45ULL
+#define WT_CONF_ID_memory_page_image_max 46ULL
+#define WT_CONF_ID_memory_page_max 47ULL
 #define WT_CONF_ID_merge 264ULL
 #define WT_CONF_ID_merge_max 90ULL
 #define WT_CONF_ID_merge_min 91ULL
@@ -238,8 +240,6 @@
 #define WT_CONF_ID_old_chunks 92ULL
 #define WT_CONF_ID_oldest 101ULL
 #define WT_CONF_ID_oldest_timestamp 286ULL
-#define WT_CONF_ID_oligarch_constituent 47ULL
-#define WT_CONF_ID_oligarch_sync 132ULL
 #define WT_CONF_ID_on_close 273ULL
 #define WT_CONF_ID_operation 130ULL
 #define WT_CONF_ID_operation_timeout_ms 173ULL
@@ -490,6 +490,20 @@ static const struct {
         uint64_t recover;
         uint64_t remove;
         uint64_t zero_fill;
+    } Layered_table_log;
+    struct {
+        uint64_t archive;
+        uint64_t compressor;
+        uint64_t enabled;
+        uint64_t file_max;
+        uint64_t force_write_wait;
+        uint64_t os_cache_dirty_pct;
+        uint64_t path;
+        uint64_t prealloc;
+        uint64_t prealloc_init_count;
+        uint64_t recover;
+        uint64_t remove;
+        uint64_t zero_fill;
     } Log;
     struct {
         struct {
@@ -513,20 +527,6 @@ static const struct {
         uint64_t merge;
         uint64_t worker_thread_max;
     } Lsm_manager;
-    struct {
-        uint64_t archive;
-        uint64_t compressor;
-        uint64_t enabled;
-        uint64_t file_max;
-        uint64_t force_write_wait;
-        uint64_t os_cache_dirty_pct;
-        uint64_t path;
-        uint64_t prealloc;
-        uint64_t prealloc_init_count;
-        uint64_t recover;
-        uint64_t remove;
-        uint64_t zero_fill;
-    } Oligarch_log;
     struct {
         uint64_t enabled;
         uint64_t path;
@@ -567,7 +567,7 @@ static const struct {
     struct {
         uint64_t enabled;
         uint64_t method;
-    } Transaction_oligarch_sync;
+    } Transaction_layered_table_sync;
     struct {
         uint64_t enabled;
         uint64_t method;
@@ -680,6 +680,7 @@ static const struct {
     uint64_t key_format;
     uint64_t key_gap;
     uint64_t last;
+    uint64_t layered_table_sync;
     uint64_t leaf_item_max;
     uint64_t leaf_key_max;
     uint64_t leaf_page_max;
@@ -700,7 +701,6 @@ static const struct {
     uint64_t old_chunks;
     uint64_t oldest;
     uint64_t oldest_timestamp;
-    uint64_t oligarch_sync;
     uint64_t operation;
     uint64_t operation_timeout_ms;
     uint64_t os_cache_dirty_max;
@@ -875,6 +875,20 @@ static const struct {
     WT_CONF_ID_Io_capacity | (WT_CONF_ID_total << 16),
   },
   {
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_archive << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_compressor << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_enabled << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_file_max << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_force_write_wait << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_os_cache_dirty_pct << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_path << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_prealloc << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_prealloc_init_count << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_recover << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_remove << 16),
+    WT_CONF_ID_Layered_table_log | (WT_CONF_ID_zero_fill << 16),
+  },
+  {
     WT_CONF_ID_Log | (WT_CONF_ID_archive << 16),
     WT_CONF_ID_Log | (WT_CONF_ID_compressor << 16),
     WT_CONF_ID_Log | (WT_CONF_ID_enabled << 16),
@@ -909,20 +923,6 @@ static const struct {
   {
     WT_CONF_ID_Lsm_manager | (WT_CONF_ID_merge << 16),
     WT_CONF_ID_Lsm_manager | (WT_CONF_ID_worker_thread_max << 16),
-  },
-  {
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_archive << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_compressor << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_enabled << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_file_max << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_force_write_wait << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_os_cache_dirty_pct << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_path << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_prealloc << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_prealloc_init_count << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_recover << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_remove << 16),
-    WT_CONF_ID_Oligarch_log | (WT_CONF_ID_zero_fill << 16),
   },
   {
     WT_CONF_ID_Operation_tracking | (WT_CONF_ID_enabled << 16),
@@ -962,8 +962,8 @@ static const struct {
     WT_CONF_ID_Tiered_storage | (WT_CONF_ID_shared << 16),
   },
   {
-    WT_CONF_ID_Transaction_oligarch_sync | (WT_CONF_ID_enabled << 16),
-    WT_CONF_ID_Transaction_oligarch_sync | (WT_CONF_ID_method << 16),
+    WT_CONF_ID_Transaction_layered_table_sync | (WT_CONF_ID_enabled << 16),
+    WT_CONF_ID_Transaction_layered_table_sync | (WT_CONF_ID_method << 16),
   },
   {
     WT_CONF_ID_Transaction_sync | (WT_CONF_ID_enabled << 16),
@@ -1077,6 +1077,7 @@ static const struct {
   WT_CONF_ID_key_format,
   WT_CONF_ID_key_gap,
   WT_CONF_ID_last,
+  WT_CONF_ID_layered_table_sync,
   WT_CONF_ID_leaf_item_max,
   WT_CONF_ID_leaf_key_max,
   WT_CONF_ID_leaf_page_max,
@@ -1097,7 +1098,6 @@ static const struct {
   WT_CONF_ID_old_chunks,
   WT_CONF_ID_oldest,
   WT_CONF_ID_oldest_timestamp,
-  WT_CONF_ID_oligarch_sync,
   WT_CONF_ID_operation,
   WT_CONF_ID_operation_timeout_ms,
   WT_CONF_ID_os_cache_dirty_max,

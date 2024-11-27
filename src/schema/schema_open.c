@@ -633,30 +633,29 @@ __wt_schema_open_table(WT_SESSION_IMPL *session)
 }
 
 /*
- * __schema_open_oligarch_member --
- *     Open the stable or ingest table for an oligarch table - save a reference in the oligarch
- *     handle.
+ * __schema_open_layered_member --
+ *     Open the stable or ingest table for a layered table - save a reference in the layered handle.
  */
 static int
-__schema_open_oligarch_member(
-  WT_SESSION_IMPL *session, WT_OLIGARCH *oligarch, const char *uri, bool ingest)
+__schema_open_layered_member(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri, bool ingest)
 {
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
 
     /* Reference the dhandle and set it in the tier array. */
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
     if (ingest) {
-        oligarch->ingest = session->dhandle;
+        layered->ingest = session->dhandle;
 
         /*
          * TODO this is a bit of a hack. The problem is that during shutdown, all dhandles are
-         * closed. But as part of closing an oligarch table, we need to get the IDs of the B-Trees
+         * closed. But as part of closing a layered table, we need to get the IDs of the B-Trees
          * backing the constituent tables (to remove them from the manager thread). This involves
          * dereferencing the dhandle pointer, but that's been freed.
          */
-        oligarch->ingest_btree_id = ((WT_BTREE *)session->dhandle->handle)->id;
+        layered->ingest_btree_id = ((WT_BTREE *)session->dhandle->handle)->id;
     } else {
-        oligarch->stable = session->dhandle;
+        layered->stable = session->dhandle;
     }
 
     WT_RET(__wt_session_release_dhandle(session));
@@ -664,31 +663,31 @@ __schema_open_oligarch_member(
 }
 
 /*
- * __schema_open_oligarch --
- *     Open the data handle for an oligarch table (internal version).
+ * __schema_open_layered --
+ *     Open the data handle for a layered table (internal version).
  */
 static int
-__schema_open_oligarch(WT_SESSION_IMPL *session)
+__schema_open_layered(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    WT_OLIGARCH *oligarch;
-    const char **oligarch_cfg;
+    WT_LAYERED_TABLE *layered;
+    const char **layered_cfg;
 
-    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
-      "handle type doesn't match oligarch");
-    oligarch = (WT_OLIGARCH *)session->dhandle;
-    oligarch_cfg = oligarch->iface.cfg;
+    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
+      "handle type doesn't match layered");
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    layered_cfg = layered->iface.cfg;
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
     /* TODO: Setup collator information */
-    oligarch->collator = NULL;
-    oligarch->collator_owned = 0;
+    layered->collator = NULL;
+    layered->collator_owned = 0;
 
     /* Save the stable prefix. */
     WT_RET_NOTFOUND_OK(
-      ret = __wt_config_gets(session, oligarch_cfg, "disaggregated.stable_prefix", &cval));
+      ret = __wt_config_gets(session, layered_cfg, "disaggregated.stable_prefix", &cval));
     if (ret == WT_NOTFOUND) {
         if (S2C(session)->disaggregated_storage.stable_prefix == NULL)
             WT_RET(EINVAL);
@@ -697,60 +696,61 @@ __schema_open_oligarch(WT_SESSION_IMPL *session)
     } else
         WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
 
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "key_format", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->key_format));
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "value_format", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->value_format));
+    WT_RET(__wt_config_gets(session, layered_cfg, "key_format", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->key_format));
+    WT_RET(__wt_config_gets(session, layered_cfg, "value_format", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->value_format));
 
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "ingest", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->ingest_uri));
-    WT_RET(__wt_config_gets(session, oligarch_cfg, "stable", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &oligarch->stable_uri));
+    WT_RET(__wt_config_gets(session, layered_cfg, "ingest", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->ingest_uri));
+    WT_RET(__wt_config_gets(session, layered_cfg, "stable", &cval));
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->stable_uri));
 
     return (0);
 }
 
 /*
- * __wt_schema_open_oligarch --
- *     Open an oligarch table.
+ * __wt_schema_open_layered --
+ *     Open a layered table.
  */
 int
-__wt_schema_open_oligarch(WT_SESSION_IMPL *session)
+__wt_schema_open_layered(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    WT_OLIGARCH *oligarch;
+    WT_LAYERED_TABLE *layered;
     uint32_t ingest_id, stable_id;
 
     /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
-    WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_oligarch(session));
+    WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_layered(session));
     WT_RET(ret);
 
-    oligarch = (WT_OLIGARCH *)session->dhandle;
-    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_OLIGARCH,
-      "Handle type doesn't match oligarch");
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
+      "Handle type doesn't match layered");
     /*
      * Open the ingest and stable tables after releasing the table write lock. That is safe, since
-     * if multiple threads are opening an oligarch table, the regular handle open scheme handles
-     * races of getting these sub-handles into the connection.
+     * if multiple threads are opening a layered table, the regular handle open scheme handles races
+     * of getting these sub-handles into the connection.
      */
     WT_SAVE_DHANDLE(
-      session, ret = __schema_open_oligarch_member(session, oligarch, oligarch->ingest_uri, true));
+      session, ret = __schema_open_layered_member(session, layered, layered->ingest_uri, true));
     WT_RET(ret);
     WT_SAVE_DHANDLE(
-      session, ret = __schema_open_oligarch_member(session, oligarch, oligarch->stable_uri, false));
+      session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
     WT_RET(ret);
 
-    /* Start the oligarch manager thread if it isn't running. */
-    WT_RET(__wt_oligarch_manager_start(session));
+    /* Start the layered table manager thread if it isn't running. */
+    WT_RET(__wt_layered_table_manager_start(session));
 
-    /* Add the ingest table file identifier into the oligarch managers list of tracked tables */
-    ingest_id = ((WT_BTREE *)oligarch->ingest->handle)->id;
-    stable_id = ((WT_BTREE *)oligarch->stable->handle)->id;
+    /* Add the ingest table file identifier into the layered table managers list of tracked tables
+     */
+    ingest_id = ((WT_BTREE *)layered->ingest->handle)->id;
+    stable_id = ((WT_BTREE *)layered->stable->handle)->id;
     WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
 
     /* Flag the ingest btree as participating in automatic garbage collection */
-    F_SET(((WT_BTREE *)oligarch->ingest->handle), WT_BTREE_GARBAGE_COLLECT);
+    F_SET(((WT_BTREE *)layered->ingest->handle), WT_BTREE_GARBAGE_COLLECT);
 
-    WT_RET(__wt_oligarch_manager_add_table(session, ingest_id, stable_id));
+    WT_RET(__wt_layered_table_manager_add_table(session, ingest_id, stable_id));
     return (ret);
 }
