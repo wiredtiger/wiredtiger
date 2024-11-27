@@ -42,10 +42,6 @@
 #include "src/main/thread_worker.h"
 
 #include <filesystem>
-#include <chrono>
-#include <iomanip>
-#include <ctime>
-#include <set>
 #include <vector>
 
 extern "C" {
