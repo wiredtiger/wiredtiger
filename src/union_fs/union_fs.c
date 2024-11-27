@@ -10,22 +10,6 @@
 #include "union_fs_private.h"
 #include <unistd.h>
 
-#define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
-
-static int __union_fs_file_read(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
-static int __union_fs_file_size(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
-
-/*
- * OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
- * length=1024 OFFSET_END returns 1023
- */
-#define OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
-#define EXTENT_END(ext) OFFSET_END((ext)->off, (ext)->len)
-/* As extent ranges are inclusive we want >= and <= on both ends of the range. */
-#define OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
-
 /*
  * __union_fs_filename --
  *     Generate a filename for the given layer.
@@ -476,71 +460,6 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 }
 
 /*
- * __union_fs_fill_holes_on_file_close --
- *     On file close make sure we've copied across all data from source to destination. This means
- *     there are no holes in the destination file's extent list. If we find one promote read the
- *     content into the destination.
- *
- * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the
- *     destination file are already handled elsewhere.
- *
- * FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
- *     Maybe we only need this for our test which overwrites WT_TEST on each loop?
- */
-static int
-__union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
-{
-    WT_UNION_FILE_HANDLE *fh;
-    WT_UNION_HOLE_LIST *hole;
-    /*
-     * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
-     * the read into small chunks
-     */
-    char buf[4096000];
-
-    fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    hole = fh->destination.hole_list;
-
-    while (hole != NULL) {
-        __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-          "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
-          EXTENT_END(hole));
-        WT_RET(__union_fs_file_read(file_handle, wt_session, hole->off, hole->len, buf));
-        hole = hole->next;
-    }
-
-    return (0);
-}
-
-/*
- * __union_fs_file_close --
- *     Close the file.
- */
-static int
-__union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
-{
-    WT_SESSION_IMPL *session;
-    WT_UNION_FILE_HANDLE *union_fh;
-
-    union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
-
-    __union_fs_fill_holes_on_file_close(file_handle, wt_session);
-
-    union_fh->destination.fh->close(union_fh->destination.fh, wt_session);
-    __union_fs_free_extent_list(session, union_fh);
-
-    if (union_fh->source != NULL) /* It's possible that we never opened the file in the source. */
-        union_fh->source->close(union_fh->source, wt_session);
-    __wt_free(session, union_fh->iface.name);
-    __wt_free(session, union_fh);
-
-    return (0);
-}
-
-/*
  * __union_fs_file_lock --
  *     Lock/unlock a file.
  */
@@ -775,6 +694,71 @@ __union_fs_file_read(
 
 err:
     return (ret);
+}
+
+/*
+ * __union_fs_fill_holes_on_file_close --
+ *     On file close make sure we've copied across all data from source to destination. This means
+ *     there are no holes in the destination file's extent list. If we find one promote read the
+ *     content into the destination.
+ *
+ * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the
+ *     destination file are already handled elsewhere.
+ *
+ * FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
+ *     Maybe we only need this for our test which overwrites WT_TEST on each loop?
+ */
+static int
+__union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+    WT_UNION_FILE_HANDLE *fh;
+    WT_UNION_HOLE_LIST *hole;
+    /*
+     * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
+     * the read into small chunks
+     */
+    char buf[4096000];
+
+    fh = (WT_UNION_FILE_HANDLE *)file_handle;
+    hole = fh->destination.hole_list;
+
+    while (hole != NULL) {
+        __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+          "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
+          EXTENT_END(hole));
+        WT_RET(__union_fs_file_read(file_handle, wt_session, hole->off, hole->len, buf));
+        hole = hole->next;
+    }
+
+    return (0);
+}
+
+/*
+ * __union_fs_file_close --
+ *     Close the file.
+ */
+static int
+__union_fs_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+    WT_SESSION_IMPL *session;
+    WT_UNION_FILE_HANDLE *union_fh;
+
+    union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
+    session = (WT_SESSION_IMPL *)wt_session;
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
+
+    __union_fs_fill_holes_on_file_close(file_handle, wt_session);
+
+    union_fh->destination.fh->close(union_fh->destination.fh, wt_session);
+    __union_fs_free_extent_list(session, union_fh);
+
+    if (union_fh->source != NULL) /* It's possible that we never opened the file in the source. */
+        union_fh->source->close(union_fh->source, wt_session);
+    __wt_free(session, union_fh->iface.name);
+    __wt_free(session, union_fh);
+
+    return (0);
 }
 
 /*

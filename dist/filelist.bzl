@@ -252,5 +252,4 @@ WT_FILELIST_POSIX_HOST = ['src/os_posix/os_dir.c',
  'src/os_posix/os_thread.c',
  'src/os_posix/os_time.c',
  'src/os_posix/os_yield.c',
- 'src/union_fs/union_fs.c',
- 'src/union_fs/union_fh.h']
+ 'src/union_fs/union_fs.c']

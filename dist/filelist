@@ -244,4 +244,3 @@ src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c
 src/union_fs/union_fs.c       POSIX_HOST
-src/union_fs/union_fh.c       POSIX_HOST
