@@ -58,7 +58,7 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
 
-    __wt_rollback_to_stable_init(conn);
+    WT_RET(__wt_rollback_to_stable_init(session, cfg));
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
     return (0);
 }
@@ -97,7 +97,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
     WT_TRET(__wti_background_compact_server_destroy(session));
-    WT_TRET(__wti_checkpoint_server_destroy(session));
+    WT_TRET(__wt_checkpoint_server_destroy(session));
     WT_TRET(__wti_statlog_destroy(session, true));
     WT_TRET(__wti_tiered_storage_destroy(session, false));
     WT_TRET(__wti_sweep_destroy(session));
@@ -139,7 +139,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wti_conn_remove_compressor(session));
     WT_TRET(__wti_conn_remove_data_source(session));
     WT_TRET(__wti_conn_remove_encryptor(session));
-    WT_TRET(__wti_conn_remove_extractor(session));
     WT_TRET(__wti_conn_remove_storage_source(session));
 
     /* Disconnect from shared cache - must be before cache destroy. */
@@ -278,7 +277,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_capacity_server_create(session, cfg));
 
     /* Start the optional checkpoint thread. */
-    WT_RET(__wti_checkpoint_server_create(session, cfg));
+    WT_RET(__wt_checkpoint_server_create(session, cfg));
 
     /* Start pre-fetch utilities. */
     WT_RET(__wti_prefetch_create(session, cfg));

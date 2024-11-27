@@ -157,9 +157,10 @@ struct __wt_session_impl {
     WT_RWLOCK *current_rwlock;
     uint8_t current_rwticket;
 
-    WT_ITEM **scratch;     /* Temporary memory for any function */
-    u_int scratch_alloc;   /* Currently allocated */
-    size_t scratch_cached; /* Scratch bytes cached */
+    WT_ITEM **scratch;        /* Temporary memory for any function */
+    u_int scratch_alloc;      /* Currently allocated */
+    size_t scratch_cached;    /* Scratch bytes cached */
+    WT_SPINLOCK scratch_lock; /* Scratch buffer lock */
 #ifdef HAVE_DIAGNOSTIC
 
     /* Enforce the contract that a session is only used by a single thread at a time. */
@@ -220,6 +221,9 @@ struct __wt_session_impl {
     WT_DATA_HANDLE **ckpt_handle; /* Handle list */
     u_int ckpt_handle_next;       /* Next empty slot */
     size_t ckpt_handle_allocated; /* Bytes allocated */
+
+    /* Checkpoint crash. */
+    u_int ckpt_crash_point; /* Crash point in the middle of checkpoint process */
 
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *ckpt_drop_list;

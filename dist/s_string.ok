@@ -9,7 +9,6 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
-ANDed
 APIs
 AREALLSET
 ARG
@@ -55,7 +54,6 @@ CAS
 CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
-CET
 CHUNKCACHE
 CKPT
 CLOEXEC
@@ -65,7 +63,6 @@ CONFIG
 CPP
 CPUs
 CRC
-CSV
 CURSORs
 CURSTD
 CallsCustDate
@@ -90,11 +87,9 @@ Crt
 Crummey
 CustomersPhone
 Cygwin
-DAX
 DESC
 DEST
 DHANDLE
-DIRECTIO
 DNE
 DONTNEED
 DS
@@ -237,7 +232,6 @@ LogSystemInterface
 MADV
 MALLOC
 MEM
-MEMALIGN
 MERCHANTABILITY
 MONGODB
 MOVEFILE
@@ -358,7 +352,6 @@ SIMD
 SLVG
 SMT
 SPINLOCK
-SSHH
 SSq
 STATP
 STR
@@ -641,7 +634,6 @@ cryptobad
 cryptographic
 cstring
 csuite
-csv
 ctime
 ctype
 curbackup
@@ -649,11 +641,9 @@ curbt
 curbulk
 curconfig
 curdump
-curextract
 curfile
 curhs
 curindex
-curjoin
 curlog
 curmetadata
 cursoring
@@ -669,6 +659,7 @@ cv
 cval
 cx
 cxa
+dKB
 dT
 darwin
 data's
@@ -710,7 +701,6 @@ difftime
 dir
 directio
 dirlist
-disjunction
 disproportionally
 dlclose
 dlh
@@ -770,14 +760,9 @@ fclose
 fcntl
 fd
 fdatasync
-fe
-feffff
 fextend
 ffc
 fff
-fffff
-ffffff
-ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -826,7 +811,6 @@ gb
 gcc
 gcp
 gdb
-ge
 getenv
 getlasterror
 getline
@@ -871,7 +855,6 @@ iS
 iSh
 iaa
 iaaInterface
-ibackup
 icount
 idlems
 idx
@@ -880,8 +863,6 @@ iface
 ifdef's
 iiSii
 iiiS
-iiii
-iiu
 ikey
 im
 img
@@ -922,9 +903,7 @@ ishst
 islocked
 ispo
 isprint
-isrc
 isspace
-iter
 jjj
 js
 json
@@ -1012,7 +991,6 @@ mb
 mbll
 mbss
 mem
-memalign
 membar
 memcmp
 memcpy
@@ -1062,7 +1040,6 @@ nentries
 nentriesp
 newbar
 newfile
-newuri
 newv
 nextprev
 nf
@@ -1129,7 +1106,6 @@ packv
 pageref
 pagesize
 param
-params
 pareto
 parserp
 patchp
@@ -1195,6 +1171,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readdir
 readgen
 readlock
 readonly
@@ -1239,7 +1216,6 @@ runone
 runtime
 rw
 rwlock
-sH
 sHQ
 sXXXXXX
 sanitizer
@@ -1276,6 +1252,7 @@ sn
 snaplen
 snapsort
 snprintf
+softptr
 sortable
 sp
 spinlock
@@ -1340,7 +1317,6 @@ sz
 t's
 tIf
 tV
-tablename
 td
 teardown
 tempdir
@@ -1382,7 +1358,6 @@ txt
 typedef
 typeof
 uS
-ui
 uint
 uintAny
 ulock
@@ -1404,7 +1379,6 @@ uninstantiated
 unistd
 unlink
 unmap
-unmapping
 unmerged
 unmodify
 unmount

@@ -691,8 +691,8 @@ __meta_ckptlist_allocate_new_ckpt(
      *
      * First, if the previous checkpoint is from an earlier database run its time might be off,
      * either because of issues with the system clock or because the checkpoint clock got run
-     * forward (see notes in txn_ckpt.c) and we crashed and restarted and are still behind it. This
-     * could be ruled out by checking the write generation.
+     * forward (see notes in checkpoint_txn.c) and we crashed and restarted and are still behind it.
+     * This could be ruled out by checking the write generation.
      *
      * Second, a single-tree checkpoint can occur while a global checkpoint is in progress. In that
      * case the global checkpoint will have an earlier time, but might get to the tree in question
@@ -1261,202 +1261,6 @@ err:
 }
 
 /*
- * __ckpt_extract_blkmod_bitmap --
- *     Extracts the blkmod info in a checkpoint into a bitmap within a WT_ITEM.
- */
-static int
-__ckpt_extract_blkmod_bitmap(
-  WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *id_str, WT_ITEM *output_bitmap)
-{
-    WT_BLOCK_MODS *blk;
-    u_int i;
-
-    WT_CLEAR(*output_bitmap);
-
-    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
-        if (F_ISSET(blk, WT_BLOCK_MODS_VALID) && strcmp(id_str, blk->id_str) == 0) {
-            WT_RET(__wt_buf_set(session, output_bitmap, blk->bitstring.data, blk->bitstring.size));
-            break;
-        }
-
-    return (0);
-}
-
-/*
- * __ckpt_get_blkmods --
- *     Extracts the blkmod info from the metadata about a file+id into a bitmap within a WT_ITEM.
- */
-static WT_INLINE int
-__ckpt_get_blkmods(
-  WT_SESSION_IMPL *session, const char *uri, const char *id_str, WT_ITEM *output_item)
-{
-    WT_CONFIG blkconf;
-    WT_CONFIG_ITEM backup_config_value, blocks, blocks_key, blocks_value, key;
-    WT_CURSOR *metadata_cursor;
-    WT_DECL_RET;
-    char *file_config;
-
-    WT_CLEAR(backup_config_value);
-    WT_CLEAR(blocks);
-    WT_CLEAR(blocks_key);
-    WT_CLEAR(blocks_value);
-    WT_CLEAR(key);
-    WT_CLEAR(*output_item);
-
-    metadata_cursor = NULL;
-    file_config = NULL;
-
-    WT_RET(__wt_metadata_cursor_open(session, NULL, &metadata_cursor));
-
-    metadata_cursor->set_key(metadata_cursor, uri);
-    ret = metadata_cursor->search(metadata_cursor);
-    WT_ASSERT(session, ret != WT_NOTFOUND);
-    WT_ERR(ret);
-    WT_ERR(metadata_cursor->get_value(metadata_cursor, &file_config));
-    WT_ERR(
-      __wt_config_getones(session, file_config, "checkpoint_backup_info", &backup_config_value));
-
-    if ((backup_config_value.len > 0) && (backup_config_value.type == WT_CONFIG_ITEM_STRUCT)) {
-        __wt_config_subinit(session, &blkconf, &backup_config_value);
-
-        /* Loop through the incremental backup blocks data looking for the correct id */
-        while ((ret = __wt_config_next(&blkconf, &blocks_key, &blocks_value)) == 0) {
-            if (blocks_value.len == 0)
-                continue;
-
-            if (WT_CONFIG_MATCH(id_str, blocks_key)) {
-                /* We've found the right blocks so read the bit pattern into output_item */
-                ret = __wt_config_subgets(session, &blocks_value, "blocks", &blocks);
-                if ((ret == 0) && (blocks.len > 0)) {
-                    WT_ERR(__wt_nhex_to_raw(session, blocks.str, blocks.len, output_item));
-                    break;
-                }
-                WT_ERR_NOTFOUND_OK(ret, false);
-            }
-        }
-    }
-
-    if (ret == WT_NOTFOUND)
-        ret = 0;
-err:
-    WT_TRET(metadata_cursor->close(metadata_cursor));
-    return (ret);
-}
-
-/*
- * __ckpt_verify_modified_bits --
- *     This function takes as input two bitmaps (in WT_ITEMs), an original and a new. If any bit in
- *     the original changed from 1 to 0, it's an error, and the new bitmap is NOT ok. Otherwise, the
- *     new bitmap is ok.
- */
-static WT_INLINE int
-__ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
-{
-    size_t index;
-    uint8_t *new_ptr, *original_ptr;
-    uint8_t partial_result;
-
-    WT_NOT_READ(index, 0);
-    original_ptr = NULL;
-    new_ptr = NULL;
-    WT_NOT_READ(partial_result, 0);
-
-    *ok = false;
-
-    if ((new_bitmap == NULL) || (original_bitmap == NULL))
-        return (EINVAL);
-
-    /* If the new bitmap is smaller, then some bits have been lost which is a problem. */
-    if (original_bitmap->size > new_bitmap->size)
-        return (EINVAL);
-
-    original_ptr = (uint8_t *)original_bitmap->data;
-    new_ptr = (uint8_t *)new_bitmap->data;
-
-    *ok = true;
-
-    for (index = 0; index < original_bitmap->size; index++) {
-        /*
-         * Detect bits that were (incorrectly) changed from 1 in the original to 0 in the new.
-         *
-         * This check is performed by bitwise inverting (using bitwise NOT) the new value
-         * so that any bits that are, or have become 0, are turned into a 1. This intermediate
-         * value is then bitwise ANDed with the original value, so that any bit values that are 1 in
-         * the original result and 0 in the new value (and therefore 1 in the intermediate value)
-         * results in a bit that is set in the partial result. Any 0s in the original value result
-         * in 0 in the partial result.
-         *
-         * Thus, any non-zero partial results indicate a bit that has incorrectly changed from
-         * 1 in the original to 0 in the new.
-         */
-        partial_result = *original_ptr & ~(*new_ptr);
-
-        if (partial_result != 0) {
-            *ok = false;
-            break;
-        }
-
-        original_ptr++;
-        new_ptr++;
-    }
-
-    return (0);
-}
-
-/*
- * __ckpt_check_backup_blocks --
- *     This function checks that the backup blocks for a checkpoint are correct, and that there are
- *     no errors in the incremental backup blkmod information.
- */
-static WT_INLINE int
-__ckpt_check_backup_blocks(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *filename)
-{
-    WT_BLOCK_MODS *blk;
-    WT_DECL_RET;
-    WT_ITEM checkpoint_blkmods_buffer, file_blkmods_buffer;
-    u_int i;
-    bool blkmods_are_ok;
-
-    blkmods_are_ok = true;
-    WT_CLEAR(checkpoint_blkmods_buffer);
-    WT_CLEAR(file_blkmods_buffer);
-
-    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
-        if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
-            continue;
-
-        WT_ERR(__ckpt_get_blkmods(session, filename, blk->id_str, &file_blkmods_buffer));
-        WT_ERR(
-          __ckpt_extract_blkmod_bitmap(session, ckpt, blk->id_str, &checkpoint_blkmods_buffer));
-
-        if ((checkpoint_blkmods_buffer.size > 0) && (file_blkmods_buffer.size > 0)) {
-            blkmods_are_ok = false;
-            ret = __ckpt_verify_modified_bits(
-              &file_blkmods_buffer, &checkpoint_blkmods_buffer, &blkmods_are_ok);
-
-            if ((ret != 0) || !blkmods_are_ok) {
-                WT_ASSERT_ALWAYS(session, false,
-                  "File blkmods are not compatible with those in the checkpoint ('%s')",
-                  ckpt->name);
-                WT_ERR_PANIC(session, WT_PANIC,
-                  "File blkmods are not compatible with those in the checkpoint ('%s')",
-                  ckpt->name);
-            }
-        }
-
-        __wt_buf_free(session, &checkpoint_blkmods_buffer);
-        __wt_buf_free(session, &file_blkmods_buffer);
-        WT_CLEAR(checkpoint_blkmods_buffer);
-        WT_CLEAR(file_blkmods_buffer);
-    }
-
-err:
-    __wt_buf_free(session, &checkpoint_blkmods_buffer);
-    __wt_buf_free(session, &file_blkmods_buffer);
-    return (ret);
-}
-
-/*
  * __wt_meta_ckptlist_set --
  *     Set a file's checkpoint value from the WT_CKPT list.
  */
@@ -1476,12 +1280,8 @@ __wt_meta_ckptlist_set(
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
             WT_ERR(__ckpt_blkmod_to_meta(session, buf, ckpt));
-
-            if (!F_ISSET(dhandle, WT_DHANDLE_IS_METADATA))
-                WT_ERR(__ckpt_check_backup_blocks(session, ckpt, fname));
-        }
 
     /* "If provided, the metadata needs the LSN of this checkpoint for recovery. */
     has_lsn = ckptlsn_str != NULL;
@@ -1604,11 +1404,10 @@ __meta_print_snapshot(WT_SESSION_IMPL *session, WT_ITEM *buf)
  *     Helper to update the most recent and/or named checkpoint snapshot metadata entry.
  */
 static int
-__meta_sysinfo_update(WT_SESSION_IMPL *session, bool full, const char *name, size_t namelen,
-  WT_ITEM *buf, const char *uri, const char *value)
+__meta_sysinfo_update(WT_SESSION_IMPL *session, const char *name, size_t namelen, WT_ITEM *buf,
+  const char *uri, const char *value)
 {
-    if (full)
-        WT_RET(__wt_metadata_update(session, uri, value));
+    WT_RET(__wt_metadata_update(session, uri, value));
     if (name != NULL) {
         WT_RET(__wt_buf_fmt(session, buf, "%s.%.*s", uri, (int)namelen, name));
         WT_RET(__wt_metadata_update(session, buf->data, value));
@@ -1638,7 +1437,7 @@ __meta_sysinfo_remove(WT_SESSION_IMPL *session, bool full, const char *name, siz
  *     Set the system information in the metadata.
  */
 int
-__wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, size_t namelen)
+__wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(uribuf);
@@ -1652,9 +1451,9 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
 
     /*
      * Write the checkpoint timestamp and snapshot information to the metadata. For any full
-     * checkpoint, including most named checkpoints, write the most recent checkpoint's entries. For
-     * all named checkpoints, whether or not full, write it to that checkpoint's entries by name.
-     * This writes out two copies for most named checkpoints, but that's ok.
+     * checkpoint, i.e. all checkpoints, write the most recent checkpoint's entries. For
+     * all named checkpoints, write it to that checkpoint's entries by name.
+     * This writes out two copies for named checkpoints, but that's ok.
      *
      * The most recent checkpoint's entries are
      *    system:checkpoint (contains checkpoint_timestamp=TS)
@@ -1699,14 +1498,14 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
 
     __wt_timestamp_to_hex_string(txn_global->meta_ckpt_timestamp, hex_timestamp);
     if (strcmp(hex_timestamp, "0") == 0)
-        WT_ERR(__meta_sysinfo_remove(session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_URI));
+        WT_ERR(__meta_sysinfo_remove(session, true, name, namelen, uribuf, WT_SYSTEM_CKPT_URI));
     else {
         WT_ERR(__wt_buf_fmt(session, valbuf,
           WT_SYSTEM_CKPT_TS "=\"%s\"," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN
                             "=%" PRIu64,
           hex_timestamp, session->current_ckpt_sec, conn->base_write_gen));
-        WT_ERR(__meta_sysinfo_update(
-          session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
+        WT_ERR(
+          __meta_sysinfo_update(session, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
     }
 
     /*
@@ -1722,21 +1521,21 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
 
     if (strcmp(hex_timestamp, "0") == 0)
-        WT_ERR(__meta_sysinfo_remove(session, full, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI));
+        WT_ERR(__meta_sysinfo_remove(session, true, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI));
     else {
         WT_ERR(__wt_buf_fmt(session, valbuf,
           WT_SYSTEM_OLDEST_TS "=\"%s\"," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN
                               "=%" PRIu64,
           hex_timestamp, session->current_ckpt_sec, conn->base_write_gen));
         WT_ERR(__meta_sysinfo_update(
-          session, full, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI, valbuf->data));
+          session, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI, valbuf->data));
     }
 
     /* Handle the snapshot information. */
 
     WT_ERR(__meta_print_snapshot(session, valbuf));
     WT_ERR(__meta_sysinfo_update(
-      session, full, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, valbuf->data));
+      session, name, namelen, uribuf, WT_SYSTEM_CKPT_SNAPSHOT_URI, valbuf->data));
 
     /* Print what we did. */
 
@@ -1757,11 +1556,9 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
      * explicit list of trees to checkpoint. It is allowed (though currently not sensible) for the
      * user to do that with a named checkpoint, in which case we don't want to make this change.
      */
-    if (full) {
-        WT_ERR(__wt_buf_fmt(
-          session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));
-        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, valbuf->data));
-    }
+    WT_ERR(
+      __wt_buf_fmt(session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));
+    WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, valbuf->data));
 
 err:
     __wt_scr_free(session, &valbuf);
@@ -2064,11 +1861,3 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
     __wt_meta_checkpoint_free(session, &ckpt);
     return (ret);
 }
-
-#ifdef HAVE_UNITTEST
-int
-__ut_ckpt_verify_modified_bits(WT_ITEM *original_bitmap, WT_ITEM *new_bitmap, bool *ok)
-{
-    return (__ckpt_verify_modified_bits(original_bitmap, new_bitmap, ok));
-}
-#endif /* HAVE_UNIT_TEST */

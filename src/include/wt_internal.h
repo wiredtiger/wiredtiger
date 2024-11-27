@@ -193,14 +193,6 @@ struct __wt_cursor_hs;
 typedef struct __wt_cursor_hs WT_CURSOR_HS;
 struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
-struct __wt_cursor_join;
-typedef struct __wt_cursor_join WT_CURSOR_JOIN;
-struct __wt_cursor_join_endpoint;
-typedef struct __wt_cursor_join_endpoint WT_CURSOR_JOIN_ENDPOINT;
-struct __wt_cursor_join_entry;
-typedef struct __wt_cursor_join_entry WT_CURSOR_JOIN_ENTRY;
-struct __wt_cursor_join_iter;
-typedef struct __wt_cursor_join_iter WT_CURSOR_JOIN_ITER;
 struct __wt_cursor_log;
 typedef struct __wt_cursor_log WT_CURSOR_LOG;
 struct __wt_cursor_lsm;
@@ -269,10 +261,6 @@ struct __wt_insert;
 typedef struct __wt_insert WT_INSERT;
 struct __wt_insert_head;
 typedef struct __wt_insert_head WT_INSERT_HEAD;
-struct __wt_join_stats;
-typedef struct __wt_join_stats WT_JOIN_STATS;
-struct __wt_join_stats_group;
-typedef struct __wt_join_stats_group WT_JOIN_STATS_GROUP;
 struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
@@ -319,8 +307,6 @@ struct __wt_named_data_source;
 typedef struct __wt_named_data_source WT_NAMED_DATA_SOURCE;
 struct __wt_named_encryptor;
 typedef struct __wt_named_encryptor WT_NAMED_ENCRYPTOR;
-struct __wt_named_extractor;
-typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
 struct __wt_named_storage_source;
 typedef struct __wt_named_storage_source WT_NAMED_STORAGE_SOURCE;
 struct __wt_optrack_header;
@@ -533,7 +519,7 @@ typedef uint64_t wt_timestamp_t;
 #include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
-#include "checkpoint.h"
+#include "../checkpoint/checkpoint.h"
 #include "compact.h"
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
@@ -550,7 +536,7 @@ typedef uint64_t wt_timestamp_t;
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
-#include "reconcile.h"
+#include "../reconcile/reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
 #include "tiered.h"
@@ -602,7 +588,7 @@ typedef uint64_t wt_timestamp_t;
 #include "os_fs_inline.h"
 #include "os_fstream_inline.h"
 #include "packing_inline.h"
-#include "reconcile_inline.h"
+#include "../reconcile/reconcile_inline.h"
 #include "serial_inline.h"
 #include "str_inline.h"
 #include "time_inline.h"

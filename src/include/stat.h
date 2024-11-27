@@ -439,6 +439,7 @@ struct __wt_connection_stats {
     int64_t backup_cursor_open;
     int64_t backup_dup_open;
     int64_t backup_granularity;
+    int64_t backup_bits_clr;
     int64_t backup_incremental;
     int64_t backup_start;
     int64_t backup_blocks;
@@ -520,6 +521,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
     int64_t eviction_server_skip_unwanted_tree;
+    int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
     int64_t eviction_server_skip_trees_eviction_disabled;
@@ -1032,11 +1034,10 @@ struct __wt_connection_stats {
     int64_t session_table_create_fail;
     int64_t session_table_create_success;
     int64_t session_table_create_import_fail;
+    int64_t session_table_create_import_repair;
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rename_fail;
-    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
@@ -1429,18 +1430,6 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_hs_removed;
     int64_t txn_rts_hs_removed_dryrun;
     int64_t txn_update_conflict;
-};
-
-/*
- * Statistics entries for join cursors.
- */
-#define WT_JOIN_STATS_BASE 3000
-struct __wt_join_stats {
-    int64_t main_access;
-    int64_t bloom_false_positive;
-    int64_t membership_check;
-    int64_t bloom_insert;
-    int64_t iterated;
 };
 
 /*

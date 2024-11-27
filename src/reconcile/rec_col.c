@@ -33,7 +33,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
              * No need to have a minimum split size boundary, all pages are filled 100% except the
              * last, allowing it to grow in the future.
              */
-            __wt_rec_incr(
+            __wti_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
             __bit_clear_end(
               WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
@@ -73,7 +73,7 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
      * Also, it should reflect the fact that we've just loaded a batch of stable values.
      */
     WT_TIME_WINDOW_INIT(&tw);
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+    WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
     return (0);
 }
 
@@ -111,7 +111,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
     /* Initialize the time aggregate that's going into the parent page. See note above. */
     WT_TIME_WINDOW_INIT(&tw);
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+    WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
     return (0);
 }
 
@@ -142,7 +142,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * Store the bulk cursor's last buffer, not the current value, we're tracking duplicates,
          * which means we want the previous value seen, not the current value.
          */
-        WT_RET(__wt_rec_cell_build_val(
+        WT_RET(__wti_rec_cell_build_val(
           session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle));
 
     /* Boundary: split or write the page. */
@@ -151,11 +151,11 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     /* Copy the value onto the page. */
     if (btree->dictionary)
-        WT_RET(__wt_rec_dict_replace(session, r, &tw, cbulk->rle, val));
-    __wt_rec_image_copy(session, r, val);
+        WT_RET(__wti_rec_dict_replace(session, r, &tw, cbulk->rle, val));
+    __wti_rec_image_copy(session, r, val);
 
     /* Initialize the time aggregate that's going into the parent page. See note above. */
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+    WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
 
     /* Update the starting record number in case we split. */
     r->recno += cbulk->rle;
@@ -187,15 +187,15 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL);
+        __wti_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL);
 
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, val->len))
+        if (__wti_rec_need_split(r, val->len))
             WT_RET(__wti_rec_split_crossing_bnd(session, r, val->len));
 
         /* Copy the value onto the page. */
-        __wt_rec_image_copy(session, r, val);
-        WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
+        __wti_rec_image_copy(session, r, val);
+        WT_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &addr->ta);
     }
     return (0);
 }
@@ -288,7 +288,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
+            __wti_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
@@ -298,7 +298,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
                  * info.
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
-                __wt_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
+                __wti_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;
@@ -313,14 +313,14 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, val->len))
+        if (__wti_rec_need_split(r, val->len))
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, val->len));
 
         /* Copy the value (which is in val, val == r->v) onto the page. */
-        __wt_rec_image_copy(session, r, val);
+        __wti_rec_image_copy(session, r, val);
         if (page_del != NULL)
-            WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
-        WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
+            WT_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
+        WT_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
     }
     WT_INTL_FOREACH_END;
 
@@ -421,7 +421,7 @@ __rec_col_fix_addtw(
     key->len = key->cell_len + key->buf.size;
 
     /* Pack the value, which is empty, but with a time window. */
-    WT_RET(__wt_rec_cell_build_val(session, r, NULL, 0, tw, 0));
+    WT_RET(__wti_rec_cell_build_val(session, r, NULL, 0, tw, 0));
 
     /* Figure how much space we need, and reallocate the page if about to run out. */
     len = key->len + val->len;
@@ -443,10 +443,10 @@ __rec_col_fix_addtw(
     }
 
     /* Copy both cells onto the page. This counts as one entry. */
-    __wt_rec_auximage_copy(session, r, 0, key);
-    __wt_rec_auximage_copy(session, r, 1, val);
+    __wti_rec_auximage_copy(session, r, 0, key);
+    __wti_rec_auximage_copy(session, r, 1, val);
 
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
+    WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, tw);
 
     /* If we're on key 3 we should have just written at most the 4th time window. */
     WT_ASSERT(session, r->aux_entries <= recno_offset + 1);
@@ -704,7 +704,7 @@ __wti_rec_col_fix(
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
 
             /* Clear the on-disk cell time window if it is obsolete. */
-            __wt_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
+            __wti_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
 
             /*
              * The checks in unpack and clear_obsolete do not handle obsolete stop times; we need to
@@ -813,7 +813,7 @@ __wti_rec_col_fix(
             continue;
 
         /* Clear the on-disk cell time window if it is obsolete. */
-        __wt_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
+        __wti_rec_time_window_clear_obsolete(session, NULL, &unpack, r);
 
         /* These cases are the same as the corresponding ones above. */
 
@@ -943,12 +943,12 @@ __wti_rec_col_fix(
              * No need to have a minimum split size boundary, all pages are filled 100% except the
              * last, allowing it to grow in the future.
              */
-            __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
+            __wti_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
             /* If there are entries we didn't write timestamps for, aggregate a stable timestamp. */
             if (r->aux_entries < r->entries) {
                 WT_TIME_WINDOW_INIT(&unpack.tw);
-                WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &unpack.tw);
+                WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &unpack.tw);
             }
 
             /* Make sure the trailing bits in the bitmap get cleared. */
@@ -973,7 +973,7 @@ __wti_rec_col_fix(
     }
 
     /* Update the counters. */
-    __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
+    __wti_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
     /*
      * If there are entries we didn't write timestamps for, aggregate in a stable timestamp. Do this
@@ -982,7 +982,7 @@ __wti_rec_col_fix(
      */
     if (r->aux_entries < r->entries || r->entries == 0) {
         WT_TIME_WINDOW_INIT(&unpack.tw);
-        WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &unpack.tw);
+        WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &unpack.tw);
     }
 
     /* Make sure the trailing bits in the bitmap get cleared. */
@@ -1161,17 +1161,17 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->len = val->cell_len + value->size;
         *ovfl_usedp = true;
     } else
-        WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
+        WT_RET(__wti_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
 
     /* Boundary: split or write the page. */
-    if (__wt_rec_need_split(r, val->len))
+    if (__wti_rec_need_split(r, val->len))
         WT_RET(__wti_rec_split_crossing_bnd(session, r, val->len));
 
     /* Copy the value onto the page. Use the dictionary whenever requested. */
     if (dictionary && !deleted && ovfl_usedp == NULL)
-        WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
-    __wt_rec_image_copy(session, r, val);
-    WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
+        WT_RET(__wti_rec_dict_replace(session, r, tw, rle, val));
+    __wti_rec_image_copy(session, r, val);
+    WT_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, tw);
 
     /* Update the starting record number in case we split. */
     r->recno += rle;
@@ -1356,7 +1356,7 @@ record_loop:
                 twp = &vpack->tw;
 
                 /* Clear the on-disk cell time window if it is obsolete. */
-                __wt_rec_time_window_clear_obsolete(session, NULL, vpack, r);
+                __wti_rec_time_window_clear_obsolete(session, NULL, vpack, r);
 
                 /*
                  * Check if we are dealing with a dictionary cell (a copy of another item on the
