@@ -646,9 +646,11 @@ __wt_evict_app_assist_worker_check(
         __wt_atomic_loadv64(&txn_global->current) != __wt_atomic_loadv64(&txn_global->oldest_id));
 
     /*
-     * LSM sets the "ignore cache size" flag when holding the LSM tree lock, in that case, or when
-     * holding the handle list, schema or table locks (which can block checkpoints and eviction),
-     * don't block the thread for eviction.
+     * Don't block the thread for eviction when holding the handle list, schema or table locks
+     * (which can block checkpoints and eviction), or if the "ignore cache size" flag is set. Some
+     * internal threads such as the sweep server and background compact will set the "ignore cache
+     * size" flag for this reason. Session's can also set this flag using the "ignore_cache_size"
+     * configuration.
      */
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ||
       FLD_ISSET(session->lock_flags,

@@ -1018,11 +1018,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
 
-    /*
-     * Type configuration only applies to tables, column groups and indexes. We don't want
-     * applications to attempt to layer LSM on top of their extended data-sources, and the fact we
-     * allow LSM as a valid URI is an invitation to that mistake: nip it in the bud.
-     */
+    /* Type configuration only applies to tables, column groups and indexes. */
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "index:") &&
       !WT_PREFIX_MATCH(uri, "table:")) {
         /*
