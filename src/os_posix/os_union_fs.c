@@ -16,8 +16,8 @@ static int __union_fs_file_read(
 static int __union_fs_file_size(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
-/* FIXME - Make these static functions? */
-#define EXTENT_END(ext) ((ext)->off + (wt_off_t)(ext)->len - 1)
+#define OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
+#define EXTENT_END(ext) OFFSET_END((ext)->off, (ext)->len)
 #define ADDR_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
 
 /*
@@ -92,8 +92,8 @@ __union_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *u
                 list_valid = false;
             }
         }
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off,
-          hole->off + (wt_off_t)hole->len - 1);
+        __wt_verbose_debug1(
+          session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off, EXTENT_END(hole));
 
         prev = hole;
         hole = hole->next;
@@ -552,9 +552,9 @@ __union_remove_extlist_hole(
     wt_off_t write_end;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", union_fh->iface.name,
-      offset, offset + (wt_off_t)len - 1);
+      offset, OFFSET_END(offset, len));
 
-    write_end = offset + (wt_off_t)len - 1;
+    write_end = OFFSET_END(offset, len);
 
     /* FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
      * forward?
@@ -640,7 +640,7 @@ __union_can_service_read(
     wt_off_t read_end;
     bool read_begins_in_hole, read_ends_in_hole;
 
-    read_end = offset + (wt_off_t)len - 1;
+    read_end = OFFSET_END(offset, len);
 
     hole = union_fh->destination.hole_list;
     while (hole != NULL) {
