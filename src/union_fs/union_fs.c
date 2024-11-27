@@ -198,7 +198,7 @@ err:
     return (ret);
 }
 
-/* Do we need fs_find_layer? We should only interact with the file in the destination. */
+/* TODO: Do we need fs_find_layer? We should only interact with the file in the destination. */
 /*
  * __union_fs_find_layer --
  *     Find a layer for the given file. Return the index of the layer and whether the layer contains

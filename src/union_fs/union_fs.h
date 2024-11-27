@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -29,8 +29,6 @@ struct __wt_union_fs {
     WT_UNION_FS_LAYER destination;
     WT_UNION_FS_LAYER source;
 };
-
-#pragma once
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
