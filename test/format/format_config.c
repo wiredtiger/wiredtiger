@@ -739,22 +739,6 @@ config_cache(void)
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    /*
-     * Ensure cache size sanity for LSM runs. An LSM tree open requires 3 chunks plus a page for
-     * each participant in up to three concurrent merges. Integrate a thread count into that
-     * calculation by requiring 3 chunks/pages per configured thread. That might be overkill, but
-     * LSM runs are more sensitive to small caches than other runs, and a generous cache avoids
-     * stalls we're not interested in chasing.
-     */
-    if (g.lsm_config) {
-        cache = WT_LSM_TREE_MINIMUM_SIZE(table_sumv(V_TABLE_LSM_CHUNK_SIZE) * WT_MEGABYTE,
-          workers * table_sumv(V_TABLE_LSM_MERGE_MAX),
-          workers * table_sumv(V_TABLE_BTREE_LEAF_PAGE_MAX) * WT_MEGABYTE);
-        cache = (cache + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
-        if (GV(CACHE) < cache)
-            GV(CACHE) = (uint32_t)cache;
-    }
-
     if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM))
         GV(CACHE) = GV(CACHE_MAXIMUM);
 
