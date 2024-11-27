@@ -7920,8 +7920,6 @@ typedef enum {
     WT_VERB_HS,                   /*!< History store messages. */
     WT_VERB_HS_ACTIVITY,          /*!< History store activity messages. */
     WT_VERB_LOG,                  /*!< Log messages. */
-    WT_VERB_LSM,                  /*!< LSM messages. */
-    WT_VERB_LSM_MANAGER,
     WT_VERB_MUTEX,
     WT_VERB_METADATA,             /*!< Metadata messages. */
     WT_VERB_OUT_OF_ORDER,
