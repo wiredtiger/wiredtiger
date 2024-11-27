@@ -294,17 +294,7 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
 
         /* Process the entries from the layer, properly handling tombstones. */
         for (i = 0; i < layer_num_entries; i++) {
-            // if (__union_fs_is_tombstone(fs, session, layer_entries[i])) {
-            //     /* Find the tombstone in a list and mark it as removed. */
-            //     l = strlen(layer_entries[i]) - strlen(WT_UNION_FS_TOMBSTONE_SUFFIX);
-            //     for (j = 0; j < num_entries; j++) {
-            //         if (strncmp(entries[j], layer_entries[i], l) == 0 && strlen(entries[j]) == l)
-            //         {
-            //             entries[j][0] = '\0';
-            //             break;
-            //         }
-            //     }
-            // } else {
+            /* TODO: Don't return tombstones for files. */
             /* See if the entry is in the list. Remember any slots that can be reused. */
             found = false;
             reuse = (uint32_t)-1;
@@ -328,7 +318,6 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
                     ++num_entries;
                 }
             }
-            // }
         }
 
         /* Clean up the listing from the layer. */
@@ -1058,21 +1047,6 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
         } else
             union_fh->destination.complete = true;
     }
-
-    /* If there is a tombstone, delete it. */
-    // TODO: do we need this? I don't think so.
-    // if (have_tombstone && __union_fs_is_top(u, layer_index))
-    // WT_ERR(__union_fs_remove_tombstone(fs, session, fh->layers[0]->fh->name, flags));
-    // XXX Initialize the top layer file if it's actually new
-
-    //     // WT_ERR_NOTFOUND_OK(
-    //       __union_fs_find_layer(fs, session, name, __union_fs_top(fs)->index, &layer_index,
-    //       &exist), true);
-    //     if (ret == WT_NOTFOUND) {
-    //         exist = false;
-    //         ret = 0;
-    //     }
-    // }
 
     /* Initialize the jump table. */
     union_fh->iface.close = __union_fs_file_close;

@@ -216,7 +216,6 @@ write(scoped_session &session, bool fresh_start)
     if (ran == 2) {
         update(cursor, coll);
         // TODO:
-        // Remove.
         // remove(cursor, coll);
         return;
     }
@@ -306,7 +305,7 @@ main(int argc, char *argv[])
     const std::string conn_config =
       CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR + "\",cache_size=1GB,verbose=[fileops:2]";
 
-    logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
+    logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
     bool fresh_start = false;
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
@@ -333,38 +332,11 @@ main(int argc, char *argv[])
 
     do_random_crud(crud_session, fresh_start);
 
-    /* Create a thread manager and spawn some threads that will work. */
-    // thread_manager t;
-    // int key_size = 1, value_size = 2;
-
-    // do_inserts = true;
-    // t.add_thread(insert_op, insert_cursor, key_size, value_size);
-
-    // do_reads = true;
-    // t.add_thread(read_op, read_cursor, key_size);
-
-    // /* Sleep for the test duration. */
-    // std::chrono::seconds test_duration_s(5);
-    // std::this_thread::sleep_for(test_duration_s);
-
-    // /* Stop the threads. */
-    // do_reads = false;
-    // do_inserts = false;
-    // t.join();
-
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();
     connection_manager::instance().close();
-    // time_t now = time(0);
-    // tm *local_time = localtime(&now);
 
-    // WT_UNION_SOURCE -> WT_TEST_H:M
-    // TOP -> WT_UNION_SOURCE
-    // TODO: Add a "keep" arg.
-    // std::filesystem::rename("WT_UNION_SOURCE",
-    //   "WT_TEST_" + std::to_string(local_time->tm_hour) + ":" +
-    //   std::to_string(local_time->tm_min));
     testutil_assert(std::filesystem::remove_all(SOURCE_DIR) >= 0);
     std::filesystem::rename("WT_TEST", SOURCE_DIR);
 
