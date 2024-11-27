@@ -16,9 +16,14 @@ static int __union_fs_file_read(
 static int __union_fs_file_size(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
+/*
+ * OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
+ * length=1024 OFFSET_END returns 1023
+ */
 #define OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
 #define EXTENT_END(ext) OFFSET_END((ext)->off, (ext)->len)
-#define ADDR_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
+/* As extent ranges are inclusive we want >= and <= on both ends of the range. */
+#define OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
 
 /*
  * __union_fs_filename --
@@ -601,7 +606,7 @@ __union_remove_extlist_hole(
             hole->len = (size_t)(offset - hole->off);
             hole->next = new;
 
-        } else if (offset <= hole->off && ADDR_IN_EXTENT(write_end, hole)) {
+        } else if (offset <= hole->off && OFFSET_IN_EXTENT(write_end, hole)) {
             /* The write starts before the hole and ends within it. Shrink the hole. */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "Partial overlap to the left of hole %ld-%ld", hole->off, EXTENT_END(hole));
@@ -609,7 +614,7 @@ __union_remove_extlist_hole(
             hole->len = (size_t)(EXTENT_END(hole) - write_end);
             hole->off = write_end + 1;
 
-        } else if (ADDR_IN_EXTENT(offset, hole) && write_end >= EXTENT_END(hole)) {
+        } else if (OFFSET_IN_EXTENT(offset, hole) && write_end >= EXTENT_END(hole)) {
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "Partial overlap to the right of hole %ld-%ld", hole->off, EXTENT_END(hole));
             /* The write starts within the hole and ends after it. Shrink the hole. */
@@ -649,8 +654,8 @@ __union_can_service_read(
             /* All subsequent holes are past the read. We won't find matching holes */
             break;
 
-        read_begins_in_hole = ADDR_IN_EXTENT(offset, hole);
-        read_ends_in_hole = ADDR_IN_EXTENT(read_end, hole);
+        read_begins_in_hole = OFFSET_IN_EXTENT(offset, hole);
+        read_ends_in_hole = OFFSET_IN_EXTENT(read_end, hole);
         if (read_begins_in_hole && read_ends_in_hole) {
             /* Our read is entirely within a hole */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
