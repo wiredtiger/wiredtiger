@@ -873,12 +873,12 @@ err:
 
 #include <unistd.h>
 /*
- * __union_build_holes_from_dest_file_lseek --
+ * __union_fh_find_holes_in_dest_file --
  *     When opening a file from destination create its existing hole list from the file system
  *     information. Any holes in the extent list are data that hasn't been copied from source yet.
  */
 static int
-__union_build_holes_from_dest_file_lseek(
+__union_fh_find_holes_in_dest_file(
   WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh)
 {
     WT_DECL_RET;
@@ -951,7 +951,7 @@ __union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session,
 
     /* Get the map of the file. */
     WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
-    __union_build_holes_from_dest_file_lseek(session, path, union_fh);
+    __union_fh_find_holes_in_dest_file(session, path, union_fh);
 err:
     __wt_free(session, path);
     return (ret);
