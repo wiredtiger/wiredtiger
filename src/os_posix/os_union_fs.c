@@ -442,6 +442,25 @@ static int __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, cons
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
 
 /*
+ * __union_alloc_extent --
+ *     Allocate and populate a new extent with the provided parameters.
+ */
+static int
+__union_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
+  WT_UNION_HOLE_LIST *next, WT_UNION_HOLE_LIST **holep)
+{
+    WT_UNION_HOLE_LIST *new;
+
+    WT_RET(__wt_calloc_one(session, &new));
+    new->off = offset;
+    new->len = len;
+    new->next = next;
+
+    *holep = new;
+    return (0);
+}
+
+/*
  * __union_fs_free_extent_list --
  *     Free the extents associated with a union file handle.
  */
@@ -595,10 +614,8 @@ __union_remove_extlist_hole(
               hole->off, EXTENT_END(hole));
 
             /* First create the hole to the right of the write. */
-            WT_RET(__wt_calloc_one(session, &new));
-            new->off = write_end + 1;
-            new->len = (size_t)(EXTENT_END(hole) - write_end);
-            new->next = hole->next;
+            WT_RET(__union_alloc_extent(
+              session, write_end + 1, (size_t)(EXTENT_END(hole) - write_end), hole->next, &new));
 
             /*
              * Then shrink the existing hole so it's to the left of the write and point it at the
@@ -894,13 +911,9 @@ __union_fh_find_holes_in_dest_file(
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
-    if (file_size > 0) {
-        /* Initialize the hole_list as one big hole. Then find data segments and remove them. */
-        WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
-        union_fh->destination.hole_list->off = 0;
-        union_fh->destination.hole_list->len = (size_t)file_size;
-        union_fh->destination.hole_list->next = NULL;
-    }
+    if (file_size > 0)
+        WT_ERR(__union_alloc_extent(
+          session, 0, (size_t)file_size, NULL, &union_fh->destination.hole_list));
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
@@ -1042,10 +1055,8 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
-                WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
-                union_fh->destination.hole_list->off = 0;
-                union_fh->destination.hole_list->len = (size_t)source_size;
-                union_fh->destination.hole_list->next = NULL;
+                WT_ERR(__union_alloc_extent(
+                  session, 0, (size_t)source_size, NULL, &union_fh->destination.hole_list));
             }
         } else
             union_fh->destination.complete = true;
