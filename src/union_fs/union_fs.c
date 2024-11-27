@@ -461,12 +461,12 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
  *     Lock/unlock a file.
  */
 static int
-__union_fh_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
+__union_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
 {
-    WT_UNION_FILE_HANDLE *fh;
+    WT_UNION_FILE_HANDLE *union_fh;
 
-    fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    return (fh->destination.fh->fh_lock(fh->destination.fh, wt_session, lock));
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    return (union_fh->destination.fh->fh_lock(union_fh->destination.fh, wt_session, lock));
 }
 
 /*
@@ -647,19 +647,17 @@ __read_promote(
  *     File read in a union file system.
  */
 static int
-__union_fh_read(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
+__union_fh_read(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UNION_FILE_HANDLE *union_fh;
     char *read_data;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", file_handle->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", fh->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -705,9 +703,9 @@ err:
  *     Maybe we only need this for our test which overwrites WT_TEST on each loop?
  */
 static int
-__union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
-    WT_UNION_FILE_HANDLE *fh;
+    WT_UNION_FILE_HANDLE *union_fh;
     WT_UNION_HOLE_LIST *hole;
     /*
      * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
@@ -715,14 +713,14 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
      */
     char buf[4096000];
 
-    fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    hole = fh->destination.hole_list;
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    hole = union_fh->destination.hole_list;
 
     while (hole != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-          "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
+          "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
           EXTENT_END(hole));
-        WT_RET(__union_fh_read(file_handle, wt_session, hole->off, hole->len, buf));
+        WT_RET(__union_fh_read(fh, wt_session, hole->off, hole->len, buf));
         hole = hole->next;
     }
 
@@ -734,17 +732,16 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
  *     Close the file.
  */
 static int
-__union_fh_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__union_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_SESSION_IMPL *session;
     WT_UNION_FILE_HANDLE *union_fh;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", file_handle->name);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", fh->name);
 
-    __union_fs_fill_holes_on_file_close(file_handle, wt_session);
+    __union_fs_fill_holes_on_file_close(fh, wt_session);
 
     union_fh->destination.fh->close(union_fh->destination.fh, wt_session);
     __union_fs_free_extent_list(session, union_fh);
@@ -762,14 +759,15 @@ __union_fh_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  *     Get the size of a file in bytes, by file handle.
  */
 static int
-__union_fh_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
+__union_fh_size(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t *sizep)
 {
-    WT_UNION_FILE_HANDLE *fh;
+    WT_UNION_FILE_HANDLE *union_fh;
     wt_off_t destination_size;
 
-    fh = (WT_UNION_FILE_HANDLE *)file_handle;
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
 
-    WT_RET(fh->destination.fh->fh_size(fh->destination.fh, wt_session, &destination_size));
+    WT_RET(
+      union_fh->destination.fh->fh_size(union_fh->destination.fh, wt_session, &destination_size));
     *sizep = destination_size;
     return (0);
 }
@@ -779,12 +777,12 @@ __union_fh_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *s
  *     POSIX fsync. This only sync the destination as the source is readonly.
  */
 static int
-__union_fh_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__union_fh_sync(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
-    WT_UNION_FILE_HANDLE *fh;
+    WT_UNION_FILE_HANDLE *union_fh;
 
-    fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    return (fh->destination.fh->fh_sync(fh->destination.fh, wt_session));
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    return (union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
 }
 
 /*
@@ -792,25 +790,25 @@ __union_fh_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  *     Truncate a file. This operation is only applied to the destination file.
  */
 static int
-__union_fh_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
+__union_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t len)
 {
-    WT_UNION_FILE_HANDLE *fh;
+    WT_UNION_FILE_HANDLE *union_fh;
     wt_off_t old_len, truncate_start, truncate_end;
 
-    fh = (WT_UNION_FILE_HANDLE *)file_handle;
+    union_fh = (WT_UNION_FILE_HANDLE *)fh;
 
     /*
      * If we truncate a range we'll never need to read that range from the source file. Mark it as
      * such.
      */
-    __union_fh_size(file_handle, wt_session, &old_len);
+    __union_fh_size(fh, wt_session, &old_len);
 
     if (old_len == len)
         /* Sometimes we call truncate but don't change the length. Ignore */
         return (0);
 
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-      "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
+      "truncating file %s from %ld to %ld", fh->name, old_len, len);
 
     /*
      * Truncate can be used to shorten a file or to extend it. In both cases the truncated/extended
@@ -819,10 +817,10 @@ __union_fh_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_
     truncate_start = WT_MIN(len, old_len);
     truncate_end = WT_MAX(len, old_len);
 
-    __union_remove_extlist_hole(
-      fh, (WT_SESSION_IMPL *)wt_session, truncate_start, (size_t)(truncate_end - truncate_start));
+    __union_remove_extlist_hole(union_fh, (WT_SESSION_IMPL *)wt_session, truncate_start,
+      (size_t)(truncate_end - truncate_start));
 
-    return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));
+    return (union_fh->destination.fh->fh_truncate(union_fh->destination.fh, wt_session, len));
 }
 
 /*
