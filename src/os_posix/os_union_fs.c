@@ -484,8 +484,8 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_
     WT_UNION_FILE_HANDLE *fh;
     WT_UNION_HOLE_LIST *hole;
     /*
-     * FIXME - 4MB buffer as a placeholder. When we find a large hole we should break the read into
-     * small chunks
+     * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
+     * the read into small chunks
      */
     char buf[4096000];
 
@@ -561,7 +561,8 @@ __union_remove_extlist_hole(
 
     write_end = OFFSET_END(offset, len);
 
-    /* FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
+    /*
+     * FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
      * forward?
      */
     hole = union_fh->destination.hole_list;
@@ -620,10 +621,9 @@ __union_remove_extlist_hole(
             /* The write starts within the hole and ends after it. Shrink the hole. */
             hole->len = (size_t)(offset - hole->off);
 
-        } else {
+        } else
             /* No overlap. Safety check */
             WT_ASSERT(session, write_end < hole->off || offset > EXTENT_END(hole));
-        }
 
         prev_hole = hole;
         hole = hole->next;
@@ -664,8 +664,9 @@ __union_can_service_read(
             return (false);
         } else if (read_begins_in_hole != read_ends_in_hole) {
             /*
-             * The read starts in a hole but doesn't finish in it, or vice versa. This should never
-             * happen.
+             * The read starts in a hole but doesn't finish in it, or vice versa. This breaks
+             * assumptions we make about how the block manager works and is intentionally
+             * unimplemented.
              */
             WT_ASSERT_ALWAYS(session, false, "Read partially covers a hole");
         }
@@ -903,7 +904,8 @@ __union_build_holes_from_dest_file_lseek(
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
-     * beginning of the file.
+     * beginning of the file. lseek will find a block when it starts already positioned on the
+     * block, so starting at zero ensures we'll find data blocks at the beginning of the file.
      */
     while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
 
@@ -982,7 +984,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_UNUSED(readonly);
     WT_UNUSED(which);
 
-    /* TODO: Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY */
+    /* FIXME-WT-13808 Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY */
 
     /* Set up the file handle. */
     WT_ERR(__wt_calloc_one(session, &union_fh));
@@ -1018,8 +1020,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                 /*
                  * We're creating a new destination file which is backed by a source file. It
                  * currently has a length of zero, but we want its length to be the same as the
-                 * source file. We do this by reading the last byte of the file. This will read
-                 * promote the byte into the destination file, setting the file size.
+                 * source file.
                  */
                 wt_off_t source_size;
 
@@ -1030,13 +1031,17 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                   source_size);
 
                 /*
-                 * Set size by truncating. We're bypassing the union layer so we don't track the
-                 * write.
+                 * Set size by truncating. This is a positive length truncate so it actually extends
+                 * the file. We're bypassing the union layer so we don't try to modify the extents
+                 * in hole_list.
                  */
                 union_fh->destination.fh->fh_truncate(
                   union_fh->destination.fh, wt_session, source_size);
 
-                /* Initialize as one big hole. We need to read everything from source. */
+                /*
+                 * Initialize the extent as one hole covering the entire file. We need to read
+                 * everything from source.
+                 */
                 WT_ERR(__wt_calloc_one(session, &union_fh->destination.hole_list));
                 union_fh->destination.hole_list->off = 0;
                 union_fh->destination.hole_list->len = (size_t)source_size;
