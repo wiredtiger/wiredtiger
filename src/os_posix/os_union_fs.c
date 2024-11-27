@@ -11,13 +11,19 @@
 
 #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"
 
-static int __union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent);
 static int __union_fs_file_read(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf);
 static int __union_fs_file_size(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
-#define EXTENT_END(ext) ((ext)->off + (wt_off_t)(ext)->len)
+/*
+ * OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
+ * length=1024 OFFSET_END returns 1023
+ */
+#define OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
+#define EXTENT_END(ext) OFFSET_END((ext)->off, (ext)->len)
+/* As extent ranges are inclusive we want >= and <= on both ends of the range. */
+#define OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
 
 /*
  * __union_fs_filename --
@@ -68,17 +74,37 @@ err:
  *     Dump the contents of a file handle's extent list.
  */
 static void
-__union_debug_dump_extent_list(WT_UNION_FILE_HANDLE *union_fh)
+__union_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
 {
-    WT_UNION_ALLOC_LIST *alloc;
+    WT_UNION_HOLE_LIST *hole;
+    WT_UNION_HOLE_LIST *prev;
+    bool list_valid;
 
-    printf("Dumping extent list\n");
-    alloc = union_fh->destination.allocation_list;
+    prev = NULL;
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", union_fh->iface.name);
+    hole = union_fh->destination.hole_list;
+    list_valid = true;
 
-    while (alloc != NULL) {
-        printf("Extent: %ld-%ld\n", alloc->off, alloc->off + (wt_off_t)alloc->len);
-        alloc = alloc->next;
+    while (hole != NULL) {
+
+        /* Sanity check. This hole doesn't overlap with the previous hole */
+        if (prev != NULL) {
+            if (EXTENT_END(prev) >= hole->off) {
+                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off, EXTENT_END(prev),
+                  hole->off, EXTENT_END(hole));
+                list_valid = false;
+            }
+        }
+        __wt_verbose_debug1(
+          session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off, EXTENT_END(hole));
+
+        prev = hole;
+        hole = hole->next;
     }
+
+    WT_ASSERT_ALWAYS(session, list_valid, "Extent list contains overlaps!");
 }
 #pragma GCC diagnostic pop
 
@@ -351,7 +377,7 @@ static int
 __union_fs_directory_list(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    // TODO: This will return tomb stones. We need to not do that.
+    /* TODO: This will return tomb stones. We need to not do that. */
     return (__union_fs_directory_list_ext(
       fs, (WT_SESSION_IMPL *)wt_session, directory, prefix, dirlistp, countp, false));
 }
@@ -416,22 +442,41 @@ static int __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, cons
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep);
 
 /*
+ * __union_alloc_extent --
+ *     Allocate and populate a new extent with the provided parameters.
+ */
+static int
+__union_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
+  WT_UNION_HOLE_LIST *next, WT_UNION_HOLE_LIST **holep)
+{
+    WT_UNION_HOLE_LIST *new;
+
+    WT_RET(__wt_calloc_one(session, &new));
+    new->off = offset;
+    new->len = len;
+    new->next = next;
+
+    *holep = new;
+    return (0);
+}
+
+/*
  * __union_fs_free_extent_list --
  *     Free the extents associated with a union file handle.
  */
 static void
 __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
 {
-    WT_UNION_ALLOC_LIST *alloc;
-    WT_UNION_ALLOC_LIST *temp;
+    WT_UNION_HOLE_LIST *hole;
+    WT_UNION_HOLE_LIST *temp;
 
-    temp = alloc = NULL;
-    alloc = union_fh->destination.allocation_list;
-    union_fh->destination.allocation_list = NULL;
+    temp = hole = NULL;
+    hole = union_fh->destination.hole_list;
+    union_fh->destination.hole_list = NULL;
 
-    while (alloc != NULL) {
-        temp = alloc;
-        alloc = alloc->next;
+    while (hole != NULL) {
+        temp = hole;
+        hole = hole->next;
 
         temp->next = NULL;
         __wt_free(session, temp);
@@ -455,41 +500,23 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 static int
 __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-    WT_UNION_ALLOC_LIST *alloc, *next_alloc;
     WT_UNION_FILE_HANDLE *fh;
-    char buf[4096000]; // FIXME - 4MB buffer as a placeholder
-    wt_off_t file_size;
+    WT_UNION_HOLE_LIST *hole;
+    /*
+     * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
+     * the read into small chunks
+     */
+    char buf[4096000];
 
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
-    alloc = fh->destination.allocation_list;
+    hole = fh->destination.hole_list;
 
-    while (alloc != NULL) {
-        next_alloc = alloc->next;
-        if (next_alloc == NULL)
-            break;
-        if (EXTENT_END(alloc) < next_alloc->off) {
-            __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-              "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name,
-              EXTENT_END(alloc), next_alloc->off);
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc),
-              (size_t)(next_alloc->off - EXTENT_END(alloc)), buf));
-
-            // We've modified the extent list while walking it. Start again to be safe.
-            alloc = fh->destination.allocation_list;
-            continue;
-        }
-
-        alloc = alloc->next;
-    }
-
-    // Finally check if there's a hole at the end of the file.
-    __union_fs_file_size(file_handle, wt_session, &file_size);
-    if (alloc != NULL) {
-        if (file_size > EXTENT_END(alloc)) {
-            WT_RET(__union_fs_file_read(file_handle, wt_session, EXTENT_END(alloc),
-              (size_t)(file_size - EXTENT_END(alloc)), buf));
-            // No need to restart the extent validation. This is the final extent.
-        }
+    while (hole != NULL) {
+        __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+          "Found hole in %s at %ld-%ld during file close. Filling", fh->iface.name, hole->off,
+          EXTENT_END(hole));
+        WT_RET(__union_fs_file_read(file_handle, wt_session, hole->off, hole->len, buf));
+        hole = hole->next;
     }
 
     return (0);
@@ -536,168 +563,138 @@ __union_fs_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool l
     return (fh->destination.fh->fh_lock(fh->destination.fh, wt_session, lock));
 }
 
-// This may be easier with a partial_start, partial_end, partial macro.
 /*
- * Given a read or a write must fall either in an existing extend or on the edge of it the two
- * choices are NONE or FULL.
- *
- * This only works by assuming that the block manager is the only thing that will use this and that
- * it only reads and writes full blocks. If that changes this code will unceremoniously fall over.
+ * __union_remove_extlist_hole --
+ *     Track that we wrote something by removing its hole from the extent list.
  */
-typedef enum { NONE, FULL } RW_SERVICE_LEVEL;
-
-/*
- * __dest_can_service_rw --
- *     Return if a the read or write can be serviced by the destination.
- */
-static RW_SERVICE_LEVEL
-__dest_can_service_rw(
+static int
+__union_remove_extlist_hole(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_ALLOC_LIST *alloc;
-    wt_off_t rw_end;
+    WT_UNION_HOLE_LIST *hole, *tmp, *new, *prev_hole;
+    wt_off_t write_end;
 
-    WT_UNUSED(session);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", union_fh->iface.name,
+      offset, OFFSET_END(offset, len));
 
-    /* Walk the extent list until extent offset + size > read offset + size. */
-    rw_end = offset + (wt_off_t)len;
+    write_end = OFFSET_END(offset, len);
 
-    /* Nothing has been written into the destination yet. */
-    if ((alloc = union_fh->destination.allocation_list) == NULL)
-        return (NONE);
+    /*
+     * FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
+     * forward?
+     */
+    hole = union_fh->destination.hole_list;
+    prev_hole = NULL;
+    while (hole != NULL) {
 
-    while (alloc != NULL) {
-        /* The read is in this allocation. */
-        if (offset >= alloc->off && rw_end <= EXTENT_END(alloc)) {
+        if (write_end < hole->off) {
+            /* We won't find any more overlapping holes. Stop searching. */
+            break;
+        }
+
+        if (offset <= hole->off && write_end >= EXTENT_END(hole)) {
+            /* The write fully overlaps a hole. Delete it. */
             __wt_verbose_debug3(
-              session, WT_VERB_FILEOPS, "CAN SERVICE %s: Full match", union_fh->iface.name);
-            return (FULL);
-        }
-        alloc = alloc->next;
-    }
+              session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off, EXTENT_END(hole));
 
-    return (NONE);
-}
+            tmp = hole;
+            if (prev_hole == NULL)
+                union_fh->destination.hole_list = hole->next;
+            else
+                prev_hole->next = hole->next;
+            hole = hole->next;
+            __wt_free(session, tmp);
+            continue;
 
-/*
- * __union_merge_with_next_extents --
- *     Merge the current extent with the following extent(s) if they overlap.
- */
-static int
-__union_merge_with_next_extents(WT_SESSION_IMPL *session, WT_UNION_ALLOC_LIST *extent)
-{
-    WT_UNION_ALLOC_LIST *next_extent;
-    wt_off_t new_len;
+        } else if (offset > hole->off && write_end < EXTENT_END(hole)) {
+            /* The write is entirely within the hole. Split the hole in two. */
 
-    next_extent = extent->next;
-    WT_ASSERT_ALWAYS(session, next_extent != NULL, "Attempting to merge with NULL!");
-    WT_ASSERT_ALWAYS(session, EXTENT_END(extent) >= next_extent->off,
-      "Attempting to merge non-overlapping extents! extent_end = %ld, next->off = %ld",
-      EXTENT_END(extent), next_extent->off);
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully contained by hole %ld-%ld",
+              hole->off, EXTENT_END(hole));
 
-    extent->next = next_extent->next;
-    new_len = EXTENT_END(next_extent) - extent->off; // TODO check for off by one
-    // FIXME - A lot of pointless typecasting. Consider dropping wt_off_t in favor of size_t.
-    extent->len = (size_t)WT_MAX((wt_off_t)extent->len, new_len);
-    __wt_free(session, next_extent);
+            /* First create the hole to the right of the write. */
+            WT_RET(__union_alloc_extent(
+              session, write_end + 1, (size_t)(EXTENT_END(hole) - write_end), hole->next, &new));
 
-    // Run it again in case we also overlap with the N+1 extent
-    // TODO - loop instead of recursion.
-    if (extent->next != NULL && EXTENT_END(extent) >= extent->next->off) {
-        WT_RET(__union_merge_with_next_extents(session, extent));
+            /*
+             * Then shrink the existing hole so it's to the left of the write and point it at the
+             * new hole.
+             */
+            hole->len = (size_t)(offset - hole->off);
+            hole->next = new;
+
+        } else if (offset <= hole->off && OFFSET_IN_EXTENT(write_end, hole)) {
+            /* The write starts before the hole and ends within it. Shrink the hole. */
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "Partial overlap to the left of hole %ld-%ld", hole->off, EXTENT_END(hole));
+
+            hole->len = (size_t)(EXTENT_END(hole) - write_end);
+            hole->off = write_end + 1;
+
+        } else if (OFFSET_IN_EXTENT(offset, hole) && write_end >= EXTENT_END(hole)) {
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "Partial overlap to the right of hole %ld-%ld", hole->off, EXTENT_END(hole));
+            /* The write starts within the hole and ends after it. Shrink the hole. */
+            hole->len = (size_t)(offset - hole->off);
+
+        } else
+            /* No overlap. Safety check */
+            WT_ASSERT(session, write_end < hole->off || offset > EXTENT_END(hole));
+
+        prev_hole = hole;
+        hole = hole->next;
     }
     return (0);
 }
 
 /*
- * __dest_update_alloc_list_write --
- *     Track that we wrote something. This will require creating new extends, growing existing ones
- *     and merging overlapping extents.
+ * __union_can_service_read --
+ *     Return if a the read can be serviced by the destination file. This assumes that the block
+ *     manager is the only thing that perform reads and it only reads and writes full blocks. If
+ *     that changes this code will unceremoniously fall over.
  */
-static int
-__dest_update_alloc_list_write(
+static bool
+__union_can_service_read(
   WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_ALLOC_LIST *alloc, *prev, *new;
-    RW_SERVICE_LEVEL sl;
-    prev = alloc = new = NULL;
+    WT_UNION_HOLE_LIST *hole;
+    wt_off_t read_end;
+    bool read_begins_in_hole, read_ends_in_hole;
 
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "UPDATE EXTENT %s: %ld, %lu, %p",
-      union_fh->iface.name, offset, len, union_fh->destination.allocation_list);
+    read_end = OFFSET_END(offset, len);
 
-    sl = __dest_can_service_rw(union_fh, session, offset, len);
-    if (sl == FULL) {
-        /* The full write was serviced from single extent. */
-        return (0);
-    } else {
-        /* Allocate a new extent or grow an existing one. */
-        alloc = union_fh->destination.allocation_list;
-        while (alloc != NULL) {
-            /* Find the first extend that the write is before. */
-            if (alloc->off == offset) {
+    hole = union_fh->destination.hole_list;
+    while (hole != NULL) {
 
-                /* If the write fits the current extent just add it */
-                if (EXTENT_END(alloc) >= offset + (wt_off_t)len) {
-                    __wt_verbose_debug3(session, WT_VERB_FILEOPS, "EXTENT MATCH %s, no work done",
-                      union_fh->iface.name);
-                    return (0);
-                } else {
-                    /* Otherwise grow the extent to match the new write. */
-                    WT_ASSERT(session, alloc->len < len);
-                    alloc->len = len;
-                    if (alloc->next != NULL && alloc->next->off <= EXTENT_END(alloc)) {
-                        WT_RET(__union_merge_with_next_extents(session, alloc));
-                    }
-                    return (0);
-                }
-            }
-            if (alloc->off > offset) {
-                break;
-            }
-            prev = alloc;
-            alloc = alloc->next;
+        if (read_end < hole->off)
+            /* All subsequent holes are past the read. We won't find matching holes */
+            break;
+
+        read_begins_in_hole = OFFSET_IN_EXTENT(offset, hole);
+        read_ends_in_hole = OFFSET_IN_EXTENT(read_end, hole);
+        if (read_begins_in_hole && read_ends_in_hole) {
+            /* Our read is entirely within a hole */
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "CANNOT SERVICE %s: Reading from hole. Read: %ld-%ld, hole: %ld-%ld",
+              union_fh->iface.name, offset, read_end, hole->off, EXTENT_END(hole));
+            return (false);
+        } else if (read_begins_in_hole != read_ends_in_hole) {
+            /*
+             * The read starts in a hole but doesn't finish in it, or vice versa. This breaks
+             * assumptions we make about how the block manager works and is intentionally
+             * unimplemented.
+             */
+            WT_ASSERT_ALWAYS(session, false, "Read partially covers a hole");
         }
 
-        if (prev == NULL) {
-            // New extent is at the start.
-            /* Allocate a new extent. */
-            WT_RET(__wt_calloc_one(session, &new));
-            new->off = offset;
-            new->len = len;
-            new->next = alloc;
-            union_fh->destination.allocation_list = new;
-            return (0);
-
-        } else if (alloc == NULL) {
-            // New extent is after.
-            if (EXTENT_END(prev) == offset) {
-                // Grow prev.
-                prev->len += len;
-                return (0);
-            }
-        } else {
-            // New extent is in between.
-            if (EXTENT_END(prev) == offset) {
-                // Grow prev.
-                prev->len += len;
-                if (prev->next->off <= EXTENT_END(prev)) {
-                    __union_merge_with_next_extents(session, prev);
-                }
-                return (0);
-            }
-        }
-        /* Allocate a new extent. */
-        WT_RET(__wt_calloc_one(session, &new));
-        new->off = offset;
-        new->len = len;
-        new->next = alloc;
-        prev->next = new;
-        if (EXTENT_END(prev) >= new->off) {
-            __union_merge_with_next_extents(session, prev);
-        }
+        hole = hole->next;
     }
-    return (0);
+
+    __wt_verbose_debug3(
+      session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", union_fh->iface.name);
+    return (true);
 }
+
 /*
  * __union_fs_file_write --
  *     File write.
@@ -713,11 +710,11 @@ __union_fs_file_write(
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
-    // TODO - why write to file before setting the extent?
+    /* TODO - why write to file before setting the extent? */
     WT_RET(
       union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
     WT_RET(union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
-    WT_RET(__dest_update_alloc_list_write(union_fh, session, offset, len));
+    WT_RET(__union_remove_extlist_hole(union_fh, session, offset, len));
     return (0);
 }
 
@@ -751,28 +748,27 @@ __union_fs_file_read(
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UNION_FILE_HANDLE *union_fh;
-    RW_SERVICE_LEVEL sl;
     char *read_data;
 
     union_fh = (WT_UNION_FILE_HANDLE *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
-    sl = NONE;
 
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", file_handle->name, offset, len);
 
     read_data = (char *)buf;
 
-    sl = __dest_can_service_rw(union_fh, session, offset, len);
-
     /*
      * TODO: WiredTiger will read the metadata file after creation but before anything has been
      * written in this case we forward the read to the empty metadata file in the destination. Is
      * this correct?
      */
-    if (union_fh->destination.complete || union_fh->source == NULL || sl == FULL) {
-        // TODO: Right now if complete is true source will always be null. So the if statement here
-        // has redundancy is there a time when we need it? Maybe with the background thread.
+    if (union_fh->destination.complete || union_fh->source == NULL ||
+      __union_can_service_read(union_fh, session, offset, len)) {
+        /*
+         * TODO: Right now if complete is true source will always be null. So the if statement here
+         * has redundancy is there a time when we need it? Maybe with the background thread.
+         */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
           union_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
@@ -829,16 +825,32 @@ static int
 __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
     WT_UNION_FILE_HANDLE *fh;
-    wt_off_t old_len;
+    wt_off_t old_len, truncate_start, truncate_end;
 
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
 
-    // If we truncate a range we'll never need to read that range from the source file. Mark it as
-    // such.
+    /*
+     * If we truncate a range we'll never need to read that range from the source file. Mark it as
+     * such.
+     */
     __union_fs_file_size(file_handle, wt_session, &old_len);
+
+    if (old_len == len)
+        /* Sometimes we call truncate but don't change the length. Ignore */
+        return (0);
+
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
       "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
-    __dest_update_alloc_list_write(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
+
+    /*
+     * Truncate can be used to shorten a file or to extend it. In both cases the truncated/extended
+     * range doesn't need to be read from the source directory.
+     */
+    truncate_start = WT_MIN(len, old_len);
+    truncate_end = WT_MAX(len, old_len);
+
+    __union_remove_extlist_hole(
+      fh, (WT_SESSION_IMPL *)wt_session, truncate_start, (size_t)(truncate_end - truncate_start));
 
     return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));
 }
@@ -858,7 +870,7 @@ __union_fs_open_in_source(
 
     path = NULL;
 
-    // Clear the create flag. TODO: Can we assert something here?
+    /* Clear the create flag. TODO: Can we assert something here? */
     FLD_CLR(flags, WT_FS_OPEN_CREATE);
 
     /* Open the file in the layer. */
@@ -875,14 +887,15 @@ err:
 
 #include <unistd.h>
 /*
- * __union_build_extents_from_dest_file_lseek --
- *     When opening a file from destination create its existing extent list from the file system
+ * __union_fh_find_holes_in_dest_file --
+ *     When opening a file from destination create its existing hole list from the file system
  *     information. Any holes in the extent list are data that hasn't been copied from source yet.
  */
-static void
-__union_build_extents_from_dest_file_lseek(
+static int
+__union_fh_find_holes_in_dest_file(
   WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh)
 {
+    WT_DECL_RET;
     wt_off_t data_offset, data_end_offset, file_size;
     int fd;
 
@@ -891,27 +904,35 @@ __union_build_extents_from_dest_file_lseek(
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
-    __union_fs_file_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size);
+    WT_ERR(__union_fs_file_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
-    // Find the next data block. data_end_offset is initialized to zero so we start from the
-    // beginning of the file.
+    if (file_size > 0)
+        WT_ERR(__union_alloc_extent(
+          session, 0, (size_t)file_size, NULL, &union_fh->destination.hole_list));
+
+    /*
+     * Find the next data block. data_end_offset is initialized to zero so we start from the
+     * beginning of the file. lseek will find a block when it starts already positioned on the
+     * block, so starting at zero ensures we'll find data blocks at the beginning of the file.
+     */
     while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
 
         data_end_offset = lseek(fd, data_offset, SEEK_HOLE);
-        // All data must be followed by a hole
+        /* All data must be followed by a hole */
         WT_ASSERT(session, data_end_offset != -1);
         WT_ASSERT(session, data_end_offset > data_offset - 1);
 
         __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename,
           data_offset, data_end_offset);
-        // FIXME - unhandled ret
-        __dest_update_alloc_list_write(
-          union_fh, session, data_offset, (size_t)(data_end_offset - data_offset));
+        WT_ERR(__union_remove_extlist_hole(
+          union_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
     }
 
+err:
     close(fd);
+    return (ret);
 }
 
 /*
@@ -940,7 +961,7 @@ __union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session,
 
     /* Get the map of the file. */
     WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
-    __union_build_extents_from_dest_file_lseek(session, path, union_fh);
+    __union_fh_find_holes_in_dest_file(session, path, union_fh);
 err:
     __wt_free(session, path);
     return (ret);
@@ -973,7 +994,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     WT_UNUSED(readonly);
     WT_UNUSED(which);
 
-    // TODO: Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY
+    /* FIXME-WT-13808 Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY */
 
     /* Set up the file handle. */
     WT_ERR(__wt_calloc_one(session, &union_fh));
@@ -981,7 +1002,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     union_fh->iface.file_system = fs;
     union_fh->file_type = file_type;
 
-    // TODO: Handle the exclusive flag and other flags
+    /* TODO: Handle the exclusive flag and other flags */
 
     /* Open it in the destination layer. */
     WT_ERR_NOTFOUND_OK(
@@ -1006,12 +1027,12 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
             WT_ERR(__union_fs_open_in_source(union_fs, session, union_fh, flags));
 
             if (!dest_exist) {
-                // We're creating a new destination file which is backed by a source file. It
-                // currently has a length of zero, but we want its length to be the same as the
-                // source file. We do this by reading the last byte of the file. This will read
-                // promote the byte into the destination file, setting the file size.
+                /*
+                 * We're creating a new destination file which is backed by a source file. It
+                 * currently has a length of zero, but we want its length to be the same as the
+                 * source file.
+                 */
                 wt_off_t source_size;
-                char buf[10];
 
                 union_fh->source->fh_size(union_fh->source, wt_session, &source_size);
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -1019,8 +1040,20 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                   "file",
                   source_size);
 
-                WT_ERR(__union_fs_file_read(
-                  (WT_FILE_HANDLE *)union_fh, wt_session, source_size - 1, 1, buf));
+                /*
+                 * Set size by truncating. This is a positive length truncate so it actually extends
+                 * the file. We're bypassing the union layer so we don't try to modify the extents
+                 * in hole_list.
+                 */
+                union_fh->destination.fh->fh_truncate(
+                  union_fh->destination.fh, wt_session, source_size);
+
+                /*
+                 * Initialize the extent as one hole covering the entire file. We need to read
+                 * everything from source.
+                 */
+                WT_ERR(__union_alloc_extent(
+                  session, 0, (size_t)source_size, NULL, &union_fh->destination.hole_list));
             }
         } else
             union_fh->destination.complete = true;
@@ -1050,7 +1083,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     union_fh->iface.fh_truncate = __union_fs_file_truncate;
     union_fh->iface.fh_write = __union_fs_file_write;
 
-    // TODO: These are unimplemented.
+    /* TODO: These are unimplemented. */
     union_fh->iface.fh_advise = NULL;
     union_fh->iface.fh_sync_nowait = NULL;
     union_fh->iface.fh_unmap = NULL;
@@ -1155,6 +1188,8 @@ __union_fs_rename(
 
         /* Create a tombstone for the file. */
         WT_ERR(__union_fs_create_tombstone(fs, session, to, flags));
+        /* Create a tombstone for the old file as well. */
+        WT_ERR(__union_fs_create_tombstone(fs, session, from, flags));
     }
 
 err:
@@ -1187,7 +1222,7 @@ __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
 
-    // The file will always exist in the destination. This the is authoritative file size.
+    /* The file will always exist in the destination. This the is authoritative file size. */
     WT_ASSERT(session, which == WT_UNION_FS_LAYER_DESTINATION);
     WT_RET(__union_fs_filename(&union_fs->destination, session, name, &path));
     ret = union_fs->os_file_system->fs_size(union_fs->os_file_system, wt_session, path, sizep);
@@ -1214,7 +1249,7 @@ __union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_RET(union_fs->os_file_system->terminate(union_fs->os_file_system, wt_session));
 
     __wt_free(session, union_fs->source.home);
-    // TODO: Do we free ourselves here?
+    /* TODO: Do we free ourselves here? */
     return (0);
 }
 

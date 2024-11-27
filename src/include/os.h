@@ -191,13 +191,13 @@ struct __wt_fstream {
 };
 
 /*
- * __wt_union_alloc_list
+ * __wt_union_hole_list
  */
-struct __wt_union_alloc_list {
+struct __wt_union_hole_list {
     wt_off_t off;
     size_t len;
 
-    WT_UNION_ALLOC_LIST *next;
+    WT_UNION_HOLE_LIST *next;
 };
 
 /*
@@ -215,7 +215,7 @@ typedef struct {
      * allocation_list tracks which ranges in the destination file shouldn't be brought up from the
      * source layer. Holes in these extents should only shrink and never grow.
      */
-    WT_UNION_ALLOC_LIST *allocation_list;
+    WT_UNION_HOLE_LIST *hole_list;
 } WT_DESTINATION_METADATA;
 
 typedef enum { WT_UNION_FS_LAYER_DESTINATION, WT_UNION_FS_LAYER_SOURCE } WT_UNION_FS_LAYER_TYPE;

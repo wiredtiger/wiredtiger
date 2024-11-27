@@ -248,7 +248,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
         }
 
         if (i == 0) {
-            for(int j = 0; j < warmup_insertions; j++)
+            for (int j = 0; j < warmup_insertions; j++)
                 write(session, true);
             i = warmup_insertions;
         }
@@ -267,7 +267,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
             continue;
         } else {
             logger::log_msg(LOG_ERROR,
-            "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
+              "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
             testutil_assert(false);
         }
 
@@ -303,8 +303,8 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR +
-      "\",cache_size=1GB,verbose=[fileops:2]";
+    const std::string conn_config =
+      CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR + "\",cache_size=1GB,verbose=[fileops:2]";
 
     logger::log_msg(LOG_TRACE, "Arg count: " + std::to_string(argc));
     bool fresh_start = false;
