@@ -805,7 +805,7 @@ static int
 __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
     WT_UNION_FILE_HANDLE *fh;
-    wt_off_t old_len;
+    wt_off_t old_len, truncate_start, truncate_end;
 
     fh = (WT_UNION_FILE_HANDLE *)file_handle;
 
@@ -819,17 +819,18 @@ __union_fs_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt
         /* Sometimes we call truncate but don't change the length. Ignore */
         return (0);
 
-    if (len > old_len)
-        /*
-         * It's technically allowed to extend a file by calling truncate. We're ignoring this case
-         * for now.
-         */
-        WT_ASSERT_ALWAYS(
-          (WT_SESSION_IMPL *)wt_session, false, "truncate call used to extend file!");
-
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
       "truncating file %s from %ld to %ld", file_handle->name, old_len, len);
-    __union_remove_extlist_hole(fh, (WT_SESSION_IMPL *)wt_session, len, (size_t)(old_len - len));
+
+    /*
+     * Truncate can be used to shorten a file or to extend it. In both cases the truncated/extended
+     * range doesn't need to be read from the source directory.
+     */
+    truncate_start = WT_MIN(len, old_len);
+    truncate_end = WT_MAX(len, old_len);
+
+    __union_remove_extlist_hole(
+      fh, (WT_SESSION_IMPL *)wt_session, truncate_start, (size_t)(truncate_end - truncate_start));
 
     return (fh->destination.fh->fh_truncate(fh->destination.fh, wt_session, len));
 }
