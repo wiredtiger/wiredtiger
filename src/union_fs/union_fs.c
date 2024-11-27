@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include "union_fs_private.h"
 #include <unistd.h>
 
 #define WT_UNION_FS_TOMBSTONE_SUFFIX ".deleted"

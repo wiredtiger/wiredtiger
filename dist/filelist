@@ -163,7 +163,6 @@ src/os_posix/os_sleep.c          POSIX_HOST
 src/os_posix/os_snprintf.c       POSIX_HOST
 src/os_posix/os_thread.c         POSIX_HOST
 src/os_posix/os_time.c           POSIX_HOST
-src/os_posix/os_union_fs.c       POSIX_HOST
 src/os_posix/os_yield.c          POSIX_HOST
 src/os_win/os_dir.c              WINDOWS_HOST
 src/os_win/os_dlopen.c           WINDOWS_HOST
@@ -244,3 +243,5 @@ src/txn/txn_ckpt.c
 src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c
+src/union_fs/union_fs.c       POSIX_HOST
+src/union_fs/union_fh.c       POSIX_HOST

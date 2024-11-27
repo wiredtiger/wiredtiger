@@ -556,6 +556,7 @@ typedef uint64_t wt_timestamp_t;
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
+#include "union_fs.h"
 #include "verbose.h"
 
 #include "session.h" /* required by connection.h */
