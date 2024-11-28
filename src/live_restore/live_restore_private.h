@@ -11,13 +11,13 @@
 #define WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX ".deleted"
 
 /*
- * OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
- * length=1024 OFFSET_END returns 1023
+ * WT_OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
+ * length=1024 WT_OFFSET_END returns 1023
  */
-#define OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
-#define EXTENT_END(ext) OFFSET_END((ext)->off, (ext)->len)
+#define WT_OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
+#define WT_EXTENT_END(ext) WT_OFFSET_END((ext)->off, (ext)->len)
 /* As extent ranges are inclusive we want >= and <= on both ends of the range. */
-#define OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= EXTENT_END(ext))
+#define WT_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WT_EXTENT_END(ext))
 
 /*
  * __wt_live_restore_hole_list

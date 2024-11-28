@@ -75,15 +75,15 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
 
         /* Sanity check. This hole doesn't overlap with the previous hole */
         if (prev != NULL) {
-            if (EXTENT_END(prev) >= hole->off) {
+            if (WT_EXTENT_END(prev) >= hole->off) {
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off, EXTENT_END(prev),
-                  hole->off, EXTENT_END(hole));
+                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off, WT_EXTENT_END(prev),
+                  hole->off, WT_EXTENT_END(hole));
                 list_valid = false;
             }
         }
         __wt_verbose_debug1(
-          session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off, EXTENT_END(hole));
+          session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off, WT_EXTENT_END(hole));
 
         prev = hole;
         hole = hole->next;
@@ -482,9 +482,9 @@ __live_restore_remove_extlist_hole(
     wt_off_t write_end;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", lr_fh->iface.name,
-      offset, OFFSET_END(offset, len));
+      offset, WT_OFFSET_END(offset, len));
 
-    write_end = OFFSET_END(offset, len);
+    write_end = WT_OFFSET_END(offset, len);
 
     /*
      * FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
@@ -499,10 +499,10 @@ __live_restore_remove_extlist_hole(
             break;
         }
 
-        if (offset <= hole->off && write_end >= EXTENT_END(hole)) {
+        if (offset <= hole->off && write_end >= WT_EXTENT_END(hole)) {
             /* The write fully overlaps a hole. Delete it. */
             __wt_verbose_debug3(
-              session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off, EXTENT_END(hole));
+              session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off, WT_EXTENT_END(hole));
 
             tmp = hole;
             if (prev_hole == NULL)
@@ -513,15 +513,15 @@ __live_restore_remove_extlist_hole(
             __wt_free(session, tmp);
             continue;
 
-        } else if (offset > hole->off && write_end < EXTENT_END(hole)) {
+        } else if (offset > hole->off && write_end < WT_EXTENT_END(hole)) {
             /* The write is entirely within the hole. Split the hole in two. */
 
             __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully contained by hole %ld-%ld",
-              hole->off, EXTENT_END(hole));
+              hole->off, WT_EXTENT_END(hole));
 
             /* First create the hole to the right of the write. */
             WT_RET(__live_restore_alloc_extent(
-              session, write_end + 1, (size_t)(EXTENT_END(hole) - write_end), hole->next, &new));
+              session, write_end + 1, (size_t)(WT_EXTENT_END(hole) - write_end), hole->next, &new));
 
             /*
              * Then shrink the existing hole so it's to the left of the write and point it at the
@@ -530,23 +530,23 @@ __live_restore_remove_extlist_hole(
             hole->len = (size_t)(offset - hole->off);
             hole->next = new;
 
-        } else if (offset <= hole->off && OFFSET_IN_EXTENT(write_end, hole)) {
+        } else if (offset <= hole->off && WT_OFFSET_IN_EXTENT(write_end, hole)) {
             /* The write starts before the hole and ends within it. Shrink the hole. */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Partial overlap to the left of hole %ld-%ld", hole->off, EXTENT_END(hole));
+              "Partial overlap to the left of hole %ld-%ld", hole->off, WT_EXTENT_END(hole));
 
-            hole->len = (size_t)(EXTENT_END(hole) - write_end);
+            hole->len = (size_t)(WT_EXTENT_END(hole) - write_end);
             hole->off = write_end + 1;
 
-        } else if (OFFSET_IN_EXTENT(offset, hole) && write_end >= EXTENT_END(hole)) {
+        } else if (WT_OFFSET_IN_EXTENT(offset, hole) && write_end >= WT_EXTENT_END(hole)) {
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Partial overlap to the right of hole %ld-%ld", hole->off, EXTENT_END(hole));
+              "Partial overlap to the right of hole %ld-%ld", hole->off, WT_EXTENT_END(hole));
             /* The write starts within the hole and ends after it. Shrink the hole. */
             hole->len = (size_t)(offset - hole->off);
 
         } else
             /* No overlap. Safety check */
-            WT_ASSERT(session, write_end < hole->off || offset > EXTENT_END(hole));
+            WT_ASSERT(session, write_end < hole->off || offset > WT_EXTENT_END(hole));
 
         prev_hole = hole;
         hole = hole->next;
@@ -568,7 +568,7 @@ __live_restore_can_service_read(
     wt_off_t read_end;
     bool read_begins_in_hole, read_ends_in_hole;
 
-    read_end = OFFSET_END(offset, len);
+    read_end = WT_OFFSET_END(offset, len);
 
     hole = lr_fh->destination.hole_list;
     while (hole != NULL) {
@@ -577,13 +577,13 @@ __live_restore_can_service_read(
             /* All subsequent holes are past the read. We won't find matching holes */
             break;
 
-        read_begins_in_hole = OFFSET_IN_EXTENT(offset, hole);
-        read_ends_in_hole = OFFSET_IN_EXTENT(read_end, hole);
+        read_begins_in_hole = WT_OFFSET_IN_EXTENT(offset, hole);
+        read_ends_in_hole = WT_OFFSET_IN_EXTENT(read_end, hole);
         if (read_begins_in_hole && read_ends_in_hole) {
             /* Our read is entirely within a hole */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "CANNOT SERVICE %s: Reading from hole. Read: %ld-%ld, hole: %ld-%ld",
-              lr_fh->iface.name, offset, read_end, hole->off, EXTENT_END(hole));
+              lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
             return (false);
         } else if (read_begins_in_hole != read_ends_in_hole) {
             /*
@@ -721,7 +721,7 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
     while (hole != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
-          EXTENT_END(hole));
+          WT_EXTENT_END(hole));
         WT_RET(__live_restore_fh_read(fh, wt_session, hole->off, hole->len, buf));
         hole = hole->next;
     }
