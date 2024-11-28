@@ -45,7 +45,7 @@
  * of the other three types.
  */
 #define MAX_TABLE_TYPE 4
-typedef enum { MIX = 0, COL, FIX, LSM, ROW } table_type; /* File type */
+typedef enum { MIX = 0, COL, FIX, ROW } table_type; /* File type */
 
 /*
  * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
