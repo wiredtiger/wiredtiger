@@ -1420,7 +1420,7 @@ err:
 }
 
 /* TODO: use this function to drain the inges table */
-static void __layered_drain_ingest_tables(void) __attribute__((unused));
+static int __layered_drain_ingest_tables(void) __attribute__((unused));
 
 /*
  * __layered_drain_ingest_tables --
