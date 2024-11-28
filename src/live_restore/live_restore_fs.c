@@ -7,16 +7,16 @@
  */
 
 #include "wt_internal.h"
-#include "union_fs_private.h"
+#include "live_restore_private.h"
 #include <unistd.h>
 
 /*
- * __union_fs_filename --
+ * __live_restore_fs_filename --
  *     Generate a filename for the given layer.
  */
 static int
-__union_fs_filename(
-  WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, char **pathp)
+__live_restore_fs_filename(
+  WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, char **pathp)
 {
     WT_DECL_RET;
     size_t len;
@@ -25,7 +25,7 @@ __union_fs_filename(
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
 
-    if (layer->which == WT_UNION_FS_LAYER_DESTINATION) {
+    if (layer->which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_RET(__wt_strdup(session, name, pathp));
     } else {
         char *filename;
@@ -55,20 +55,20 @@ err:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 /*
- * __union_debug_dump_extent_list --
+ * __live_restore_debug_dump_extent_list --
  *     Dump the contents of a file handle's extent list.
  */
 static void
-__union_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
+__live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_UNION_HOLE_LIST *hole;
-    WT_UNION_HOLE_LIST *prev;
+    WT_LIVE_RESTORE_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_LIST *prev;
     bool list_valid;
 
     prev = NULL;
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", union_fh->iface.name);
-    hole = union_fh->destination.hole_list;
+      session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", lr_fh->iface.name);
+    hole = lr_fh->destination.hole_list;
     list_valid = true;
 
     while (hole != NULL) {
@@ -94,11 +94,11 @@ __union_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *u
 #pragma GCC diagnostic pop
 
 /*
- * __union_fs_marker --
+ * __live_restore_fs_marker --
  *     Generate a name of a marker file.
  */
 static int
-__union_fs_marker(WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
+__live_restore_fs_marker(WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
 {
     size_t p, suffix_len;
 
@@ -112,31 +112,32 @@ __union_fs_marker(WT_SESSION_IMPL *session, const char *name, const char *marker
 }
 
 /*
- * __union_fs_create_tombstone --
+ * __live_restore_fs_create_tombstone --
  *     Create a tombstone for the given file.
  */
 static int
-__union_fs_create_tombstone(
+__live_restore_fs_create_tombstone(
   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
-    WT_UNION_FS *union_fs;
+    WT_LIVE_RESTORE_FS *lr_fs;
     uint32_t open_flags;
     char *path, *path_marker;
 
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
-    WT_ERR(__union_fs_marker(session, path, WT_UNION_FS_TOMBSTONE_SUFFIX, &path_marker));
+    WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, name, &path));
+    WT_ERR(
+      __live_restore_fs_marker(session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
     open_flags = WT_FS_OPEN_CREATE;
     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
         FLD_SET(open_flags, WT_FS_OPEN_DURABLE);
 
-    WT_ERR(union_fs->os_file_system->fs_open_file(union_fs->os_file_system, &session->iface,
-      path_marker, WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, &session->iface, path_marker,
+      WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Creating tombstone: %s", path_marker);
@@ -154,19 +155,20 @@ err:
  */
 static int
 __dest_has_tombstone(
-  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, const char *name, bool *existp)
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, const char *name, bool *existp)
 {
     WT_DECL_RET;
-    WT_UNION_FS *union_fs;
+    WT_LIVE_RESTORE_FS *lr_fs;
     char *path, *path_marker;
 
-    union_fs = union_fh->destination.back_pointer;
+    lr_fs = lr_fh->destination.back_pointer;
 
-    WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
-    WT_ERR(__union_fs_marker(session, path, WT_UNION_FS_TOMBSTONE_SUFFIX, &path_marker));
+    WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, name, &path));
+    WT_ERR(
+      __live_restore_fs_marker(session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
-    union_fs->os_file_system->fs_exist(
-      union_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
+    lr_fs->os_file_system->fs_exist(
+      lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
 
@@ -177,21 +179,20 @@ err:
 }
 
 /*
- * __union_fs_has_file --
+ * __live_restore_fs_has_file --
  *     Set a boolean to indicate if the given file name exists in the provided layer.
  */
 static int
-__union_fs_has_file(WT_UNION_FS *union_fs, WT_UNION_FS_LAYER *layer, WT_SESSION_IMPL *session,
-  const char *name, bool *existsp)
+__live_restore_fs_has_file(WT_LIVE_RESTORE_FS *lr_fs, WT_LIVE_RESTORE_FS_LAYER *layer,
+  WT_SESSION_IMPL *session, const char *name, bool *existsp)
 {
     WT_DECL_RET;
     char *path;
 
     path = NULL;
 
-    WT_ERR(__union_fs_filename(layer, session, name, &path));
-    WT_ERR(
-      union_fs->os_file_system->fs_exist(union_fs->os_file_system, &session->iface, path, existsp));
+    WT_ERR(__live_restore_fs_filename(layer, session, name, &path));
+    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, &session->iface, path, existsp));
 err:
     __wt_free(session, path);
 
@@ -200,35 +201,35 @@ err:
 
 /* TODO: Do we need fs_find_layer? We should only interact with the file in the destination. */
 /*
- * __union_fs_find_layer --
+ * __live_restore_fs_find_layer --
  *     Find a layer for the given file. Return the index of the layer and whether the layer contains
  *     the file (exists = true) or the tombstone (exists = false). Start searching at the given
- *     layer index - 1; use WT_UNION_FS_TOP to indicate starting at the top.
+ *     layer index - 1; use WT_LIVE_RESTORE_FS_TOP to indicate starting at the top.
  */
 static int
-__union_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name,
-  WT_UNION_FS_LAYER_TYPE *whichp, bool *existp)
+__live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name,
+  WT_LIVE_RESTORE_FS_LAYER_TYPE *whichp, bool *existp)
 {
-    WT_UNION_FS *union_fs;
+    WT_LIVE_RESTORE_FS *lr_fs;
 
     WT_ASSERT(session, existp != NULL);
 
     *existp = false;
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
-    WT_RET(__union_fs_has_file(union_fs, &union_fs->destination, session, name, existp));
+    WT_RET(__live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, existp));
     if (*existp) {
         /* The file exists in the destination we don't need to look any further. */
         if (whichp != NULL)
-            *whichp = WT_UNION_FS_LAYER_DESTINATION;
+            *whichp = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
         return (0);
     }
 
-    WT_RET(__union_fs_has_file(union_fs, &union_fs->source, session, name, existp));
+    WT_RET(__live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, existp));
     if (*existp) {
         /* The file exists in the source we don't need to look any further. */
         if (whichp != NULL)
-            *whichp = WT_UNION_FS_LAYER_SOURCE;
+            *whichp = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
     } else
         /* We didn't find the file. */
         return (WT_NOTFOUND);
@@ -237,16 +238,16 @@ __union_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *
 }
 
 /*
- * __union_fs_directory_list_ext --
+ * __live_restore_fs_directory_list_ext --
  *     Get a list of files from a directory.
  */
 static int
-__union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *directory,
-  const char *prefix, char ***dirlistp, uint32_t *countp, bool single)
+__live_restore_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session,
+  const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp, bool single)
 {
     WT_DECL_RET;
-    WT_UNION_FS *union_fs;
-    WT_UNION_FS_LAYER *layer;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_LIVE_RESTORE_FS_LAYER *layer;
     size_t entries_alloc_size;
     uint32_t i, j, layer_num_entries, num_entries, ret_num_entries, reuse;
     char **entries, **layer_entries, *path, **ret_entries;
@@ -254,7 +255,7 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
 
     WT_UNUSED(single);
 
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     entries = NULL;
     entries_alloc_size = 0;
@@ -266,15 +267,15 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
     ret_entries = NULL;
     ret_num_entries = 0;
 
-    layer = &union_fs->destination;
+    layer = &lr_fs->destination;
 
     for (int z = 0; z < 2; z++) {
         if (z == 1) {
-            layer = &union_fs->source;
+            layer = &lr_fs->source;
         }
-        WT_ERR(__union_fs_filename(layer, session, directory, &path));
-        WT_ERR(union_fs->os_file_system->fs_directory_list(union_fs->os_file_system,
-          &session->iface, path, prefix, &layer_entries, &layer_num_entries));
+        WT_ERR(__live_restore_fs_filename(layer, session, directory, &path));
+        WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, &session->iface,
+          path, prefix, &layer_entries, &layer_num_entries));
         __wt_free(session, path);
 
         /* Process the entries from the layer, properly handling tombstones. */
@@ -306,8 +307,8 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
         }
 
         /* Clean up the listing from the layer. */
-        WT_ERR(union_fs->os_file_system->fs_directory_list_free(
-          union_fs->os_file_system, &session->iface, layer_entries, layer_num_entries));
+        WT_ERR(lr_fs->os_file_system->fs_directory_list_free(
+          lr_fs->os_file_system, &session->iface, layer_entries, layer_num_entries));
         layer_entries = NULL;
     }
 
@@ -334,9 +335,9 @@ __union_fs_directory_list_ext(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, cons
     *countp = ret_num_entries;
 
 err:
-    if (union_fs->os_file_system != NULL && layer_entries != NULL)
-        WT_TRET(union_fs->os_file_system->fs_directory_list_free(
-          union_fs->os_file_system, &session->iface, layer_entries, layer_num_entries));
+    if (lr_fs->os_file_system != NULL && layer_entries != NULL)
+        WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
+          lr_fs->os_file_system, &session->iface, layer_entries, layer_num_entries));
     if (entries != NULL)
         WT_TRET(fs->fs_directory_list_free(fs, &session->iface, entries, num_entries));
     __wt_free(session, path);
@@ -344,36 +345,36 @@ err:
 }
 
 /*
- * __union_fs_directory_list --
+ * __live_restore_fs_directory_list --
  *     Get a list of files from a directory.
  */
 static int
-__union_fs_directory_list(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *directory,
+__live_restore_fs_directory_list(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
     /* TODO: This will return tomb stones. We need to not do that. */
-    return (__union_fs_directory_list_ext(
+    return (__live_restore_fs_directory_list_ext(
       fs, (WT_SESSION_IMPL *)wt_session, directory, prefix, dirlistp, countp, false));
 }
 
 /*
- * __union_fs_directory_list_single --
+ * __live_restore_fs_directory_list_single --
  *     Get one file from a directory.
  */
 static int
-__union_fs_directory_list_single(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *directory,
-  const char *prefix, char ***dirlistp, uint32_t *countp)
+__live_restore_fs_directory_list_single(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session,
+  const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (__union_fs_directory_list_ext(
+    return (__live_restore_fs_directory_list_ext(
       fs, (WT_SESSION_IMPL *)wt_session, directory, prefix, dirlistp, countp, true));
 }
 
 /*
- * __union_fs_directory_list_free --
+ * __live_restore_fs_directory_list_free --
  *     Free memory returned by the directory listing.
  */
 static int
-__union_fs_directory_list_free(
+__live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count)
 {
     WT_SESSION_IMPL *session;
@@ -393,11 +394,11 @@ __union_fs_directory_list_free(
 }
 
 /*
- * __union_fs_exist --
+ * __live_restore_fs_exist --
  *     Return if the file exists.
  */
 static int
-__union_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, bool *existp)
+__live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, bool *existp)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -406,21 +407,21 @@ __union_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, b
     session = (WT_SESSION_IMPL *)wt_session;
 
     exist = false;
-    WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, name, NULL, &exist));
+    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, name, NULL, &exist));
 
     *existp = ret == 0 && exist;
     return (0);
 }
 
 /*
- * __union_alloc_extent --
+ * __live_restore_alloc_extent --
  *     Allocate and populate a new extent with the provided parameters.
  */
 static int
-__union_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
-  WT_UNION_HOLE_LIST *next, WT_UNION_HOLE_LIST **holep)
+__live_restore_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
+  WT_LIVE_RESTORE_HOLE_LIST *next, WT_LIVE_RESTORE_HOLE_LIST **holep)
 {
-    WT_UNION_HOLE_LIST *new;
+    WT_LIVE_RESTORE_HOLE_LIST *new;
 
     WT_RET(__wt_calloc_one(session, &new));
     new->off = offset;
@@ -432,18 +433,18 @@ __union_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
 }
 
 /*
- * __union_fs_free_extent_list --
- *     Free the extents associated with a union file handle.
+ * __live_restore_fs_free_extent_list --
+ *     Free the extents associated with a live restore file handle.
  */
 static void
-__union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh)
+__live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_UNION_HOLE_LIST *hole;
-    WT_UNION_HOLE_LIST *temp;
+    WT_LIVE_RESTORE_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_LIST *temp;
 
     temp = hole = NULL;
-    hole = union_fh->destination.hole_list;
-    union_fh->destination.hole_list = NULL;
+    hole = lr_fh->destination.hole_list;
+    lr_fh->destination.hole_list = NULL;
 
     while (hole != NULL) {
         temp = hole;
@@ -457,30 +458,30 @@ __union_fs_free_extent_list(WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *unio
 }
 
 /*
- * __union_fh_lock --
+ * __live_restore_fh_lock --
  *     Lock/unlock a file.
  */
 static int
-__union_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
+__live_restore_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
 {
-    WT_UNION_FILE_HANDLE *union_fh;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
-    return (union_fh->destination.fh->fh_lock(union_fh->destination.fh, wt_session, lock));
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    return (lr_fh->destination.fh->fh_lock(lr_fh->destination.fh, wt_session, lock));
 }
 
 /*
- * __union_remove_extlist_hole --
+ * __live_restore_remove_extlist_hole --
  *     Track that we wrote something by removing its hole from the extent list.
  */
 static int
-__union_remove_extlist_hole(
-  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+__live_restore_remove_extlist_hole(
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_HOLE_LIST *hole, *tmp, *new, *prev_hole;
+    WT_LIVE_RESTORE_HOLE_LIST *hole, *tmp, *new, *prev_hole;
     wt_off_t write_end;
 
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", union_fh->iface.name,
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", lr_fh->iface.name,
       offset, OFFSET_END(offset, len));
 
     write_end = OFFSET_END(offset, len);
@@ -489,7 +490,7 @@ __union_remove_extlist_hole(
      * FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
      * forward?
      */
-    hole = union_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list;
     prev_hole = NULL;
     while (hole != NULL) {
 
@@ -505,7 +506,7 @@ __union_remove_extlist_hole(
 
             tmp = hole;
             if (prev_hole == NULL)
-                union_fh->destination.hole_list = hole->next;
+                lr_fh->destination.hole_list = hole->next;
             else
                 prev_hole->next = hole->next;
             hole = hole->next;
@@ -519,7 +520,7 @@ __union_remove_extlist_hole(
               hole->off, EXTENT_END(hole));
 
             /* First create the hole to the right of the write. */
-            WT_RET(__union_alloc_extent(
+            WT_RET(__live_restore_alloc_extent(
               session, write_end + 1, (size_t)(EXTENT_END(hole) - write_end), hole->next, &new));
 
             /*
@@ -554,22 +555,22 @@ __union_remove_extlist_hole(
 }
 
 /*
- * __union_can_service_read --
+ * __live_restore_can_service_read --
  *     Return if a the read can be serviced by the destination file. This assumes that the block
  *     manager is the only thing that perform reads and it only reads and writes full blocks. If
  *     that changes this code will unceremoniously fall over.
  */
 static bool
-__union_can_service_read(
-  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+__live_restore_can_service_read(
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_UNION_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_LIST *hole;
     wt_off_t read_end;
     bool read_begins_in_hole, read_ends_in_hole;
 
     read_end = OFFSET_END(offset, len);
 
-    hole = union_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list;
     while (hole != NULL) {
 
         if (read_end < hole->off)
@@ -582,7 +583,7 @@ __union_can_service_read(
             /* Our read is entirely within a hole */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "CANNOT SERVICE %s: Reading from hole. Read: %ld-%ld, hole: %ld-%ld",
-              union_fh->iface.name, offset, read_end, hole->off, EXTENT_END(hole));
+              lr_fh->iface.name, offset, read_end, hole->off, EXTENT_END(hole));
             return (false);
         } else if (read_begins_in_hole != read_ends_in_hole) {
             /*
@@ -597,30 +598,29 @@ __union_can_service_read(
     }
 
     __wt_verbose_debug3(
-      session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", union_fh->iface.name);
+      session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
     return (true);
 }
 
 /*
- * __union_fh_write --
+ * __live_restore_fh_write --
  *     File write.
  */
 static int
-__union_fh_write(
+__live_restore_fh_write(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
-    WT_UNION_FILE_HANDLE *union_fh;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
     /* TODO - why write to file before setting the extent? */
-    WT_RET(
-      union_fh->destination.fh->fh_write(union_fh->destination.fh, wt_session, offset, len, buf));
-    WT_RET(union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
-    WT_RET(__union_remove_extlist_hole(union_fh, session, offset, len));
+    WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
+    WT_RET(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
+    WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
     return (0);
 }
 
@@ -632,29 +632,31 @@ __union_fh_write(
  * TODO: Locking needed.
  */
 static int
-__read_promote(
-  WT_UNION_FILE_HANDLE *union_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len, char *read)
+__read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset,
+  size_t len, char *read)
 {
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %lu",
-      union_fh->iface.name, offset, len);
-    WT_RET(__union_fh_write((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, offset, len, read));
+    __wt_verbose_debug2(
+      session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %lu", lr_fh->iface.name, offset, len);
+    WT_RET(
+      __live_restore_fh_write((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, offset, len, read));
 
     return (0);
 }
 
 /*
- * __union_fh_read --
- *     File read in a union file system.
+ * __live_restore_fh_read --
+ *     File read in a live restore file system.
  */
 static int
-__union_fh_read(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
+__live_restore_fh_read(
+  WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
     WT_DECL_RET;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
-    WT_UNION_FILE_HANDLE *union_fh;
     char *read_data;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", fh->name, offset, len);
@@ -666,24 +668,24 @@ __union_fh_read(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, siz
      * written in this case we forward the read to the empty metadata file in the destination. Is
      * this correct?
      */
-    if (union_fh->destination.complete || union_fh->source == NULL ||
-      __union_can_service_read(union_fh, session, offset, len)) {
+    if (lr_fh->destination.complete || lr_fh->source == NULL ||
+      __live_restore_can_service_read(lr_fh, session, offset, len)) {
         /*
          * TODO: Right now if complete is true source will always be null. So the if statement here
          * has redundancy is there a time when we need it? Maybe with the background thread.
          */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
-          union_fh->source == NULL ? "YES" : "NO");
+          lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
-        WT_ERR(union_fh->destination.fh->fh_read(
-          union_fh->destination.fh, wt_session, offset, len, read_data));
+        WT_ERR(lr_fh->destination.fh->fh_read(
+          lr_fh->destination.fh, wt_session, offset, len, read_data));
     } else {
         /* Interestingly you cannot not have a format in verbose. */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
-        WT_ERR(union_fh->source->fh_read(union_fh->source, wt_session, offset, len, read_data));
+        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
-        WT_ERR(__read_promote(union_fh, session, offset, len, read_data));
+        WT_ERR(__read_promote(lr_fh, session, offset, len, read_data));
     }
 
 err:
@@ -691,7 +693,7 @@ err:
 }
 
 /*
- * __union_fs_fill_holes_on_file_close --
+ * __live_restore_fs_fill_holes_on_file_close --
  *     On file close make sure we've copied across all data from source to destination. This means
  *     there are no holes in the destination file's extent list. If we find one promote read the
  *     content into the destination.
@@ -703,24 +705,24 @@ err:
  *     Maybe we only need this for our test which overwrites WT_TEST on each loop?
  */
 static int
-__union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+__live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
-    WT_UNION_FILE_HANDLE *union_fh;
-    WT_UNION_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+    WT_LIVE_RESTORE_HOLE_LIST *hole;
     /*
      * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
      * the read into small chunks
      */
     char buf[4096000];
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
-    hole = union_fh->destination.hole_list;
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    hole = lr_fh->destination.hole_list;
 
     while (hole != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
           EXTENT_END(hole));
-        WT_RET(__union_fh_read(fh, wt_session, hole->off, hole->len, buf));
+        WT_RET(__live_restore_fh_read(fh, wt_session, hole->off, hole->len, buf));
         hole = hole->next;
     }
 
@@ -728,80 +730,79 @@ __union_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 }
 
 /*
- * __union_fh_close --
+ * __live_restore_fh_close --
  *     Close the file.
  */
 static int
-__union_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+__live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
-    WT_UNION_FILE_HANDLE *union_fh;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "UNION_FS: Closing file: %s\n", fh->name);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
-    __union_fs_fill_holes_on_file_close(fh, wt_session);
+    __live_restore_fs_fill_holes_on_file_close(fh, wt_session);
 
-    union_fh->destination.fh->close(union_fh->destination.fh, wt_session);
-    __union_fs_free_extent_list(session, union_fh);
+    lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
+    __live_restore_fs_free_extent_list(session, lr_fh);
 
-    if (union_fh->source != NULL) /* It's possible that we never opened the file in the source. */
-        union_fh->source->close(union_fh->source, wt_session);
-    __wt_free(session, union_fh->iface.name);
-    __wt_free(session, union_fh);
+    if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
+        lr_fh->source->close(lr_fh->source, wt_session);
+    __wt_free(session, lr_fh->iface.name);
+    __wt_free(session, lr_fh);
 
     return (0);
 }
 
 /*
- * __union_fh_size --
+ * __live_restore_fh_size --
  *     Get the size of a file in bytes, by file handle.
  */
 static int
-__union_fh_size(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t *sizep)
+__live_restore_fh_size(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t *sizep)
 {
-    WT_UNION_FILE_HANDLE *union_fh;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     wt_off_t destination_size;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
 
-    WT_RET(
-      union_fh->destination.fh->fh_size(union_fh->destination.fh, wt_session, &destination_size));
+    WT_RET(lr_fh->destination.fh->fh_size(lr_fh->destination.fh, wt_session, &destination_size));
     *sizep = destination_size;
     return (0);
 }
 
 /*
- * __union_fh_sync --
+ * __live_restore_fh_sync --
  *     POSIX fsync. This only sync the destination as the source is readonly.
  */
 static int
-__union_fh_sync(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+__live_restore_fh_sync(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
-    WT_UNION_FILE_HANDLE *union_fh;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
-    return (union_fh->destination.fh->fh_sync(union_fh->destination.fh, wt_session));
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    return (lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
 }
 
 /*
- * __union_fh_truncate --
+ * __live_restore_fh_truncate --
  *     Truncate a file. This operation is only applied to the destination file.
  */
 static int
-__union_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t len)
+__live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t len)
 {
-    WT_UNION_FILE_HANDLE *union_fh;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     wt_off_t old_len, truncate_start, truncate_end;
 
-    union_fh = (WT_UNION_FILE_HANDLE *)fh;
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
 
     /*
      * If we truncate a range we'll never need to read that range from the source file. Mark it as
      * such.
      */
-    __union_fh_size(fh, wt_session, &old_len);
+    __live_restore_fh_size(fh, wt_session, &old_len);
 
     if (old_len == len)
         /* Sometimes we call truncate but don't change the length. Ignore */
@@ -817,19 +818,19 @@ __union_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t len)
     truncate_start = WT_MIN(len, old_len);
     truncate_end = WT_MAX(len, old_len);
 
-    __union_remove_extlist_hole(union_fh, (WT_SESSION_IMPL *)wt_session, truncate_start,
+    __live_restore_remove_extlist_hole(lr_fh, (WT_SESSION_IMPL *)wt_session, truncate_start,
       (size_t)(truncate_end - truncate_start));
 
-    return (union_fh->destination.fh->fh_truncate(union_fh->destination.fh, wt_session, len));
+    return (lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, len));
 }
 
 /*
- * __union_fs_open_in_source --
+ * __live_restore_fs_open_in_source --
  *     Open a file handle in the source.
  */
 static int
-__union_fs_open_in_source(
-  WT_UNION_FS *union_fs, WT_SESSION_IMPL *session, WT_UNION_FILE_HANDLE *union_fh, uint32_t flags)
+__live_restore_fs_open_in_source(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *session,
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint32_t flags)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
@@ -842,11 +843,11 @@ __union_fs_open_in_source(
     FLD_CLR(flags, WT_FS_OPEN_CREATE);
 
     /* Open the file in the layer. */
-    WT_ERR(__union_fs_filename(&union_fs->source, session, union_fh->iface.name, &path));
-    WT_ERR(union_fs->os_file_system->fs_open_file(
-      union_fs->os_file_system, (WT_SESSION *)session, path, union_fh->file_type, flags, &fh));
+    WT_ERR(__live_restore_fs_filename(&lr_fs->source, session, lr_fh->iface.name, &path));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(
+      lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
 
-    union_fh->source = fh;
+    lr_fh->source = fh;
 
 err:
     __wt_free(session, path);
@@ -855,13 +856,13 @@ err:
 
 #include <unistd.h>
 /*
- * __union_fh_find_holes_in_dest_file --
+ * __live_restore_fh_find_holes_in_dest_file --
  *     When opening a file from destination create its existing hole list from the file system
  *     information. Any holes in the extent list are data that hasn't been copied from source yet.
  */
 static int
-__union_fh_find_holes_in_dest_file(
-  WT_SESSION_IMPL *session, char *filename, WT_UNION_FILE_HANDLE *union_fh)
+__live_restore_fh_find_holes_in_dest_file(
+  WT_SESSION_IMPL *session, char *filename, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     WT_DECL_RET;
     wt_off_t data_offset, data_end_offset, file_size;
@@ -872,13 +873,13 @@ __union_fh_find_holes_in_dest_file(
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
-    WT_ERR(__union_fh_size((WT_FILE_HANDLE *)union_fh, (WT_SESSION *)session, &file_size));
+    WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
     if (file_size > 0)
-        WT_ERR(__union_alloc_extent(
-          session, 0, (size_t)file_size, NULL, &union_fh->destination.hole_list));
+        WT_ERR(__live_restore_alloc_extent(
+          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list));
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
@@ -894,8 +895,8 @@ __union_fh_find_holes_in_dest_file(
 
         __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename,
           data_offset, data_end_offset);
-        WT_ERR(__union_remove_extlist_hole(
-          union_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
+        WT_ERR(__live_restore_remove_extlist_hole(
+          lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
     }
 
 err:
@@ -904,12 +905,12 @@ err:
 }
 
 /*
- * __union_fs_open_in_destination --
+ * __live_restore_fs_open_in_destination --
  *     Open a file handle.
  */
 static int
-__union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session,
-  WT_UNION_FILE_HANDLE *union_fh, uint32_t flags, bool create)
+__live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *session,
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint32_t flags, bool create)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
@@ -921,41 +922,41 @@ __union_fs_open_in_destination(WT_UNION_FS *union_fs, WT_SESSION_IMPL *session,
         flags |= WT_FS_OPEN_CREATE;
 
     /* Open the file in the layer. */
-    WT_ERR(__union_fs_filename(&union_fs->destination, session, union_fh->iface.name, &path));
-    WT_ERR(union_fs->os_file_system->fs_open_file(
-      union_fs->os_file_system, (WT_SESSION *)session, path, union_fh->file_type, flags, &fh));
-    union_fh->destination.fh = fh;
-    union_fh->destination.back_pointer = union_fs;
+    WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, lr_fh->iface.name, &path));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(
+      lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
+    lr_fh->destination.fh = fh;
+    lr_fh->destination.back_pointer = lr_fs;
 
     /* Get the map of the file. */
-    WT_ASSERT(session, union_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
-    __union_fh_find_holes_in_dest_file(session, path, union_fh);
+    WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
+    __live_restore_fh_find_holes_in_dest_file(session, path, lr_fh);
 err:
     __wt_free(session, path);
     return (ret);
 }
 
 /*
- * __union_fs_open_file --
- *     Open a union file handle. This will: - If the file exists in the source, open it in both. -
- *     If it doesn't exist it'll only open it in the destination.
+ * __live_restore_fs_open_file --
+ *     Open a live restore file handle. This will: - If the file exists in the source, open it in
+ *     both. - If it doesn't exist it'll only open it in the destination.
  */
 static int
-__union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
+__live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
     WT_DECL_RET;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
     WT_SESSION_IMPL *session;
-    WT_UNION_FILE_HANDLE *union_fh;
-    WT_UNION_FS *union_fs;
-    WT_UNION_FS_LAYER_TYPE which;
     bool dest_exist, source_exist, have_tombstone, readonly;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     dest_exist = source_exist = false;
-    union_fh = NULL;
+    lr_fh = NULL;
     have_tombstone = false;
     WT_UNUSED(have_tombstone);
     readonly = LF_ISSET(WT_FS_OPEN_READONLY);
@@ -965,34 +966,34 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
     /* FIXME-WT-13808 Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY */
 
     /* Set up the file handle. */
-    WT_ERR(__wt_calloc_one(session, &union_fh));
-    WT_ERR(__wt_strdup(session, name, &union_fh->iface.name));
-    union_fh->iface.file_system = fs;
-    union_fh->file_type = file_type;
+    WT_ERR(__wt_calloc_one(session, &lr_fh));
+    WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
+    lr_fh->iface.file_system = fs;
+    lr_fh->file_type = file_type;
 
     /* TODO: Handle the exclusive flag and other flags */
 
     /* Open it in the destination layer. */
     WT_ERR_NOTFOUND_OK(
-      __union_fs_has_file(union_fs, &union_fs->destination, session, name, &dest_exist), true);
-    WT_ERR(__union_fs_open_in_destination(union_fs, session, union_fh, flags, !dest_exist));
+      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
+    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
 
-    WT_ERR(__dest_has_tombstone(union_fh, session, name, &have_tombstone));
+    WT_ERR(__dest_has_tombstone(lr_fh, session, name, &have_tombstone));
     if (have_tombstone)
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
          * source. Therefore the destination must be complete.
          */
-        union_fh->destination.complete = true;
+        lr_fh->destination.complete = true;
     else {
         /*
          * If it exists in the source, open it. If it doesn't exist in the source then by definition
          * the destination file is complete.
          */
         WT_ERR_NOTFOUND_OK(
-          __union_fs_has_file(union_fs, &union_fs->source, session, name, &source_exist), true);
+          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
         if (source_exist) {
-            WT_ERR(__union_fs_open_in_source(union_fs, session, union_fh, flags));
+            WT_ERR(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
 
             if (!dest_exist) {
                 /*
@@ -1002,7 +1003,7 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
                  */
                 wt_off_t source_size;
 
-                union_fh->source->fh_size(union_fh->source, wt_session, &source_size);
+                lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size);
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
                   "Creating destination file backed by source file. Copying size (%ld) from source "
                   "file",
@@ -1010,86 +1011,86 @@ __union_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *nam
 
                 /*
                  * Set size by truncating. This is a positive length truncate so it actually extends
-                 * the file. We're bypassing the union layer so we don't try to modify the extents
-                 * in hole_list.
+                 * the file. We're bypassing the live_restore layer so we don't try to modify the
+                 * extents in hole_list.
                  */
-                union_fh->destination.fh->fh_truncate(
-                  union_fh->destination.fh, wt_session, source_size);
+                lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size);
 
                 /*
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
-                WT_ERR(__union_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &union_fh->destination.hole_list));
+                WT_ERR(__live_restore_alloc_extent(
+                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list));
             }
         } else
-            union_fh->destination.complete = true;
+            lr_fh->destination.complete = true;
     }
 
     /* Initialize the jump table. */
-    union_fh->iface.close = __union_fh_close;
-    union_fh->iface.fh_lock = __union_fh_lock;
-    union_fh->iface.fh_read = __union_fh_read;
-    union_fh->iface.fh_size = __union_fh_size;
-    union_fh->iface.fh_sync = __union_fh_sync;
-    union_fh->iface.fh_truncate = __union_fh_truncate;
-    union_fh->iface.fh_write = __union_fh_write;
+    lr_fh->iface.close = __live_restore_fh_close;
+    lr_fh->iface.fh_lock = __live_restore_fh_lock;
+    lr_fh->iface.fh_read = __live_restore_fh_read;
+    lr_fh->iface.fh_size = __live_restore_fh_size;
+    lr_fh->iface.fh_sync = __live_restore_fh_sync;
+    lr_fh->iface.fh_truncate = __live_restore_fh_truncate;
+    lr_fh->iface.fh_write = __live_restore_fh_write;
 
     /* TODO: These are unimplemented. */
-    union_fh->iface.fh_advise = NULL;
-    union_fh->iface.fh_sync_nowait = NULL;
-    union_fh->iface.fh_unmap = NULL;
-    union_fh->iface.fh_map_preload = NULL;
-    union_fh->iface.fh_map_discard = NULL;
-    union_fh->iface.fh_map = NULL;
-    union_fh->iface.fh_extend = NULL;
-    union_fh->iface.fh_extend_nolock = NULL;
+    lr_fh->iface.fh_advise = NULL;
+    lr_fh->iface.fh_sync_nowait = NULL;
+    lr_fh->iface.fh_unmap = NULL;
+    lr_fh->iface.fh_map_preload = NULL;
+    lr_fh->iface.fh_map_discard = NULL;
+    lr_fh->iface.fh_map = NULL;
+    lr_fh->iface.fh_extend = NULL;
+    lr_fh->iface.fh_extend_nolock = NULL;
 
-    *file_handlep = (WT_FILE_HANDLE *)union_fh;
+    *file_handlep = (WT_FILE_HANDLE *)lr_fh;
 
     if (0) {
 err:
-        if (union_fh != NULL)
-            __union_fh_close((WT_FILE_HANDLE *)union_fh, wt_session);
+        if (lr_fh != NULL)
+            __live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session);
     }
     return (ret);
 }
 
 /*
- * __union_fs_remove --
+ * __live_restore_fs_remove --
  *     Remove a file. We can only delete from the destination directory anyway.
  */
 static int
-__union_fs_remove(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, uint32_t flags)
+__live_restore_fs_remove(
+  WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, uint32_t flags)
 {
     WT_DECL_RET;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_LIVE_RESTORE_FS_LAYER_TYPE layer;
     WT_SESSION_IMPL *session;
-    WT_UNION_FS *union_fs;
-    WT_UNION_FS_LAYER_TYPE layer;
     char *path;
     bool exist;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     WT_UNUSED(layer);
     exist = false;
     path = NULL;
 
-    WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, name, &layer, &exist));
+    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, name, &layer, &exist));
     if (ret == WT_NOTFOUND || !exist)
         return (0);
 
     /* It's possible to call remove on a file that hasn't yet been created in the destination. In
      * these cases we only need to create the tombstone */
-    if (layer == WT_UNION_FS_LAYER_DESTINATION) {
-        WT_ERR(__union_fs_filename(&union_fs->destination, session, name, &path));
-        union_fs->os_file_system->fs_remove(union_fs->os_file_system, wt_session, path, flags);
+    if (layer == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
+        WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, name, &path));
+        lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags);
     }
 
     /* We need file tombstones here but can we be sure this is correct? */
-    __union_fs_create_tombstone(fs, session, name, flags);
+    __live_restore_fs_create_tombstone(fs, session, name, flags);
     /* We don't have a file handle here so WT must have previously closed it. */
 err:
 
@@ -1098,22 +1099,22 @@ err:
 }
 
 /*
- * __union_fs_rename --
+ * __live_restore_fs_rename --
  *     Rename a file.
  */
 static int
-__union_fs_rename(
+__live_restore_fs_rename(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *from, const char *to, uint32_t flags)
 {
     WT_DECL_RET;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
     WT_SESSION_IMPL *session;
-    WT_UNION_FS *union_fs;
-    WT_UNION_FS_LAYER_TYPE which;
     char *path_from, *path_to;
     bool exist;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     exist = false;
     path_from = NULL;
@@ -1125,24 +1126,24 @@ __union_fs_rename(
      */
 
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "UNION_FS: Renaming file from: %s to %s\n", from, to);
-    WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, from, &which, &exist));
+      session, WT_VERB_FILEOPS, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
+    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
 
     /* If the file is the top layer, rename it and leave a tombstone behind. */
-    if (which == WT_UNION_FS_LAYER_DESTINATION) {
-        WT_ERR(__union_fs_filename(&union_fs->destination, session, from, &path_from));
-        WT_ERR(__union_fs_filename(&union_fs->destination, session, to, &path_to));
-        WT_ERR(union_fs->os_file_system->fs_rename(
-          union_fs->os_file_system, wt_session, path_from, path_to, flags));
+    if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
+        WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, from, &path_from));
+        WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, to, &path_to));
+        WT_ERR(lr_fs->os_file_system->fs_rename(
+          lr_fs->os_file_system, wt_session, path_from, path_to, flags));
         __wt_free(session, path_from);
         __wt_free(session, path_to);
 
         /* Create a tombstone for the file. */
-        WT_ERR(__union_fs_create_tombstone(fs, session, to, flags));
+        WT_ERR(__live_restore_fs_create_tombstone(fs, session, to, flags));
         /* Create a tombstone for the old file as well. */
-        WT_ERR(__union_fs_create_tombstone(fs, session, from, flags));
+        WT_ERR(__live_restore_fs_create_tombstone(fs, session, from, flags));
     }
 
 err:
@@ -1152,33 +1153,34 @@ err:
 }
 
 /*
- * __union_fs_size --
+ * __live_restore_fs_size --
  *     Get the size of a file in bytes, by file name.
  */
 static int
-__union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
+__live_restore_fs_size(
+  WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
     WT_DECL_RET;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
     WT_SESSION_IMPL *session;
-    WT_UNION_FS *union_fs;
-    WT_UNION_FS_LAYER_TYPE which;
     char *path;
     bool exist;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     exist = false;
     path = NULL;
 
-    WT_RET_NOTFOUND_OK(__union_fs_find_layer(fs, session, name, &which, &exist));
+    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, name, &which, &exist));
     if (ret == WT_NOTFOUND || !exist)
         return (ENOENT);
 
     /* The file will always exist in the destination. This the is authoritative file size. */
-    WT_ASSERT(session, which == WT_UNION_FS_LAYER_DESTINATION);
-    WT_RET(__union_fs_filename(&union_fs->destination, session, name, &path));
-    ret = union_fs->os_file_system->fs_size(union_fs->os_file_system, wt_session, path, sizep);
+    WT_ASSERT(session, which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION);
+    WT_RET(__live_restore_fs_filename(&lr_fs->destination, session, name, &path));
+    ret = lr_fs->os_file_system->fs_size(lr_fs->os_file_system, wt_session, path, sizep);
 
     __wt_free(session, path);
 
@@ -1186,61 +1188,61 @@ __union_fs_size(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, wt
 }
 
 /*
- * __union_fs_terminate --
+ * __live_restore_fs_terminate --
  *     Terminate the file system.
  */
 static int
-__union_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
+__live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
 {
+    WT_LIVE_RESTORE_FS *lr_fs;
     WT_SESSION_IMPL *session;
-    WT_UNION_FS *union_fs;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    union_fs = (WT_UNION_FS *)fs;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
-    WT_ASSERT(session, union_fs->os_file_system != NULL);
-    WT_RET(union_fs->os_file_system->terminate(union_fs->os_file_system, wt_session));
+    WT_ASSERT(session, lr_fs->os_file_system != NULL);
+    WT_RET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, wt_session));
 
-    __wt_free(session, union_fs->source.home);
+    __wt_free(session, lr_fs->source.home);
     /* TODO: Do we free ourselves here? */
     return (0);
 }
 
 /*
- * __wt_os_union_fs --
- *     Initialize a union file system configuration.
+ * __wt_os_live_restore_fs --
+ *     Initialize a live restore file system configuration.
  */
 int
-__wt_os_union_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg, const char *destination,
-  WT_FILE_SYSTEM **fsp)
+__wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
+  const char *destination, WT_FILE_SYSTEM **fsp)
 {
-    WT_UNION_FS *union_fs;
+    WT_LIVE_RESTORE_FS *lr_fs;
 
-    WT_RET(__wt_calloc_one(session, &union_fs));
-    WT_RET(__wt_os_posix(session, &union_fs->os_file_system));
+    WT_RET(__wt_calloc_one(session, &lr_fs));
+    WT_RET(__wt_os_posix(session, &lr_fs->os_file_system));
 
     /* Initialize the FS jump table. */
-    union_fs->iface.fs_directory_list = __union_fs_directory_list;
-    union_fs->iface.fs_directory_list_single = __union_fs_directory_list_single;
-    union_fs->iface.fs_directory_list_free = __union_fs_directory_list_free;
-    union_fs->iface.fs_exist = __union_fs_exist;
-    union_fs->iface.fs_open_file = __union_fs_open_file;
-    union_fs->iface.fs_remove = __union_fs_remove;
-    union_fs->iface.fs_rename = __union_fs_rename;
-    union_fs->iface.fs_size = __union_fs_size;
-    union_fs->iface.terminate = __union_fs_terminate;
+    lr_fs->iface.fs_directory_list = __live_restore_fs_directory_list;
+    lr_fs->iface.fs_directory_list_single = __live_restore_fs_directory_list_single;
+    lr_fs->iface.fs_directory_list_free = __live_restore_fs_directory_list_free;
+    lr_fs->iface.fs_exist = __live_restore_fs_exist;
+    lr_fs->iface.fs_open_file = __live_restore_fs_open_file;
+    lr_fs->iface.fs_remove = __live_restore_fs_remove;
+    lr_fs->iface.fs_rename = __live_restore_fs_rename;
+    lr_fs->iface.fs_size = __live_restore_fs_size;
+    lr_fs->iface.terminate = __live_restore_fs_terminate;
 
     /* Initialize the layers. */
-    union_fs->destination.home = destination;
-    union_fs->destination.which = WT_UNION_FS_LAYER_DESTINATION;
-    WT_RET(__wt_strndup(session, source_cfg->str, source_cfg->len, &union_fs->source.home));
-    union_fs->source.which = WT_UNION_FS_LAYER_SOURCE;
+    lr_fs->destination.home = destination;
+    lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
+    WT_RET(__wt_strndup(session, source_cfg->str, source_cfg->len, &lr_fs->source.home));
+    lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
-      union_fs->source.home, destination);
+      lr_fs->source.home, destination);
 
     /* Update the callers pointer. */
-    *fsp = (WT_FILE_SYSTEM *)union_fs;
+    *fsp = (WT_FILE_SYSTEM *)lr_fs;
     return (0);
 }

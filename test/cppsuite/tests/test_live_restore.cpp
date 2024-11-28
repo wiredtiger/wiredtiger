@@ -107,7 +107,7 @@ static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
 static const int value_size = 10;
-static const char *SOURCE_DIR = "WT_UNION_SOURCE";
+static const char *SOURCE_DIR = "WT_LIVE_RESTORE_SOURCE";
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 void do_random_crud(scoped_session &session, bool fresh_start);
@@ -311,7 +311,7 @@ main(int argc, char *argv[])
     }
 
     // We will recreate this directory every time, on exit the contents in it will be moved to
-    // WT_UNION_SOURCE/.
+    // WT_LIVE_RESTORE_SOURCE/.
     testutil_assert(std::filesystem::create_directory("WT_TEST"));
 
     /* Create connection. */

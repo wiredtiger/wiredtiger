@@ -265,6 +265,14 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_live_restore_file_handle;
+typedef struct __wt_live_restore_file_handle WT_LIVE_RESTORE_FILE_HANDLE;
+struct __wt_live_restore_fs;
+typedef struct __wt_live_restore_fs WT_LIVE_RESTORE_FS;
+struct __wt_live_restore_fs_layer;
+typedef struct __wt_live_restore_fs_layer WT_LIVE_RESTORE_FS_LAYER;
+struct __wt_live_restore_hole_list;
+typedef struct __wt_live_restore_hole_list WT_LIVE_RESTORE_HOLE_LIST;
 struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
@@ -421,14 +429,6 @@ struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_txn_snapshot;
 typedef struct __wt_txn_snapshot WT_TXN_SNAPSHOT;
-struct __wt_union_file_handle;
-typedef struct __wt_union_file_handle WT_UNION_FILE_HANDLE;
-struct __wt_union_fs;
-typedef struct __wt_union_fs WT_UNION_FS;
-struct __wt_union_fs_layer;
-typedef struct __wt_union_fs_layer WT_UNION_FS_LAYER;
-struct __wt_union_hole_list;
-typedef struct __wt_union_hole_list WT_UNION_HOLE_LIST;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
 struct __wt_update_value;
@@ -531,6 +531,7 @@ typedef uint64_t wt_timestamp_t;
 #include "generation.h"
 #include "hazard.h"
 #include "json.h"
+#include "../live_restore/live_restore.h"
 #include "../log/log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */
@@ -542,7 +543,6 @@ typedef uint64_t wt_timestamp_t;
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
-#include "../union_fs/union_fs.h"
 #include "verbose.h"
 
 #include "session.h" /* required by connection.h */

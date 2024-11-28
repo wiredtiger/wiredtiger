@@ -2835,10 +2835,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #if defined(_MSC_VER)
             WT_ERR(__wt_os_win(session));
 #else
-            /* If an "aux_path" has been provided setup the union file system. */
+            /* If an "aux_path" has been provided setup the live restore file system. */
             if (cval.len != 0) {
-                F_SET(conn, WT_CONN_UNION_FS);
-                WT_ERR(__wt_os_union_fs(session, &cval, conn->home, &conn->file_system));
+                F_SET(conn, WT_CONN_LIVE_RESTORE);
+                WT_ERR(__wt_os_live_restore_fs(session, &cval, conn->home, &conn->file_system));
             } else
                 WT_ERR(__wt_os_posix(session, &conn->file_system));
 #endif
