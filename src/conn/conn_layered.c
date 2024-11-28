@@ -1282,8 +1282,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
  *     Move the updates of a key to the stable table
  */
 static int
-__layered_move_updates(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
+__layered_move_updates(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
 {
     /* Search the page. */
     WT_RET(__wt_row_search(cbt, key, true, NULL, false, NULL));
@@ -1334,7 +1333,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         WT_ERR_NOTFOUND_OK(ret = version_cursor->next(version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL)
-                WT_ERR(__layered_move_updates(session, cbt, key, upds));
+                WT_ERR(__layered_move_updates(cbt, key, upds));
             break;
         }
 
@@ -1344,7 +1343,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
             WT_ASSERT(session, cmp <= 0);
 
             if (upds != NULL)
-                WT_ERR(__layered_move_updates(session, cbt, key, upds));
+                WT_ERR(__layered_move_updates(cbt, key, upds));
 
             upds = NULL;
             prev_upd = NULL;
