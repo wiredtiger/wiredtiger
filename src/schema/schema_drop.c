@@ -118,9 +118,7 @@ __drop_table(
      * Open the table so we can drop its column groups and indexes.
      *
      * Ideally we would keep the table locked exclusive across the drop, but for now we rely on the
-     * global table lock to prevent the table being reopened while it is being dropped. One issue is
-     * that the WT_WITHOUT_LOCKS macro can drop and reacquire the global table lock, avoiding
-     * deadlocks while waiting for LSM operation to quiesce.
+     * global table lock to prevent the table being reopened while it is being dropped.
      *
      * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
      * table that are already open must at least be closed before this call proceeds.
