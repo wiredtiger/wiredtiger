@@ -1323,11 +1323,12 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     /* We only care about binary data. */
     F_SET(version_cursor, WT_CURSTD_RAW);
 
+    prev_upd = tombstone = upd = upds = NULL;
+
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
     WT_ERR(__wt_scr_alloc(session, 0, &value));
 
-    prev_upd = upds = NULL;
     for (;;) {
         tombstone = upd = NULL;
         WT_ERR_NOTFOUND_OK(ret = version_cursor->next(version_cursor), true);
