@@ -132,7 +132,7 @@ buildvariants:
     - name: compatibility-test-for-patch-releases
     - name: import-compatibility-test
 
-# - name: infrequent-checks
+- name: infrequent-checks
   display_name: "~ Infrequent checks"
   run_on:
   - ubuntu2004-test
