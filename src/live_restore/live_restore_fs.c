@@ -240,7 +240,7 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
- * __live_restore_fs_directory_list --
+ * __live_restore_fs_notsup --
  *     Return an error message indicating the given functionality is not supported.
  */
 static int
@@ -542,7 +542,6 @@ static int
 __live_restore_fh_read(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
-    WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
     char *read_data;
@@ -568,19 +567,18 @@ __live_restore_fh_read(
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
-        WT_ERR(lr_fh->destination.fh->fh_read(
+        WT_RET(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, len, read_data));
     } else {
         /* Interestingly you cannot not have a format in verbose. */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
-        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
+        WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
-        WT_ERR(__read_promote(lr_fh, session, offset, len, read_data));
+        WT_RET(__read_promote(lr_fh, session, offset, len, read_data));
     }
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
@@ -634,6 +632,13 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
+    /*
+     * TODO: This should be superseded by background thread migration. Right now it exists as a
+     * solution to handle certain testing cases. Once the background thread is implemented the test
+     * will need to handle situations where a full restore hasn't completed by the end of the test.
+     * Calling this in a production environment will produce very slow file closes as we copy all
+     * remaining data to the destination.
+     */
     WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);

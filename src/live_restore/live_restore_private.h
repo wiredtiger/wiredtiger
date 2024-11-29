@@ -20,7 +20,9 @@
 #define WT_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WT_EXTENT_END(ext))
 
 /*
- * __wt_live_restore_hole_list
+ * __wt_live_restore_hole_list --
+ *     A linked list of extents. Each extent represents a hole in the destination file that needs to
+ *     be read from the source file.
  */
 struct __wt_live_restore_hole_list {
     wt_off_t off;
