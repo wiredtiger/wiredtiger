@@ -1416,6 +1416,7 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &tmp_key);
     __wt_scr_free(session, &value);
+    WT_TRET(version_cursor->close(version_cursor));
     return (ret);
 }
 
