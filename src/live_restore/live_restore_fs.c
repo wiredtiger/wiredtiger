@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 #include "live_restore_private.h"
-#include <unistd.h>
 
 /*
  * __live_restore_fs_filename --
@@ -743,7 +742,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
-    __live_restore_fs_fill_holes_on_file_close(fh, wt_session);
+    WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);

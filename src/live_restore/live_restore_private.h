@@ -60,6 +60,32 @@ struct __wt_live_restore_file_handle {
     WT_FS_OPEN_FILE_TYPE file_type;
 };
 
+typedef enum {
+    WT_LIVE_RESTORE_FS_LAYER_DESTINATION,
+    WT_LIVE_RESTORE_FS_LAYER_SOURCE
+} WT_LIVE_RESTORE_FS_LAYER_TYPE;
+
+/*
+ * __wt_live_restore_fs_layer --
+ *     A layer in the live restore file system.
+ */
+struct __wt_live_restore_fs_layer {
+    const char *home;
+    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
+};
+
+/*
+ * __wt_live_restore_fs --
+ *     A live restore file system in the user space, which consists of a source and destination
+ *     layer.
+ */
+struct __wt_live_restore_fs {
+    WT_FILE_SYSTEM iface;
+    WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
+    WT_LIVE_RESTORE_FS_LAYER destination;
+    WT_LIVE_RESTORE_FS_LAYER source;
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 #ifdef HAVE_UNITTEST
