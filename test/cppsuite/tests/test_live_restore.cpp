@@ -147,6 +147,7 @@ trigger_fs_truncate(scoped_session &session)
     session->compact(session.get(), coll_name.c_str(), nullptr);
 }
 
+
 std::string
 generate_key()
 {
@@ -162,16 +163,16 @@ generate_value()
 void
 insert(scoped_cursor &cursor, std::string &coll)
 {
-    cursor->set_key(cursor.get(), generate_key());
-    cursor->set_value(cursor.get(), generate_value());
+    cursor->set_key(cursor.get(), generate_key().c_str());
+    cursor->set_value(cursor.get(), generate_value().c_str());
     testutil_check(cursor->insert(cursor.get()));
 }
 
 void
 update(scoped_cursor &cursor, std::string &coll)
 {
-    cursor->set_key(cursor.get(), generate_key());
-    cursor->set_value(cursor.get(), generate_value());
+    cursor->set_key(cursor.get(), generate_key().c_str());
+    cursor->set_value(cursor.get(), generate_value().c_str());
     testutil_check(cursor->update(cursor.get()));
 }
 
