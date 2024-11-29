@@ -167,8 +167,8 @@ __dest_has_tombstone(
     lr_fs = lr_fh->destination.back_pointer;
 
     WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
-    WT_ERR(
-      __live_restore_create_tombstone_path(session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+    WT_ERR(__live_restore_create_tombstone_path(
+      session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
@@ -244,9 +244,9 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
  *     Return an error message indicating the given functionality is not supported.
  */
 static int
-__live_restore_fs_notsup(WT_SESSION *wt_session) {
+__live_restore_fs_notsup(WT_SESSION *wt_session)
+{
     WT_RET_MSG((WT_SESSION_IMPL *)wt_session, ENOTSUP, "Unsupported fs operation");
-
 }
 
 #pragma GCC diagnostic push
@@ -284,7 +284,6 @@ __live_restore_fs_directory_list_free(
     return (__live_restore_fs_notsup(wt_session));
 }
 #pragma GCC diagnostic pop
-
 
 /*
  * __live_restore_fs_exist --
@@ -343,7 +342,6 @@ __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FIL
         temp = hole;
         hole = hole->next;
 
-        temp->next = NULL;
         __wt_free(session, temp);
     }
 
@@ -360,6 +358,7 @@ __live_restore_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    WT_ASSERT((WT_SESSION_IMPL *)wt_session, lr_fh->destination.fh != NULL);
     return (lr_fh->destination.fh->fh_lock(lr_fh->destination.fh, wt_session, lock));
 }
 
@@ -449,9 +448,9 @@ __live_restore_remove_extlist_hole(
 
 /*
  * __live_restore_can_service_read --
- *     Return if a the read can be serviced by the destination file. This assumes that the block
- *     manager is the only thing that perform reads and it only reads and writes full blocks. If
- *     that changes this code will unceremoniously fall over.
+ *     Return if a read can be serviced by the destination file. This assumes that the block manager
+ *     is the only thing that perform reads and it only reads and writes full blocks. If that
+ *     changes this code will unceremoniously fall over.
  */
 static bool
 __live_restore_can_service_read(
@@ -510,7 +509,6 @@ __live_restore_fh_write(
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
-    /* TODO - why write to file before setting the extent? */
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
     WT_RET(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
     WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
