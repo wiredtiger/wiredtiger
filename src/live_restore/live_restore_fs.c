@@ -11,7 +11,10 @@
 
 /*
  * __live_restore_fs_filename --
- *     Generate a filename for the given layer.
+ *     Convert a live restore file path (e..g WT_TEST/WiredTiger.wt) to the actual path of the
+ *     backing file. This can be the file in the destination directory (which is identical to the
+ *     live restore path), or the file in the source directory. The function allocates memory for
+ *     the path string and expects the caller to free it.
  */
 static int
 __live_restore_fs_filename(
@@ -29,9 +32,9 @@ __live_restore_fs_filename(
     } else {
         char *filename;
         /*
-         * Now that we use conn->home for the destination folder name is passed in as
-         * `DEST_FOLDER/file.wt`. We need to strip `DEST_FOLDER` and prepend `SOURCE_FOLDER` in the
-         * file path.
+         * By default the live restore file path is identical to file in the destination directory,
+         * which will include the destination folder. We need to replace this destination folder's
+         * path with the source directory's path.
          */
         filename = basename(name);
         /* +1 for the path separator, +1 for the null terminator. */
@@ -76,8 +79,8 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
         if (prev != NULL) {
             if (WT_EXTENT_END(prev) >= hole->off) {
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off, WT_EXTENT_END(prev),
-                  hole->off, WT_EXTENT_END(hole));
+                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off,
+                  WT_EXTENT_END(prev), hole->off, WT_EXTENT_END(hole));
                 list_valid = false;
             }
         }
@@ -93,11 +96,12 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
 #pragma GCC diagnostic pop
 
 /*
- * __live_restore_fs_marker --
- *     Generate a name of a marker file.
+ * __live_restore_create_tombstone_path --
+ *     Generate the file path of a tombstone for a file. This tombstone does not need to exist.
  */
 static int
-__live_restore_fs_marker(WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
+__live_restore_create_tombstone_path(
+  WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
 {
     size_t p, suffix_len;
 
@@ -128,8 +132,8 @@ __live_restore_fs_create_tombstone(
     path = path_marker = NULL;
 
     WT_ERR(__live_restore_fs_filename(&lr_fs->destination, session, name, &path));
-    WT_ERR(
-      __live_restore_fs_marker(session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+    WT_ERR(__live_restore_create_tombstone_path(
+      session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
     open_flags = WT_FS_OPEN_CREATE;
     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
@@ -500,8 +504,8 @@ __live_restore_remove_extlist_hole(
 
         if (offset <= hole->off && write_end >= WT_EXTENT_END(hole)) {
             /* The write fully overlaps a hole. Delete it. */
-            __wt_verbose_debug3(
-              session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off, WT_EXTENT_END(hole));
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off,
+              WT_EXTENT_END(hole));
 
             tmp = hole;
             if (prev_hole == NULL)
