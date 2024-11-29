@@ -831,7 +831,7 @@ __wt_meta_ckptlist_get(
             if ((ret = __wt_meta_ckptlist_get_from_config(
                    session, update, &ckptbase_comp, NULL, config)) == 0)
                 __assert_ckptlist_matches(session, *ckptbasep, ckptbase_comp);
-            __wt_meta_ckptlist_free(session, &ckptbase_comp);
+            __wt_checkpoint_ckptlist_free(session, &ckptbase_comp);
             WT_ERR(ret);
         }
     } else {
@@ -902,7 +902,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
 
     if (0) {
 err:
-        __wt_meta_ckptlist_free(session, &ckptbase);
+        __wt_checkpoint_ckptlist_free(session, &ckptbase);
     }
 
     return (ret);
