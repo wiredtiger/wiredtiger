@@ -693,12 +693,12 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
     wt_off_t old_len, truncate_start, truncate_end;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-
+    old_len = 0;
     /*
      * If we truncate a range we'll never need to read that range from the source file. Mark it as
      * such.
      */
-    __live_restore_fh_size(fh, wt_session, &old_len);
+    WT_RET(__live_restore_fh_size(fh, wt_session, &old_len));
 
     if (old_len == len)
         /* Sometimes we call truncate but don't change the length. Ignore */
