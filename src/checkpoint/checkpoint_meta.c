@@ -30,11 +30,11 @@ __wt_checkpoint_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
 }
 
 /*
- * __wt_meta_saved_ckptlist_free --
+ * __wt_checkpoint_saved_ckptlist_free --
  *     Discard the saved checkpoint list.
  */
 void
-__wt_meta_saved_ckptlist_free(WT_SESSION_IMPL *session)
+__wt_checkpoint_saved_ckptlist_free(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
 

@@ -63,10 +63,10 @@ extern int __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_checkpoint_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
+extern void __wt_checkpoint_saved_ckptlist_free(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta);
 extern void __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);
-extern void __wt_meta_saved_ckptlist_free(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_UNITTEST
 
