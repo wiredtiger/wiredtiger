@@ -1300,21 +1300,6 @@ err:
 }
 
 /*
- * __wt_meta_saved_ckptlist_free --
- *     Discard the saved checkpoint list.
- */
-void
-__wt_meta_saved_ckptlist_free(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    __wt_meta_ckptlist_free(session, &btree->ckpt);
-    btree->ckpt_bytes_allocated = 0;
-}
-
-/*
  * __wt_meta_checkpoint_free --
  *     Clean up a single checkpoint structure.
  */
