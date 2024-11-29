@@ -373,7 +373,7 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
         if (found) {
             if (a.val < found)
                 continue;
-            __wt_meta_checkpoint_free(session, ckpt);
+            __wt_checkpoint_free(session, ckpt);
         }
         found = a.val;
         WT_RET(__ckpt_load(session, &k, &v, ckpt));
@@ -1040,7 +1040,7 @@ __wt_meta_update_connection(WT_SESSION_IMPL *session, const char *config)
     if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
         conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
         conn->ckpt_most_recent = WT_MAX(ckpt.sec, conn->ckpt_most_recent);
-        __wt_meta_checkpoint_free(session, &ckpt);
+        __wt_checkpoint_free(session, &ckpt);
     } else
         WT_RET_NOTFOUND_OK(ret);
 
@@ -1793,6 +1793,6 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
 
     /* Take the checkpoint structure and generate the metadata string. */
     ret = __ckpt_blkmod_to_meta(session, buf, &ckpt);
-    __wt_meta_checkpoint_free(session, &ckpt);
+    __wt_checkpoint_free(session, &ckpt);
     return (ret);
 }

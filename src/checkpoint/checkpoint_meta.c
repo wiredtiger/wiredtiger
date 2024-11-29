@@ -25,7 +25,7 @@ __wt_checkpoint_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
      * order number.
      */
     WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt)
-        __wt_meta_checkpoint_free(session, ckpt);
+        __wt_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
 }
 
@@ -45,11 +45,11 @@ __wt_checkpoint_saved_ckptlist_free(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_meta_checkpoint_free --
+ * __wt_checkpoint_free --
  *     Clean up a single checkpoint structure.
  */
 void
-__wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
+__wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 {
     WT_BLOCK_MODS *blk_mod;
     uint64_t i;

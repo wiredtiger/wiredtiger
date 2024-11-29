@@ -129,7 +129,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                  */
                 WT_ERR(__wt_meta_checkpoint(session, key, NULL, &ckpt));
                 ckpt_time = ckpt.sec;
-                __wt_meta_checkpoint_free(session, &ckpt);
+                __wt_checkpoint_free(session, &ckpt);
                 WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
 
                 /* If nothing has changed, there's nothing to do. */
@@ -2060,7 +2060,7 @@ __checkpoint_lock_dirty_tree(
             WT_ASSERT(session, !seen_ckpt_add || F_ISSET(ckpt, WT_CKPT_ADD));
             if (F_ISSET(ckpt, WT_CKPT_ADD)) {
                 seen_ckpt_add = true;
-                __wt_meta_checkpoint_free(session, ckpt);
+                __wt_checkpoint_free(session, ckpt);
             }
         }
     }
@@ -2242,7 +2242,7 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         /* Remove any deleted checkpoints, by shifting the array. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE)) {
-            __wt_meta_checkpoint_free(session, ckpt);
+            __wt_checkpoint_free(session, ckpt);
             continue;
         }
 
