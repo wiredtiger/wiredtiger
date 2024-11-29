@@ -41,6 +41,31 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
     return (ret);
 }
 
+#define PRINT_BYTES_PER_ROW 16
+
+static void
+display_bytes(WT_SESSION_IMPL *session, const void* data, uint64_t size)
+{
+    uint64_t row_start, i;
+    int offset;
+    char buffer[1024];
+
+    __wt_errx(session, "display_bytes() size: 0x%"PRIx64"\n", size);
+
+    row_start = 0;
+    while (row_start < size) {
+        offset = snprintf(buffer, sizeof(buffer), "[0x%08"PRIx64"] ", row_start);
+        for (i = 0; (i < PRINT_BYTES_PER_ROW) && ((row_start + i) < size); i++) {
+            offset += snprintf(buffer + offset, sizeof(buffer) - (uint64_t) offset," %02x", ((char*)data)[row_start + i]);
+        }
+
+        __wt_errx(session, "%s\n", buffer);
+        row_start += PRINT_BYTES_PER_ROW;
+    }
+}
+
+
+
 /*
  * __wt_blkcache_read --
  *     Read an address-cookie referenced block into a buffer.
@@ -61,9 +86,11 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
     const WT_PAGE_HEADER *dsk;
-    size_t compression_ratio, result_len;
+    size_t compression_ratio, result_len, result_len2;
     uint64_t time_diff, time_start, time_stop;
-    bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
+    char buf1_value, buf2_value;
+    bool blkcache_found, expect_conversion, found, same_value, skip_cache_put, timer;
+    int ret2;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_item = NULL;
@@ -72,7 +99,13 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     compressor = btree->compressor;
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
     blkcache_found = found = false;
+    buf1_value = 0;
+    buf2_value = 0;
+    same_value = false;
     skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
+    ret2 = 0;
+    result_len = 0;
+    result_len2 = 0;
 
     WT_ASSERT_ALWAYS(session, session->dhandle != NULL, "The block cache requires a dhandle");
     /*
@@ -174,6 +207,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
         WT_ERR(__wt_buf_initsize(session, buf, dsk->mem_size));
+        memset(buf->mem, 0xff, dsk->mem_size);
 
         /*
          * Note the source length is NOT the number of compressed bytes, it's the length of the
@@ -193,38 +227,58 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
         buf2 = &buf2_base;
         WT_CLEAR(buf2_base);
         WT_ERR(__wt_buf_initsize(session, buf2, dsk->mem_size));
+
+        memset(buf2->mem, 0xff, dsk->mem_size);
         memcpy(buf2->mem, ip->data, WT_BLOCK_COMPRESS_SKIP);
 
         // Run the exact same decompression, but save it into buf2
-        ret = compressor->decompress(btree->compressor, &session->iface,
+        ret2 = compressor->decompress(btree->compressor, &session->iface,
           (uint8_t *)ip->data + WT_BLOCK_COMPRESS_SKIP, tmp->size - WT_BLOCK_COMPRESS_SKIP,
           (uint8_t *)buf2->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
-          &result_len);
+          &result_len2);
 
-        WT_ASSERT_ALWAYS(session, buf->size == buf2->size, 
-            "WT-13690 - Differing decompressed buf sizes!, %lu %lu", buf->size, buf2->size);
+        if (ret == 0 && ret2 == 0) {
+            WT_ASSERT_ALWAYS(session, result_len == result_len2,
+                "WT-13690 - Differing result lengths! %lu %lu", result_len, result_len2);
 
-        for (size_t i = 0; i < buf->size; i++) {
-            if ( ((char*)buf->data)[i] != ((char*)(buf2->data))[i] ) {
-                // Byte mismatch!!
-                // We decompressed the exact same source twice so we should expect the exact same output.
-                // This points to an issue in the decompression logic
-                __wt_errx(session, "WT-13690 - Mismatch at index %lu!!!", i);
+            WT_ASSERT_ALWAYS(session, buf->size == buf2->size,
+                "WT-13690 - Differing decompressed buf sizes!, %lu %lu", buf->size, buf2->size);
 
-                // I've been having issues printing the buffer content as a string.
-                // Print byte by byte to be safe.
-                // i + 1 because the corruption is always two bytes long. We found the first mismatched 
-                // byte to reach this branch. Print one extra char to output the second corrupted byte
-                for (size_t j = 0; j <= i + 1; j++) {
-                    if(j >= buf->size) {
-                        __wt_errx(session, "end of string");
-                        break;
+            for (size_t i = 0; i < buf->size; i++) {
+                if ( ((char*)buf->data)[i] != ((char*)(buf2->data))[i] ) {
+                    // Byte mismatch!!
+                    // We decompressed the exact same source twice so we should expect the exact same output.
+                    // This points to an issue in the decompression logic
+                    __wt_errx(session, "WT-13690 - Mismatch at index %lu!!!", i);
+
+                    __wt_errx(session, "WT-13690 - compressed data:");
+                    display_bytes(session, ip->data, tmp->size);
+                    __wt_errx(session, "WT-13690 - buf:");
+                    display_bytes(session, buf->data, buf->size);
+                    __wt_errx(session, "WT-13690 - buf2:");
+                    display_bytes(session, buf2->data, buf2->size);
+
+                    // I've been having issues printing the buffer content as a string.
+                    // Print byte by byte to be safe.
+                    // i + 1 because the corruption is always two bytes long. We found the first mismatched
+                    // byte to reach this branch. Print one extra char to output the second corrupted byte
+                    for (size_t j = 0; WT_MAX((j <= i + 32), buf->size) ; j++) {
+                        if(j >= buf->size) {
+                            __wt_errx(session, "end of string");
+                            break;
+                        }
+
+                        buf1_value = ((char*)(buf->data))[j];
+                        buf2_value = ((char*)(buf2->data))[j];
+                        same_value = buf1_value == buf2_value;
+
+                        __wt_errx(session, "[%lu] %2x %2x,  %c %c, same? = %i", j, buf1_value, buf2_value, buf1_value, buf2_value, same_value);
+                        if (!same_value)
+                            __wt_errx(session, "!!! Different value !!!");
                     }
-
-                    __wt_errx(session, "%c %c", ((char*)(buf->data))[j], ((char*)(buf2->data))[j]);
+                    // Consider this a WT_ASSERT(false). This is just doesn't like asserting false
+                    WT_ASSERT_ALWAYS(session, i == 1235123123412312, " ");
                 }
-                // Consider this a WT_ASSERT(false). This is just doesn't like asserting false
-                WT_ASSERT_ALWAYS(session, i == 1235123123412312, " ");
             }
         }
 
