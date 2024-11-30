@@ -147,7 +147,6 @@ trigger_fs_truncate(scoped_session &session)
     session->compact(session.get(), coll_name.c_str(), nullptr);
 }
 
-
 std::string
 generate_key()
 {
