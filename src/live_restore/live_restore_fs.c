@@ -165,6 +165,7 @@ __dest_has_tombstone(
     char *path, *path_marker;
 
     lr_fs = lr_fh->destination.back_pointer;
+    path_marker = NULL;
 
     WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
     WT_ERR(__live_restore_create_tombstone_path(
