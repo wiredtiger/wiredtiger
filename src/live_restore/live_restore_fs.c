@@ -232,9 +232,7 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
         /* The file exists in the source we don't need to look any further. */
         if (whichp != NULL)
             *whichp = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
-    } else
-        /* We didn't find the file. */
-        return (WT_NOTFOUND);
+    }
 
     return (0);
 }
@@ -292,17 +290,7 @@ __live_restore_fs_directory_list_free(
 static int
 __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name, bool *existp)
 {
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    bool exist;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-
-    exist = false;
-    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, name, NULL, &exist));
-
-    *existp = ret == 0 && exist;
-    return (0);
+    return (__live_restore_fs_find_layer(fs, (WT_SESSION_IMPL *)wt_session, name, NULL, existp));
 }
 
 /*
@@ -761,10 +749,10 @@ __live_restore_fh_find_holes_in_dest_file(
   WT_SESSION_IMPL *session, char *filename, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     WT_DECL_RET;
-    wt_off_t data_offset, data_end_offset, file_size;
+    wt_off_t data_end_offset, file_size;
     int fd;
 
-    data_offset = data_end_offset = 0;
+    data_end_offset = 0;
     fd = open(filename, O_RDONLY);
 
     /* Check that we opened a valid file descriptor. */
@@ -782,6 +770,7 @@ __live_restore_fh_find_holes_in_dest_file(
      * beginning of the file. lseek will find a block when it starts already positioned on the
      * block, so starting at zero ensures we'll find data blocks at the beginning of the file.
      */
+    wt_off_t data_offset;
     while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
 
         data_end_offset = lseek(fd, data_offset, SEEK_HOLE);
@@ -975,8 +964,8 @@ __live_restore_fs_remove(
     exist = false;
     path = NULL;
 
-    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, name, &layer, &exist));
-    if (ret == WT_NOTFOUND || !exist)
+    WT_RET(__live_restore_fs_find_layer(fs, session, name, &layer, &exist));
+    if (!exist)
         return (0);
 
     /* It's possible to call remove on a file that hasn't yet been created in the destination. In
@@ -1024,8 +1013,8 @@ __live_restore_fs_rename(
 
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
-    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
-    if (ret == WT_NOTFOUND || !exist)
+    WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
+    if (!exist)
         return (ENOENT);
 
     /* If the file is the top layer, rename it and leave a tombstone behind. */
@@ -1070,8 +1059,8 @@ __live_restore_fs_size(
     exist = false;
     path = NULL;
 
-    WT_RET_NOTFOUND_OK(__live_restore_fs_find_layer(fs, session, name, &which, &exist));
-    if (ret == WT_NOTFOUND || !exist)
+    WT_RET(__live_restore_fs_find_layer(fs, session, name, &which, &exist));
+    if (!exist)
         return (ENOENT);
 
     /* The file will always exist in the destination. This the is authoritative file size. */
