@@ -1358,9 +1358,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Crash if the checkpoint crash feature is enabled and configured to fail before updating the
      * metadata.
      */
-    if (ckpt_crash_before_metadata_upd){
+    if (ckpt_crash_before_metadata_upd) {
 #ifdef _WIN32
-         __wt_abort(session);
+        __wt_abort(session);
 #else
         (void)kill(getpid(), SIGKILL);
 #endif
@@ -2531,7 +2531,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* If the checkpoint crash feature is enabled, trigger a crash between checkpointing tables. */
     if (session->ckpt_crash_point > 0) {
-        if (session->ckpt_crash_point == 1){
+        if (session->ckpt_crash_point == 1) {
 #ifdef _WIN32
             __wt_abort(session);
 #else
