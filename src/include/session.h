@@ -214,7 +214,7 @@ struct __wt_session_impl {
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 
-    const char *hs_checkpoint;     /* History store checkpoint name, during checkpoint cursor ops */
+    const char *hs_checkpoint; /* History store checkpoint name, during checkpoint cursor ops */
 
     WT_CKPT_CONN ckpt; /* Checkpoint connection state */
 
