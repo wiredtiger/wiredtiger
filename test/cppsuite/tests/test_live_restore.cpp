@@ -27,12 +27,12 @@
  */
 
 /*
- * This file provides an example of how to create a test in C++ using a few features from the
- * framework if any. This file can be used as a template for quick testing and/or when stress
- * testing is not required. For any stress testing, it is encouraged to use the framework, see
- * test_template.cpp and create_script.sh.
+ * This file tests WiredTiger's live restore behavior. If called with the -f flag it will populate a
+ * test database and place it in a "backup" folder. Subsequent runs that don't have -f will open
+ * WiredTiger in live restore mode using the backup folder as the source. It will then perform
+ * random updates to the database, testing that we can perform operations on the database while live
+ * restore copies data across from source in parallel.
  */
-
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"

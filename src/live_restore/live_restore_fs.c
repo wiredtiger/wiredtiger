@@ -32,9 +32,9 @@ __live_restore_fs_backing_filename(
     } else {
         char *filename;
         /*
-         * By default the live restore file path is identical to file in the destination directory,
-         * which will include the destination folder. We need to replace this destination folder's
-         * path with the source directory's path.
+         * By default the live restore file path is identical to the file in the destination
+         * directory, which will include the destination folder. We need to replace this destination
+         * folder's path with the source directory's path.
          */
         filename = basename(name);
         /* +1 for the path separator, +1 for the null terminator. */
@@ -367,10 +367,7 @@ __live_restore_remove_extlist_hole(
 
     write_end = WT_OFFSET_END(offset, len);
 
-    /*
-     * FIXME - This 100% needs concurrency control. Locking is easy, but a CAS might be straight
-     * forward?
-     */
+    /* FIXME-WT-13825 - We need to make sure we're thread safe when touching the hole_list. */
     hole = lr_fh->destination.hole_list;
     prev_hole = NULL;
     while (hole != NULL) {
@@ -724,8 +721,8 @@ __live_restore_fs_open_in_source(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *ses
 
     path = NULL;
 
-    /* Clear the create flag. TODO: Can we assert something here? */
-    FLD_CLR(flags, WT_FS_OPEN_CREATE);
+    /* The source directory is read-only. We should never create files in it */
+    WT_ASSERT(session, !LF_ISSET(WT_FS_OPEN_CREATE));
 
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, lr_fh->iface.name, &path));
@@ -763,6 +760,10 @@ __live_restore_fh_find_holes_in_dest_file(
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
 
     if (file_size > 0)
+        /*
+         * Initialize the file as one big hole. We'll then lseek the file to find data blocks and
+         * remove those ranges from the hole list.
+         */
         WT_ERR(__live_restore_alloc_extent(
           session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list));
 
@@ -815,7 +816,7 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     lr_fh->destination.fh = fh;
     lr_fh->destination.back_pointer = lr_fs;
 
-    /* Get the map of the file. */
+    /* Get the list of holes of the file that need copying across from the source directory. */
     WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
 err:
@@ -858,7 +859,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     lr_fh->iface.file_system = fs;
     lr_fh->file_type = file_type;
 
-    /* TODO: Handle the exclusive flag and other flags */
+    /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 
     /* Open it in the destination layer. */
     WT_ERR_NOTFOUND_OK(
@@ -1018,14 +1019,12 @@ __live_restore_fs_rename(
     if (!exist)
         return (ENOENT);
 
-    /* If the file is the top layer, rename it and leave a tombstone behind. */
+    /* If the file is the destination, rename it and leave a tombstone behind. */
     if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, from, &path_from));
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, to, &path_to));
         WT_ERR(lr_fs->os_file_system->fs_rename(
           lr_fs->os_file_system, wt_session, path_from, path_to, flags));
-        __wt_free(session, path_from);
-        __wt_free(session, path_to);
 
         /* Create a tombstone for the file. */
         WT_ERR(__live_restore_fs_create_tombstone(fs, session, to, flags));
@@ -1091,7 +1090,7 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_RET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, wt_session));
 
     __wt_free(session, lr_fs->source.home);
-    /* TODO: Do we free ourselves here? */
+    __wt_free(session, lr_fs);
     return (0);
 }
 
@@ -1103,10 +1102,11 @@ int
 __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
   const char *destination, WT_FILE_SYSTEM **fsp)
 {
+    WT_DECL_RET;
     WT_LIVE_RESTORE_FS *lr_fs;
 
     WT_RET(__wt_calloc_one(session, &lr_fs));
-    WT_RET(__wt_os_posix(session, &lr_fs->os_file_system));
+    WT_ERR(__wt_os_posix(session, &lr_fs->os_file_system));
 
     /* Initialize the FS jump table. */
     lr_fs->iface.fs_directory_list = __live_restore_fs_directory_list;
@@ -1122,7 +1122,7 @@ __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
     /* Initialize the layers. */
     lr_fs->destination.home = destination;
     lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
-    WT_RET(__wt_strndup(session, source_cfg->str, source_cfg->len, &lr_fs->source.home));
+    WT_ERR(__wt_strndup(session, source_cfg->str, source_cfg->len, &lr_fs->source.home));
     lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -1131,5 +1131,10 @@ __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
 
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
-    return (0);
+    if (0) {
+err:
+        __wt_free(session, lr_fs->source.home);
+        __wt_free(session, lr_fs);
+    }
+    return (ret);
 }

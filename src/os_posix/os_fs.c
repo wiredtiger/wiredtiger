@@ -27,7 +27,6 @@
  */
 
 #include "wt_internal.h"
-#include <unistd.h>
 
 /*
  * __posix_file_size --
