@@ -30,7 +30,7 @@
 #define WT_WITH_CHECKPOINT(session, cbt, op)                                                \
     do {                                                                                    \
         WT_TXN *__saved_txn;                                                                \
-        uint64_t __saved_write_gen = (session)->checkpoint_write_gen;                       \
+        uint64_t __saved_write_gen = (session)->ckpt.write_gen;                             \
         bool no_reconcile_set;                                                              \
                                                                                             \
         no_reconcile_set = F_ISSET((session), WT_SESSION_NO_RECONCILE);                     \
@@ -38,7 +38,7 @@
             __saved_txn = (session)->txn;                                                   \
             if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                               \
                 WT_ASSERT(                                                                  \
-                  session, (cbt)->checkpoint_write_gen == (session)->checkpoint_write_gen); \
+                  session, (cbt)->checkpoint_write_gen == (session)->ckpt.write_gen); \
                 __saved_txn = NULL;                                                         \
             } else {                                                                        \
                 (session)->txn = (cbt)->checkpoint_txn;                                     \
@@ -48,8 +48,8 @@
                     WT_ASSERT(session, (session)->hs_checkpoint == NULL);                   \
                     (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;    \
                 }                                                                           \
-                __saved_write_gen = (session)->checkpoint_write_gen;                        \
-                (session)->checkpoint_write_gen = (cbt)->checkpoint_write_gen;              \
+                __saved_write_gen = (session)->ckpt.write_gen;                        \
+                (session)->ckpt.write_gen = (cbt)->checkpoint_write_gen;              \
             }                                                                               \
         } else                                                                              \
             __saved_txn = NULL;                                                             \
@@ -59,7 +59,7 @@
             if (!no_reconcile_set)                                                          \
                 F_CLR((session), WT_SESSION_NO_RECONCILE);                                  \
             (session)->hs_checkpoint = NULL;                                                \
-            (session)->checkpoint_write_gen = __saved_write_gen;                            \
+            (session)->ckpt.write_gen = __saved_write_gen;                            \
         }                                                                                   \
     } while (0)
 

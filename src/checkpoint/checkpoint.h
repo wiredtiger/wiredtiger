@@ -10,6 +10,23 @@
 
 #include "checkpoint_private.h"
 
+struct __wt_ckpt_conn {
+    WT_SPINLOCK lock;          /* Checkpoint spinlock */
+
+    uint64_t write_gen; /* Write generation override, during checkpoint cursor ops */
+
+    /* Checkpoint handles */
+    WT_DATA_HANDLE **handle; /* Handle list */
+    u_int handle_next;       /* Next empty slot */
+    size_t handle_allocated; /* Bytes allocated */
+
+    /* Named checkpoint drop list, during a checkpoint */
+    WT_ITEM *drop_list;
+
+    /* Checkpoint time of current checkpoint, during a checkpoint */
+    uint64_t current_sec;
+};
+
 /*
  * Inactive should always be 0. Other states are roughly ordered by appearance in the checkpoint
  * life cycle.

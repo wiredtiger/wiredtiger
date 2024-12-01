@@ -215,18 +215,8 @@ struct __wt_session_impl {
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 
     const char *hs_checkpoint;     /* History store checkpoint name, during checkpoint cursor ops */
-    uint64_t checkpoint_write_gen; /* Write generation override, during checkpoint cursor ops */
 
-    /* Checkpoint handles */
-    WT_DATA_HANDLE **ckpt_handle; /* Handle list */
-    u_int ckpt_handle_next;       /* Next empty slot */
-    size_t ckpt_handle_allocated; /* Bytes allocated */
-
-    /* Named checkpoint drop list, during a checkpoint */
-    WT_ITEM *ckpt_drop_list;
-
-    /* Checkpoint time of current checkpoint, during a checkpoint */
-    uint64_t current_ckpt_sec;
+    WT_CKPT_CONN ckpt; /* Checkpoint connection state */
 
     /*
      * Operations acting on handles.
