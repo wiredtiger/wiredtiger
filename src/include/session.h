@@ -216,7 +216,7 @@ struct __wt_session_impl {
 
     const char *hs_checkpoint; /* History store checkpoint name, during checkpoint cursor ops */
 
-    WT_CKPT_CONN ckpt; /* Checkpoint-related data */
+    WT_CKPT_SESSION ckpt; /* Checkpoint-related data */
 
     /*
      * Operations acting on handles.

@@ -10,7 +10,7 @@
 
 #include "checkpoint_private.h"
 
-struct __wt_ckpt_conn {
+struct __wt_ckpt_session {
     WT_SPINLOCK lock; /* Checkpoint spinlock */
 
     uint64_t write_gen; /* Write generation override, during checkpoint cursor ops */
