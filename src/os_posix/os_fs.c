@@ -306,8 +306,6 @@ __posix_fs_remove(
      * using unlink may be marginally safer.
      */
     WT_SYSCALL(unlink(name), ret);
-    if (strcmp(name, "WT_HOME/WiredTiger.lock.deleted") == 0 && ret != 0)
-        abort();
     if (ret != 0)
         WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
 
