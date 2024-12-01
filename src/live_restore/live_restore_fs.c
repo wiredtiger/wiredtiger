@@ -703,8 +703,8 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
     truncate_start = WT_MIN(len, old_len);
     truncate_end = WT_MAX(len, old_len);
 
-    __live_restore_remove_extlist_hole(lr_fh, (WT_SESSION_IMPL *)wt_session, truncate_start,
-      (size_t)(truncate_end - truncate_start));
+    WT_RET(__live_restore_remove_extlist_hole(lr_fh, (WT_SESSION_IMPL *)wt_session, truncate_start,
+      (size_t)(truncate_end - truncate_start)));
 
     return (lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, len));
 }
@@ -817,7 +817,7 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
 
     /* Get the map of the file. */
     WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
-    __live_restore_fh_find_holes_in_dest_file(session, path, lr_fh);
+    WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
 err:
     __wt_free(session, path);
     return (ret);
@@ -938,7 +938,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     if (0) {
 err:
         if (lr_fh != NULL)
-            __live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session);
+            WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
     }
     return (ret);
 }
