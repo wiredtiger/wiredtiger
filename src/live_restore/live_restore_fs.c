@@ -862,13 +862,14 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(lr_fh, session, name, &have_tombstone));
-    if (have_tombstone)
+    if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
          * source. Therefore the destination must be complete.
          */
         lr_fh->destination.complete = true;
-    else {
+        __live_restore_fs_free_extent_list(session, lr_fh);
+    } else {
         /*
          * If it exists in the source, open it. If it doesn't exist in the source then by definition
          * the destination file is complete.
@@ -903,6 +904,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
+                WT_ASSERT(session, lr_fh->destination.hole_list == NULL);
                 WT_ERR(__live_restore_alloc_extent(
                   session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list));
             }
@@ -1014,18 +1016,16 @@ __live_restore_fs_rename(
     if (!exist)
         return (ENOENT);
 
-    /* If the file is the destination, rename it and leave a tombstone behind. */
     if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, from, &path_from));
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, to, &path_to));
         WT_ERR(lr_fs->os_file_system->fs_rename(
           lr_fs->os_file_system, wt_session, path_from, path_to, flags));
-
-        /* Create a tombstone for the file. */
-        WT_ERR(__live_restore_fs_create_tombstone(fs, session, to, flags));
-        /* Create a tombstone for the old file as well. */
-        WT_ERR(__live_restore_fs_create_tombstone(fs, session, from, flags));
     }
+
+    /* Even if we don't modify a backing file we need to update metadata. */
+    WT_ERR(__live_restore_fs_create_tombstone(fs, session, to, flags));
+    WT_ERR(__live_restore_fs_create_tombstone(fs, session, from, flags));
 
 err:
     __wt_free(session, path_from);
