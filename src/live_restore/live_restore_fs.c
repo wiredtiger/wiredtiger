@@ -203,7 +203,6 @@ err:
     return (ret);
 }
 
-/* TODO: Do we need fs_find_layer? We should only interact with the file in the destination. */
 /*
  * __live_restore_fs_find_layer --
  *     Find a layer for the given file. Return the type of the layer and whether the layer contains
@@ -505,8 +504,6 @@ __live_restore_fh_write(
  * __read_promote --
  *     Write out the contents of a read into the destination. This will be overkill for cases where
  *     a read is performed to service a write. Which is most cases however this is a PoC.
- *
- * TODO: Locking needed.
  */
 static int
 __read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset,
@@ -547,8 +544,9 @@ __live_restore_fh_read(
     if (lr_fh->destination.complete || lr_fh->source == NULL ||
       __live_restore_can_service_read(lr_fh, session, offset, len)) {
         /*
-         * TODO: Right now if complete is true source will always be null. So the if statement here
-         * has redundancy is there a time when we need it? Maybe with the background thread.
+         * FIXME-WT-13797: Right now if complete is true source will always be null. So the if
+         * statement here has redundancy is there a time when we need it? Maybe with the background
+         * thread.
          */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
@@ -575,9 +573,6 @@ __live_restore_fh_read(
  *
  * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the
  *     destination file are already handled elsewhere.
- *
- * FIXME - This can cause very slow file close/clean shutdowns for customers during live restore.
- *     Maybe we only need this for our test which overwrites WT_TEST on each loop?
  */
 static int
 __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
@@ -619,11 +614,11 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
     /*
-     * TODO: This should be superseded by background thread migration. Right now it exists as a
-     * solution to handle certain testing cases. Once the background thread is implemented the test
-     * will need to handle situations where a full restore hasn't completed by the end of the test.
-     * Calling this in a production environment will produce very slow file closes as we copy all
-     * remaining data to the destination.
+     * FIXME-WT-13809: This should be superseded by background thread migration. Right now it exists
+     * as a solution to handle certain testing cases. Once the background thread is implemented the
+     * test will need to handle situations where a full restore hasn't completed by the end of the
+     * test. Calling this in a production environment will produce very slow file closes as we copy
+     * all remaining data to the destination.
      */
     WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
 
@@ -924,7 +919,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     lr_fh->iface.fh_truncate = __live_restore_fh_truncate;
     lr_fh->iface.fh_write = __live_restore_fh_write;
 
-    /* TODO: These are unimplemented. */
+    /* FIXME-WT-13820: These are unimplemented. */
     lr_fh->iface.fh_advise = NULL;
     lr_fh->iface.fh_sync_nowait = NULL;
     lr_fh->iface.fh_unmap = NULL;
