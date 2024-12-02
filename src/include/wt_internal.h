@@ -137,6 +137,8 @@ struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_ckpt_connection;
 typedef struct __wt_ckpt_connection WT_CKPT_CONNECTION;
+struct __wt_ckpt_session;
+typedef struct __wt_ckpt_session WT_CKPT_SESSION;
 struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
