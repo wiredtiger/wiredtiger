@@ -1039,7 +1039,7 @@ __wt_meta_update_connection(WT_SESSION_IMPL *session, const char *config)
 
     if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
         conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
-        conn->ckpt_most_recent = WT_MAX(ckpt.sec, conn->ckpt_most_recent);
+        conn->ckpt.most_recent = WT_MAX(ckpt.sec, conn->ckpt.most_recent);
         __wt_meta_checkpoint_free(session, &ckpt);
     } else
         WT_RET_NOTFOUND_OK(ret);
@@ -1063,7 +1063,7 @@ __wt_meta_load_prior_state(WT_SESSION_IMPL *session)
     /* Initialize the base write gen to 1 */
     conn->base_write_gen = 1;
     /* Initialize most recent checkpoint time with current clock */
-    __wt_seconds(session, &conn->ckpt_most_recent);
+    __wt_seconds(session, &conn->ckpt.most_recent);
     /* Retrieve the metadata entry for the metadata file. */
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     /* Update base write gen and most recent checkpoint time from the metadata. */
