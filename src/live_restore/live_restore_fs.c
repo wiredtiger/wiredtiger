@@ -158,26 +158,24 @@ err:
  */
 static int
 __dest_has_tombstone(
-  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, const char *name, bool *existp)
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, bool *existp)
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FS *lr_fs;
-    char *path, *path_marker;
+    char *path_marker;
 
     lr_fs = lr_fh->destination.back_pointer;
     path_marker = NULL;
 
-    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
     WT_ERR(__live_restore_create_tombstone_path(
-      session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+      session, lr_fh->destination.fh->name, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
     __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
+      session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", lr_fh->destination.fh->name, *existp ? "Y" : "N");
 
 err:
-    __wt_free(session, path);
     __wt_free(session, path_marker);
     return (ret);
 }
@@ -864,7 +862,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
     WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
 
-    WT_ERR(__dest_has_tombstone(lr_fh, session, name, &have_tombstone));
+    WT_ERR(__dest_has_tombstone(lr_fh, session, &have_tombstone));
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
