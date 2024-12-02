@@ -3976,10 +3976,10 @@ buildvariants:
   - ubuntu2004-small
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    make_command: PATH=/opt/mongodbtoolchain/v4/bin:$PATH make
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      PATH=/opt/mongodbtoolchain/v4/bin:$PATH
       top_dir=$(git rev-parse --show-toplevel)
       top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs:$top_dir/TCMALLOC_LIB/lib
@@ -3993,7 +3993,7 @@ buildvariants:
       --enable-static
       --enable-tcmalloc
       --prefix=$(pwd)/LOCAL_INSTALL
-    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
