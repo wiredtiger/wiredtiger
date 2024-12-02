@@ -575,7 +575,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * checkpoint.
      */
     if ((!F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET(btree, WT_BTREE_LOGGED) ||
-          ckpt->run_write_gen < conn->last_ckpt_base_write_gen) &&
+          ckpt->run_write_gen < conn->ckpt.last_base_write_gen) &&
       !is_ckpt)
         btree->base_write_gen = btree->run_write_gen;
     else
