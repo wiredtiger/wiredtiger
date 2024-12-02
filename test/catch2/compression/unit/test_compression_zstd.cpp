@@ -61,12 +61,79 @@ std::vector<unsigned char> compressed_data_from_issue =
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+#define WT_BLOCK_COMPRESS_SKIP 64
+#define ZSTD_PREFIX sizeof(uint64_t)
+
+#ifdef WORDS_BIGENDIAN
+/*
+ * zstd_bswap64 --
+ *     64-bit unsigned little-endian to/from big-endian value.
+ */
+static inline uint64_t
+zstd_bswap64(uint64_t v)
+{
+    return (((v << 56) & 0xff00000000000000UL) | ((v << 40) & 0x00ff000000000000UL) |
+      ((v << 24) & 0x0000ff0000000000UL) | ((v << 8) & 0x000000ff00000000UL) |
+      ((v >> 8) & 0x00000000ff000000UL) | ((v >> 24) & 0x0000000000ff0000UL) |
+      ((v >> 40) & 0x000000000000ff00UL) | ((v >> 56) & 0x00000000000000ffUL));
+}
+#endif
+
+static void
+display_bytes(const unsigned char* data, uint64_t size)
+{
+    const int PRINT_BYTES_PER_ROW = 16;
+    uint64_t row_start, i;
+    int offset;
+    char buffer[1024];
+
+    std::cout << "display_bytes() size: " << size << std::endl;
+
+    row_start = 0;
+    while (row_start < size) {
+        std::cout << "row_start: [" << std::hex << row_start << "] ";
+        for (i = 0; (i < PRINT_BYTES_PER_ROW) && ((row_start + i) < size); i++) {
+            std::cout << "0x" << std::hex << static_cast<int>(data[row_start + i]) << " ";
+        }
+        std::cout << std::endl;
+        row_start += PRINT_BYTES_PER_ROW;
+    }
+}
+
 TEST_CASE("Compression: zstd", "[zstd, compression]")
 {
-    const int dest_max = 1024;
+    constexpr int dest_max = 1024;
     std::vector<unsigned char> compressed_data(dest_max);
     size_t result = ZSTD_compress(compressed_data.data(), compressed_data.size(),
         hello_world_bytes.data(), hello_world_bytes.size(), 3);
     REQUIRE(!ZSTD_isError(result));
-    std::cout << "result:" << result << std::endl;
+    size_t compressed_size = result;
+
+    std::vector<unsigned char> decompressed_data(dest_max);
+    result = ZSTD_decompress(decompressed_data.data(), decompressed_data.size(), compressed_data.data(), compressed_size);
+    REQUIRE(!ZSTD_isError(result));
+    size_t decompressed_size = result;
+    REQUIRE(decompressed_size == hello_world_bytes.size());
+    for (size_t i = 0; i < decompressed_size; i++)
+        REQUIRE(decompressed_data[i] == hello_world_bytes[i]);
+
+}
+
+
+TEST_CASE("Compression: zstd WT-13690", "[zstd, compression]")
+{
+    unsigned char *src = compressed_data_from_issue.data() + WT_BLOCK_COMPRESS_SKIP;
+
+    uint64_t zstd_len = *reinterpret_cast<uint64_t *>(src);
+#ifdef WORDS_BIGENDIAN
+    zstd_len = zstd_bswap64(zstd_len);
+#endif
+    REQUIRE(zstd_len + ZSTD_PREFIX <= compressed_data_from_issue.size());
+
+    constexpr int dest_max = 10240;
+    std::vector<unsigned char> decompressed_data(dest_max);
+    size_t result = ZSTD_decompress(decompressed_data.data(), decompressed_data.size(), src + ZSTD_PREFIX, zstd_len);
+    REQUIRE(!ZSTD_isError(result));
+    display_bytes(decompressed_data.data(), result);
+    size_t decompressed_size = result;
 }
