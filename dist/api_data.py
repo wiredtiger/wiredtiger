@@ -1819,7 +1819,7 @@ methods = {
         modified. If true, this option forces the checkpoint''',
         type='boolean'),
     Config('name', '', r'''
-        if set, specify a name for the checkpoint (note that checkpoints may not be named)'''),
+        if set, specify a name for the checkpoint'''),
     Config('use_timestamp', 'true', r'''
         if true (the default), create the checkpoint as of the last stable timestamp if timestamps
         are in use, or with all committed  updates if there is no stable timestamp set. If false,

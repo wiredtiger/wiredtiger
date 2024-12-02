@@ -1882,8 +1882,7 @@ struct __wt_session {
      * @config{force, if false (the default)\, checkpoints may be skipped if the underlying object
      * has not been modified.  If true\, this option forces the checkpoint., a boolean flag; default
      * \c false.}
-     * @config{name, if set\, specify a name for the checkpoint (note that checkpoints may not be
-     * named)., a string; default empty.}
+     * @config{name, if set\, specify a name for the checkpoint., a string; default empty.}
      * @config{use_timestamp, if true (the default)\, create the checkpoint as of the last stable
      * timestamp if timestamps are in use\, or with all committed updates if there is no stable
      * timestamp set.  If false\, always generate a checkpoint with all committed updates\, ignoring
