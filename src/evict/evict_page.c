@@ -125,10 +125,17 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 }
 
 /*
- * __wt_evict_page_init --
- *    Add the page to eviction data structures. Called once and only once upon page creation.
+ * __wt_evict_init_ref --
+ *    Add the ref to eviction data structures. Called by the function that links a page to a ref.
  *
  */
+void
+__wt_evict_init_ref(WT_SESSION_IMPL *session, WT_REF *ref) {
+
+	WT_ASSERT(session, ref->page != NULL);
+
+
+}
 
 
 /* !!!

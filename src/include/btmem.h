@@ -1308,6 +1308,12 @@ struct __wt_ref {
 #endif
 };
 
+#define WT_REF_ASSIGN_PAGE(session, dhandle, ref, page)	\
+	do {												\
+	     ref->page = page;								\
+		 __wt_evict_init_ref(session, dhandle, ref);    \
+	while (0)
+
 #ifdef HAVE_REF_TRACK
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures, but we want to retain ref

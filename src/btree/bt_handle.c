@@ -798,6 +798,12 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
+	/*
+	 * Call this macro even though the above calls already set the page pointer inside the
+	 * ref. We need this, because the macro initializes eviction data structures.
+	 */
+	WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, &ref->page);
+
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.

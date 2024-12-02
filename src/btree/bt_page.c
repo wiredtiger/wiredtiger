@@ -113,6 +113,8 @@ err:
     __wt_cache_page_inmem_incr(session, page, size);
     (void)__wt_atomic_add64(&S2C(session)->cache->pages_inmem, 1);
     page->cache_create_gen = __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen);
+	__wt_evict_page_init(page);
+
 
     *pagep = page;
     return (0);
@@ -458,6 +460,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             break;
         }
         ref->page = page;
+		WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, ref, page);
     }
 
     *pagep = page;
