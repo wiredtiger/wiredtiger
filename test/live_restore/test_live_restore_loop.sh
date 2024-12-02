@@ -32,6 +32,7 @@ if [ $exit -ne 0 ]; then
     echo "==================="
     echo "Live restore loop failed! Exit code: " $exit " Logs located in live_restore_loop.log"
     echo "==================="
+    exit $exit
 else
     echo "Script finished, no errors encountered!"
 fi
