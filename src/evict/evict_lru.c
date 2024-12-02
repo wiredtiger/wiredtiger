@@ -638,7 +638,7 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 	}
 	page = ref->page;
 
-	if ((bucket = &page->bucket) == NULL)
+	if (WT_EVICT_PAGE_CLEARED(page))
 		return;
 
 	wt_spin_lock(session, &page->bucket->evict_queue_lock);
@@ -702,7 +702,7 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 	}
 
 	/* Is the page already in a bucket? */
-	if ((bucket = page->bucket) != NULL) {
+	if ((bucket = page->evict.bucket) != NULL) {
 		__evict_bucket_range(bucket, &min_range, &max_range);
 		/* Is the page already in the right bucket? */
 		if ((read_gen = __wt_atomic_load64(&page->read_gen)) >= min_range && read_gen <= max_range)
@@ -779,6 +779,8 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
 	WT_PAGE *page;
 
 	page = ref->page;
+
+	WT_ASSERT(session, ref->page != NULL);
 
     /* Is this the first use of the page? */
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {

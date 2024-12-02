@@ -295,6 +295,8 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     cache = S2C(session)->cache;
     modify = page->modify;
 
+	WT_ASSERT(session, WT_EVICT_PAGE_CLEARED(page));
+
     /* Update the bytes in-memory to reflect the eviction. */
     __wt_cache_decr_check_uint64(session, &btree->bytes_inmem,
       __wt_atomic_loadsize(&page->memory_footprint), "WT_BTREE.bytes_inmem");

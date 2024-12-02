@@ -26,6 +26,8 @@ struct __wt_evict_page_data {
 	WT_EVICT_BUCKET *bucket; /* Bucket containing this page */
 };
 
+#define WT_EVICT_PAGE_CLEARED(page)  page->evict.bucket == NULL
+
 /*
  * Connection evict data.
  */
