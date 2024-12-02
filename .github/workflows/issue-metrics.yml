@@ -15,14 +15,11 @@ jobs:
       pull-requests: read
     steps:
       - name: Run issue-metrics tool
+        id: issue-metrics
         uses: github/issue-metrics@v3
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SEARCH_QUERY: 'repo:wiredtiger/wiredtiger created:>=2024-06-01 merged:>=2024-06-01 base:develop -author:y123456yz'
 
-      - name: Create issue
-        uses: peter-evans/create-issue-from-file@v5
-        with:
-          title: Monthly issue metrics report
-          token: ${{ secrets.GITHUB_TOKEN }}
-          content-filepath: ./issue_metrics.md
+      - name: Print output of issue metrics tool
+        run: echo "${{ steps.issue-metrics.outputs.metrics }}"
