@@ -265,9 +265,9 @@ __curversion_next_int(WT_CURSOR *cursor)
                     }
 
                     /* We have traversed all the non-obsolete updates. */
-                    if (__wt_txn_upd_visible_all(session, next_upd) &&
-                      (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) ||
-                        WT_UPDATE_DATA_VALUE(next_upd)))
+                    if ((F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) ||
+                          WT_UPDATE_DATA_VALUE(next_upd)) &&
+                      __wt_txn_upd_visible_all(session, next_upd))
                         first_globally_visible = next_upd;
 
                     if (next_upd != upd) {
@@ -382,9 +382,10 @@ __curversion_next_int(WT_CURSOR *cursor)
                       cbt->upd_value->tw.durable_stop_ts > version_cursor->upd_durable_stop_ts)
                         goto skip_on_page;
 
-                    if (cbt->upd_value->tw.stop_txn == version_cursor->upd_stop_txnid &&
-                      cbt->upd_value->tw.stop_ts == version_cursor->upd_stop_ts &&
-                      cbt->upd_value->tw.durable_stop_ts == version_cursor->upd_durable_stop_ts)
+                    /* The update is not visible if start equals stop. */
+                    if (cbt->upd_value->tw.stop_txn == cbt->upd_value->tw.start_txn &&
+                      cbt->upd_value->tw.stop_ts == cbt->upd_value->tw.start_ts &&
+                      cbt->upd_value->tw.durable_stop_ts == cbt->upd_value->tw.durable_start_ts)
                         goto skip_on_page;
                 }
                 durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
