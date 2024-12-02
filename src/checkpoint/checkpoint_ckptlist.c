@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_checkpoint_ckptlist_free --
+ * __wt_ckptlist_free --
  *     Discard the checkpoint array.
  */
 void
-__wt_checkpoint_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
+__wt_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
 {
     WT_CKPT *ckpt, *ckptbase;
 
@@ -40,7 +40,7 @@ __wt_checkpoint_saved_ckptlist_free(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
 
-    __wt_checkpoint_ckptlist_free(session, &btree->ckpt);
+    __wt_ckptlist_free(session, &btree->ckpt);
     btree->ckpt_bytes_allocated = 0;
 }
 

@@ -696,7 +696,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     btree->modified = true;
-    __wt_checkpoint_ckptlist_free(session, &btree->ckpt);
+    __wt_ckptlist_free(session, &btree->ckpt);
 }
 
 /*
@@ -2071,7 +2071,7 @@ __checkpoint_lock_dirty_tree(
     } else {
         /* It is possible that we do not have any checkpoint in the list. */
 err:
-        __wt_checkpoint_ckptlist_free(session, &ckptbase);
+        __wt_ckptlist_free(session, &ckptbase);
         btree->ckpt = NULL;
         btree->ckpt_bytes_allocated = 0;
     }
