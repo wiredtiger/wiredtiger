@@ -453,8 +453,10 @@ skip_on_page:
 
     if (!upd_found && version_cursor->hs_cursor != NULL &&
       !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
-        /* We have already seen an update that is globally visible on the update chain. No need to
-         * return more updates. */
+        /*
+         * We have already seen an update that is globally visible on the update chain. No need to
+         * return more updates.
+         */
         if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
           __wt_txn_visible_all(
             session, version_cursor->upd_stop_txnid, version_cursor->upd_durable_stop_ts))
@@ -510,7 +512,7 @@ skip_on_page:
             if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
                 break;
 
-            /* Skip all the updates that are duplicate to previous updates returned. */
+            /* Skip all the updates that are duplicate to the previous updates returned. */
             if (twp->stop_txn <= version_cursor->upd_stop_txnid &&
               twp->stop_ts <= version_cursor->upd_stop_ts &&
               twp->durable_stop_ts <= version_cursor->upd_durable_stop_ts)
