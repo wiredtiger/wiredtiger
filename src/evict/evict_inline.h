@@ -649,7 +649,7 @@ __wt_evict_app_assist_worker_check(
      * Don't block the thread for eviction when holding the handle list, schema or table locks
      * (which can block checkpoints and eviction), or if the "ignore cache size" flag is set. Some
      * internal threads such as the sweep server and background compact will set the "ignore cache
-     * size" flag for this reason. Session's can also set this flag using the "ignore_cache_size"
+     * size" flag for this reason. Sessions can also set this flag using the "ignore_cache_size"
      * configuration.
      */
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ||
