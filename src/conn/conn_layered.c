@@ -1333,9 +1333,10 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         tombstone = upd = NULL;
         WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
         if (ret == WT_NOTFOUND) {
-            if (key->size > 0 && upds != NULL)
+            if (key->size > 0 && upds != NULL) {
                 WT_ERR(__layered_move_updates(cbt, key, upds));
-            else
+                upds = NULL;
+            } else
                 ret = 0;
             break;
         }
@@ -1370,7 +1371,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
             WT_ASSERT(session,
               tw.start_txn <= prev_upd->txnid && tw.start_ts <= prev_upd->start_ts &&
                 tw.durable_start_ts <= prev_upd->durable_ts);
-            if (tw.stop_txn != prev_upd->txnid || tw.stop_txn != prev_upd->start_ts ||
+            if (tw.stop_txn != prev_upd->txnid || tw.stop_ts != prev_upd->start_ts ||
               tw.durable_stop_ts != prev_upd->durable_ts)
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
