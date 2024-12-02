@@ -534,9 +534,9 @@ __live_restore_fh_read(
     read_data = (char *)buf;
 
     /*
-     * TODO: WiredTiger will read the metadata file after creation but before anything has been
-     * written in this case we forward the read to the empty metadata file in the destination. Is
-     * this correct?
+     * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
+     * been written in this case we forward the read to the empty metadata file in the destination.
+     * Is this correct?
      */
     if (lr_fh->destination.complete || lr_fh->source == NULL ||
       __live_restore_can_service_read(lr_fh, session, offset, len)) {
@@ -981,6 +981,7 @@ __live_restore_fs_remove(
      * then created again with the same name.
      */
     __live_restore_fs_create_tombstone(fs, session, name, flags);
+
 err:
     __wt_free(session, path);
     return (ret);
