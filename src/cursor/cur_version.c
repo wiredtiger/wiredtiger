@@ -160,7 +160,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *first, *next_upd, *tombstone, *upd;
+    WT_UPDATE *first_globally_visible, *next_upd, *tombstone, *upd;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     uint64_t hs_upd_type, raw, stop_txn;
     uint8_t *p, prepare_state, version_prepare_state;
@@ -174,7 +174,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
-    first = tombstone = upd = NULL;
+    first_globally_visible = tombstone = upd = NULL;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -259,18 +259,39 @@ __curversion_next_int(WT_CURSOR *cursor)
                     if (next_upd->txnid == WT_TXN_ABORTED)
                         continue;
 
-                    if (first != NULL) {
+                    if (first_globally_visible != NULL) {
                         next_upd = NULL;
                         break;
                     }
 
                     /* We have traversed all the non-obsolete updates. */
-                    if (WT_UPDATE_DATA_VALUE(next_upd) &&
-                      __wt_txn_upd_visible_all(session, next_upd))
-                        first = next_upd;
+                    if (__wt_txn_upd_visible_all(session, next_upd) &&
+                      (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) ||
+                        WT_UPDATE_DATA_VALUE(next_upd)))
+                        first_globally_visible = next_upd;
 
-                    if (next_upd != upd)
+                    if (next_upd != upd) {
+                        /*
+                         * If we are here, the previous update is not globally visible. We need
+                         * snapshot isolation and have pinned the global timestamp when we start the
+                         * version cursor.
+                         */
+                        WT_ASSERT(session,
+                          !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
+                            version_cursor->upd_durable_stop_ts));
+                        if (next_upd->txnid > version_cursor->upd_stop_txnid ||
+                          next_upd->start_ts > version_cursor->upd_stop_ts ||
+                          next_upd->durable_ts > version_cursor->upd_durable_stop_ts)
+                            WT_ERR_PANIC(session, WT_PANIC, "out of order updates detected.");
+
+                        /* Ignore the update with the same transaction id and timestamp. */
+                        if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
+                          next_upd->txnid == version_cursor->upd_stop_txnid &&
+                          next_upd->start_ts == version_cursor->upd_stop_ts &&
+                          next_upd->durable_ts == version_cursor->upd_durable_stop_ts)
+                            continue;
                         break;
+                    }
                 }
                 version_cursor->next_upd = next_upd;
                 if (next_upd == NULL)
@@ -280,6 +301,15 @@ __curversion_next_int(WT_CURSOR *cursor)
     }
 
     if (!upd_found && !F_ISSET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED)) {
+        /*
+         * We have already seen an update that is globally visible on the update chain. No need to
+         * return more updates.
+         */
+        if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
+          __wt_txn_visible_all(
+            session, version_cursor->upd_stop_txnid, version_cursor->upd_durable_stop_ts))
+            goto done;
+
         switch (page->type) {
         case WT_PAGE_ROW_LEAF:
             if (cbt->ins != NULL) {
@@ -327,10 +357,36 @@ __curversion_next_int(WT_CURSOR *cursor)
           WT_RESTART, true);
         if (ret == 0) {
             if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
+                if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER)) {
+                    if (cbt->upd_value->tw.start_txn > version_cursor->upd_stop_txnid ||
+                      cbt->upd_value->tw.start_ts > version_cursor->upd_stop_ts ||
+                      cbt->upd_value->tw.durable_start_ts > version_cursor->upd_durable_stop_ts)
+                        goto skip_on_page;
+
+                    if (cbt->upd_value->tw.start_txn == version_cursor->upd_stop_txnid &&
+                      cbt->upd_value->tw.start_ts == version_cursor->upd_stop_ts &&
+                      cbt->upd_value->tw.durable_start_ts == version_cursor->upd_durable_stop_ts)
+                        goto skip_on_page;
+                }
                 durable_stop_ts = version_cursor->upd_durable_stop_ts;
                 stop_ts = version_cursor->upd_stop_ts;
                 stop_txn = version_cursor->upd_stop_txnid;
             } else {
+                if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER)) {
+                    if (__wt_txn_visible_all(
+                          session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
+                        goto done;
+
+                    if (cbt->upd_value->tw.stop_txn > version_cursor->upd_stop_txnid ||
+                      cbt->upd_value->tw.stop_ts > version_cursor->upd_stop_ts ||
+                      cbt->upd_value->tw.durable_stop_ts > version_cursor->upd_durable_stop_ts)
+                        goto skip_on_page;
+
+                    if (cbt->upd_value->tw.stop_txn == version_cursor->upd_stop_txnid &&
+                      cbt->upd_value->tw.stop_ts == version_cursor->upd_stop_ts &&
+                      cbt->upd_value->tw.durable_stop_ts == version_cursor->upd_durable_stop_ts)
+                        goto skip_on_page;
+                }
                 durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
                 stop_ts = cbt->upd_value->tw.stop_ts;
                 stop_txn = cbt->upd_value->tw.stop_txn;
@@ -383,6 +439,10 @@ __curversion_next_int(WT_CURSOR *cursor)
               cbt->upd_value->tw.durable_start_ts, stop_txn, stop_ts, durable_stop_ts,
               WT_UPDATE_STANDARD, version_prepare_state, 0, WT_CURVERSION_DISK_IMAGE));
 
+            version_cursor->upd_stop_txnid = cbt->upd_value->tw.start_txn;
+            version_cursor->upd_durable_stop_ts = cbt->upd_value->tw.durable_start_ts;
+            version_cursor->upd_stop_ts = cbt->upd_value->tw.start_ts;
+
             upd_found = true;
         } else
             ret = 0;
@@ -392,6 +452,13 @@ skip_on_page:
 
     if (!upd_found && version_cursor->hs_cursor != NULL &&
       !F_ISSET(version_cursor, WT_CURVERSION_HS_EXHAUSTED)) {
+        /* We have already seen an update that is globally visible on the update chain. No need to
+         * return more updates. */
+        if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
+          __wt_txn_visible_all(
+            session, version_cursor->upd_stop_txnid, version_cursor->upd_durable_stop_ts))
+            goto done;
+
         /* Ensure we can see all the content in the history store. */
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
@@ -420,12 +487,40 @@ skip_on_page:
          */
         WT_ASSERT(session, ret == 0);
 
-        __wt_hs_upd_time_window(hs_cursor, &twp);
-        WT_ERR(hs_cursor->get_value(
-          hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
+        for (;;) {
+            __wt_hs_upd_time_window(hs_cursor, &twp);
+            WT_ERR(hs_cursor->get_value(
+              hs_cursor, &durable_stop_ts, &durable_start_ts, &hs_upd_type, hs_value));
+
+            /*
+             * Reconstruct the history store value if needed. Since we save the value inside the
+             * version cursor every time we traverse a version, we can simply apply the modify onto
+             * the latest value.
+             */
+            if (hs_upd_type == WT_UPDATE_MODIFY) {
+                WT_ERR(__wt_modify_apply_item(
+                  session, file_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
+            } else {
+                WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
+                cbt->upd_value->buf.data = hs_value->data;
+                cbt->upd_value->buf.size = hs_value->size;
+            }
+
+            if (!F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER))
+                break;
+
+            /* Skip all the updates that are duplicate to previous updates returned. */
+            if (twp->stop_txn <= version_cursor->upd_stop_txnid &&
+              twp->stop_ts <= version_cursor->upd_stop_ts &&
+              twp->durable_stop_ts <= version_cursor->upd_durable_stop_ts)
+                break;
+
+            WT_ERR(hs_cursor->prev(hs_cursor));
+        }
 
         if (version_cursor->start_timestamp != WT_TS_NONE) {
-            /* We are done if the durable stop timestamp is smaller or equal to the end timestamp.
+            /*
+             * We are done if the durable stop timestamp is smaller or equal to the end timestamp.
              */
             if (twp->durable_stop_ts <= version_cursor->start_timestamp)
                 goto done;
@@ -444,19 +539,10 @@ skip_on_page:
           twp->start_txn, twp->start_ts, twp->durable_start_ts, twp->stop_txn, twp->stop_ts,
           twp->durable_stop_ts, hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
 
-        /*
-         * Reconstruct the history store value if needed. Since we save the value inside the version
-         * cursor every time we traverse a version, we can simply apply the modify onto the latest
-         * value.
-         */
-        if (hs_upd_type == WT_UPDATE_MODIFY) {
-            WT_ERR(__wt_modify_apply_item(
-              session, file_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
-        } else {
-            WT_ASSERT(session, hs_upd_type == WT_UPDATE_STANDARD);
-            cbt->upd_value->buf.data = hs_value->data;
-            cbt->upd_value->buf.size = hs_value->size;
-        }
+        version_cursor->upd_stop_txnid = twp->start_txn;
+        version_cursor->upd_durable_stop_ts = twp->durable_start_ts;
+        version_cursor->upd_stop_ts = twp->start_ts;
+
         upd_found = true;
     }
 
@@ -824,6 +910,13 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     if (ret == 0) {
         if (cval.val)
             F_SET(version_cursor, WT_CURVERSION_VISIBLE_ONLY);
+    }
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets_def(session, cfg, "debug.dump_version.timestamp_order", 0, &cval), true);
+    if (ret == 0) {
+        if (cval.val)
+            F_SET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER);
     }
 
     WT_ERR_NOTFOUND_OK(
