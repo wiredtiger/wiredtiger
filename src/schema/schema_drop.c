@@ -117,8 +117,9 @@ __drop_table(
     /*
      * Open the table so we can drop its column groups and indexes.
      *
-     * Ideally we would keep the table locked exclusive across the drop, but for now we rely on the
-     * global table lock to prevent the table being reopened while it is being dropped.
+     * FIXME-WT-13812: Investigate table locking during session->drop Ideally we would keep the
+     * table locked exclusive across the drop, but for now we rely on the global table lock to
+     * prevent the table being reopened while it is being dropped.
      *
      * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
      * table that are already open must at least be closed before this call proceeds.
