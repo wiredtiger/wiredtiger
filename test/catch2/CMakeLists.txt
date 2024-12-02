@@ -36,6 +36,7 @@ else()
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        compression/unit/test_compression_zstd.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
@@ -56,6 +57,7 @@ set(unittest_sources
     ${unittests}
 )
 
+
 # Disable 4200 warning on windows, its related to struct definitions with zero sized arrays.
 if(WT_WIN)
     set(UNITTEST_FLAGS /wd4200)
@@ -75,6 +77,31 @@ target_compile_options(
 )
 
 target_link_libraries(catch2-unittests Catch2::Catch2)
+
+if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
+    target_include_directories(
+            catch2-unittests
+            PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/include
+            ${CMAKE_BINARY_DIR}/include
+            ${CMAKE_BINARY_DIR}/config
+            ${HAVE_LIBZSTD_INCLUDES}
+    )
+    target_compile_options(
+            wiredtiger_zstd
+            PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
+    )
+
+#    set_property(TARGET wiredtiger_zstd PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(ENABLE_ZSTD)
+    target_link_libraries(catch2-unittests wt::zstd)
+    install(TARGETS catch2-unittests
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()
 
 add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/catch2-unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
