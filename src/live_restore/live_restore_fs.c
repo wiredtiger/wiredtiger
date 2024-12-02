@@ -716,8 +716,11 @@ __live_restore_fs_open_in_source(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *ses
 
     path = NULL;
 
-    /* The source directory is read-only. We should never create files in it */
-    WT_ASSERT(session, !LF_ISSET(WT_FS_OPEN_CREATE));
+    /*
+     * Clear the create flag. This comes from up the stack which has no concept of source or
+     * destination.
+     */
+    FLD_CLR(flags, WT_FS_OPEN_CREATE);
 
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, lr_fh->iface.name, &path));
