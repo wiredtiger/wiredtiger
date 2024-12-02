@@ -157,8 +157,7 @@ err:
  *     Check whether the destination directory contains a tombstone for a given file.
  */
 static int
-__dest_has_tombstone(
-  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, bool *existp)
+__dest_has_tombstone(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, bool *existp)
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FS *lr_fs;
@@ -172,8 +171,8 @@ __dest_has_tombstone(
 
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
-    __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", lr_fh->destination.fh->name, *existp ? "Y" : "N");
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s",
+      lr_fh->destination.fh->name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path_marker);
@@ -960,7 +959,6 @@ __live_restore_fs_remove(
     session = (WT_SESSION_IMPL *)wt_session;
     lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
-    WT_UNUSED(layer);
     exist = false;
     path = NULL;
 
@@ -968,18 +966,22 @@ __live_restore_fs_remove(
     if (!exist)
         return (0);
 
-    /* It's possible to call remove on a file that hasn't yet been created in the destination. In
-     * these cases we only need to create the tombstone */
+    /*
+     * It's possible to call remove on a file that hasn't yet been created in the destination. In
+     * these cases we only need to create the tombstone.
+     */
     if (layer == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
         lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags);
     }
 
-    /* We need file tombstones here but can we be sure this is correct? */
+    /*
+     * The tombstone here is useful as it tells us that we will never need to look in the
+     * destination for this file in the future. One such case is when a file is created, removed and
+     * then created again with the same name.
+     */
     __live_restore_fs_create_tombstone(fs, session, name, flags);
-    /* We don't have a file handle here so WT must have previously closed it. */
 err:
-
     __wt_free(session, path);
     return (ret);
 }
