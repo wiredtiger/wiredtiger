@@ -67,7 +67,8 @@ public:
     add_and_open_existing_collection(scoped_session &session, const std::string &uri)
     {
         _collections.emplace_back(uri);
-        // TODO: Think about how we know whether we're opening the correct thing?
+        // TODO: Is it possible to validate that the data we get from a collection is the same as
+        // the data we saved to it? To check for bugs in filename logic in the file system?
         session->create(session.get(), uri.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str());
         scoped_cursor cursor = session.open_scoped_cursor(uri.c_str());
         WT_IGNORE_RET(cursor->next(cursor.get()));
