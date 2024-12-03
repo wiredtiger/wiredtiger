@@ -576,11 +576,14 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
 {
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_LIVE_RESTORE_HOLE_LIST *hole;
-    /*
-     * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
-     * the read into small chunks
-     */
-    char buf[4096000];
+    wt_off_t off_end, off_start;
+
+/*
+ * Using 4MB buffer as a placeholder. When we find a large hole we should break the read into small
+ * chunks.
+ */
+#define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_MEGABYTE))
+    char buf[WT_LIVE_RESTORE_READ_SIZE];
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     hole = lr_fh->destination.hole_list;
@@ -589,7 +592,24 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
           WT_EXTENT_END(hole));
-        WT_RET(__live_restore_fh_read(fh, wt_session, hole->off, hole->len, buf));
+
+        off_start = hole->off;
+        off_end = hole->off + (wt_off_t)hole->len;
+
+        /*
+         * When encountering a large hole, break the read into small chunks. Split the hole into
+         * n chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and
+         * the last chunk reads the remaining data.
+         */
+        while (off_start + WT_LIVE_RESTORE_READ_SIZE < off_end) {
+            WT_RET(
+              __live_restore_fh_read(fh, wt_session, off_start, WT_LIVE_RESTORE_READ_SIZE, buf));
+            off_start += (wt_off_t)WT_LIVE_RESTORE_READ_SIZE;
+        }
+        /* Read the last chunk */
+        WT_RET(
+          __live_restore_fh_read(fh, wt_session, off_start, (size_t)(off_end - off_start), buf));
+
         hole = hole->next;
     }
 
