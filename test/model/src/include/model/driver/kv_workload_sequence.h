@@ -43,7 +43,6 @@ namespace model {
 enum class kv_workload_sequence_type {
     none,
     checkpoint,
-    checkpoint_crash,
     crash,
     evict,
     restart,
