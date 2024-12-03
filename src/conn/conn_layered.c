@@ -1316,7 +1316,8 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     WT_RET(__wt_snprintf(buf, sizeof(buf),
-      "debug=(dump_version=(enabled=true,visible_only=true,start_timestamp=%" PRIx64 "))",
+      "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
+      "%" PRIx64 "))",
       S2C(session)->txn_global.stable_timestamp));
     cfg[1] = buf;
     WT_RET(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
@@ -1360,10 +1361,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         /* We shouldn't seen any prepared updates. */
         WT_ASSERT(session, prepare == 0);
 
-        /*
-         * We assume the updates returned will be in timestamp order. TODO: ensure the version
-         * cursor don't return duplicate values to honor the timestamp ordering.
-         */
+        /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
             WT_ASSERT(session,
               tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->start_ts &&
