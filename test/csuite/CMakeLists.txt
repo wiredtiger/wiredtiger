@@ -136,16 +136,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2403_lsm_workload
-    SOURCES wt2403_lsm_workload/main.c
-    DIR_NAME wt2403_lsm_workload
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME>
-    DEPENDS "WT_POSIX"
-    # This test takes over 15 minutes under TSan testing
-    LABEL "long_running"
-)
-
-define_c_test(
     TARGET test_wt2246_col_append
     SOURCES wt2246_col_append/main.c
     DIR_NAME wt2246_col_append

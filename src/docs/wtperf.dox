@@ -143,7 +143,7 @@ connection configuration string
 @par close_conn (boolean, default=true)
 properly close connection at end of test. Setting to false does not sync data to disk and can  result in lost data after test exits.
 @par compact (boolean, default=false)
-post-populate compact for LSM merging activity
+post-populate compact
 @par compression (string, default="none")
 compression extension.  Allowed configuration values are: 'none', 'lz4', 'snappy', 'zlib',  'zstd'
 @par create (boolean, default=true)
