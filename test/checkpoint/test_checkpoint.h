@@ -44,7 +44,7 @@
  * There are three different table types in the test, and a 'special' type of mixed (i.e a mixture
  * of the other three types.
  */
-#define MAX_TABLE_TYPE 4
+#define MAX_TABLE_TYPE 3
 typedef enum { MIX = 0, COL, FIX, ROW } table_type; /* File type */
 
 /*
