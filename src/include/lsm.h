@@ -323,3 +323,5 @@ struct __wt_lsm_data_source {
 
     WT_RWLOCK *rwlock;
 };
+
+#define WT_MAX_LSN_STRING 256
