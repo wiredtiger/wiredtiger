@@ -6,6 +6,9 @@ from pprint import pprint
 from layercparse import *
 import wt_defs
 
+# Building an optimized binary:
+# (gcd; rm -rf build && mkdir build && cd build && cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DHAVE_DIAGNOSTIC=on -DCMAKE_BUILD_TYPE=Release -G Ninja ../ && ninja wtperf; )
+
 # Filter by threads:
 # cd .; rm -rf WT_TEST q-* ; time ./wtperf -O ~/tmp/mongodb-oplog.wtperf 2>&1 | pv | perl -MIO::File -nE '$t = /\t\[\d++:0x([0-9a-f]++)]/i ? $1 : "-"; if (!$h{$t}) { $h{$t} = IO::File->new(sprintf("q-%03d-%s",++$idx,$t), "w"); } $h{$t}->print($_); sub end() { for (values(%h)) { $_->close(); } exit; } END {end()} BEGIN { $SIG{INT}=\&end; }'
 

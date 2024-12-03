@@ -64,12 +64,18 @@ typedef struct __wt_calltrack_thread {
 } WT_CALLTRACK_THREAD;
 extern __thread WT_CALLTRACK_THREAD wt_calltrack_thread;
 
+#define CALLTRACK_SINGLE_FLUSHER_THREAD 1
+#define CALLTRACK_MAX_THREADS 1024
+
 typedef struct __wt_calltrack_global {
     bool enabled;
     uint64_t tstart;
     uint64_t tnid;
     bool is_running;
     uint64_t n_flushers_running;
+#ifdef CALLTRACK_SINGLE_FLUSHER_THREAD
+    WT_CALLTRACK_THREAD_BUF *buffers[CALLTRACK_MAX_THREADS];
+#endif
 } WT_CALLTRACK_GLOBAL;
 extern WT_CALLTRACK_GLOBAL wt_calltrack_global;
 
@@ -270,6 +276,7 @@ __wt_calltrack_init_thread(void) {
 }
 
 WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg);
+WT_THREAD_RET __wt_calltrack_buf_flusher_single(void *arg);
 static WT_INLINE void __wt_calltrack_init_thread_and_buf(void);
 static WT_INLINE void
 __wt_calltrack_init_thread_and_buf(void) {
@@ -283,16 +290,35 @@ __wt_calltrack_init_thread_and_buf(void) {
     wt_calltrack_thread.buf->writer = wt_calltrack_thread.buf->reader = 0;
     wt_calltrack_thread.buf->pid = wt_calltrack_thread.pid = (uintmax_t)getpid();
     wt_calltrack_thread.buf->tnid = wt_calltrack_thread.tnid = __wt_atomic_fetch_add64(&wt_calltrack_global.tnid, 1);
+#ifdef CALLTRACK_SINGLE_FLUSHER_THREAD
+    if (wt_calltrack_thread.buf->tnid >= CALLTRACK_MAX_THREADS) {
+        fprintf(stderr, "Too many threads\n");
+        wt_calltrack_thread.is_service_thread = true;  /* Disable tracing */
+        // abort();
+    }
+    wt_calltrack_global.buffers[wt_calltrack_thread.buf->tnid] = wt_calltrack_thread.buf;
+#endif
     __wt_thread_id(&wt_calltrack_thread.ostid);
     wt_calltrack_thread.buf->ostid = wt_calltrack_thread.ostid;
 #ifdef __linux__
     wt_calltrack_thread.linux_tid = wt_calltrack_thread.buf->linux_tid = gettid();
 #endif
+
+#ifndef CALLTRACK_SINGLE_FLUSHER_THREAD
     __atomic_fetch_add(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELAXED);
-    pthread_t thread;
     WT_FULL_BARRIER();
+    pthread_t thread;
     pthread_create(&thread, NULL, __wt_calltrack_buf_flusher, wt_calltrack_thread.buf);
     pthread_detach(thread);
+#else
+    if (!__atomic_load_n(&wt_calltrack_global.n_flushers_running, __ATOMIC_ACQUIRE)) {
+        __atomic_store_n(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELEASE);
+        WT_FULL_BARRIER();
+        pthread_t thread;
+        pthread_create(&thread, NULL, __wt_calltrack_buf_flusher_single, NULL);
+        pthread_detach(thread);
+    }
+#endif
 }
 
 static WT_INLINE void __wt_calltrack_wait_for_write(void);

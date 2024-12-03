@@ -120,12 +120,16 @@ __wt_is_thread_terminated(WT_CALLTRACK_THREAD_BUF *buf)
     fprintf(tracefile, "{\"ts\": %"PRIu64", \"pid\": %"SCNuMAX", \"tid\": %"PRIu64", \"ph\": \"E\", \"args\": {\"<ret>\": \"%"PRId64"\"}},\n", \
         entry->ts, buf->pid, buf->tnid, entry->ret);
 
-WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
+#define CALLTRACK_MAX_STACK 100
+
+
+WT_THREAD_RET
+__wt_calltrack_buf_flusher(void *arg)
+{
     wt_calltrack_thread.is_service_thread = true;
     int cycles = 0;
     WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF *)arg;
 #if defined(CALLTRACK_INTERLEAVE) || defined(CALLTRACK_MIN_DURATION)
-#define CALLTRACK_MAX_STACK 100
     WT_CALLTRACK_LOG_ENTRY stack[CALLTRACK_MAX_STACK];
     int last_report_stack_depth = 0;
 #endif
@@ -233,3 +237,193 @@ WT_THREAD_RET __wt_calltrack_buf_flusher(void *arg) {
     __atomic_fetch_sub(&wt_calltrack_global.n_flushers_running, 1, __ATOMIC_RELAXED);
     return NULL;
 }
+
+#ifdef CALLTRACK_SINGLE_FLUSHER_THREAD
+
+typedef struct thread_info {
+    bool dead;
+    bool dirty;
+    int nest_level;
+#define FBUFSZ 4*1024*1024
+    char *fbuf;
+    FILE *tracefile;
+    uint64_t last_report_ts;
+#if defined(CALLTRACK_INTERLEAVE) || defined(CALLTRACK_MIN_DURATION)
+    WT_CALLTRACK_LOG_ENTRY stack[CALLTRACK_MAX_STACK];
+    int last_report_stack_depth;
+#endif
+#if defined(CALLTRACK_INTERLEAVE)
+    uint64_t next_report_ts;
+#endif
+} CALLTRACK_THREAD_INFO;
+
+static bool
+__wt_calltrack_buf_flusher_single_one(WT_CALLTRACK_THREAD_BUF *buf, CALLTRACK_THREAD_INFO *ti, uint64_t ts)
+{
+    if (!__wt_calltrack_can_read(buf))
+        return false;
+
+    ti->dirty = true;
+    ti->last_report_ts = ts;
+
+    int reader = buf->reader;
+    int writer = __atomic_load_n(&buf->writer, __ATOMIC_ACQUIRE);
+    while (reader != writer) {
+        WT_CALLTRACK_LOG_ENTRY *entry = &buf->entries[reader];
+        FILE *tracefile = ti->tracefile;
+        if (entry->enter) {
+            ++ti->nest_level;
+#ifndef CALLTRACK_FILTER
+            CT_REPORT_ENTER(entry);
+#else
+            if (ti->nest_level < CALLTRACK_MAX_STACK) {
+                memcpy(&ti->stack[ti->nest_level-1], entry, sizeof(WT_CALLTRACK_LOG_ENTRY));
+#if defined(CALLTRACK_INTERLEAVE)
+                if (entry->ts >= ti->next_report_ts) {
+                    ti->next_report_ts = entry->ts + CALLTRACK_INTERLEAVE;
+                    for (int i = ti->last_report_stack_depth; i < ti->nest_level; i++) {
+                        WT_CALLTRACK_LOG_ENTRY *entry2 = &stack[i];
+                        CT_REPORT_ENTER(entry2);
+                    }
+                    ti->last_report_stack_depth = ti->nest_level;
+                }
+#endif
+            }
+#endif
+        } else {
+            --ti->nest_level;
+#ifndef CALLTRACK_FILTER
+            CT_REPORT_LEAVE(entry);
+#else
+#if defined(CALLTRACK_INTERLEAVE)
+            if (ti->nest_level < ti->last_report_stack_depth) {
+                CT_REPORT_LEAVE(entry);
+                ti->last_report_stack_depth = ti->nest_level;
+            }
+#endif
+#if defined(CALLTRACK_MIN_DURATION)
+            if (ti->nest_level < CALLTRACK_MAX_STACK) {
+                if (
+#ifdef CALLTRACK_ALWAYS_REPORT_TOPLEVEL
+                    ti->nest_level == 0 ||
+#endif
+                        entry->ts - ti->stack[ti->nest_level].ts >= CALLTRACK_MIN_DURATION) {
+                    if (ti->last_report_stack_depth <= ti->nest_level) {
+                        for (int i = ti->last_report_stack_depth; i <= ti->nest_level; i++) {
+                            WT_CALLTRACK_LOG_ENTRY *entry2 = &ti->stack[i];
+                            CT_REPORT_ENTER(entry2);
+                        }
+                    }
+                    CT_REPORT_LEAVE(entry);
+                    ti->last_report_stack_depth = ti->nest_level;
+                }
+            }
+#endif
+#endif
+        }
+        reader = (reader + 1) % WT_CALLTRACK_THREAD_BUF_ENTRIES;
+    }
+    __atomic_store_n(&buf->reader, reader, __ATOMIC_RELEASE);
+    WT_COMPILER_BARRIER();
+
+    return true;
+}
+
+static void
+__wt_calltrack_open_buf(WT_CALLTRACK_THREAD_BUF *buf, CALLTRACK_THREAD_INFO *ti)
+{
+    ti->fbuf = (char *)malloc(FBUFSZ);
+    ti->tracefile = __wt_calltrack_open_tracefile(buf->tnid);
+    if (ti->tracefile == NULL) {
+        fprintf(stderr, "Failed to open tracefile %d\n", (int)buf->tnid);
+        abort();
+    }
+    setbuffer(ti->tracefile, ti->fbuf, FBUFSZ);
+    fprintf(ti->tracefile, "{\"traceEvents\": [\n");
+}
+
+static void
+__wt_calltrack_close_buf(WT_CALLTRACK_THREAD_BUF *buf, CALLTRACK_THREAD_INFO *ti)
+{
+    ti->dead = true;
+    free(buf);
+    fprintf(ti->tracefile, "{}]}\n");
+    fclose(ti->tracefile);
+    free(ti->fbuf);
+}
+
+static void
+__wt_calltrack_maintenance_on_idle(CALLTRACK_THREAD_INFO *tis, int n_threads, uint64_t ts)
+{
+    /* Find any terminated threads */
+    for (int idx = 0; idx < n_threads; ++idx) {
+        WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF*)wt_calltrack_global.buffers[idx];
+        CALLTRACK_THREAD_INFO *ti = &tis[idx];
+        if (buf == NULL || ti->dead || !__wt_is_thread_terminated(buf))
+            continue;
+        __wt_calltrack_close_buf(buf, ti);
+    }
+
+    /* Flush some of files */
+    for (int idx = 0; idx < n_threads; ++idx) {
+        WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF*)wt_calltrack_global.buffers[idx];
+        CALLTRACK_THREAD_INFO *ti = &tis[idx];
+        if (buf == NULL || ti->dead || !ti->dirty || ts - ti->last_report_ts < 8000000000)
+            continue;
+        ti->dirty = false;
+        fflush(ti->tracefile);
+        return;  /* avoid flushing too many at a time */
+    }
+}
+
+WT_THREAD_RET
+__wt_calltrack_buf_flusher_single(void *arg)
+{
+    WT_UNUSED(arg);
+    CALLTRACK_THREAD_INFO *thread_info = calloc(CALLTRACK_MAX_THREADS, sizeof(CALLTRACK_THREAD_INFO));
+
+    // memset(thread_info, 0, sizeof(thread_info));
+
+    wt_calltrack_thread.is_service_thread = true;
+
+    while (1) {
+        bool read_any = false;
+        uint64_t ts = __wt_clock_to_usec(__wt_clock(NULL), wt_calltrack_global.tstart);
+        int n_threads = (int)__atomic_load_n(&wt_calltrack_global.tnid, __ATOMIC_RELAXED);
+
+        for (int idx = 0; idx < n_threads; ++idx) {
+            WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF*)__atomic_load_n(&wt_calltrack_global.buffers[idx], __ATOMIC_RELAXED);
+            CALLTRACK_THREAD_INFO *ti = &thread_info[idx];
+            if (buf == NULL || ti->dead)
+                continue;
+
+            if (!ti->tracefile)
+                __wt_calltrack_open_buf(buf, ti);
+
+            if (__wt_calltrack_buf_flusher_single_one(buf, ti, ts))
+                read_any = true;
+        }
+
+        if (!read_any) {
+            if (!__atomic_load_n(&wt_calltrack_global.is_running, __ATOMIC_RELAXED))
+                break;
+            __wt_calltrack_maintenance_on_idle(thread_info, n_threads, ts);
+            __wt_sleep(0, 10000);
+        }
+    }
+
+    int n_threads = (int)__atomic_load_n(&wt_calltrack_global.tnid, __ATOMIC_RELAXED);
+    for (int idx = 0; idx < n_threads; ++idx) {
+        WT_CALLTRACK_THREAD_BUF *buf = (WT_CALLTRACK_THREAD_BUF*)wt_calltrack_global.buffers[idx];
+        CALLTRACK_THREAD_INFO *ti = &thread_info[idx];
+        if (buf == NULL || ti->dead)
+            continue;
+        __wt_calltrack_close_buf(buf, ti);
+    }
+    free(thread_info);
+
+    __atomic_store_n(&wt_calltrack_global.n_flushers_running, 0, __ATOMIC_RELEASE);
+    return NULL;
+}
+
+#endif
