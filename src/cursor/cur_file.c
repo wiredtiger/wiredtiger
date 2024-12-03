@@ -1167,10 +1167,11 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * controlled by the "checkpoint_wait" config. Nothing else does an exclusive open, so the path
      * with the checkpoint lock is not otherwise reachable.
      *
-     * 2. For checkpoint cursors it is not safe to take the checkpoint lock here, because the LSM
-     * code opens checkpoint cursors while holding the schema lock and the checkpoint lock is
-     * supposed to come before the schema lock. If there should ever be some reason to do an
-     * exclusive open of a checkpoint cursor, something will have to give.
+     * 2. Historically, for checkpoint cursors, it was not safe to take the checkpoint lock here,
+     * because previously the LSM code would open a checkpoint cursor while holding the schema lock.
+     * The checkpoint lock is supposed to come before the schema lock which meant the ordering would
+     * be backwards. It is now possible although unimplemented to do an exclusive open of a
+     * checkpoint cursor if there is a good reason for it.
      *
      * 3. If we are opening a checkpoint cursor, we need two dhandles, one for the tree we're
      * actually trying to open and (unless that's itself the history store) one for the history
@@ -1179,13 +1180,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * for getting a matching set while avoiding races with a running checkpoint inside the open
      * logic (see session_dhandle.c) that we fortunately don't need to think about here.
      *
-     * 4. The LSM code also opens cursors on single-file checkpoints with no corresponding history
-     * store or snapshot information. It takes steps to make sure everything in the checkpoint is
-     * globally visible and sets checkpoint_use_history=false to indicate we shouldn't try to open
-     * the history store or retrieve the snapshot. If we were to try, we'd fail and the LSM code
-     * would get upset.
-     *
-     * 5. To avoid a proliferation of cases, and to avoid repeatedly parsing config strings, we
+     * 4. To avoid a proliferation of cases, and to avoid repeatedly parsing config strings, we
      * always pass down the return arguments for the history store dhandle and checkpoint snapshot
      * information (except for the bulk-only case and the LSM case) and pass the results on to
      * __curfile_create. We will not get anything back unless we are actually opening a checkpoint
