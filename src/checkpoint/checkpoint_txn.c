@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-#include <signal.h>
 
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
@@ -1065,7 +1064,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
     u_int i, ckpt_total_steps, ckpt_relative_crash_step;
-    int ckpt_crash_random;
+    int ckpt_crash_point;
     const char *name;
     bool can_skip, ckpt_crash_before_metadata_upd, failed, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -1186,15 +1185,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
     WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
-    ckpt_crash_random = (int)cval.val;
+    ckpt_crash_point = (int)cval.val;
 
-    if (ckpt_crash_random >= 0) {
+    if (ckpt_crash_point >= 0) {
         /*
          * Calculate total checkpoint steps and crash point. The total checkpoint steps required are
          * the number of data handles that need to be checkpointed plus the final metadata update.
          */
         ckpt_total_steps = session->ckpt_handle_next + 1;
-        ckpt_relative_crash_step = ((u_int)ckpt_crash_random / (WT_THOUSAND / ckpt_total_steps));
+        ckpt_relative_crash_step = ((u_int)ckpt_crash_point / (WT_THOUSAND / ckpt_total_steps));
 
         if (ckpt_relative_crash_step < session->ckpt_handle_next)
             /* Adjust crash step if it's between checkpointing tables. */
@@ -1358,13 +1357,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Crash if the checkpoint crash feature is enabled and configured to fail before updating the
      * metadata.
      */
-    if (ckpt_crash_before_metadata_upd) {
-#ifdef _WIN32
-        __wt_abort(session);
-#else
-        (void)kill(getpid(), SIGKILL);
-#endif
-    }
+    if (ckpt_crash_before_metadata_upd)
+        __wt_debug_crash();
 
     /*
      * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
@@ -2531,13 +2525,8 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* If the checkpoint crash feature is enabled, trigger a crash between checkpointing tables. */
     if (session->ckpt_crash_point > 0) {
-        if (session->ckpt_crash_point == 1) {
-#ifdef _WIN32
-            __wt_abort(session);
-#else
-            (void)kill(getpid(), SIGKILL);
-#endif
-        }
+        if (session->ckpt_crash_point == 1)
+            __wt_debug_crash();
         --session->ckpt_crash_point;
     }
 
