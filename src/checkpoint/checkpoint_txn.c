@@ -129,7 +129,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                  */
                 WT_ERR(__wt_meta_checkpoint(session, key, NULL, &ckpt));
                 ckpt_time = ckpt.sec;
-                __wt_meta_checkpoint_free(session, &ckpt);
+                __wt_checkpoint_free(session, &ckpt);
                 WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
 
                 /* If nothing has changed, there's nothing to do. */
@@ -696,7 +696,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
     btree->modified = true;
-    __wt_meta_ckptlist_free(session, &btree->ckpt);
+    __wt_ckptlist_free(session, &btree->ckpt);
 }
 
 /*
@@ -2007,7 +2007,7 @@ __checkpoint_lock_dirty_tree(
      * a case.
      */
     if (!is_wt_ckpt || is_drop || btree->ckpt_bytes_allocated == 0)
-        __wt_meta_saved_ckptlist_free(session);
+        __wt_ckptlist_saved_free(session);
 
     /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
@@ -2088,7 +2088,7 @@ __checkpoint_lock_dirty_tree(
             WT_ASSERT(session, !seen_ckpt_add || F_ISSET(ckpt, WT_CKPT_ADD));
             if (F_ISSET(ckpt, WT_CKPT_ADD)) {
                 seen_ckpt_add = true;
-                __wt_meta_checkpoint_free(session, ckpt);
+                __wt_checkpoint_free(session, ckpt);
             }
         }
     }
@@ -2099,7 +2099,7 @@ __checkpoint_lock_dirty_tree(
     } else {
         /* It is possible that we do not have any checkpoint in the list. */
 err:
-        __wt_meta_ckptlist_free(session, &ckptbase);
+        __wt_ckptlist_free(session, &ckptbase);
         btree->ckpt = NULL;
         btree->ckpt_bytes_allocated = 0;
     }
@@ -2270,7 +2270,7 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         /* Remove any deleted checkpoints, by shifting the array. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE)) {
-            __wt_meta_checkpoint_free(session, ckpt);
+            __wt_checkpoint_free(session, ckpt);
             continue;
         }
 
@@ -2471,12 +2471,12 @@ err:
     if (WT_SESSION_IS_CHECKPOINT(session))
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_POSTPROCESS);
     if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
-        __wt_meta_saved_ckptlist_free(session);
+        __wt_ckptlist_saved_free(session);
     else {
         ret = __checkpoint_save_ckptlist(session, btree->ckpt);
         /* Discard the saved checkpoint list if processing the list did not work. */
         if (ret != 0)
-            __wt_meta_saved_ckptlist_free(session);
+            __wt_ckptlist_saved_free(session);
     }
 
     return (ret);
@@ -2601,7 +2601,7 @@ done:
         __txn_checkpoint_clear_time(session);
 
     /* Do not store the cached checkpoint list when checkpointing a single file alone. */
-    __wt_meta_saved_ckptlist_free(session);
+    __wt_ckptlist_saved_free(session);
     return (ret);
 }
 
@@ -2696,7 +2696,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     __txn_checkpoint_clear_time(session);
 
     /* Do not store the cached checkpoint list when closing the handle. */
-    __wt_meta_saved_ckptlist_free(session);
+    __wt_ckptlist_saved_free(session);
 
     if (need_tracking)
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));

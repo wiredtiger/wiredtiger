@@ -373,7 +373,7 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
         if (found) {
             if (a.val < found)
                 continue;
-            __wt_meta_checkpoint_free(session, ckpt);
+            __wt_checkpoint_free(session, ckpt);
         }
         found = a.val;
         WT_RET(__ckpt_load(session, &k, &v, ckpt));
@@ -831,7 +831,7 @@ __wt_meta_ckptlist_get(
             if ((ret = __wt_meta_ckptlist_get_from_config(
                    session, update, &ckptbase_comp, NULL, config)) == 0)
                 __assert_ckptlist_matches(session, *ckptbasep, ckptbase_comp);
-            __wt_meta_ckptlist_free(session, &ckptbase_comp);
+            __wt_ckptlist_free(session, &ckptbase_comp);
             WT_ERR(ret);
         }
     } else {
@@ -902,7 +902,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
 
     if (0) {
 err:
-        __wt_meta_ckptlist_free(session, &ckptbase);
+        __wt_ckptlist_free(session, &ckptbase);
     }
 
     return (ret);
@@ -1040,7 +1040,7 @@ __wt_meta_update_connection(WT_SESSION_IMPL *session, const char *config)
     if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
         conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
         conn->ckpt.most_recent = WT_MAX(ckpt.sec, conn->ckpt.most_recent);
-        __wt_meta_checkpoint_free(session, &ckpt);
+        __wt_checkpoint_free(session, &ckpt);
     } else
         WT_RET_NOTFOUND_OK(ret);
 
@@ -1297,71 +1297,6 @@ __wt_meta_ckptlist_set(
 err:
     __wt_scr_free(session, &buf);
     return (ret);
-}
-
-/*
- * __wt_meta_ckptlist_free --
- *     Discard the checkpoint array.
- */
-void
-__wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
-{
-    WT_CKPT *ckpt, *ckptbase;
-
-    if ((ckptbase = *ckptbasep) == NULL)
-        return;
-
-    /*
-     * Sometimes the checkpoint list has a checkpoint which has not been named yet, but carries an
-     * order number.
-     */
-    WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt)
-        __wt_meta_checkpoint_free(session, ckpt);
-    __wt_free(session, *ckptbasep);
-}
-
-/*
- * __wt_meta_saved_ckptlist_free --
- *     Discard the saved checkpoint list.
- */
-void
-__wt_meta_saved_ckptlist_free(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    __wt_meta_ckptlist_free(session, &btree->ckpt);
-    btree->ckpt_bytes_allocated = 0;
-}
-
-/*
- * __wt_meta_checkpoint_free --
- *     Clean up a single checkpoint structure.
- */
-void
-__wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
-{
-    WT_BLOCK_MODS *blk_mod;
-    uint64_t i;
-
-    if (ckpt == NULL)
-        return;
-
-    __wt_free(session, ckpt->name);
-    __wt_free(session, ckpt->block_metadata);
-    __wt_free(session, ckpt->block_checkpoint);
-    __wt_buf_free(session, &ckpt->addr);
-    __wt_buf_free(session, &ckpt->raw);
-    __wt_free(session, ckpt->bpriv);
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk_mod = &ckpt->backup_blocks[i];
-        __wt_buf_free(session, &blk_mod->bitstring);
-        __wt_free(session, blk_mod->id_str);
-        F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
-    }
-
-    WT_CLEAR(*ckpt); /* Clear to prepare for re-use. */
 }
 
 /*
@@ -1858,6 +1793,6 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
 
     /* Take the checkpoint structure and generate the metadata string. */
     ret = __ckpt_blkmod_to_meta(session, buf, &ckpt);
-    __wt_meta_checkpoint_free(session, &ckpt);
+    __wt_checkpoint_free(session, &ckpt);
     return (ret);
 }
