@@ -500,7 +500,7 @@ __live_restore_fh_write(
 /*
  * __read_promote --
  *     Write out the contents of a read into the destination. This will be overkill for cases where
- *     a read is performed to service a write. Which is most cases however this is a PoC.
+ *     a read is performed to service a write.
  */
 static int
 __read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset,
@@ -590,7 +590,7 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
           "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
           WT_EXTENT_END(hole));
         WT_RET(__live_restore_fh_read(fh, wt_session, hole->off, hole->len, buf));
-        hole = hole->next;
+        hole = lr_fh->destination.hole_list;
     }
 
     return (0);
