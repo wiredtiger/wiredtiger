@@ -607,8 +607,8 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
             off_start += (wt_off_t)WT_LIVE_RESTORE_READ_SIZE;
         }
         /* Read the last chunk */
-        WT_RET(
-          __live_restore_fh_read(fh, wt_session, off_start, (size_t)(off_end - off_start), buf));
+        WT_RET(__live_restore_fh_read(
+          fh, wt_session, off_start, (size_t)(off_end - off_start + 1), buf));
 
         hole = hole->next;
     }
