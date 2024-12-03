@@ -89,7 +89,12 @@ validate_write_block(WT_BM *bm, const std::shared_ptr<mock_session> &session, WT
               cookie.size, &objectid, &offset, &size, &checksum) == 0);
     REQUIRE(offset % std::stoi(ALLOCATION_SIZE) == 0);
     REQUIRE(size == write_buf->memsize);
+
+#ifdef WORDS_BIGENDIAN
+    REQUIRE(checksum == __wt_bswap32(blk->checksum));
+#else
     REQUIRE(checksum == blk->checksum);
+#endif
 
     // Test block header members.
     CHECK(blk->disk_size == write_buf->memsize);

@@ -14,7 +14,7 @@
 #include "wt_internal.h"
 
 
-static unsigned char hello_world[] = "Hello, World!";
+// static unsigned char hello_world[] = "Hello, World!";
 
 std::vector<unsigned char> hello_world_bytes = {
     0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21
@@ -83,16 +83,12 @@ static void
 display_bytes(const unsigned char* data, uint64_t size)
 {
     const int PRINT_BYTES_PER_ROW = 16;
-    uint64_t row_start, i;
-    int offset;
-    char buffer[1024];
-
     std::cout << "display_bytes() size: " << size << std::endl;
 
-    row_start = 0;
+    uint64_t row_start = 0;
     while (row_start < size) {
         std::cout << "row_start: [" << std::hex << row_start << "] ";
-        for (i = 0; (i < PRINT_BYTES_PER_ROW) && ((row_start + i) < size); i++) {
+        for (int i = 0; (i < PRINT_BYTES_PER_ROW) && ((row_start + i) < size); i++) {
             std::cout << "0x" << std::hex << static_cast<int>(data[row_start + i]) << " ";
         }
         std::cout << std::endl;
@@ -135,5 +131,5 @@ TEST_CASE("Compression: zstd WT-13690", "[zstd, compression]")
     size_t result = ZSTD_decompress(decompressed_data.data(), decompressed_data.size(), src + ZSTD_PREFIX, zstd_len);
     REQUIRE(!ZSTD_isError(result));
     display_bytes(decompressed_data.data(), result);
-    size_t decompressed_size = result;
+    // size_t decompressed_size = result;
 }

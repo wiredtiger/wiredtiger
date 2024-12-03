@@ -5827,6 +5827,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: unit-test
+    - name: catch2-test
     - name: format-smoke-test
     - name: ".stress-test-zseries"
 
