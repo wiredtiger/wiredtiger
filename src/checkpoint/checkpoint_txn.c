@@ -1063,9 +1063,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
-    u_int i;
+    u_int i, ckpt_total_steps, ckpt_relative_crash_step;
+    int ckpt_crash_point;
     const char *name;
-    bool can_skip, failed, idle, logging, tracking, use_timestamp;
+    bool can_skip, ckpt_crash_before_metadata_upd, failed, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
 
     conn = S2C(session);
@@ -1075,7 +1076,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
-    idle = tracking = use_timestamp = false;
+    ckpt_crash_before_metadata_upd = idle = tracking = use_timestamp = false;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -1182,6 +1183,25 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
+
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
+    ckpt_crash_point = (int)cval.val;
+
+    if (ckpt_crash_point >= 0) {
+        /*
+         * Calculate total checkpoint steps and crash point. The total checkpoint steps required are
+         * the number of data handles that need to be checkpointed plus the final metadata update.
+         */
+        ckpt_total_steps = session->ckpt.handle_next + 1;
+        ckpt_relative_crash_step = ((u_int)ckpt_crash_point / (WT_THOUSAND / ckpt_total_steps));
+
+        if (ckpt_relative_crash_step < session->ckpt.handle_next)
+            /* Adjust crash step if it's between checkpointing tables. */
+            session->ckpt.crash_point = ckpt_relative_crash_step + 1;
+        else
+            /* Crash before updating the metadata. */
+            ckpt_crash_before_metadata_upd = true;
+    }
 
     /* Log the final checkpoint prepare progress message if needed. */
     if (conn->ckpt.progress_msg_count > 0)
@@ -1334,6 +1354,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_txn_commit(session, NULL));
 
     /*
+     * Crash if the checkpoint crash feature is enabled and configured to fail before updating the
+     * metadata.
+     */
+    if (ckpt_crash_before_metadata_upd)
+        __wt_debug_crash(session);
+
+    /*
      * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
      * may include the changes that are written in parallel by an eviction. To have a consistent
      * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
@@ -1477,7 +1504,8 @@ err:
     __txn_checkpoint_clear_time(session);
 
     __wt_free(session, session->ckpt.handle);
-    session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
+    WT_ASSERT(session, session->ckpt.crash_point == 0);
+    session->ckpt.handle_allocated = session->ckpt.handle_next = session->ckpt.crash_point = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
@@ -2300,7 +2328,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
     bool fake_ckpt, resolve_bm;
-
     WT_UNUSED(cfg);
 
     btree = S2BT(session);
@@ -2495,6 +2522,13 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_HANDLE, &tsp);
+
+    /* If the checkpoint crash feature is enabled, trigger a crash between checkpointing tables. */
+    if (session->ckpt.crash_point > 0) {
+        if (session->ckpt.crash_point == 1)
+            __wt_debug_crash(session);
+        --session->ckpt.crash_point;
+    }
 
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);

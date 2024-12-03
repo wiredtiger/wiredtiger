@@ -20,6 +20,9 @@ struct __wt_ckpt_session {
     u_int handle_next;       /* Next empty slot */
     size_t handle_allocated; /* Bytes allocated */
 
+    /* Checkpoint crash. */
+    u_int crash_point; /* Crash point in the middle of checkpoint process */
+
     /* Named checkpoint drop list, during a checkpoint */
     WT_ITEM *drop_list;
 
