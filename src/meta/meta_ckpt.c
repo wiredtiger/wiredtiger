@@ -681,7 +681,7 @@ __meta_ckptlist_allocate_new_ckpt(
     ckpt = &ckptbase[slot];
     ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
 
-    ckpt->sec = session->current_ckpt_sec;
+    ckpt->sec = session->ckpt.current_sec;
     WT_ASSERT(session, ckpt->sec > 0);
 
     /*
@@ -1039,7 +1039,7 @@ __wt_meta_update_connection(WT_SESSION_IMPL *session, const char *config)
 
     if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
         conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
-        conn->ckpt_most_recent = WT_MAX(ckpt.sec, conn->ckpt_most_recent);
+        conn->ckpt.most_recent = WT_MAX(ckpt.sec, conn->ckpt.most_recent);
         __wt_meta_checkpoint_free(session, &ckpt);
     } else
         WT_RET_NOTFOUND_OK(ret);
@@ -1063,7 +1063,7 @@ __wt_meta_load_prior_state(WT_SESSION_IMPL *session)
     /* Initialize the base write gen to 1 */
     conn->base_write_gen = 1;
     /* Initialize most recent checkpoint time with current clock */
-    __wt_seconds(session, &conn->ckpt_most_recent);
+    __wt_seconds(session, &conn->ckpt.most_recent);
     /* Retrieve the metadata entry for the metadata file. */
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     /* Update base write gen and most recent checkpoint time from the metadata. */
@@ -1394,7 +1394,7 @@ __meta_print_snapshot(WT_SESSION_IMPL *session, WT_ITEM *buf)
     WT_RET(__wt_buf_catfmt(session, buf,
       "," WT_SYSTEM_CKPT_SNAPSHOT_TIME "=%" PRIu64 "," WT_SYSTEM_CKPT_SNAPSHOT_WRITE_GEN
       "=%" PRIu64,
-      session->current_ckpt_sec, S2C(session)->base_write_gen));
+      session->ckpt.current_sec, S2C(session)->base_write_gen));
 
     return (0);
 }
@@ -1503,7 +1503,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
         WT_ERR(__wt_buf_fmt(session, valbuf,
           WT_SYSTEM_CKPT_TS "=\"%s\"," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN
                             "=%" PRIu64,
-          hex_timestamp, session->current_ckpt_sec, conn->base_write_gen));
+          hex_timestamp, session->ckpt.current_sec, conn->base_write_gen));
         WT_ERR(
           __meta_sysinfo_update(session, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
     }
@@ -1526,7 +1526,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
         WT_ERR(__wt_buf_fmt(session, valbuf,
           WT_SYSTEM_OLDEST_TS "=\"%s\"," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN
                               "=%" PRIu64,
-          hex_timestamp, session->current_ckpt_sec, conn->base_write_gen));
+          hex_timestamp, session->ckpt.current_sec, conn->base_write_gen));
         WT_ERR(__meta_sysinfo_update(
           session, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI, valbuf->data));
     }
