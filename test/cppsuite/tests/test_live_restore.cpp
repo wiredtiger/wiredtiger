@@ -163,16 +163,20 @@ generate_value()
 void
 insert(scoped_cursor &cursor, std::string &coll)
 {
-    cursor->set_key(cursor.get(), generate_key().c_str());
-    cursor->set_value(cursor.get(), generate_value().c_str());
+    std::string key = generate_key();
+    std::string value = generate_value();
+    cursor->set_key(cursor.get(), key.c_str());
+    cursor->set_value(cursor.get(), value.c_str());
     testutil_check(cursor->insert(cursor.get()));
 }
 
 void
 update(scoped_cursor &cursor, std::string &coll)
 {
-    cursor->set_key(cursor.get(), generate_key().c_str());
-    cursor->set_value(cursor.get(), generate_value().c_str());
+    std::string key = generate_key();
+    std::string value = generate_value();
+    cursor->set_key(cursor.get(), key.c_str());
+    cursor->set_value(cursor.get(), value.c_str());
     testutil_check(cursor->update(cursor.get()));
 }
 
