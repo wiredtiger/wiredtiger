@@ -384,7 +384,6 @@ __live_restore_remove_extlist_hole(
             else
                 prev_hole->next = hole->next;
             hole = hole->next;
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Freeing hole (%p)", (void *)tmp);
             __wt_free(session, tmp);
             continue;
 
@@ -478,62 +477,39 @@ __live_restore_can_service_read(
 }
 
 /*
- * __live_restore_fh_write_int --
- *     Internally callable write function, takes additional boolean specifying whether the extent
- *     lists should be updated.
- */
-static int
-__live_restore_fh_write_int(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len,
-  const void *buf, bool walk)
-{
-    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
-    WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
-    WT_RET(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
-    if (!walk)
-        WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
-
-    return (0);
-}
-
-/*
  * __live_restore_fh_write --
- *     Externally callable write function.
+ *     File write.
  */
 static int
 __live_restore_fh_write(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
-    return (__live_restore_fh_write_int(fh, wt_session, offset, len, buf, false));
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+    WT_SESSION_IMPL *session;
+
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
+    WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
+    WT_RET(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
+    WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
+    return (0);
 }
 
 /*
- * __read_from_source --
- *     Read from the source writing out the contents of the read into the destination. This will be
- *     overkill for cases where a read is performed to service a write.
+ * __read_promote --
+ *     Write out the contents of a read into the destination. This will be overkill for cases where
+ *     a read is performed to service a write. Which is most cases however this is a PoC.
  */
 static int
-__read_from_source(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, wt_off_t offset,
-  size_t len, void *buf, bool walk)
+__read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset,
+  size_t len, char *read)
 {
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-
-    /* Interestingly you cannot not have a format in verbose. */
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
-    /* Read the full read from the source. */
-    WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, buf));
-    /* Promote the read */
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %lu", lr_fh->iface.name, offset, len);
     WT_RET(
-      __live_restore_fh_write_int((WT_FILE_HANDLE *)lr_fh, wt_session, offset, len, buf, walk));
+      __live_restore_fh_write((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, offset, len, read));
 
     return (0);
 }
@@ -548,11 +524,14 @@ __live_restore_fh_read(
 {
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
+    char *read_data;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", fh->name, offset, len);
+
+    read_data = (char *)buf;
 
     /*
      * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
@@ -569,9 +548,16 @@ __live_restore_fh_read(
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
-        WT_RET(lr_fh->destination.fh->fh_read(lr_fh->destination.fh, wt_session, offset, len, buf));
-    } else
-        __read_from_source(lr_fh, wt_session, offset, len, buf, false);
+        WT_RET(lr_fh->destination.fh->fh_read(
+          lr_fh->destination.fh, wt_session, offset, len, read_data));
+    } else {
+        /* Interestingly you cannot not have a format in verbose. */
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
+        /* Read the full read from the source. */
+        WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
+        /* Promote the read */
+        WT_RET(__read_promote(lr_fh, session, offset, len, read_data));
+    }
 
     return (0);
 }
@@ -601,13 +587,9 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
 
     while (hole != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-          "Found hole (%p) in %s at %ld-%ld during file close. Filling", (void *)hole, fh->name,
-          hole->off, WT_EXTENT_END(hole));
-        /*
-         * Set a boolean to indicate to not update the extent lists as we're walking them at the
-         * moment.
-         */
-        WT_RET(__read_from_source(lr_fh, wt_session, hole->off, hole->len, buf, true));
+          "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
+          WT_EXTENT_END(hole));
+        WT_RET(__live_restore_fh_read(fh, wt_session, hole->off, hole->len, buf));
         hole = hole->next;
     }
 
