@@ -1088,7 +1088,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_lsn_string(session, &r.max_rec_lsn, max_rec_lsn_str));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "Main recovery loop: starting at %s to %s", (char *)ckpt_lsn_str,
-      max_rec_lsn_str);
+      (char *)max_rec_lsn_str);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
     /*
      * Check if the database was shut down cleanly. If not return an error if the user does not want
