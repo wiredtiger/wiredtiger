@@ -1358,7 +1358,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * metadata.
      */
     if (ckpt_crash_before_metadata_upd)
-        __wt_debug_crash();
+        __wt_debug_crash(session);
 
     /*
      * Flush all the logs that are generated during the checkpoint. It is possible that checkpoint
@@ -1505,7 +1505,7 @@ err:
 
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_point == 0);
-    session->ckpt.crash_point = session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
+    session->ckpt.handle_allocated = session->ckpt.handle_next = session->ckpt.crash_point = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_INACTIVE);
@@ -2526,7 +2526,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     /* If the checkpoint crash feature is enabled, trigger a crash between checkpointing tables. */
     if (session->ckpt.crash_point > 0) {
         if (session->ckpt.crash_point == 1)
-            __wt_debug_crash();
+            __wt_debug_crash(session);
         --session->ckpt.crash_point;
     }
 

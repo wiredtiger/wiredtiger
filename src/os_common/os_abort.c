@@ -37,11 +37,12 @@ __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((noreturn))
  *     If windows then abort else kill the process without creating a core.
  */
 void
-__wt_debug_crash(void) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_debug_crash(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 #ifdef _WIN32
     __wt_abort(session);
 #else
+    WT_UNUSED(session);
     (void)kill(getpid(), SIGKILL);
 #endif
 }
