@@ -1979,7 +1979,7 @@ __checkpoint_lock_dirty_tree(
      * a case.
      */
     if (!is_wt_ckpt || is_drop || btree->ckpt_bytes_allocated == 0)
-        __wt_checkpoint_saved_ckptlist_free(session);
+        __wt_ckptlist_saved_free(session);
 
     /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
@@ -2444,12 +2444,12 @@ err:
     if (WT_SESSION_IS_CHECKPOINT(session))
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_POSTPROCESS);
     if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
-        __wt_checkpoint_saved_ckptlist_free(session);
+        __wt_ckptlist_saved_free(session);
     else {
         ret = __checkpoint_save_ckptlist(session, btree->ckpt);
         /* Discard the saved checkpoint list if processing the list did not work. */
         if (ret != 0)
-            __wt_checkpoint_saved_ckptlist_free(session);
+            __wt_ckptlist_saved_free(session);
     }
 
     return (ret);
@@ -2567,7 +2567,7 @@ done:
         __txn_checkpoint_clear_time(session);
 
     /* Do not store the cached checkpoint list when checkpointing a single file alone. */
-    __wt_checkpoint_saved_ckptlist_free(session);
+    __wt_ckptlist_saved_free(session);
     return (ret);
 }
 
@@ -2662,7 +2662,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     __txn_checkpoint_clear_time(session);
 
     /* Do not store the cached checkpoint list when closing the handle. */
-    __wt_checkpoint_saved_ckptlist_free(session);
+    __wt_ckptlist_saved_free(session);
 
     if (need_tracking)
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
