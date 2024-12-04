@@ -1149,7 +1149,6 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     if (backup_index == 0) {
         testutil_snprintf(verify_dir, sizeof(verify_dir), "%s", WT_HOME_DIR);
         testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
-
         printf("Connection open and recovery complete. Verify content\n");
         /* Compare against the copy of the home directory just before recovery. */
         if (use_backups) {
