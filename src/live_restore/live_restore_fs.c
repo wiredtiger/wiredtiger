@@ -27,7 +27,7 @@ __live_restore_fs_backing_filename(
     size_t len;
     char *buf, *temp_name;
 
-    temp_name = NULL;
+    temp_name = buf = NULL;
 
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
