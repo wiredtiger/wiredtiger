@@ -150,8 +150,8 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     WT_SESSION_IMPL *session;
     uint64_t granularity;
     uint32_t index, opsize, optype;
-    const char *id_str;
     char lsn_str[WT_MAX_LSN_STRING];
+    const char *id_str;
 
     session = r->session;
     conn = S2C(session);
@@ -193,8 +193,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
 
     if (0) {
 err:
-        __wt_err(
-          session, ret, "backup id apply failed during recovery: at LSN %s", lsn_str);
+        __wt_err(session, ret, "backup id apply failed during recovery: at LSN %s", lsn_str);
     }
 
 done:
@@ -250,7 +249,10 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     session = r->session;
     cursor = NULL;
 
-    WT_ERR(__wt_lsn_string_fixed(lsnp, lsn_str));
+    if (__wt_lsn_string_fixed(lsnp, lsn_str) != 0) {
+        __wt_errx(session, "Failed to build LSN string");
+        return (ret);
+    }
 
     /* Peek at the size and the type. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -924,15 +926,15 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
-    WT_DECL_ITEM(ckpt_lsn_str);
-    WT_DECL_ITEM(max_rec_lsn_str);
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     WT_TIMER checkpoint_timer, rts_timer, timer;
     wt_off_t hs_size;
+    char ckpt_lsn_str[WT_MAX_LSN_STRING];
     char *config;
     char conn_rts_cfg[16];
+    char max_rec_lsn_str[WT_MAX_LSN_STRING];
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, rts_executed, was_backup;
 
@@ -1082,13 +1084,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * get truncated.
      */
     r.metadata_only = false;
-    WT_ERR(__wt_scr_alloc(session, 0, &ckpt_lsn_str));
-    WT_ERR(__wt_scr_alloc(session, 0, &max_rec_lsn_str));
-    WT_ERR(__wt_lsn_string(session, &r.ckpt_lsn, ckpt_lsn_str));
-    WT_ERR(__wt_lsn_string(session, &r.max_rec_lsn, max_rec_lsn_str));
+    WT_ERR(__wt_lsn_string_fixed(&r.ckpt_lsn, ckpt_lsn_str));
+    WT_ERR(__wt_lsn_string_fixed(&r.max_rec_lsn, max_rec_lsn_str));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
-      "Main recovery loop: starting at %s to %s", (char *)ckpt_lsn_str,
-      (char *)max_rec_lsn_str);
+      "Main recovery loop: starting at %s to %s", ckpt_lsn_str, max_rec_lsn_str);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
     /*
      * Check if the database was shut down cleanly. If not return an error if the user does not want
@@ -1262,9 +1261,6 @@ done:
       conn->recovery_timeline.rts_ms, conn->recovery_timeline.checkpoint_ms);
 
 err:
-    __wt_scr_free(session, &ckpt_lsn_str);
-    __wt_scr_free(session, &max_rec_lsn_str);
-
     WT_TRET(__recovery_close_cursors(&r));
     __wt_free(session, config);
     F_CLR(&conn->log_mgr, WT_LOG_RECOVER_DIRTY);

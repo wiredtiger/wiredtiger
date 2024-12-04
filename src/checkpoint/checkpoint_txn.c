@@ -2326,8 +2326,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_DECL_RET;
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
-    bool fake_ckpt, resolve_bm;
     char ckptlsn_str[WT_MAX_LSN_STRING];
+    bool fake_ckpt, resolve_bm;
 
     WT_UNUSED(cfg);
 
