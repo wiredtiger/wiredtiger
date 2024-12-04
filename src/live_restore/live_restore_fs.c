@@ -763,6 +763,7 @@ __live_restore_fh_find_holes_in_dest_file(
 
     data_end_offset = 0;
     WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
+    WT_ERR(ret);
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
@@ -798,12 +799,7 @@ __live_restore_fh_find_holes_in_dest_file(
     }
 
 err:
-    /*
-     * This should be wrapped in WT_SYSCALL but that will overwrite prior error codes. It's more
-     * important to catch errors reported earlier in this function than catching an error from
-     * closing the file.
-     */
-    WT_IGNORE_RET(close(fd));
+    WT_SYSCALL_TRET(close(fd), ret);
     return (ret);
 }
 
