@@ -56,7 +56,7 @@ display_bytes(WT_SESSION_IMPL *session, const void* data, uint64_t size)
     while (row_start < size) {
         offset = snprintf(buffer, sizeof(buffer), "[0x%08"PRIx64"] ", row_start);
         for (i = 0; (i < PRINT_BYTES_PER_ROW) && ((row_start + i) < size); i++) {
-            offset += snprintf(buffer + offset, sizeof(buffer) - (uint64_t) offset," %02x", ((char*)data)[row_start + i]);
+            offset += snprintf(buffer + offset, sizeof(buffer) - (uint64_t) offset," %02x", ((unsigned char*)data)[row_start + i]);
         }
 
         __wt_errx(session, "%s\n", buffer);
@@ -88,7 +88,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len, result_len2;
     uint64_t time_diff, time_start, time_stop;
-    char buf1_value, buf2_value;
+    unsigned char buf1_value, buf2_value;
     bool blkcache_found, expect_conversion, found, same_value, skip_cache_put, timer;
     int ret2;
 
@@ -268,8 +268,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
                             break;
                         }
 
-                        buf1_value = ((char*)(buf->data))[j];
-                        buf2_value = ((char*)(buf2->data))[j];
+                        buf1_value = ((unsigned char*)(buf->data))[j];
+                        buf2_value = ((unsigned char*)(buf2->data))[j];
                         same_value = buf1_value == buf2_value;
 
                         __wt_errx(session, "[%lu] %2x %2x,  %c %c, same? = %i", j, buf1_value, buf2_value, buf1_value, buf2_value, same_value);
