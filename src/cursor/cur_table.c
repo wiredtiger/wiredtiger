@@ -964,7 +964,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_update,                             /* update */
       __curtable_remove,                             /* remove */
       __curtable_reserve,                            /* reserve */
-      __wt_cursor_reconfigure,                       /* reconfigure */
+      __wti_cursor_reconfigure,                      /* reconfigure */
       __curtable_largest_key,                        /* largest_key */
       __curtable_bound,                              /* bound */
       __wt_cursor_notsup,                            /* cache */
@@ -1036,7 +1036,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
      */
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0) {
-        __wt_cursor_set_notsup(cursor);
+        __wti_cursor_set_notsup(cursor);
         cursor->next = __curtable_next_random;
         cursor->reset = __curtable_reset;
     }
