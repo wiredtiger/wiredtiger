@@ -255,15 +255,12 @@ do_random_crud(scoped_session &session, bool fresh_start)
         if (ran < 5000) {
             // 50% Write.
             write(session, false);
-            continue;
         } else if (ran <= 9980) {
             // 49.8% Read.
             read(session);
-            continue;
         } else if (ran <= 10000) {
             // 0.2% fs_truncate
             trigger_fs_truncate(session);
-            continue;
         } else {
             logger::log_msg(LOG_ERROR,
               "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
