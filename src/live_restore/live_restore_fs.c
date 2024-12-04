@@ -1116,8 +1116,8 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
  *     Initialize a live restore file system configuration.
  */
 int
-__wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
-  const char *destination, WT_FILE_SYSTEM **fsp)
+__wt_os_live_restore_fs(
+  WT_SESSION_IMPL *session, const char *cfg[], const char *destination, WT_FILE_SYSTEM **fsp)
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FS *lr_fs;
@@ -1139,8 +1139,18 @@ __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
     /* Initialize the layers. */
     lr_fs->destination.home = destination;
     lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
-    WT_ERR(__wt_strndup(session, source_cfg->str, source_cfg->len, &lr_fs->source.home));
+
+    WT_CONFIG_ITEM cval;
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.path", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fs->source.home));
     lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
+
+    /* Configure the background thread count. */
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_min", &cval));
+    lr_fs->background_threads_min = (uint8_t)cval.val;
+
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+    lr_fs->background_threads_max = (uint8_t)cval.val;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",

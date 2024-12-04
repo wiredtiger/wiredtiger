@@ -86,6 +86,9 @@ struct __wt_live_restore_fs {
     WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
     WT_LIVE_RESTORE_FS_LAYER destination;
     WT_LIVE_RESTORE_FS_LAYER source;
+
+    uint8_t background_threads_min;
+    uint8_t background_threads_max;
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
