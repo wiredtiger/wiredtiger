@@ -81,6 +81,54 @@ __endian_check(void)
 }
 
 /*
+ * __reset_sched_tick --
+ *     Reset the OS task timeslice to raise the probability of uninterrupted run afterwards.
+ */
+static void
+__reset_sched_tick(void)
+{
+    /*
+     * We could use __wt_yield() here but simple yielding doesn't seem to always reset the
+     * task's timeslice. Sleeping for a short time does a better job.
+     */
+    __wt_sleep(0, 10);
+}
+
+/*
+ * This needs to be a macro so that the compiler never messes with inlining or not inlining
+ * the function call.
+ */
+#define CLOCK_CALIBRATE_ONE() do { \
+    __reset_sched_tick(); /* Make it more probable that the test loop runs uninterrupted. */ \
+ \
+    /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */ \
+    tsc_start = __wt_rdtsc(); \
+    __wt_epoch(NULL, &start); \
+ \
+    /* Reverse cycle so that comparison is always done with a constant regardless of the count. */ \
+    for (i = count; i > 0; i--) \
+        /* Because i is volatile, the compiler has to keep this loop. */ \
+        ; \
+ \
+    /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */ \
+    tsc_stop = __wt_rdtsc(); \
+    __wt_epoch(NULL, &stop); \
+ \
+    diff_nsec = WT_TIMEDIFF_NS(stop, start); \
+    diff_tsc = tsc_stop - tsc_start; \
+ \
+    /* \
+     * If the either of timestamps didn't tick over, it's either too fast or too slow CPU,
+     * or clock granularity is not good enough. Give up in either case. \
+     */ \
+    if (diff_nsec < 10 || diff_tsc == 0) \
+        return; \
+} while (0)
+
+#define CLOCK_CALIBRATE_ONE_MS 3.  /* Number of millisecond per one iteration. */
+#define CLOCK_CALIBRATE_TRIES 5    /* Number of tries/loops to run. */
+
+/*
  * __global_calibrate_ticks --
  *     Calibrate a ratio from rdtsc ticks to nanoseconds.
  */
@@ -97,9 +145,23 @@ __global_calibrate_ticks(void)
     {
         struct timespec start, stop;
         double ratio;
+        uint64_t count;
         uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
         uint64_t tries, tsc_start, tsc_stop;
         volatile uint64_t i;
+
+        /* Quickly pre-calibrate to find approximate clock speed */
+        count = WT_MILLION/10;
+        CLOCK_CALIBRATE_ONE();
+        ratio = (double)diff_tsc / (double)diff_nsec;
+        if (ratio <= DBL_EPSILON)
+            return;
+
+        /* Calculate the number of iterations per 1 msec worth of time */
+        count = (uint64_t)((double)count * CLOCK_CALIBRATE_ONE_MS * 1e6 / diff_nsec);
+        if (count < WT_MILLION)
+            /* Running less than this could lead to drop of precision. */
+            count = WT_MILLION;
 
         /*
          * Run this calibration loop a few times to make sure we get a reading that does not have a
@@ -108,34 +170,18 @@ __global_calibrate_ticks(void)
          * the ratio.
          */
         min_nsec = min_tsc = UINT64_MAX;
-        for (tries = 0; tries < 3; ++tries) {
-            /* This needs to be CPU intensive and large enough. */
-            __wt_epoch(NULL, &start);
-            tsc_start = __wt_rdtsc();
-            for (i = 0; i < 100 * WT_MILLION; i++)
-                ;
-            tsc_stop = __wt_rdtsc();
-            __wt_epoch(NULL, &stop);
-            diff_nsec = WT_TIMEDIFF_NS(stop, start);
-            diff_tsc = tsc_stop - tsc_start;
-
-            /* If the clock didn't tick over, we don't have a sample. */
-            if (diff_nsec == 0 || diff_tsc == 0)
-                continue;
+        for (tries = 0; tries < CLOCK_CALIBRATE_TRIES; ++tries) {
+            CLOCK_CALIBRATE_ONE();
             min_nsec = WT_MIN(min_nsec, diff_nsec);
             min_tsc = WT_MIN(min_tsc, diff_tsc);
         }
+        WT_ASSERT(NULL, min_nsec != UINT64_MAX && min_nsec != 0);
+        WT_ASSERT(NULL, min_tsc != UINT64_MAX && min_tsc != 0);
 
-        /*
-         * Only use rdtsc if we got a good reading. One reason this might fail is that the system's
-         * clock granularity is not fine-grained enough.
-         */
-        if (min_nsec != UINT64_MAX) {
-            ratio = (double)min_tsc / (double)min_nsec;
-            if (ratio > DBL_EPSILON) {
-                __wt_process.tsc_nsec_ratio = ratio;
-                __wt_process.use_epochtime = false;
-            }
+        ratio = (double)min_tsc / (double)min_nsec;
+        if (ratio > DBL_EPSILON) {
+            __wt_process.tsc_nsec_ratio = ratio;
+            __wt_process.use_epochtime = false;
         }
     }
 #endif
