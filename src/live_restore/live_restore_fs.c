@@ -9,6 +9,9 @@
 #include "wt_internal.h"
 #include "live_restore_private.h"
 
+/* This is where basename comes from. */
+#include <libgen.h>
+
 /*
  * __live_restore_fs_backing_filename --
  *     Convert a live restore file path (e..g WT_TEST/WiredTiger.wt) to the actual path of the
@@ -22,7 +25,9 @@ __live_restore_fs_backing_filename(
 {
     WT_DECL_RET;
     size_t len;
-    char *buf;
+    char *buf, *temp_name;
+
+    temp_name = NULL;
 
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
@@ -31,12 +36,14 @@ __live_restore_fs_backing_filename(
         WT_RET(__wt_strdup(session, name, pathp));
     } else {
         char *filename;
+        /* Use a temporary string as we pass in a const char * but basename wants a non-const. */
+        WT_ERR(__wt_strdup(session, name, &temp_name));
         /*
          * By default the live restore file path is identical to the file in the destination
          * directory, which will include the destination folder. We need to replace this destination
          * folder's path with the source directory's path.
          */
-        filename = basename(name);
+        filename = basename(temp_name);
         /* +1 for the path separator, +1 for the null terminator. */
         len = strlen(layer->home) + 1 + strlen(filename) + 1;
         WT_RET(__wt_calloc(session, 1, len, &buf));
@@ -51,6 +58,7 @@ __live_restore_fs_backing_filename(
 err:
         __wt_free(session, buf);
     }
+    __wt_free(session, temp_name);
     return (ret);
 }
 
