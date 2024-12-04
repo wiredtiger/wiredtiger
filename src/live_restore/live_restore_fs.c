@@ -798,7 +798,12 @@ __live_restore_fh_find_holes_in_dest_file(
     }
 
 err:
-    WT_SYSCALL(close(fd), ret);
+    /*
+     * This should be wrapped in WT_SYSCALL but that will overwrite prior error codes. It's more
+     * important to catch errors reported earlier in this function than catching an error from
+     * closing the file.
+     */
+    WT_IGNORE_RET(close(fd));
     return (ret);
 }
 
