@@ -2654,7 +2654,7 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
             WT_RET_MSG(
               session, EINVAL, "Live restore is not compatible with an in-memory connections");
 #ifdef _MSC_VER
-        WT_ERR_MSG(session, EINVAL, "Live restore is not supported on Windows");
+        WT_RET_MSG(session, EINVAL, "Live restore is not supported on Windows");
 #endif
     }
 
@@ -2663,7 +2663,7 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
             WT_RET(__wt_os_inmemory(session));
         else {
 #if defined(_MSC_VER)
-            WT_ERR(__wt_os_win(session));
+            WT_RET(__wt_os_win(session));
 #else
             if (F_ISSET(conn, WT_CONN_LIVE_RESTORE))
                 WT_RET(__wt_os_live_restore_fs(session, cfg, conn->home, &conn->file_system));
