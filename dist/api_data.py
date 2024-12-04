@@ -1105,11 +1105,11 @@ wiredtiger_open_live_restore_configuration = [
         Config('enabled', 'false', r'''whether live restore is enabled or not.''', type='boolean'),
         Config('path', '', r'''the path to the backup that will be restored from.'''),
         Config('threads_max', '8', r'''
-            maximum number of threads WiredTiger will start to migrate data from the backup to
+            maximum number of threads WiredTiger will start to migrate data from the backup to the
             running WiredTiger database.''',
             min=1, max=20),
         Config('threads_min', '1', r'''
-            minimum number of threads WiredTiger will start to migrate data from the backup to
+            minimum number of threads WiredTiger will start to migrate data from the backup to the
             running WiredTiger database.''',
             min=1, max=20),
     ])
