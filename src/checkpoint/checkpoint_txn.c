@@ -2429,7 +2429,7 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
-    WT_ERR(__wt_lsn_string_fixed(&ckptlsn, ckptlsn_str));
+    WT_ERR(__wt_lsn_string(&ckptlsn, ckptlsn_str));
     WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
 
     /*

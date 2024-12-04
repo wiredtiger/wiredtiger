@@ -156,7 +156,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     session = r->session;
     conn = S2C(session);
 
-    WT_ERR(__wt_lsn_string_fixed(lsnp, lsn_str));
+    WT_ERR(__wt_lsn_string(lsnp, lsn_str));
 
     /* Right now the only system record we care about is the backup id. Skip anything else. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -249,7 +249,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     session = r->session;
     cursor = NULL;
 
-    if (__wt_lsn_string_fixed(lsnp, lsn_str) != 0) {
+    if (__wt_lsn_string(lsnp, lsn_str) != 0) {
         __wt_errx(session, "Failed to build LSN string");
         return (ret);
     }
@@ -748,7 +748,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
           cval.str);
     WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
 
-    WT_ERR(__wt_lsn_string_fixed(&lsn, lsn_str));
+    WT_ERR(__wt_lsn_string(&lsn, lsn_str));
     __wt_verbose(r->session, WT_VERB_RECOVERY, "Recovering %s with id %" PRIu32 " @ (%s)", uri,
       fileid, lsn_str);
 
@@ -1084,8 +1084,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * get truncated.
      */
     r.metadata_only = false;
-    WT_ERR(__wt_lsn_string_fixed(&r.ckpt_lsn, ckpt_lsn_str));
-    WT_ERR(__wt_lsn_string_fixed(&r.max_rec_lsn, max_rec_lsn_str));
+    WT_ERR(__wt_lsn_string(&r.ckpt_lsn, ckpt_lsn_str));
+    WT_ERR(__wt_lsn_string(&r.max_rec_lsn, max_rec_lsn_str));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "Main recovery loop: starting at %s to %s", ckpt_lsn_str, max_rec_lsn_str);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
