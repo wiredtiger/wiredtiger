@@ -36,7 +36,10 @@ __live_restore_fs_backing_filename(
         WT_RET(__wt_strdup(session, name, pathp));
     } else {
         char *filename;
-        /* Use a temporary string as we pass in a const char * but basename wants a non-const. */
+        /*
+         * On MacOS basename takes a non-const original string. Make a local copy on the off chance
+         * it modifies the string.
+         */
         WT_ERR(__wt_strdup(session, name, &temp_name));
         /*
          * By default the live restore file path is identical to the file in the destination
