@@ -2850,8 +2850,6 @@ struct __wt_connection {
  * event handler is installed that writes error messages to stderr. See
  * @ref event_message_handling for more information.
  * @configstart{wiredtiger_open, see dist/api_data.py}
- * @config{aux_path, The auxiliary path configuration specifies a second path to a WiredTiger
- * database.  This is then used to perform a live backup restore process., a string; default empty.}
  * @config{backup_restore_target, If non-empty and restoring from a backup\, restore only the table
  * object targets listed.  WiredTiger will remove all the metadata entries for the tables that are
  * not listed in the list from the reconstructed metadata.  The target list must include URIs of
@@ -3195,6 +3193,18 @@ struct __wt_connection {
  * given as a list\, where each option specifies an event handler category e.g.  'error' represents
  * the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values chosen from
  * the following options: \c "error"\, \c "message"; default \c [].}
+ * @config{live_restore = (, Live restore configuration options.  These options control the behavior
+ * of WiredTiger when live restoring from a backup., a set of related configuration options defined
+ * as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether live restore is enabled or not., a
+ * boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the path to the backup
+ * that will be restored from., a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * threads_max, maximum number of threads WiredTiger will start to migrate data from the backup to
+ * the running WiredTiger database.  Each worker thread uses a session handle from the configured
+ * session_max., an integer between \c 1 and \c 12; default \c 8.}
+ * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log records.  Permitted

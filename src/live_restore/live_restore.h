@@ -10,7 +10,7 @@
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern int __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
+extern int __wt_os_live_restore_fs(WT_SESSION_IMPL *session, const char *cfg[],
   const char *destination, WT_FILE_SYSTEM **fsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #ifdef HAVE_UNITTEST
