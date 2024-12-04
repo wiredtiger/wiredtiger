@@ -54,7 +54,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
     char *buf, *cfg_ret, *metadata_value_cfg, *layered_ingest_uri;
-    const char *cfg[4], *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
 
@@ -142,7 +142,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      *     the checkpoint lock.
      */
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    cfg[1] = ",checkpoint_use_history=false";
+    cfg[1] = "checkpoint=" WT_CHECKPOINT ",checkpoint_use_history=false";
     cfg[2] = NULL;
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
@@ -170,7 +170,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
             cfg[0] = current_value;
             cfg[1] = metadata_value_cfg;
             cfg[2] = NULL;
-            cfg[3] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
             /* TODO: Possibly check that the other parts of the metadata are identical. */

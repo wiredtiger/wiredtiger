@@ -243,19 +243,23 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     }
 
     if (clayered->stable_cursor == NULL) {
-        ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-        ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
-        ckpt_cfg[2] = NULL;
+        if (!S2C(session)->layered_table_manager.leader) {
+            ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+            ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
+            ckpt_cfg[2] = NULL;
+            /*
+             * We may have a stable chunk with no checkpoint yet. If that's the case then open a
+             * cursor on stable without a checkpoint. It will never return an invalid result (it's
+             * content is by definition trailing the ingest cursor. It is just slightly less
+             * efficient, and also not an accurate reflection of what we want in terms of sharing
+             * checkpoint across different WiredTiger instances eventually.
+             */
+            ret = __wt_open_cursor(
+              session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
+        } else
+            ret = __wt_open_cursor(
+              session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
 
-        /*
-         * We may have a stable chunk with no checkpoint yet. If that's the case then open a cursor
-         * on stable without a checkpoint. It will never return an invalid result (it's content is
-         * by definition trailing the ingest cursor. It is just slightly less efficient, and also
-         * not an accurate reflection of what we want in terms of sharing checkpoint across
-         * different WiredTiger instances eventually.
-         */
-        ret = __wt_open_cursor(
-          session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
         if (ret == WT_NOTFOUND) {
             ret = __wt_open_cursor(
               session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
@@ -946,7 +950,8 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
-        fprintf(stderr, "clayered_put: URI for direct insert is %s\n", clayered->stable_cursor->uri);
+        fprintf(
+          stderr, "clayered_put: URI for direct insert is %s\n", clayered->stable_cursor->uri);
     } else
         c = clayered->ingest_cursor;
 
