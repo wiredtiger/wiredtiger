@@ -472,7 +472,6 @@ static const struct {
         uint64_t enabled;
         uint64_t path;
         uint64_t threads_max;
-        uint64_t threads_min;
     } Live_restore;
     struct {
         uint64_t archive;
@@ -851,7 +850,6 @@ static const struct {
     WT_CONF_ID_Live_restore | (WT_CONF_ID_enabled << 16),
     WT_CONF_ID_Live_restore | (WT_CONF_ID_path << 16),
     WT_CONF_ID_Live_restore | (WT_CONF_ID_threads_max << 16),
-    WT_CONF_ID_Live_restore | (WT_CONF_ID_threads_min << 16),
   },
   {
     WT_CONF_ID_Log | (WT_CONF_ID_archive << 16),

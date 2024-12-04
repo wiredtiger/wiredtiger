@@ -1104,19 +1104,14 @@ wiredtiger_open_tiered_storage_configuration = [
 # and add it to the reconfigure items too.
 wiredtiger_open_live_restore_configuration = [
     Config('live_restore', '', r'''Live restore configuration options. These options control the
-    behavior of WiredTiger when restoring from a backup.''', type='category', subconfig = [
+    behavior of WiredTiger when live restoring from a backup.''', type='category', subconfig = [
         Config('enabled', 'false', r'''whether live restore is enabled or not.''', type='boolean'),
         Config('path', '', r'''the path to the backup that will be restored from.'''),
         Config('threads_max', '8', r'''
             maximum number of threads WiredTiger will start to migrate data from the backup to the
             running WiredTiger database. Each worker thread uses a session handle from the
             configured session_max''',
-            min=1, max=12),
-        Config('threads_min', '1', r'''
-            minimum number of threads WiredTiger will start to migrate data from the backup to the
-            running WiredTiger database.  Each worker thread uses a session handle from the
-            configured session_max''',
-            min=1, max=12),
+            min=1, max=12)
     ])
 ]
 

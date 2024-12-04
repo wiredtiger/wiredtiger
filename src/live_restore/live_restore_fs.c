@@ -1162,10 +1162,7 @@ __wt_os_live_restore_fs(
 
     lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
 
-    /* Configure the background thread count. */
-    WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_min", &cval));
-    lr_fs->background_threads_min = (uint8_t)cval.val;
-
+    /* Configure the background thread count maximum. */
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     lr_fs->background_threads_max = (uint8_t)cval.val;
 

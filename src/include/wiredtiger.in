@@ -3194,8 +3194,8 @@ struct __wt_connection {
  * the messages from the WT_EVENT_HANDLER::handle_error method., a list\, with values chosen from
  * the following options: \c "error"\, \c "message"; default \c [].}
  * @config{live_restore = (, Live restore configuration options.  These options control the behavior
- * of WiredTiger when restoring from a backup., a set of related configuration options defined as
- * follows.}
+ * of WiredTiger when live restoring from a backup., a set of related configuration options defined
+ * as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether live restore is enabled or not., a
  * boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the path to the backup
@@ -3204,10 +3204,6 @@ struct __wt_connection {
  * threads_max, maximum number of threads WiredTiger will start to migrate data from the backup to
  * the running WiredTiger database.  Each worker thread uses a session handle from the configured
  * session_max., an integer between \c 1 and \c 12; default \c 8.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * threads_min, minimum number of threads WiredTiger will start to migrate data from the backup to
- * the running WiredTiger database.  Each worker thread uses a session handle from the configured
- * session_max., an integer between \c 1 and \c 12; default \c 1.}
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}

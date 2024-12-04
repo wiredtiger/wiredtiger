@@ -2601,8 +2601,6 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_live_restore_subconfigs[] =
     INT64_MAX, NULL},
   {"threads_max", "int", NULL, "min=1,max=12", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 216, 1,
     12, NULL},
-  {"threads_min", "int", NULL, "min=1,max=12", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 217, 1,
-    12, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2610,7 +2608,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const char *confchk_recover_choices[] = {
   __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_on, NULL};
@@ -2874,7 +2872,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 242, INT64_MIN, INT64_MAX, confchk_json_output2_choices},
-  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 4,
+  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 3,
     confchk_wiredtiger_open_live_restore_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 298,
     INT64_MIN, INT64_MAX, NULL},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
@@ -3135,7 +3133,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 242, INT64_MIN, INT64_MAX, confchk_json_output3_choices},
-  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 4,
+  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 3,
     confchk_wiredtiger_open_live_restore_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 298,
     INT64_MIN, INT64_MAX, NULL},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
@@ -3391,7 +3389,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 242, INT64_MIN, INT64_MAX, confchk_json_output4_choices},
-  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 4,
+  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 3,
     confchk_wiredtiger_open_live_restore_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 298,
     INT64_MIN, INT64_MAX, NULL},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
@@ -3643,7 +3641,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_LIST, 242, INT64_MIN, INT64_MAX, confchk_json_output5_choices},
-  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 4,
+  {"live_restore", "category", NULL, NULL, confchk_wiredtiger_open_live_restore_subconfigs, 3,
     confchk_wiredtiger_open_live_restore_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 298,
     INT64_MIN, INT64_MAX, NULL},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
@@ -4110,17 +4108,17 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     ",eviction_obsolete_tw_pages_dirty_max=100,"
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "in_memory=false,io_capacity=(chunk_cache=0,total=0),"
-    "json_output=[],live_restore=(enabled=false,path=,threads_max=8,"
-    "threads_min=1),log=(archive=true,compressor=,enabled=false,"
-    "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
-    "path=\".\",prealloc=true,prealloc_init_count=1,recover=on,"
-    "remove=true,zero_fill=false),lsm_manager=(merge=true,"
-    "worker_thread_max=4),mmap=true,mmap_all=false,multiprocess=false"
-    ",operation_timeout_ms=0,operation_tracking=(enabled=false,"
-    "path=\".\"),prefetch=(available=false,default=false),"
-    "readonly=false,rollback_to_stable=(threads=4),salvage=false,"
-    "session_max=100,session_scratch_max=2MB,session_table_cache=true"
-    ",shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
+    "json_output=[],live_restore=(enabled=false,path=,threads_max=8),"
+    "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
+    "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
+    ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
+    "lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
+    "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
+    "operation_tracking=(enabled=false,path=\".\"),"
+    "prefetch=(available=false,default=false),readonly=false,"
+    "rollback_to_stable=(threads=4),salvage=false,session_max=100,"
+    "session_scratch_max=2MB,session_table_cache=true,"
+    "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"
     "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
@@ -4166,17 +4164,17 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     ",eviction_obsolete_tw_pages_dirty_max=100,"
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "in_memory=false,io_capacity=(chunk_cache=0,total=0),"
-    "json_output=[],live_restore=(enabled=false,path=,threads_max=8,"
-    "threads_min=1),log=(archive=true,compressor=,enabled=false,"
-    "file_max=100MB,force_write_wait=0,os_cache_dirty_pct=0,"
-    "path=\".\",prealloc=true,prealloc_init_count=1,recover=on,"
-    "remove=true,zero_fill=false),lsm_manager=(merge=true,"
-    "worker_thread_max=4),mmap=true,mmap_all=false,multiprocess=false"
-    ",operation_timeout_ms=0,operation_tracking=(enabled=false,"
-    "path=\".\"),prefetch=(available=false,default=false),"
-    "readonly=false,rollback_to_stable=(threads=4),salvage=false,"
-    "session_max=100,session_scratch_max=2MB,session_table_cache=true"
-    ",shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
+    "json_output=[],live_restore=(enabled=false,path=,threads_max=8),"
+    "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
+    "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
+    ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
+    "lsm_manager=(merge=true,worker_thread_max=4),mmap=true,"
+    "mmap_all=false,multiprocess=false,operation_timeout_ms=0,"
+    "operation_tracking=(enabled=false,path=\".\"),"
+    "prefetch=(available=false,default=false),readonly=false,"
+    "rollback_to_stable=(threads=4),salvage=false,session_max=100,"
+    "session_scratch_max=2MB,session_table_cache=true,"
+    "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
     "statistics=none,statistics_log=(json=false,on_close=false,"
     "path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
@@ -4223,7 +4221,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     ",eviction_obsolete_tw_pages_dirty_max=100,"
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
-    "live_restore=(enabled=false,path=,threads_max=8,threads_min=1),"
+    "live_restore=(enabled=false,path=,threads_max=8),"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
     "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
     ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
@@ -4279,7 +4277,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     ",eviction_obsolete_tw_pages_dirty_max=100,"
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
-    "live_restore=(enabled=false,path=,threads_max=8,threads_min=1),"
+    "live_restore=(enabled=false,path=,threads_max=8),"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
     "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
     ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
