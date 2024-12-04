@@ -49,7 +49,7 @@ __live_restore_fs_backing_filename(
         filename = basename(temp_name);
         /* +1 for the path separator, +1 for the null terminator. */
         len = strlen(layer->home) + 1 + strlen(filename) + 1;
-        WT_RET(__wt_calloc(session, 1, len, &buf));
+        WT_ERR(__wt_calloc(session, 1, len, &buf));
         WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), filename));
 
         *pathp = buf;
