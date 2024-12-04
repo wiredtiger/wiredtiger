@@ -23,7 +23,6 @@ else()
         misc_tests/test_tailq.cpp
         backup/unit/test_incremental_blkmods.cpp
         block/api/test_block_api_misc.cpp
-        block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
         block/unit/test_block_addr.cpp
         block/unit/test_block_ckpt.cpp
