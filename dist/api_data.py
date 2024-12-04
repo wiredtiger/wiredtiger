@@ -1099,6 +1099,9 @@ wiredtiger_open_tiered_storage_configuration = [
     ]),
 ]
 
+# At this stage live restore intentionally does not support reconfiguring the number of worker
+# threads. If that becomes necessary in the future we'll need to break out the thread count config
+# and add it to the reconfigure items too.
 wiredtiger_open_live_restore_configuration = [
     Config('live_restore', '', r'''Live restore configuration options. These options control the
     behavior of WiredTiger when restoring from a backup.''', type='category', subconfig = [
