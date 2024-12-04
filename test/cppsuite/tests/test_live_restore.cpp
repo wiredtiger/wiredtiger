@@ -310,7 +310,8 @@ main(int argc, char *argv[])
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
         logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
-        testutil_remove(SOURCE_DIR);
+        // Live restore expects the source directory to exist.
+        testutil_recreate_dir(SOURCE_DIR);
         testutil_remove("WT_TEST");
     }
     // We will recreate this directory every time, on exit the contents in it will be moved to
