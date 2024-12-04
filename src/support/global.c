@@ -81,52 +81,54 @@ __endian_check(void)
 }
 
 /*
- * __reset_sched_tick --
- *     Reset the OS task timeslice to raise the probability of uninterrupted run afterwards.
+ * __reset_thread_tick --
+ *     Reset the OS task time slice to raise the probability of uninterrupted run afterwards.
  */
 static void
-__reset_sched_tick(void)
+__reset_thread_tick(void)
 {
     /*
-     * We could use __wt_yield() here but simple yielding doesn't seem to always reset the
-     * task's timeslice. Sleeping for a short time does a better job.
+     * We could use __wt_yield() here but simple yielding doesn't seem to always reset the task's
+     * time slice. Sleeping for a short time does a better job.
      */
     __wt_sleep(0, 10);
 }
 
 /*
- * This needs to be a macro so that the compiler never messes with inlining or not inlining
- * the function call.
+ * This needs to be a macro so that the compiler never messes with inlining or not inlining the
+ * function call.
  */
-#define CLOCK_CALIBRATE_ONE() do { \
-    __reset_sched_tick(); /* Make it more probable that the test loop runs uninterrupted. */ \
- \
-    /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */ \
-    tsc_start = __wt_rdtsc(); \
-    __wt_epoch(NULL, &start); \
- \
-    /* Reverse cycle so that comparison is always done with a constant regardless of the count. */ \
-    for (i = count; i > 0; i--) \
-        /* Because i is volatile, the compiler has to keep this loop. */ \
-        ; \
- \
-    /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */ \
-    tsc_stop = __wt_rdtsc(); \
-    __wt_epoch(NULL, &stop); \
- \
-    diff_nsec = WT_TIMEDIFF_NS(stop, start); \
-    diff_tsc = tsc_stop - tsc_start; \
- \
-    /* \
-     * If the either of timestamps didn't tick over, it's either too fast or too slow CPU,
-     * or clock granularity is not good enough. Give up in either case. \
-     */ \
-    if (diff_nsec < 10 || diff_tsc == 0) \
-        return; \
-} while (0)
+#define CLOCK_CALIBRATE_ONE()                                                                     \
+    do {                                                                                          \
+        __reset_thread_tick(); /* Make it more probable that the test loop runs uninterrupted. */ \
+                                                                                                  \
+        /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */  \
+        tsc_start = __wt_rdtsc();                                                                 \
+        __wt_epoch(NULL, &start);                                                                 \
+                                                                                                  \
+        /* Reverse cycle so that comparison is always done with a constant regardless of the      \
+         * count. */                                                                              \
+        for (i = count; i > 0; i--)                                                               \
+            /* Because i is volatile, the compiler has to keep this loop. */                      \
+            ;                                                                                     \
+                                                                                                  \
+        /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */  \
+        tsc_stop = __wt_rdtsc();                                                                  \
+        __wt_epoch(NULL, &stop);                                                                  \
+                                                                                                  \
+        diff_nsec = WT_TIMEDIFF_NS(stop, start);                                                  \
+        diff_tsc = tsc_stop - tsc_start;                                                          \
+                                                                                                  \
+        /*                                                                                        \
+         * If the either of timestamps didn't tick over, it's either too fast or too slow CPU,    \
+         * or clock granularity is not good enough. Give up in either case.                       \
+         */                                                                                       \
+        if (diff_nsec < 10 || diff_tsc == 0)                                                      \
+            return;                                                                               \
+    } while (0)
 
-#define CLOCK_CALIBRATE_ONE_MS 3.  /* Number of millisecond per one iteration. */
-#define CLOCK_CALIBRATE_TRIES 5    /* Number of tries/loops to run. */
+#define CLOCK_CALIBRATE_ONE_MS 3. /* Number of millisecond per one iteration. */
+#define CLOCK_CALIBRATE_TRIES 5   /* Number of tries/loops to run. */
 
 /*
  * __global_calibrate_ticks --
@@ -151,13 +153,13 @@ __global_calibrate_ticks(void)
         volatile uint64_t i;
 
         /* Quickly pre-calibrate to find approximate clock speed */
-        count = WT_MILLION/10;
+        count = WT_MILLION / 10;
         CLOCK_CALIBRATE_ONE();
         ratio = (double)diff_tsc / (double)diff_nsec;
         if (ratio <= DBL_EPSILON)
             return;
 
-        /* Calculate the number of iterations per 1 msec worth of time */
+        /* Calculate the number of iterations per 1 ms worth of time */
         count = (uint64_t)((double)count * CLOCK_CALIBRATE_ONE_MS * 1e6 / diff_nsec);
         if (count < WT_MILLION)
             /* Running less than this could lead to drop of precision. */
