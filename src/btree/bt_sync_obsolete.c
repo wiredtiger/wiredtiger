@@ -12,12 +12,12 @@
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
- * __sync_obsolete_limit_reached --
- *     This function checks whether checkpoint cleanup can continue operating on the obsolete time
+ * __obsolete_limit_reached --
+ *     This function checks whether obsolete cleanup can continue operating on the obsolete time
  *     window pages.
  */
 static bool
-__sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
+__obsolete_limit_reached(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -44,20 +44,20 @@ __sync_obsolete_limit_reached(WT_SESSION_IMPL *session)
 }
 
 /*
- * __sync_obsolete_tw_check --
+ * __obsolete_tw_check --
  *     This function checks whether the given time aggregate refers to a globally visible time
- *     window and if checkpoint cleanup can process it. Note that time aggregates corresponding to
+ *     window and if obsolete cleanup can process it. Note that time aggregates corresponding to
  *     fully deleted pages are not considered.
  */
 static bool
-__sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
+__obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
 {
     /* Don't process fully deleted pages. */
     if (WT_TIME_AGGREGATE_HAS_STOP(&ta))
         return (false);
 
     /* Limit the activity to reduce the load. */
-    if (__sync_obsolete_limit_reached(session))
+    if (__obsolete_limit_reached(session))
         return (false);
 
     /* Ensure there is globally visible content. */
@@ -69,12 +69,12 @@ __sync_obsolete_tw_check(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE ta)
 }
 
 /*
- * __sync_obsolete_inmem_evict_or_mark_dirty --
+ * __obsolete_inmem_evict_or_mark_dirty --
  *     This function checks whether the in-memory ref contains obsolete information and takes
  *     necessary action.
  */
 static int
-__sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
+__obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
     WT_BTREE *btree;
@@ -166,7 +166,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Mark the obsolete page to evict soon. */
         __wt_evict_page_soon(session, ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_evict);
-    } else if (__sync_obsolete_tw_check(session, newest_ta)) {
+    } else if (__obsolete_tw_check(session, newest_ta)) {
 
         /*
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
@@ -195,12 +195,12 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __sync_obsolete_deleted_cleanup --
+ * __obsolete_deleted_cleanup --
  *     Check whether the deleted ref is obsolete according to the newest stop time point and mark
  *     its parent page dirty to remove it.
  */
 static int
-__sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
+__obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE_DELETED *page_del;
 
@@ -219,12 +219,12 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __sync_obsolete_disk_cleanup --
+ * __obsolete_disk_cleanup --
  *     Check whether the on-disk ref is obsolete according to the newest stop time point and mark
  *     its parent page dirty by changing the ref status as deleted.
  */
 static int
-__sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_deleted)
+__obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_deleted)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -274,7 +274,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
 }
 
 /*
- * __sync_obsolete_cleanup_one --
+ * __obsolete_cleanup_one --
  *     Check whether the ref is obsolete according to the newest stop time point and handle the
  *     obsolete page by either removing it or marking it for urgent eviction. This code is a best
  *     effort - it isn't necessary that all obsolete references are noticed and resolved
@@ -282,7 +282,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
  *     between operations.
  */
 static int
-__sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
+__obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
@@ -320,9 +320,9 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         new_state = previous_state;
         if (previous_state == WT_REF_DELETED)
-            ret = __sync_obsolete_deleted_cleanup(session, ref);
+            ret = __obsolete_deleted_cleanup(session, ref);
         else if (previous_state == WT_REF_DISK) {
-            ret = __sync_obsolete_disk_cleanup(session, ref, &ref_deleted);
+            ret = __obsolete_disk_cleanup(session, ref, &ref_deleted);
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
         }
@@ -340,12 +340,12 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __checkpoint_cleanup_obsolete_cleanup --
+ * __obsolete_mark_internal --
  *     Traverse an internal page and identify the leaf pages that are obsolete and mark them as
  *     deleted.
  */
 static int
-__checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+__obsolete_mark_internal(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -362,7 +362,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        WT_RET(__sync_obsolete_cleanup_one(session, ref));
+        WT_RET(__obsolete_cleanup_one(session, ref));
     }
 
     WT_STAT_CONN_DSRC_INCRV(session, checkpoint_cleanup_pages_visited, pindex->entries);
@@ -371,21 +371,21 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 }
 
 /*
- * __checkpoint_cleanup_run_chk --
- *     Check to decide if the checkpoint cleanup should continue running.
+ * __obsolete_cleanup_run_chk --
+ *     Check to decide if the obsolete cleanup should continue running.
  */
 static bool
-__checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
+__obsolete_cleanup_run_chk(WT_SESSION_IMPL *session)
 {
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP));
 }
 
 /*
- * __checkpoint_cleanup_page_skip --
- *     Return if checkpoint cleanup should read this page.
+ * __obsolete_cleanup_page_skip --
+ *     Return if obsolete cleanup should read this page.
  */
 static int
-__checkpoint_cleanup_page_skip(
+__obsolete_cleanup_page_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
     WT_ADDR_COPY addr;
@@ -432,7 +432,7 @@ __checkpoint_cleanup_page_skip(
     }
 
     /*
-     * From this point, the page is on disk and checkpoint cleanup should NOT induce a read if at
+     * From this point, the page is on disk and obsolete cleanup should NOT induce a read if at
      * least of one of the following conditions is met:
      *
      * - The page is a leaf with no overflow items because obsolete leaf pages with overflow
@@ -441,7 +441,7 @@ __checkpoint_cleanup_page_skip(
      *
      * - The page does not have any deletes (checked using the aggregated stop durable timestamp)
      * AND
-     *  - the checkpoint cleanup is not configured with the reclaim space method OR
+     *  - the obsolete cleanup is not configured with the reclaim space method OR
      *  - the table is not logged
      *
      * FIXME: Read internal pages from non-logged tables when the remove/truncate
@@ -450,7 +450,7 @@ __checkpoint_cleanup_page_skip(
     if (addr.type == WT_ADDR_LEAF_NO)
         *skipp = true;
     else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
-        /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
+        /* Only process logged tables when obsolete cleanup is configured to be aggressive. */
         *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
         if (!*skipp)
@@ -461,7 +461,7 @@ __checkpoint_cleanup_page_skip(
      * While we may have decided to skip the page, check if there is obsolete content that can be
      * cleaned up.
      */
-    if (*skipp && __sync_obsolete_tw_check(session, addr.ta)) {
+    if (*skipp && __obsolete_tw_check(session, addr.ta)) {
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_obsolete_tw);
         *skipp = false;
     }
@@ -476,11 +476,11 @@ __checkpoint_cleanup_page_skip(
 }
 
 /*
- * __checkpoint_cleanup_walk_btree --
- *     Check and perform checkpoint cleanup on the uri.
+ * __obsolete_cleanup_walk_btree --
+ *     Check and perform obsolete cleanup on the uri.
  */
 static int
-__checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
+__obsolete_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -491,7 +491,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
 
     /*
-     * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
+     * To reduce the impact of obsolete cleanup on the running database, it operates only on the
      * dhandles that are already opened.
      */
     WT_WITHOUT_DHANDLE(session,
@@ -523,19 +523,19 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 
     /* Walk the tree. */
     while ((ret = __wt_tree_walk_custom_skip(
-              session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
+              session, &ref, __obsolete_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
+            WT_WITH_PAGE_INDEX(session, ret = __obsolete_mark_internal(session, ref));
         } else {
             WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
-            ret = __sync_obsolete_inmem_evict_or_mark_dirty(session, ref);
+            ret = __obsolete_inmem_evict_or_mark_dirty(session, ref);
             WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         }
         WT_ERR(ret);
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        if (!__obsolete_cleanup_run_chk(session))
             break;
     }
 
@@ -547,11 +547,11 @@ err:
 }
 
 /*
- * __checkpoint_cleanup_eligibility --
- *     Function to check whether the specified URI is eligible for checkpoint cleanup.
+ * __obsolete_cleanup_eligibility --
+ *     Function to check whether the specified URI is eligible for obsolete cleanup.
  */
 static bool
-__checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, const char *config)
+__obsolete_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
@@ -644,11 +644,11 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
 }
 
 /*
- * __checkpoint_cleanup_get_uri --
+ * __obsolete_cleanup_get_uri --
  *     Given a URI, find the next one in the metadata.
  */
 static int
-__checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
+__obsolete_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -684,8 +684,8 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         }
 
         WT_ERR(cursor->get_value(cursor, &value));
-        /* Check the given uri needs checkpoint cleanup. */
-        if (__checkpoint_cleanup_eligibility(session, key, value))
+        /* Check the given uri needs obsolete cleanup. */
+        if (__obsolete_cleanup_eligibility(session, key, value))
             break;
     } while ((ret = cursor->next(cursor)) == 0);
     WT_ERR(ret);
@@ -699,11 +699,11 @@ err:
 }
 
 /*
- * __checkpoint_cleanup_int --
- *     Internal function to perform checkpoint cleanup of all eligible files.
+ * __obsolete_cleanup_int --
+ *     Internal function to perform obsolete cleanup of all eligible files.
  */
 static int
-__checkpoint_cleanup_int(WT_SESSION_IMPL *session)
+__obsolete_cleanup_int(WT_SESSION_IMPL *session)
 {
     WT_DECL_ITEM(uri);
     WT_DECL_RET;
@@ -711,11 +711,11 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
-    while ((ret = __checkpoint_cleanup_get_uri(session, uri)) == 0) {
-        ret = __checkpoint_cleanup_walk_btree(session, uri);
+    while ((ret = __obsolete_cleanup_get_uri(session, uri)) == 0) {
+        ret = __obsolete_cleanup_walk_btree(session, uri);
         if (ret == ENOENT || ret == EBUSY) {
             __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
-              "%s: skipped performing checkpoint cleanup because the file %s", (char *)uri->data,
+              "%s: skipped performing obsolete cleanup because the file %s", (char *)uri->data,
               ret == ENOENT ? "does not exist" : "is busy");
             continue;
         }
@@ -723,13 +723,13 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
 
         /*
          * Wait here for some time before proceeding with another table to minimize the impact of
-         * checkpoint cleanup on the regular workload.
+         * obsolete cleanup on the regular workload.
          */
         __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __checkpoint_cleanup_run_chk);
+          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __obsolete_cleanup_run_chk);
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        if (!__obsolete_cleanup_run_chk(session))
             break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -740,11 +740,11 @@ err:
 }
 
 /*
- * __checkpoint_cleanup --
- *     The checkpoint cleanup thread.
+ * __obsolete_cleanup --
+ *     The obsolete cleanup thread.
  */
 static WT_THREAD_RET
-__checkpoint_cleanup(void *arg)
+__obsolete_cleanup(void *arg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -759,38 +759,38 @@ __checkpoint_cleanup(void *arg)
     for (;;) {
         /* Check periodically in case the signal was missed. */
         __wt_cond_wait_signal(session, conn->cc_cleanup.cond, 5 * WT_MILLION,
-          __checkpoint_cleanup_run_chk, &cv_signalled);
+          __obsolete_cleanup_run_chk, &cv_signalled);
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        if (!__obsolete_cleanup_run_chk(session))
             break;
 
         __wt_seconds(session, &now);
 
         /*
-         * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
-         * typically involves many IO operations so skipping some should have little impact.
+         * See if it is time to do obsolete cleanup. Obsolete cleanup is an operation that typically
+         * involves many IO operations so skipping some should have little impact.
          */
         if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
             continue;
 
-        WT_ERR(__checkpoint_cleanup_int(session));
+        WT_ERR(__obsolete_cleanup_int(session));
         WT_STAT_CONN_INCR(session, checkpoint_cleanup_success);
         last = now;
     }
 
 err:
     if (ret != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "checkpoint cleanup error"));
+        WT_IGNORE_RET(__wt_panic(session, ret, "obsolete cleanup error"));
     return (WT_THREAD_RET_VALUE);
 }
 
 /*
- * __wt_checkpoint_cleanup_create --
- *     Start the checkpoint cleanup thread.
+ * __wt_obsolete_cleanup_create --
+ *     Start the obsolete cleanup thread.
  */
 int
-__wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -817,23 +817,23 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
      */
     session_flags = WT_SESSION_CAN_WAIT;
     WT_RET(__wt_open_internal_session(
-      conn, "checkpoint-cleanup", true, session_flags, 0, &conn->cc_cleanup.session));
+      conn, "obsolete-cleanup", true, session_flags, 0, &conn->cc_cleanup.session));
     session = conn->cc_cleanup.session;
 
-    WT_RET(__wt_cond_alloc(session, "checkpoint cleanup", &conn->cc_cleanup.cond));
+    WT_RET(__wt_cond_alloc(session, "obsolete cleanup", &conn->cc_cleanup.cond));
 
-    WT_RET(__wt_thread_create(session, &conn->cc_cleanup.tid, __checkpoint_cleanup, session));
+    WT_RET(__wt_thread_create(session, &conn->cc_cleanup.tid, __obsolete_cleanup, session));
     conn->cc_cleanup.tid_set = true;
 
     return (0);
 }
 
 /*
- * __wt_checkpoint_cleanup_destroy --
- *     Destroy the checkpoint cleanup thread.
+ * __wt_obsolete_cleanup_destroy --
+ *     Destroy the obsolete cleanup thread.
  */
 int
-__wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
+__wt_obsolete_cleanup_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -858,11 +858,11 @@ __wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_checkpoint_cleanup_trigger --
- *     Trigger the checkpoint cleanup thread.
+ * __wt_obsolete_cleanup_trigger --
+ *     Trigger the obsolete cleanup thread.
  */
 void
-__wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session)
+__wt_obsolete_cleanup_trigger(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 

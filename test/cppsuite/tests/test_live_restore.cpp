@@ -41,7 +41,6 @@
 #include "src/storage/scoped_session.h"
 #include "src/main/thread_worker.h"
 
-#include <filesystem>
 #include <vector>
 
 extern "C" {
@@ -163,16 +162,20 @@ generate_value()
 void
 insert(scoped_cursor &cursor, std::string &coll)
 {
-    cursor->set_key(cursor.get(), generate_key().c_str());
-    cursor->set_value(cursor.get(), generate_value().c_str());
+    std::string key = generate_key();
+    std::string value = generate_value();
+    cursor->set_key(cursor.get(), key.c_str());
+    cursor->set_value(cursor.get(), value.c_str());
     testutil_check(cursor->insert(cursor.get()));
 }
 
 void
 update(scoped_cursor &cursor, std::string &coll)
 {
-    cursor->set_key(cursor.get(), generate_key().c_str());
-    cursor->set_value(cursor.get(), generate_value().c_str());
+    std::string key = generate_key();
+    std::string value = generate_value();
+    cursor->set_key(cursor.get(), key.c_str());
+    cursor->set_value(cursor.get(), value.c_str());
     testutil_check(cursor->update(cursor.get()));
 }
 
@@ -307,13 +310,12 @@ main(int argc, char *argv[])
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
         logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
-        testutil_assert(std::filesystem::remove_all(SOURCE_DIR) >= 0);
-        testutil_assert(std::filesystem::remove_all("WT_TEST") >= 0);
+        testutil_remove(SOURCE_DIR);
+        testutil_remove("WT_TEST");
     }
-
     // We will recreate this directory every time, on exit the contents in it will be moved to
     // WT_LIVE_RESTORE_SOURCE/.
-    testutil_assert(std::filesystem::create_directory("WT_TEST"));
+    testutil_recreate_dir("WT_TEST");
 
     /* Create connection. */
     if (fresh_start) {
@@ -333,9 +335,7 @@ main(int argc, char *argv[])
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();
     connection_manager::instance().close();
-
-    testutil_assert(std::filesystem::remove_all(SOURCE_DIR) >= 0);
-    std::filesystem::rename("WT_TEST", SOURCE_DIR);
-
+    testutil_remove(SOURCE_DIR);
+    testutil_copy("WT_TEST", SOURCE_DIR);
     return (0);
 }

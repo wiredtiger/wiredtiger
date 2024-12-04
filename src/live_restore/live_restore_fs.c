@@ -9,6 +9,9 @@
 #include "wt_internal.h"
 #include "live_restore_private.h"
 
+/* This is where basename comes from. */
+#include <libgen.h>
+
 /*
  * __live_restore_fs_backing_filename --
  *     Convert a live restore file path (e..g WT_TEST/WiredTiger.wt) to the actual path of the
@@ -22,7 +25,9 @@ __live_restore_fs_backing_filename(
 {
     WT_DECL_RET;
     size_t len;
-    char *buf;
+    char *buf, *temp_name;
+
+    temp_name = buf = NULL;
 
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
@@ -32,14 +37,19 @@ __live_restore_fs_backing_filename(
     } else {
         char *filename;
         /*
+         * On MacOS basename takes a non-const original string. Make a local copy on the off chance
+         * it modifies the string.
+         */
+        WT_ERR(__wt_strdup(session, name, &temp_name));
+        /*
          * By default the live restore file path is identical to the file in the destination
          * directory, which will include the destination folder. We need to replace this destination
          * folder's path with the source directory's path.
          */
-        filename = basename(name);
+        filename = basename(temp_name);
         /* +1 for the path separator, +1 for the null terminator. */
         len = strlen(layer->home) + 1 + strlen(filename) + 1;
-        WT_RET(__wt_calloc(session, 1, len, &buf));
+        WT_ERR(__wt_calloc(session, 1, len, &buf));
         WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), filename));
 
         *pathp = buf;
@@ -51,6 +61,7 @@ __live_restore_fs_backing_filename(
 err:
         __wt_free(session, buf);
     }
+    __wt_free(session, temp_name);
     return (ret);
 }
 
@@ -79,13 +90,14 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
         if (prev != NULL) {
             if (WT_EXTENT_END(prev) >= hole->off) {
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Error: Holes overlap prev: %ld-%ld, hole:%ld-%ld\n", prev->off,
-                  WT_EXTENT_END(prev), hole->off, WT_EXTENT_END(hole));
+                  "Error: Holes overlap prev: %" PRId64 "-%" PRId64 ", hole: %" PRId64 "-%" PRId64
+                  "\n",
+                  prev->off, WT_EXTENT_END(prev), hole->off, WT_EXTENT_END(hole));
                 list_valid = false;
             }
         }
         __wt_verbose_debug1(
-          session, WT_VERB_FILEOPS, "Hole: %ld-%ld\n", hole->off, WT_EXTENT_END(hole));
+          session, WT_VERB_FILEOPS, "Hole: %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
 
         prev = hole;
         hole = hole->next;
@@ -358,8 +370,8 @@ __live_restore_remove_extlist_hole(
     WT_LIVE_RESTORE_HOLE_LIST *hole, *tmp, *new, *prev_hole;
     wt_off_t write_end;
 
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %ld-%ld", lr_fh->iface.name,
-      offset, WT_OFFSET_END(offset, len));
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
+      lr_fh->iface.name, offset, WT_OFFSET_END(offset, len));
 
     write_end = WT_OFFSET_END(offset, len);
 
@@ -375,8 +387,8 @@ __live_restore_remove_extlist_hole(
 
         if (offset <= hole->off && write_end >= WT_EXTENT_END(hole)) {
             /* The write fully overlaps a hole. Delete it. */
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully overlaps hole %ld-%ld", hole->off,
-              WT_EXTENT_END(hole));
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "Fully overlaps hole %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
 
             tmp = hole;
             if (prev_hole == NULL)
@@ -390,8 +402,8 @@ __live_restore_remove_extlist_hole(
         } else if (offset > hole->off && write_end < WT_EXTENT_END(hole)) {
             /* The write is entirely within the hole. Split the hole in two. */
 
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS, "Fully contained by hole %ld-%ld",
-              hole->off, WT_EXTENT_END(hole));
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "Fully contained by hole %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
 
             /* First create the hole to the right of the write. */
             WT_RET(__live_restore_alloc_extent(
@@ -407,14 +419,16 @@ __live_restore_remove_extlist_hole(
         } else if (offset <= hole->off && WT_OFFSET_IN_EXTENT(write_end, hole)) {
             /* The write starts before the hole and ends within it. Shrink the hole. */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Partial overlap to the left of hole %ld-%ld", hole->off, WT_EXTENT_END(hole));
+              "Partial overlap to the left of hole %" PRId64 "-%" PRId64, hole->off,
+              WT_EXTENT_END(hole));
 
             hole->len = (size_t)(WT_EXTENT_END(hole) - write_end);
             hole->off = write_end + 1;
 
         } else if (WT_OFFSET_IN_EXTENT(offset, hole) && write_end >= WT_EXTENT_END(hole)) {
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Partial overlap to the right of hole %ld-%ld", hole->off, WT_EXTENT_END(hole));
+              "Partial overlap to the right of hole %" PRId64 "-%" PRId64, hole->off,
+              WT_EXTENT_END(hole));
             /* The write starts within the hole and ends after it. Shrink the hole. */
             hole->len = (size_t)(offset - hole->off);
 
@@ -456,7 +470,8 @@ __live_restore_can_service_read(
         if (read_begins_in_hole && read_ends_in_hole) {
             /* Our read is entirely within a hole */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "CANNOT SERVICE %s: Reading from hole. Read: %ld-%ld, hole: %ld-%ld",
+              "CANNOT SERVICE %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
+              "-%" PRId64,
               lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
             return (false);
         } else if (read_begins_in_hole != read_ends_in_hole) {
@@ -490,7 +505,8 @@ __live_restore_fh_write(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %ld, %lu", fh->name, offset, len);
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %lu", fh->name, offset, len);
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
     WT_RET(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
     WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
@@ -500,14 +516,14 @@ __live_restore_fh_write(
 /*
  * __read_promote --
  *     Write out the contents of a read into the destination. This will be overkill for cases where
- *     a read is performed to service a write. Which is most cases however this is a PoC.
+ *     a read is performed to service a write.
  */
 static int
 __read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset,
   size_t len, char *read)
 {
-    __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %ld, %lu", lr_fh->iface.name, offset, len);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %" PRId64 ", %lu",
+      lr_fh->iface.name, offset, len);
     WT_RET(
       __live_restore_fh_write((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, offset, len, read));
 
@@ -529,7 +545,8 @@ __live_restore_fh_read(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %ld, %lu", fh->name, offset, len);
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %lu", fh->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -587,12 +604,13 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
     char buf[WT_LIVE_RESTORE_READ_SIZE];
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-    hole = lr_fh->destination.hole_list;
 
-    while (hole != NULL) {
+    while (lr_fh->destination.hole_list != NULL) {
+        hole = lr_fh->destination.hole_list;
+
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-          "Found hole in %s at %ld-%ld during file close. Filling", fh->name, hole->off,
-          WT_EXTENT_END(hole));
+          "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
+          hole->off, WT_EXTENT_END(hole));
 
         off_start = hole->off;
         hole_len = hole->len;
@@ -609,8 +627,6 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
         }
         /* Read the last chunk */
         WT_RET(__live_restore_fh_read(fh, wt_session, off_start, hole_len, buf));
-
-        hole = hole->next;
     }
 
     return (0);
@@ -703,7 +719,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
         return (0);
 
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-      "truncating file %s from %ld to %ld", fh->name, old_len, len);
+      "truncating file %s from %" PRId64 " to %" PRId64, fh->name, old_len, len);
 
     /*
      * Truncate can be used to shorten a file or to extend it. In both cases the truncated/extended
@@ -772,7 +788,7 @@ __live_restore_fh_find_holes_in_dest_file(
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
     WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %ld", file_size);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %" PRId64, file_size);
 
     if (file_size > 0)
         /*
@@ -795,8 +811,8 @@ __live_restore_fh_find_holes_in_dest_file(
         WT_ASSERT(session, data_end_offset != -1);
         WT_ASSERT(session, data_end_offset > data_offset - 1);
 
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "File: %s, has data from %ld-%ld", filename,
-          data_offset, data_end_offset);
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+          "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset, data_end_offset);
         WT_ERR(__live_restore_remove_extlist_hole(
           lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
     }
@@ -909,7 +925,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
                 lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size);
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Creating destination file backed by source file. Copying size (%ld) from source "
+                  "Creating destination file backed by source file. Copying size (%" PRId64
+                  ") from source "
                   "file",
                   source_size);
 
