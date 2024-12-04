@@ -51,3 +51,17 @@ class test_live_restore01(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.open_conn(config="in_memory=true,live_restore=(enabled=true,path=\".\")"),
             "/Live restore is not compatible with an in-memory connection/")
+
+        # Specify an in memory connection with live restore not enabled.
+        self.open_conn(config="in_memory=true,live_restore=(enabled=false,path=\".\")")
+        self.close_conn()
+
+        # Specify an empty path string.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.open_conn(config="live_restore=(enabled=true,path=\"\")"),
+            "/No such file or directory/")
+
+        # Specify a non existant path.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.open_conn(config="live_restore=(enabled=true,path=\"fake.fake.fake\")"),
+            "/fake.fake.fake/")
