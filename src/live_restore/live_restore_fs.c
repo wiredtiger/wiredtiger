@@ -1122,9 +1122,7 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
     /* Open the source directory. At this stage we do not validate what files it contains. */
     WT_RET(
       fs->fs_open_file(fs, (WT_SESSION *)session, path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &fh));
-    fh->close(fh, (WT_SESSION *)session);
-
-    return (0);
+    return (fh->close(fh, (WT_SESSION *)session));
 }
 
 /*
