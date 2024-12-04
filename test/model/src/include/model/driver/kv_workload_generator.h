@@ -33,6 +33,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include "model/driver/kv_workload.h"
 #include "model/driver/kv_workload_sequence.h"
@@ -100,6 +101,9 @@ struct kv_workload_generator_spec {
     float prepared_transaction_rollback_after_prepare;
     float prepared_transaction_rollback_before_prepare;
 
+    /* Probabilities of WiredTiger timing stress configurations. */
+    float timing_stress_ckpt_slow;
+    float timing_stress_commit_txn_slow;
     /*
      * kv_workload_generator_spec::kv_workload_generator_spec --
      *     Create the generator specification using default probability values.
@@ -429,6 +433,15 @@ public:
         return generator.workload();
     }
 
+    static std::string
+    generate_configurations(
+      const kv_workload_generator_spec &spec = _default_spec, uint64_t seed = 0)
+    {
+        uint64_t base_seed = model::random::next_seed(__wt_rdtsc() ^ time(NULL));
+        kv_workload_generator generator(spec, base_seed);
+        return generator.generate_rand_stress_configs();
+    }
+
 protected:
     /*
      * kv_workload_generator::kv_workload_generator --
@@ -470,6 +483,12 @@ protected:
      *     Create a table.
      */
     void create_table();
+
+    /*
+     * kv_workload_generator::generate_rand_stress_configs --
+     *     Generate random WiredTiger timing stress configurations.
+     */
+    std::string generate_rand_stress_configs();
 
     /*
      * kv_workload_generator::generate_key --
