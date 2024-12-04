@@ -767,6 +767,9 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTR
       WT_PREFIX_MATCH(uri, "table:") || WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_object_unsupported(session, uri));
 
+    if (WT_PREFIX_MATCH(uri, "lsm:"))
+        WT_RET_MSG(session, ENOTSUP, "lsm object type no longer supported: %s", uri);
+
     WT_RET_MSG(session, ENOTSUP, "unknown object type: %s", uri);
 }
 
