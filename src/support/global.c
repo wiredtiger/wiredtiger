@@ -120,7 +120,7 @@ __reset_thread_tick(void)
         diff_tsc = tsc_stop - tsc_start;                                                          \
                                                                                                   \
         /*                                                                                        \
-         * If the either of timestamps didn't tick over, it's either too fast or too slow CPU,    \
+         * If any of timestamps didn't tick over, it's either too fast or too slow CPU,           \
          * or clock granularity is not good enough. Give up in either case.                       \
          */                                                                                       \
         if (diff_nsec < 10 || diff_tsc == 0)                                                      \
