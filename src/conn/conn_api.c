@@ -2573,6 +2573,12 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     WT_RET(__wt_config_gets(session, cfg, "lsm_manager.worker_thread_max", &cval));
     v += cval.val;
 
+    /* If live restore is enabled add its thread count. */
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE)) {
+        WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+        v += cval.val;
+    }
+
     v += WT_RTS_MAX_WORKERS;
 
     WT_RET(__wt_config_gets(session, cfg, "session_max", &cval));

@@ -1106,12 +1106,14 @@ wiredtiger_open_live_restore_configuration = [
         Config('path', '', r'''the path to the backup that will be restored from.'''),
         Config('threads_max', '8', r'''
             maximum number of threads WiredTiger will start to migrate data from the backup to the
-            running WiredTiger database.''',
-            min=1, max=20),
+            running WiredTiger database. Each worker thread uses a session handle from the
+            configured session_max''',
+            min=1, max=12),
         Config('threads_min', '1', r'''
             minimum number of threads WiredTiger will start to migrate data from the backup to the
-            running WiredTiger database.''',
-            min=1, max=20),
+            running WiredTiger database.  Each worker thread uses a session handle from the
+            configured session_max''',
+            min=1, max=12),
     ])
 ]
 

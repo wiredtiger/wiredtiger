@@ -1113,13 +1113,15 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
 
 /*
  * __validate_live_restore_path --
- *     Confirm that the given source directory is openable.
+ *     Confirm that the given source directory is able to be opened.
  */
 static int
-__validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *path) {
+__validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *path)
+{
     WT_FILE_HANDLE *fh;
     /* Open the source directory. At this stage we do not validate what files it contains. */
-    WT_RET(fs->fs_open_file(fs, (WT_SESSION *)session, path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &fh));
+    WT_RET(
+      fs->fs_open_file(fs, (WT_SESSION *)session, path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &fh));
     fh->close(fh, (WT_SESSION *)session);
 
     return (0);
