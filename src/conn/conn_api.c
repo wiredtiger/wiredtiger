@@ -2658,6 +2658,12 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     }
 
+    /*
+     * The live restore code validates that there isn't a file system so this check may seem
+     * redundant. However that validation only happens when live restore is enabled. As such we need
+     * this check too to ensure we don't overwrite the user specified system. It could be improved
+     * by adding more specific error messages.
+     */
     if (conn->file_system == NULL) {
         if (F_ISSET(conn, WT_CONN_IN_MEMORY))
             WT_RET(__wt_os_inmemory(session));
