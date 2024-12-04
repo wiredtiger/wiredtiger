@@ -221,10 +221,9 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
      * right cursors are already open we are done. NOTE: This should become more complex as the
      * stable cursor can have the checkpoint updated in that case this code will close the current
      * stable cursor and open a new one to get the more recent checkpoint information and allow for
-     * garbage collection.
+     * garbage collection. TODO this needs checking/fixing
      */
-    if (clayered->ingest_cursor != NULL &&
-      (!F_ISSET(clayered, WT_CLAYERED_OPEN_READ) || clayered->stable_cursor != NULL))
+    if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
 
     /*
@@ -236,14 +235,14 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
-    /* Always open the ingest cursor */
+    /* Always open the ingest cursor */ /* TODO always open stable instead? */
     if (clayered->ingest_cursor == NULL) {
         WT_RET(__wt_open_cursor(
           session, layered->ingest_uri, &clayered->iface, NULL, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     }
 
-    if (clayered->stable_cursor == NULL && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)) {
+    if (clayered->stable_cursor == NULL) {
         ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
         ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
         ckpt_cfg[2] = NULL;
@@ -926,7 +925,7 @@ __layered_modify_check(WT_SESSION_IMPL *session)
  * __clayered_put --
  *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
  */
-static WT_INLINE int
+static int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
   const WT_ITEM *value, bool position, bool reserve)
 {
@@ -945,7 +944,12 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (position)
         clayered->current_cursor = clayered->ingest_cursor;
 
-    c = clayered->ingest_cursor;
+    if (S2C(session)->layered_table_manager.leader) {
+        c = clayered->stable_cursor;
+        fprintf(stderr, "clayered_put: URI for direct insert is %s\n", clayered->stable_cursor->uri);
+    } else
+        c = clayered->ingest_cursor;
+
     c->set_key(c, key);
     func = c->insert;
     if (position)

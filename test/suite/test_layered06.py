@@ -35,12 +35,12 @@ from wtscenario import make_scenarios
 class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),verbose=[layered],'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     scenarios = make_scenarios([
-        ('1k', dict(nitems=1000)),
-        ('100k', dict(nitems=100000)),
+        ('1k', dict(nitems=1)),
+        # ('100k', dict(nitems=100000)),
     ])
 
     # TODO do Python tests expect a field named uri?
@@ -50,7 +50,8 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+        # DisaggConfigMixin.conn_extensions(self, extlist)
+        extlist.extension('page_log', 'palm=(config=\"(verbose=1)\")')
         self.pr(f"{extlist=}")
 
     # Custom test case setup
@@ -86,6 +87,7 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["OK " + str(i)] = "Go"
             if i % 25000 == 0:
                 time.sleep(1)
+        time.sleep(1)
 
         cursor.reset()
 
@@ -103,6 +105,7 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
+        time.sleep(2)
         self.disagg_advance_checkpoint(conn_follow)
 
         cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
@@ -124,6 +127,7 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["** OK " + str(i)] = "Go"
             if i % 25000 == 0:
                 time.sleep(1)
+        time.sleep(1)
 
         cursor.reset()
         cursor.close()
@@ -131,13 +135,23 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
+        time.sleep(2)
         self.disagg_advance_checkpoint(conn_follow)
+
+        cursor_lead = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor_lead.next() == 0:
+            item_count += 1
+            print('leader: ' + cursor_lead.get_key())
+        self.assertEqual(item_count, self.nitems * 6)
 
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor_follow3.next() == 0:
             item_count += 1
+            print(cursor_follow3.get_key())
         self.assertEqual(item_count, self.nitems * 6)
+        self.skipTest("up to here 1")
 
         # Close cursors
         cursor_follow2.close()

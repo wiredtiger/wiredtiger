@@ -1519,7 +1519,7 @@ __wt_cursor_init(
 
     WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
 
-    if (readonly) {
+    if (readonly && !WT_SUFFIX_MATCH(uri, ".wt_stable")) {
         cursor->insert = __wt_cursor_notsup;
         cursor->modify = __wti_cursor_modify_notsup;
         cursor->remove = __wt_cursor_notsup;

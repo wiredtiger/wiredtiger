@@ -926,6 +926,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         if (ret == 0 && WT_CONFIG_LIT_MATCH("true", cval))
             force = true;
     }
+    fprintf(stderr, "uri=%s, force=%s\n", uri, force ? "true" : "false");
 
     for (;;) {
         WT_RET(__session_get_dhandle(session, uri, checkpoint, force));
