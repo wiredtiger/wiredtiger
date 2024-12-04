@@ -95,7 +95,7 @@ static const char *const uri_shadow = "shadow";
 static const char *const ckpt_file = "checkpoint_done";
 
 static bool backup_verify_immediately, backup_verify_quick;
-static bool columns, stress, use_backups, use_lazyfs, use_ts, verify_model, live_restore_backups;
+static bool columns, stress, use_backups, use_lazyfs, use_ts, verify_model;
 static uint32_t backup_force_stop_interval, backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
@@ -125,14 +125,13 @@ extern char *__wt_optarg;
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
-#define ENV_CONFIG_BASE                                          \
-    "cache_size=%" PRIu32                                        \
-    "M,create,"                                                  \
-    "debug_mode=(table_logging=true,checkpoint_retention=5),"    \
-    "eviction_updates_target=20,eviction_updates_trigger=90,"    \
-    "log=(enabled=false,file_max=10M,remove=%s),session_max=%d," \
+#define ENV_CONFIG_BASE                                       \
+    "cache_size=%" PRIu32                                     \
+    "M,create,"                                               \
+    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
+    "eviction_updates_target=20,eviction_updates_trigger=90," \
+    "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \
     "statistics=(all),statistics_log=(wait=%d,json,on_close)"
-/* FIXME-WT-13792 Re-enable logging once it's supported with live restore. */
 
 #define ENV_CONFIG_ADD_TXNSYNC ",transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_ADD_TXNSYNC_FSYNC ",transaction_sync=(enabled,method=fsync)"
@@ -1135,8 +1134,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     uint64_t commit_fp, durable_fp, stable_val;
     uint32_t i;
     int ret;
-    char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64], verify_dir[PATH_MAX],
-      aux_dir[PATH_MAX], live_restore_cfg[PATH_MAX + 200];
+    char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64], verify_dir[PATH_MAX];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     bool fatal;
 
@@ -1150,16 +1148,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
      */
     if (backup_index == 0) {
         testutil_snprintf(verify_dir, sizeof(verify_dir), "%s", WT_HOME_DIR);
-
-        if (live_restore_backups) {
-            testutil_snprintf(aux_dir, sizeof(aux_dir), "%s_aux", verify_dir);
-            testutil_snprintf(live_restore_cfg, sizeof(live_restore_cfg), "aux_path=%s", aux_dir);
-            testutil_copy(verify_dir, aux_dir);
-            testutil_wiredtiger_open(
-              opts, verify_dir, live_restore_cfg, &reopen_event, &conn, true, false);
-        } else {
-            testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
-        }
+        testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
 
         printf("Connection open and recovery complete. Verify content\n");
         /* Compare against the copy of the home directory just before recovery. */
@@ -1187,15 +1176,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          * trying to create it would cause the test to abort as we currently allow only one
          * statistics thread at a time.
          */
-        if (live_restore_backups) {
-            testutil_snprintf(aux_dir, sizeof(aux_dir), "%s_aux", verify_dir);
-            testutil_snprintf(live_restore_cfg, sizeof(live_restore_cfg), "aux_path=%s", aux_dir);
-            testutil_copy(verify_dir, aux_dir);
-            testutil_wiredtiger_open(
-              opts, verify_dir, live_restore_cfg, &other_event, &conn, true, false);
-        } else {
-            testutil_wiredtiger_open(opts, verify_dir, NULL, &other_event, &conn, true, false);
-        }
+        testutil_wiredtiger_open(opts, verify_dir, NULL, &other_event, &conn, true, false);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
@@ -1486,12 +1467,10 @@ main(int argc, char *argv[])
     use_ts = true;
     verify_model = false;
     verify_only = false;
-    live_restore_backups = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
 
-    while (
-      (ch = __wt_getopt(progname, argc, argv, "BcF:I:LlMsrT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BcF:I:LlMsT:t:vz" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'B':
             use_backups = true;
@@ -1516,9 +1495,6 @@ main(int argc, char *argv[])
             break;
         case 'M':
             verify_model = true;
-            break;
-        case 'r':
-            live_restore_backups = true;
             break;
         case 's':
             stress = true;
