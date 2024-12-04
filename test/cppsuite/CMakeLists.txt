@@ -51,6 +51,12 @@ create_test_executable(run
     CXX
 )
 
+create_test_executable(test_live_restore
+    SOURCES tests/test_live_restore.cpp
+    LIBS cppsuite_test_harness
+    CXX
+)
+
 # If you prefer to not use the run binary you can add a test via this mechanism but it is generally
 # frowned upon.
 create_test_executable(csuite_style_example_test

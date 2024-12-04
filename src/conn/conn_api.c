@@ -2821,16 +2821,39 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /*
      * If the application didn't configure its own file system, configure one of ours. Check to
      * ensure we have a valid file system.
+     *
+     * Check the "aux_path" config. If it is provided validate that a custom file system has not
+     * been provided, and that the connection is not in memory or Windows.
      */
+    WT_ERR(__wt_config_gets(session, cfg, "aux_path", &cval));
+
+    if (cval.len != 0) {
+        /* Live restore compatibility checks. */
+        if (conn->file_system != NULL)
+            WT_ERR_MSG(session, EINVAL, "Live restore is not compatible with custom file systems.");
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+            WT_ERR_MSG(
+              session, EINVAL, "Live restore is not compatible with in-memory connections.");
+#ifdef _MSC_VER
+        WT_ERR_MSG(session, EINVAL, "Live restore is not supported on Windows.");
+#endif
+    }
+
     if (conn->file_system == NULL) {
         if (F_ISSET(conn, WT_CONN_IN_MEMORY))
             WT_ERR(__wt_os_inmemory(session));
-        else
+        else {
 #if defined(_MSC_VER)
             WT_ERR(__wt_os_win(session));
 #else
-            WT_ERR(__wt_os_posix(session));
+            /* If an "aux_path" has been provided setup the live restore file system. */
+            if (cval.len != 0) {
+                F_SET(conn, WT_CONN_LIVE_RESTORE);
+                WT_ERR(__wt_os_live_restore_fs(session, &cval, conn->home, &conn->file_system));
+            } else
+                WT_ERR(__wt_os_posix(session, &conn->file_system));
 #endif
+        }
     }
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
