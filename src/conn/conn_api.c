@@ -2643,12 +2643,12 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
         F_SET(conn, WT_CONN_LIVE_RESTORE);
         /* Live restore compatibility checks. */
         if (conn->file_system != NULL)
-            WT_RET_MSG(session, EINVAL, "Live restore is not compatible with custom file systems.");
+            WT_RET_MSG(session, EINVAL, "Live restore is not compatible with custom file systems");
         if (F_ISSET(conn, WT_CONN_IN_MEMORY))
             WT_RET_MSG(
-              session, EINVAL, "Live restore is not compatible with in-memory connections.");
+              session, EINVAL, "Live restore is not compatible with an in-memory connections");
 #ifdef _MSC_VER
-        WT_ERR_MSG(session, EINVAL, "Live restore is not supported on Windows.");
+        WT_ERR_MSG(session, EINVAL, "Live restore is not supported on Windows");
 #endif
     }
 
