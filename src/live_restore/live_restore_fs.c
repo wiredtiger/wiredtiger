@@ -596,9 +596,11 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
  * it in 4KB chunks.
  */
 #define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
-    char buf[WT_LIVE_RESTORE_READ_SIZE];
-    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_LIVE_RESTORE_HOLE_LIST *hole;
+
+    char buf[WT_LIVE_RESTORE_READ_SIZE];
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
 
     while ((hole = lr_fh->destination.hole_list) != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
