@@ -74,8 +74,8 @@ err:
 static void
 __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
-    WT_LIVE_RESTORE_HOLE_LIST *prev;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *prev;
     bool list_valid;
 
     prev = NULL;
@@ -308,9 +308,9 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
  */
 static int
 __live_restore_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
-  WT_LIVE_RESTORE_HOLE_LIST *next, WT_LIVE_RESTORE_HOLE_LIST **holep)
+  WT_LIVE_RESTORE_HOLE_NODE *next, WT_LIVE_RESTORE_HOLE_NODE **holep)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *new;
+    WT_LIVE_RESTORE_HOLE_NODE *new;
 
     WT_RET(__wt_calloc_one(session, &new));
     new->off = offset;
@@ -328,8 +328,8 @@ __live_restore_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t le
 static void
 __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
-    WT_LIVE_RESTORE_HOLE_LIST *temp;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *temp;
 
     hole = lr_fh->destination.hole_list_head;
     lr_fh->destination.hole_list_head = NULL;
@@ -366,7 +366,7 @@ static int
 __live_restore_remove_extlist_hole(
   WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole, *tmp, *new, *prev_hole;
+    WT_LIVE_RESTORE_HOLE_NODE *hole, *tmp, *new, *prev_hole;
     wt_off_t write_end;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
@@ -451,7 +451,7 @@ static bool
 __live_restore_can_service_read(
   WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
     wt_off_t read_end;
     bool read_begins_in_hole, read_ends_in_hole;
 
@@ -591,7 +591,7 @@ static int
 __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
     /*
      * FIXME-WT-13810 Using 4MB buffer as a placeholder. When we find a large hole we should break
      * the read into small chunks

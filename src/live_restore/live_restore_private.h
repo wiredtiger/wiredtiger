@@ -28,11 +28,11 @@ struct __wt_live_restore_hole_node {
     wt_off_t off;
     size_t len;
 
-    WT_LIVE_RESTORE_HOLE_LIST *next;
+    WT_LIVE_RESTORE_HOLE_NODE *next;
 };
 
 /*
- * WT_DESTINATION_METADATA --
+ * WT_LIVE_RESTORE_DESTINATION_METADATA --
  *     Metadata kept along side a file handle to track holes in the destination file.
  */
 typedef struct {
@@ -48,7 +48,7 @@ typedef struct {
      * Holes in these extents should only shrink and never grow.
      */
     WT_LIVE_RESTORE_HOLE_NODE *hole_list_head;
-} WT_DESTINATION_METADATA;
+} WT_LIVE_RESTORE_DESTINATION_METADATA;
 
 /*
  * __wt_live_restore_file_handle --
@@ -57,7 +57,7 @@ typedef struct {
 struct __wt_live_restore_file_handle {
     WT_FILE_HANDLE iface;
     WT_FILE_HANDLE *source;
-    WT_DESTINATION_METADATA destination;
+    WT_LIVE_RESTORE_DESTINATION_METADATA destination;
 
     WT_FS_OPEN_FILE_TYPE file_type;
 };
