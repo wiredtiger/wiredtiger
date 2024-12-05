@@ -632,6 +632,57 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_disaggregated_stable_timestamp --
+ *     Get the first timestamp that can be written to the disaggregated storage.
+ */
+static WT_INLINE void
+__wt_txn_disaggregated_stable_timestamp(
+  WT_SESSION_IMPL *session, wt_timestamp_t *disaggregated_stable_tsp)
+{
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t checkpoint_ts, disaggregated_stable_ts;
+
+    txn_global = &S2C(session)->txn_global;
+
+    /*
+     * There is no need to go further if no stable timestamp has been set yet.
+     */
+    if (!txn_global->has_stable_timestamp) {
+        *disaggregated_stable_tsp = WT_TS_NONE;
+        return;
+    }
+
+    /*
+     * It is important to ensure we only read the global stable timestamp once. Otherwise, we may
+     * return a stable timestamp that is larger than the checkpoint timestamp. For example, the
+     * first time we read the global stable timestamp as 100 and set it to the local variable
+     * disaggregated_stable_ts. If the checkpoint timestamp is 110 and the second time we read the
+     * global stable timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
+     */
+    WT_READ_ONCE(disaggregated_stable_ts, txn_global->stable_timestamp);
+
+    if (!__wt_conn_is_disagg(session)) {
+        *disaggregated_stable_tsp = disaggregated_stable_ts;
+        return;
+    }
+
+    /*
+     * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
+     * read the pinned timestamp and the checkpoint generation, otherwise, we may read earlier
+     * checkpoint timestamp before the checkpoint generation that is read resulting more data being
+     * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
+     * minimum of it with the stable timestamp, which is what we want.
+     */
+    WT_ACQUIRE_BARRIER();
+    checkpoint_ts = txn_global->checkpoint_timestamp;
+
+    if (checkpoint_ts != 0 && checkpoint_ts < disaggregated_stable_ts)
+        *pinned_tsp = checkpoint_ts;
+    else
+        *pinned_ts = disaggregated_stable_ts;
+}
+
+/*
  * __wt_txn_pinned_timestamp --
  *     Get the first timestamp that has to be kept for the current tree.
  */
