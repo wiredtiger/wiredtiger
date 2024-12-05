@@ -124,7 +124,7 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
         uint64_t tsc2 = __wt_rdtsc();
         duration[i] = tsc2 - tsc1;
     }
-    qsort(duration, EPOCH_CALL_CALIBRATE_ATTEMPTS, sizeof(uint64_t), __compare_uint64);
+    __wt_qsort(duration, EPOCH_CALL_CALIBRATE_ATTEMPTS, sizeof(uint64_t), __compare_uint64);
     /* Use 30% percentile for "average". */
     *epoch_ticks_avg = duration[EPOCH_CALL_CALIBRATE_ATTEMPTS / 3] + 2;
     /* Throw away first few results for the "best". */
@@ -137,8 +137,8 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
  *     there's a limited time between the two.
  */
 static bool
-__get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time,
-                      uint64_t epoch_ticks_min, uint64_t epoch_ticks_avg)
+__get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t epoch_ticks_min,
+  uint64_t epoch_ticks_avg)
 {
     uint64_t ticks_best = epoch_ticks_avg + 1;
 #define GET_EPOCH_MAX_ATTEMPTS 200
@@ -152,7 +152,7 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time,
         if (duration <= epoch_ticks_min) {
             *clock_time = clock1;
             *tsc_time = tsc1;
-            return true;
+            return (true);
         }
         if (duration < ticks_best) {
             /* Remember the best result. */
@@ -162,7 +162,7 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time,
         }
     }
     /* Return true if we have a good enough result. */
-    return ticks_best <= epoch_ticks_avg;
+    return (ticks_best <= epoch_ticks_avg);
 }
 
 /*
