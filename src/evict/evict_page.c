@@ -13,6 +13,7 @@ static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
+
 /*
  * __evict_exclusive_clear --
  *     Release exclusive access to a page.
@@ -123,20 +124,6 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
         session->evict_timeline.reentry_hs_eviction = false;
     }
 }
-
-/*
- * __wt_evict_init_ref --
- *    Add the ref to eviction data structures. Called by the function that links a page to a ref.
- *
- */
-void
-__wt_evict_init_ref(WT_SESSION_IMPL *session, WT_REF *ref) {
-
-	WT_ASSERT(session, ref->page != NULL);
-
-
-}
-
 
 /* !!!
  * __wt_evict --
@@ -323,7 +310,6 @@ done:
 bool
 __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag) {
 
-	WT_EVICT_HANDLE *evict_handle;
 	WT_EVICT_BUCKET *bucket;
 	WT_EVICT_BUCKETSET *bucketset;
 	WT_REF *ref;
@@ -375,7 +361,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 				if (ret != 0)
 					continue; /* XXX -- put the ref back before continuing */
 				WT_REF_LOCK(session, ref, &previous_state);
-				ref->evict->bucket = NULL;
+				ref->page->evict->bucket = NULL;
 				WT_REF_UNLOCK(ref, &previous_state);
 				break;
 			}
@@ -1146,3 +1132,4 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     return (0);
 }
+

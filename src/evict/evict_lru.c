@@ -608,38 +608,28 @@ __evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *max
 }
 
 /*
- * __wt_evict_page_cleared --
- *      Double check that the page has been removed from its evict queue.
- */
-static inline bool
-__wt_evict_page_cleared(WT_PAGE *page) {
-
-	return (&page->bucket == NULL);
-}
-
-/*
  * __wt_evict_remove --
  *     Remove the page from its evict queue.
  */
-static inline bool
+bool
 __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 
 	WT_EVICT_BUCKET *bucket;
 	WT_PAGE *page;
 	WT_REF_STATE previous_state;
-	bool locked;
+	bool must_unlock_ref;
 
-	locked = false;
+	must_unlock_ref = false;
 
 	WT_ASSERT(session, ref->page != NULL);
 	if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED) {
 		WT_REF_LOCK(session, ref, &previous_state);
-		locked = true;
+		must_unlock_ref = true;
 	}
 	page = ref->page;
 
 	if (WT_EVICT_PAGE_CLEARED(page))
-		return;
+		goto done;
 
 	wt_spin_lock(session, &page->bucket->evict_queue_lock);
 	TAILQ_REMOVE(&page->bucket->evict_queue, page, evict_q);
@@ -649,7 +639,8 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 
 	page->bucket = NULL;
 
-	if (locked)
+  done:
+	if (must_unlock_ref)
 		WT_REF_UNLOCK(ref, previous_state);
 }
 
@@ -683,11 +674,12 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 	WT_EVICT_HANDLE_DATA *evict_handle;
 	WT_PAGE *page;
 	WT_REF_STATE previous_state;
-	bool caller_locked;
+	bool must_unlock_ref;
 	uint64_t min_range, max_range, dst_bucket, read_gen;
 
-	caller_locked = false;
+	must_unlock_ref = false;
 	page = ref->page;
+	page->evict.dhandle = dhandle;
 
 	if (__wt_ref_is_root(ref))
 		return;
@@ -697,8 +689,8 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 	 * We aren't evicting the page, so we don't need to check for hazard pointers.
 	 */
 	if (WT_REF_GET_STATE(ref) != WT_REF_LOCKED) {
-		caller_locked = false;
 		WT_REF_LOCK(session, ref, &previous_state);
+		must_unlock_ref = true;
 	}
 
 	/* Is the page already in a bucket? */
@@ -750,7 +742,7 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 
 	page->bucket = bucket;
 
-	if (!caller_locked)
+	if (must_unlock_ref)
 		WT_REF_UNLOCK(ref, previous_state);
 }
 
@@ -808,3 +800,148 @@ __wt_evict_init_ref(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *r
 
 }
 
+/*
+ * __evict_page --
+ *     Called by both eviction and application threads to evict a page.
+ */
+static int
+__evict_page(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_REF *ref;
+    WT_REF_STATE previous_state;
+    WT_TRACK_OP_DECL;
+    uint64_t time_start, time_stop;
+    uint32_t flags;
+    bool page_is_modified;
+
+    WT_TRACK_OP_INIT(session);
+
+    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+
+    time_start = 0;
+
+    flags = 0;
+    page_is_modified = false;
+
+    /*
+     * An internal session flags either the server itself or an eviction worker thread.
+     */
+	if (F_ISSET(session, WT_SESSION_INTERNAL))
+        WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
+    else {
+        if (__wt_page_is_modified(ref->page)) {
+            page_is_modified = true;
+            WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
+        }
+        WT_STAT_CONN_INCR(session, eviction_app_attempt);
+        S2C(session)->evict->app_evicts++;
+        time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
+    }
+
+    /*
+     * In case something goes wrong, don't pick the same set of pages every time.
+     *
+     * We used to bump the page's read generation only if eviction failed, but that isn't safe: at
+     * that point, eviction has already unlocked the page and some other thread may have evicted it
+     * by the time we look at it.
+     */
+    __wti_evict_read_gen_bump(session, ref->page);
+
+    WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
+
+    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+
+    if (time_start != 0) {
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_INCRV(session, eviction_app_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    }
+
+    if (WT_UNLIKELY(ret != 0)) {
+        if (is_server)
+            WT_STAT_CONN_INCR(session, eviction_server_evict_fail);
+        else if (F_ISSET(session, WT_SESSION_INTERNAL))
+            WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
+        else {
+            if (page_is_modified)
+                WT_STAT_CONN_INCR(session, eviction_app_dirty_fail);
+            WT_STAT_CONN_INCR(session, eviction_app_fail);
+        }
+    }
+
+    WT_TRACK_OP_END(session);
+    return (ret);
+}
+
+
+/*
+ * __evict_get_ref --
+ *     Get a page for eviction.
+ */
+static int
+__evict_get_ref(WT_SESSION_IMPL *session, WT_BTREE **btreep, WT_REF **refp,
+				WT_REF_STATE *previous_statep)
+{
+	WT_DATA_HANDLE *dhandle;
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_BUCKETSET *bucketset;
+	WT_REF *ref;
+    WT_REF_STATE previous_state;
+    bool is_app;
+	int i, j;
+
+    *btreep = NULL;
+    /*
+     * It is polite to initialize output variables, but it isn't safe for callers to use the
+     * previous state if we don't return a locked ref.
+     */
+    *previous_statep = WT_REF_MEM;
+    *refp = NULL;
+
+	/*
+	 * XXX TODO: pick a dhandle from which to evict. How do we iterate over them?
+	 * How do we prioritize eviction? For now assume that we are using the session's
+	 * dhandle. This is wrong, because the session's dhandle can be NULL if this is
+	 * an internal session.
+	 */
+	dhandle = session->dhandle;
+
+		/*
+	 * We iterate over bucket sets in a fixed order: first we try the clean leaf page bucket,
+	 * then dirty leaf page bucket, then internal page bucket.
+	 *
+	 * In each bucketset we iterate over the buckets starting with the smallest, because
+	 * smaller buckets will have pages with smaller read generations.
+	 *
+	 */
+	for (i = WT_EVICT_LEVEL_CLEAN_LEAF; i <=  WT_EVICT_LEVEL_INTERNAL; i++) {
+		bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
+		for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
+			ref = NULL;
+			bucket = &bucketset->buckets[j];
+			if (__wt_atomic_load64(&bucket->num_items) == 0)
+				continue;
+			wt_spin_lock(session, &bucket->evict_queue_lock);
+			/*
+			 * XXX: iterate over the queue here.
+			 * How do avoid iterating forever given that I can put back the reference
+			 * that I remove? Solution: don't remove the reference until we perform
+			 * evict_review.
+			 */
+			TAILQ_FOREACH(ref, &bucket->evict_queue, evict_q) {
+				/* If the reference is locked, someone might be evicting it. Skip it */
+				if ((previous_state = WT_REF_GET_STATE(ref)) != WT_REF_MEM ||
+					!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+					continue;
+			}
+			wt_spin_unlock(session, &bucket->evict_queue_lock);
+		}
+	}
+	WT_ASSERT(session, ref->page != NULL);
+	*btreep = ref->page->evict.dhandle->btree;
+	*refp = ref;
+	*previous_statep = previous_state;
+	return (*refp == NULL ? WT_NOTFOUND : 0);
+}
