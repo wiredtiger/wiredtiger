@@ -87,7 +87,7 @@ struct __wt_ckpt_connection {
 /*
  * At the default granularity, this is enough for blocks in a 2G file.
  */
-struct __wt_block_mods {
+struct __wt_ckpt_block_mods {
     const char *id_str;
 
     WT_ITEM bitstring;
@@ -96,9 +96,9 @@ struct __wt_block_mods {
     uint64_t offset; /* Zero bit offset for bitstring */
     uint64_t granularity;
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_BLOCK_MODS_RENAME 0x1u /* Entry is from a rename */
-#define WT_BLOCK_MODS_VALID 0x2u  /* Entry is valid */
-                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_CKPT_BLOCK_MODS_RENAME 0x1u /* Entry is from a rename */
+#define WT_CKPT_BLOCK_MODS_VALID 0x2u  /* Entry is valid */
+                                       /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -136,7 +136,7 @@ struct __wt_ckpt {
     char *block_metadata;   /* Block-stored metadata */
     char *block_checkpoint; /* Block-stored checkpoint */
 
-    WT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
+    WT_CKPT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
 
     WT_TIME_AGGREGATE ta; /* Validity window */
 
@@ -147,9 +147,9 @@ struct __wt_ckpt {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CKPT_ADD 0x01u        /* Checkpoint to be added */
-#define WT_CKPT_BLOCK_MODS 0x02u /* Return list of modified blocks */
-#define WT_CKPT_DELETE 0x04u     /* Checkpoint to be deleted */
-#define WT_CKPT_FAKE 0x08u       /* Checkpoint is a fake */
+#define WT_CKPT_DELETE 0x02u     /* Checkpoint to be deleted */
+#define WT_CKPT_FAKE 0x04u       /* Checkpoint is a fake */
+#define WT_CKPT_MOD_BLOCKS 0x08u /* Return list of modified blocks */
 #define WT_CKPT_UPDATE 0x10u     /* Checkpoint requires update */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
