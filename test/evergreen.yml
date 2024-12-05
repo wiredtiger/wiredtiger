@@ -314,6 +314,12 @@ functions:
           fi
         fi
 
+        if [[ "${build_variant|}" =~ "amazon2-arm64" ]]; then
+            python3 -mvenv venv
+            source venv/bin/activate
+            pip3 install swig==4.2.1
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
@@ -383,6 +389,9 @@ functions:
           # FIXME-WT-13704: using virtual env to accommodate for macos14 not having swig by default, will be removed once swig
           # is installed on this distro.
           if [[ "${build_variant|}" =~ "macos-14-arm64" ]]; then
+            source ../venv/bin/activate
+          fi
+          if [[ "${build_variant|}" =~ "amazon2-arm64" ]]; then
             source ../venv/bin/activate
           fi
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
