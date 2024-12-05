@@ -153,7 +153,7 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
  *
  * Returns:
  *
- * - true if it managed to get a good result is good; false upon failure.
+ * - true if it managed to get a good result; false upon failure.
  *
  * - clock_time: the wall clock time.
  *
