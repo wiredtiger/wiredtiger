@@ -64,9 +64,9 @@ Advanced applications may also open the following low-level cursor types:
 WiredTiger provides access to data from a variety of sources.  At the
 lowest level, data may be stored in a file using a tree structure.  A
 relational schema supporting tables, indices and column groups is
-layered on top of file. Additional sources include statistics.
-Applications can further extend the supported types by implementing
-the ::WT_DATA_SOURCE interface.
+layered on top of file. Additional sources include statistics, log files
+and backups. Applications can further extend the supported types by
+implementing the ::WT_DATA_SOURCE interface.
 
 Common operations on all data sources are performed using WT_CURSOR
 handles.  See @ref cursor_ops for a description of how to use
