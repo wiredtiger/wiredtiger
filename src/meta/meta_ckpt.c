@@ -1266,7 +1266,7 @@ err:
  */
 int
 __wt_meta_ckptlist_set(
-  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, char *ckptlsn_str)
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, const char *ckptlsn_str)
 {
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);

@@ -156,7 +156,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     session = r->session;
     conn = S2C(session);
 
-    WT_ERR(__wt_lsn_string(lsnp, lsn_str));
+    WT_ERR(__wt_lsn_string(lsnp, sizeof(lsn_str), lsn_str));
 
     /* Right now the only system record we care about is the backup id. Skip anything else. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -249,7 +249,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     session = r->session;
     cursor = NULL;
 
-    if (__wt_lsn_string(lsnp, lsn_str) != 0) {
+    if (__wt_lsn_string(lsnp, sizeof(lsn_str), lsn_str) != 0) {
         __wt_errx(session, "Failed to build LSN string");
         return (ret);
     }
@@ -748,7 +748,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
           cval.str);
     WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
 
-    WT_ERR(__wt_lsn_string(&lsn, lsn_str));
+    WT_ERR(__wt_lsn_string(&lsn, sizeof(lsn_str), lsn_str));
     __wt_verbose(r->session, WT_VERB_RECOVERY, "Recovering %s with id %" PRIu32 " @ (%s)", uri,
       fileid, lsn_str);
 
@@ -931,10 +931,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY_FILE *metafile;
     WT_TIMER checkpoint_timer, rts_timer, timer;
     wt_off_t hs_size;
-    char ckpt_lsn_str[WT_MAX_LSN_STRING];
+    char ckpt_lsn_str[WT_MAX_LSN_STRING], max_rec_lsn_str[WT_MAX_LSN_STRING];
     char *config;
     char conn_rts_cfg[16];
-    char max_rec_lsn_str[WT_MAX_LSN_STRING];
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, rts_executed, was_backup;
 
@@ -1084,8 +1083,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * get truncated.
      */
     r.metadata_only = false;
-    WT_ERR(__wt_lsn_string(&r.ckpt_lsn, ckpt_lsn_str));
-    WT_ERR(__wt_lsn_string(&r.max_rec_lsn, max_rec_lsn_str));
+    WT_ERR(__wt_lsn_string(&r.ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
+    WT_ERR(__wt_lsn_string(&r.max_rec_lsn, sizeof(max_rec_lsn_str), max_rec_lsn_str));
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "Main recovery loop: starting at %s to %s", ckpt_lsn_str, max_rec_lsn_str);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));

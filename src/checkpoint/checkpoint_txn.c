@@ -2326,7 +2326,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_DECL_RET;
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
-    char ckptlsn_str[WT_MAX_LSN_STRING];
+    const char ckptlsn_str[WT_MAX_LSN_STRING];
     bool fake_ckpt, resolve_bm;
 
     WT_UNUSED(cfg);
@@ -2429,7 +2429,7 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
-    WT_ERR(__wt_lsn_string(&ckptlsn, ckptlsn_str));
+    WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), (char *)ckptlsn_str));
     WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
 
     /*

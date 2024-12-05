@@ -2791,7 +2791,7 @@ __wt_verbose_dump_txn_one(
     buf_len = (uint32_t)snapshot_buf->size + 512;
     WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
 
-    WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, ckpt_lsn_str));
+    WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
 
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
