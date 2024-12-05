@@ -816,15 +816,13 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
-    bool has_pinned_timestamp;
 
     txn_global = &S2C(session)->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(has_pinned_timestamp, txn_global->has_pinned_timestamp)
-    if (!has_pinned_timestamp) {
+    if (!txn_global->has_pinned_timestamp) {
         *pinned_tsp = WT_TS_NONE;
         return;
     }
