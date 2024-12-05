@@ -657,7 +657,13 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
     }
 
-    /* Ensure we only read the global pinned timestamp once. */
+    /*
+     * It is important to ensure we only read the global pinned timestamp once. Otherwise, we may
+     * return a pinned timestamp that is larger than the checkpoint timestamp. For example, the
+     * first time we read the global pinned timestamp as 100 and set it to the local variable
+     * pinned_ts. If the checkpoint timestamp is 110 and the second time we read the global pinned
+     * timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
+     */
     WT_READ_ONCE(pinned_ts, txn_global->pinned_timestamp);
 
     /*
@@ -673,7 +679,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
         *pinned_tsp = checkpoint_ts;
     else
-        *pinned_ts = pinned_ts;
+        *pinned_tsp = pinned_ts;
 }
 
 /*
