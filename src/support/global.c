@@ -123,10 +123,15 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
         duration[i] = tsc2 - tsc1;
     }
     __wt_qsort(duration, EPOCH_CALL_CALIBRATE_SAMPLES, sizeof(uint64_t), __compare_uint64);
-    /* Use 30% percentile (median) for "average". */
-    *epoch_ticks_avg = duration[EPOCH_CALL_CALIBRATE_SAMPLES / 3] + 2;
+
+    /*
+     * Use 30% percentile (median) for "average". Also, on some platforms the clock rate is so slow
+     * that TSC difference can be 0, so add a little bit for some lee-way.
+     */
+    *epoch_ticks_avg = duration[EPOCH_CALL_CALIBRATE_SAMPLES / 3] + 1;
+
     /* Throw away first few results as outliers for the "best". */
-    *epoch_ticks_min = duration[3];
+    *epoch_ticks_min = duration[2];
 }
 
 /*
@@ -154,7 +159,7 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t 
             return (true);
         }
 
-        if (duration < ticks_best) {
+        if (duration <= ticks_best) {
             /* Remember the best result. */
             *clock_time = clock1;
             *tsc_time = tsc1;
