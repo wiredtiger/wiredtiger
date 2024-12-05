@@ -84,9 +84,6 @@ struct __wt_ckpt_connection {
 /*
  * Block modifications from an incremental identifier going forward.
  */
-/*
- * At the default granularity, this is enough for blocks in a 2G file.
- */
 struct __wt_ckpt_block_mods {
     const char *id_str;
 
