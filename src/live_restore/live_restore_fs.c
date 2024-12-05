@@ -591,44 +591,29 @@ __live_restore_fh_read(
 static int
 __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
-    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
-    wt_off_t off_start;
-    size_t hole_len;
-
 /*
  * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
  * it in 4KB chunks.
  */
 #define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
     char buf[WT_LIVE_RESTORE_READ_SIZE];
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    WT_LIVE_RESTORE_HOLE_LIST *hole;
 
-    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-
-    while (lr_fh->destination.hole_list != NULL) {
-        hole = lr_fh->destination.hole_list;
-
+    while ((hole = lr_fh->destination.hole_list) != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
           hole->off, WT_EXTENT_END(hole));
-
-        off_start = hole->off;
-        hole_len = hole->len;
         /*
          * When encountering a large hole, break the read into small chunks. Split the hole into
          * n chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and
-         * the last chunk reads the remaining data.
+         * the last chunk reads the remaining data. This loop is a not obvious, effectively the read
+         * is shrinking the hole in the stack below us. This is why we always read from the start at
+         * the beginning of the loop.
          */
-        while (hole_len > WT_LIVE_RESTORE_READ_SIZE) {
-            WT_RET(
-              __live_restore_fh_read(fh, wt_session, off_start, WT_LIVE_RESTORE_READ_SIZE, buf));
-            off_start += (wt_off_t)WT_LIVE_RESTORE_READ_SIZE;
-            hole_len -= WT_LIVE_RESTORE_READ_SIZE;
-        }
-        /* Read the last chunk */
-        WT_RET(__live_restore_fh_read(fh, wt_session, off_start, hole_len, buf));
+        WT_RET(__live_restore_fh_read(fh, wt_session, hole->off,
+          hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len, buf));
     }
-
     return (0);
 }
 
