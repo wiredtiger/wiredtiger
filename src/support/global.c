@@ -137,7 +137,13 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
 /*
  * __get_epoch_and_ticks --
  *     Gets the current time as wall clock and TSC ticks. Uses multiple attempts to make sure that
- *     there's a limited time between the two.
+ *     there's a limited time between the two. Returns:
+ *
+ *    - true if it managed to get a good result is good; false upon failure.
+ *
+ *    - clock_time: the wall clock time.
+ *
+ *    - tsc_time: CPU TSC time.
  */
 static bool
 __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t epoch_ticks_min,
@@ -203,7 +209,9 @@ __global_calibrate_ticks(void)
 
         uint64_t diff_nsec = WT_TIMEDIFF_NS(clock_stop, clock_start);
         uint64_t diff_tsc = tsc_stop - tsc_start;
-        if (diff_nsec < 10 || diff_tsc < 10)
+#define CLOCK_MIN_DIFF_NSEC 10
+#define CLOCK_MIN_DIFF_TSC 10
+        if (diff_nsec < CLOCK_MIN_DIFF_NSEC || diff_tsc < CLOCK_MIN_DIFF_TSC)
             /* Too short to be meaningful or not enough granularity. */
             return;
 
