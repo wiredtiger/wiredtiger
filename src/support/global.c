@@ -94,8 +94,6 @@ __reset_thread_tick(void)
     __wt_sleep(0, 10);
 }
 
-#define CLOCK_CALIBRATE_USEC 10000 /* Number of microseconds for clock calibration. */
-
 /*
  * __compare_uint64 --
  *     uint64_t comparison function.
@@ -113,21 +111,21 @@ __compare_uint64(const void *a, const void *b)
 static void
 __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
 {
-#define EPOCH_CALL_CALIBRATE_ATTEMPTS 50
-    uint64_t duration[EPOCH_CALL_CALIBRATE_ATTEMPTS];
+#define EPOCH_CALL_CALIBRATE_SAMPLES 50
+    uint64_t duration[EPOCH_CALL_CALIBRATE_SAMPLES];
 
     __reset_thread_tick();
-    for (int i = 0; i < EPOCH_CALL_CALIBRATE_ATTEMPTS; ++i) {
+    for (int i = 0; i < EPOCH_CALL_CALIBRATE_SAMPLES; ++i) {
         struct timespec clock1;
         uint64_t tsc1 = __wt_rdtsc();
         __wt_epoch(NULL, &clock1);
         uint64_t tsc2 = __wt_rdtsc();
         duration[i] = tsc2 - tsc1;
     }
-    __wt_qsort(duration, EPOCH_CALL_CALIBRATE_ATTEMPTS, sizeof(uint64_t), __compare_uint64);
-    /* Use 30% percentile for "average". */
-    *epoch_ticks_avg = duration[EPOCH_CALL_CALIBRATE_ATTEMPTS / 3] + 2;
-    /* Throw away first few results for the "best". */
+    __wt_qsort(duration, EPOCH_CALL_CALIBRATE_SAMPLES, sizeof(uint64_t), __compare_uint64);
+    /* Use 30% percentile (median) for "average". */
+    *epoch_ticks_avg = duration[EPOCH_CALL_CALIBRATE_SAMPLES / 3] + 2;
+    /* Throw away first few results as outliers for the "best". */
     *epoch_ticks_min = duration[3];
 }
 
@@ -140,7 +138,7 @@ static bool
 __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t epoch_ticks_min,
   uint64_t epoch_ticks_avg)
 {
-    uint64_t ticks_best = epoch_ticks_avg + 1;
+    uint64_t ticks_best = epoch_ticks_avg + 1; /* Not interested in anything worse than average. */
 #define GET_EPOCH_MAX_ATTEMPTS 200
     for (int i = 0; i < GET_EPOCH_MAX_ATTEMPTS; ++i) {
         struct timespec clock1;
@@ -148,12 +146,14 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t 
         __wt_epoch(NULL, &clock1);
         uint64_t tsc2 = __wt_rdtsc();
         uint64_t duration = tsc2 - tsc1;
+
         /* If it took the minimum time, we're happy with the result - return it straight away. */
         if (duration <= epoch_ticks_min) {
             *clock_time = clock1;
             *tsc_time = tsc1;
             return (true);
         }
+
         if (duration < ticks_best) {
             /* Remember the best result. */
             *clock_time = clock1;
@@ -161,9 +161,12 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t 
             ticks_best = duration;
         }
     }
+
     /* Return true if we have a good enough result. */
     return (ticks_best <= epoch_ticks_avg);
 }
+
+#define CLOCK_CALIBRATE_USEC 10000 /* Number of microseconds for clock calibration. */
 
 /*
  * __global_calibrate_ticks --
@@ -196,10 +199,12 @@ __global_calibrate_ticks(void)
         uint64_t diff_nsec = WT_TIMEDIFF_NS(clock_stop, clock_start);
         uint64_t diff_tsc = tsc_stop - tsc_start;
         if (diff_nsec < 10 || diff_tsc < 10)
+            /* Too short to be meaningful or not enough granularity. */
             return;
 
         double ratio = (double)diff_tsc / (double)diff_nsec;
         if (ratio <= DBL_EPSILON)
+            /* Too small to be meaningful. */
             return;
 
         __wt_process.tsc_nsec_ratio = ratio;
