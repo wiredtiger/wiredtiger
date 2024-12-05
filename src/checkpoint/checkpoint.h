@@ -87,7 +87,6 @@ struct __wt_ckpt_connection {
 /*
  * At the default granularity, this is enough for blocks in a 2G file.
  */
-#define WT_BLOCK_MODS_LIST_MIN 128 /* Initial bits for bitmap. */
 struct __wt_block_mods {
     const char *id_str;
 
@@ -137,7 +136,6 @@ struct __wt_ckpt {
     char *block_metadata;   /* Block-stored metadata */
     char *block_checkpoint; /* Block-stored checkpoint */
 
-#define WT_BLKINCR_MAX 2
     WT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
 
     WT_TIME_AGGREGATE ta; /* Validity window */

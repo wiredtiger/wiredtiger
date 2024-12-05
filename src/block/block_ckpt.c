@@ -425,6 +425,7 @@ __ckpt_mod_blkmod_entry(
     end_bit = (uint64_t)(offset + len - 1) / gran;
     WT_ASSERT(session, end_bit < UINT32_MAX);
     /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
+#define WT_BLOCK_MODS_LIST_MIN 128 /* Initial bits for bitmap. */
     end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit + 1, 64), WT_BLOCK_MODS_LIST_MIN);
     end_rdup_bytes = __bitstr_size(end_rdup_bits);
     end_buf_bytes = __bitstr_size((uint32_t)blk_mod->nbits);
