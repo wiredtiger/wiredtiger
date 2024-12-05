@@ -20,11 +20,11 @@
 #define WT_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WT_EXTENT_END(ext))
 
 /*
- * __wt_live_restore_hole_list --
+ * __wt_live_restore_hole_node --
  *     A linked list of extents. Each extent represents a hole in the destination file that needs to
  *     be read from the source file.
  */
-struct __wt_live_restore_hole_list {
+struct __wt_live_restore_hole_node {
     wt_off_t off;
     size_t len;
 
@@ -43,11 +43,11 @@ typedef struct {
     WT_LIVE_RESTORE_FS *back_pointer;
 
     /*
-     * hole_list tracks which ranges in the destination file are holes. As the migration continues
-     * the holes will be gradually filled by either data from the source or new writes. Holes in
-     * these extents should only shrink and never grow.
+     * The hole list tracks which ranges in the destination file are holes. As the migration
+     * continues the holes will be gradually filled by either data from the source or new writes.
+     * Holes in these extents should only shrink and never grow.
      */
-    WT_LIVE_RESTORE_HOLE_LIST *hole_list;
+    WT_LIVE_RESTORE_HOLE_NODE *hole_list_head;
 } WT_DESTINATION_METADATA;
 
 /*

@@ -81,7 +81,7 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
     prev = NULL;
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", lr_fh->iface.name);
-    hole = lr_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list_head;
     list_valid = true;
 
     while (hole != NULL) {
@@ -331,8 +331,8 @@ __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FIL
     WT_LIVE_RESTORE_HOLE_LIST *hole;
     WT_LIVE_RESTORE_HOLE_LIST *temp;
 
-    hole = lr_fh->destination.hole_list;
-    lr_fh->destination.hole_list = NULL;
+    hole = lr_fh->destination.hole_list_head;
+    lr_fh->destination.hole_list_head = NULL;
 
     while (hole != NULL) {
         temp = hole;
@@ -374,8 +374,8 @@ __live_restore_remove_extlist_hole(
 
     write_end = WT_OFFSET_END(offset, len);
 
-    /* FIXME-WT-13825 - We need to make sure we're thread safe when touching the hole_list. */
-    hole = lr_fh->destination.hole_list;
+    /* FIXME-WT-13825 - We need to make sure we're thread safe when touching the hole_list_head. */
+    hole = lr_fh->destination.hole_list_head;
     prev_hole = NULL;
     while (hole != NULL) {
 
@@ -391,7 +391,7 @@ __live_restore_remove_extlist_hole(
 
             tmp = hole;
             if (prev_hole == NULL)
-                lr_fh->destination.hole_list = hole->next;
+                lr_fh->destination.hole_list_head = hole->next;
             else
                 prev_hole->next = hole->next;
             hole = hole->next;
@@ -457,7 +457,7 @@ __live_restore_can_service_read(
 
     read_end = WT_OFFSET_END(offset, len);
 
-    hole = lr_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list_head;
     while (hole != NULL) {
 
         if (read_end < hole->off)
@@ -599,14 +599,14 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
     char buf[4096000];
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-    hole = lr_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list_head;
 
     while (hole != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
           hole->off, WT_EXTENT_END(hole));
         WT_RET(__live_restore_fh_read(fh, wt_session, hole->off, hole->len, buf));
-        hole = lr_fh->destination.hole_list;
+        hole = lr_fh->destination.hole_list_head;
     }
 
     return (0);
@@ -777,7 +777,7 @@ __live_restore_fh_find_holes_in_dest_file(
          * remove those ranges from the hole list.
          */
         WT_ERR(__live_restore_alloc_extent(
-          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list));
+          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list_head));
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
@@ -914,7 +914,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                 /*
                  * Set size by truncating. This is a positive length truncate so it actually extends
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
-                 * extents in hole_list.
+                 * extents in hole_list_head.
                  */
                 WT_ERR(lr_fh->destination.fh->fh_truncate(
                   lr_fh->destination.fh, wt_session, source_size));
@@ -923,9 +923,9 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
-                WT_ASSERT(session, lr_fh->destination.hole_list == NULL);
+                WT_ASSERT(session, lr_fh->destination.hole_list_head == NULL);
                 WT_ERR(__live_restore_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list));
+                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list_head));
             }
         } else
             lr_fh->destination.complete = true;
