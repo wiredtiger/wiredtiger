@@ -1350,6 +1350,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsc
 tupdate
 tw
 txn

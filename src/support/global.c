@@ -88,10 +88,24 @@ static void
 __reset_thread_tick(void)
 {
     /*
-     * We could use __wt_yield() here but simple yielding doesn't seem to always reset the task's
+     * We could use __wt_yield() here but simple yielding doesn't seem to always reset the thread's
      * time slice. Sleeping for a short time does a better job.
      */
     __wt_sleep(0, 10);
+}
+
+/*
+ * __get_epoch_and_tsc --
+ *     Get the current time and TSC ticks before and after the call to __wt_epoch. Returns the
+ *     duration of the call in TSC ticks.
+ */
+static WT_INLINE uint64_t
+__get_epoch_and_tsc(struct timespec *clock1, uint64_t *tsc1, uint64_t *tsc2)
+{
+    *tsc1 = __wt_rdtsc();
+    __wt_epoch(NULL, clock1);
+    *tsc2 = __wt_rdtsc();
+    return (*tsc2 - *tsc1);
 }
 
 /*
@@ -117,10 +131,8 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
     __reset_thread_tick();
     for (int i = 0; i < EPOCH_CALL_CALIBRATE_SAMPLES; ++i) {
         struct timespec clock1;
-        uint64_t tsc1 = __wt_rdtsc();
-        __wt_epoch(NULL, &clock1);
-        uint64_t tsc2 = __wt_rdtsc();
-        duration[i] = tsc2 - tsc1;
+        uint64_t tsc1, tsc2;
+        duration[i] = __get_epoch_and_tsc(&clock1, &tsc1, &tsc2);
     }
     __wt_qsort(duration, EPOCH_CALL_CALIBRATE_SAMPLES, sizeof(uint64_t), __compare_uint64);
 
@@ -137,13 +149,15 @@ __get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
 /*
  * __get_epoch_and_ticks --
  *     Gets the current time as wall clock and TSC ticks. Uses multiple attempts to make sure that
- *     there's a limited time between the two. Returns:
+ *     there's a limited time between the two.
  *
- *    - true if it managed to get a good result is good; false upon failure.
+ * Returns:
  *
- *    - clock_time: the wall clock time.
+ * - true if it managed to get a good result is good; false upon failure.
  *
- *    - tsc_time: CPU TSC time.
+ * - clock_time: the wall clock time.
+ *
+ * - tsc_time: CPU TSC time.
  */
 static bool
 __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t epoch_ticks_min,
@@ -153,10 +167,8 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t 
 #define GET_EPOCH_MAX_ATTEMPTS 200
     for (int i = 0; i < GET_EPOCH_MAX_ATTEMPTS; ++i) {
         struct timespec clock1;
-        uint64_t tsc1 = __wt_rdtsc();
-        __wt_epoch(NULL, &clock1);
-        uint64_t tsc2 = __wt_rdtsc();
-        uint64_t duration = tsc2 - tsc1;
+        uint64_t tsc1, tsc2;
+        uint64_t duration = __get_epoch_and_tsc(&clock1, &tsc1, &tsc2);
 
         /* If it took the minimum time, we're happy with the result - return it straight away. */
         if (duration <= epoch_ticks_min) {
