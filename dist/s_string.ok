@@ -136,7 +136,6 @@ FLD
 FLSv
 FLv
 FNV
-FORALL
 FOREACH
 FS
 FULLFSYNC
@@ -594,7 +593,6 @@ ckptlist
 cksum
 cloexec
 closedir
-clsm
 cmd
 cmp
 cntvct
@@ -775,7 +773,6 @@ fileops
 filesize
 filesystem
 filesystems
-fillms
 firstfit
 fixup
 flcs
@@ -796,7 +793,6 @@ fseek
 fstat
 fstream
 fsync
-fsyncs
 ftruncate
 func
 funcid
@@ -853,7 +849,6 @@ iSh
 iaa
 iaaInterface
 icount
-idlems
 idx
 ie
 iface
@@ -1027,7 +1022,6 @@ nTemp
 namespace
 namespaces
 nbits
-nchunks
 nclr
 nd
 needkey
@@ -1376,7 +1370,6 @@ uninstantiated
 unistd
 unlink
 unmap
-unmerged
 unmodify
 unmount
 unpackv
