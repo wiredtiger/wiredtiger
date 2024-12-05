@@ -641,15 +641,15 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
 
-    *pinned_tsp = WT_TS_NONE;
-
     txn_global = &S2C(session)->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
      */
-    if (!txn_global->has_pinned_timestamp)
+    if (!txn_global->has_pinned_timestamp) {
+        *pinned_tsp = WT_TS_NONE;
         return;
+    }
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
     if (S2C(session)->version_cursor_count > 0) {
@@ -657,7 +657,8 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
     }
 
-    *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
+    /* Ensure we only read the global pinned timestamp once. */
+    WT_READ_ONCE(pinned_ts, txn_global->pinned_timestamp);
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
@@ -669,8 +670,10 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     WT_ACQUIRE_BARRIER();
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
-    if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
+    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
         *pinned_tsp = checkpoint_ts;
+    else
+        *pinned_ts = pinned_ts;
 }
 
 /*
