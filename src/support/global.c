@@ -94,41 +94,76 @@ __reset_thread_tick(void)
     __wt_sleep(0, 10);
 }
 
-/*
- * This needs to be a macro so that the compiler never messes with inlining or not inlining the
- * function call.
- */
-#define CLOCK_CALIBRATE_ONE()                                                                     \
-    do {                                                                                          \
-        __reset_thread_tick(); /* Make it more probable that the test loop runs uninterrupted. */ \
-                                                                                                  \
-        /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */  \
-        tsc_start = __wt_rdtsc();                                                                 \
-        __wt_epoch(NULL, &start);                                                                 \
-                                                                                                  \
-        /* Reverse cycle so that comparison is always done with a constant regardless of the      \
-         * count. */                                                                              \
-        for (i = count; i > 0; i--)                                                               \
-            /* Because i is volatile, the compiler has to keep this loop. */                      \
-            ;                                                                                     \
-                                                                                                  \
-        /* It's important that __wt_rdtsc and __wt_epoch are always called in the same order! */  \
-        tsc_stop = __wt_rdtsc();                                                                  \
-        __wt_epoch(NULL, &stop);                                                                  \
-                                                                                                  \
-        diff_nsec = WT_TIMEDIFF_NS(stop, start);                                                  \
-        diff_tsc = tsc_stop - tsc_start;                                                          \
-                                                                                                  \
-        /*                                                                                        \
-         * If any of timestamps didn't tick over, it's either too fast or too slow CPU,           \
-         * or clock granularity is not good enough. Give up in either case.                       \
-         */                                                                                       \
-        if (diff_nsec < 10 || diff_tsc == 0)                                                      \
-            return;                                                                               \
-    } while (0)
+#define CLOCK_CALIBRATE_USEC 10000 /* Number of microseconds for clock calibration. */
 
-#define CLOCK_CALIBRATE_ONE_MS 3. /* Number of millisecond per one iteration. */
-#define CLOCK_CALIBRATE_TRIES 5   /* Number of tries/loops to run. */
+/*
+ * __compare_uint64 --
+ *     uint64_t comparison function.
+ */
+static int
+__compare_uint64(const void *a, const void *b)
+{
+    return (int)(*(uint64_t *)a - *(uint64_t *)b);
+}
+
+/*
+ * __get_epoch_call_ticks --
+ *     Returns how many ticks it takes to call __wt_epoch at best and on average.
+ */
+static void
+__get_epoch_call_ticks(uint64_t *epoch_ticks_min, uint64_t *epoch_ticks_avg)
+{
+#define EPOCH_CALL_CALIBRATE_ATTEMPTS 50
+    uint64_t duration[EPOCH_CALL_CALIBRATE_ATTEMPTS];
+
+    __reset_thread_tick();
+    for (int i = 0; i < EPOCH_CALL_CALIBRATE_ATTEMPTS; ++i) {
+        struct timespec clock1;
+        uint64_t tsc1 = __wt_rdtsc();
+        __wt_epoch(NULL, &clock1);
+        uint64_t tsc2 = __wt_rdtsc();
+        duration[i] = tsc2 - tsc1;
+    }
+    qsort(duration, EPOCH_CALL_CALIBRATE_ATTEMPTS, sizeof(uint64_t), __compare_uint64);
+    /* Use 30% percentile for "average". */
+    *epoch_ticks_avg = duration[EPOCH_CALL_CALIBRATE_ATTEMPTS / 3] + 2;
+    /* Throw away first few results for the "best". */
+    *epoch_ticks_min = duration[3];
+}
+
+/*
+ * __get_epoch_and_ticks --
+ *     Gets the current time as wall clock and TSC ticks. Uses multiple attempts to make sure that
+ *     there's a limited time between the two.
+ */
+static bool
+__get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time,
+                      uint64_t epoch_ticks_min, uint64_t epoch_ticks_avg)
+{
+    uint64_t ticks_best = epoch_ticks_avg + 1;
+#define GET_EPOCH_MAX_ATTEMPTS 200
+    for (int i = 0; i < GET_EPOCH_MAX_ATTEMPTS; ++i) {
+        struct timespec clock1;
+        uint64_t tsc1 = __wt_rdtsc();
+        __wt_epoch(NULL, &clock1);
+        uint64_t tsc2 = __wt_rdtsc();
+        uint64_t duration = tsc2 - tsc1;
+        /* If it took the minimum time, we're happy with the result - return it straight away. */
+        if (duration <= epoch_ticks_min) {
+            *clock_time = clock1;
+            *tsc_time = tsc1;
+            return true;
+        }
+        if (duration < ticks_best) {
+            /* Remember the best result. */
+            *clock_time = clock1;
+            *tsc_time = tsc1;
+            ticks_best = duration;
+        }
+    }
+    /* Return true if we have a good enough result. */
+    return ticks_best <= epoch_ticks_avg;
+}
 
 /*
  * __global_calibrate_ticks --
@@ -145,46 +180,30 @@ __global_calibrate_ticks(void)
 
 #if defined(__amd64) || defined(__aarch64__)
     {
-        struct timespec start, stop;
-        double ratio;
-        uint64_t count;
-        uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
-        uint64_t tries, tsc_start, tsc_stop;
-        volatile uint64_t i;
+        uint64_t epoch_ticks_min, epoch_ticks_avg, tsc_start, tsc_stop;
+        struct timespec clock_start, clock_stop;
 
-        /* Quickly pre-calibrate to find approximate clock speed */
-        count = WT_MILLION / 10;
-        CLOCK_CALIBRATE_ONE();
-        ratio = (double)diff_tsc / (double)diff_nsec;
+        __get_epoch_call_ticks(&epoch_ticks_min, &epoch_ticks_avg);
+
+        if (!__get_epoch_and_ticks(&clock_start, &tsc_start, epoch_ticks_min, epoch_ticks_avg))
+            return;
+
+        __wt_sleep(0, CLOCK_CALIBRATE_USEC);
+
+        if (!__get_epoch_and_ticks(&clock_stop, &tsc_stop, epoch_ticks_min, epoch_ticks_avg))
+            return;
+
+        uint64_t diff_nsec = WT_TIMEDIFF_NS(clock_stop, clock_start);
+        uint64_t diff_tsc = tsc_stop - tsc_start;
+        if (diff_nsec < 10 || diff_tsc < 10)
+            return;
+
+        double ratio = (double)diff_tsc / (double)diff_nsec;
         if (ratio <= DBL_EPSILON)
             return;
 
-        /* Calculate the number of iterations per 1 ms worth of time */
-        count = (uint64_t)((double)count * CLOCK_CALIBRATE_ONE_MS * 1e6 / diff_nsec);
-        if (count < WT_MILLION)
-            /* Running less than this could lead to drop of precision. */
-            count = WT_MILLION;
-
-        /*
-         * Run this calibration loop a few times to make sure we get a reading that does not have a
-         * potential scheduling shift in it. The inner loop is CPU intensive but a scheduling change
-         * in the middle could throw off calculations. Take the minimum amount of time and compute
-         * the ratio.
-         */
-        min_nsec = min_tsc = UINT64_MAX;
-        for (tries = 0; tries < CLOCK_CALIBRATE_TRIES; ++tries) {
-            CLOCK_CALIBRATE_ONE();
-            min_nsec = WT_MIN(min_nsec, diff_nsec);
-            min_tsc = WT_MIN(min_tsc, diff_tsc);
-        }
-        WT_ASSERT(NULL, min_nsec != UINT64_MAX && min_nsec != 0);
-        WT_ASSERT(NULL, min_tsc != UINT64_MAX && min_tsc != 0);
-
-        ratio = (double)min_tsc / (double)min_nsec;
-        if (ratio > DBL_EPSILON) {
-            __wt_process.tsc_nsec_ratio = ratio;
-            __wt_process.use_epochtime = false;
-        }
+        __wt_process.tsc_nsec_ratio = ratio;
+        __wt_process.use_epochtime = false;
     }
 #endif
 }
