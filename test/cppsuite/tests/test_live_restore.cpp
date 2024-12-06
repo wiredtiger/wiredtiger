@@ -255,15 +255,12 @@ do_random_crud(scoped_session &session, bool fresh_start)
         if (ran < 5000) {
             // 50% Write.
             write(session, false);
-            continue;
         } else if (ran <= 9980) {
             // 49.8% Read.
             read(session);
-            continue;
         } else if (ran <= 10000) {
             // 0.2% fs_truncate
             trigger_fs_truncate(session);
-            continue;
         } else {
             logger::log_msg(LOG_ERROR,
               "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
@@ -302,15 +299,16 @@ main(int argc, char *argv[])
 
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config =
-      CONNECTION_CREATE + ",aux_path=\"" + SOURCE_DIR + "\",cache_size=1GB,verbose=[fileops:2]";
+    const std::string conn_config = CONNECTION_CREATE + ",live_restore=(enabled=true,path=\"" +
+      SOURCE_DIR + "\"),cache_size=1GB,verbose=[fileops:2]";
 
     logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
     bool fresh_start = false;
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
         logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
-        testutil_remove(SOURCE_DIR);
+        // Live restore expects the source directory to exist.
+        testutil_recreate_dir(SOURCE_DIR);
         testutil_remove("WT_TEST");
     }
     // We will recreate this directory every time, on exit the contents in it will be moved to

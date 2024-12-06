@@ -1099,6 +1099,23 @@ wiredtiger_open_tiered_storage_configuration = [
     ]),
 ]
 
+# At this stage live restore intentionally does not support reconfiguring the number of worker
+# threads. If that becomes necessary in the future we'll need to break out the thread count config
+# and add it to the reconfigure items too. That will also introduce the need for a MAX_WORKER or
+# similar macro.
+wiredtiger_open_live_restore_configuration = [
+    Config('live_restore', '', r'''Live restore configuration options. These options control the
+    behavior of WiredTiger when live restoring from a backup.''', type='category', subconfig = [
+        Config('enabled', 'false', r'''whether live restore is enabled or not.''', type='boolean'),
+        Config('path', '', r'''the path to the backup that will be restored from.'''),
+        Config('threads_max', '8', r'''
+            maximum number of threads WiredTiger will start to migrate data from the backup to the
+            running WiredTiger database. Each worker thread uses a session handle from the
+            configured session_max''',
+            min=1, max=12)
+    ])
+]
+
 chunk_cache_configuration_common = [
     Config('pinned', '', r'''
         List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
@@ -1191,10 +1208,9 @@ wiredtiger_open_common =\
     wiredtiger_open_chunk_cache_configuration +\
     wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
+    wiredtiger_open_live_restore_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
-    Config('aux_path', '', r'''The auxiliary path configuration specifies a second path to a
-        WiredTiger database. This is then used to perform a live backup restore process.'''),
     Config('backup_restore_target', '', r'''
         If non-empty and restoring from a backup, restore only the table object targets listed.
         WiredTiger will remove all the metadata entries for the tables that are not listed in

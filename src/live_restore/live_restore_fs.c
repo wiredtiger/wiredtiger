@@ -331,7 +331,6 @@ __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FIL
     WT_LIVE_RESTORE_HOLE_LIST *hole;
     WT_LIVE_RESTORE_HOLE_LIST *temp;
 
-    temp = hole = NULL;
     hole = lr_fh->destination.hole_list;
     lr_fh->destination.hole_list = NULL;
 
@@ -769,7 +768,8 @@ __live_restore_fh_find_holes_in_dest_file(
     int fd;
 
     data_end_offset = 0;
-    fd = open(filename, O_RDONLY);
+    WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
+    WT_ERR(ret);
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
@@ -805,7 +805,7 @@ __live_restore_fh_find_holes_in_dest_file(
     }
 
 err:
-    close(fd);
+    WT_SYSCALL_TRET(close(fd), ret);
     return (ret);
 }
 
@@ -910,7 +910,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  */
                 wt_off_t source_size;
 
-                lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size);
+                WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
                   "Creating destination file backed by source file. Copying size (%" PRId64
                   ") from source "
@@ -922,7 +922,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
                  * extents in hole_list.
                  */
-                lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size);
+                WT_ERR(lr_fh->destination.fh->fh_truncate(
+                  lr_fh->destination.fh, wt_session, source_size));
 
                 /*
                  * Initialize the extent as one hole covering the entire file. We need to read
@@ -1118,12 +1119,26 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
 }
 
 /*
+ * __validate_live_restore_path --
+ *     Confirm that the given source directory is able to be opened.
+ */
+static int
+__validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *path)
+{
+    WT_FILE_HANDLE *fh;
+    /* Open the source directory. At this stage we do not validate what files it contains. */
+    WT_RET(
+      fs->fs_open_file(fs, (WT_SESSION *)session, path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &fh));
+    return (fh->close(fh, (WT_SESSION *)session));
+}
+
+/*
  * __wt_os_live_restore_fs --
  *     Initialize a live restore file system configuration.
  */
 int
-__wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
-  const char *destination, WT_FILE_SYSTEM **fsp)
+__wt_os_live_restore_fs(
+  WT_SESSION_IMPL *session, const char *cfg[], const char *destination, WT_FILE_SYSTEM **fsp)
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FS *lr_fs;
@@ -1145,8 +1160,18 @@ __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
     /* Initialize the layers. */
     lr_fs->destination.home = destination;
     lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
-    WT_ERR(__wt_strndup(session, source_cfg->str, source_cfg->len, &lr_fs->source.home));
+
+    WT_CONFIG_ITEM cval;
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.path", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fs->source.home));
+
+    WT_ERR(__validate_live_restore_path(lr_fs->os_file_system, session, lr_fs->source.home));
+
     lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
+
+    /* Configure the background thread count maximum. */
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+    lr_fs->background_threads_max = (uint8_t)cval.val;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
