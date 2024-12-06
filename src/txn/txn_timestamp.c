@@ -304,11 +304,11 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
     __wti_txn_get_pinned_timestamp(
       session, &pinned_timestamp, WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST);
 
-    if (pinned_timestamp != WT_TS_NONE &&
+    if (pinned_timestamp != 0 &&
       (!txn_global->has_pinned_timestamp || force ||
         txn_global->pinned_timestamp < pinned_timestamp)) {
-        WT_RELEASE_WRITE_WITH_BARRIER(txn_global->pinned_timestamp, pinned_timestamp);
-        WT_RELEASE_WRITE_WITH_BARRIER(txn_global->has_pinned_timestamp, true);
+        txn_global->pinned_timestamp = pinned_timestamp;
+        txn_global->has_pinned_timestamp = true;
         txn_global->oldest_is_pinned = txn_global->pinned_timestamp == txn_global->oldest_timestamp;
         txn_global->stable_is_pinned = txn_global->pinned_timestamp == txn_global->stable_timestamp;
         __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
