@@ -636,7 +636,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
  *     Get the first timestamp that can be written to the disk for precise checkpoint.
  */
 static WT_INLINE void
-__wt_txn_disaggregated_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp)
+__wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp)
 {
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_stable_ts;
