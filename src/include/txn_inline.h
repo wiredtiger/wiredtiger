@@ -823,7 +823,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(has_pinned_timestamp, txn_global->has_pinned_timestamp);
+    WT_ACQUIRE_READ(has_pinned_timestamp, txn_global->has_pinned_timestamp);
     if (!has_pinned_timestamp) {
         *pinned_tsp = WT_TS_NONE;
         return;
@@ -842,14 +842,13 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * pinned_ts. If the checkpoint timestamp is 110 and the second time we read the global pinned
      * timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(pinned_ts, txn_global->pinned_timestamp);
+    WT_ACQUIRE_READ(pinned_ts, txn_global->pinned_timestamp);
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
-     * read the pinned timestamp and the checkpoint generation, otherwise, we may read earlier
-     * checkpoint timestamp before the checkpoint generation that is read resulting more data being
-     * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
-     * minimum of it with the oldest timestamp, which is what we want.
+     * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
+     * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
+     * we take the minimum of it with the oldest timestamp, which is what we want.
      */
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
