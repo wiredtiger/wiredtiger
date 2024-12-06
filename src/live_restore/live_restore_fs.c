@@ -606,10 +606,10 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
           "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
           hole->off, WT_EXTENT_END(hole));
         /*
-         * When encountering a large hole, break the read into small chunks. Split the hole into
-         * n chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and
-         * the last chunk reads the remaining data. This loop is a not obvious, effectively the read
-         * is shrinking the hole in the stack below us. This is why we always read from the start at
+         * When encountering a large hole, break the read into small chunks. Split the hole into n
+         * chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the
+         * last chunk reads the remaining data. This loop is a not obvious, effectively the read is
+         * shrinking the hole in the stack below us. This is why we always read from the start at
          * the beginning of the loop.
          */
         WT_RET(__live_restore_fh_read(fh, wt_session, hole->off,
