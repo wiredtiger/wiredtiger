@@ -170,8 +170,12 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
                 }
                 s += n;
             }
-        if (bufsz > 0)
+        if (bufsz > 0) {
+            /* Expect just enough remaining buffer for closing quotes and terminator*/
+            WT_ASSERT(session, bufsz == 2);
             *buf++ = '"';
+            *buf++ = '\0';
+        }
         *retsizep += s;
         return (0);
     case 'U':
@@ -193,8 +197,11 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
             }
             s += n;
         }
-        if (bufsz > 0)
+        if (bufsz > 0) {
+            WT_ASSERT(session, bufsz == 2);
             *buf++ = '"';
+            *buf++ = '\0';
+        }
         *retsizep += s;
         return (0);
     case 'b':
