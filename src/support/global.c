@@ -177,7 +177,7 @@ __get_epoch_and_ticks(struct timespec *clock_time, uint64_t *tsc_time, uint64_t 
             return (true);
         }
 
-        if (duration <= ticks_best) {
+        if (duration < ticks_best) {
             /* Remember the best result. */
             *clock_time = clock1;
             *tsc_time = tsc1;
