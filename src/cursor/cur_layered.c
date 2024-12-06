@@ -944,16 +944,14 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 
     WT_RET(__layered_modify_check(session));
 
+    if (S2C(session)->layered_table_manager.leader)
+        c = clayered->stable_cursor;
+    else
+        c = clayered->ingest_cursor;
+
     /* If necessary, set the position for future scans. */
     if (position)
-        clayered->current_cursor = clayered->ingest_cursor;
-
-    if (S2C(session)->layered_table_manager.leader) {
-        c = clayered->stable_cursor;
-        fprintf(
-          stderr, "clayered_put: URI for direct insert is %s\n", clayered->stable_cursor->uri);
-    } else
-        c = clayered->ingest_cursor;
+        clayered->current_cursor = c;
 
     c->set_key(c, key);
     func = c->insert;

@@ -1469,7 +1469,6 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
-    fprintf(stderr, "__conn_reconfigure: %s\n", config);
     ret = __wti_conn_reconfig(session, cfg);
 err:
     API_END_RET(session, ret);
