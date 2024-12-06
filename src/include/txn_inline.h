@@ -632,23 +632,24 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_disaggregated_stable_timestamp --
- *     Get the first timestamp that can be written to the disaggregated storage.
+ * __wt_txn_pinned_stable_timestamp --
+ *     Get the first timestamp that can be written to the disk for precise checkpoint.
  */
 static WT_INLINE void
-__wt_txn_disaggregated_stable_timestamp(
-  WT_SESSION_IMPL *session, wt_timestamp_t *disaggregated_stable_tsp)
+__wt_txn_disaggregated_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp)
 {
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_ts, disaggregated_stable_ts;
+    wt_timestamp_t checkpoint_ts, pinned_stable_ts;
+    bool has_stable_timestamp;
 
     txn_global = &S2C(session)->txn_global;
 
     /*
      * There is no need to go further if no stable timestamp has been set yet.
      */
-    if (!txn_global->has_stable_timestamp) {
-        *disaggregated_stable_tsp = WT_TS_NONE;
+    WT_ACQUIRE_READ_WITH_BARRIER(has_stable_timestamp, txn_global->has_stable_timestamp);
+    if (!has_stable_timestamp) {
+        *pinned_stable_tsp = WT_TS_NONE;
         return;
     }
 
@@ -659,10 +660,10 @@ __wt_txn_disaggregated_stable_timestamp(
      * disaggregated_stable_ts. If the checkpoint timestamp is 110 and the second time we read the
      * global stable timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
      */
-    WT_READ_ONCE(disaggregated_stable_ts, txn_global->stable_timestamp);
+    WT_ACQUIRE_READ_WITH_BARRIER(pinned_stable_ts, txn_global->stable_timestamp);
 
     if (!__wt_conn_is_disagg(session)) {
-        *disaggregated_stable_tsp = disaggregated_stable_ts;
+        *pinned_stable_tsp = pinned_stable_ts;
         return;
     }
 
@@ -673,13 +674,12 @@ __wt_txn_disaggregated_stable_timestamp(
      * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
      * minimum of it with the stable timestamp, which is what we want.
      */
-    WT_ACQUIRE_BARRIER();
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
-    if (checkpoint_ts != 0 && checkpoint_ts < disaggregated_stable_ts)
-        *pinned_tsp = checkpoint_ts;
+    if (checkpoint_ts != 0 && checkpoint_ts < pinned_stable_ts)
+        *pinned_stable_tsp = checkpoint_ts;
     else
-        *pinned_ts = disaggregated_stable_ts;
+        *pinned_stable_tsp = pinned_stable_ts;
 }
 
 /*
@@ -698,7 +698,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(has_pinned_timestamp, txn_global->has_pinned_timestamp)
+    WT_ACQUIRE_READ_WITH_BARRIER(has_pinned_timestamp, txn_global->has_pinned_timestamp);
     if (!has_pinned_timestamp) {
         *pinned_tsp = WT_TS_NONE;
         return;
