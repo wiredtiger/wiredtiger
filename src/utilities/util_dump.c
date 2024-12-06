@@ -779,6 +779,12 @@ dump_record(
     WT_ASSERT((WT_SESSION_IMPL *)session, key != NULL);
 
     current_key = key;
+    if (json) {
+        char json_key[] = "\"key0\" : \"";
+        strcat(json_key, current_key);
+        strcat(json_key, "\"");
+        current_key = json_key;
+    }
     cursor->set_key(cursor, current_key);
     ret = cursor->search_near(cursor, &exact);
 
