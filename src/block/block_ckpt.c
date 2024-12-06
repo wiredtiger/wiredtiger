@@ -391,7 +391,7 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
         case WT_CKPT_DELETE | WT_CKPT_FAKE:
         case WT_CKPT_FAKE:
             break;
-        case WT_CKPT_ADD | WT_CKPT_MOD_BLOCKS:
+        case WT_CKPT_ADD | WT_CKPT_BLOCK_MODS_LIST:
         case WT_CKPT_ADD:
             if (ckpt[1].name == NULL)
                 break;
@@ -511,7 +511,7 @@ __ckpt_live_blkmods(
             break;
     }
     /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
-    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_MOD_BLOCKS))
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS_LIST))
         return (0);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
@@ -552,7 +552,7 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
             break;
     }
     /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
-    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_MOD_BLOCKS))
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS_LIST))
         return (0);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];

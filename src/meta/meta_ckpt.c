@@ -635,7 +635,7 @@ __meta_blk_mods_load(
      */
     F_SET(ckpt, WT_CKPT_ADD);
     if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
-        F_SET(ckpt, WT_CKPT_MOD_BLOCKS);
+        F_SET(ckpt, WT_CKPT_BLOCK_MODS_LIST);
         WT_RET(__ckpt_valid_blk_mods(session, ckpt, rename));
     }
     return (0);

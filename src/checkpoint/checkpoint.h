@@ -143,12 +143,12 @@ struct __wt_ckpt {
     void *bpriv; /* Block manager private */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CKPT_ADD 0x01u        /* Checkpoint to be added */
-#define WT_CKPT_DELETE 0x02u     /* Checkpoint to be deleted */
-#define WT_CKPT_FAKE 0x04u       /* Checkpoint is a fake */
-#define WT_CKPT_MOD_BLOCKS 0x08u /* Return list of modified blocks */
-#define WT_CKPT_UPDATE 0x10u     /* Checkpoint requires update */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_CKPT_ADD 0x01u             /* Checkpoint to be added */
+#define WT_CKPT_BLOCK_MODS_LIST 0x02u /* Return list of modified blocks */
+#define WT_CKPT_DELETE 0x04u          /* Checkpoint to be deleted */
+#define WT_CKPT_FAKE 0x08u            /* Checkpoint is a fake */
+#define WT_CKPT_UPDATE 0x10u          /* Checkpoint requires update */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
