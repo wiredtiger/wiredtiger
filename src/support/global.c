@@ -221,8 +221,15 @@ __global_calibrate_ticks(void)
 
         uint64_t diff_nsec = WT_TIMEDIFF_NS(clock_stop, clock_start);
         uint64_t diff_tsc = tsc_stop - tsc_start;
+
 #define CLOCK_MIN_DIFF_NSEC 10
 #define CLOCK_MIN_DIFF_TSC 10
+
+        /*
+         * Further improvement: check that diff_tsc is "much" (100-1000 times) bigger than
+         * epoch_ticks_avg and run additional cycles if needed.
+         */
+
         if (diff_nsec < CLOCK_MIN_DIFF_NSEC || diff_tsc < CLOCK_MIN_DIFF_TSC)
             /* Too short to be meaningful or not enough granularity. */
             return;
