@@ -109,13 +109,38 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Reopen the connection
         self.restart_without_local_files()
 
+        # There should be no shared URIs in the metadata table at this point
+        cursor = self.session.open_cursor('metadata:', None, None)
+        metadata = {}
+        while cursor.next() == 0:
+            metadata[cursor.get_key()] = cursor.get_value()
+        for uri in self.layered_uris + self.other_uris:
+            self.assertFalse(uri in metadata)
+        cursor.close()
+
         # Pick up the checkpoint
         self.conn.reconfigure(f'disaggregated=(checkpoint_id={checkpoint_id})')
+
+        # Ensure that the metadata cursor has all the expected URIs
+        cursor = self.session.open_cursor('metadata:', None, None)
+        metadata = {}
+        while cursor.next() == 0:
+            metadata[cursor.get_key()] = cursor.get_value()
+        for uri in self.layered_uris + self.other_uris:
+            self.assertTrue(uri in metadata)
+        cursor.close()
+
+        # Check tables after the restart, but before we step up as a leader
+        for uri in self.layered_uris + self.other_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
 
         # Become the leader (skip a few extra checkpoint IDs just in case)
         self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
 
-        # Check tables after the restart
+        # Check tables again after stepping up
         for uri in self.layered_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
@@ -133,10 +158,30 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     time.sleep(1)
             cursor.close()
 
+        # Ensure that the leader sees its own writes before a checkpoint
+        for uri in self.layered_uris + self.other_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                else:
+                    self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
+
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
         checkpoint_id = self.disagg_get_complete_checkpoint()
+
+        # Ensure that the leader sees its own writes after a checkpoint
+        for uri in self.layered_uris + self.other_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                else:
+                    self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
 
         # Reopen the connection
         self.restart_without_local_files()
