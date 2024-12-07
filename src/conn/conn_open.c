@@ -234,6 +234,10 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_tiered_storage_create(session));
     WT_RET(__wt_logmgr_create(session));
 
+    /* If we're performing a live restore start the server. */
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE))
+        WT_RET(__wt_live_restore_server_init(session, cfg));
+
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
      * Recovery must run before the history store table is created (because recovery will update the

@@ -579,7 +579,7 @@ __live_restore_fh_read(
 }
 
 /*
- * __live_restore_fs_fill_holes_on_file_close --
+ * __wti_live_restore_fs_fill_holes --
  *     On file close make sure we've copied across all data from source to destination. This means
  *     there are no holes in the destination file's extent list. If we find one promote read the
  *     content into the destination.
@@ -588,7 +588,7 @@ __live_restore_fh_read(
  *     destination file are already handled elsewhere.
  */
 static int
-__live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+__wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
 /*
  * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
@@ -639,7 +639,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * test. Calling this in a production environment will produce very slow file closes as we copy
      * all remaining data to the destination.
      */
-    WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
+    WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);
