@@ -172,7 +172,7 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
                 s += n;
             }
         if (bufsz > 0) {
-            /* Expect just enough remaining buffer for closing quotes and terminator*/
+            /* Expect just enough remaining buffer for closing quotes and terminator. */
             WT_ASSERT(session, bufsz == 2);
             *buf++ = '"';
             *buf++ = '\0';
