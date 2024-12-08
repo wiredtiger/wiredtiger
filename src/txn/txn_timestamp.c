@@ -304,7 +304,12 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
       (!txn_global->has_pinned_timestamp || force ||
         txn_global->pinned_timestamp < pinned_timestamp)) {
         WT_RELEASE_WRITE(txn_global->pinned_timestamp, pinned_timestamp);
-        WT_RELEASE_WRITE(txn_global->has_pinned_timestamp, true);
+        /*
+         * Release write requires the data and destination have exactly the same size. stdbool.h
+         * only defines true as `#define true 1` so we need a bool cast to provide proper type
+         * information.
+         */
+        WT_RELEASE_WRITE(txn_global->has_pinned_timestamp, (bool)true);
         txn_global->oldest_is_pinned = txn_global->pinned_timestamp == txn_global->oldest_timestamp;
         txn_global->stable_is_pinned = txn_global->pinned_timestamp == txn_global->stable_timestamp;
         __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
@@ -446,7 +451,12 @@ set:
       (!txn_global->has_stable_timestamp || force || stable_ts > txn_global->stable_timestamp)) {
         WT_RELEASE_WRITE(txn_global->stable_timestamp, stable_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
-        WT_RELEASE_WRITE(txn_global->has_stable_timestamp, true);
+        /*
+         * Release write requires the data and destination have exactly the same size. stdbool.h
+         * only defines true as `#define true 1` so we need a bool cast to provide proper type
+         * information.
+         */
+        WT_RELEASE_WRITE(txn_global->has_stable_timestamp, (bool)true);
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
