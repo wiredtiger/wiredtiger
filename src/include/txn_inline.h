@@ -632,6 +632,56 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_pinned_stable_timestamp --
+ *     Get the first timestamp that can be written to the disk for precise checkpoint.
+ */
+static WT_INLINE void
+__wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp)
+{
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t checkpoint_ts, pinned_stable_ts;
+    bool has_stable_timestamp;
+
+    txn_global = &S2C(session)->txn_global;
+
+    /*
+     * There is no need to go further if no stable timestamp has been set yet.
+     */
+    WT_ACQUIRE_READ(has_stable_timestamp, txn_global->has_stable_timestamp);
+    if (!has_stable_timestamp) {
+        *pinned_stable_tsp = WT_TS_NONE;
+        return;
+    }
+
+    /*
+     * It is important to ensure we only read the global stable timestamp once. Otherwise, we may
+     * return a stable timestamp that is larger than the checkpoint timestamp. For example, the
+     * first time we read the global stable timestamp as 100 and set it to the local variable
+     * disaggregated_stable_ts. If the checkpoint timestamp is 110 and the second time we read the
+     * global stable timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
+     */
+    WT_ACQUIRE_READ(pinned_stable_ts, txn_global->stable_timestamp);
+
+    if (!__wt_conn_is_disagg(session)) {
+        *pinned_stable_tsp = pinned_stable_ts;
+        return;
+    }
+
+    /*
+     * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
+     * read the stable timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
+     * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
+     * we take the minimum of it with the stable timestamp, which is what we want.
+     */
+    checkpoint_ts = txn_global->checkpoint_timestamp;
+
+    if (checkpoint_ts != 0 && checkpoint_ts < pinned_stable_ts)
+        *pinned_stable_tsp = checkpoint_ts;
+    else
+        *pinned_stable_tsp = pinned_stable_ts;
+}
+
+/*
  * __wt_txn_pinned_timestamp --
  *     Get the first timestamp that has to be kept for the current tree.
  */
@@ -640,16 +690,18 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
-
-    *pinned_tsp = WT_TS_NONE;
+    bool has_pinned_timestamp;
 
     txn_global = &S2C(session)->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
      */
-    if (!txn_global->has_pinned_timestamp)
+    WT_ACQUIRE_READ(has_pinned_timestamp, txn_global->has_pinned_timestamp);
+    if (!has_pinned_timestamp) {
+        *pinned_tsp = WT_TS_NONE;
         return;
+    }
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
     if (S2C(session)->version_cursor_count > 0) {
@@ -657,20 +709,27 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
     }
 
-    *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
+    /*
+     * It is important to ensure we only read the global pinned timestamp once. Otherwise, we may
+     * return a pinned timestamp that is larger than the checkpoint timestamp. For example, the
+     * first time we read the global pinned timestamp as 100 and set it to the local variable
+     * pinned_ts. If the checkpoint timestamp is 110 and the second time we read the global pinned
+     * timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
+     */
+    WT_ACQUIRE_READ(pinned_ts, txn_global->pinned_timestamp);
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
-     * read the pinned timestamp and the checkpoint generation, otherwise, we may read earlier
-     * checkpoint timestamp before the checkpoint generation that is read resulting more data being
-     * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
-     * minimum of it with the oldest timestamp, which is what we want.
+     * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
+     * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
+     * we take the minimum of it with the oldest timestamp, which is what we want.
      */
-    WT_ACQUIRE_BARRIER();
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
-    if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
+    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
         *pinned_tsp = checkpoint_ts;
+    else
+        *pinned_tsp = pinned_ts;
 }
 
 /*
