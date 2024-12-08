@@ -83,7 +83,7 @@ struct __wt_ckpt_connection {
 
 /*
  * WT_CKPT_BLOCK_MODS --
- *  Block modifications from an incremental identifier going forward.
+ *     Block modifications from an incremental identifier going forward.
  */
 struct __wt_ckpt_block_mods {
     const char *id_str;
@@ -102,8 +102,8 @@ struct __wt_ckpt_block_mods {
 
 /*
  * WT_CKPT --
- *	Encapsulation of checkpoint information, shared by the metadata, the
- * btree engine, and the block manager.
+ *     Encapsulation of checkpoint information, shared by the metadata, the btree engine, and the
+ * block manager.
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
