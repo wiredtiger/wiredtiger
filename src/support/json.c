@@ -116,7 +116,8 @@ __json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode)
 
 /*
  * __json_unpack_put --
- *     Calculate the size of a packed byte string as formatted for JSON.
+ *     Unpack a packed byte string as formatted for JSON into a string buffer. Can be called with
+ *     NULL buf to calculate the required size of the buffer.
  */
 static int
 __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bufsz,
