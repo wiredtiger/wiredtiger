@@ -82,7 +82,8 @@ struct __wt_ckpt_connection {
 };
 
 /*
- * Block modifications from an incremental identifier going forward.
+ * WT_CKPT_BLOCK_MODS --
+ *  Block modifications from an incremental identifier going forward.
  */
 struct __wt_ckpt_block_mods {
     const char *id_str;
