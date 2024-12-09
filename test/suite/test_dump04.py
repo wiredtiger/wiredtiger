@@ -30,9 +30,16 @@ import wttest
 from suite_subprocess import suite_subprocess
 
 # test_dump04.py
-# test dump utility with -j and -k options
+# Test dump utility with -j and -k options
 class test_dump04(wttest.WiredTigerTestCase, suite_subprocess):
     output = "dump.out"
+    uri = 'table:test_dump'
+    create_params = 'key_format=u,value_format=u'
+    dict = {
+        'key' : 'value',
+        'key0' : 'value0',
+        '1' : '1',
+    }
 
     def wrap_in_json(self, s1, s2):
         return f"\"{s1}\" : \"{s2}\""
@@ -50,47 +57,42 @@ class test_dump04(wttest.WiredTigerTestCase, suite_subprocess):
         return ret
 
     def test_dump(self):
-        uri = 'table:test_dump'
-        create_params = 'key_format=u,value_format=u'
-        self.session.create(uri, create_params)
-
-        cursor = self.session.open_cursor(uri)
-        for i in range(1, 5):
-            cursor[str(i)] = str(i)
-        cursor['key'] = 'value'
+        self.session.create(self.uri, self.create_params)
+        cursor = self.session.open_cursor(self.uri)
+        for (k, v) in self.dict.items():
+            cursor[k] = v
         cursor.close()
 
         # Perform checkpoint, to clean the dirty pages and place values on disk.
         self.session.checkpoint()
 
-        # Call dump with -j option
-        self.runWt(['dump', '-j', uri], outfilename=self.output)
-        self.check_file_contains(self.output, self.key_to_json(self.string_to_unicode("key")))
-        self.check_file_contains(self.output, self.value_to_json(self.string_to_unicode("value")))
-        for i in range(1, 5):
-            self.check_file_contains(self.output, self.key_to_json(self.string_to_unicode(str(i))))
-            self.check_file_contains(self.output, self.value_to_json(self.string_to_unicode(str(i))))
+        cases = [
+            (True, ''),
+            (False, 'key'),
+            (True, '1'),
+            (True, 'table')
+        ]
 
-        # Call dump with -k option
-        self.runWt(['dump', '-k', "key", uri], outfilename=self.output)
-        self.check_file_contains(self.output, "key\n")
-        self.check_file_contains(self.output, "value\n")
-        for i in range(1, 5):
-            self.check_file_not_contains(self.output, f"{i}\n")
-            self.check_file_not_contains(self.output, f"{i}\n")
+        for (json, key) in cases:
+            args = ['dump']
+            if json:
+                args.append('-j')
+            if key:
+                args += ['-k', key]
+            args.append(self.uri)
+            self.runWt(args, outfilename=self.output)
 
-        # Call dump with -j and -k options
-        self.runWt(['dump', '-j', '-k', "key", uri], outfilename=self.output)
-        self.check_file_contains(self.output, self.key_to_json(self.string_to_unicode("key")))
-        self.check_file_contains(self.output, self.value_to_json(self.string_to_unicode("value")))
-        for i in range(1, 5):
-            self.check_file_not_contains(self.output, self.key_to_json(self.string_to_unicode(str(i))))
-            self.check_file_not_contains(self.output, self.key_to_json(self.string_to_unicode(str(i))))
+            for (k, v) in self.dict.items():
+                if json:
+                    ckey = self.key_to_json(self.string_to_unicode(k))
+                    cvalue = self.value_to_json(self.string_to_unicode(v))
+                else:
+                    ckey = f"{k}\n"
+                    cvalue = f"{v}\n"
+                if not key or k == key:
+                    self.check_file_contains(self.output, ckey)
+                    self.check_file_contains(self.output, cvalue)
+                else:
+                    self.check_file_not_contains(self.output, ckey)
+                    self.check_file_not_contains(self.output, cvalue)
 
-        # Call dump with -j and -k options missing key
-        self.runWt(['dump', '-j', '-k', "table", uri], outfilename=self.output)
-        self.check_file_not_contains(self.output, self.key_to_json(self.string_to_unicode("key")))
-        self.check_file_not_contains(self.output, self.value_to_json(self.string_to_unicode("value")))
-        for i in range(1, 5):
-            self.check_file_not_contains(self.output, self.key_to_json(self.string_to_unicode(str(i))))
-            self.check_file_not_contains(self.output, self.key_to_json(self.string_to_unicode(str(i))))

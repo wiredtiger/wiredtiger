@@ -769,23 +769,26 @@ dump_record(
     int (*bck)(WT_CURSOR *);
     int (*fwd)(WT_CURSOR *);
     int exact;
-    const char *current_key;
     bool once;
-
     session = cursor->session;
+    WT_DECL_ITEM(tmp);
+    WT_RET(__wt_scr_alloc((WT_SESSION_IMPL *)session, 0, &tmp));
     once = false;
     exact = 0;
 
     WT_ASSERT((WT_SESSION_IMPL *)session, key != NULL);
 
-    current_key = key;
+    WT_ERR(__wt_buf_setstr((WT_SESSION_IMPL *)session, tmp, ""));
     if (json) {
-        char json_key[] = "\"key0\" : \"";
-        strcat(json_key, current_key);
-        strcat(json_key, "\"");
-        current_key = json_key;
+        WT_ERR(__wt_buf_fmt((WT_SESSION_IMPL *)session, tmp, "\"key0\" : \"%s\"", key));
+        key = (char *)tmp->data;
     }
-    cursor->set_key(cursor, current_key);
+    cursor->set_key(cursor, key);
+    __wt_scr_free((WT_SESSION_IMPL *)session, &tmp);
+    if (0) {
+err:
+        return (1);
+    }
     ret = cursor->search_near(cursor, &exact);
 
     if (ret != 0)
@@ -1024,7 +1027,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             continue;
         while (current_arg != NULL) {
             if ((args[i] = util_malloc(ARG_BUF_SIZE)) == NULL)
-                WT_ERR(util_err(session, errno, NULL));
+                WT_RET(util_err(session, errno, NULL));
             memmove(args[i++], current_arg, strlen(current_arg) + 1);
             ++num_args;
             current_arg = strtok(NULL, " ");
