@@ -88,6 +88,14 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     prepared_transaction_rollback_before_prepare = 0.1;
 
     timing_stress_ckpt_slow = 0.2;
+    timing_stress_ckpt_evict_page = 0.2;
+    timing_stress_ckpt_handle = 0.2;
+    timing_stress_ckpt_stop = 0.2;
+    timing_stress_compact_slow = 0.2;
+    timing_stress_hs_ckpt_delay = 0.2;
+    timing_stress_hs_search = 0.2;
+    timing_stress_hs_sweep_race = 0.2;
+    timing_stress_prepare_ckpt_delay = 0.2;
     timing_stress_commit_txn_slow = 0.2;
 }
 
@@ -338,6 +346,22 @@ kv_workload_generator::generate_rand_stress_configs()
     {
         probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
           ",timing_stress_for_test=[checkpoint_slow]";
+        probability_case(_spec.timing_stress_ckpt_evict_page) wt_env_config +=
+          ",timing_stress_for_test=[checkpoint_evict_page]";
+        probability_case(_spec.timing_stress_ckpt_handle) wt_env_config +=
+          ",timing_stress_for_test=[checkpoint_handle]";
+        probability_case(_spec.timing_stress_ckpt_stop) wt_env_config +=
+          ",timing_stress_for_test=[checkpoint_stop]";
+        probability_case(_spec.timing_stress_compact_slow) wt_env_config +=
+          ",timing_stress_for_test=[compact_slow]";
+        probability_case(_spec.timing_stress_hs_ckpt_delay) wt_env_config +=
+          ",timing_stress_for_test=[history_store_checkpoint_delay]";
+        probability_case(_spec.timing_stress_hs_search) wt_env_config +=
+          ",timing_stress_for_test=[history_store_search]";
+        probability_case(_spec.timing_stress_hs_sweep_race) wt_env_config +=
+          ",timing_stress_for_test=[history_store_sweep_race]";
+        probability_case(_spec.timing_stress_prepare_ckpt_delay) wt_env_config +=
+          ",timing_stress_for_test=[prepare_checkpoint_delay]";
         probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
           ",timing_stress_for_test=[commit_transaction_slow]";
         probability_default wt_env_config =
