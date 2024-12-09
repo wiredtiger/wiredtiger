@@ -38,6 +38,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        live_restore/unit/test_live_restore_extent_list.cpp
     )
 endif()
 
@@ -46,6 +47,8 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    live_restore/utils_live_restore.cpp
+    live_restore/utils_live_restore_extent_list.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp
