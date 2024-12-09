@@ -88,6 +88,7 @@ Crummey
 CustomersPhone
 Cygwin
 DESC
+DEST
 DHANDLE
 DNE
 DONTNEED
@@ -508,6 +509,7 @@ bInheritHandle
 backoff
 bal
 basecfg
+basename
 bb
 bba
 bbb
@@ -1250,6 +1252,7 @@ sn
 snaplen
 snapsort
 snprintf
+softptr
 sortable
 sp
 spinlock
@@ -1260,6 +1263,7 @@ ss
 ssize
 statlog
 stb
+stdbool
 stderr
 stdin
 stdout

@@ -629,7 +629,7 @@ connection_runtime_config = [
             if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
         Config('eviction_checkpoint_ts_ordering', 'false', r'''
-            if true, act as if eviction is being run in parallel to checkpoint. We should return 
+            if true, act as if eviction is being run in parallel to checkpoint. We should return
             EBUSY in eviction if we detect any timestamp ordering issue.''',
             type='boolean'),
         ]),
@@ -652,6 +652,12 @@ connection_runtime_config = [
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
+            Config('evict_use_softptr', 'false', r'''
+                Experimental: Use "soft pointers" instead of hard hazard
+                pointers in eviction server to remember its walking position in the tree. This might
+                be preferable to set to "true" if there are many collections. It can improve or
+                degrade performance depending on the workload.''',
+                type='boolean', undoc=True),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -806,6 +812,16 @@ connection_runtime_config = [
                 the name of a directory into which operation tracking files are written. The
                 directory must already exist. If the value is not an absolute path, the path
                 is relative to the database home (see @ref absolute_path for more information)'''),
+        ]),
+    Config('rollback_to_stable', '', r'''
+        rollback tables to an earlier point in time, discarding all updates to checkpoint durable
+        tables that have durable times more recent than the current global stable timestamp''',
+        type='category', subconfig=[
+            Config('threads', 4, r'''
+                maximum number of threads WiredTiger will start to help RTS. Each
+                RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS''',
+                min=0,
+                max=10),    # !!! Must match WT_RTS_MAX_WORKERS
         ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure either a cache_size
@@ -1083,6 +1099,23 @@ wiredtiger_open_tiered_storage_configuration = [
     ]),
 ]
 
+# At this stage live restore intentionally does not support reconfiguring the number of worker
+# threads. If that becomes necessary in the future we'll need to break out the thread count config
+# and add it to the reconfigure items too. That will also introduce the need for a MAX_WORKER or
+# similar macro.
+wiredtiger_open_live_restore_configuration = [
+    Config('live_restore', '', r'''Live restore configuration options. These options control the
+    behavior of WiredTiger when live restoring from a backup.''', type='category', subconfig = [
+        Config('enabled', 'false', r'''whether live restore is enabled or not.''', type='boolean'),
+        Config('path', '', r'''the path to the backup that will be restored from.'''),
+        Config('threads_max', '8', r'''
+            maximum number of threads WiredTiger will start to migrate data from the backup to the
+            running WiredTiger database. Each worker thread uses a session handle from the
+            configured session_max''',
+            min=1, max=12)
+    ])
+]
+
 chunk_cache_configuration_common = [
     Config('pinned', '', r'''
         List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
@@ -1175,6 +1208,7 @@ wiredtiger_open_common =\
     wiredtiger_open_chunk_cache_configuration +\
     wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
+    wiredtiger_open_live_restore_configuration +\
     wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
     Config('backup_restore_target', '', r'''
@@ -1855,6 +1889,12 @@ methods = {
         Config('checkpoint_cleanup', 'false', r'''
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
+        Config('checkpoint_crash_point', '-1', r'''
+            non-negative number between 0 and 1000 will trigger a controlled crash during the
+            checkpoint process. Lower values will trigger crashes in the initial phase of
+            checkpoint, while higher values will result in crashes in the final phase of the
+            checkpoint process''',
+            type='int'),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the
@@ -2012,8 +2052,9 @@ methods = {
         type='boolean'),
     Config('threads', '4', r'''
         maximum number of threads WiredTiger will start to help RTS. Each
-        RTS worker thread uses a session from the configured session_max''',
-        min=0, max=10),
+        RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS''',
+        min=0, 
+        max=10),     # !!! Must match WT_RTS_MAX_WORKERS
 ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),

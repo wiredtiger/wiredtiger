@@ -1121,7 +1121,7 @@ err:
      */
     WT_TRET(__wti_background_compact_server_destroy(session));
     WT_TRET(__wt_checkpoint_cleanup_destroy(session));
-    WT_TRET(__wti_checkpoint_server_destroy(session));
+    WT_TRET(__wt_checkpoint_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
@@ -1324,8 +1324,19 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    char config_buf[16];
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+    /*
+     * In the absence of an API configuration, utilize the RTS worker thread settings defined at the
+     * connection level.
+     */
+    if ((config == NULL || *config == '\0') && conn->rts->cfg_threads_num != 0) {
+        WT_RET(
+          __wt_snprintf(config_buf, sizeof(config_buf), "threads=%u", conn->rts->cfg_threads_num));
+        config = config_buf;
+    }
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rts);
@@ -2562,6 +2573,14 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     WT_RET(__wt_config_gets(session, cfg, "lsm_manager.worker_thread_max", &cval));
     v += cval.val;
 
+    /* If live restore is enabled add its thread count. */
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE)) {
+        WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+        v += cval.val;
+    }
+
+    v += WT_RTS_MAX_WORKERS;
+
     WT_RET(__wt_config_gets(session, cfg, "session_max", &cval));
     v += cval.val;
 
@@ -2606,6 +2625,60 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
         conn->file_system->fs_directory_list_single = conn->file_system->fs_directory_list;
 
     return (0);
+}
+
+/*
+ * __conn_config_file_system --
+ *     Configure the file system on the connection if the user hasn't added a custom file system.
+ */
+static int
+__conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    /*
+     * If the application didn't configure its own file system, configure one of ours. Check to
+     * ensure we have a valid file system.
+     *
+     * Check the "live_restore" config. If it is provided validate that a custom file system has not
+     * been provided, and that the connection is not in memory or Windows.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "live_restore.enabled", &cval));
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    if (cval.val) {
+        F_SET(conn, WT_CONN_LIVE_RESTORE);
+        /* Live restore compatibility checks. */
+        if (conn->file_system != NULL)
+            WT_RET_MSG(session, EINVAL, "Live restore is not compatible with custom file systems");
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+            WT_RET_MSG(
+              session, EINVAL, "Live restore is not compatible with an in-memory connections");
+#ifdef _MSC_VER
+        WT_RET_MSG(session, EINVAL, "Live restore is not supported on Windows");
+#endif
+    }
+
+    /*
+     * The live restore code validates that there isn't a file system so this check may seem
+     * redundant. However that validation only happens when live restore is enabled. As such we need
+     * this check too to ensure we don't overwrite the user specified system. It could be improved
+     * by adding more specific error messages.
+     */
+    if (conn->file_system == NULL) {
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+            WT_RET(__wt_os_inmemory(session));
+        else {
+#if defined(_MSC_VER)
+            WT_RET(__wt_os_win(session));
+#else
+            if (F_ISSET(conn, WT_CONN_LIVE_RESTORE))
+                WT_RET(__wt_os_live_restore_fs(session, cfg, conn->home, &conn->file_system));
+            else
+                WT_RET(__wt_os_posix(session, &conn->file_system));
+#endif
+        }
+    }
+    return (__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 }
 
 /*
@@ -2805,21 +2878,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__conn_load_extensions(session, cfg, true));
 
-    /*
-     * If the application didn't configure its own file system, configure one of ours. Check to
-     * ensure we have a valid file system.
-     */
-    if (conn->file_system == NULL) {
-        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
-            WT_ERR(__wt_os_inmemory(session));
-        else
-#if defined(_MSC_VER)
-            WT_ERR(__wt_os_win(session));
-#else
-            WT_ERR(__wt_os_posix(session));
-#endif
-    }
-    WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
+    /* Configure the file system on the connection. */
+    WT_ERR(__conn_config_file_system(session, cfg));
 
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));
