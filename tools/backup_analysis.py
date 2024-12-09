@@ -97,7 +97,7 @@ def compute_type(filename, filemeta):
     # For collections and indexes, if logging is disabled, then they are replicated.
     #   if logging is enabled on an index, it is a local table.
     #   if logging is enabled on a collection, it is a local table unless it has 'oplog' in its
-    #   app_private string. There should only be one oplog in a system.
+    #   app_metadata string. There should only be one oplog in a system.
     # Any other file name is a system table.
     disabled = 'log=(enabled=false)'
     is_oplog = 'oplogKeyExtraction'
