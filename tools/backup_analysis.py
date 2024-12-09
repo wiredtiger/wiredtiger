@@ -236,6 +236,7 @@ def compare_file(olderdir, newerdir, opts, filename, cmp_size):
     fp2.close()
     end = time.asctime()
     ts.gran_blocks += total_gran_blocks
+    # Count how many single granularity block files there are.
     if total_gran_blocks <= 1:
         ts.single += 1
 
