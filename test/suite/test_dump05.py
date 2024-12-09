@@ -28,42 +28,44 @@
 
 import wttest
 from suite_subprocess import suite_subprocess
+import random
 
 # test_dump05.py
 # Test dump utility with -j option, validate JSON format.
 class test_dump05(wttest.WiredTigerTestCase, suite_subprocess):
     output = 'dump.out'
 
+    def wrap_in_json(self, s1, s2):
+        return f"\"{s1}\" : \"{s2}\""
+
     # Check that the dumped records are in valid JSON format
     def validate_json_dump(self, create_params):
         uri = 'table:test_dump'
         self.session.create(uri, create_params)
 
-        keyA = 'keyA'
-        keyB = 'keyB'
+        key = 'key'
         value = 'value'
-        n = 10
+        records = 1000
 
-        # Generate records with varying key/value lengths
+        # Generate records with varying key/value lengths that are identifiable if they reappear
+        # as junk values later on in the dump.
         cursor = self.session.open_cursor(uri)
-        for i in range(1, n, 2):
-            suffix = i * str(i)
-            cursor[keyA + suffix] = value + suffix
-        for i in range(1, n, 2):
-            suffix = i * str(n - i)
-            cursor[keyB + suffix] = value + suffix
+        for i in range(records):
+            n = random.randint(1, 10)
+            suffix = n * ('_' + str(i).zfill(3))
+            cursor[key + suffix] = value + suffix
         cursor.close()
 
         # Call dump with -j option
         self.runWt(['dump', '-j', uri], outfilename=self.output)
 
         # Ensure correct number of quotes and no junk after final quotes
-        self.check_file_not_contains(self.output, '/\"key0\" : \"(\")+\",\n/')
-        self.check_file_not_contains(self.output, '/\"value0\" : \"(\")+\"\n/')
+        self.check_file_not_contains(self.output, '/' + self.wrap_in_json('key0', '(\")+') + ',\n/')
+        self.check_file_not_contains(self.output, '/' + self.wrap_in_json('value0', '(\")+') + '\n/')
 
         # Ensure valid records exist
-        self.check_file_contains(self.output, '/\"key0\" : \"[^\"]+\",\n/')
-        self.check_file_contains(self.output, '/\"value0\" : \"[^\"]+\"\n/')
+        self.check_file_contains(self.output, '/' + self.wrap_in_json('key0', '[^\"]+') + ',\n/')
+        self.check_file_contains(self.output, '/' + self.wrap_in_json('value0', '[^\"]+') + '\n/')
 
     # Test with strings
     def test_dump_string(self):
