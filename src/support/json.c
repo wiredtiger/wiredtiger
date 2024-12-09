@@ -172,7 +172,7 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv, u_char *buf, size_t bu
                 s += n;
             }
         if (bufsz > 0) {
-            /* 
+            /*
              * bufsz is calculated in advance, and decremented when each character is added to the
              * buffer, therefore we should only expect the remaining buffer to have closing quotes
              * and a NULL terminator.
