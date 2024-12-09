@@ -630,6 +630,9 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
             min='0', max='100000'),
+        Config('precise_checkpoint', 'false', r'''
+            Only write stable data to the checkpoint.''',
+            type='boolean'),
         ]),
     Config('checkpoint_cleanup', '', r'''
         periodically checkpoint cleanup the database.''',
