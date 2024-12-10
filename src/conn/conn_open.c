@@ -96,6 +96,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
+    WT_TRET(__wt_live_restore_server_destroy(session));
     WT_TRET(__wti_background_compact_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
     WT_TRET(__wti_statlog_destroy(session, true));

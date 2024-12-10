@@ -587,7 +587,7 @@ __live_restore_fh_read(
  * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the
  *     destination file are already handled elsewhere.
  */
-static int
+int
 __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
 /*

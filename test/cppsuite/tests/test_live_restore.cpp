@@ -304,12 +304,21 @@ main(int argc, char *argv[])
 
     logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
     bool fresh_start = false;
+    bool background_debug = false;
     if (argc > 1 && argv[1][1] == 'f') {
         fresh_start = true;
         logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
         // Live restore expects the source directory to exist.
         testutil_recreate_dir(SOURCE_DIR);
         testutil_remove("WT_TEST");
+    } else if (argc > 1 && argv[1][1] == 'b') {
+        /*
+         * Operate in background thread debug mode, in this case we turn off CRUD operations and
+         * just wait until the relevant statistic is set then exit.
+         *
+         * Right now background_debug and fresh_start are mutually exclusive.
+         */
+        background_debug = true;
     }
     // We will recreate this directory every time, on exit the contents in it will be moved to
     // WT_LIVE_RESTORE_SOURCE/.
@@ -323,11 +332,14 @@ main(int argc, char *argv[])
     }
     auto crud_session = connection_manager::instance().create_session();
 
-    if (!fresh_start) {
+    if (!fresh_start && !background_debug) {
         configure_database(crud_session);
     }
 
-    do_random_crud(crud_session, fresh_start);
+    if (background_debug) {
+        // Loop until the state stat is complete!
+    } else
+        do_random_crud(crud_session, fresh_start);
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
