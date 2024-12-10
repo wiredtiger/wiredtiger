@@ -253,7 +253,7 @@
 #define WT_CONF_ID_pinned 215ULL
 #define WT_CONF_ID_prealloc 260ULL
 #define WT_CONF_ID_prealloc_init_count 261ULL
-#define WT_CONF_ID_precise_checkpoint 211ULL
+#define WT_CONF_ID_precise 211ULL
 #define WT_CONF_ID_prefix 87ULL
 #define WT_CONF_ID_prefix_compression 50ULL
 #define WT_CONF_ID_prefix_compression_min 51ULL
@@ -381,7 +381,7 @@ static const struct {
     } Block_cache;
     struct {
         uint64_t log_size;
-        uint64_t precise_checkpoint;
+        uint64_t precise;
         uint64_t wait;
     } Checkpoint;
     struct {
@@ -779,7 +779,7 @@ static const struct {
   },
   {
     WT_CONF_ID_Checkpoint | (WT_CONF_ID_log_size << 16),
-    WT_CONF_ID_Checkpoint | (WT_CONF_ID_precise_checkpoint << 16),
+    WT_CONF_ID_Checkpoint | (WT_CONF_ID_precise << 16),
     WT_CONF_ID_Checkpoint | (WT_CONF_ID_wait << 16),
   },
   {

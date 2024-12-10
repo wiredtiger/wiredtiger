@@ -2272,9 +2272,10 @@ struct __wt_connection {
      * use a minimum of the log file size.  A database can configure both log_size and wait to set
      * an upper bound for checkpoints; setting this value above 0 configures periodic checkpoints.,
      * an integer between \c 0 and \c 2GB; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * precise_checkpoint, Only write stable data to the checkpoint., a boolean flag; default \c
-     * false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise,
+     * Only write data with timestamps that are smaller or equal to the stable timestamp to the
+     * checkpoint.  Rollback to stable after restart is a no-op if enabled., a boolean flag; default
+     * \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint;
      * setting this value above 0 configures periodic checkpoints., an integer between \c 0 and \c
      * 100000; default \c 0.}
@@ -3119,8 +3120,9 @@ struct __wt_connection {
  * minimum of the log file size.  A database can configure both log_size and wait to set an upper
  * bound for checkpoints; setting this value above 0 configures periodic checkpoints., an integer
  * between \c 0 and \c 2GB; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise_checkpoint, Only
- * write stable data to the checkpoint., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise, Only write data
+ * with timestamps that are smaller or equal to the stable timestamp to the checkpoint.  Rollback to
+ * stable after restart is a no-op if enabled., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint; setting this value
  * above 0 configures periodic checkpoints., an integer between \c 0 and \c 100000; default \c 0.}
  * @config{ ),,}
