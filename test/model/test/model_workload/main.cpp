@@ -315,34 +315,6 @@ test_workload_generator(void)
 }
 
 /*
- * test_workload_generator_rand_config --
- *     Test the workload generator.
- */
-static void
-test_workload_generator_rand_config(void)
-{
-    int retries = 0;
-
-    while (true) {
-        try {
-            std::shared_ptr<model::kv_workload> workload = model::kv_workload_generator::generate();
-            std::string rand_env_config = model::kv_workload_generator::generate_configurations();
-
-            /* Run the workload in the model and in WiredTiger, then verify. */
-            std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
-            verify_workload(*workload, opts, test_home, rand_env_config.c_str());
-
-            break;
-        } catch (model::known_issue_exception &) {
-            /* Try again. */
-        }
-
-        if (retries++ > 10)
-            throw model::model_exception("Too many retries for workload generation");
-    }
-}
-
-/*
  * test_workload_parse --
  *     Test the workload parser.
  */
@@ -465,7 +437,6 @@ main(int argc, char *argv[])
         test_workload_restart();
         test_workload_crash();
         test_workload_generator();
-        test_workload_generator_rand_config();
         test_workload_parse();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;

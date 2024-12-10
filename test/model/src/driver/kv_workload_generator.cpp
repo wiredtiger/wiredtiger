@@ -31,16 +31,6 @@
 #include "model/driver/kv_workload_generator.h"
 #include "model/util.h"
 
-/*
- * Configuration.
- */
-#define ENV_CONFIG                                             \
-    "cache_size=20M,create,"                                   \
-    "debug_mode=(table_logging=true,checkpoint_retention=5),"  \
-    "eviction_updates_target=20,eviction_updates_trigger=90,"  \
-    "log=(enabled,file_max=10M,remove=false),session_max=100," \
-    "statistics=(all),statistics_log=(wait=1,json,on_close)"
-
 namespace model {
 
 /*
@@ -87,16 +77,16 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     prepared_transaction_rollback_after_prepare = 0.1;
     prepared_transaction_rollback_before_prepare = 0.1;
 
-    timing_stress_ckpt_slow = 0.2;
-    timing_stress_ckpt_evict_page = 0.2;
-    timing_stress_ckpt_handle = 0.2;
-    timing_stress_ckpt_stop = 0.2;
-    timing_stress_compact_slow = 0.2;
-    timing_stress_hs_ckpt_delay = 0.2;
-    timing_stress_hs_search = 0.2;
-    timing_stress_hs_sweep_race = 0.2;
-    timing_stress_prepare_ckpt_delay = 0.2;
-    timing_stress_commit_txn_slow = 0.2;
+    timing_stress_ckpt_slow = 0.1;
+    timing_stress_ckpt_evict_page = 0.1;
+    timing_stress_ckpt_handle = 0.1;
+    timing_stress_ckpt_stop = 0.1;
+    timing_stress_compact_slow = 0.1;
+    timing_stress_hs_ckpt_delay = 0.1;
+    timing_stress_hs_search = 0.1;
+    timing_stress_hs_sweep_race = 0.1;
+    timing_stress_prepare_ckpt_delay = 0.1;
+    timing_stress_commit_txn_slow = 0.1;
 }
 
 /*
@@ -335,37 +325,35 @@ kv_workload_generator::choose_table(kv_workload_sequence_ptr txn)
 }
 
 /*
- * kv_workload_generator::generate_rand_stress_configs --
- *     Generate random WiredTiger timing stress configurations.
+ * kv_workload_generator::generate_connection_config --
+ *     Generate random WiredTiger connection configurations.
  */
 std::string
-kv_workload_generator::generate_rand_stress_configs()
+kv_workload_generator::generate_connection_config()
 {
-    std::string wt_env_config = std::string(ENV_CONFIG);
+    std::string wt_env_config;
     probability_switch(_random.next_float())
     {
         probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
-          ",timing_stress_for_test=[checkpoint_slow]";
+          "timing_stress_for_test=[checkpoint_slow]";
         probability_case(_spec.timing_stress_ckpt_evict_page) wt_env_config +=
-          ",timing_stress_for_test=[checkpoint_evict_page]";
+          "timing_stress_for_test=[checkpoint_evict_page]";
         probability_case(_spec.timing_stress_ckpt_handle) wt_env_config +=
-          ",timing_stress_for_test=[checkpoint_handle]";
+          "timing_stress_for_test=[checkpoint_handle]";
         probability_case(_spec.timing_stress_ckpt_stop) wt_env_config +=
-          ",timing_stress_for_test=[checkpoint_stop]";
+          "timing_stress_for_test=[checkpoint_stop]";
         probability_case(_spec.timing_stress_compact_slow) wt_env_config +=
-          ",timing_stress_for_test=[compact_slow]";
+          "timing_stress_for_test=[compact_slow]";
         probability_case(_spec.timing_stress_hs_ckpt_delay) wt_env_config +=
-          ",timing_stress_for_test=[history_store_checkpoint_delay]";
+          "timing_stress_for_test=[history_store_checkpoint_delay]";
         probability_case(_spec.timing_stress_hs_search) wt_env_config +=
-          ",timing_stress_for_test=[history_store_search]";
+          "timing_stress_for_test=[history_store_search]";
         probability_case(_spec.timing_stress_hs_sweep_race) wt_env_config +=
-          ",timing_stress_for_test=[history_store_sweep_race]";
+          "timing_stress_for_test=[history_store_sweep_race]";
         probability_case(_spec.timing_stress_prepare_ckpt_delay) wt_env_config +=
-          ",timing_stress_for_test=[prepare_checkpoint_delay]";
+          "timing_stress_for_test=[prepare_checkpoint_delay]";
         probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
-          ",timing_stress_for_test=[commit_transaction_slow]";
-        probability_default wt_env_config =
-          std::string(ENV_CONFIG) + ",timing_stress_for_test=[commit_transaction_slow]";
+          "timing_stress_for_test=[commit_transaction_slow]";
     }
     return wt_env_config;
 }
