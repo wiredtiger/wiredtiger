@@ -91,8 +91,6 @@ struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
-struct __wt_block_mods;
-typedef struct __wt_block_mods WT_BLOCK_MODS;
 struct __wt_bloom;
 typedef struct __wt_bloom WT_BLOOM;
 struct __wt_bloom_hash;
@@ -135,6 +133,12 @@ struct __wt_chunkcache_pinned_list;
 typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
+struct __wt_ckpt_block_mods;
+typedef struct __wt_ckpt_block_mods WT_CKPT_BLOCK_MODS;
+struct __wt_ckpt_connection;
+typedef struct __wt_ckpt_connection WT_CKPT_CONNECTION;
+struct __wt_ckpt_session;
+typedef struct __wt_ckpt_session WT_CKPT_SESSION;
 struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
@@ -263,6 +267,14 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_live_restore_file_handle;
+typedef struct __wt_live_restore_file_handle WT_LIVE_RESTORE_FILE_HANDLE;
+struct __wt_live_restore_fs;
+typedef struct __wt_live_restore_fs WT_LIVE_RESTORE_FS;
+struct __wt_live_restore_fs_layer;
+typedef struct __wt_live_restore_fs_layer WT_LIVE_RESTORE_FS_LAYER;
+struct __wt_live_restore_hole_node;
+typedef struct __wt_live_restore_hole_node WT_LIVE_RESTORE_HOLE_NODE;
 struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
@@ -493,18 +505,19 @@ typedef uint64_t wt_timestamp_t;
 #include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
+#include "cursor.h" /* required by checkpoint */
 #include "../checkpoint/checkpoint.h"
 #include "compact.h"
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
-#include "cursor.h"
 #include "dlh.h"
 #include "error.h"
 #include "futex.h"
 #include "generation.h"
 #include "hazard.h"
 #include "json.h"
+#include "../live_restore/live_restore.h"
 #include "../log/log.h"
 #include "meta.h" /* required by block.h */
 #include "optrack.h"

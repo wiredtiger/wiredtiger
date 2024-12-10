@@ -2455,23 +2455,23 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         0 :
         __wt_atomic_loadv64(&txn_global->current) - checkpoint_pinned);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt_scrub_max);
-    if (conn->ckpt_scrub_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt_scrub_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt_scrub_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt_scrub_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt.scrub_max);
+    if (conn->ckpt.scrub_min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt.scrub_min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt.scrub_recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt.scrub_total);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
-    if (conn->ckpt_prep_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_max, conn->ckpt.prep_max);
+    if (conn->ckpt.prep_min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_prep_min, conn->ckpt.prep_min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_recent, conn->ckpt.prep_recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_total, conn->ckpt.prep_total);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
-    if (conn->ckpt_time_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt.time_max);
+    if (conn->ckpt.time_min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt.time_min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt.time_recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt.time_total);
 }
 
 /*
@@ -2743,12 +2743,12 @@ __wt_verbose_dump_txn_one(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, int error_code, const char *error_string)
 {
     WT_DECL_ITEM(buf);
-    WT_DECL_ITEM(ckpt_lsn_str);
     WT_DECL_ITEM(snapshot_buf);
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i, buf_len;
+    char ckpt_lsn_str[WT_MAX_LSN_STRING];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
@@ -2791,8 +2791,7 @@ __wt_verbose_dump_txn_one(
     buf_len = (uint32_t)snapshot_buf->size + 512;
     WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
 
-    WT_ERR(__wt_scr_alloc(session, 0, &ckpt_lsn_str));
-    WT_ERR(__wt_lsn_string(session, &txn->ckpt_lsn, ckpt_lsn_str));
+    WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
 
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
@@ -2820,9 +2819,9 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
         __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
-        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]),
-        (char *)ckpt_lsn_str->mem, txn->full_ckpt ? "true" : "false",
-        txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
+        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
+        txn->full_ckpt ? "true" : "false", txn->rollback_reason == NULL ? "" : txn->rollback_reason,
+        txn->flags, iso_tag));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
@@ -2836,7 +2835,6 @@ __wt_verbose_dump_txn_one(
 
 err:
     __wt_scr_free(session, &buf);
-    __wt_scr_free(session, &ckpt_lsn_str);
     __wt_scr_free(session, &snapshot_buf);
 
     return (ret);
