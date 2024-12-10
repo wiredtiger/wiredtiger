@@ -422,7 +422,8 @@ palm_begin_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t check
     palm_init_context(palm, &context);
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
-    PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, checkpoint_id));
+    PALM_KV_ERR(palm, session,
+      palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, checkpoint_id));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     return (0);
@@ -448,7 +449,8 @@ palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t ch
     palm_init_context(palm, &context);
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
-    PALM_KV_ERR(palm, session, palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, &started_checkpoint));
+    PALM_KV_ERR(palm, session,
+      palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, &started_checkpoint));
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, &completed_checkpoint);
     if (ret == MDB_NOTFOUND) {
         /* This trips the first time we complete a checkpoint. */
@@ -461,7 +463,8 @@ palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t ch
         return (palm_err(palm, session, EINVAL, "complete checkpoint id that was never begun"));
 
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, 0));
-    PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, checkpoint_id));
+    PALM_KV_ERR(palm, session,
+      palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, checkpoint_id));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     return (0);
@@ -489,7 +492,8 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
     palm_init_context(palm, &context);
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, true));
-    PALM_KV_ERR(palm, session, palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, &kv_checkpoint));
+    PALM_KV_ERR(palm, session,
+      palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, &kv_checkpoint));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     *checkpoint_id = kv_checkpoint;
@@ -517,7 +521,8 @@ palm_get_open_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *c
     palm_init_context(palm, &context);
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, true));
-    PALM_KV_ERR(palm, session, palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, &kv_checkpoint));
+    PALM_KV_ERR(palm, session,
+      palm_kv_get_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, &kv_checkpoint));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     *checkpoint_id = kv_checkpoint;
