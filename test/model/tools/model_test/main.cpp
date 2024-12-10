@@ -796,8 +796,11 @@ main(int argc, char *argv[])
             }
 
             /* Generate random timing stress configurations and add it to the WiredTiger config. */
-            if (generate_timing_stress_configurations)
-                rand_env_config = model::kv_workload_generator::generate_configurations();
+            if (generate_timing_stress_configurations){
+                uint64_t base_seed = model::random::next_seed(__wt_rdtsc() ^ time(NULL));
+                rand_env_config = model::kv_workload_generator::generate_configurations(base_seed);
+                conn_config = model::join(rand_env_config, conn_config);
+            }
 
             /* Add the connection and table configurations to the workload. */
             if (!table_config.empty())
@@ -817,7 +820,7 @@ main(int argc, char *argv[])
 
             /* Run and verify the workload. */
             try {
-                run_and_verify(workload, home, rand_env_config);
+                run_and_verify(workload, home);
             } catch (std::exception &e) {
                 std::cerr << e.what() << std::endl;
                 if (reduce)

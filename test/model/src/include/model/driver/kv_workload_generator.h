@@ -444,11 +444,9 @@ public:
     }
 
     static std::string
-    generate_configurations(
-      const kv_workload_generator_spec &spec = _default_spec, uint64_t seed = 0)
+    generate_configurations(uint64_t seed = 0)
     {
-        uint64_t base_seed = model::random::next_seed(__wt_rdtsc() ^ time(NULL));
-        kv_workload_generator generator(spec, base_seed);
+        kv_workload_generator generator(_default_spec, seed);
         return generator.generate_connection_config();
     }
 
