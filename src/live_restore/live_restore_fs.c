@@ -639,7 +639,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * test. Calling this in a production environment will produce very slow file closes as we copy
      * all remaining data to the destination.
      */
-    WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
+    // WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);

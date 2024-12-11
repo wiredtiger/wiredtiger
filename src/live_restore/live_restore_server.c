@@ -11,13 +11,15 @@
 
 /*
  * __live_restore_worker_check --
- *     Check whether a worker thread should still be running. Return true if so.
+ *     Thread groups cannot exist without a check function but in our case we don't use it due to it
+ *     not meshing well with how we terminate threads. Given that, this function simply returns
+ *     true.
  */
 static bool
 __live_restore_worker_check(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE)) &&
-      !TAILQ_EMPTY(&S2C(session)->live_restore_server.work_queue);
+    WT_UNUSED(session);
+    return (true);
 }
 /*
  * __live_restore_work_queue_drain --
@@ -51,12 +53,39 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_UNUSED(ctx);
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
 
-    if (TAILQ_EMPTY(&server->work_queue))
+    __wt_spin_lock(session, &server->queue_lock);
+    if (TAILQ_EMPTY(&server->work_queue)) {
+        /*
+         * Because we depend on stopping threads to avoid decrementing the counter indefinitely this
+         * section of code will both decrement the counter and terminate the thread. This is an
+         * unusual usage of thread groups but avoids refactoring a LOT of other code for the time
+         * being. The obvious fix would be to pass a WT_THREAD to the check function and then clear
+         * the run flag, however this then modifies the definition of __wt_cond_wait_signal which is
+         * used _everywhere_.
+         */
+        server->threads_working--;
+        if (server->threads_working == 0) {
+            /* All threads have finished their work, signal that source can be dropped. */
+            WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
+        }
+        /* Kill ourselves. */
+        F_CLR(ctx, WT_THREAD_RUN);
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "Live restore worker terminating%s", "!");
+        __wt_spin_unlock(session, &server->queue_lock);
         return (0);
+    }
 
     WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
-    WT_WITH_LOCK_WAIT(session, &server->queue_lock, WT_SESSION_LOCKED_LIVE_RESTORE_QUEUE,
-      TAILQ_REMOVE(&server->work_queue, work_item, q));
+
+    work_item = TAILQ_FIRST(&server->work_queue);
+    if (work_item == NULL) {
+        __wt_spin_unlock(session, &server->queue_lock);
+        return (0);
+    }
+    TAILQ_REMOVE(&server->work_queue, work_item, q);
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Live restore worker taking queue item: %s", work_item->uri);
+    __wt_spin_unlock(session, &server->queue_lock);
 
     WT_CURSOR *cursor;
     WT_SESSION *wt_session = (WT_SESSION *)session;
@@ -66,6 +95,9 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
      * schema operations like drop and rename.
      */
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+      "Live restore worker opening cursor on the URI: %s", work_item->uri);
+
     WT_RET(wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor));
 
     /*
@@ -74,13 +106,18 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      */
     WT_ASSERT(session, (CUR2BT(cursor)->bm)->is_multi_handle == false);
     /* This is a bit more than a little gross. */
-    WT_FILE_HANDLE *fh = ((CUR2BT(cursor)->bm)->handle_array[0]->fh->handle);
-
+    WT_FILE_HANDLE *fh = CUR2BT(cursor)->bm->block->fh->handle;
     /*
      * Call the fill holes function. Right now no other reads or writes can be occurring
      * concurrently.
      */
-    return (__wti_live_restore_fs_fill_holes(fh, wt_session));
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Live restore worker filling holes for: %s", work_item->uri);
+
+    WT_DECL_RET;
+    ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
+    WT_TRET(cursor->close(cursor));
+    return (ret);
 }
 
 /*
@@ -119,9 +156,14 @@ __wt_live_restore_server_init(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* Set this value before the threads start up in case they immediately decrement it.*/
+    server->threads_working = cval.val;
+
     /* Create the thread group. */
     WT_ERR(__wt_thread_group_create(session, &server->threads, "live_restore_workers", 0, cval.val,
       0, __live_restore_worker_check, __live_restore_worker_run, NULL));
+
+    WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
 
     if (0) {
 err:
@@ -129,6 +171,7 @@ err:
             __wt_free(session, work_item->uri);
         __wt_free(session, work_item);
         /* Should we unwind the full queue and free everything here? */
+        server->threads_working = 0;
     }
     return (ret);
 }
@@ -141,10 +184,7 @@ int
 __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-
     conn = S2C(session);
-
     /*
      * TODO: If we indicate to the connection that source can be dropped we'll clear this flag. At
      * the same time we should destroy.
@@ -158,10 +198,9 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
     __wt_cond_signal(session, server->threads.wait_cond);
 
     __wt_writelock(session, &server->threads.lock);
-    /* This call destroys the lock. */
+    /* This call destroys the thread group lock. */
     WT_RET(__wt_thread_group_destroy(session, &server->threads));
 
-    /* Empty the work queue. */
     __live_restore_work_queue_drain(session);
-    return (ret);
+    return (0);
 }

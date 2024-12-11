@@ -102,7 +102,7 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 20000;
+static const int crud_ops = 60000;
 static const int warmup_insertions = crud_ops / 3;
 static database_model db;
 static const int key_size = 10;
@@ -252,7 +252,10 @@ do_random_crud(scoped_session &session, bool fresh_start)
             i = warmup_insertions;
         }
 
-        if (ran < 5000) {
+        if (ran < 3) {
+            // Checkpoint.z
+            testutil_check(session->checkpoint(session.get(), NULL));
+        } else if (ran < 5000) {
             // 50% Write.
             write(session, false);
         } else if (ran <= 9980) {
@@ -289,6 +292,16 @@ configure_database(scoped_session &session)
     }
 }
 
+static void
+get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
+{
+    const char *desc, *pvalue;
+
+    cursor->set_key(cursor, stat_field);
+    error_check(cursor->search(cursor));
+    error_check(cursor->get_value(cursor, &desc, &pvalue, valuep));
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -300,7 +313,9 @@ main(int argc, char *argv[])
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
     const std::string conn_config = CONNECTION_CREATE + ",live_restore=(enabled=true,path=\"" +
-      SOURCE_DIR + "\"),cache_size=1GB,verbose=[fileops:2]";
+      SOURCE_DIR +
+      "\"),cache_size=1GB,verbose=[fileops:2],statistics=(all),statistics_log=(json,on_close,wait="
+      "1)";
 
     logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
     bool fresh_start = false;
@@ -338,6 +353,12 @@ main(int argc, char *argv[])
 
     if (background_debug) {
         // Loop until the state stat is complete!
+        int64_t state = 0;
+        while (state != WT_LIVE_RESTORE_COMPLETE) {
+            auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
+            get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
+            __wt_sleep(1, 0);
+        }
     } else
         do_random_crud(crud_session, fresh_start);
 
