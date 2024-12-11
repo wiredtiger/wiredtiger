@@ -41,6 +41,8 @@ __wt_wiredtiger_error(int error)
         return ("WT_PREPARE_CONFLICT: conflict with a prepared update");
     case WT_TRY_SALVAGE:
         return ("WT_TRY_SALVAGE: database corruption detected");
+    case WT_NONE:
+        return ("WT_NONE: last API call was successful");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

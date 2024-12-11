@@ -4015,6 +4015,12 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * wiredtiger_open with the 'salvage=true' configuration setting.
  */
 #define	WT_TRY_SALVAGE	(-31809)
+/*!
+ * Last API call was successful.
+ * This sub-level error is generated when the API call succeeds. This should be
+ * the sub-level error code generated if nothing wrong occurs.
+ */
+#define	WT_NONE	(-32000)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

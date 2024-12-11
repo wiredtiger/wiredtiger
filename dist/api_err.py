@@ -81,6 +81,10 @@ errors = [
         result of a system crash. The application may choose to salvage the
         file or retry wiredtiger_open with the 'salvage=true' configuration
         setting.'''),
+    Error('WT_NONE', -32000,
+        'last API call was successful', '''
+        This sub-level error is generated when the API call succeeds. This should be the
+        sub-level error code generated if nothing wrong occurs.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.
