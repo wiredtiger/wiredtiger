@@ -32,7 +32,9 @@ using namespace utils;
 /* FIXME-WT-13871 Move helper functions into the util file. */
 
 /* TO DISCUSS - these string reps are inclusive byte ranges on both ends. 0-10 means there are 11
- * bytes (0 up to and including 10) that are in the hole. Is this intuitive for devs new to the test code?*/
+ * bytes (0 up to and including 10) that are in the hole. Is this intuitive for devs new to the test
+ * code?
+ */
 std::string
 build_str_from_extent(WT_LIVE_RESTORE_HOLE_NODE *ext)
 {
@@ -175,6 +177,43 @@ TEST_CASE("Live Restore Extent Lists: XXXXXXX", "[live_restore_extent_list]")
 
         WT_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
         REQUIRE(ext == NULL);
+    }
+
+    // FIXME-WT-13971 The fils system will always write a minimum block size (typically 4KB) even if
+    // we only write a single byte. This means the minimum write size for users of live restore FS
+    // must always write at least these many bytes. Make sure we have code to enforce this before
+    // merging this branch.
+    SECTION("Open a backed, partially copied file")
+    {
+
+        std::string source_file = DB_SOURCE + "/MY_FILE.txt";
+        std::string dest_file = DB_DEST + "/MY_FILE.txt";
+
+        // Create the backing file
+        testutil_touch_file(source_file.c_str());
+        write_to_file(source_file.c_str(), 8192);
+
+        // Partially copy the file.
+        // NOTE: Using promote_read for this. Is this an issue with dogfooding?
+        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+        lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, wt_session,
+          (DB_DEST + "/" + "MY_FILE.txt").c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, 0,
+          (WT_FILE_HANDLE **)&lr_fh);
+
+        char buf[4096];
+        lr_fh->iface.fh_read((WT_FILE_HANDLE *)lr_fh, wt_session, 0, 4096, buf);
+
+        // Close the file and reopen it to generate the extent list from holes in the dest file
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, wt_session);
+        lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, wt_session,
+          (DB_DEST + "/" + "MY_FILE.txt").c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, 0,
+          (WT_FILE_HANDLE **)&lr_fh);
+
+        // We've written 4KB to the start of the file. There should only be a hole at the end.
+        WT_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
+        std::string extent_string = build_str_from_extent(ext);
+        std::string expected_extent = "(4096-8191)";
+        REQUIRE(extent_string == expected_extent);
     }
 
     // Clean up
