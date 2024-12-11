@@ -779,8 +779,8 @@ main(int argc, char *argv[])
         /* Run the test, potentially many times. */
         uint64_t next_seed = base_seed;
         for (uint64_t iteration = 1;; iteration++) {
-            std::string rand_env_config;
             uint64_t seed = next_seed;
+            std::string wt_conn_config = conn_config;
             next_seed = model::random::next_seed(next_seed);
 
             std::cout << "Iteration " << iteration << ", seed 0x" << std::hex << seed << std::dec
@@ -797,16 +797,17 @@ main(int argc, char *argv[])
 
             /* Generate random timing stress configurations and add it to the WiredTiger config. */
             if (generate_timing_stress_configurations) {
+                std::string rand_env_config;
                 rand_env_config = model::kv_workload_generator::generate_configurations(seed);
-                conn_config = model::join(rand_env_config, conn_config);
+                wt_conn_config = model::join(wt_conn_config, rand_env_config);
             }
 
             /* Add the connection and table configurations to the workload. */
             if (!table_config.empty())
                 workload->prepend(std::move(model::operation::wt_config("table", table_config)));
-            if (!conn_config.empty())
+            if (!wt_conn_config.empty())
                 workload->prepend(
-                  std::move(model::operation::wt_config("connection", conn_config)));
+                  std::move(model::operation::wt_config("connection", wt_conn_config)));
 
             /* If we only want to print the workload, then do so. */
             if (print_only) {
