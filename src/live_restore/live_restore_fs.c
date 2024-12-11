@@ -633,7 +633,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
     /*
-     * FIXMEWT-13825: This is superseded by background thread migration. Right now it exists as the
+     * FIXME-WT-13825: This is superseded by background thread migration. Right now it exists as the
      * background thread cannot run concurrently with reads and writes. Once that concurrency
      * management is implemented this call can be removed.
      */

@@ -25,7 +25,7 @@ __live_restore_worker_check(WT_SESSION_IMPL *session)
 /*
  * __live_restore_work_queue_drain --
  *     Drain the work queue of any remaining items. This function does not need to take the queue
- *     lock but we do anyway because the semantic is if you touch the queue after it is initialzied,
+ *     lock but we do anyway because the semantic is if you touch the queue after it is initialized,
  *     you hold the lock.
  */
 static void
