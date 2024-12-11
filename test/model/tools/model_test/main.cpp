@@ -796,9 +796,8 @@ main(int argc, char *argv[])
             }
 
             /* Generate random timing stress configurations and add it to the WiredTiger config. */
-            if (generate_timing_stress_configurations){
-                uint64_t base_seed = model::random::next_seed(__wt_rdtsc() ^ time(NULL));
-                rand_env_config = model::kv_workload_generator::generate_configurations(base_seed);
+            if (generate_timing_stress_configurations) {
+                rand_env_config = model::kv_workload_generator::generate_configurations(seed);
                 conn_config = model::join(rand_env_config, conn_config);
             }
 

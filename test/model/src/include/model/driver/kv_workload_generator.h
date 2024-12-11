@@ -102,7 +102,7 @@ struct kv_workload_generator_spec {
     float prepared_transaction_rollback_before_prepare;
 
     /* Probabilities of WiredTiger timing stress configurations. */
-    /* FIXME : Refactor this code and move into a separate structure. */
+    /* FIXME-WT-13878 : Refactor this code and move into a separate structure. */
     float timing_stress_ckpt_slow;
     float timing_stress_ckpt_evict_page;
     float timing_stress_ckpt_handle;
