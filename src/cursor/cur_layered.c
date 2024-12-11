@@ -221,7 +221,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
      * right cursors are already open we are done. NOTE: This should become more complex as the
      * stable cursor can have the checkpoint updated in that case this code will close the current
      * stable cursor and open a new one to get the more recent checkpoint information and allow for
-     * garbage collection. TODO this needs checking/fixing
+     * garbage collection.
      */
     if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
@@ -235,7 +235,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
-    /* Always open the ingest cursor */ /* TODO always open stable instead? */
+    /* Always open both the ingest and stable cursors */
     if (clayered->ingest_cursor == NULL) {
         WT_RET(__wt_open_cursor(
           session, layered->ingest_uri, &clayered->iface, NULL, &clayered->ingest_cursor));
@@ -929,7 +929,7 @@ __layered_modify_check(WT_SESSION_IMPL *session)
  * __clayered_put --
  *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
  */
-static int
+static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
   const WT_ITEM *value, bool position, bool reserve)
 {

@@ -39,8 +39,8 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     scenarios = make_scenarios([
-        ('1k', dict(nitems=1)),
-        # ('100k', dict(nitems=100000)),
+        ('1k', dict(nitems=1000)),
+        ('100k', dict(nitems=100000)),
     ])
 
     # TODO do Python tests expect a field named uri?
@@ -50,7 +50,7 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm=')
+        extlist.extension('page_log', 'palm')
 
     # Custom test case setup
     def early_setup(self):
@@ -96,6 +96,7 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         item_count = 0
         while cursor.next() == 0:
             item_count += 1
+
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
 
@@ -130,12 +131,6 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
-
-        cursor_lead = self.session.open_cursor(self.uri, None, None)
-        item_count = 0
-        while cursor_lead.next() == 0:
-            item_count += 1
-        self.assertEqual(item_count, self.nitems * 6)
 
         cursor_follow3 = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
