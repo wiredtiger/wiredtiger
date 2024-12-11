@@ -3749,6 +3749,22 @@ tasks:
             # Keep repeating the model test for 60 minutes
             ./model_test -l 2000-3000 -t 3600
 
+  - name: model-test-long-random-config
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 60 minutes
+            ./model_test -l 100-200 -g -t 3600
+
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
     commands:
@@ -5238,6 +5254,8 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: model-test-long-with-coverage
       batchtime: 1440 # once a day
+    - name: model-test-long-random-config
+      batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
     - name: live-restore-long
@@ -5639,6 +5657,8 @@ buildvariants:
     - name: model-test-long
       batchtime: 1440 # once a day
     - name: model-test-long-with-coverage
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config
       batchtime: 1440 # once a day
     - name: model-unit-test
     - name: s3-tiered-storage-extensions-test
