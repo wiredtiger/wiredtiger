@@ -245,7 +245,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     if (clayered->stable_cursor == NULL) {
         if (!S2C(session)->layered_table_manager.leader) {
             ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-            ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
+            ckpt_cfg[1] = ",raw,checkpoint_use_history=false,force=true";
             ckpt_cfg[2] = NULL;
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
