@@ -118,7 +118,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_ASSERT_ALWAYS(
       session, conn->layered_table_manager.leader, "Trying to write the page from a follower");
     /* Check that the checkpoint ID matches the current checkpoint in the page log. */
-    if (block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
+    if (block_disagg->plhandle->page_log != NULL &&
+      block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
         WT_RET(block_disagg->plhandle->page_log->pl_get_open_checkpoint(
           block_disagg->plhandle->page_log, &session->iface, &page_log_checkpoint_id));
         WT_ASSERT_ALWAYS(session, checkpoint_id == page_log_checkpoint_id,
