@@ -784,22 +784,17 @@ dump_record(
         key = (char *)tmp->data;
     }
     cursor->set_key(cursor, key);
-    __wt_scr_free((WT_SESSION_IMPL *)session, &tmp);
-    if (0) {
-err:
-        return (1);
-    }
     ret = cursor->search_near(cursor, &exact);
 
     if (ret != 0)
-        return (util_cerr(cursor, "search_near", ret));
+        WT_ERR(util_cerr(cursor, "search_near", ret));
 
     /* Unable to find the exact key specified. */
     if (exact != 0 && !search_near)
-        return (WT_NOTFOUND);
+        WT_ERR(WT_NOTFOUND);
 
     if (window == 0)
-        WT_RET(print_record(cursor, json));
+        WT_ERR(print_record(cursor, json));
     else {
         fwd = (reverse) ? cursor->prev : cursor->next;
         bck = (reverse) ? cursor->next : cursor->prev;
@@ -812,7 +807,7 @@ err:
                     fwd(cursor);
                     break;
                 }
-                return (util_cerr(cursor, "cursor", ret));
+                WT_ERR(util_cerr(cursor, "cursor", ret));
             }
         }
 
@@ -825,22 +820,23 @@ err:
         for (n = 0; n < total_window; n++) {
             if (json && once) {
                 if (fputc(',', fp) == EOF)
-                    return (util_err(session, EIO, NULL));
+                    WT_ERR(util_err(session, EIO, NULL));
             }
-            WT_RET(print_record(cursor, json));
+            WT_ERR(print_record(cursor, json));
             if ((ret = fwd(cursor)) != 0) {
                 if (ret == WT_NOTFOUND)
                     break;
-                return (util_cerr(cursor, "cursor", ret));
+                WT_ERR(util_cerr(cursor, "cursor", ret));
             }
             once = true;
         }
     }
 
     if (json && once && fprintf(fp, "\n") < 0)
-        return (util_err(session, EIO, NULL));
-
-    return (0);
+        WT_ERR(util_err(session, EIO, NULL));
+err:
+    __wt_scr_free((WT_SESSION_IMPL *)session, &tmp);
+    return (ret);
 }
 
 /*
@@ -1027,7 +1023,7 @@ dump_explore(WT_CURSOR *cursor, const char *uri, bool reverse, bool pretty, bool
             continue;
         while (current_arg != NULL) {
             if ((args[i] = util_malloc(ARG_BUF_SIZE)) == NULL)
-                WT_RET(util_err(session, errno, NULL));
+                WT_ERR(util_err(session, errno, NULL));
             memmove(args[i++], current_arg, strlen(current_arg) + 1);
             ++num_args;
             current_arg = strtok(NULL, " ");
