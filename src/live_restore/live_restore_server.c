@@ -21,25 +21,29 @@ __live_restore_worker_check(WT_SESSION_IMPL *session)
     WT_UNUSED(session);
     return (true);
 }
+
 /*
  * __live_restore_work_queue_drain --
- *     Drain the work queue of any remaining items.
+ *     Drain the work queue of any remaining items. This function does not need to take the queue
+ *     lock but we do anyway because the semantic is if you touch the queue after it is initialzied,
+ *     you hold the lock.
  */
 static void
 __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
 {
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
-    if (TAILQ_EMPTY(&server->work_queue))
-        return;
-
-    WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL, *work_item_tmp = NULL;
-    TAILQ_FOREACH_SAFE(work_item, &server->work_queue, q, work_item_tmp)
-    {
-        TAILQ_REMOVE(&server->work_queue, work_item, q);
-        __wt_free(session, work_item->uri);
-        __wt_free(session, work_item);
+    __wt_spin_lock(session, &server->queue_lock);
+    if (!TAILQ_EMPTY(&server->work_queue)) {
+        WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL, *work_item_tmp = NULL;
+        TAILQ_FOREACH_SAFE(work_item, &server->work_queue, q, work_item_tmp)
+        {
+            TAILQ_REMOVE(&server->work_queue, work_item, q);
+            __wt_free(session, work_item->uri);
+            __wt_free(session, work_item);
+        }
     }
     WT_ASSERT(session, TAILQ_EMPTY(&server->work_queue));
+    __wt_spin_unlock(session, &server->queue_lock);
 }
 
 /*
@@ -70,7 +74,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         }
         /* Kill ourselves. */
         F_CLR(ctx, WT_THREAD_RUN);
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "Live restore worker terminating%s", "!");
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Live restore worker terminating%s", "!");
         __wt_spin_unlock(session, &server->queue_lock);
         return (0);
     }
@@ -83,21 +87,21 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         return (0);
     }
     TAILQ_REMOVE(&server->work_queue, work_item, q);
-    __wt_verbose_debug1(
+    __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker taking queue item: %s", work_item->uri);
     __wt_spin_unlock(session, &server->queue_lock);
 
     WT_CURSOR *cursor;
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
-    /* TODO: Add logic to differentiate log files. it may be easier to have two separate queues.*/
+    /*
+     * TODO: Add logic to differentiate log files, we can't open cursors on them. Can they be
+     * deleted concurrently? It may be easier to have two separate queues.
+     */
     /*
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
      * schema operations like drop and rename.
      */
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-      "Live restore worker opening cursor on the URI: %s", work_item->uri);
-
     WT_RET(wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor));
 
     /*
@@ -111,7 +115,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * Call the fill holes function. Right now no other reads or writes can be occurring
      * concurrently.
      */
-    __wt_verbose_debug1(
+    __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker filling holes for: %s", work_item->uri);
 
     WT_DECL_RET;
@@ -185,10 +189,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session);
-    /*
-     * TODO: If we indicate to the connection that source can be dropped we'll clear this flag. At
-     * the same time we should destroy.
-     */
+
     if (!F_ISSET(conn, WT_CONN_LIVE_RESTORE))
         return (0);
 

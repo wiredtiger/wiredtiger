@@ -633,13 +633,11 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
     /*
-     * FIXME-WT-13809: This should be superseded by background thread migration. Right now it exists
-     * as a solution to handle certain testing cases. Once the background thread is implemented the
-     * test will need to handle situations where a full restore hasn't completed by the end of the
-     * test. Calling this in a production environment will produce very slow file closes as we copy
-     * all remaining data to the destination.
+     * FIXMEWT-13825: This is superseded by background thread migration. Right now it exists as the
+     * background thread cannot run concurrently with reads and writes. Once that concurrency
+     * management is implemented this call can be removed.
      */
-    // WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
+    WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);
