@@ -20,7 +20,7 @@ struct __wt_live_restore_work_item {
 struct __wt_live_restore_server {
     WT_THREAD_GROUP threads;
     WT_SPINLOCK queue_lock;
-    wt_shared uint8_t threads_working;
+    wt_shared uint32_t threads_working;
 
     TAILQ_HEAD(__wt_live_restore_work_queue, __wt_live_restore_work_item) work_queue;
 };

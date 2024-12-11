@@ -161,10 +161,10 @@ __wt_live_restore_server_init(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Set this value before the threads start up in case they immediately decrement it.*/
-    server->threads_working = cval.val;
+    server->threads_working = (uint32_t)cval.val;
 
     /* Create the thread group. */
-    WT_ERR(__wt_thread_group_create(session, &server->threads, "live_restore_workers", 0, cval.val,
+    WT_ERR(__wt_thread_group_create(session, &server->threads, "live_restore_workers", 0, (uint32_t)cval.val,
       0, __live_restore_worker_check, __live_restore_worker_run, NULL));
 
     WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
