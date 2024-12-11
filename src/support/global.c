@@ -82,14 +82,57 @@ __endian_check(void)
 
 /*
  * __reset_thread_tick --
- *     Reset the OS task time slice to raise the probability of uninterrupted run afterwards.
+ *     Reset the OS thread timeslice to raise the probability of uninterrupted run afterwards.
  */
 static void
 __reset_thread_tick(void)
 {
-    /*
-     * We could use __wt_yield() here but simple yielding doesn't seem to always reset the thread's
-     * time slice. Sleeping for a short time does a better job.
+    /*!!!
+     * The "OS scheduler timeslice" refers to the fixed amount of CPU time allocated to a process
+     * or thread before the operating system's scheduler may preempt it to allow another process
+     * to run.
+     *
+     * A timeslice typically ranges from a few milliseconds to tens of milliseconds, depending on
+     * the operating system and its configuration.
+     *
+     * When the timeslice for a process expires, the scheduler performs a context switch, switching
+     * to another ready-to-run process. A context switch can also occur for other reasons like
+     * CPU interrupts before the timeslice expires.
+     *
+     * When a thread starts execution, it receives a fresh timeslice, increasing the likelihood of
+     * running uninterrupted for its duration.
+     *
+     * Potential ways to reset the timeslice are:
+     *
+     * - yield()
+     *   - What it does:
+     *     - yield() explicitly tells the operating system's scheduler that the current thread
+     *       is willing to relinquish the CPU before its timeslice has expired.
+     *     - The thread is moved from the "running" state to the "ready" state, allowing other
+     *       threads of equal or higher priority to execute.
+     *     - If no other threads are ready to run, the scheduler may reschedule the same thread,
+     *       allowing it to continue with its remaining timeslice.
+     *   - Impact on timeslice:
+     *     - The remaining portion of the thread's current timeslice is usually preserved.
+     *       When the thread is rescheduled, it continues with the leftover time.
+     *     - In some schedulers (e.g., Linux's Completely Fair Scheduler), yielding might
+     *       slightly adjust the thread's virtual runtime, but it doesn't fully reset or
+     *       replenish the timeslice.
+     * - sleep()
+     *   - What it does:
+     *     - sleep makes a thread pause execution for a specified duration and transitions it into
+     *       a "waiting state".
+     *   - Impact on timeslice:
+     *     - The thread's timeslice is typically discarded when it enters the sleep state.
+     *       Upon waking up, the thread competes with other threads for CPU time as if it were
+     *       newly scheduled, with a fresh timeslice being assigned according to the
+     *       scheduling algorithm.
+     *
+     * This behavior is quite consistent across operating systems like Linux, MacOS, and Windows:
+     *
+     * - yield() does *not reset* the timeslice; it merely pauses execution voluntarily and
+     *   retains the remaining time.
+     * - sleep() discards the current timeslice, and the thread starts fresh after waking up.
      */
     __wt_sleep(0, 10);
 }
@@ -205,6 +248,24 @@ __global_calibrate_ticks(void)
     __wt_process.use_epochtime = true;
 
 #if defined(__amd64) || defined(__aarch64__)
+    /*
+     * Here we aim to get two time measurements from __wt_epoch and rdtsc that are obtained nearly
+     * simultaneously. To ensure these probes are taken almost at the same time, we first determine
+     * minimum and median invocation time for __wt_epoch in __get_epoch_call_ticks. This is later
+     * used in __get_epoch_and_ticks.
+     *
+     * We read the clock via __wt_epoch and rdtsc twice to obtain the start and end times, invoking
+     * __wt_sleep in between. This measures the duration between invocations using each method and
+     * calculates their ratio. This strategy is accurate only if __wt_epoch and rdtsc are measured
+     * roughly simultaneously.
+     *
+     * To achieve "good" measurements, __get_epoch_and_ticks reads the time using rdtsc before and
+     * after invoking __wt_epoch. If the difference between these rdtsc readings is larger than the
+     * previously calibrated median, it suggests a scheduling event occurred, causing the probes not
+     * to be simultaneous. We repeat this process until rdtsc and __wt_epoch are invoked roughly
+     * simultaneously. Finally, we subtract the difference between the "good" measures for each
+     * timing strategy and obtain their ratio.
+     */
     {
         uint64_t epoch_ticks_min, epoch_ticks_avg, tsc_start, tsc_stop;
         struct timespec clock_start, clock_stop;

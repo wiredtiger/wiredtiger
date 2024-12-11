@@ -391,6 +391,7 @@ TW
 TXN
 ThreadList
 ThreadListWrapper
+Timeslice
 Timespec
 Tput
 TryCV
@@ -1325,6 +1326,7 @@ testext
 testutil
 th
 tid
+timeslice
 timespec
 tinfo
 tlb
