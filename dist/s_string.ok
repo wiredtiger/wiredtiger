@@ -88,6 +88,7 @@ Crummey
 CustomersPhone
 Cygwin
 DESC
+DEST
 DHANDLE
 DNE
 DONTNEED
@@ -136,7 +137,6 @@ FLD
 FLSv
 FLv
 FNV
-FORALL
 FOREACH
 FS
 FULLFSYNC
@@ -508,6 +508,7 @@ bInheritHandle
 backoff
 bal
 basecfg
+basename
 bb
 bba
 bbb
@@ -594,7 +595,6 @@ ckptlist
 cksum
 cloexec
 closedir
-clsm
 cmd
 cmp
 cntvct
@@ -775,7 +775,6 @@ fileops
 filesize
 filesystem
 filesystems
-fillms
 firstfit
 fixup
 flcs
@@ -796,7 +795,6 @@ fseek
 fstat
 fstream
 fsync
-fsyncs
 ftruncate
 func
 funcid
@@ -841,7 +839,6 @@ hashtable
 hashval
 havesize
 hdr
-hhh
 hijinx
 hpp
 hs
@@ -854,7 +851,6 @@ iSh
 iaa
 iaaInterface
 icount
-idlems
 idx
 ie
 iface
@@ -1028,7 +1024,6 @@ nTemp
 namespace
 namespaces
 nbits
-nchunks
 nclr
 nd
 needkey
@@ -1261,6 +1256,7 @@ ss
 ssize
 statlog
 stb
+stdbool
 stderr
 stdin
 stdout
@@ -1377,7 +1373,6 @@ uninstantiated
 unistd
 unlink
 unmap
-unmerged
 unmodify
 unmount
 unpackv

@@ -1105,11 +1105,8 @@ err:
      */
     session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
-    WT_TRET(__wt_lsm_manager_destroy(session));
-
     /*
-     * After the LSM threads have exited, we won't open more files for the application. However, the
-     * sweep server is still running and it can close file handles at the same time the final
+     * The sweep server is still running and it can close file handles at the same time the final
      * checkpoint is reviewing open data handles (forcing checkpoint to reopen handles). Shut down
      * the sweep server.
      */
@@ -1120,7 +1117,7 @@ err:
      * writes and we're about to do a final checkpoint separately from the checkpoint server.
      */
     WT_TRET(__wti_background_compact_server_destroy(session));
-    WT_TRET(__wt_obsolete_cleanup_destroy(session));
+    WT_TRET(__wt_checkpoint_cleanup_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
@@ -1375,8 +1372,7 @@ __conn_config_readonly(const char *cfg[])
       "checkpoint=(wait=0),"
       "config_base=false,"
       "create=false,"
-      "log=(prealloc=false,remove=false),"
-      "lsm_manager=(merge=false),";
+      "log=(prealloc=false,remove=false),";
     __conn_config_append(cfg, readonly);
 }
 
@@ -2228,8 +2224,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"eviction", WT_VERB_EVICTION}, {"fileops", WT_VERB_FILEOPS},
       {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG},
       {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
-      {"lsm", WT_VERB_LSM}, {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
+      {"metadata", WT_VERB_METADATA}, {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
       {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
       {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
       {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
@@ -2567,11 +2562,13 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     v = WT_EXTRA_INTERNAL_SESSIONS;
 
     /* Then, add in the thread counts applications can configure. */
-    WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
-    v += cval.val;
+    v += WT_EVICT_MAX_WORKERS;
 
-    WT_RET(__wt_config_gets(session, cfg, "lsm_manager.worker_thread_max", &cval));
-    v += cval.val;
+    /* If live restore is enabled add its thread count. */
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE)) {
+        WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+        v += cval.val;
+    }
 
     v += WT_RTS_MAX_WORKERS;
 
@@ -2619,6 +2616,60 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
         conn->file_system->fs_directory_list_single = conn->file_system->fs_directory_list;
 
     return (0);
+}
+
+/*
+ * __conn_config_file_system --
+ *     Configure the file system on the connection if the user hasn't added a custom file system.
+ */
+static int
+__conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    /*
+     * If the application didn't configure its own file system, configure one of ours. Check to
+     * ensure we have a valid file system.
+     *
+     * Check the "live_restore" config. If it is provided validate that a custom file system has not
+     * been provided, and that the connection is not in memory or Windows.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "live_restore.enabled", &cval));
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    if (cval.val) {
+        F_SET(conn, WT_CONN_LIVE_RESTORE);
+        /* Live restore compatibility checks. */
+        if (conn->file_system != NULL)
+            WT_RET_MSG(session, EINVAL, "Live restore is not compatible with custom file systems");
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+            WT_RET_MSG(
+              session, EINVAL, "Live restore is not compatible with an in-memory connections");
+#ifdef _MSC_VER
+        WT_RET_MSG(session, EINVAL, "Live restore is not supported on Windows");
+#endif
+    }
+
+    /*
+     * The live restore code validates that there isn't a file system so this check may seem
+     * redundant. However that validation only happens when live restore is enabled. As such we need
+     * this check too to ensure we don't overwrite the user specified system. It could be improved
+     * by adding more specific error messages.
+     */
+    if (conn->file_system == NULL) {
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+            WT_RET(__wt_os_inmemory(session));
+        else {
+#if defined(_MSC_VER)
+            WT_RET(__wt_os_win(session));
+#else
+            if (F_ISSET(conn, WT_CONN_LIVE_RESTORE))
+                WT_RET(__wt_os_live_restore_fs(session, cfg, conn->home, &conn->file_system));
+            else
+                WT_RET(__wt_os_posix(session, &conn->file_system));
+#endif
+        }
+    }
+    return (__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 }
 
 /*
@@ -2818,21 +2869,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__conn_load_extensions(session, cfg, true));
 
-    /*
-     * If the application didn't configure its own file system, configure one of ours. Check to
-     * ensure we have a valid file system.
-     */
-    if (conn->file_system == NULL) {
-        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
-            WT_ERR(__wt_os_inmemory(session));
-        else
-#if defined(_MSC_VER)
-            WT_ERR(__wt_os_win(session));
-#else
-            WT_ERR(__wt_os_posix(session));
-#endif
-    }
-    WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
+    /* Configure the file system on the connection. */
+    WT_ERR(__conn_config_file_system(session, cfg));
 
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));
@@ -3015,7 +3053,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_conf_compile_init(session, cfg));
     WT_ERR(__wti_conn_statistics_config(session, cfg));
-    WT_ERR(__wt_lsm_manager_config(session, cfg));
     WT_ERR(__wti_sweep_config(session, cfg));
 
     /* Initialize the OS page size for mmap */

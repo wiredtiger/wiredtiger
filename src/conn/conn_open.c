@@ -79,12 +79,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     wt_conn = &conn->iface;
     session = conn->default_session;
 
-    /*
-     * The LSM services are not shut down in this path (which is called when wiredtiger_open hits an
-     * error (as well as during normal shutdown). Assert they're not running.
-     */
-    WT_ASSERT(session, !FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LSM));
-
     /* Shut down the subsystems, ensuring workers see the state change. */
     F_SET(conn, WT_CONN_CLOSING);
     WT_FULL_BARRIER();
@@ -283,7 +277,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_prefetch_create(session, cfg));
 
     /* Start the checkpoint cleanup thread. */
-    WT_RET(__wt_obsolete_cleanup_create(session, cfg));
+    WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
 
     __wt_verbose_info(
       session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads started successfully");
