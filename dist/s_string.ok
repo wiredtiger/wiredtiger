@@ -96,6 +96,7 @@ DS
 DUPLICATEV
 Decrypt
 DeleteFileW
+Deterministically
 Dk
 DmpRvXx
 Dxxx
@@ -124,6 +125,7 @@ EXTLIST's
 EXTSUBPATH
 Encryptor
 Encryptors
+Enqueue
 Eron
 Exxx
 FALLTHROUGH
@@ -305,6 +307,7 @@ Prealloc
 Precompiled
 Prefetch
 Preload
+Prepend
 Prepending
 Prev
 Ptr
@@ -342,6 +345,7 @@ RedHat
 Redistributions
 Reify
 Rogerio
+Runtime
 SDK
 SIMD
 SLVG
@@ -387,6 +391,7 @@ TW
 TXN
 ThreadList
 ThreadListWrapper
+Timeslice
 Timespec
 Tput
 TryCV
@@ -532,6 +537,7 @@ bm
 bms
 bnd
 bool
+boolean
 booleans
 boption
 br
@@ -660,6 +666,7 @@ dT
 darwin
 data's
 datalen
+dataset
 datasource
 datastore
 dbar
@@ -670,6 +677,7 @@ decile
 deciles
 decl
 decr
+decrementing
 decrypt
 decrypted
 decrypting
@@ -678,6 +686,7 @@ decrypts
 deflateEnd
 deflateInit
 del
+dequeued
 der
 dereference
 desc
@@ -862,6 +871,7 @@ img
 impl
 incr
 incrementals
+incrementing
 indx
 inflateInit
 infmt
@@ -1126,6 +1136,7 @@ precompiling
 prefetch
 prefetching
 preload
+prepend
 prepended
 prepending
 presize
@@ -1204,6 +1215,7 @@ rts
 ru
 runnable
 runone
+runtime
 rw
 rwlock
 sHQ
@@ -1329,6 +1341,7 @@ tombstoned
 toml
 toolchain
 totalsec
+transactional
 transactionally
 trecno
 trk
