@@ -12,7 +12,7 @@
 
 
 /*
- * Per-dhandle evict data
+ * Data handle evict data
  */
 struct __wt_evict_handle_data {
 	WT_EVICT_BUCKETSET evict_bucketset[WT_EVICT_LEVELS];
@@ -23,6 +23,7 @@ struct __wt_evict_handle_data {
  */
 struct __wt_evict_page_data {
 	TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
+	WT_DATA_HANDLE *dhandle;
 	WT_EVICT_BUCKET *bucket; /* Bucket containing this page */
 };
 

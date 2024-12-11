@@ -803,7 +803,7 @@ struct __wt_page {
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
     uint64_t cache_create_gen; /* Page create timestamp */
-	WT_EVICT_PAGE_DATA evict_data;  /* Data used by eviction */
+	WT_EVICT_PAGE_DATA evict;  /* Data used by eviction */
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3

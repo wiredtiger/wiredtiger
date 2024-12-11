@@ -198,41 +198,6 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /* !!!
- * __wt_evict_touch_page --
- *     Update a page's eviction state (read generation) when it is accessed.
- *
- *     A page that is recently read will have a higher read generation, indicating that it is less
- *     likely to be evicted. This mechanism helps eviction to prioritize the order in which pages
- *     are evicted.
- *
- *     This function is called every time a page is touched in the cache.
- *
- *     Input parameters:
- *       (1) `page`: The page whose eviction state is being updated.
- *       (2) `internal_only`: A flag indicating whether the operation is internal. If true, the read
- *            generation is not updated, as internal operations (such as compaction or eviction)
- *            should not affect the page's eviction priority.
- *       (3) `wont_need`: A flag indicating that the page will not be needed in the future. If true,
- *            the page is marked for forced eviction.
- */
-static WT_INLINE void
-__wt_evict_touch_page(WT_SESSION_IMPL *session, WT_REF *ref, bool internal_only, bool wont_need)
-{
-	WT_PAGE *page;
-
-	page = ref->page;
-
-    /* Is this the first use of the page? */
-    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET) {
-        if (wont_need)
-            __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
-        else
-            __wti_evict_read_gen_new(session, page);
-    } else if (!internal_only)
-        __wti_evict_read_gen_bump(session, page);
-}
-
-/* !!!
  * __wt_evict_page_init --
  *     Initialize the page's eviction state (read generation) for a newly created page in memory.
  *     Even if the page is evicted and later reallocated, this function will be called to reset
