@@ -33,28 +33,50 @@ from suite_subprocess import suite_subprocess
 # Test dump utility with -j and -k options
 class test_dump04(wttest.WiredTigerTestCase, suite_subprocess):
     output = "dump.out"
-    uri = 'table:test_dump'
-    create_params = 'key_format=u,value_format=u'
+    uri = "table:test_dump"
+    create_params = "key_format=u,value_format=u"
     dict = {
-        'key' : 'value',
-        'key0' : 'value0',
-        '1' : '1',
+        "key" : "value",
+        "key0" : "value0",
+        "1" : "1",
     }
 
     def wrap_in_json(self, s1, s2):
         return f"\"{s1}\" : \"{s2}\""
 
-    def key_to_json(self, s):
-        return self.wrap_in_json("key0", s)
-
-    def value_to_json(self, s):
-        return self.wrap_in_json("value0", s)
-
     def string_to_unicode(self, s):
         ret = ""
         for c in s:
-            ret += '\\u{:04x}'.format(ord(c))
+            ret += "\\u{:04x}".format(ord(c))
         return ret
+
+    def check_key_value(self, should_exist, key, value):
+        if should_exist:
+            self.check_file_contains(self.output, key)
+            self.check_file_contains(self.output, value)
+        else:
+            self.check_file_not_contains(self.output, key)
+            self.check_file_not_contains(self.output, value)
+
+    def format_string(self, json, is_key, s):
+        if json:
+            return self.wrap_in_json("key0" if is_key else "value0", self.string_to_unicode(s))
+        return f"{s}\n"
+
+    def check_file(self, json, key):
+        for (k, v) in self.dict.items():
+            self.check_key_value(not key or k == key, self.format_string(json, True, k), self.format_string(json, False, v))
+
+    def run_test(self, json, key):
+        args = ["dump"]
+        if json:
+            args.append("-j")
+        if key:
+            args += ["-k", key]
+        args.append(self.uri)
+        self.runWt(args, outfilename=self.output)
+
+        self.check_file(json, key)
 
     def test_dump(self):
         self.session.create(self.uri, self.create_params)
@@ -66,33 +88,9 @@ class test_dump04(wttest.WiredTigerTestCase, suite_subprocess):
         # Perform checkpoint, to clean the dirty pages and place values on disk.
         self.session.checkpoint()
 
-        cases = [
-            (True, ''),
-            (False, 'key'),
-            (True, '1'),
-            (True, 'table')
-        ]
-
-        for (json, key) in cases:
-            args = ['dump']
-            if json:
-                args.append('-j')
-            if key:
-                args += ['-k', key]
-            args.append(self.uri)
-            self.runWt(args, outfilename=self.output)
-
-            for (k, v) in self.dict.items():
-                if json:
-                    ckey = self.key_to_json(self.string_to_unicode(k))
-                    cvalue = self.value_to_json(self.string_to_unicode(v))
-                else:
-                    ckey = f"{k}\n"
-                    cvalue = f"{v}\n"
-                if not key or k == key:
-                    self.check_file_contains(self.output, ckey)
-                    self.check_file_contains(self.output, cvalue)
-                else:
-                    self.check_file_not_contains(self.output, ckey)
-                    self.check_file_not_contains(self.output, cvalue)
+        self.run_test(True, "") # Dump command with -j option
+        self.run_test(False, "key") # Dump command with -k option matching key
+        self.run_test(False, "table") # Dump command with -k option non matching key
+        self.run_test(True, "1") # Dump command with -j -k options matching key
+        self.run_test(True, "table") # Dump command with -j -k options non matching key
 

@@ -763,24 +763,27 @@ static int
 dump_record(
   WT_CURSOR *cursor, const char *key, bool reverse, bool search_near, bool json, uint64_t window)
 {
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION *session;
+    WT_SESSION_IMPL *session_impl;
     uint64_t n, total_window;
     int (*bck)(WT_CURSOR *);
     int (*fwd)(WT_CURSOR *);
     int exact;
     bool once;
+
     session = cursor->session;
-    WT_DECL_ITEM(tmp);
-    WT_RET(__wt_scr_alloc((WT_SESSION_IMPL *)session, 0, &tmp));
+    session_impl = (WT_SESSION_IMPL *)session;
     once = false;
     exact = 0;
+    WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
 
-    WT_ASSERT((WT_SESSION_IMPL *)session, key != NULL);
+    WT_ASSERT(session_impl, key != NULL);
 
-    WT_ERR(__wt_buf_setstr((WT_SESSION_IMPL *)session, tmp, ""));
+    WT_ERR(__wt_buf_setstr(session_impl, tmp, ""));
     if (json) {
-        WT_ERR(__wt_buf_fmt((WT_SESSION_IMPL *)session, tmp, "\"key0\" : \"%s\"", key));
+        WT_ERR(__wt_buf_fmt(session_impl, tmp, "\"key0\" : \"%s\"", key));
         key = (char *)tmp->data;
     }
     cursor->set_key(cursor, key);
@@ -835,7 +838,7 @@ dump_record(
     if (json && once && fprintf(fp, "\n") < 0)
         WT_ERR(util_err(session, EIO, NULL));
 err:
-    __wt_scr_free((WT_SESSION_IMPL *)session, &tmp);
+    __wt_scr_free(session_impl, &tmp);
     return (ret);
 }
 
