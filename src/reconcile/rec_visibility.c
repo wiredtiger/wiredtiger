@@ -644,7 +644,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             }
         }
 
-        /* Always select the newest committed update to write to disk */
+        /* Don't write any update that is not stable if precise checkpoint is enabled. */
+        if (F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
+          upd->durable_ts > r->rec_start_pinned_stable_ts) {
+            *has_newer_updatesp = true;
+            continue;
+        }
+
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
