@@ -620,6 +620,18 @@ testutil_remove(const char *path)
 }
 
 /*
+ * testutil_touch_file --
+ *     Perform a Unix touch on a file.
+ */
+void
+testutil_touch_file(const char *path)
+{
+    FILE *fp;
+    testutil_assert_errno((fp = fopen(path, "a")) != NULL);
+    testutil_assert_errno(fclose(fp) == 0);
+}
+
+/*
  * testutil_exists --
  *     Check whether a file exists. The function takes both a directory and a file argument, because
  *     it is often used to check whether a file exists in a different directory. This saves the

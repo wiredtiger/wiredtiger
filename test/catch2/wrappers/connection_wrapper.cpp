@@ -36,7 +36,12 @@ connection_wrapper::connection_wrapper(const std::string &db_home, const char *c
 
 connection_wrapper::~connection_wrapper()
 {
-    utils::throw_if_non_zero(_conn->close(_conn, ""));
+    // FIXME-WT-13871 - I'm using a WT_CONN to set up the file system - needed because
+    // __validate_live_restore_path calls __posix_open_file which needs the WT_CONN::log_mgr
+    // But then I want to get rid of junk files created by the process, which breaks the graceful
+    // shutdown performed by conn->close in the connection's destructor.
+
+    // utils::throw_if_non_zero(_conn->close(_conn, ""));
 
     if (_do_cleanup)
         utils::wiredtiger_cleanup(_db_home);

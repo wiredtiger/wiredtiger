@@ -639,7 +639,9 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * test. Calling this in a production environment will produce very slow file closes as we copy
      * all remaining data to the destination.
      */
-    WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
+    /* FIXME-WT-13871 We don't want this to run when unit testing. Consider a debug flag for this.
+     */
+    // WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);
@@ -1043,7 +1045,7 @@ __live_restore_fs_rename(
       session, WT_VERB_FILEOPS, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (!exist)
-        return (ENOENT);
+        WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
 
     if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, from, &path_from));
@@ -1085,7 +1087,7 @@ __live_restore_fs_size(
 
     WT_RET(__live_restore_fs_find_layer(fs, session, name, &which, &exist));
     if (!exist)
-        return (ENOENT);
+        WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", name);
 
     /* The file will always exist in the destination. This the is authoritative file size. */
     WT_ASSERT(session, which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION);
