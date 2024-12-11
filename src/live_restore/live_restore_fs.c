@@ -11,6 +11,11 @@
 
 /* This is where basename comes from. */
 #include <libgen.h>
+#include <sys/statvfs.h>
+
+static int __live_restore_fh_size(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t *sizep);
+static int __live_restore_validate_size(
+  WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t offset, size_t len);
 
 /*
  * __live_restore_fs_backing_filename --
@@ -504,6 +509,8 @@ __live_restore_fh_write(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
+    WT_RET(__live_restore_validate_size(session, lr_fh, offset, len));
+
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %lu", fh->name, offset, len);
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
@@ -530,6 +537,47 @@ __read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_
 }
 
 /*
+ * __live_restore_validate_size --
+ *     Validate a read or write is a multiple of the destination file system block size. File
+ *     systems always write data in blocks so when live restore performs a one byte write to a file
+ *     the file system instead writes a block (e.g. 4KB) to disk and which is tracked in the file
+ *     metadata. Live restore thinks we've removed a 1 byte hole while the file metadata says we've
+ *     removed a 4KB hole. When we reopen the file and recover hole information from the metadata it
+ *     will be missing holes and we'll read try data from the destination that was never copied from
+ *     source. Forcing writes to be a multiple of the block size resolves this issue.
+ */
+static int
+__live_restore_validate_size(
+  WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t offset, size_t len)
+{
+    WT_LIVE_RESTORE_FS *lr_fs;
+    wt_off_t min_block_size, file_size, length;
+
+    length = (wt_off_t)len;
+    lr_fs = lr_fh->destination.back_pointer;
+    min_block_size = (wt_off_t)lr_fs->destination.fs_block_size;
+
+    if (length % min_block_size != 0) {
+        /*
+         * Special case: If we're read/writing the entire file we can allow a non-multiple of the
+         * blocks size. The file system will write additional bytes but they're past the end of the
+         * file and don't impact our hole tracking.
+         */
+        WT_RET(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
+        if (offset == 0 && length >= file_size)
+            return (0);
+
+        WT_RET_MSG(session, EINVAL,
+          "Can't write %" PRIu64
+          " bytes to file! Size must be a multiple of the destination's file system block size "
+          "(%" PRId64 ")",
+          len, min_block_size);
+    }
+
+    return (0);
+}
+
+/*
  * __live_restore_fh_read --
  *     File read in a live restore file system.
  */
@@ -543,6 +591,8 @@ __live_restore_fh_read(
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
+
+    WT_RET(__live_restore_validate_size((WT_SESSION_IMPL *)wt_session, lr_fh, offset, len));
 
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %lu", fh->name, offset, len);
@@ -1133,6 +1183,20 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
+ * __live_restore_get_fs_block_size --
+ *     Extract the block size of the file system this layer is mounted on.
+ */
+static int
+__live_restore_get_fs_block_size(WT_LIVE_RESTORE_FS_LAYER *layer)
+{
+    struct statvfs stat;
+
+    WT_RET(statvfs(layer->home, &stat));
+    layer->fs_block_size = stat.f_bsize;
+    return (0);
+}
+
+/*
  * __wt_os_live_restore_fs --
  *     Initialize a live restore file system configuration.
  */
@@ -1160,6 +1224,7 @@ __wt_os_live_restore_fs(
     /* Initialize the layers. */
     lr_fs->destination.home = destination;
     lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
+    __live_restore_get_fs_block_size(&lr_fs->destination);
 
     WT_CONFIG_ITEM cval;
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.path", &cval));
@@ -1168,6 +1233,7 @@ __wt_os_live_restore_fs(
     WT_ERR(__validate_live_restore_path(lr_fs->os_file_system, session, lr_fs->source.home));
 
     lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
+    __live_restore_get_fs_block_size(&lr_fs->source);
 
     /* Configure the background thread count maximum. */
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));

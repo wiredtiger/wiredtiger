@@ -74,6 +74,7 @@ typedef enum {
 struct __wt_live_restore_fs_layer {
     const char *home;
     WT_LIVE_RESTORE_FS_LAYER_TYPE which;
+    size_t fs_block_size;
 };
 
 /*
