@@ -91,8 +91,6 @@ struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
-struct __wt_block_mods;
-typedef struct __wt_block_mods WT_BLOCK_MODS;
 struct __wt_bloom;
 typedef struct __wt_bloom WT_BLOOM;
 struct __wt_bloom_hash;
@@ -135,6 +133,8 @@ struct __wt_chunkcache_pinned_list;
 typedef struct __wt_chunkcache_pinned_list WT_CHUNKCACHE_PINNED_LIST;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
+struct __wt_ckpt_block_mods;
+typedef struct __wt_ckpt_block_mods WT_CKPT_BLOCK_MODS;
 struct __wt_ckpt_connection;
 typedef struct __wt_ckpt_connection WT_CKPT_CONNECTION;
 struct __wt_ckpt_session;
@@ -199,8 +199,6 @@ struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
 struct __wt_cursor_log;
 typedef struct __wt_cursor_log WT_CURSOR_LOG;
-struct __wt_cursor_lsm;
-typedef struct __wt_cursor_lsm WT_CURSOR_LSM;
 struct __wt_cursor_metadata;
 typedef struct __wt_cursor_metadata WT_CURSOR_METADATA;
 struct __wt_cursor_stat;
@@ -293,22 +291,6 @@ struct __wt_log_thread;
 typedef struct __wt_log_thread WT_LOG_THREAD;
 struct __wt_logslot;
 typedef struct __wt_logslot WT_LOGSLOT;
-struct __wt_lsm_chunk;
-typedef struct __wt_lsm_chunk WT_LSM_CHUNK;
-struct __wt_lsm_cursor_chunk;
-typedef struct __wt_lsm_cursor_chunk WT_LSM_CURSOR_CHUNK;
-struct __wt_lsm_data_source;
-typedef struct __wt_lsm_data_source WT_LSM_DATA_SOURCE;
-struct __wt_lsm_manager;
-typedef struct __wt_lsm_manager WT_LSM_MANAGER;
-struct __wt_lsm_tree;
-typedef struct __wt_lsm_tree WT_LSM_TREE;
-struct __wt_lsm_work_unit;
-typedef struct __wt_lsm_work_unit WT_LSM_WORK_UNIT;
-struct __wt_lsm_worker_args;
-typedef struct __wt_lsm_worker_args WT_LSM_WORKER_ARGS;
-struct __wt_lsm_worker_cookie;
-typedef struct __wt_lsm_worker_cookie WT_LSM_WORKER_COOKIE;
 struct __wt_multi;
 typedef struct __wt_multi WT_MULTI;
 struct __wt_myslot;
@@ -527,12 +509,12 @@ typedef uint64_t wt_timestamp_t;
 #include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
+#include "cursor.h" /* required by checkpoint */
 #include "../checkpoint/checkpoint.h"
 #include "compact.h"
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
-#include "cursor.h"
 #include "dlh.h"
 #include "error.h"
 #include "futex.h"
@@ -541,7 +523,6 @@ typedef uint64_t wt_timestamp_t;
 #include "json.h"
 #include "../live_restore/live_restore.h"
 #include "../log/log.h"
-#include "lsm.h"
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
