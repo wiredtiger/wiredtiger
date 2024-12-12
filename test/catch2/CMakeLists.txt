@@ -47,8 +47,8 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    live_restore/live_restore_test_env.cpp
     live_restore/utils_live_restore.cpp
-    live_restore/utils_live_restore_extent_list.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp
