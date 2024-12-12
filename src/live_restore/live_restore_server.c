@@ -54,6 +54,7 @@ __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
 static int
 __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
+    WT_DECL_RET;
     WT_UNUSED(ctx);
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
 
@@ -116,7 +117,6 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker filling holes for: %s", work_item->uri);
 
-    WT_DECL_RET;
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     WT_TRET(cursor->close(cursor));
     return (ret);
@@ -178,13 +178,12 @@ int
 __wt_live_restore_server_init(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
 
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
     /*
      * Set this state before we run the threads, if we do it after there's a chance we'll context
      * switch and then this state will happen after the finish state. This also means we transition
-     * through all valid states in the event no work is populated.
+     * through all valid states.
      */
     WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
 
@@ -198,29 +197,28 @@ __wt_live_restore_server_init(WT_SESSION_IMPL *session, const char *cfg[])
     server->queue_size = work_count;
 
     WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
-    /* Set this value before the threads start up in case they immediately decrement it.*/
+    /* Set this value before the threads start up in case they immediately decrement it. */
     server->threads_working = (uint32_t)cval.val;
     /*
      * Create the thread group.
      *
-     * # RANT #
      * WiredTiger thread groups are very weird, all threads will enter the run loop but unless
-     * WT_THREAD_ACTIVE is set on that thread all of them will wait 10 seconds before actually
-     * taking work from the queue. Then on the next iteration another 10 seconds. To have
+     * WT_THREAD_ACTIVE is set on a given thread it will wait 10 seconds before actually executing
+     * the run func. Then on the next iteration the thread will wait another 10 seconds and then
+     * execute run func. So WT_THREAD_ACTIVE does not mean the thread won't do work. To have
      * WT_THREAD_ACTIVE set on a thread __wt_thread_group_start_one needs to be called but that is
-     * expected to be called externally except for min_thread_count number of threads which will be
-     * "started" automatically. Keep in mind that "starting" only means they don't need to observe
-     * the 10 second waiting period.
-     *
-     * So to get them all "started" we specify a min_thread_count equal to our max_thread_count.
-     * Alternatively we could loop and "start" them all ourselves but we cannot guarantee that they
-     * haven't terminated themselves by the time they start.
+     * expected to be called externally. Calling __wt_thread_group_start_one can be thought of as
+     * "starting" the thread. On thread group creation __wt_thread_group_start_one will be called
+     * for min_thread_count number of threads. So to get them all "started" we specify a
+     * min_thread_count equal to our max_thread_count. Alternatively we could loop and "start" them
+     * all ourselves but we cannot guarantee that by the time we call start, after creating the
+     * thread group, the threads haven't terminated themselves.
      *
      * So in summary there are 3 things of note here:
-     *   - Threads can be active but not started despite this they are always running, and calling
-     *     into the run_func. Just only every 10 seconds.
-     *   - We terminate threads which is not expected by the thread group. But is actually very nice
-     *     at least in my opinion.
+     *   - Threads can be active but not started despite this they are always running and calling
+     *     into the run_func, but only every 10 seconds.
+     *   - We terminate threads which is not expected by the thread group. So we can't call
+     *     __wt_thread_group_start_one yet.
      *   - The thread group code expects whatever subsystem that is using it to scale the number of
      *     active threads but only eviction actually does this. We plan on doing this in some form
      *     in the future but for now are short circuiting this weirdness by specifying min_threads
@@ -232,13 +230,11 @@ __wt_live_restore_server_init(WT_SESSION_IMPL *session, const char *cfg[])
      *   - If I simply drop that 10s wait to 10us with 0 min_threads: 3s.
      *
      * A CLEAR indication that even though the threads aren't active, whatever that means, they
-     * still do work!!! This rant was brought to you by several hours of wondering what the heck was
-     * going on.
+     * still do work!!
      */
-    WT_RET(__wt_thread_group_create(session, &server->threads, "live_restore_workers",
+    return (__wt_thread_group_create(session, &server->threads, "live_restore_workers",
       (uint32_t)cval.val, (uint32_t)cval.val, 0, __live_restore_worker_check,
       __live_restore_worker_run, NULL));
-    return (ret);
 }
 
 /*
