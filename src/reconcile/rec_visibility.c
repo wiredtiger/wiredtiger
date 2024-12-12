@@ -660,8 +660,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             continue;
         }
 
-        /* Always select the newest visible update if precise checkpoint is not enabled. Otherwise,
-         * select the first update that is smaller or equal to the pinned timestamp. */
+        /*
+         * Always select the newest visible update if precise checkpoint is not enabled. Otherwise,
+         * select the first update that is smaller or equal to the pinned timestamp.
+         */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
