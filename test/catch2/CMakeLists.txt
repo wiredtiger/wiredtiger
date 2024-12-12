@@ -7,7 +7,7 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
-        misc_tests/test_strerr.cpp
+        misc_tests/test_strerror.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
