@@ -638,7 +638,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp)
 {
-    WT_CONNECTION_IMPL *conn
+    WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_stable_ts;
     bool has_stable_timestamp;
