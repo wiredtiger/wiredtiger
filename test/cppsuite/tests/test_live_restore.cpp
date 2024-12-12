@@ -255,6 +255,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
         if (ran < 3) {
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
+            logger::log_msg(LOG_INFO, "Taking checkpoint");
         } else if (ran < 5000) {
             // 50% Write.
             write(session, false);
@@ -309,9 +310,10 @@ main(int argc, char *argv[])
     logger::trace_level = LOG_TRACE;
 
     /* Create a connection, set the cache size and specify the home directory. */
+    /* FIXME-WT-13825: Set max_threads to non zero once extent list concurrency is implemented. */
     // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",live_restore=(enabled=true,path=\"" +
-      SOURCE_DIR +
+    const std::string conn_config = CONNECTION_CREATE +
+      ",live_restore=(enabled=true,threads_max=0,path=\"" + SOURCE_DIR +
       "\"),cache_size=1GB,verbose=[fileops:2],statistics=(all),statistics_log=(json,on_close,wait="
       "1)";
 
