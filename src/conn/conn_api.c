@@ -2565,7 +2565,7 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     v += WT_EVICT_MAX_WORKERS;
 
     /* If live restore is enabled add its thread count. */
-    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE)) {
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS)) {
         WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
         v += cval.val;
     }

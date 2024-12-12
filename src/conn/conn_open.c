@@ -91,7 +91,8 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
 #ifndef _MSC_VER
-    WT_TRET(__wt_live_restore_server_destroy(session));
+    if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
+        WT_TRET(__wt_live_restore_server_destroy(session));
 #endif
     WT_TRET(__wti_background_compact_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
@@ -233,7 +234,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifndef _MSC_VER
     /* If we're performing a live restore start the server. */
-    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE))
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         WT_RET(__wt_live_restore_server_init(session, cfg));
 #endif
 
