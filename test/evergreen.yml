@@ -281,6 +281,7 @@ functions:
           source venv/bin/activate
           pip3 install find_libpython
           pip3 install swig==4.2.1
+          pip3 install find_libpython==0.4.0
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
@@ -366,6 +367,23 @@ functions:
         set -o verbose
         echo "Starting 'make wiredtiger' step"
         ${PREPARE_PATH}
+
+        if ! command -v swig >/dev/null 2>&1; then
+            echo "SWIG is not installed. Skipping check ..."
+        else
+            SWIG_VERSION=$(swig -version | awk '/SWIG Version/ {print $3}')
+
+            if [[ "$(printf '%s\n' "4.0.0" "$SWIG_VERSION" | sort -V | head -n1)" == "4.0.0" ]]; then
+                echo "SWIG version $SWIG_VERSION is 4.0 or later."
+            else
+                echo "SWIG version $SWIG_VERSION is earlier than 4.0. Installing a newer version ..."
+                python3 -mvenv venv
+                source venv/bin/activate
+                pip3 install swig==4.2.1
+                swig -version
+            fi
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
           powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
