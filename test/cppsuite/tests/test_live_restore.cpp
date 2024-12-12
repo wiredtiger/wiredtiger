@@ -253,7 +253,7 @@ do_random_crud(scoped_session &session, bool fresh_start)
         }
 
         if (ran < 3) {
-            // Checkpoint.z
+            // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
         } else if (ran < 5000) {
             // 50% Write.
@@ -269,8 +269,6 @@ do_random_crud(scoped_session &session, bool fresh_start)
               "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
             testutil_assert(false);
         }
-
-        // Unreachable.
     }
 }
 

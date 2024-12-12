@@ -8,6 +8,10 @@
 
 #pragma once
 
+/*
+ * WT_LIVE_RESTORE_WORK_ITEM --
+ *     A single item of work to be worked on by a thread.
+ */
 struct __wt_live_restore_work_item {
     char *uri;
     TAILQ_ENTRY(__wt_live_restore_work_item) q; /* List of pages queued for pre-fetch. */
@@ -15,12 +19,13 @@ struct __wt_live_restore_work_item {
 
 /*
  * WT_LIVE_RESTORE_SERVER --
- *     Metadata kept along side a file handle to track holes in the destination file.
+ *     The live restore server object that is kept on the connection. Holds a thread group and the
+ *     work queue, with some additional info.
  */
 struct __wt_live_restore_server {
     WT_THREAD_GROUP threads;
-    WT_SPINLOCK queue_lock;
     wt_shared uint32_t threads_working;
+    WT_SPINLOCK queue_lock;
     uint64_t queue_size;
 
     TAILQ_HEAD(__wt_live_restore_work_queue, __wt_live_restore_work_item) work_queue;
