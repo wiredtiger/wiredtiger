@@ -148,10 +148,10 @@ trigger_fs_truncate(scoped_session &session)
     ret = rnd_cursor->next(rnd_cursor.get());
 
     testutil_check_error_ok(ret, WT_NOTFOUND);
-    if (ret == WT_NOTFOUND) {
+    if (ret == WT_NOTFOUND)
         // We've tried to truncate an empty collection. Nothing to do.
         return;
-    }
+
     testutil_check(session->truncate(session.get(), NULL, rnd_cursor.get(), nullptr, nullptr));
     testutil_check(session->compact(session.get(), coll_name.c_str(), nullptr));
 }
@@ -325,16 +325,15 @@ main(int argc, char *argv[])
     testutil_recreate_dir("WT_TEST");
 
     /* Create connection. */
-    if (fresh_start) {
+    if (fresh_start)
         connection_manager::instance().create(conn_config, DEFAULT_DIR);
-    } else {
+    else
         connection_manager::instance().reopen(conn_config, DEFAULT_DIR);
-    }
+
     auto crud_session = connection_manager::instance().create_session();
 
-    if (!fresh_start) {
+    if (!fresh_start)
         configure_database(crud_session);
-    }
 
     do_random_crud(crud_session, fresh_start);
 
