@@ -605,6 +605,10 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
           hole->off, WT_EXTENT_END(hole));
+
+        /* If panic is set on the connection stop doing work. */
+        WT_RET(WT_SESSION_CHECK_PANIC(wt_session));
+
         /*
          * When encountering a large hole, break the read into small chunks. Split the hole into n
          * chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the

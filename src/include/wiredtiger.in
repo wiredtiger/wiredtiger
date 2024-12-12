@@ -3146,7 +3146,7 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * threads_max, maximum number of threads WiredTiger will start to migrate data from the backup to
  * the running WiredTiger database.  Each worker thread uses a session handle from the configured
- * session_max., an integer between \c 1 and \c 12; default \c 8.}
+ * session_max., an integer between \c 0 and \c 12; default \c 8.}
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}

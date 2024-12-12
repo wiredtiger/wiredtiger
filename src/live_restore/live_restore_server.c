@@ -23,6 +23,33 @@ __live_restore_worker_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __live_restore_worker_stop --
+ *     When a live restore worker stops we need to manage some state. If all workers stop and the
+ *     queue is empty then update the state statistic to track that.
+ */
+static int
+__live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
+{
+    WT_UNUSED(ctx);
+    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+
+    __wt_spin_lock(session, &server->queue_lock);
+    server->threads_working--;
+
+    if (server->threads_working == 0 && TAILQ_EMPTY(&server->work_queue)) {
+        /*
+         * If all the threads have stopped and the queue is empty signal that the live restore is
+         * complete.
+         */
+        WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Live restore finished");
+    }
+    __wt_spin_unlock(session, &server->queue_lock);
+
+    return (0);
+}
+
+/*
  * __live_restore_work_queue_drain --
  *     Drain the work queue of any remaining items. This function does not need to take the queue
  *     lock but we do anyway because the semantic is if you touch the queue after it is initialized,
@@ -60,22 +87,9 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
-        /*
-         * Because we depend on stopping threads to avoid decrementing the counter indefinitely this
-         * section of code will both decrement the counter and terminate the thread. This is an
-         * unusual usage of thread groups but avoids refactoring a LOT of other code for the time
-         * being. The obvious fix would be to pass a WT_THREAD to the check function and then clear
-         * the run flag, however this then modifies the definition of __wt_cond_wait_signal which is
-         * used _everywhere_.
-         */
-        server->threads_working--;
-        if (server->threads_working == 0) {
-            /* All threads have finished their work, signal that source can be dropped. */
-            WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
-        }
-        /* Kill ourselves. */
+        /* Stop our thread from running. This will call the stop_func and trigger state cleanup. */
         F_CLR(ctx, WT_THREAD_RUN);
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Live restore worker terminating%s", "!");
+        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "%s", "Live restore worker terminating");
         __wt_spin_unlock(session, &server->queue_lock);
         return (0);
     }
@@ -94,31 +108,35 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
     /*
-     * TODO: Add logic to differentiate log files, we can't open cursors on them. Can they be
-     * deleted concurrently? It may be easier to have two separate queues.
-     */
-    /*
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
-     * schema operations like drop and rename.
+     * schema operations like drop and rename. Even if this object is a log file it can have a
+     * cursor opened it. Opening a cursor on a log will prevent it from getting archived.
+     *
+     * If the file no longer exists, which for logs means they could have been archived and for
+     * regular files dropped, don't error out.
      */
-    WT_RET(wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor));
+    WT_RET_ERROR_OK(
+      wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor), ENOENT);
 
     /*
      * We need to get access to the WiredTiger file handle. Given we've opened the cursor we should
      * be able to access the WT_FH by first getting to its block manager and then the WT_FH.
      */
-    WT_ASSERT(session, (CUR2BT(cursor)->bm)->is_multi_handle == false);
-    /* This is a bit more than a little gross. */
-    WT_FILE_HANDLE *fh = CUR2BT(cursor)->bm->block->fh->handle;
+    WT_BM *bm = CUR2BT(cursor)->bm;
+    WT_ASSERT(session, bm->is_multi_handle == false);
+
+    /* This will be replaced with an API call in the future for now it is what we have. */
+    WT_FILE_HANDLE *fh = bm->block->fh->handle;
+
     /*
      * Call the fill holes function. Right now no other reads or writes can be occurring
      * concurrently.
      */
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker filling holes for: %s", work_item->uri);
-
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     WT_TRET(cursor->close(cursor));
+
     return (ret);
 }
 
@@ -137,6 +155,11 @@ __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
      * Open a metadata cursor to gather the list of objects. The metadata file is built from the
      * WiredTiger.backup file, during __wt_turtle_init. Thus this function must be run after that
      * function. I don't know if we have a way of enforcing that.
+     */
+
+    /*
+     * FIXME-WT-00000: Add logic to queue log files first, then the oplog then the history store.
+     * This will use a directory list call.
      */
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
@@ -192,6 +215,11 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
 
+    /* Read the threads_max config, 0 threads is valid in which case we don't do anything. */
+    WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+    if (cval.val == 0)
+        return (0);
+
     /*
      * Even if we start from an empty database the history store file will exist before we get here
      * which means there will always be at least one item in the queue.
@@ -201,7 +229,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
     server->queue_size = work_count;
 
-    WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     /* Set this value before the threads start up in case they immediately decrement it. */
     server->threads_working = (uint32_t)cval.val;
     /*
@@ -228,18 +255,10 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      *     active threads but only eviction actually does this. We plan on doing this in some form
      *     in the future but for now are short circuiting this weirdness by specifying min_threads
      *     to be the same as max_threads.
-     *
-     * Some timings are as follows:
-     *   - With min_threads = max_threads my test finishes in: 3s.
-     *   - With 0 for min_threads: 33s. AKA 3 10s wait observations.
-     *   - If I simply drop that 10s wait to 10us with 0 min_threads: 3s.
-     *
-     * A CLEAR indication that even though the threads aren't active, whatever that means, they
-     * still do work!!
      */
     return (__wt_thread_group_create(session, &server->threads, "live_restore_workers",
       (uint32_t)cval.val, (uint32_t)cval.val, 0, __live_restore_worker_check,
-      __live_restore_worker_run, NULL));
+      __live_restore_worker_run, __live_restore_worker_stop));
 }
 
 /*
