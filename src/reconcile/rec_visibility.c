@@ -644,7 +644,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             }
         }
 
-        /* Don't write any update that is not stable if precise checkpoint is enabled. */
+        /*
+         * Don't write any update that is not stable if precise checkpoint is enabled.
+         *
+         * TODO: currently we only support this mode from startup. If we want to enable this through
+         * reconfiguration, we need to ensure we have run a rollback to stable before we run the
+         * first checkpoint with the precise mode.
+         */
         if (F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
           upd->durable_ts > r->rec_start_pinned_stable_ts) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
