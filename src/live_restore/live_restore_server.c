@@ -171,15 +171,20 @@ err:
 }
 
 /*
- * __wt_live_restore_server_init --
+ * __wt_live_restore_server_create --
  *     Start the worker threads and build the work queue.
  */
 int
-__wt_live_restore_server_init(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
 
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+
+    /* Check that we have a live restore file system before starting the threads. */
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (0);
+
     /*
      * Set this state before we run the threads, if we do it after there's a chance we'll context
      * switch and then this state will happen after the finish state. This also means we transition
@@ -245,6 +250,10 @@ int
 __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+
+    /* If we didn't create a live restore file system then we also didn't start any threads. */
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (0);
 
     /*
      * It is possible to get here without ever starting the thread group. Ensure that it has been
