@@ -57,6 +57,8 @@ get_last_error(void)
     printf("Sub-level error code: %d\n", *sub_level_err);
     printf("Error message: %s\n", *err_msg);
 
+    free(*err_msg);
+
     error_check(conn->close(conn, NULL));
 }
 
