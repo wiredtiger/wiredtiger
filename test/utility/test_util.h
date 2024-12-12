@@ -555,6 +555,7 @@ void testutil_lazyfs_setup(WT_LAZY_FS *, const char *);
 void testutil_mkdir(const char *);
 void testutil_mkdir_ext(const char *, const WT_MKDIR_OPTS *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
+void testutil_move(const char *source, const char *dest);
 uint64_t testutil_pareto(uint64_t, uint64_t, u_int);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
 void testutil_parse_end_opt(TEST_OPTS *);
@@ -574,7 +575,6 @@ void testutil_sleep_wait(uint32_t, pid_t);
 #endif
 void testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
-void testutil_touch_file(const char *);
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
 void testutil_tiered_begin(TEST_OPTS *);

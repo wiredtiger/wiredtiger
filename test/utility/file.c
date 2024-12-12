@@ -417,6 +417,18 @@ testutil_copy(const char *source, const char *dest)
     testutil_copy_ext(source, dest, NULL);
 }
 
+/*
+ * testutil_move --
+ *     Move a file or folder.
+ */
+void
+testutil_move(const char *source, const char *dest)
+{
+    testutil_remove(dest);
+    testutil_copy(source, dest);
+    testutil_remove(source);
+}
+
 /* Default options for the file copy function. */
 static const WT_FILE_COPY_OPTS default_copy_opts = {0};
 
@@ -617,18 +629,6 @@ testutil_remove(const char *path)
           g.gl_pathv[i], NULL, 0, true, remove_on_file, NULL, remove_on_directory_leave, NULL);
 
     globfree(&g);
-}
-
-/*
- * testutil_touch_file --
- *     Perform a Unix touch on a file.
- */
-void
-testutil_touch_file(const char *path)
-{
-    FILE *fp;
-    testutil_assert_errno((fp = fopen(path, "a")) != NULL);
-    testutil_assert_errno(fclose(fp) == 0);
 }
 
 /*
