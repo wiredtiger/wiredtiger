@@ -1177,6 +1177,9 @@ __wt_os_live_restore_fs(
 
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
+
+    /* Flag that live a live restore file system is in use. */
+    F_SET(S2C(session), WT_CONN_LIVE_RESTORE);
     if (0) {
 err:
         __wt_free(session, lr_fs->source.home);

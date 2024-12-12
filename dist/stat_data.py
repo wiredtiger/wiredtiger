@@ -528,7 +528,8 @@ conn_stats = [
     ##########################################
     # Live Restore statistics
     ##########################################
-    LiveRestoreStat('live_restore_state', 'live restore state'),
+    LiveRestoreStat('live_restore_queue_length', 'the number of files needed to be visited prior to live restore completion', 'no_clear,no_scale'),
+    LiveRestoreStat('live_restore_state', 'live restore state', 'no_clear,no_scale'),
 
     ##########################################
     # Locking statistics
