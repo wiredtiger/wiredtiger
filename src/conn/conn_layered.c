@@ -1276,3 +1276,172 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     return (0);
 }
+
+/*
+ * __layered_move_updates --
+ *     Move the updates of a key to the stable table
+ */
+static int
+__layered_move_updates(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
+{
+    /* Search the page. */
+    WT_RET(__wt_row_search(cbt, key, true, NULL, false, NULL));
+
+    /* Apply the modification. */
+    WT_RET(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
+
+    return (0);
+}
+
+/*
+ * __layered_drain_ingest_table --
+ *     Moving all the data from a single ingest table to the corresponding stable table
+ */
+static int
+__layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
+{
+    WT_CURSOR *stable_cursor, *version_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(key);
+    WT_DECL_ITEM(tmp_key);
+    WT_DECL_ITEM(value);
+    WT_DECL_RET;
+    WT_TIME_WINDOW tw;
+    WT_UPDATE *prev_upd, *tombstone, *upd, *upds;
+    uint8_t flags, location, prepare, type;
+    int cmp;
+    char buf[256];
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
+
+    WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
+    cbt = (WT_CURSOR_BTREE *)stable_cursor;
+    WT_RET(__wt_snprintf(buf, sizeof(buf),
+      "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
+      "%" PRIx64 "))",
+      S2C(session)->txn_global.stable_timestamp));
+    cfg[1] = buf;
+    WT_RET(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
+    /* We only care about binary data. */
+    F_SET(version_cursor, WT_CURSTD_RAW);
+
+    prev_upd = tombstone = upd = upds = NULL;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key));
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &value));
+
+    for (;;) {
+        tombstone = upd = NULL;
+        WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
+        if (ret == WT_NOTFOUND) {
+            if (key->size > 0 && upds != NULL) {
+                WT_ERR(__layered_move_updates(cbt, key, upds));
+                upds = NULL;
+            } else
+                ret = 0;
+            break;
+        }
+
+        WT_ERR(version_cursor->get_key(version_cursor, tmp_key));
+        WT_ERR(__wt_compare(session, CUR2BT(cbt)->collator, key, tmp_key, &cmp));
+        if (cmp != 0) {
+            WT_ASSERT(session, cmp <= 0);
+
+            if (upds != NULL)
+                WT_ERR(__layered_move_updates(cbt, key, upds));
+
+            upds = NULL;
+            prev_upd = NULL;
+            WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
+        }
+
+        WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
+          &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
+          &flags, &location, value));
+        /* We shouldn't seen any prepared updates. */
+        WT_ASSERT(session, prepare == 0);
+
+        /* We assume the updates returned will be in timestamp order. */
+        if (prev_upd != NULL) {
+            WT_ASSERT(session,
+              tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->start_ts &&
+                tw.durable_stop_ts <= prev_upd->durable_ts);
+            WT_ASSERT(session,
+              tw.start_txn <= prev_upd->txnid && tw.start_ts <= prev_upd->start_ts &&
+                tw.durable_start_ts <= prev_upd->durable_ts);
+            if (tw.stop_txn != prev_upd->txnid || tw.stop_ts != prev_upd->start_ts ||
+              tw.durable_stop_ts != prev_upd->durable_ts)
+                WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+        } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+
+        WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+        upd->txnid = tw.start_txn;
+        upd->start_ts = tw.start_ts;
+        upd->durable_ts = tw.durable_start_ts;
+
+        if (tombstone != NULL) {
+            tombstone->txnid = tw.stop_txn;
+            tombstone->start_ts = tw.start_ts;
+            tombstone->durable_ts = tw.durable_start_ts;
+            tombstone->next = upd;
+
+            if (prev_upd != NULL)
+                prev_upd->next = tombstone;
+            else {
+                prev_upd = upd;
+                upds = tombstone;
+            }
+            tombstone = NULL;
+            upd = NULL;
+        } else {
+            if (prev_upd != NULL)
+                prev_upd->next = upd;
+            else {
+                prev_upd = upd;
+                upds = upd;
+            }
+            upd = NULL;
+        }
+    }
+
+err:
+    if (tombstone != NULL)
+        __wt_free(session, tombstone);
+    if (upd != NULL)
+        __wt_free(session, upd);
+    if (upds != NULL)
+        __wt_free_update_list(session, &upds);
+    __wt_scr_free(session, &key);
+    __wt_scr_free(session, &tmp_key);
+    __wt_scr_free(session, &value);
+    WT_TRET(version_cursor->close(version_cursor));
+    return (ret);
+}
+
+/* TODO: use this function to drain the inges table */
+#ifdef __linux__
+static int __layered_drain_ingest_tables(WT_SESSION_IMPL *) __attribute__((unused));
+#endif
+
+/*
+ * __layered_drain_ingest_tables --
+ *     Moving all the data from the ingest tables to the stable tables
+ */
+static int
+__layered_drain_ingest_tables(WT_SESSION_IMPL *session)
+{
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    size_t i;
+
+    manager = &S2C(session)->layered_table_manager;
+
+    /* The table count never shrinks, so this is safe. It probably needs the layered table lock */
+    for (i = 0; i < manager->open_layered_table_count; i++) {
+        if ((entry = manager->entries[i]) != NULL && entry->accumulated_write_bytes > 0)
+            WT_RET(__layered_drain_ingest_table(session, entry));
+    }
+
+    return (0);
+}
