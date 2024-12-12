@@ -51,6 +51,24 @@ build_str_from_extent(WT_LIVE_RESTORE_HOLE_NODE *ext)
     return str;
 }
 
+bool
+extent_list_in_order(WT_LIVE_RESTORE_HOLE_NODE *head)
+{
+    WT_LIVE_RESTORE_HOLE_NODE *prev_node, *node;
+    prev_node = NULL;
+    node = head;
+    while (node != NULL) {
+        if (prev_node != NULL) {
+            if(prev_node->off >= node->off || WT_EXTENT_END(prev_node) >= node->off) {
+                return false;
+            }
+        }
+        prev_node = node;
+        node = node->next;
+    }
+    return true;
+}
+
 void
 populate_file(std::string filepath)
 {
@@ -128,8 +146,10 @@ TEST_CASE("Live Restore Extent Lists: XXXXXXX", "[live_restore_extent_list]")
           (DB_DEST + "/" + "MY_FILE.txt").c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, 0,
           (WT_FILE_HANDLE **)&lr_fh);
 
-        // There's no back file and so no extent list to track. It will be null
-        REQUIRE(lr_fh->destination.hole_list_head == nullptr);
+        // There's no backing file and so no extent list to track. It will be null
+        WT_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
+        REQUIRE(ext == NULL);
+        REQUIRE(extent_list_in_order(ext));
     }
 
     SECTION("Open a new backed file")
@@ -149,6 +169,7 @@ TEST_CASE("Live Restore Extent Lists: XXXXXXX", "[live_restore_extent_list]")
           (WT_FILE_HANDLE **)&lr_fh);
 
         WT_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
+        REQUIRE(extent_list_in_order(ext));
         std::string extent_string = build_str_from_extent(ext);
         // We've created a new file in destination backed by a file in source.
         // The hole list is one big hole the entire size of the source file.
@@ -176,6 +197,15 @@ TEST_CASE("Live Restore Extent Lists: XXXXXXX", "[live_restore_extent_list]")
           (WT_FILE_HANDLE **)&lr_fh);
 
         WT_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
+        REQUIRE(ext == NULL);
+
+        // We've tested when there's no file in the destination. Now test when there is a file in
+        // the destination, but no content has been copied yet.
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, wt_session);
+        lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, wt_session,
+          (DB_DEST + "/" + "MY_FILE.txt").c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, 0,
+          (WT_FILE_HANDLE **)&lr_fh);
+        ext = lr_fh->destination.hole_list_head;
         REQUIRE(ext == NULL);
     }
 
@@ -211,6 +241,7 @@ TEST_CASE("Live Restore Extent Lists: XXXXXXX", "[live_restore_extent_list]")
 
         // We've written 4KB to the start of the file. There should only be a hole at the end.
         WT_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
+        REQUIRE(extent_list_in_order(ext));
         std::string extent_string = build_str_from_extent(ext);
         std::string expected_extent = "(4096-8191)";
         REQUIRE(extent_string == expected_extent);

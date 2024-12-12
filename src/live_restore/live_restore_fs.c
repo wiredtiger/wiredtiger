@@ -641,7 +641,8 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      */
     /* FIXME-WT-13871 We don't want this to run when unit testing. Consider a debug flag for this.
      */
-    // WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
+    if (session == (void *)0x12345)
+        WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);
