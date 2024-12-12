@@ -158,7 +158,7 @@ __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
      */
 
     /*
-     * FIXME-WT-00000: Add logic to queue log files first, then the oplog then the history store.
+     * FIXME-WT-13888: Add logic to queue log files first, then the oplog then the history store.
      * This will use a directory list call.
      */
     WT_CURSOR *cursor;
