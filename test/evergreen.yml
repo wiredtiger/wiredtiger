@@ -311,7 +311,6 @@ functions:
           fi
         fi
 
-
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
           # We execute it in a powershell environment as its easier to detect and source the Visual Studio
@@ -372,7 +371,6 @@ functions:
         set -o verbose
         echo "Starting 'make wiredtiger' step"
         ${PREPARE_PATH}
-        #!/bin/bash
 
         if ! command -v swig >/dev/null 2>&1; then
             echo "SWIG is not installed. Skipping check ..."
