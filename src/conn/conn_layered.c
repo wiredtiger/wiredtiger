@@ -131,17 +131,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
-     * Scan the metadata table. The cursor config below ensures that we open the latest checkpoint,
-     * which we just received from the primary. We do this by creating a checkpoint cursor on
-     * WT_CHECKPOINT (we can't specify the exact checkpoint order anyways, as it is prohibited by
-     * the API). This is nonetheless guaranteed to be the latest checkpoint because:
-     *   - The checkpoint ID can only advance, so the received checkpoint is guaranteed to be more
-     *     recent than any checkpoint that we have received previously.
-     *   - We can't create or receive another checkpoint in the meantime, because we currently hold
-     *     the checkpoint lock.
+     * Scan the metadata table. Reopen the table to ensure that we are on the most recent
+     * checkpoint.
      */
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    cfg[1] = ",checkpoint_use_history=false,force=true";
+    cfg[1] = "force=true";
     cfg[2] = NULL;
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
