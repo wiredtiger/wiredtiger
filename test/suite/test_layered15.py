@@ -41,7 +41,12 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     layered_uris = ["layered:test_layered15a", "layered:test_layered15b"]
-    other_uris = ["file:test_layered15c", "table:test_layered15d"]
+    file_uris = ["file:test_layered15c"]
+    table_uris = ["table:test_layered15d"]
+    all_uris = layered_uris + file_uris + table_uris
+
+    update_uris = [table_uris[0]] + ([layered_uris[0]] if len(layered_uris) > 0 else [])
+    same_uris = list(set(all_uris) - set(update_uris))
 
     disagg_storages = gen_disagg_storages('test_layered15', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -79,13 +84,37 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Reopen the connection
         self.open_conn()
 
+    # Ensure that the metadata cursor has all the expected URIs.
+    def check_metadata_cursor(self, expect_contains, expect_missing = []):
+        cursor = self.session.open_cursor('metadata:', None, None)
+        metadata = {}
+        while cursor.next() == 0:
+            metadata[cursor.get_key()] = cursor.get_value()
+        for uri in expect_contains:
+            self.assertTrue(uri in metadata)
+        for uri in expect_missing:
+            self.assertFalse(uri in metadata)
+        cursor.close()
+
+    # Ensure that the shared metadata has all the expected URIs.
+    def check_shared_metadata(self, expect_contains, expect_missing = []):
+        cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        metadata = {}
+        while cursor.next() == 0:
+            metadata[cursor.get_key()] = cursor.get_value()
+        for uri in expect_contains:
+            self.assertTrue(uri in metadata)
+        for uri in expect_missing:
+            self.assertFalse(uri in metadata)
+        cursor.close()
+
     # Test starting without local files.
     def test_layered15(self):
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # Create tables
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.all_uris:
             cfg = self.create_session_config
             if not uri.startswith('layered'):
                 cfg += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
@@ -93,7 +122,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Put data to tables
         value_prefix = 'aaa'
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.all_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 cursor[str(i)] = value_prefix + str(i)
@@ -106,32 +135,32 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         checkpoint_id = self.disagg_get_complete_checkpoint()
 
+        # Ensure that the shared metadata table has all the expected URIs
+        self.check_shared_metadata(self.all_uris)
+
+        #
+        # ------------------------------ Restart 1 ------------------------------
+        #
+
         # Reopen the connection
         self.restart_without_local_files()
 
         # There should be no shared URIs in the metadata table at this point
-        cursor = self.session.open_cursor('metadata:', None, None)
-        metadata = {}
-        while cursor.next() == 0:
-            metadata[cursor.get_key()] = cursor.get_value()
-        for uri in self.layered_uris + self.other_uris:
-            self.assertFalse(uri in metadata)
-        cursor.close()
+        self.check_metadata_cursor([], self.all_uris)
 
         # Pick up the checkpoint
         self.conn.reconfigure(f'disaggregated=(checkpoint_id={checkpoint_id})')
 
+        # Ensure that the shared metadata table has all the expected URIs
+        self.check_shared_metadata(self.all_uris)
+
         # Ensure that the metadata cursor has all the expected URIs
-        cursor = self.session.open_cursor('metadata:', None, None)
-        metadata = {}
-        while cursor.next() == 0:
-            metadata[cursor.get_key()] = cursor.get_value()
-        for uri in self.layered_uris + self.other_uris:
-            self.assertTrue(uri in metadata)
-        cursor.close()
+        self.check_metadata_cursor(self.all_uris)
 
         # Check tables after the restart, but before we step up as a leader
-        for uri in self.layered_uris + self.other_uris:
+        # FIXME-SLS-760: Opening a layered table here would cause a failure in __assert_ckpt_matches
+        # for uri in self.all_uris:
+        for uri in self.table_uris + self.file_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
@@ -141,7 +170,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
 
         # Check tables again after stepping up
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.all_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
@@ -149,7 +178,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Do a few more updates to ensure that the tables continue to be writable
         value_prefix2 = 'bbb'
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.update_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
@@ -159,7 +188,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor.close()
 
         # Ensure that the leader sees its own writes before a checkpoint
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.update_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
@@ -167,14 +196,25 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
+        for uri in self.same_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
+
+        # Ensure that the shared metadata table has all the expected URIs
+        self.check_shared_metadata(self.all_uris)
 
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
         checkpoint_id = self.disagg_get_complete_checkpoint()
 
+        # Ensure that the shared metadata table has all the expected URIs after the checkpoint
+        self.check_shared_metadata(self.all_uris)
+
         # Ensure that the leader sees its own writes after a checkpoint
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.update_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
@@ -182,6 +222,21 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
+        for uri in self.same_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
+
+        # Ensure that the shared metadata table has all the expected URIs
+        self.check_shared_metadata(self.all_uris)
+
+        # Ensure that the metadata cursor has all the expected URIs
+        self.check_metadata_cursor(self.all_uris)
+
+        #
+        # ------------------------------ Restart 2 ------------------------------
+        #
 
         # Reopen the connection
         self.restart_without_local_files()
@@ -192,12 +247,23 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Become the leader (skip a few extra checkpoint IDs just in case)
         self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
 
+        # Ensure that the shared metadata table has all the expected URIs
+        self.check_shared_metadata(self.all_uris)
+
+        # Ensure that the metadata cursor has all the expected URIs
+        self.check_metadata_cursor(self.all_uris)
+
         # Check tables after the restart
-        for uri in self.layered_uris + self.other_uris:
+        for uri in self.update_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
                     self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
                 else:
                     self.assertEquals(cursor[str(i)], value_prefix + str(i))
+            cursor.close()
+        for uri in self.same_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
