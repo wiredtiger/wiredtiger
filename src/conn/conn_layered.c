@@ -141,7 +141,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      *     the checkpoint lock.
      */
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    cfg[1] = "checkpoint=" WT_CHECKPOINT ",checkpoint_use_history=false";
+    cfg[1] = ",checkpoint_use_history=false,force=true";
     cfg[2] = NULL;
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 

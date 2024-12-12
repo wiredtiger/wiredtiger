@@ -51,7 +51,6 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if os.name == 'nt':
             extlist.skip_if_missing = True
         extlist.extension('page_log', 'palm')
-        self.pr(f"{extlist=}")
 
     # Custom test case setup
     def early_setup(self):

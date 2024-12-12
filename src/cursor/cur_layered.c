@@ -223,8 +223,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
      * stable cursor and open a new one to get the more recent checkpoint information and allow for
      * garbage collection.
      */
-    if (clayered->ingest_cursor != NULL &&
-      (!F_ISSET(clayered, WT_CLAYERED_OPEN_READ) || clayered->stable_cursor != NULL))
+    if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
 
     /*
@@ -236,27 +235,31 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
-    /* Always open the ingest cursor */
+    /* Always open both the ingest and stable cursors */
     if (clayered->ingest_cursor == NULL) {
         WT_RET(__wt_open_cursor(
           session, layered->ingest_uri, &clayered->iface, NULL, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     }
 
-    if (clayered->stable_cursor == NULL && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)) {
-        ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-        ckpt_cfg[1] = "checkpoint=" WT_CHECKPOINT ",raw,checkpoint_use_history=false";
-        ckpt_cfg[2] = NULL;
+    if (clayered->stable_cursor == NULL) {
+        if (!S2C(session)->layered_table_manager.leader) {
+            ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+            ckpt_cfg[1] = ",raw,checkpoint_use_history=false,force=true";
+            ckpt_cfg[2] = NULL;
+            /*
+             * We may have a stable chunk with no checkpoint yet. If that's the case then open a
+             * cursor on stable without a checkpoint. It will never return an invalid result (it's
+             * content is by definition trailing the ingest cursor. It is just slightly less
+             * efficient, and also not an accurate reflection of what we want in terms of sharing
+             * checkpoint across different WiredTiger instances eventually.
+             */
+            ret = __wt_open_cursor(
+              session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
+        } else
+            ret = __wt_open_cursor(
+              session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
 
-        /*
-         * We may have a stable chunk with no checkpoint yet. If that's the case then open a cursor
-         * on stable without a checkpoint. It will never return an invalid result (it's content is
-         * by definition trailing the ingest cursor. It is just slightly less efficient, and also
-         * not an accurate reflection of what we want in terms of sharing checkpoint across
-         * different WiredTiger instances eventually.
-         */
-        ret = __wt_open_cursor(
-          session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
         if (ret == WT_NOTFOUND) {
             ret = __wt_open_cursor(
               session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
@@ -941,11 +944,15 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 
     WT_RET(__layered_modify_check(session));
 
+    if (S2C(session)->layered_table_manager.leader)
+        c = clayered->stable_cursor;
+    else
+        c = clayered->ingest_cursor;
+
     /* If necessary, set the position for future scans. */
     if (position)
-        clayered->current_cursor = clayered->ingest_cursor;
+        clayered->current_cursor = c;
 
-    c = clayered->ingest_cursor;
     c->set_key(c, key);
     func = c->insert;
     if (position)
