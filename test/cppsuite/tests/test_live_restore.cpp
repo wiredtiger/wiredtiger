@@ -129,11 +129,10 @@ read(scoped_session &session)
 {
     auto cursor = session.open_scoped_cursor(db.get_random_collection(), "next_random=true");
     auto ret = cursor->next(cursor.get());
-    if (ret == WT_NOTFOUND) {
+    if (ret == WT_NOTFOUND)
         logger::log_msg(LOG_WARN, "Reading in a collection with no keys");
-    } else if (ret != 0) {
+    else if (ret != 0)
         testutil_assert(ret == 0);
-    }
 }
 
 // Truncate from a random key to the end of the file and then call compact. This should
