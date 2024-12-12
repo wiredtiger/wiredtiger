@@ -286,9 +286,6 @@ functions:
           $SYSPY -mvenv venv
           source venv/bin/activate
           pip3 install find_libpython==0.4.0
-          # FIXME-WT-13704: installing swig to accommodate for macos14 not having swig by default, will be removed once swig
-          # is installed on this distro.
-          pip3 install swig==4.2.1
           SYSPYLIB=`find_libpython`
           SYSPYINCDEF=
 
@@ -314,11 +311,6 @@ functions:
           fi
         fi
 
-        if [[ "${build_variant|}" =~ "amazon2-arm64" ]]; then
-            python3 -mvenv venv
-            source venv/bin/activate
-            pip3 install swig==4.2.1
-        fi
 
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to configure the CMake build.
@@ -380,20 +372,30 @@ functions:
         set -o verbose
         echo "Starting 'make wiredtiger' step"
         ${PREPARE_PATH}
+        #!/bin/bash
+
+        if ! command -v swig >/dev/null 2>&1; then
+            echo "SWIG is not installed. Skipping check ..."
+        else
+            SWIG_VERSION=$(swig -version | awk '/SWIG Version/ {print $3}')
+
+            if [[ "$(printf '%s\n' "4.0.0" "$SWIG_VERSION" | sort -V | head -n1)" == "4.0.0" ]]; then
+                echo "SWIG version $SWIG_VERSION is 4.0 or later."
+            else
+                echo "SWIG version $SWIG_VERSION is earlier than 4.0. Installing a newer version ..."
+                python3 -mvenv venv
+                source venv/bin/activate
+                pip3 install swig==4.2.1
+                swig -version
+            fi
+        fi
+
         if [ "$OS" = "Windows_NT" ]; then
           # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
           powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
         else
           # Compiling with CMake generated Ninja file.
           cd cmake_build
-          # FIXME-WT-13704: using virtual env to accommodate for macos14 not having swig by default, will be removed once swig
-          # is installed on this distro.
-          if [[ "${build_variant|}" =~ "macos-14-arm64" ]]; then
-            source ../venv/bin/activate
-          fi
-          if [[ "${build_variant|}" =~ "amazon2-arm64" ]]; then
-            source ../venv/bin/activate
-          fi
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
             ninja -j ${num_jobs} 2>&1
           else
