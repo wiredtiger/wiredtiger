@@ -142,9 +142,17 @@ void
 trigger_fs_truncate(scoped_session &session)
 {
     // Truncate from a random key all the way to the end of the collection and then call compact
+
+    int ret;
     const std::string coll_name = db.get_random_collection();
     scoped_cursor rnd_cursor = session.open_scoped_cursor(coll_name, "next_random=true");
-    testutil_check(rnd_cursor->next(rnd_cursor.get()));
+    ret = rnd_cursor->next(rnd_cursor.get());
+
+    testutil_check_error_ok(ret, WT_NOTFOUND);
+    if (ret == WT_NOTFOUND) {
+        // We've tried to truncate an empty collection. Nothing to do.
+        return;
+    }
     testutil_check(session->truncate(session.get(), NULL, rnd_cursor.get(), nullptr, nullptr));
     testutil_check(session->compact(session.get(), coll_name.c_str(), nullptr));
 }
