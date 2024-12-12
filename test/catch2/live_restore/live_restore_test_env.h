@@ -25,7 +25,7 @@ class live_restore_test_env {
 public:
     const std::string _DB_DEST = "WT_LR_DEST";
     const std::string _DB_SOURCE = "WT_LR_SOURCE";
-    const std::string _DB_HACKY_BACKUP = "WT_LR_HACKY_BACKUP";
+    const std::string _DB_TEMP_BACKUP = "WT_LR_TEMP_BACKUP";
 
     WT_LIVE_RESTORE_FS *_lr_fs;
     std::unique_ptr<connection_wrapper> _conn;
