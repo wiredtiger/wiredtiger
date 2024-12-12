@@ -638,11 +638,13 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp)
 {
+    WT_CONNECTION_IMPL *conn
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_stable_ts;
     bool has_stable_timestamp;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     /*
      * There is no need to go further if no stable timestamp has been set yet.
@@ -662,7 +664,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinne
      */
     WT_ACQUIRE_READ(pinned_stable_ts, txn_global->stable_timestamp);
 
-    if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT)) {
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         *pinned_stable_tsp = pinned_stable_ts;
         return;
     }
