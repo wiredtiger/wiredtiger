@@ -2297,6 +2297,8 @@ extern void __ut_block_off_srch_pair(
   WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **afterp);
 extern void __ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack);
 extern void __ut_chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t bit_index);
+extern void __ut_session_get_last_error(
+  WT_SESSION_IMPL *session, int *err, int *sub_level_err, const char **err_msg);
 
 #endif
 
