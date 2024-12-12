@@ -550,11 +550,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
   WT_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
   size_t *upd_memsizep)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid, txnid;
     bool is_hs_page, seen_prepare;
 
+    conn = S2C(session);
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
@@ -644,7 +646,24 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             }
         }
 
-        /* Always select the newest committed update to write to disk */
+        /*
+         * Don't write any update that is not stable if precise checkpoint is enabled.
+         *
+         * TODO: currently we only support this mode from startup. If we want to enable this through
+         * reconfiguration, we need to ensure we have run a rollback to stable before we run the
+         * first checkpoint with the precise mode.
+         */
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+          upd->durable_ts > r->rec_start_pinned_stable_ts) {
+            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *has_newer_updatesp = true;
+            continue;
+        }
+
+        /*
+         * Always select the newest visible update if precise checkpoint is not enabled. Otherwise,
+         * select the first update that is smaller or equal to the pinned timestamp.
+         */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 

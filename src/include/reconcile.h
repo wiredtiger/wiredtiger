@@ -105,6 +105,9 @@ struct __wt_reconcile {
     /* Track the pinned timestamp at the time reconciliation started. */
     wt_timestamp_t rec_start_pinned_ts;
 
+    /* Track the pinned stable timestamp at the time reconciliation started. */
+    wt_timestamp_t rec_start_pinned_stable_ts;
+
     /* Track the page's maximum transaction/timestamp. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;

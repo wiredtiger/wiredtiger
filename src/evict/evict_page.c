@@ -850,7 +850,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) &&
       __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id) != WT_TXN_NONE &&
-      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
+      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
@@ -864,15 +864,18 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         LF_SET(WT_REC_CHECKPOINT_RUNNING);
 
     /* Eviction thread doing eviction. */
-    if (is_eviction_thread)
+    if (is_eviction_thread) {
         /*
          * Eviction threads do not need to pin anything in the cache. We have an exclusive lock for
          * the page being evicted so we are sure that the page will always be there while it is
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        __wt_txn_bump_snapshot(session);
-    else if (use_snapshot_for_app_thread) {
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+            LF_SET(WT_REC_VISIBLE_ALL);
+        else
+            __wt_txn_bump_snapshot(session);
+    } else if (use_snapshot_for_app_thread) {
         /*
          * If we couldn't make progress with the application thread's existing snapshot, save the
          * existing snapshot and refresh to acquire a new one. Then try eviction again. Once the
@@ -907,7 +910,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (is_eviction_thread)
+    if (is_eviction_thread && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
     else if (is_application_thread_snapshot_refreshed)
         __wt_txn_snapshot_release_and_restore(session);
