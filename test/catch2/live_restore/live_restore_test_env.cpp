@@ -11,20 +11,25 @@
 #include <fstream>
 namespace utils {
 
+/*
+ * This class sets up and tears down the testing environment for Live Restore. It spins up a normal
+ * WiredTiger database and then removes all content to leave an empty destination and source folder.
+ * Developers are expected to create the respective files in the these folders manually.
+ */
 live_restore_test_env::live_restore_test_env(bool verbose)
 {
-
-    // Clean up any pre-existing folders. Make sure an empty DB_SOURCE exists as we need it for
-    // connection_open.
+    // Clean up any pre-existing folders. Make sure an empty DB_SOURCE exists
+    // as it need to exist to open the connection in live restore mode.
     testutil_remove(_DB_DEST.c_str());
     testutil_remove(_DB_TEMP_BACKUP.c_str());
     testutil_recreate_dir(_DB_SOURCE.c_str());
 
     /*
-     * We're using a connection to setup the file system and let us print WT traces, but all of our
+     * We're using a connection to set up the file system and let us print WT traces, but all of our
      * tests will use empty folders where we create files manually. The issue here is
-     * wiredtiger_open will create metadata and turtle files on open and expect that it needs to
-     * remove them on close. Move these files to a temp location.
+     * wiredtiger_open will create metadata and turtle files on open and think it needs to remove
+     * them on close. Move these files to a temp location. We'll restore them in destructor before
+     * _conn->close() is called.
      */
     static std::string cfg_string = "live_restore=(enabled=true, path=" + _DB_SOURCE + ")";
     _conn = std::make_unique<connection_wrapper>(_DB_DEST.c_str(), cfg_string.c_str());
@@ -37,7 +42,8 @@ live_restore_test_env::live_restore_test_env(bool verbose)
 
 live_restore_test_env::~live_restore_test_env()
 {
-    // Clean up directories on close.
+    // Clean up directories on close. The connections destructor will remove the final
+    // destination folder.
     testutil_remove(_DB_SOURCE.c_str());
     testutil_move(_DB_TEMP_BACKUP.c_str(), _DB_DEST.c_str());
 }

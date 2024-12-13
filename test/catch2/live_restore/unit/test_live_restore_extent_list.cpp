@@ -7,8 +7,8 @@
  */
 
 /*
- * Tests of the Live Restore extent lists. This list tracks "holes" in a file representing ranges
- * where data needs to be read in from the source directory instead of the from the destination.
+ * Tests of the Live Restore extent lists. Extent lists track "holes" in a file representing ranges
+ * of data that still need to be copied from the source directory into the destination directory.
  * [live_restore_extent_list]
  */
 
@@ -18,7 +18,11 @@ using namespace utils;
 
 TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_extent_list]")
 {
-    // Slow: This code runs once per SECTION so we're creating a brand new WT database each time.
+    /*
+     * Note: this code runs once per SECTION so we're creating a brand new WT database for each
+     * section. If this gets slow we can make it static and manually clear the destination and
+     * source for each section.
+     */
     live_restore_test_env env(false);
 
     WT_LIVE_RESTORE_FS *lr_fs = env._lr_fs;
@@ -35,7 +39,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         lr_fs->iface.fs_open_file(&lr_fs->iface, wt_session, dest_file.c_str(),
           WT_FS_OPEN_FILE_TYPE_REGULAR, 0, (WT_FILE_HANDLE **)&lr_fh);
 
-        // There's no backing file, so no extent list to track.
+        // There's no backing file in the source directory, so no extent list to track.
         REQUIRE(extent_list_str(lr_fh) == "");
     }
 
@@ -52,32 +56,19 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         REQUIRE(extent_list_str(lr_fh) == "(0-999)");
     }
 
-    SECTION("Open a backed file whose size differs from the source")
+    SECTION("The extent list can't have holes beyond the end of the destination file")
     {
-        create_file(source_file.c_str(), 110);
-
-        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
-
-        // We've created a new file in the destination backed by a file in source.
-        // As we haven't read or written to the file it's one big hole.
-        REQUIRE(extent_list_in_order(lr_fh));
-        REQUIRE(extent_list_str(lr_fh) == "(0-109)");
-    }
-
-    SECTION("Hole list can't be larger than the dest file size")
-    {
-        // The following steps aren't a realistic scenario in Live Restore but it gets us to the
-        // desired test state.
+        // The following steps aren't a realistic scenario in Live Restore, but it gets
+        // us to the desired test state.
 
         // Create a source file of size 110 and open the lr_fh to copy that metadata.
-        // This creates a destination file also of size 110
+        // This creates a destination file also of size 110.
         create_file(source_file.c_str(), 110);
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         open_lr_fh(&env, dest_file.c_str(), &lr_fh);
 
         // Replace the source file with a larger file of size 200 and reopen the destination file to
-        // recompute the extent list
+        // recompute the extent list.
         testutil_remove(source_file.c_str());
         create_file(source_file.c_str(), 200);
 
@@ -90,20 +81,15 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         REQUIRE(extent_list_str(lr_fh) == "(0-109)");
     }
 
-    SECTION("Open a backed, complete file")
+    SECTION("Open a backed, completely copied file")
     {
         create_file(source_file.c_str(), 110);
 
         // Copy the file to DEST manually. This is a full copy.
         testutil_copy(source_file.c_str(), dest_file.c_str());
 
+        // Nothing to copy and therefore no extent list.
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
-        REQUIRE(extent_list_str(lr_fh) == "");
-
-        // We've tested when there's no file in the destination. Now test when there is a file in
-        // the destination, but no content has been copied yet.
-        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, wt_session);
         open_lr_fh(&env, dest_file.c_str(), &lr_fh);
         REQUIRE(extent_list_str(lr_fh) == "");
     }
