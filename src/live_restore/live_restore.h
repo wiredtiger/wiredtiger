@@ -14,7 +14,7 @@
  */
 struct __wt_live_restore_work_item {
     char *uri;
-    TAILQ_ENTRY(__wt_live_restore_work_item) q; /* List of pages queued for pre-fetch. */
+    TAILQ_ENTRY(__wt_live_restore_work_item) q; /* List of URIs queued for background migration. */
 };
 
 /*

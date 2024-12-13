@@ -51,14 +51,19 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
 /*
  * __live_restore_work_queue_drain --
- *     Drain the work queue of any remaining items. This function does not need to take the queue
- *     lock but we do anyway because the semantic is if you touch the queue after it is initialized,
- *     you hold the lock.
+ *     Drain the work queue of any remaining items.This is called either on connection close - and
+ *     the work will be continued after a restart - or for error handling cleanup in which case
+ *     we're about to crash.
  */
 static void
 __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
 {
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+
+    /*
+     * All contexts that call this function are singly threaded however we take the lock as that is
+     * the correct semantic and will future proof the code.
+     */
     __wt_spin_lock(session, &server->queue_lock);
     if (!TAILQ_EMPTY(&server->work_queue)) {
         WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL, *work_item_tmp = NULL;
@@ -69,7 +74,8 @@ __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
             __wt_free(session, work_item);
         }
     }
-    WT_ASSERT(session, TAILQ_EMPTY(&server->work_queue));
+    WT_ASSERT_ALWAYS(
+      session, TAILQ_EMPTY(&server->work_queue), "Live restore work queue failed to drain");
     __wt_spin_unlock(session, &server->queue_lock);
 }
 
@@ -82,7 +88,6 @@ static int
 __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
     WT_DECL_RET;
-    WT_UNUSED(ctx);
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
 
     __wt_spin_lock(session, &server->queue_lock);
@@ -115,8 +120,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * If the file no longer exists, which for logs means they could have been archived and for
      * regular files dropped, don't error out.
      */
-    WT_RET_ERROR_OK(
-      wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor), ENOENT);
+    ret = wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor);
+    if (ret == ENOENT)
+        return (0);
+    WT_RET(ret);
 
     /*
      * We need to get access to the WiredTiger file handle. Given we've opened the cursor we should
@@ -129,8 +136,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
     /*
-     * Call the fill holes function. Right now no other reads or writes can be occurring
-     * concurrently.
+     * Call the fill holes function. Right now no other reads or writes should be occurring
+     * concurrently or else things will eventually break.
+     *
+     * FIXME-WT-13825: Update this comment.
      */
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker filling holes for: %s", work_item->uri);

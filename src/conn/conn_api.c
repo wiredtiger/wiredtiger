@@ -2636,7 +2636,8 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "live_restore.enabled", &cval));
 
     WT_CONNECTION_IMPL *conn = S2C(session);
-    if (cval.val) {
+    bool live_restore_enabled = (bool)cval.val;
+    if (live_restore_enabled) {
         /* Live restore compatibility checks. */
         if (conn->file_system != NULL)
             WT_RET_MSG(session, EINVAL, "Live restore is not compatible with custom file systems");
@@ -2661,7 +2662,7 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
 #if defined(_MSC_VER)
             WT_RET(__wt_os_win(session));
 #else
-            if (cval.val)
+            if (live_restore_enabled)
                 WT_RET(__wt_os_live_restore_fs(session, cfg, conn->home, &conn->file_system));
             else
                 WT_RET(__wt_os_posix(session, &conn->file_system));

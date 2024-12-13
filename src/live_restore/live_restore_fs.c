@@ -580,7 +580,7 @@ __live_restore_fh_read(
 
 /*
  * __wti_live_restore_fs_fill_holes --
- *     On call make sure we've copied across all data from source to destination. This means there
+ *     Copy all remaining data from the source to the destination. On completion this means there
  *     are no holes in the destination file's extent list. If we find one promote read the content
  *     into the destination.
  *
@@ -603,7 +603,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     while ((hole = lr_fh->destination.hole_list_head) != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-          "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
+          "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ", fh->name,
           hole->off, WT_EXTENT_END(hole));
 
         /* If panic is set on the connection stop doing work. */
@@ -1182,7 +1182,7 @@ __wt_os_live_restore_fs(
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
 
-    /* Flag that live a live restore file system is in use. */
+    /* Flag that a live restore file system is in use. */
     F_SET(S2C(session), WT_CONN_LIVE_RESTORE_FS);
     if (0) {
 err:
