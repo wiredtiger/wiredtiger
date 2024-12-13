@@ -10,6 +10,10 @@
 #include <fstream>
 namespace utils {
 
+/*
+ * Create a string representation of an extent list, for example (1-10),(15-30) represents an extent
+ * list with holes at ranges 1 to 10 and 15 to 30 (inclusive).
+ */
 std::string
 extent_list_str(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
@@ -34,6 +38,8 @@ extent_list_str(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
     return str;
 }
 
+/* Open the live restore file handle for a file. This file path is identical to the backing file in
+ * the destination folder. */
 void
 open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
   WT_LIVE_RESTORE_FILE_HANDLE **lr_fhp)
@@ -47,6 +53,7 @@ open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
       reinterpret_cast<WT_FILE_HANDLE **>(lr_fhp)));
 }
 
+/* Verify that all extents in an extent list are in order and don't overlap. */
 bool
 extent_list_in_order(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
@@ -65,7 +72,7 @@ extent_list_in_order(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
     return true;
 }
 
-/* Write to a range in a file. */
+/* Create a file of the specified length. */
 void
 create_file(const std::string &filepath, int len)
 {
