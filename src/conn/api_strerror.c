@@ -49,9 +49,9 @@ __wt_wiredtiger_error(int error)
     switch (error) {
     case WT_NONE:
         return ("WT_NONE: last API call was successful");
-    case CWT_COMPACTION_ALREADY_RUNNING:
+    case WT_COMPACTION_ALREADY_RUNNING:
         return (
-          "CWT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
+          "WT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
           "already running");
     case WT_SESSION_MAX:
         return (

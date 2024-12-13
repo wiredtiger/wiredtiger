@@ -4052,7 +4052,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * This is some placeholder code that is used to check if multiple errors work.
  * It should be changed later.
  */
-#define	CWT_COMPACTION_ALREADY_RUNNING	(-32001)
+#define	WT_COMPACTION_ALREADY_RUNNING	(-32001)
 /*!
  * Out of sessions, configured for XXX (including internal sessions).
  * This is some placeholder code that is used to check if multiple errors work.

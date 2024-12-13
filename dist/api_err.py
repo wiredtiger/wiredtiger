@@ -88,7 +88,7 @@ sub_errors = [
     'last API call was successful', '''
     This is some placeholder code that is used to check if multiple errors work.
     It should be changed later.'''),
-    Error('CWT_COMPACTION_ALREADY_RUNNING', -32001,
+    Error('WT_COMPACTION_ALREADY_RUNNING', -32001,
     "Cannot reconfigure background compaction while it's already running", '''
     This is some placeholder code that is used to check if multiple errors work.
     It should be changed later.'''),
@@ -206,7 +206,8 @@ tfile.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
 
-def check_document_errors(tfile, skip, err_type, errors):
+# Checks if lines should be skipped and updates documentation block
+def check_write_document_errors(tfile, skip, err_type, errors):
     if line.count(f'IGNORE_BUILT_BY_API_{err_type}_END'):
         tfile.write(line)
         skip = 0
@@ -229,8 +230,8 @@ skip = 0
 for line in open(doc, 'r'):
     if not skip:
         tfile.write(line)
-    skip = check_document_errors(tfile, skip, 'ERR', errors)
-    skip = check_document_errors(tfile, skip, 'SUB_ERR', sub_errors)
+    skip = check_write_document_errors(tfile, skip, 'ERR', errors)
+    skip = check_write_document_errors(tfile, skip, 'SUB_ERR', sub_errors)
     
 tfile.close()
 format_srcfile(tmp_file)

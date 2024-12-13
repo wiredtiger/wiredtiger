@@ -95,7 +95,7 @@ inclusive. The following is a list of the WiredTiger-specific return values:
 This is some placeholder code that is used to check if multiple errors work. It should be changed
 later.
 
-@par \c CWT_COMPACTION_ALREADY_RUNNING
+@par \c WT_COMPACTION_ALREADY_RUNNING
 This is some placeholder code that is used to check if multiple errors work. It should be changed
 later.
 

@@ -35,7 +35,7 @@ from suite_subprocess import suite_subprocess
 
 # test_strerror01.py
 #     Test generation of sub-level error codes when using calling strerror
-class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
+class test_strerror(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_strerror(self):
         assert self.session.strerror(-32000) == "WT_NONE: last API call was successful"
