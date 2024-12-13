@@ -39,6 +39,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
 
         // There's no backing file in the source directory, so no extent list to track.
         REQUIRE(extent_list_str(lr_fh) == "");
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
     }
 
     SECTION("Open a new backed file")
@@ -52,6 +53,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         // We haven't read or written anything so the file is one big hole.
         REQUIRE(extent_list_in_order(lr_fh));
         REQUIRE(extent_list_str(lr_fh) == "(0-999)");
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
     }
 
     SECTION("The extent list can't have holes beyond the end of the destination file")
@@ -77,6 +79,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         // file size into account.
         REQUIRE(extent_list_in_order(lr_fh));
         REQUIRE(extent_list_str(lr_fh) == "(0-109)");
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
     }
 
     SECTION("Open a backed, completely copied file")
@@ -90,6 +93,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         open_lr_fh(env, dest_file.c_str(), &lr_fh);
         REQUIRE(extent_list_str(lr_fh) == "");
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
     }
 
     SECTION("Open a backed, partially copied file")
@@ -110,5 +114,6 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         // We've written 4KB to the start of the file. There should only be a hole at the end.
         REQUIRE(extent_list_in_order(lr_fh));
         REQUIRE(extent_list_str(lr_fh) == "(4096-8191)");
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
     }
 }
