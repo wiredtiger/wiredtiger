@@ -16,7 +16,7 @@ namespace utils {
  * WiredTiger database and then removes all content to leave an empty destination and source folder.
  * Developers are expected to create the respective files in the these folders manually.
  */
-live_restore_test_env::live_restore_test_env(bool verbose)
+live_restore_test_env::live_restore_test_env()
 {
     // Clean up any pre-existing folders. Make sure an empty DB_SOURCE exists
     // as it need to exist to open the connection in live restore mode.
@@ -49,13 +49,13 @@ live_restore_test_env::~live_restore_test_env()
 }
 
 std::string
-live_restore_test_env::dest_file_path(std::string file_name)
+live_restore_test_env::dest_file_path(const std::string &file_name)
 {
     return _DB_DEST + "/" + file_name;
 }
 
 std::string
-live_restore_test_env::source_file_path(std::string file_name)
+live_restore_test_env::source_file_path(const std::string &file_name)
 {
     return _DB_SOURCE + "/" + file_name;
 }

@@ -31,13 +31,11 @@ public:
     std::unique_ptr<connection_wrapper> _conn;
     WT_SESSION_IMPL *_session;
 
-    live_restore_test_env() = delete;
-    live_restore_test_env(bool verbose);
-
+    live_restore_test_env();
     ~live_restore_test_env();
 
-    std::string dest_file_path(std::string file_name);
-    std::string source_file_path(std::string file_name);
+    std::string dest_file_path(const std::string &file_name);
+    std::string source_file_path(const std::string &file_name);
 };
 
 } // namespace utils.

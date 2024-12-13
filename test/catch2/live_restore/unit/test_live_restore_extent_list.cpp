@@ -23,11 +23,10 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
      * section. If this gets slow we can make it static and manually clear the destination and
      * source for each section.
      */
-    live_restore_test_env env(false);
+    live_restore_test_env env;
 
-    WT_LIVE_RESTORE_FS *lr_fs = env._lr_fs;
     WT_SESSION_IMPL *session = env._session;
-    WT_SESSION *wt_session = (WT_SESSION *)session;
+    WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(session);
 
     std::string file_name = "MY_FILE.txt";
     std::string source_file = env.source_file_path(file_name);
@@ -36,8 +35,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
     SECTION("Open a new unbacked file")
     {
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        lr_fs->iface.fs_open_file(&lr_fs->iface, wt_session, dest_file.c_str(),
-          WT_FS_OPEN_FILE_TYPE_REGULAR, 0, (WT_FILE_HANDLE **)&lr_fh);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // There's no backing file in the source directory, so no extent list to track.
         REQUIRE(extent_list_str(lr_fh) == "");
@@ -48,7 +46,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         create_file(source_file.c_str(), 1000);
 
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // We've created a new file in the destination backed by a file in source.
         // We haven't read or written anything so the file is one big hole.
@@ -65,15 +63,15 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         // This creates a destination file also of size 110.
         create_file(source_file.c_str(), 110);
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // Replace the source file with a larger file of size 200 and reopen the destination file to
         // recompute the extent list.
         testutil_remove(source_file.c_str());
         create_file(source_file.c_str(), 200);
 
-        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, wt_session);
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // The extent list is capped at the size of the destination file. It doesn't take the source
         // file size into account.
@@ -90,7 +88,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
 
         // Nothing to copy and therefore no extent list.
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
         REQUIRE(extent_list_str(lr_fh) == "");
     }
 
@@ -100,14 +98,14 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         char buf[4096];
 
         create_file(source_file.c_str(), 8192);
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // Use a promote read to partially copy the file.
-        lr_fh->iface.fh_read((WT_FILE_HANDLE *)lr_fh, wt_session, 0, 4096, buf);
+        lr_fh->iface.fh_read(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session, 0, 4096, buf);
 
         // Close the file and reopen it to generate the extent list from holes in the dest file
-        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, wt_session);
-        open_lr_fh(&env, dest_file.c_str(), &lr_fh);
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // We've written 4KB to the start of the file. There should only be a hole at the end.
         REQUIRE(extent_list_in_order(lr_fh));
