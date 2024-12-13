@@ -81,25 +81,31 @@ errors = [
         result of a system crash. The application may choose to salvage the
         file or retry wiredtiger_open with the 'salvage=true' configuration
         setting.'''),
-    Error('WT_NONE', -32000,
-        'last API call was successful', '''
-        This sub-level error is generated when the API call succeeds. This should be the
-        sub-level error code generated if nothing wrong occurs.'''),
 ]
 
-# Update the #defines in the wiredtiger.in file.
-tmp_file = '__tmp_api_err' + str(os.getpid())
-tfile = open(tmp_file, 'w')
-skip = 0
-for line in open('../src/include/wiredtiger.in', 'r'):
-    if not skip:
-        tfile.write(line)
-    if line.count('Error return section: END'):
+sub_errors = [
+    Error('WT_NONE', -32000,
+    'last API call was successful', '''
+    This is some placeholder code that is used to check if multiple errors work.
+    It should be changed later.'''),
+    Error('CWT_COMPACTION_ALREADY_RUNNING', -32001,
+    "Cannot reconfigure background compaction while it's already running", '''
+    This is some placeholder code that is used to check if multiple errors work.
+    It should be changed later.'''),
+    Error('WT_SESSION_MAX', -32002,
+    "out of sessions, configured for XXX (including internal sessions)", '''
+    This is some placeholder code that is used to check if multiple errors work.
+    It should be changed later.'''),
+]
+
+# Checks if return section begins and updates error defines
+def check_write_errors(skip, tfile, err_type, errors):
+    if line.count(err_type + ' return section: END'):
         tfile.write(line)
         skip = 0
-    elif line.count('Error return section: BEGIN'):
-        tfile.write(' */\n')
+    elif line.count(err_type + ' return section: BEGIN'):
         skip = 1
+        tfile.write(' */\n')
         for err in errors:
             if 'undoc' in err.flags:
                 tfile.write('/*! @cond internal */\n')
@@ -113,8 +119,31 @@ for line in open('../src/include/wiredtiger.in', 'r'):
             if 'undoc' in err.flags:
                 tfile.write('/*! @endcond */\n')
         tfile.write('/*\n')
+    return skip
+
+# Update the #defines in the wiredtiger.in file.
+tmp_file = '__tmp_api_err' + str(os.getpid())
+tfile = open(tmp_file, 'w')
+skip = 0
+for line in open('../src/include/wiredtiger.in', 'r'):
+    if not skip:
+        tfile.write(line)
+    skip = check_write_errors(skip, tfile, 'Error', errors)
+    skip = check_write_errors(skip, tfile, 'Sub-level error', sub_errors)
 tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
+
+def write_err_cases(tfile, err_type, errors):
+    tfile.write('''
+    \t/*
+    \t * Check for WiredTiger specific %s.
+    \t */
+    \tswitch (error) {
+    ''' % err_type)
+    for err in errors:
+        tfile.write('\tcase ' + err.name + ':\n')
+        tfile.write('\t\treturn ("' + err.name + ': ' + err.desc + '");\n')
+    tfile.write('''\t}\n''')
 
 # Output the wiredtiger_strerror and wiredtiger_sterror_r code.
 tmp_file = '__tmp_api_err' + str(os.getpid())
@@ -138,19 +167,12 @@ tfile.write('''/* DO NOT EDIT: automatically built by dist/api_err.py. */
  */
 const char *
 __wt_wiredtiger_error(int error)
-{
-\t/*
-\t * Check for WiredTiger specific errors.
-\t */
-\tswitch (error) {
-''')
+{''')
 
-for err in errors:
-    tfile.write('\tcase ' + err.name + ':\n')
-    tfile.write('\t\treturn ("' + err.name + ': ' + err.desc + '");\n')
-tfile.write('''\t}
+write_err_cases(tfile, 'errors', errors)
+write_err_cases(tfile, 'sub-level errors', sub_errors)
 
-\t/* Windows strerror doesn't support ENOTSUP. */
+tfile.write('''\n\t/* Windows strerror doesn't support ENOTSUP. */
 \tif (error == ENOTSUP)
 \t\treturn ("Operation not supported");
 
@@ -184,6 +206,21 @@ tfile.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
 
+def check_document_errors(tfile, skip, err_type, errors):
+    if line.count(f'IGNORE_BUILT_BY_API_{err_type}_END'):
+        tfile.write(line)
+        skip = 0
+    elif line.count(f'IGNORE_BUILT_BY_API_{err_type}_BEGIN'):
+        tfile.write('@endif\n\n')
+        skip = 1
+        for err in errors:
+            if 'undoc' in err.flags:
+                continue
+            tfile.write(
+                '@par \\c ' + err.name.upper() + '\n' +
+                " ".join(err.long_desc.split()) + '\n\n')
+    return skip
+
 # Update the error documentation block.
 doc = '../src/docs/error-handling.dox'
 tmp_file = '__tmp_api_err' + str(os.getpid())
@@ -192,19 +229,9 @@ skip = 0
 for line in open(doc, 'r'):
     if not skip:
         tfile.write(line)
-    if line.count('IGNORE_BUILT_BY_API_ERR_END'):
-        tfile.write(line)
-        skip = 0
-    elif line.count('IGNORE_BUILT_BY_API_ERR_BEGIN'):
-        tfile.write('@endif\n\n')
-        skip = 1
-
-        for err in errors:
-            if 'undoc' in err.flags:
-                continue
-            tfile.write(
-                '@par \\c ' + err.name.upper() + '\n' +
-                " ".join(err.long_desc.split()) + '\n\n')
+    skip = check_document_errors(tfile, skip, 'ERR', errors)
+    skip = check_document_errors(tfile, skip, 'SUB_ERR', sub_errors)
+    
 tfile.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, doc)

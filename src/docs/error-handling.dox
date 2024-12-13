@@ -80,9 +80,28 @@ This error is generated when corruption is detected in an on-disk file. During n
 this may occur in rare circumstances as a result of a system crash. The application may choose to
 salvage the file or retry wiredtiger_open with the 'salvage=true' configuration setting.
 
+@if IGNORE_BUILT_BY_API_SUB_ERR_END
+@endif
+
+@section sub_error_list WiredTiger-specific sub-level errors
+
+WiredTiger-specific error codes are allocated from -32,000 to -32,199,
+inclusive. The following is a list of the WiredTiger-specific return values:
+
+@if IGNORE_BUILT_BY_API_SUB_ERR_BEGIN
+@endif
+
 @par \c WT_NONE
-This sub-level error is generated when the API call succeeds. This should be the sub-level error
-code generated if nothing wrong occurs.
+This is some placeholder code that is used to check if multiple errors work. It should be changed
+later.
+
+@par \c CWT_COMPACTION_ALREADY_RUNNING
+This is some placeholder code that is used to check if multiple errors work. It should be changed
+later.
+
+@par \c WT_SESSION_MAX
+This is some placeholder code that is used to check if multiple errors work. It should be changed
+later.
 
 @if IGNORE_BUILT_BY_API_ERR_END
 @endif

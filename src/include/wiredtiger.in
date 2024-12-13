@@ -4015,14 +4015,52 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * wiredtiger_open with the 'salvage=true' configuration setting.
  */
 #define	WT_TRY_SALVAGE	(-31809)
-/*!
- * Last API call was successful.
- * This sub-level error is generated when the API call succeeds. This should be
- * the sub-level error code generated if nothing wrong occurs.
- */
-#define	WT_NONE	(-32000)
 /*
  * Error return section: END
+ * DO NOT EDIT: automatically built by dist/api_err.py.
+ */
+/*! @} */
+
+/*******************************************
+ * Sub-level error returns
+ *******************************************/
+/*!
+ * @name Sub-level error returns
+ * Along with error returns, WiredTiger can return an integer code indicating
+ * a more specific error. A return of -32,000 indicates that there is no more
+ * specific error; all other return values indicate a more specific error which
+ * provides greater context into the failure.
+ *
+ * WiredTiger reserves all values from -32,000 to -31,199 as possible sub-level
+ * error return values.
+ *
+ * The following are all of the WiredTiger-specific sub-level error returns:
+ * @{
+ */
+/*
+ * DO NOT EDIT: automatically built by dist/api_err.py.
+ * Sub-level error return section: BEGIN
+ */
+/*!
+ * Last API call was successful.
+ * This is some placeholder code that is used to check if multiple errors work.
+ * It should be changed later.
+ */
+#define	WT_NONE	(-32000)
+/*!
+ * Cannot reconfigure background compaction while it's already running.
+ * This is some placeholder code that is used to check if multiple errors work.
+ * It should be changed later.
+ */
+#define	CWT_COMPACTION_ALREADY_RUNNING	(-32001)
+/*!
+ * Out of sessions, configured for XXX (including internal sessions).
+ * This is some placeholder code that is used to check if multiple errors work.
+ * It should be changed later.
+ */
+#define	WT_SESSION_MAX	(-32002)
+/*
+ * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
  */
 /*! @} */

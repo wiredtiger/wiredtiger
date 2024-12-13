@@ -41,8 +41,21 @@ __wt_wiredtiger_error(int error)
         return ("WT_PREPARE_CONFLICT: conflict with a prepared update");
     case WT_TRY_SALVAGE:
         return ("WT_TRY_SALVAGE: database corruption detected");
+    }
+
+    /*
+     * Check for WiredTiger specific sub-level errors.
+     */
+    switch (error) {
     case WT_NONE:
         return ("WT_NONE: last API call was successful");
+    case CWT_COMPACTION_ALREADY_RUNNING:
+        return (
+          "CWT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
+          "already running");
+    case WT_SESSION_MAX:
+        return (
+          "WT_SESSION_MAX: out of sessions, configured for XXX (including internal sessions)");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */
