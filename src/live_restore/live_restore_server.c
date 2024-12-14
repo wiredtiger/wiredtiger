@@ -132,7 +132,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_BM *bm = CUR2BT(cursor)->bm;
     WT_ASSERT(session, bm->is_multi_handle == false);
 
-    /* This will be replaced with an API call in the future for now it is what we have. */
+    /* FIXME-WT-13897 Replace this with an API call into the block manager. */
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
     /*
