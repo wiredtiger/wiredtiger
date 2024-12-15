@@ -403,6 +403,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      */
     __wt_txn_destroy(session);
 
+    /* Free last error information */
+    __wt_free(session, session->helper_err.err_msg);
+
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
 
@@ -2220,18 +2223,9 @@ __session_get_last_error(WT_SESSION *wt_session, int *err, int *sub_level_err, c
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_HELPER_ERROR sess_helper_err = session->helper_err;
-
-    /* PLACEHOLDER RETURN VALUES */
-    sess_helper_err.err = 0;
-    sess_helper_err.sub_level_err = 0;
-    char *local_err_msg = (char *)malloc(26 * sizeof(char));
-    strcpy(local_err_msg, "Placeholder error message");
-    sess_helper_err.err_msg = local_err_msg;
-
-    *err = sess_helper_err.err;
-    *sub_level_err = sess_helper_err.sub_level_err;
-    *err_msg = sess_helper_err.err_msg;
+    *err = session->helper_err.err;
+    *sub_level_err = session->helper_err.sub_level_err;
+    *err_msg = session->helper_err.err_msg;
 }
 
 /*
@@ -2533,6 +2527,12 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
 
     /* Acquire a session. */
     WT_RET(__open_session(conn, event_handler, config, &session));
+    
+    /* Set the default helper error message */
+    char *init_err_msg;
+    WT_ERR(__wt_malloc(session, 26 * sizeof(char), &init_err_msg));
+    strcpy(init_err_msg, "Placeholder error message");
+    session->helper_err = (WT_HELPER_ERROR) {0, 0, init_err_msg};
 
     /*
      * Acquiring the metadata handle requires the schema lock; we've seen problems in the past where
@@ -2551,6 +2551,13 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
 
     *sessionp = session;
     return (0);
+
+err:
+#ifdef HAVE_DIAGNOSTIC
+    __wt_spin_destroy(session, &session->thread_check.lock);
+#endif
+    __wt_spin_unlock(session, &conn->api_lock);
+    return (ret);
 }
 
 /*

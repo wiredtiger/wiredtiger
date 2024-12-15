@@ -1266,7 +1266,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 
 /* Convert 'int *' to output args for wiredtiger_version */
 %apply int *OUTPUT { int * };
-%cstring_output_allocate(char **, free(*$1));
+%cstring_output_allocate(char **, );
 
 %rename(Cursor) __wt_cursor;
 %rename(Modify) __wt_modify;
