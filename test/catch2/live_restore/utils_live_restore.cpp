@@ -43,10 +43,10 @@ void
 open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
   WT_LIVE_RESTORE_FILE_HANDLE **lr_fhp)
 {
-    WT_LIVE_RESTORE_FS *lr_fs = env._lr_fs;
-    WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env._session);
+    WT_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
+    WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
     // Make sure we're always opening the file in the destination directory.
-    REQUIRE(strncmp(dest_file.c_str(), env._DB_DEST.c_str(), env._DB_DEST.size()) == 0);
+    REQUIRE(strncmp(dest_file.c_str(), env.DB_DEST.c_str(), env.DB_DEST.size()) == 0);
     testutil_check(lr_fs->iface.fs_open_file(reinterpret_cast<WT_FILE_SYSTEM *>(lr_fs), wt_session,
       dest_file.c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, 0,
       reinterpret_cast<WT_FILE_HANDLE **>(lr_fhp)));

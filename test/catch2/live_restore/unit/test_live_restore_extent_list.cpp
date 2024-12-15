@@ -25,7 +25,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
      */
     live_restore_test_env env;
 
-    WT_SESSION_IMPL *session = env._session;
+    WT_SESSION_IMPL *session = env.session;
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(session);
 
     std::string file_name = "MY_FILE.txt";

@@ -23,13 +23,13 @@ namespace utils {
 
 class live_restore_test_env {
 public:
-    const std::string _DB_DEST = "WT_LR_DEST";
-    const std::string _DB_SOURCE = "WT_LR_SOURCE";
-    const std::string _DB_TEMP_BACKUP = "WT_LR_TEMP_BACKUP";
+    const std::string DB_DEST = "WT_LR_DEST";
+    const std::string DB_SOURCE = "WT_LR_SOURCE";
+    const std::string DB_TEMP_BACKUP = "WT_LR_TEMP_BACKUP";
 
-    WT_LIVE_RESTORE_FS *_lr_fs;
-    std::unique_ptr<connection_wrapper> _conn;
-    WT_SESSION_IMPL *_session;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    std::unique_ptr<connection_wrapper> conn;
+    WT_SESSION_IMPL *session;
 
     live_restore_test_env();
     ~live_restore_test_env();
