@@ -805,12 +805,57 @@ err:
 }
 
 /*
+ * __live_restore_handle_smaller_source --
+ *     If the source file is smaller than the destination file make sure the extent list doesn't
+ *     contain holes past the end of the source file.
+ */
+static int
+__live_restore_handle_smaller_source(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name)
+{
+    WT_DECL_RET;
+    WT_FILE_HANDLE *source_fh;
+    bool source_exist;
+
+    source_fh = NULL;
+    source_exist = false;
+
+    WT_ERR_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
+
+    if (source_exist) {
+        wt_off_t source_size, dest_size;
+        char *source_path;
+
+        WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, name, &source_path));
+        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+          source_path, lr_fh->file_type, 0, &source_fh));
+        WT_ERR(lr_fs->os_file_system->fs_size(
+          lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
+
+        __live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &dest_size);
+
+        if (source_size < dest_size)
+            __live_restore_remove_extlist_hole(
+              lr_fh, session, source_size, (size_t)(dest_size - source_size));
+    } else
+        WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
+          "Source file doesn't exist but there are holes in the destination file");
+
+err:
+    if (source_fh != NULL)
+        source_fh->close(source_fh, &session->iface);
+
+    return (ret);
+}
+
+/*
  * __live_restore_fs_open_in_destination --
  *     Open a file handle.
  */
 static int
 __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *session,
-  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint32_t flags, bool create)
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name, uint32_t flags, bool create)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
@@ -832,6 +877,8 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     /* Get the list of holes of the file that need copying across from the source directory. */
     WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
+    WT_ERR(__live_restore_handle_smaller_source(session, lr_fs, lr_fh, name));
+
 err:
     __wt_free(session, path);
     return (ret);
@@ -877,7 +924,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     /* Open it in the destination layer. */
     WT_ERR_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
-    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
+    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(lr_fh, session, &have_tombstone));
     if (have_tombstone) {

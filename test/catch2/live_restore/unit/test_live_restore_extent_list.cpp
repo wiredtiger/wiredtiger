@@ -67,16 +67,40 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
-        // Replace the source file with a larger file of size 200 and reopen the destination file to
-        // recompute the extent list.
+        // Replace the source file with a larger file of size 200 and reopen the destination file
+        // to recompute the extent list.
         testutil_remove(source_file.c_str());
         create_file(source_file.c_str(), 200);
 
         lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
         open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
-        // The extent list is capped at the size of the destination file. It doesn't take the source
-        // file size into account.
+        // The extent list is capped at the size of the destination file. It doesn't take the
+        // source file size into account.
+        REQUIRE(extent_list_in_order(lr_fh));
+        REQUIRE(extent_list_str(lr_fh) == "(0-109)");
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
+    }
+
+    SECTION("The extent list can have holes beyond the end of the source file")
+    {
+        // The following steps aren't a realistic scenario in Live Restore, but it gets
+        // us to the desired test state.
+
+        // Create a source file of size 110 and open the lr_fh to copy that metadata.
+        // This creates a destination file also of size 110.
+        create_file(source_file.c_str(), 110);
+        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
+
+        // Use a positive truncate to increase the size of the destination file to be larger than
+        // the source.
+        testutil_check(truncate(dest_file.c_str(), 200));
+
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
+
+        // The extent list cannot contain holes beyond the end of the source file.
         REQUIRE(extent_list_in_order(lr_fh));
         REQUIRE(extent_list_str(lr_fh) == "(0-109)");
         lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
@@ -101,7 +125,7 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         char buf[4096];
 
-        create_file(source_file.c_str(), 8192);
+        create_file(source_file.c_str(), 32768);
         open_lr_fh(env, dest_file.c_str(), &lr_fh);
 
         // Use a promote read to partially copy the file.
@@ -113,7 +137,16 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
 
         // We've written 4KB to the start of the file. There should only be a hole at the end.
         REQUIRE(extent_list_in_order(lr_fh));
-        REQUIRE(extent_list_str(lr_fh) == "(4096-8191)");
+        REQUIRE(extent_list_str(lr_fh) == "(4096-32767)");
+
+        // Now repeat the process to create an extent list with multiple holes.
+        lr_fh->iface.fh_read(
+          reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session, 8192, 4096, buf);
+        lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
+        open_lr_fh(env, dest_file.c_str(), &lr_fh);
+        REQUIRE(extent_list_in_order(lr_fh));
+        REQUIRE(extent_list_str(lr_fh) == "(4096-8191), (12288-32767)");
+
         lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
     }
 }
