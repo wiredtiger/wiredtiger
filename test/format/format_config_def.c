@@ -99,7 +99,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_CHECKPOINT},
 
-  {"checkpoint.precise", "Precise checkpoint", C_BOOL, 0, 0, 0, V_GLOBAL_CHECKPOINT_PRECISE},
+  {"checkpoint.precise", "Precise checkpoint", C_BOOL, 50, 0, 0, V_GLOBAL_CHECKPOINT_PRECISE},
 
   {"checkpoint.log_size", "MB of log to wait if wiredtiger checkpoints configured", 0x0, 20, 200,
     1024, V_GLOBAL_CHECKPOINT_LOG_SIZE},
