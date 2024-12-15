@@ -16,10 +16,12 @@ static int
 __rec_child_deleted(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_MODIFY_STATE *cmsp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE_DELETED *page_del;
     uint8_t prepare_state;
     bool visible, visible_all;
 
+    conn = S2C(session);
     visible = visible_all = false;
     page_del = ref->page_del;
 
@@ -56,6 +58,9 @@ __rec_child_deleted(
     if (__wt_page_del_committed_set(page_del)) {
         if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
+            if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+              page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
+                visible = false;
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
         } else
             visible = visible_all = __wt_page_del_visible_all(session, page_del, true);

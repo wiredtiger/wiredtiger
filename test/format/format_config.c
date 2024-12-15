@@ -512,6 +512,9 @@ config_run(void)
 
     config_in_memory(); /* Periodically run in-memory. */
 
+    if (GV(OPS_PREPARE) && GV(CHECKPOINT_PRECISE))
+        config_off(NULL, "checkpoint.precise");
+
     tables_apply(config_table, NULL); /* Configure the tables. */
 
     /* TODO: Temporarily disable salvage test due to increased failures. */
