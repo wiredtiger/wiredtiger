@@ -26,21 +26,17 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
         WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
 
         /* Prepare return arguments */
-        int temp1;
-        int temp2;
-        char *temp3;
-        int *err = &temp1;
-        int *sub_level_err = &temp2;
-        char **err_msg = &temp3;
+        int err, sub_level_err;
+        char *err_msg;
 
         /* Call placeholder API */
-        __ut_session_get_last_error(session, err, sub_level_err, (const char **)err_msg);
+        __ut_session_get_last_error(session, &err, &sub_level_err, (const char **)&err_msg);
 
         /* Test the API placeholder returns expected placeholder values */
-        REQUIRE(*err == 0);
-        REQUIRE(*sub_level_err == 0);
-        REQUIRE(strcmp(*err_msg, "Placeholder error message") == 0);
+        REQUIRE(err == 0);
+        REQUIRE(sub_level_err == 0);
+        REQUIRE(strcmp(err_msg, "Placeholder error message") == 0);
 
-        free(*err_msg);
+        free(err_msg);
     }
 }

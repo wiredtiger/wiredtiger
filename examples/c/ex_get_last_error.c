@@ -42,22 +42,18 @@ get_last_error(void)
     error_check(wiredtiger_open(home, NULL, "create", &conn));
 
     /* Prepare return arguments */
-    int temp1;
-    int temp2;
-    char *temp3;
-    int *err = &temp1;
-    int *sub_level_err = &temp2;
-    char **err_msg = &temp3;
+    int err, sub_level_err;
+    char *err_msg;
 
     /* Call the API and log the returned error codes and error message */
     printf("ex_get_last_error: expect verbose information about the last session error:\n");
     error_check(conn->open_session(conn, NULL, NULL, &session));
-    session->get_last_error(session, err, sub_level_err, (const char **)err_msg);
-    printf("Error code: %d\n", *err);
-    printf("Sub-level error code: %d\n", *sub_level_err);
-    printf("Error message: %s\n", *err_msg);
+    session->get_last_error(session, &err, &sub_level_err, (const char **)&err_msg);
+    printf("Error code: %d\n", err);
+    printf("Sub-level error code: %d\n", sub_level_err);
+    printf("Error message: %s\n", err_msg);
 
-    free(*err_msg);
+    free(err_msg);
 
     error_check(conn->close(conn, NULL));
 }
