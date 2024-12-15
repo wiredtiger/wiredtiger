@@ -56,12 +56,18 @@ __rec_child_deleted(
      * setting the page delete structure committed flag cannot overlap with us checking the flag.
      */
     if (__wt_page_del_committed_set(page_del)) {
-        if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
-            visible = __wt_page_del_visible(session, page_del, true);
-            if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+        if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
+            visible = WT_TXNID_LE(page_del->txnid, r->last_running);
+
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
                 visible = false;
-            visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
+        } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+            visible = __wt_page_del_visible(session, page_del, true);
+
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+              page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
+                visible = false;
         } else
             visible = visible_all = __wt_page_del_visible_all(session, page_del, true);
     }
