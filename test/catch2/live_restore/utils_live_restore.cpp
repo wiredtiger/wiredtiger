@@ -31,8 +31,7 @@ extent_list_str(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
     }
 
     // Remove the trailing ", "
-    if (str.size() > 0)
-        str.erase(str.size() - 2);
+    str.erase(str.size() - 2);
 
     return str;
 }
@@ -56,16 +55,13 @@ open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
 bool
 extent_list_in_order(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_LIVE_RESTORE_HOLE_NODE *prev_node, *node;
-    prev_node = nullptr;
+    WT_LIVE_RESTORE_HOLE_NODE *node;
     node = lr_fh->destination.hole_list_head;
-    while (node != nullptr) {
-        if (prev_node != nullptr) {
-            if (prev_node->off >= node->off || WT_EXTENT_END(prev_node) >= node->off) {
-                return false;
-            }
-        }
-        prev_node = node;
+
+    while (node != NULL && node->next != NULL) {
+        if (WT_EXTENT_END(node) >= node->next->off)
+            return false;
+
         node = node->next;
     }
     return true;
@@ -75,7 +71,7 @@ extent_list_in_order(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 void
 create_file(const std::string &filepath, int len)
 {
-    REQUIRE(not testutil_exists(nullptr, filepath.c_str()));
+    REQUIRE(!testutil_exists(nullptr, filepath.c_str()));
     std::ofstream file(filepath, std::ios::out);
     std::string data_str = std::string(len, 'A');
     file << data_str;

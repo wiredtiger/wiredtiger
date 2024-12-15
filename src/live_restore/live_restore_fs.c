@@ -816,6 +816,7 @@ __live_restore_handle_smaller_source(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
     WT_DECL_RET;
     WT_FILE_HANDLE *source_fh;
     bool source_exist;
+    char *source_path = NULL;
 
     source_fh = NULL;
     source_exist = false;
@@ -825,7 +826,6 @@ __live_restore_handle_smaller_source(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
 
     if (source_exist) {
         wt_off_t source_size, dest_size;
-        char *source_path;
 
         WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, name, &source_path));
         WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
@@ -845,6 +845,9 @@ __live_restore_handle_smaller_source(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
 err:
     if (source_fh != NULL)
         source_fh->close(source_fh, &session->iface);
+
+    if (source_path != NULL)
+        __wt_free(session, source_path);
 
     return (ret);
 }
