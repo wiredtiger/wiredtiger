@@ -21,25 +21,24 @@ extent_list_str(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 
     std::string str = "";
 
-    if (ext == NULL) {
-        // NULL is an empty list
+    if (ext == nullptr)
+        // nullptr is an empty list
         return "";
-    }
 
-    while (ext != NULL) {
+    while (ext != nullptr) {
         str += "(" + std::to_string(ext->off) + "-" + std::to_string(WT_EXTENT_END(ext)) + "), ";
         ext = ext->next;
     }
 
     // Remove the trailing ", "
-    if (str.size() > 0) {
+    if (str.size() > 0)
         str.erase(str.size() - 2);
-    }
+
     return str;
 }
 
-/* Open the live restore file handle for a file. This file path is identical to the backing file in
- * the destination folder. */
+// Open the live restore file handle for a file. This file path is identical to the backing file in
+// the destination folder.
 void
 open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
   WT_LIVE_RESTORE_FILE_HANDLE **lr_fhp)
@@ -58,10 +57,10 @@ bool
 extent_list_in_order(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     WT_LIVE_RESTORE_HOLE_NODE *prev_node, *node;
-    prev_node = NULL;
+    prev_node = nullptr;
     node = lr_fh->destination.hole_list_head;
-    while (node != NULL) {
-        if (prev_node != NULL) {
+    while (node != nullptr) {
+        if (prev_node != nullptr) {
             if (prev_node->off >= node->off || WT_EXTENT_END(prev_node) >= node->off) {
                 return false;
             }
@@ -76,7 +75,7 @@ extent_list_in_order(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 void
 create_file(const std::string &filepath, int len)
 {
-    REQUIRE(not testutil_exists(NULL, filepath.c_str()));
+    REQUIRE(not testutil_exists(nullptr, filepath.c_str()));
     std::ofstream file(filepath, std::ios::out);
     std::string data_str = std::string(len, 'A');
     file << data_str;

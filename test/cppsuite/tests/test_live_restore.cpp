@@ -27,6 +27,7 @@
  */
 
 /*
+ * [live_restore]: live_restore_fs.c
  * This file tests WiredTiger's live restore behavior. If called with the -f flag it will populate a
  * test database and place it in a "backup" folder. Subsequent runs that don't have -f will open
  * WiredTiger in live restore mode using the backup folder as the source. It will then perform
