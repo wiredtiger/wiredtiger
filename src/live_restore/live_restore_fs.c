@@ -833,11 +833,11 @@ __live_restore_handle_smaller_source(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
         WT_ERR(lr_fs->os_file_system->fs_size(
           lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
 
-        __live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &dest_size);
+        WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &dest_size));
 
         if (source_size < dest_size)
-            __live_restore_remove_extlist_hole(
-              lr_fh, session, source_size, (size_t)(dest_size - source_size));
+            WT_ERR(__live_restore_remove_extlist_hole(
+              lr_fh, session, source_size, (size_t)(dest_size - source_size)));
     } else
         WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
           "Source file doesn't exist but there are holes in the destination file");
