@@ -581,7 +581,7 @@ __live_restore_fh_read(
 /*
  * __wti_live_restore_fs_fill_holes --
  *     Copy all remaining data from the source to the destination. On completion this means there
- *     are no holes in the destination file's extent list. If we find one promote read the content
+ *     are no holes in the destination file's extent list. If we find one promote-read the content
  *     into the destination.
  *
  * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the

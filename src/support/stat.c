@@ -1772,7 +1772,7 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: session dhandles swept",
   "data-handle: session sweep attempts",
   "live-restore: live restore state",
-  "live-restore: the number of files needed to be visited prior to live restore completion",
+  "live-restore: the number of files remaining for live restore completion",
   "lock: btree page lock acquisitions",
   "lock: btree page lock application thread wait time (usecs)",
   "lock: btree page lock internal thread wait time (usecs)",

@@ -6337,8 +6337,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! live-restore: live restore state */
 #define	WT_STAT_CONN_LIVE_RESTORE_STATE			1434
 /*!
- * live-restore: the number of files needed to be visited prior to live
- * restore completion
+ * live-restore: the number of files remaining for live restore
+ * completion
  */
 #define	WT_STAT_CONN_LIVE_RESTORE_QUEUE_LENGTH		1435
 /*! lock: btree page lock acquisitions */

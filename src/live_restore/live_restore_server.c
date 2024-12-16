@@ -51,9 +51,9 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
 /*
  * __live_restore_work_queue_drain --
- *     Drain the work queue of any remaining items.This is called either on connection close - and
- *     the work will be continued after a restart - or for error handling cleanup in which case
- *     we're about to crash.
+ *     Drain the work queue of any remaining items. This is called either on connection close, and
+ *     the work will be continued after a restart, or for error handling cleanup in which case we're
+ *     about to crash.
  */
 static void
 __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
@@ -61,7 +61,7 @@ __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
 
     /*
-     * All contexts that call this function are singly threaded however we take the lock as that is
+     * All contexts that call this function are single threaded however we take the lock as that is
      * the correct semantic and will future proof the code.
      */
     __wt_spin_lock(session, &server->queue_lock);
@@ -114,8 +114,8 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     /*
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
-     * schema operations like drop and rename. Even if this object is a log file it can have a
-     * cursor opened it. Opening a cursor on a log will prevent it from getting archived.
+     * schema operations like drop. Even if this object is a log file it can have a cursor opened
+     * it. Opening a cursor on a log will prevent it from getting archived.
      *
      * If the file no longer exists, which for logs means they could have been archived and for
      * regular files dropped, don't error out.
@@ -163,25 +163,24 @@ __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
     /*
      * Open a metadata cursor to gather the list of objects. The metadata file is built from the
      * WiredTiger.backup file, during __wt_turtle_init. Thus this function must be run after that
-     * function. I don't know if we have a way of enforcing that.
+     * function.
      */
 
     /*
-     * FIXME-WT-13888: Add logic to queue log files first, then the oplog then the history store.
-     * This will use a directory list call.
+     * FIXME-WT-13888: Add logic to queue log files first, then the history store. This will use a
+     * directory list call.
      */
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
     WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "Initializing the live restore work %s", "queue");
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Initializing the live restore work queue");
 
     *work_count = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         const char *uri = NULL;
         WT_ERR(cursor->get_key(cursor, &uri));
         if (WT_PREFIX_MATCH(uri, "file:")) {
-            __wt_verbose_debug2(
-              session, WT_VERB_FILEOPS, "Adding an item to the work queue %s", uri);
+            __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Adding an %s to the work queue", uri);
             WT_ERR(__wt_calloc_one(session, &work_item));
             WT_ERR(__wt_strdup(session, uri, &work_item->uri));
             TAILQ_INSERT_HEAD(&server->work_queue, work_item, q);
@@ -217,15 +216,15 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
-    /* Read the threads_max config, 0 threads is valid in which case we don't do anything. */
+    /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     if (cval.val == 0)
         return (0);
 
     /*
-     * Set this state before we run the threads, if we do it after there's a chance we'll context
-     * switch and then this state will happen after the finish state. This also means we transition
-     * through all valid states.
+     * Set the in progress state before we run the threads. If we do it after there's a chance we'll
+     * context switch and then this state will happen after the finish state. By setting it here it
+     * also means we transition through all valid states.
      */
     WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
 
@@ -243,27 +242,11 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Create the thread group.
      *
-     * WiredTiger thread groups are very weird, all threads will enter the run loop but unless
-     * WT_THREAD_ACTIVE is set on a given thread it will wait 10 seconds before actually executing
-     * the run func. Then on the next iteration the thread will wait another 10 seconds and then
-     * execute run func. So WT_THREAD_ACTIVE does not mean the thread won't do work. To have
-     * WT_THREAD_ACTIVE set on a thread __wt_thread_group_start_one needs to be called but that is
-     * expected to be called externally. Calling __wt_thread_group_start_one can be thought of as
-     * "starting" the thread. On thread group creation __wt_thread_group_start_one will be called
-     * for min_thread_count number of threads. So to get them all "started" we specify a
-     * min_thread_count equal to our max_thread_count. Alternatively we could loop and "start" them
-     * all ourselves but we cannot guarantee that by the time we call start, after creating the
-     * thread group, the threads haven't terminated themselves.
+     * To force WT_THREAD_ACTIVE to be set on the threads we specify min_thread_count to be equal to
+     * max_thread_count. This will prevent a 10 second wait from occurring per loop iteration.
      *
-     * So in summary there are 3 things of note here:
-     *   - Threads can be active but not started despite this they are always running and calling
-     *     into the run_func, but only every 10 seconds.
-     *   - We terminate threads which is not expected by the thread group. So we can't call
-     *     __wt_thread_group_start_one yet.
-     *   - The thread group code expects whatever subsystem that is using it to scale the number of
-     *     active threads but only eviction actually does this. We plan on doing this in some form
-     *     in the future but for now are short circuiting this weirdness by specifying min_threads
-     *     to be the same as max_threads.
+     * Furthermore because our threads terminate themselves the scaling logic may not be possible
+     * without some adjustments to either the live restore server or the thread group code itself.
      */
     return (__wt_thread_group_create(session, &server->threads, "live_restore_workers",
       (uint32_t)cval.val, (uint32_t)cval.val, 0, __live_restore_worker_check,
@@ -279,7 +262,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
 
-    /* If we didn't create a live restore file system then we also didn't start any threads. */
+    /* If we didn't create a live restore file system there is nothing to do. */
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
