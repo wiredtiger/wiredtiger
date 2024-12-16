@@ -92,16 +92,15 @@ inclusive. The following is a list of the WiredTiger-specific return values:
 @endif
 
 @par \c WT_NONE
-This is some placeholder code that is used to check if multiple errors work. It should be changed
-later.
+This is the default sub-level error code that should be used when there is no sub-level error to
+pair with an error. It indicates that no further context exists or is necessary.
 
 @par \c WT_COMPACTION_ALREADY_RUNNING
-This is some placeholder code that is used to check if multiple errors work. It should be changed
-later.
+This error is generated when the user tries to reconfigure the background compaction while it is
+already running.
 
 @par \c WT_SESSION_MAX
-This is some placeholder code that is used to check if multiple errors work. It should be changed
-later.
+This sub-level error is generated when the user has created the max amount of sessions configured.
 
 @if IGNORE_BUILT_BY_API_ERR_END
 @endif

@@ -27,14 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# wt_util
+# session_api
 # [END_TAGS]
 
 import wttest
 from suite_subprocess import suite_subprocess
 
 # test_strerror01.py
-#     Test generation of sub-level error codes when using calling strerror
+#     Test generation of sub-level error codes when using calling strerror.
 class test_strerror(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_strerror(self):

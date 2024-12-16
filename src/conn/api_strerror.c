@@ -17,9 +17,7 @@
 const char *
 __wt_wiredtiger_error(int error)
 {
-    /*
-     * Check for WiredTiger specific errors.
-     */
+    /* Check for WiredTiger specific errors. */
     switch (error) {
     case WT_ROLLBACK:
         return ("WT_ROLLBACK: conflict between concurrent operations");
@@ -43,9 +41,7 @@ __wt_wiredtiger_error(int error)
         return ("WT_TRY_SALVAGE: database corruption detected");
     }
 
-    /*
-     * Check for WiredTiger specific sub-level errors.
-     */
+    /* Check for WiredTiger specific sub-level errors. */
     switch (error) {
     case WT_NONE:
         return ("WT_NONE: last API call was successful");

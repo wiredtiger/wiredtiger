@@ -86,20 +86,21 @@ errors = [
 sub_errors = [
     Error('WT_NONE', -32000,
     'last API call was successful', '''
-    This is some placeholder code that is used to check if multiple errors work.
-    It should be changed later.'''),
+    This is the default sub-level error code that should be used when there is no
+    sub-level error to pair with an error. It indicates that no further context
+    exists or is necessary.'''),
     Error('WT_COMPACTION_ALREADY_RUNNING', -32001,
     "Cannot reconfigure background compaction while it's already running", '''
-    This is some placeholder code that is used to check if multiple errors work.
-    It should be changed later.'''),
+    This error is generated when the user tries to reconfigure the background
+    compaction while it is already running.'''),
     Error('WT_SESSION_MAX', -32002,
     "out of sessions, configured for XXX (including internal sessions)", '''
-    This is some placeholder code that is used to check if multiple errors work.
-    It should be changed later.'''),
+    This sub-level error is generated when the user has created the max amount of
+    sessions configured.'''),
 ]
 
 # Checks if return section begins and updates error defines
-def check_write_errors(skip, tfile, err_type, errors):
+def check_write_errors(tfile, skip, err_type, errors):
     if line.count(err_type + ' return section: END'):
         tfile.write(line)
         skip = 0
@@ -128,16 +129,14 @@ skip = 0
 for line in open('../src/include/wiredtiger.in', 'r'):
     if not skip:
         tfile.write(line)
-    skip = check_write_errors(skip, tfile, 'Error', errors)
-    skip = check_write_errors(skip, tfile, 'Sub-level error', sub_errors)
+    skip = check_write_errors(tfile, skip, 'Error', errors)
+    skip = check_write_errors(tfile, skip, 'Sub-level error', sub_errors)
 tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 def write_err_cases(tfile, err_type, errors):
     tfile.write('''
-    \t/*
-    \t * Check for WiredTiger specific %s.
-    \t */
+    \t/* Check for WiredTiger specific %s. */
     \tswitch (error) {
     ''' % err_type)
     for err in errors:
