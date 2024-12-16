@@ -404,7 +404,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     __wt_txn_destroy(session);
 
     /* Free last error information */
-    __wt_free(session, session->helper_err.err_msg);
+    __wt_free(session, session->err_info.err_msg);
 
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
@@ -2219,13 +2219,11 @@ __session_get_rollback_reason(WT_SESSION *wt_session)
 static void
 __session_get_last_error(WT_SESSION *wt_session, int *err, int *sub_level_err, const char **err_msg)
 {
-    WT_SESSION_IMPL *session;
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    session = (WT_SESSION_IMPL *)wt_session;
-
-    *err = session->helper_err.err;
-    *sub_level_err = session->helper_err.sub_level_err;
-    *err_msg = session->helper_err.err_msg;
+    *err = session->err_info.err;
+    *sub_level_err = session->err_info.sub_level_err;
+    *err_msg = session->err_info.err_msg;
 }
 
 /*
@@ -2500,11 +2498,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
 
-    /* Set the default helper error */
+    /* Set the default error codes/message */
     char *init_err_msg;
     WT_ERR(__wt_malloc(session_ret, 1 * sizeof(char), &init_err_msg));
     strcpy(init_err_msg, "");
-    session_ret->helper_err = (WT_HELPER_ERROR){0, 0, init_err_msg};
+    session_ret->err_info = (WT_ERROR_INFO){0, 0, init_err_msg};
 
     *sessionp = session_ret;
 

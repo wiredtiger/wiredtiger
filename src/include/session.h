@@ -60,10 +60,10 @@ struct __wt_prefetch {
 };
 
 /*
- * WT_HELPER_ERROR --
+ * WT_ERROR_INFO --
  *  An error structure containing verbose information about an error from a session API call.
  */
-struct __wt_helper_error {
+struct __wt_error_info {
     int err;
     int sub_level_err;
     const char *err_msg;
@@ -215,7 +215,7 @@ struct __wt_session_impl {
     } evict_timeline;
 
     WT_ITEM err; /* Error buffer */
-    WT_HELPER_ERROR helper_err;
+    WT_ERROR_INFO err_info;
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */

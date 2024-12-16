@@ -1978,7 +1978,7 @@ struct __wt_session {
     /*! @} */
 
     /*!
-     * @name Helper errors
+     * @name Error info
      * @{
      */
     /*!

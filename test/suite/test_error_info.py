@@ -29,11 +29,11 @@
 import wiredtiger, wttest, time
 from wtdataset import SimpleDataSet
 
-# test_helper_err.py
+# test_error_info.py
 #   Test that the placeholder get_last_error() session API returns placeholder error values
-class test_helper_err(wttest.WiredTigerTestCase):
+class test_error_info(wttest.WiredTigerTestCase):
 
-    def test_helper_err(self):
+    def test_error_info(self):
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 0)
         self.assertEqual(sub_level_err, 0)
