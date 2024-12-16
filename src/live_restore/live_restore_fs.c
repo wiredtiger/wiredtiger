@@ -12,6 +12,9 @@
 /* This is where basename comes from. */
 #include <libgen.h>
 
+static int __live_restore_fs_directory_list_free(
+  WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
+
 /*
  * __live_restore_fs_backing_filename --
  *     Convert a live restore file path (e..g WT_TEST/WiredTiger.wt) to the actual path of the
@@ -25,9 +28,9 @@ __live_restore_fs_backing_filename(
 {
     WT_DECL_RET;
     size_t len;
-    char *buf, *temp_name;
+    char *buf;
 
-    temp_name = buf = NULL;
+    buf = NULL;
 
     if (__wt_absolute_path(name))
         WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
@@ -35,22 +38,10 @@ __live_restore_fs_backing_filename(
     if (layer->which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_RET(__wt_strdup(session, name, pathp));
     } else {
-        char *filename;
-        /*
-         * On MacOS basename takes a non-const original string. Make a local copy on the off chance
-         * it modifies the string.
-         */
-        WT_ERR(__wt_strdup(session, name, &temp_name));
-        /*
-         * By default the live restore file path is identical to the file in the destination
-         * directory, which will include the destination folder. We need to replace this destination
-         * folder's path with the source directory's path.
-         */
-        filename = basename(temp_name);
         /* +1 for the path separator, +1 for the null terminator. */
-        len = strlen(layer->home) + 1 + strlen(filename) + 1;
+        len = strlen(layer->home) + 1 + strlen(name) + 1;
         WT_ERR(__wt_calloc(session, 1, len, &buf));
-        WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), filename));
+        WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), name));
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_FILEOPS,
@@ -61,7 +52,6 @@ __live_restore_fs_backing_filename(
 err:
         __wt_free(session, buf);
     }
-    __wt_free(session, temp_name);
     return (ret);
 }
 
@@ -169,22 +159,20 @@ err:
  *     Check whether the destination directory contains a tombstone for a given file.
  */
 static int
-__dest_has_tombstone(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, bool *existp)
+__dest_has_tombstone(WT_LIVE_RESTORE_FS *lr_fs, char *name, WT_SESSION_IMPL *session, bool *existp)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_FS *lr_fs;
     char *path_marker;
 
-    lr_fs = lr_fh->destination.back_pointer;
     path_marker = NULL;
 
     WT_ERR(__live_restore_create_tombstone_path(
-      session, lr_fh->destination.fh->name, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+      session, name, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s",
-      lr_fh->destination.fh->name, *existp ? "Y" : "N");
+    __wt_verbose_debug2(
+      session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path_marker);
@@ -246,18 +234,92 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
     return (0);
 }
 
-/*
- * __live_restore_fs_notsup --
- *     Return an error message indicating the given functionality is not supported.
- */
-static int
-__live_restore_fs_notsup(WT_SESSION *wt_session)
-{
-    WT_RET_MSG((WT_SESSION_IMPL *)wt_session, ENOTSUP, "Unsupported fs operation");
-}
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+/*
+ * __live_restore_fs_directory_list_worker --
+ *     The list is a combination of files from the destination and source directories. For
+ *     destination files, exclude any files matching the marker paths. For source files, exclude
+ *     files that are either marked as tombstones or already present in the destination directory.
+ */
+static int
+__live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session,
+  const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp, bool single)
+{
+    WT_DECL_RET;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_SESSION_IMPL *session;
+    size_t dirallocsz;
+    uint32_t count_dest, count_src;
+    char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src;
+    bool dest_exist, have_tombstone;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
+    count_dest = count_src = dirallocsz = 0;
+    *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
+    path_dest = path_src = NULL;
+    dest_exist = have_tombstone = false;
+
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "DIRECTORY LIST %s (single ? %s) : ", directory,
+      single ? "YES" : "NO");
+
+    /* Get files from destination. */
+    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, directory, &path_dest));
+    WT_ERR(lr_fs->os_file_system->fs_directory_list(
+      lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, countp));
+
+    for (namep = dirlist_dest; *namep != NULL; namep++)
+        if (namep != NULL && *namep != NULL &&
+          !(strlen(*namep) >= strlen(".deleted") &&
+            strcmp(*namep + strlen(*namep) - strlen(".deleted"), ".deleted") == 0)) {
+            WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + 1, &entries));
+            WT_ERR(__wt_strdup(session, *namep, &entries[count_dest]));
+            ++count_dest;
+
+            if (single)
+                goto done;
+        }
+
+    /* Get files from source. */
+    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, directory, &path_src));
+    WT_ERR(lr_fs->os_file_system->fs_directory_list(
+      lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, countp));
+
+    for (namep = dirlist_src; *namep != NULL; namep++) {
+        WT_ERR_NOTFOUND_OK(
+          __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, *namep, &dest_exist),
+          true);
+        WT_ERR(__dest_has_tombstone(lr_fs, *namep, session, &have_tombstone));
+
+        if (!dest_exist && !have_tombstone) {
+            WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + count_src + 1, &entries));
+            WT_ERR(__wt_strdup(session, *namep, &entries[count_dest + count_src]));
+            ++count_src;
+        }
+
+        if (single)
+            goto done;
+    }
+
+done:
+err:
+    __wt_free(session, path_dest);
+    __wt_free(session, path_src);
+    if (dirlist_dest != NULL)
+        WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_dest, count_dest));
+    if (dirlist_src != NULL)
+        WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_src, count_src));
+
+    *dirlistp = entries;
+    *countp = count_dest + count_src;
+    if (ret == 0)
+        return (0);
+
+    WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, entries, *countp));
+    return (ret);
+}
+
 /*
  * __live_restore_fs_directory_list --
  *     Get a list of files from a directory.
@@ -266,7 +328,8 @@ static int
 __live_restore_fs_directory_list(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (__live_restore_fs_notsup(wt_session));
+    return (__live_restore_fs_directory_list_worker(
+      fs, wt_session, directory, prefix, dirlistp, countp, false));
 }
 
 /*
@@ -277,7 +340,8 @@ static int
 __live_restore_fs_directory_list_single(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session,
   const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (__live_restore_fs_notsup(wt_session));
+    return (__live_restore_fs_directory_list_worker(
+      fs, wt_session, directory, prefix, dirlistp, countp, true));
 }
 
 /*
@@ -288,7 +352,12 @@ static int
 __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count)
 {
-    return (__live_restore_fs_notsup(wt_session));
+    WT_LIVE_RESTORE_FS *lr_fs;
+
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
+
+    return (lr_fs->os_file_system->fs_directory_list_free(
+      lr_fs->os_file_system, wt_session, dirlist, count));
 }
 #pragma GCC diagnostic pop
 
@@ -884,7 +953,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
     WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
 
-    WT_ERR(__dest_has_tombstone(lr_fh, session, &have_tombstone));
+    WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
