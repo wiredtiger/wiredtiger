@@ -32,9 +32,11 @@
 
 static const char *home;
 
-static void
-get_last_error(void)
+int
+main(int argc, char *argv[])
 {
+    home = example_setup(argc, argv);
+
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
@@ -54,14 +56,6 @@ get_last_error(void)
     printf("Error message: '%s'\n", err_msg);
 
     error_check(conn->close(conn, NULL));
-}
-
-int
-main(int argc, char *argv[])
-{
-    home = example_setup(argc, argv);
-
-    get_last_error();
 
     return (EXIT_SUCCESS);
 }
