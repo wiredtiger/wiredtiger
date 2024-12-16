@@ -22,10 +22,6 @@ mock_session::mock_session(
     _handler_wrap.ms = this;
 
     _session_impl->event_handler = &_handler_wrap.handler;
-
-    char *init_err_msg = (char *)malloc(1 * sizeof(char));
-    strcpy(init_err_msg, "");
-    _session_impl->helper_err = (WT_HELPER_ERROR){0, 0, init_err_msg};
 }
 
 mock_session::~mock_session()
@@ -41,9 +37,6 @@ mock_session::~mock_session()
         if (_session_impl->dhandle->handle != nullptr)
             __wt_free(nullptr, _session_impl->dhandle->handle);
         __wt_free(nullptr, _session_impl->dhandle);
-    }
-    if (_session_impl->helper_err.err_msg != nullptr) {
-        __wt_free(nullptr, _session_impl->helper_err.err_msg);
     }
     // WiredTiger caches any allocated scratch buffer during the lifetime of the test. Free all
     // the memory here.

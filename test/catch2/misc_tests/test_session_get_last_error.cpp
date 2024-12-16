@@ -15,26 +15,32 @@
  * Tests the API for getting verbose information about the last error of the session
  */
 
+static const char *home;
+
 TEST_CASE("Session get last error - test getting verbose info about the last error in the session",
   "[session_get_last_error]")
 {
-    /* Build Mock session, this will automatically create a mock connection. */
-    std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+
+    /* Open a connection to the database, creating it if necessary. */
+    REQUIRE(wiredtiger_open(home, NULL, "create", &conn) == 0);
+    REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
 
     SECTION("Test API placeholder")
     {
-        WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
+        WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
         /* Prepare return arguments */
         int err, sub_level_err;
         char *err_msg;
 
         /* Call placeholder API */
-        __ut_session_get_last_error(session, &err, &sub_level_err, (const char **)&err_msg);
+        __ut_session_get_last_error(session_impl, &err, &sub_level_err, (const char **)&err_msg);
 
         /* Test the API placeholder returns expected placeholder values */
-        REQUIRE(err == 0);
-        REQUIRE(sub_level_err == 0);
-        REQUIRE(strcmp(err_msg, "") == 0);
+        CHECK(err == 0);
+        CHECK(sub_level_err == 0);
+        CHECK(strcmp(err_msg, "") == 0);
     }
 }
