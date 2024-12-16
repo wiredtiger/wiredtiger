@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, glob, time, wiredtiger, wttest
+import os, glob, time, wiredtiger, wttest, filecmp
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -49,16 +49,16 @@ class test_live_restore02(wttest.WiredTigerTestCase):
         return val
 
     def test_live_restore02(self):
-        uri = 'file:live_restore02'
+        uris = ['file:foo', 'file:bar', 'file:cat']
         # Create a data set with a 3 collections to restore on restart.
         # Populate 3 collections
-        ds0 = SimpleDataSet(self, uri + '.O', self.nrows,
+        ds0 = SimpleDataSet(self, uris[0], self.nrows,
           key_format=self.key_format, value_format=self.value_format)
         ds0.populate()
-        ds1 = SimpleDataSet(self, uri + '.1', self.nrows,
+        ds1 = SimpleDataSet(self, uris[1], self.nrows,
           key_format=self.key_format, value_format=self.value_format)
         ds1.populate()
-        ds2 = SimpleDataSet(self, uri + '.2', self.nrows,
+        ds2 = SimpleDataSet(self, uris[2], self.nrows,
           key_format=self.key_format, value_format=self.value_format)
         ds2.populate()
 
@@ -85,3 +85,20 @@ class test_live_restore02(wttest.WiredTigerTestCase):
                 break
             time.sleep(1)
         self.assertEquals(state, 2)
+
+        conn2 = self.setUpConnectionOpen('SOURCE/')
+        session2 = self.setUpSessionOpen(conn2)
+        session = self.setUpSessionOpen(self.conn)
+        # Validate that the collections in source match ours in the destination.
+        for uri in uris:
+            cursor = session.open_cursor(uri)
+            cursor2 = session2.open_cursor(uri)
+            while True:
+                ret = cursor.next()
+                ret2 = cursor2.next()
+                if ret != 0:
+                    self.assertEquals(ret, wiredtiger.WT_NOTFOUND)
+                    self.assertEquals(ret2, wiredtiger.WT_NOTFOUND)
+                    break
+                self.assertEquals(cursor.get_key(), cursor2.get_key())
+                self.assertEquals(cursor.get_value(), cursor2.get_value())
