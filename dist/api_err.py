@@ -7,6 +7,55 @@ import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 from common_functions import filter_if_fast
 
+# Checks if return section begins and updates error defines
+def check_write_errors(tfile, skip, err_type, errors):
+    if line.count(err_type + ' return section: END'):
+        tfile.write(line)
+        skip = 0
+    elif line.count(err_type + ' return section: BEGIN'):
+        skip = 1
+        tfile.write(' */\n')
+        for err in errors:
+            if 'undoc' in err.flags:
+                tfile.write('/*! @cond internal */\n')
+            tfile.write('/*!%s.%s */\n' %
+                (('\n * ' if err.long_desc else ' ') +
+            err.desc[0].upper() + err.desc[1:],
+                ''.join('\n * ' + l for l in textwrap.wrap(
+            textwrap.dedent(err.long_desc).strip(), 77)) +
+        '\n' if err.long_desc else ''))
+            tfile.write('#define\t%s\t(%d)\n' % (err.name, err.value))
+            if 'undoc' in err.flags:
+                tfile.write('/*! @endcond */\n')
+        tfile.write('/*\n')
+    return skip
+
+def write_err_cases(tfile, err_type, errors):
+    tfile.write('''
+    \t/* Check for WiredTiger specific %s. */
+    \tswitch (error) {
+    ''' % err_type)
+    for err in errors:
+        tfile.write('\tcase ' + err.name + ':\n')
+        tfile.write('\t\treturn ("' + err.name + ': ' + err.desc + '");\n')
+    tfile.write('''\t}\n''')
+
+# Checks if lines should be skipped and updates documentation block
+def check_write_document_errors(tfile, skip, err_type, errors):
+    if line.count(f'IGNORE_BUILT_BY_API_{err_type}_END'):
+        tfile.write(line)
+        skip = 0
+    elif line.count(f'IGNORE_BUILT_BY_API_{err_type}_BEGIN'):
+        tfile.write('@endif\n\n')
+        skip = 1
+        for err in errors:
+            if 'undoc' in err.flags:
+                continue
+            tfile.write(
+                '@par \\c ' + err.name.upper() + '\n' +
+                " ".join(err.long_desc.split()) + '\n\n')
+    return skip
+
 if not [f for f in filter_if_fast([
             "../src/conn/api_strerror.c",
             "../src/docs/error-handling.dox",
@@ -99,29 +148,6 @@ sub_errors = [
     sessions configured.'''),
 ]
 
-# Checks if return section begins and updates error defines
-def check_write_errors(tfile, skip, err_type, errors):
-    if line.count(err_type + ' return section: END'):
-        tfile.write(line)
-        skip = 0
-    elif line.count(err_type + ' return section: BEGIN'):
-        skip = 1
-        tfile.write(' */\n')
-        for err in errors:
-            if 'undoc' in err.flags:
-                tfile.write('/*! @cond internal */\n')
-            tfile.write('/*!%s.%s */\n' %
-                (('\n * ' if err.long_desc else ' ') +
-            err.desc[0].upper() + err.desc[1:],
-                ''.join('\n * ' + l for l in textwrap.wrap(
-            textwrap.dedent(err.long_desc).strip(), 77)) +
-        '\n' if err.long_desc else ''))
-            tfile.write('#define\t%s\t(%d)\n' % (err.name, err.value))
-            if 'undoc' in err.flags:
-                tfile.write('/*! @endcond */\n')
-        tfile.write('/*\n')
-    return skip
-
 # Update the #defines in the wiredtiger.in file.
 tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
@@ -133,16 +159,6 @@ for line in open('../src/include/wiredtiger.in', 'r'):
     skip = check_write_errors(tfile, skip, 'Sub-level error', sub_errors)
 tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
-
-def write_err_cases(tfile, err_type, errors):
-    tfile.write('''
-    \t/* Check for WiredTiger specific %s. */
-    \tswitch (error) {
-    ''' % err_type)
-    for err in errors:
-        tfile.write('\tcase ' + err.name + ':\n')
-        tfile.write('\t\treturn ("' + err.name + ': ' + err.desc + '");\n')
-    tfile.write('''\t}\n''')
 
 # Output the wiredtiger_strerror and wiredtiger_sterror_r code.
 tmp_file = '__tmp_api_err' + str(os.getpid())
@@ -204,22 +220,6 @@ wiredtiger_strerror(int error)
 tfile.close()
 format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
-
-# Checks if lines should be skipped and updates documentation block
-def check_write_document_errors(tfile, skip, err_type, errors):
-    if line.count(f'IGNORE_BUILT_BY_API_{err_type}_END'):
-        tfile.write(line)
-        skip = 0
-    elif line.count(f'IGNORE_BUILT_BY_API_{err_type}_BEGIN'):
-        tfile.write('@endif\n\n')
-        skip = 1
-        for err in errors:
-            if 'undoc' in err.flags:
-                continue
-            tfile.write(
-                '@par \\c ' + err.name.upper() + '\n' +
-                " ".join(err.long_desc.split()) + '\n\n')
-    return skip
 
 # Update the error documentation block.
 doc = '../src/docs/error-handling.dox'
