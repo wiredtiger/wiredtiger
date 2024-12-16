@@ -33,10 +33,10 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
 
         /* Prepare return arguments */
         int err, sub_level_err;
-        char *err_msg;
+        const char *err_msg;
 
         /* Call placeholder API */
-        __ut_session_get_last_error(session_impl, &err, &sub_level_err, (const char **)&err_msg);
+        __ut_session_get_last_error(session_impl, &err, &sub_level_err, &err_msg);
 
         /* Test the API placeholder returns expected placeholder values */
         CHECK(err == 0);
