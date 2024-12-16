@@ -72,14 +72,14 @@ class test_checkpoint34(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[ds.key(i)] = value_a
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts)}')
+            self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
             ts += 1
-            self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts-1)}')
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
 
         self.reopen_conn()
 
-        # Do a fast truncate.
+        # Do an unstable fast truncate.
         ts = ts + 1
         truncate_session = self.conn.open_session()
         truncate_session.begin_transaction()

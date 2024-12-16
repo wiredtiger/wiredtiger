@@ -59,6 +59,12 @@ __rec_child_deleted(
         if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
             visible = WT_TXNID_LE(page_del->txnid, r->last_running);
 
+            if (visible) {
+                WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, page_del->prepare_state);
+                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+                    visible = false;
+            }
+
             if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
                 visible = false;
