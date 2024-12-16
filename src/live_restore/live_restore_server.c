@@ -180,14 +180,16 @@ __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
     WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Initializing the live restore work queue");
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "%s", "Live restore server: Initializing the work queue");
 
     *work_count = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         const char *uri = NULL;
         WT_ERR(cursor->get_key(cursor, &uri));
         if (WT_PREFIX_MATCH(uri, "file:")) {
-            __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Adding an %s to the work queue", uri);
+            __wt_verbose_debug2(
+              session, WT_VERB_FILEOPS, "Live restore server: Adding an %s to the work queue", uri);
             WT_ERR(__wt_calloc_one(session, &work_item));
             WT_ERR(__wt_strdup(session, uri, &work_item->uri));
             TAILQ_INSERT_HEAD(&server->work_queue, work_item, q);
