@@ -2532,7 +2532,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     char *init_err_msg;
     WT_ERR(__wt_malloc(session, 26 * sizeof(char), &init_err_msg));
     strcpy(init_err_msg, "Placeholder error message");
-    session->helper_err = (WT_HELPER_ERROR) {0, 0, init_err_msg};
+    session->helper_err = (WT_HELPER_ERROR){0, 0, init_err_msg};
 
     /*
      * Acquiring the metadata handle requires the schema lock; we've seen problems in the past where

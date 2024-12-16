@@ -26,7 +26,6 @@ mock_session::mock_session(
     char *init_err_msg = (char *)malloc(26 * sizeof(char));
     strcpy(init_err_msg, "Placeholder error message");
     session->helper_err = (WT_HELPER_ERROR){0, 0, init_err_msg};
-
 }
 
 mock_session::~mock_session()
