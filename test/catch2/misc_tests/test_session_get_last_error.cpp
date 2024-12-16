@@ -35,6 +35,6 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
         /* Test the API placeholder returns expected placeholder values */
         REQUIRE(err == 0);
         REQUIRE(sub_level_err == 0);
-        REQUIRE(strcmp(err_msg, "Placeholder error message") == 0);
+        REQUIRE(strcmp(err_msg, "") == 0);
     }
 }

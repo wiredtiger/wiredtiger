@@ -37,4 +37,4 @@ class test_helper_err(wttest.WiredTigerTestCase):
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 0)
         self.assertEqual(sub_level_err, 0)
-        self.assertEqual(err_msg, "Placeholder error message")
+        self.assertEqual(err_msg, "")
