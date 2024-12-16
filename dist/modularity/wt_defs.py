@@ -17,6 +17,7 @@ modules = [
     Module("evict", fileAliases=["cache"]),
     Module("history", sourceAliases = ["hs"]),
     Module("log"),
+    Module("lsm", sourceAliases=["clsm"]),
     Module("meta", sourceAliases=["metadata"]),
     Module("optrack"),
     # Module("os", fileAliases = ["os_common", "os_darwin", "os_linux", "os_posix", "os_win"]),
