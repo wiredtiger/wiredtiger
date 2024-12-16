@@ -36,7 +36,5 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
         REQUIRE(err == 0);
         REQUIRE(sub_level_err == 0);
         REQUIRE(strcmp(err_msg, "Placeholder error message") == 0);
-
-        free(err_msg);
     }
 }

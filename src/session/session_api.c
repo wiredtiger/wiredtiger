@@ -2527,8 +2527,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
 
     /* Acquire a session. */
     WT_RET(__open_session(conn, event_handler, config, &session));
-    
-    /* Set the default helper error message */
+
+    /* Set the default helper error */
     char *init_err_msg;
     WT_ERR(__wt_malloc(session, 26 * sizeof(char), &init_err_msg));
     strcpy(init_err_msg, "Placeholder error message");
