@@ -43,11 +43,11 @@ main(int argc, char *argv[])
     /* Open a connection to the database, creating it if necessary. */
     error_check(wiredtiger_open(home, NULL, "create", &conn));
 
-    /* Prepare return arguments */
+    /* Prepare return arguments. */
     int err, sub_level_err;
     const char *err_msg;
 
-    /* Call the API and log the returned error codes and error message */
+    /* Call the API and log the returned error codes and error message. */
     printf("ex_get_last_error: expect verbose information about the last session error:\n");
     error_check(conn->open_session(conn, NULL, NULL, &session));
     session->get_last_error(session, &err, &sub_level_err, &err_msg);

@@ -12,7 +12,7 @@
 
 /*
  * [session_get_last_error]: test_session_get_last_error.cpp
- * Tests the API for getting verbose information about the last error of the session
+ * Tests the API for getting verbose information about the last error of the session.
  */
 
 static const char *home;

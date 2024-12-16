@@ -403,7 +403,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      */
     __wt_txn_destroy(session);
 
-    /* Free last error information */
+    /* Free the last stored error information. */
     __wt_free(session, session->err_info.err_msg);
 
     /* Decrement the count of open sessions. */
@@ -2498,7 +2498,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
 
-    /* Set the default error codes/message */
+    /* Set the default error codes and message. */
     char *init_err_msg;
     WT_ERR(__wt_malloc(session_ret, sizeof(WT_SESSION_DEFAULT_ERR_MSG), &init_err_msg));
     strcpy(init_err_msg, WT_SESSION_DEFAULT_ERR_MSG);
