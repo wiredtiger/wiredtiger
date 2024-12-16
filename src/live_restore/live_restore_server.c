@@ -217,17 +217,17 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
+    /* Read the threads_max config, 0 threads is valid in which case we don't do anything. */
+    WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+    if (cval.val == 0)
+        return (0);
+
     /*
      * Set this state before we run the threads, if we do it after there's a chance we'll context
      * switch and then this state will happen after the finish state. This also means we transition
      * through all valid states.
      */
     WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
-
-    /* Read the threads_max config, 0 threads is valid in which case we don't do anything. */
-    WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
-    if (cval.val == 0)
-        return (0);
 
     /*
      * Even if we start from an empty database the history store file will exist before we get here
