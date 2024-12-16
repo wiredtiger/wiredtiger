@@ -13,7 +13,7 @@ import layercparse as lcp
 from layercparse.scan_sources_tool import commandline, scan_sources_main
 
 def load_wt_defs(rootPath):
-    wt_defs_path = os.path.join(rootPath, 'dist', 'access_check', 'wt_defs.py')
+    wt_defs_path = os.path.join(rootPath, 'dist', 'modularity', 'wt_defs.py')
     with open(wt_defs_path, "r") as f:
         code = f.read()
     wt_defs = {}
