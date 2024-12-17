@@ -4048,18 +4048,6 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * exists or is necessary.
  */
 #define	WT_NONE	(-32000)
-/*!
- * Cannot reconfigure background compaction while it's already running.
- * This error is generated when the user tries to reconfigure the background
- * compaction while it is already running.
- */
-#define	WT_COMPACTION_ALREADY_RUNNING	(-32001)
-/*!
- * Out of sessions (including internal sessions).
- * This sub-level error is generated when the user has created the max amount of
- * sessions configured.
- */
-#define	WT_SESSION_MAX	(-32002)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

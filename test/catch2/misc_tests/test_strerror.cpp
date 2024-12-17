@@ -21,17 +21,4 @@ TEST_CASE("Test generation of sub-level error codes when strerror is called")
 {
     /* Basic default sub-level error code */
     check_error_code(-32000, "WT_NONE: last API call was successful");
-
-    SECTION("Unique sub-level error codes")
-    {
-        std::vector<std::pair<int, std::string>> errors = {
-          {-32001,
-            "WT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
-            "already running"},
-          {-32002, "WT_SESSION_MAX: out of sessions (including internal sessions)"},
-        };
-
-        for (auto const [code, expected] : errors)
-            check_error_code(code, expected);
-    }
 }
