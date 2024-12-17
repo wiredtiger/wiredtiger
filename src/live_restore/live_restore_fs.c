@@ -17,31 +17,42 @@ static int __live_restore_fs_directory_list_free(
 
 /*
  * __live_restore_fs_backing_filename --
- *     Convert a live restore file path (e..g WT_TEST/WiredTiger.wt) to the actual path of the
- *     backing file. This can be the file in the destination directory (which is identical to the
- *     live restore path), or the file in the source directory. The function allocates memory for
- *     the path string and expects the caller to free it.
+ *     Convert a live restore file/directory path (e..g WT_TEST/WiredTiger.wt) to the actual path of
+ *     the backing file/directory. This can be the file in the destination directory (which is
+ *     identical to the live restore path), or the file in the source directory. The function
+ *     allocates memory for the path string and expects the caller to free it.
+ *     If name is an absolute path, it will always be in format
+ *     "/absolute_prefix/dest_home/relative_path", otherwise name always begins with dest_home (e..g
+ *     dest_home/relative_path). The function returns path in format "layer->home/relative_path".
  */
 static int
-__live_restore_fs_backing_filename(
-  WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_IMPL *session, const char *name, char **pathp)
+__live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_IMPL *session,
+  const char *dest_home, const char *name, char **pathp)
 {
     WT_DECL_RET;
     size_t len;
-    char *buf;
+    char *buf, *filename, *temp_name;
 
-    buf = NULL;
+    buf = filename = temp_name = NULL;
+    WT_RET(__wt_strdup(session, name, &temp_name));
 
-    if (__wt_absolute_path(name))
-        WT_RET_MSG(session, EINVAL, "Not a relative pathname: %s", name);
+    /* Name must contain dest_home. */
+    filename = strstr(temp_name, dest_home);
 
     if (layer->which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
-        WT_RET(__wt_strdup(session, name, pathp));
+        WT_RET(__wt_strdup(session, filename, pathp));
     } else {
-        /* +1 for the path separator, +1 for the null terminator. */
-        len = strlen(layer->home) + 1 + strlen(name) + 1;
+        /*
+         * By default the live restore file path is identical to the file in the destination
+         * directory, which will include the destination folder. We need to replace this destination
+         * folder's path with the source directory's path.
+         */
+        filename += strlen(dest_home);
+
+        /* +1 for the null terminator. */
+        len = strlen(layer->home) + strlen(filename) + 1;
         WT_ERR(__wt_calloc(session, 1, len, &buf));
-        WT_ERR(__wt_snprintf(buf, len, "%s%s%s", layer->home, __wt_path_separator(), name));
+        WT_ERR(__wt_snprintf(buf, len, "%s%s", layer->home, filename));
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_FILEOPS,
@@ -52,6 +63,7 @@ __live_restore_fs_backing_filename(
 err:
         __wt_free(session, buf);
     }
+    __wt_free(session, temp_name);
     return (ret);
 }
 
@@ -133,7 +145,8 @@ __live_restore_fs_create_tombstone(
     lr_fs = (WT_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     WT_ERR(__live_restore_create_tombstone_path(
       session, path, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
 
@@ -192,7 +205,8 @@ __live_restore_fs_has_file(WT_LIVE_RESTORE_FS *lr_fs, WT_LIVE_RESTORE_FS_LAYER *
 
     path = NULL;
 
-    WT_ERR(__live_restore_fs_backing_filename(layer, session, name, &path));
+    WT_ERR(
+      __live_restore_fs_backing_filename(layer, session, lr_fs->destination.home, name, &path));
     WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, &session->iface, path, existsp));
 err:
     __wt_free(session, path);
@@ -265,7 +279,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       single ? "YES" : "NO");
 
     /* Get files from destination. */
-    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, directory, &path_dest));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, directory, &path_dest));
     WT_ERR(lr_fs->os_file_system->fs_directory_list(
       lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, countp));
 
@@ -282,7 +297,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
         }
 
     /* Get files from source. */
-    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, directory, &path_src));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->source, session, lr_fs->destination.home, directory, &path_src));
     WT_ERR(lr_fs->os_file_system->fs_directory_list(
       lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, countp));
 
@@ -811,7 +827,8 @@ __live_restore_fs_open_in_source(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *ses
     FLD_CLR(flags, WT_FS_OPEN_CREATE);
 
     /* Open the file in the layer. */
-    WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, lr_fh->iface.name, &path));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->source, session, lr_fs->destination.home, lr_fh->iface.name, &path));
     WT_ERR(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
 
@@ -896,8 +913,8 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
         flags |= WT_FS_OPEN_CREATE;
 
     /* Open the file in the layer. */
-    WT_ERR(
-      __live_restore_fs_backing_filename(&lr_fs->destination, session, lr_fh->iface.name, &path));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, lr_fh->iface.name, &path));
     WT_ERR(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
     lr_fh->destination.fh = fh;
@@ -943,6 +960,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     /* Set up the file handle. */
     WT_ERR(__wt_calloc_one(session, &lr_fh));
     WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Zunyi file Name %s, %s\n", lr_fh->iface.name, name);
     lr_fh->iface.file_system = fs;
     lr_fh->file_type = file_type;
 
@@ -954,6 +973,10 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
+
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Zunyi %s, %s\n", lr_fs->source.home, lr_fs->destination.home);
+
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
@@ -1065,7 +1088,8 @@ __live_restore_fs_remove(
      * these cases we only need to create the tombstone.
      */
     if (layer == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
-        WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
+        WT_ERR(__live_restore_fs_backing_filename(
+          &lr_fs->destination, session, lr_fs->destination.home, name, &path));
         lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags);
     }
 
@@ -1115,8 +1139,10 @@ __live_restore_fs_rename(
         return (ENOENT);
 
     if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
-        WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, from, &path_from));
-        WT_ERR(__live_restore_fs_backing_filename(&lr_fs->destination, session, to, &path_to));
+        WT_ERR(__live_restore_fs_backing_filename(
+          &lr_fs->destination, session, lr_fs->destination.home, from, &path_from));
+        WT_ERR(__live_restore_fs_backing_filename(
+          &lr_fs->destination, session, lr_fs->destination.home, to, &path_to));
         WT_ERR(lr_fs->os_file_system->fs_rename(
           lr_fs->os_file_system, wt_session, path_from, path_to, flags));
     }
@@ -1158,7 +1184,8 @@ __live_restore_fs_size(
 
     /* The file will always exist in the destination. This the is authoritative file size. */
     WT_ASSERT(session, which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION);
-    WT_RET(__live_restore_fs_backing_filename(&lr_fs->destination, session, name, &path));
+    WT_RET(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     ret = lr_fs->os_file_system->fs_size(lr_fs->os_file_system, wt_session, path, sizep);
 
     __wt_free(session, path);
