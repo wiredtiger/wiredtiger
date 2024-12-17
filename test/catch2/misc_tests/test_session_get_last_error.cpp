@@ -29,14 +29,12 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
 
     SECTION("Test API placeholder")
     {
-        WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
-
         /* Prepare return arguments. */
         int err, sub_level_err;
         const char *err_msg;
 
         /* Call the placeholder API. */
-        __ut_session_get_last_error(session_impl, &err, &sub_level_err, &err_msg);
+        session->get_last_error(session, &err, &sub_level_err, &err_msg);
 
         /* Test that the API returns expected placeholder values. */
         CHECK(err == 0);

@@ -2586,11 +2586,4 @@ __ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
 {
     return (__session_config_int(session, config));
 }
-
-void
-__ut_session_get_last_error(
-  WT_SESSION_IMPL *session, int *err, int *sub_level_err, const char **err_msg)
-{
-    __session_get_last_error((WT_SESSION *)session, err, sub_level_err, err_msg);
-}
 #endif
