@@ -4031,7 +4031,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * specific error; all other return values indicate a more specific error which
  * provides greater context into the failure.
  *
- * WiredTiger reserves all values from -32,000 to -31,199 as possible sub-level
+ * WiredTiger reserves all values from -32,000 to -32,199 as possible sub-level
  * error return values.
  *
  * The following are all of the WiredTiger-specific sub-level error returns:
