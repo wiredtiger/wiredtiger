@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, glob, time, wiredtiger, wttest, filecmp
+import os, glob, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -86,6 +86,7 @@ class test_live_restore02(wttest.WiredTigerTestCase):
         while (iteration_count < timeout):
             state = self.get_stat(stat.conn.live_restore_state)
             self.pr("Looping until finish, live restore state is: " + str(state))
+            # State 2 means the live restore has completed.
             if (state == 2):
                 break
             time.sleep(1)
