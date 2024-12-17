@@ -5334,8 +5334,6 @@ buildvariants:
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: static-wt-build-test
-    - name: linux-directio
-      distros: ubuntu2004-build
     - name: format-smoke-test
     - name: ".data-validation-stress-test"
     - name: catch2-test
