@@ -80,6 +80,8 @@ __endian_check(void)
     return (EINVAL);
 }
 
+#if defined(__amd64) || defined(__aarch64__)
+
 /*
  * __reset_thread_tick --
  *     Reset the OS thread timeslice to raise the probability of uninterrupted run afterwards.
@@ -142,7 +144,7 @@ __reset_thread_tick(void)
  *     Get the current time and TSC ticks before and after the call to __wt_epoch. Returns the
  *     duration of the call in TSC ticks.
  */
-static WT_INLINE uint64_t
+static uint64_t
 __get_epoch_and_tsc(struct timespec *clock1, uint64_t *tsc1, uint64_t *tsc2)
 {
     *tsc1 = __wt_rdtsc();
@@ -242,13 +244,6 @@ static void
 __global_calibrate_ticks(void)
 {
     /*
-     * Default to using __wt_epoch until we have a good value for the ratio.
-     */
-    __wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
-    __wt_process.use_epochtime = true;
-
-#if defined(__amd64) || defined(__aarch64__)
-    /*
      * Here we aim to get two time measurements from __wt_epoch and rdtsc that are obtained nearly
      * simultaneously. To ensure these probes are taken almost at the same time, we first determine
      * minimum and median invocation time for __wt_epoch in __get_epoch_call_ticks. This is later
@@ -266,43 +261,60 @@ __global_calibrate_ticks(void)
      * simultaneously. Finally, we subtract the difference between the "good" measures for each
      * timing strategy and obtain their ratio.
      */
-    {
-        uint64_t epoch_ticks_min, epoch_ticks_avg, tsc_start, tsc_stop;
-        struct timespec clock_start, clock_stop;
+    uint64_t epoch_ticks_min, epoch_ticks_avg, tsc_start, tsc_stop;
+    struct timespec clock_start, clock_stop;
 
-        __get_epoch_call_ticks(&epoch_ticks_min, &epoch_ticks_avg);
+    __get_epoch_call_ticks(&epoch_ticks_min, &epoch_ticks_avg);
 
-        if (!__get_epoch_and_ticks(&clock_start, &tsc_start, epoch_ticks_min, epoch_ticks_avg))
-            return;
+    if (!__get_epoch_and_ticks(&clock_start, &tsc_start, epoch_ticks_min, epoch_ticks_avg))
+        return;
 
-        __wt_sleep(0, CLOCK_CALIBRATE_USEC);
+    __wt_sleep(0, CLOCK_CALIBRATE_USEC);
 
-        if (!__get_epoch_and_ticks(&clock_stop, &tsc_stop, epoch_ticks_min, epoch_ticks_avg))
-            return;
+    if (!__get_epoch_and_ticks(&clock_stop, &tsc_stop, epoch_ticks_min, epoch_ticks_avg))
+        return;
 
-        uint64_t diff_nsec = WT_TIMEDIFF_NS(clock_stop, clock_start);
-        uint64_t diff_tsc = tsc_stop - tsc_start;
+    uint64_t diff_nsec = WT_TIMEDIFF_NS(clock_stop, clock_start);
+    uint64_t diff_tsc = tsc_stop - tsc_start;
 
 #define CLOCK_MIN_DIFF_NSEC 10
 #define CLOCK_MIN_DIFF_TSC 10
 
-        /*
-         * Further improvement: check that diff_tsc is "much" (100-1000 times) bigger than
-         * epoch_ticks_avg and run additional cycles if needed.
-         */
+    /*
+     * Further improvement: check that diff_tsc is "much" (100-1000 times) bigger than
+     * epoch_ticks_avg and run additional cycles if needed.
+     */
 
-        if (diff_nsec < CLOCK_MIN_DIFF_NSEC || diff_tsc < CLOCK_MIN_DIFF_TSC)
-            /* Too short to be meaningful or not enough granularity. */
-            return;
+    if (diff_nsec < CLOCK_MIN_DIFF_NSEC || diff_tsc < CLOCK_MIN_DIFF_TSC)
+        /* Too short to be meaningful or not enough granularity. */
+        return;
 
-        double ratio = (double)diff_tsc / (double)diff_nsec;
-        if (ratio <= DBL_EPSILON)
-            /* Too small to be meaningful. */
-            return;
+    double ratio = (double)diff_tsc / (double)diff_nsec;
+    if (ratio <= DBL_EPSILON)
+        /* Too small to be meaningful. */
+        return;
 
-        __wt_process.tsc_nsec_ratio = ratio;
-        __wt_process.use_epochtime = false;
-    }
+    __wt_process.tsc_nsec_ratio = ratio;
+    __wt_process.use_epochtime = false;
+}
+
+#endif
+
+/*
+ * __global_setup_clock --
+ *     Set up variables for __wt_clock().
+ */
+static void
+__global_setup_clock(void)
+{
+    /*
+     * Default to using __wt_epoch until we have a good value for the ratio.
+     */
+    __wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
+    __wt_process.use_epochtime = true;
+
+#if defined(__amd64) || defined(__aarch64__)
+    __global_calibrate_ticks();
 #endif
 }
 
@@ -329,7 +341,7 @@ __global_once(void)
     __wt_process.checksum = wiredtiger_crc32c_func();
     __wt_process.checksum_with_seed = wiredtiger_crc32c_with_seed_func();
 
-    __global_calibrate_ticks();
+    __global_setup_clock();
 
     /* Run-time configuration. */
 #ifdef WT_STANDALONE_BUILD
