@@ -20,10 +20,10 @@ static int __live_restore_fs_directory_list_free(
  *     Convert a live restore file/directory path (e..g WT_TEST/WiredTiger.wt) to the actual path of
  *     the backing file/directory. This can be the file in the destination directory (which is
  *     identical to the live restore path), or the file in the source directory. The function
- *     allocates memory for the path string and expects the caller to free it.
- *     If name is an absolute path, it will always be in format
- *     "/absolute_prefix/dest_home/relative_path", otherwise name always begins with dest_home (e..g
- *     dest_home/relative_path). The function returns path in format "layer->home/relative_path".
+ *     allocates memory for the path string and expects the caller to free it. If name is an
+ *     absolute path, it will always be in format "/absolute_prefix/dest_home/relative_path",
+ *     otherwise name always begins with dest_home (e..g dest_home/relative_path). The function
+ *     returns path in format "layer->home/relative_path".
  */
 static int
 __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_IMPL *session,
@@ -960,8 +960,6 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     /* Set up the file handle. */
     WT_ERR(__wt_calloc_one(session, &lr_fh));
     WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "Zunyi file Name %s, %s\n", lr_fh->iface.name, name);
     lr_fh->iface.file_system = fs;
     lr_fh->file_type = file_type;
 
@@ -973,10 +971,6 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
-
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "Zunyi %s, %s\n", lr_fs->source.home, lr_fs->destination.home);
-
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
