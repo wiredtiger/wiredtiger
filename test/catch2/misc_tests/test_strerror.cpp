@@ -10,28 +10,29 @@
 #include "wt_internal.h"
 #include <string>
 
+static void
+check_error_code(int error, std::string expected)
+{
+    std::string result = wiredtiger_strerror(error);
+    CHECK(result == expected);
+}
+
 TEST_CASE("Test generation of sub-level error codes when strerror is called")
 {
     /* Basic default sub-level error code */
-    std::string result = wiredtiger_strerror(-32000);
-    std::string expected("WT_NONE: last API call was successful");
-    CHECK(result == expected);
+    check_error_code(-32000, "WT_NONE: last API call was successful");
 
     SECTION("Unique sub-level error codes")
     {
-        CHECK(true);
-        /*
-        WT_COMPACTION_ALREADY_RUNNING
-        WT_SESSION_MAX
-        WT_CACHE_OVERFLOW
-        WT_WRITE_CONFLICT
-        WT_OLDEST_FOR_EVICTION
-        WT_CONFLICT_BACKUP
-        WT_CONFLICT_DHANDLE
-        WT_CONFLICT_SCHEMA_LOCK
-        WT_UNCOMMITTED_DATA
-        WT_DIRTY_DATA
-        WT_CONFLICT_TABLE_LOCK
-        */
+        std::vector<std::pair<int, std::string>> errors = {
+          {-32001,
+            "WT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
+            "already running"},
+          {-32002,
+            "WT_SESSION_MAX: out of sessions, configured for XXX (including internal sessions)"},
+        };
+
+        for (auto const [code, expected] : errors)
+            check_error_code(code, expected);
     }
 }
