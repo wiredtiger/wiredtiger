@@ -143,7 +143,7 @@ sub_errors = [
         This error is generated when the user tries to reconfigure the background
         compaction while it is already running.'''),
     Error('WT_SESSION_MAX', -32002,
-        "out of sessions, configured for XXX (including internal sessions)", '''
+        "out of sessions (including internal sessions)", '''
         This sub-level error is generated when the user has created the max amount of
         sessions configured.'''),
 ]

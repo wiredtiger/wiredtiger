@@ -50,8 +50,7 @@ __wt_wiredtiger_error(int error)
           "WT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
           "already running");
     case WT_SESSION_MAX:
-        return (
-          "WT_SESSION_MAX: out of sessions, configured for XXX (including internal sessions)");
+        return ("WT_SESSION_MAX: out of sessions (including internal sessions)");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

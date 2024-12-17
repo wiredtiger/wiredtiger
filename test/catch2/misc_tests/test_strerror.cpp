@@ -28,8 +28,7 @@ TEST_CASE("Test generation of sub-level error codes when strerror is called")
           {-32001,
             "WT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's "
             "already running"},
-          {-32002,
-            "WT_SESSION_MAX: out of sessions, configured for XXX (including internal sessions)"},
+          {-32002, "WT_SESSION_MAX: out of sessions (including internal sessions)"},
         };
 
         for (auto const [code, expected] : errors)

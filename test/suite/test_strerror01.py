@@ -40,4 +40,4 @@ class test_strerror(wttest.WiredTigerTestCase, suite_subprocess):
     def test_strerror(self):
         assert self.session.strerror(-32000) == "WT_NONE: last API call was successful"
         assert self.session.strerror(-32001) == "WT_COMPACTION_ALREADY_RUNNING: Cannot reconfigure background compaction while it's already running"
-        assert self.session.strerror(-32002) == "WT_SESSION_MAX: out of sessions, configured for XXX (including internal sessions)"
+        assert self.session.strerror(-32002) == "WT_SESSION_MAX: out of sessions (including internal sessions)"

@@ -4055,7 +4055,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  */
 #define	WT_COMPACTION_ALREADY_RUNNING	(-32001)
 /*!
- * Out of sessions, configured for XXX (including internal sessions).
+ * Out of sessions (including internal sessions).
  * This sub-level error is generated when the user has created the max amount of
  * sessions configured.
  */
