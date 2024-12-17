@@ -741,6 +741,10 @@ config_cache(void)
     cache = table_sumv(V_TABLE_BTREE_MEMORY_PAGE_MAX); /* in MB units, no conversion to cache */
     cache *= workers;
     cache *= 2;
+
+    if (GV(CHECKPOINT_PRECISE))
+        cache *= 2;
+
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
